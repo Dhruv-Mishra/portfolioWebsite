@@ -23,7 +23,7 @@ export default function Navigation() {
     const pathname = usePathname();
 
     return (
-        <nav className="fixed top-0 right-12 z-50 flex gap-4 perspective-[500px]">
+        <nav className="fixed top-0 right-2 md:right-12 z-50 flex gap-2 md:gap-4 perspective-[500px]">
             {LINKS.map((item, i) => {
                 const active = pathname === item.href;
 
@@ -42,7 +42,7 @@ export default function Navigation() {
                             whileHover={{ y: -25 }}
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
                             className={cn(
-                                "cursor-pointer pt-16 pb-4 px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-lg md:text-xl tracking-wide",
+                                "cursor-pointer pt-12 md:pt-16 pb-3 md:pb-4 px-3 md:px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-sm md:text-xl tracking-wide",
                                 COLORS[i % COLORS.length],
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}

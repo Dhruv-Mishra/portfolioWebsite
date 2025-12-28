@@ -115,11 +115,11 @@ export default function Terminal() {
             output: (
                 <div className="space-y-1">
                     <p>Connect with me:</p>
-                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://github.com/Dhruv-Mishra', '_blank')}>github</p>
-                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank')}>linkedin</p>
-                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://codeforces.com/profile/DhruvMishra', '_blank')}>codeforces</p>
-                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://zibada.guru/gcj/profile/Dhruv985', '_blank')}>cp-history</p>
-                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('mailto:dhruvmishra.id@gmail.com', '_blank')}>email</p>
+                    <p className="pl-4"><span className="text-gray-400">GitHub:</span> <span className="text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://github.com/Dhruv-Mishra', '_blank')}>@Dhruv-Mishra</span></p>
+                    <p className="pl-4"><span className="text-gray-400">LinkedIn:</span> <span className="text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank')}>@dhruv-mishra-id</span></p>
+                    <p className="pl-4"><span className="text-gray-400">Codeforces:</span> <span className="text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://codeforces.com/profile/DhruvMishra', '_blank')}>@DhruvMishra</span></p>
+                    <p className="pl-4"><span className="text-gray-400">CP History:</span> <span className="text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://zibada.guru/gcj/profile/Dhruv985', '_blank')}>@Dhruv985</span></p>
+                    <p className="pl-4"><span className="text-gray-400">Email:</span> <span className="text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('mailto:dhruvmishra.id@gmail.com', '_blank')}>dhruvmishra.id@gmail.com</span></p>
                 </div>
             )
         }),

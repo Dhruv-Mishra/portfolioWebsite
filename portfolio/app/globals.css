@@ -15,17 +15,49 @@
     --c-grid: #9ca3af;
     --c-spiral-bg: #f0f0f0;
     --c-spiral-border: #d1d5db;
+    --c-heading: #000000;
+
+    /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
+    --d-amber: rgba(120, 53, 15, 0.3);
+    --d-slate: rgba(15, 23, 42, 0.3);
+    --d-gray: rgba(17, 24, 39, 0.3);
+    --d-indigo: rgba(49, 46, 129, 0.3);
+    --d-emerald: rgba(6, 78, 59, 0.3);
+    --d-red: rgba(127, 29, 29, 0.3);
+    --d-yellow: rgba(133, 77, 14, 0.3);
+    --d-stone: rgba(28, 25, 23, 0.3);
+    --d-pink: rgba(131, 24, 67, 0.3);
+    --d-blue: rgba(30, 58, 138, 0.3);
+    --d-purple: rgba(88, 28, 135, 0.3);
+    --d-rose: rgba(136, 19, 55, 0.3);
+    --d-stroke-width: 1.2px;
 
     /* Simple grid pattern for graph paper effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
 
-  [data-theme="dark"] {
+  .dark {
     --c-paper: #1a1a1a;
     --c-ink: #e5e5e5;
     --c-grid: #404040;
     --c-spiral-bg: #262626;
     --c-spiral-border: #404040;
+    --c-heading: #ffffff;
+    --d-stroke-width: 2.5px;
+
+    /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
+    --d-amber: rgba(254, 249, 195, 0.4);
+    --d-slate: rgba(226, 232, 240, 0.4);
+    --d-gray: rgba(229, 231, 235, 0.4);
+    --d-indigo: rgba(199, 210, 254, 0.4);
+    --d-emerald: rgba(209, 250, 229, 0.4);
+    --d-red: rgba(254, 202, 202, 0.4);
+    --d-yellow: rgba(254, 249, 195, 0.4);
+    --d-stone: rgba(214, 211, 209, 0.4);
+    --d-pink: rgba(251, 207, 232, 0.3);
+    --d-blue: rgba(191, 219, 254, 0.3);
+    --d-purple: rgba(233, 213, 255, 0.3);
+    --d-rose: rgba(254, 205, 211, 0.3);
 
     /* Darker grid pattern for blackboard/slate effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");

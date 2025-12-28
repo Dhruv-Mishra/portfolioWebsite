@@ -34,7 +34,7 @@ export default function RootLayout({
         className={`${patrickHand.variable} ${firaCode.variable} antialiased`}
       >
 
-        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TerminalProvider>
             <SketchbookCursor />
             <SketchbookLayout>

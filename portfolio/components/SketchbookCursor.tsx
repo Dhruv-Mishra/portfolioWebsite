@@ -8,12 +8,19 @@ export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isHoveringLink, setIsHoveringLink] = useState(false);
-    const { theme } = useTheme();
+    const { resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+
+    // Use a ref to access the latest theme inside the animation loop without restarting it
+    const themeRef = useRef(resolvedTheme);
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    useEffect(() => {
+        themeRef.current = resolvedTheme;
+    }, [resolvedTheme]);
 
     // Mouse position state
     const mouseX = useMotionValue(-100);
@@ -64,8 +71,8 @@ export default function SketchbookCursor() {
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Determine stroke style based on theme (resolvedTheme)
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            // Determine stroke style based on theme (resolvedTheme via ref)
+            const isDark = themeRef.current === 'dark';
 
             // Draw trail
             ctx.beginPath();
@@ -115,12 +122,12 @@ export default function SketchbookCursor() {
             window.removeEventListener('mouseover', checkHover);
             cancelAnimationFrame(animationFrameId);
         };
-    }, [mouseX, mouseY, theme, mounted]); // Re-run effect when theme changes to update trail color reference
+    }, [mouseX, mouseY, mounted]); // Removed theme from dependency array, using ref instead
 
     if (!mounted) return null;
 
     return (
-        <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden">
+        <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden hidden md:block">
             {/* Trail Canvas */}
             <canvas
                 ref={canvasRef}
@@ -137,8 +144,8 @@ export default function SketchbookCursor() {
                 }}
                 className="absolute top-0 left-0"
             >
-                <div className="w-8 h-8 md:w-10 md:h-10 drop-shadow-lg" style={{ transform: theme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
-                    {theme === 'dark' ? (
+                <div className="w-8 h-8 md:w-10 md:h-10 drop-shadow-lg" style={{ transform: resolvedTheme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
+                    {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                             {/* Chalk Stick Body */}

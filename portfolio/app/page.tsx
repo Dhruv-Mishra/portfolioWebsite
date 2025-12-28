@@ -19,7 +19,7 @@ export default function Home() {
           initial={{ opacity: 0, scale: 0.9, rotate: -4 }}
           animate={{ opacity: 1, scale: 1, rotate: -4 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="text-6xl md:text-8xl lg:text-9xl font-hand font-extrabold tracking-tighter text-indigo-900 drop-shadow-sm p-4"
+          className="text-4xl md:text-8xl lg:text-9xl font-hand font-extrabold tracking-tighter text-indigo-900 drop-shadow-sm p-4"
         >
           Hello World!
         </motion.h1>
@@ -29,7 +29,7 @@ export default function Home() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.5 }}
-          className="absolute -bottom-4 -right-12 rotate-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md transform"
+          className="absolute -bottom-4 right-0 md:-right-12 rotate-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md transform"
         >
           v1.0.0-beta
         </motion.div>

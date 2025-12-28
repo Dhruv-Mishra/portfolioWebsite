@@ -215,7 +215,6 @@ export default function Terminal() {
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDownReal}
                             className="bg-transparent border-none outline-none text-white flex-1 caret-emerald-400 placeholder-gray-600"
-                            autoFocus
                             autoComplete="off"
                             placeholder="Type a command..."
                         />

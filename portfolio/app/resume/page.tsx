@@ -5,15 +5,15 @@ import { motion } from 'framer-motion';
 
 export default function ResumePage() {
     return (
-        <main className="min-h-screen pt-24 pb-10 px-4 md:px-12 flex flex-col items-center justify-center relative z-10">
+        <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <motion.div
                 initial={{ opacity: 0, scale: 0.95, rotate: 1 }}
                 animate={{ opacity: 1, scale: 1, rotate: -1 }}
                 transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
-                className="relative w-full max-w-4xl bg-white shadow-2xl p-[1px]"
+                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
-                    height: '85vh',
+                    height: '92vh',
                     boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
                 }}
             >
@@ -31,10 +31,10 @@ export default function ResumePage() {
                          #toolbar=0 hides the toolbar
                          #navpanes=0 hides the side navigation
                          #scrollbar=0 hides scrollbars (though internal scrolling might still happen)
-                         #view=FitH fits the width
+                         #view=FitV fits the whole page vertically
                      */}
                     <object
-                        data="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
+                        data="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
                         type="application/pdf"
                         className="w-full h-full block"
                     >

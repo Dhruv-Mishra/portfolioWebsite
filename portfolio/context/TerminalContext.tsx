@@ -60,8 +60,16 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
         setLines([]);
     };
 
+    const value = React.useMemo(() => ({
+        outputLines,
+        commandHistory,
+        addCommand,
+        addToHistory,
+        clearOutput
+    }), [outputLines, commandHistory]);
+
     return (
-        <TerminalContext.Provider value={{ outputLines, commandHistory, addCommand, addToHistory, clearOutput }}>
+        <TerminalContext.Provider value={value}>
             {children}
         </TerminalContext.Provider>
     );

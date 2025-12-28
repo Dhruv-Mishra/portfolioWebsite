@@ -4,14 +4,59 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
+import { HEADER_NOISE_SVG } from "@/lib/assets";
+
+// Command Registry for O(1) lookup and easy extension
+const COMMAND_REGISTRY: Record<string, (args: string) => { output: React.ReactNode; action?: () => void }> = {
+    help: () => ({
+        output: (
+            <div className="space-y-1">
+                <p>Available commands:</p>
+                <p className="pl-4 text-emerald-400">about    - Who is Dhruv?</p>
+                <p className="pl-4 text-emerald-400">projects - View my work</p>
+                <p className="pl-4 text-emerald-400">contact  - Get in touch</p>
+                <p className="pl-4 text-emerald-400">clear    - Clear terminal</p>
+                <p className="pl-4 text-emerald-400">init     - System status</p>
+                <p className="pl-4 text-emerald-400">resume   - View Resume</p>
+            </div>
+        )
+    }),
+    about: () => ({
+        output: "Dhruv is a frontend engineer with a passion for creative UI. I build things that live on the web."
+    }),
+    contact: () => ({
+        output: "Email: dhruv@example.com | GitHub: @dhruv"
+    }),
+    projects: () => ({
+        output: "Check out the projects on the main page!"
+    }),
+    init: () => ({
+        output: (
+            <span className="text-yellow-400">
+                System already initialized. <br />
+                &gt; Uptime: <span className="text-gray-400">{Math.floor(performance.now() / 1000)}s</span> <br />
+                &gt; Status: <span className="text-green-400">Stable</span>
+            </span>
+        )
+    }),
+    resume: () => ({
+        output: "Navigating to resume page...",
+        action: () => { window.location.href = "/resume"; }
+    }),
+    cv: () => ({
+        output: "Navigating to resume page...",
+        action: () => { window.location.href = "/resume"; }
+    }),
+    // 'clear' is handled specially in local state but can be registered for autocomplete
+    clear: () => ({ output: "" })
+};
+
+const AVAILABLE_COMMANDS = Object.keys(COMMAND_REGISTRY);
 
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
-
-    // Commands list for autocomplete
-    const AVAILABLE_COMMANDS = ["help", "about", "projects", "contact", "clear", "init", "resume", "cv"];
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -25,65 +70,41 @@ export default function Terminal() {
         }
     }, [outputLines]);
 
-    const handleCommand = (e: React.FormEvent) => {
+    // ... inside component
+
+    const handleCommand = React.useCallback((e: React.FormEvent) => {
         e.preventDefault();
         const cmd = input.trim().toLowerCase();
         if (!cmd) return;
 
-        let output: React.ReactNode = "";
+        // Special handling for 'clear' as it affects localized state/context methods directly
+        if (cmd === 'clear') {
+            addToHistory("clear");
+            clearOutput();
+            setInput("");
+            return;
+        }
 
-        switch (cmd) {
-            case "help":
-                output = (
-                    <div className="space-y-1">
-                        <p>Available commands:</p>
-                        <p className="pl-4 text-emerald-400">about    - Who is Dhruv?</p>
-                        <p className="pl-4 text-emerald-400">projects - View my work</p>
-                        <p className="pl-4 text-emerald-400">contact  - Get in touch</p>
-                        <p className="pl-4 text-emerald-400">clear    - Clear terminal</p>
-                        <p className="pl-4 text-emerald-400">init     - System status</p>
-                    </div>
-                );
-                break;
-            case "clear":
-                addToHistory("clear");
-                clearOutput();
-                setInput("");
-                return;
-            case "resume":
-            case "cv":
-                window.location.href = "/resume";
-                output = "Navigating to resume page...";
-                break;
-            case "about":
-                output = "Dhruv is a frontend engineer with a passion for creative UI. I build things that live on the web.";
-                break;
-            case "contact":
-                output = "Email: dhruv@example.com | GitHub: @dhruv";
-                break;
-            case "projects":
-                output = "Check out the projects on the main page!";
-                break;
-            case "init":
-                output = (
-                    <span className="text-yellow-400">
-                        System already initialized. <br />
-                        &gt; Uptime: <span className="text-gray-400">{Math.floor(performance.now() / 1000)}s</span> <br />
-                        &gt; Status: <span className="text-green-400">Stable</span>
-                    </span>
-                );
-                break;
-            default:
-                output = `Command not found: ${cmd}. Type 'help' for available commands.`;
+        const commandDef = COMMAND_REGISTRY[cmd];
+        let output: React.ReactNode;
+
+        if (commandDef) {
+            const result = commandDef(cmd);
+            output = result.output;
+            if (result.action) {
+                result.action();
+            }
+        } else {
+            output = `Command not found: ${cmd}. Type 'help' for available commands.`;
         }
 
         addCommand(input, output);
         setInput("");
         setHistoryIndex(-1); // Reset history pointer
-    };
+    }, [input, addCommand, addToHistory, clearOutput]);
 
     // Better History Logic Implementation
-    const navigateHistory = (direction: 'up' | 'down') => {
+    const navigateHistory = React.useCallback((direction: 'up' | 'down') => {
         if (commandHistory.length === 0) return;
 
         let newIndex = historyIndex;
@@ -107,9 +128,9 @@ export default function Terminal() {
             const targetCommand = commandHistory[commandHistory.length - 1 - newIndex];
             setInput(targetCommand);
         }
-    };
+    }, [commandHistory, historyIndex]);
 
-    const handleKeyDownReal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "ArrowUp") {
             e.preventDefault();
             navigateHistory('up');
@@ -123,7 +144,7 @@ export default function Terminal() {
                 setInput(match);
             }
         }
-    };
+    }, [navigateHistory, input]);
 
     return (
         <motion.div
@@ -149,7 +170,7 @@ export default function Terminal() {
                 {/* Sketchy Header */}
                 <div className="bg-[#383436] p-3 flex items-center justify-between border-b-2 border-gray-600/30 relative overflow-hidden">
                     {/* Scribble Noise Texture for Header */}
-                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
+                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: HEADER_NOISE_SVG }} />
 
                     {/* Sketchy Window Controls */}
                     <div className="flex gap-3 relative z-10 pl-2">
@@ -205,6 +226,7 @@ export default function Terminal() {
                             onKeyDown={handleKeyDownReal}
                             className="bg-transparent border-none outline-none text-white flex-1 caret-emerald-400 placeholder-gray-600"
                             autoComplete="off"
+                            aria-label="Terminal Command Input"
                             placeholder="Type a command..."
                         />
                     </form>

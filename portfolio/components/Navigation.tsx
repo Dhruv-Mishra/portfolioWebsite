@@ -5,27 +5,27 @@ import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
+const LINKS = [
+    { name: 'Home', href: '/' },
+    { name: 'Projects', href: '/projects' },
+    { name: 'About', href: '/about' },
+    { name: 'Resume', href: '/resume' },
+];
+
+const COLORS = [
+    "bg-[#ff9b9b] text-red-900 border-red-300", // Pink
+    "bg-[#fff9c4] text-yellow-900 border-yellow-300", // Yellow
+    "bg-[#c5e1a5] text-green-900 border-green-300", // Green
+    "bg-[#b3e5fc] text-blue-900 border-blue-300"    // Blue for Resume
+];
+
 export default function Navigation() {
     const pathname = usePathname();
 
-    const links = [
-        { name: 'Home', href: '/' },
-        { name: 'Projects', href: '/projects' },
-        { name: 'About', href: '/about' },
-        { name: 'Resume', href: '/resume' },
-    ];
-
     return (
         <nav className="fixed top-0 right-12 z-50 flex gap-4 perspective-[500px]">
-            {links.map((item, i) => {
-                const colors = [
-                    "bg-[#ff9b9b] text-red-900 border-red-300", // Pink
-                    "bg-[#fff9c4] text-yellow-900 border-yellow-300", // Yellow
-                    "bg-[#c5e1a5] text-green-900 border-green-300", // Green
-                    "bg-[#b3e5fc] text-blue-900 border-blue-300"    // Blue for Resume
-                ];
+            {LINKS.map((item, i) => {
                 const active = pathname === item.href;
-                const isExternal = item.name === 'Resume';
 
                 return (
                     <Link
@@ -43,7 +43,7 @@ export default function Navigation() {
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
                             className={cn(
                                 "cursor-pointer pt-16 pb-4 px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-lg md:text-xl tracking-wide",
-                                colors[i % 4], // Cycle colors (mod 4 now)
+                                COLORS[i % COLORS.length],
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}
                             style={{

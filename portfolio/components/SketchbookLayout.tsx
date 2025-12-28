@@ -7,30 +7,21 @@ import {
     PuzzleDoodle, BracketsDoodle, DnaDoodle, LightningDoodle,
     PaperPlaneDoodle, SaturnDoodle, MusicNoteDoodle
 } from './SketchbookDoodles';
+import { PAPER_NOISE_SVG } from '@/lib/assets';
+
+import { useMousePosition } from '@/hooks/useMousePosition';
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
-    const startX = 0;
-    const startY = 0;
-    const x = useMotionValue(startX);
-    const y = useMotionValue(startY);
+    const { x, y } = useMousePosition();
 
     // Smooth out the mouse movement
     const springX = useSpring(x, { stiffness: 50, damping: 20 });
     const springY = useSpring(y, { stiffness: 50, damping: 20 });
 
-    // Parallax movement - Move opposite to mouse
-    const xMove = useTransform(springX, [0, 1920], [20, -20]);
-    const yMove = useTransform(springY, [0, 1080], [20, -20]);
-
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            x.set(e.clientX);
-            y.set(e.clientY);
-        };
-
-        window.addEventListener("mousemove", handleMouseMove);
-        return () => window.removeEventListener("mousemove", handleMouseMove);
-    }, [x, y]);
+    // Parallax movement - Optimized to be responsive-agnostic by using larger input ranges
+    // but clamping visually.
+    const xMove = useTransform(springX, [0, 4000], [20, -20]);
+    const yMove = useTransform(springY, [0, 4000], [20, -20]);
 
     return (
         <div className="h-screen w-screen bg-[#FDFBF7] relative flex overflow-hidden">
@@ -50,7 +41,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Paper Texture Noise Overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1] mix-blend-multiply"
                     style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+                        backgroundImage: PAPER_NOISE_SVG
                     }}
                 />
 
@@ -71,6 +62,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <motion.div
                     className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
                     style={{ x: xMove, y: yMove }}
+                    aria-hidden="true"
                 >
                     <LightbulbDoodle />
                     <CloudDoodle />

@@ -15,20 +15,36 @@ export default function Navigation() {
     ];
 
     return (
-        <nav className="fixed top-6 right-8 md:right-12 z-50 flex gap-6 text-xl md:text-2xl font-hand font-bold text-gray-600 rotate-1">
-            {links.map((item) => (
-                <Link key={item.name} href={item.href} legacyBehavior={false} passHref>
-                    <motion.span
-                        whileHover={{ scale: 1.1, rotate: -2, color: "#4f46e5" }}
-                        className={cn(
-                            "cursor-pointer inline-block transition-colors decoration-wavy decoration-2 hover:decoration-indigo-500",
-                            pathname === item.href ? "text-indigo-700 underline decoration-indigo-500" : "decoration-transparent"
-                        )}
-                    >
-                        {item.name}
-                    </motion.span>
-                </Link>
-            ))}
+        <nav className="fixed top-0 right-12 z-50 flex gap-4 perspective-[500px]">
+            {links.map((item, i) => {
+                const colors = [
+                    "bg-[#ff9b9b] text-red-900 border-red-300", // Pink
+                    "bg-[#fff9c4] text-yellow-900 border-yellow-300", // Yellow
+                    "bg-[#c5e1a5] text-green-900 border-green-300" // Green
+                ];
+                const active = pathname === item.href;
+
+                return (
+                    <Link key={item.name} href={item.href} legacyBehavior={false} passHref>
+                        <motion.div
+                            initial={{ y: -50 }}
+                            animate={{ y: active ? 0 : -10 }}
+                            whileHover={{ y: 5 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={cn(
+                                "cursor-pointer pt-3 pb-4 px-4 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-lg md:text-xl tracking-wide",
+                                colors[i % 3], // Cycle colors
+                                active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
+                            )}
+                            style={{
+                                clipPath: 'polygon(0% 0%, 100% 0%, 95% 100%, 5% 100%)' // Tapered tab shape
+                            }}
+                        >
+                            {item.name}
+                        </motion.div>
+                    </Link>
+                );
+            })}
         </nav>
     );
 }

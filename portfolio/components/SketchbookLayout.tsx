@@ -40,7 +40,14 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             </div>
 
             {/* Paper Content Area */}
-            <div className="flex-1 relative h-full flex flex-col">
+            <div className="flex-1 relative h-full flex flex-col isolation-auto">
+                {/* Paper Texture Noise Overlay */}
+                <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1] mix-blend-multiply"
+                    style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+                    }}
+                />
+
                 {/* Background Grid Pattern - Thicker and Larger */}
                 <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
                     style={{
@@ -49,6 +56,10 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                                       linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`
                     }}
                 />
+
+                {/* School Notebook Margin Line (Red) */}
+                <div className="absolute top-0 bottom-0 left-12 md:left-24 w-[2px] bg-red-400/30 z-0 pointer-events-none" />
+                <div className="absolute top-0 bottom-0 left-[50px] md:left-[98px] w-[1px] bg-red-400/10 z-0 pointer-events-none" /> {/* Double line effect subtle */}
 
                 {/* Global Doodles / Sprites Layer - Parallax Effect */}
                 <motion.div
@@ -214,3 +225,4 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
         </div>
     );
 }
+

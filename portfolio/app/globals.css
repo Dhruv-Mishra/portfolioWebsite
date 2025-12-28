@@ -1,19 +1,45 @@
 @import "tailwindcss";
 
+@theme {
+  --color-paper: var(--c-paper);
+  --color-ink: var(--c-ink);
+  --color-grid: var(--c-grid);
+  --color-spiral-bg: var(--c-spiral-bg);
+  --color-spiral-border: var(--c-spiral-border);
+}
 
+@layer base {
+  :root {
+    --c-paper: #fdfbf7;
+    --c-ink: #2d2a2e;
+    --c-grid: #9ca3af;
+    --c-spiral-bg: #f0f0f0;
+    --c-spiral-border: #d1d5db;
 
-:root {
-  /* Simple grid pattern for graph paper effect */
-  --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+    /* Simple grid pattern for graph paper effect */
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  [data-theme="dark"] {
+    --c-paper: #1a1a1a;
+    --c-ink: #e5e5e5;
+    --c-grid: #404040;
+    --c-spiral-bg: #262626;
+    --c-spiral-border: #404040;
+
+    /* Darker grid pattern for blackboard/slate effect */
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
 }
 
 body {
-  background-color: #fdfbf7;
+  background-color: var(--c-paper);
   background-image: var(--paper-pattern);
-  color: #2d2a2e;
+  color: var(--c-ink);
   font-family: var(--font-hand), cursive;
   overflow-x: hidden;
   cursor: none;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 /* Force hide cursor on all interactable elements */
@@ -30,6 +56,6 @@ label,
 }
 
 ::selection {
-  background-color: var(--color-ink);
-  color: var(--color-paper);
+  background-color: var(--c-ink);
+  color: var(--c-paper);
 }

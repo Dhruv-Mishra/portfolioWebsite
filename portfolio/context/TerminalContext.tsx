@@ -30,7 +30,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
                     <p className="mb-1">[✓] Loading Graphics Engine....... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Connecting to Creativity DB... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Fetching Coffee............... <span className="text-emerald-500">Done</span></p>
-                    <p className="mt-4 text-white">System Ready. <span className="text-gray-500">Type 'help' for commands.</span></p>
+                    <p className="mt-4 text-white">System Ready. <span className="text-gray-500">Type <span className="text-emerald-400 font-bold">'projects'</span> to view my work.</span></p>
                 </div>
             )
         }

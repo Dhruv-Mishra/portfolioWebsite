@@ -185,7 +185,7 @@ export default function Terminal() {
             return { output: `Cannot open ${file}. Try 'cat' to read it.` };
         },
         whoami: () => ({
-            output: "guest@portfolio-v1"
+            output: "visitor@dhruvs.portfolio"
         }),
         date: () => ({
             output: new Date().toString()
@@ -342,7 +342,7 @@ export default function Terminal() {
 
                     <div className="flex items-center gap-2 text-gray-400/60 font-hand text-lg tracking-widest uppercase relative z-10">
                         <TerminalIcon size={16} className="text-gray-500" />
-                        <span>Sketchinator v1.0</span>
+                        <span>Dhruv's Terminal v1.0</span>
                     </div>
                     <div className="w-16"></div>
                 </div>

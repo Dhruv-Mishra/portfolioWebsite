@@ -10,6 +10,7 @@ import {
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import SocialSidebar from './SocialSidebar';
 import { useMousePosition } from '@/hooks/useMousePosition';
+import { ThemeToggle } from './ThemeToggle';
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const { x, y } = useMousePosition();
@@ -24,9 +25,9 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
     const yMove = useTransform(springY, [0, 4000], [20, -20]);
 
     return (
-        <div className="h-screen w-screen bg-[#FDFBF7] relative flex overflow-hidden">
+        <div className="h-screen w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
             {/* Spiral Binding - Fixed to Left */}
-            <div className="w-12 md:w-16 h-full bg-[#f0f0f0] border-r border-gray-300 flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0">
+            <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
                 {/* Holes and Rings */}
                 {[...Array(12)].map((_, i) => (
                     <div key={i} className="relative w-full flex justify-center">
@@ -38,6 +39,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">
+                {/* Theme Toggle - Bottom Left (Paper Corner) */}
+                <div className="absolute bottom-6 left-6 z-50">
+                    <ThemeToggle />
+                </div>
+
+                {/* Paper Texture Noise Overlay */}
                 {/* Paper Texture Noise Overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1] mix-blend-multiply"
                     style={{

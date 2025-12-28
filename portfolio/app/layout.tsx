@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
@@ -28,17 +29,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${patrickHand.variable} ${firaCode.variable} antialiased`}
       >
-        <TerminalProvider>
-          <SketchbookCursor />
-          <SketchbookLayout>
-            <Navigation />
-            {children}
-          </SketchbookLayout>
-        </TerminalProvider>
+
+        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
+          <TerminalProvider>
+            <SketchbookCursor />
+            <SketchbookLayout>
+              <Navigation />
+              {children}
+            </SketchbookLayout>
+          </TerminalProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

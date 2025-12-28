@@ -1,42 +1,76 @@
 "use client";
-import React from 'react';
-import { useTheme } from './ThemeProvider';
-import { motion } from 'framer-motion';
 
-export default function ThemeToggle() {
-    const { theme, toggleTheme } = useTheme();
+import * as React from "react";
+import { useTheme } from "next-themes";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sun, Moon } from "lucide-react";
+
+export function ThemeToggle() {
+    const { theme, setTheme } = useTheme();
+    const [mounted, setMounted] = React.useState(false);
+
+    // useEffect only runs on the client, so now we can safely show the UI
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) {
+        return null; // or a placeholder
+    }
+
+    const toggleTheme = () => {
+        setTheme(theme === "dark" ? "light" : "dark");
+    };
 
     return (
         <button
             onClick={toggleTheme}
-            className="fixed top-6 right-6 z-50 p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            title="Toggle Theme"
+            className="relative p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group"
+            aria-label="Toggle Theme"
         >
-            <motion.div
-                initial={false}
-                animate={{ rotate: theme === 'dark' ? 180 : 0 }}
-                transition={{ duration: 0.5 }}
-            >
-                {theme === 'light' ? (
-                    // Moon Icon (Draw it like a doodle)
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-                        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-                    </svg>
+            <AnimatePresence mode="wait" initial={false}>
+                {theme === "dark" ? (
+                    <motion.div
+                        key="moon"
+                        initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                        animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                        exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {/* Moon Doodle */}
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-100">
+                            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                            {/* Add some stars/sparkles for doodle effect */}
+                            <path d="M19 3v2" className="opacity-50" />
+                            <path d="M21 5h-2" className="opacity-50" />
+                        </svg>
+                    </motion.div>
                 ) : (
-                    // Sun Icon (Doodle)
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-100">
-                        <circle cx="12" cy="12" r="5" />
-                        <line x1="12" y1="1" x2="12" y2="3" />
-                        <line x1="12" y1="21" x2="12" y2="23" />
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                        <line x1="1" y1="12" x2="3" y2="12" />
-                        <line x1="21" y1="12" x2="23" y2="12" />
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                    </svg>
+                    <motion.div
+                        key="sun"
+                        initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
+                        animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                        exit={{ opacity: 0, rotate: -90, scale: 0.5 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {/* Sun Doodle */}
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                            <circle cx="12" cy="12" r="4" />
+                            <path d="M12 2v2" />
+                            <path d="M12 20v2" />
+                            <path d="m4.93 4.93 1.41 1.41" />
+                            <path d="m17.66 17.66 1.41 1.41" />
+                            <path d="M2 12h2" />
+                            <path d="M20 12h2" />
+                            <path d="m6.34 17.66-1.41 1.41" />
+                            <path d="m19.07 4.93-1.41 1.41" />
+                        </svg>
+                    </motion.div>
                 )}
-            </motion.div>
+            </AnimatePresence>
+
+            {/* Rough circle hover effect that looks drawn */}
+            <div className="absolute inset-0 border-2 border-gray-400/0 group-hover:border-gray-400/30 rounded-full scale-110 opacity-0 group-hover:opacity-100 transition-all pointer-events-none" style={{ borderRadius: "50% 40% 60% 50% / 50% 60% 40% 50%" }}></div>
         </button>
     );
 }

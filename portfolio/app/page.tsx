@@ -51,7 +51,7 @@ export default function Home() {
       </div>
 
       <div className="mt-8 text-sm font-mono text-gray-400">
-        Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">help</span> below...
+        Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">projects</span> to view my work...
       </div>
     </div>
   );

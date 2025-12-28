@@ -11,7 +11,7 @@ export default function Terminal() {
     const [historyIndex, setHistoryIndex] = useState(-1);
 
     // Commands list for autocomplete
-    const AVAILABLE_COMMANDS = ["help", "about", "projects", "contact", "clear", "init"];
+    const AVAILABLE_COMMANDS = ["help", "about", "projects", "contact", "clear", "init", "resume", "cv"];
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -50,6 +50,11 @@ export default function Terminal() {
                 clearOutput();
                 setInput("");
                 return;
+            case "resume":
+            case "cv":
+                window.location.href = "/resume";
+                output = "Navigating to resume page...";
+                break;
             case "about":
                 output = "Dhruv is a frontend engineer with a passion for creative UI. I build things that live on the web.";
                 break;

@@ -30,13 +30,13 @@ export default function ResumePage() {
                     {/* 
                          #toolbar=0 hides the toolbar
                          #navpanes=0 hides the side navigation
-                         #scrollbar=0 hides scrollbars (though internal scrolling might still happen)
+                         #scrollbar=0 hides scrollbars
                          #view=FitV fits the whole page vertically
                      */}
                     <object
                         data="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
                         type="application/pdf"
-                        className="w-full h-full block"
+                        className="w-full h-full block pointer-events-none"
                     >
                         <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center text-gray-600 font-hand text-xl bg-orange-50/50">
                             <p>Ah, the classic "Browser doesn't like PDFs" issue.</p>
@@ -50,6 +50,20 @@ export default function ResumePage() {
                             </a>
                         </div>
                     </object>
+
+                    {/* External Link Overlay (Since PDF is non-interactive) */}
+                    <a
+                        href="/resume.pdf"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute bottom-4 right-4 z-30 group"
+                        title="Open PDF in new tab"
+                    >
+                        <div className="bg-yellow-100 text-gray-800 px-4 py-2 rounded-sm shadow-md border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 transition-transform font-hand font-bold flex items-center gap-2 text-sm">
+                            <span>Open PDF</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </div>
+                    </a>
                 </div>
             </motion.div>
         </main>

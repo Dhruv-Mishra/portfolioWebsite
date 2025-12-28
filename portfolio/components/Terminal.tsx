@@ -197,7 +197,7 @@ export default function Terminal() {
 
                 {/* Body - Chalkboard Vibe */}
                 <div
-                    className="p-6 h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
+                    className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
                     onClick={() => inputRef.current?.focus()}
                 >
                     {outputLines.map((item, i) => (

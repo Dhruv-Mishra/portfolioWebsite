@@ -9,7 +9,7 @@ export default function About() {
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-[#fff9c4] p-8 md:p-12 shadow-[5px_5px_15px_rgba(0,0,0,0.2)] text-gray-800 relative min-h-[400px]"
+                    className="bg-[#fff9c4] p-6 md:p-12 shadow-[5px_5px_15px_rgba(0,0,0,0.2)] text-gray-800 relative min-h-[400px]"
                     style={{
                         clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 60px), calc(100% - 60px) 100%, 0% 100%)'
                     }}
@@ -37,7 +37,7 @@ export default function About() {
 
                     {/* Realistic Tape - Top Left */}
                     <div
-                        className="absolute -top-3 -left-2 w-32 h-10 bg-white/40 shadow-sm backdrop-blur-[1px] z-10 -rotate-[8deg]"
+                        className="absolute -top-3 -left-2 w-24 md:w-32 h-10 bg-white/40 shadow-sm backdrop-blur-[1px] z-10 -rotate-[8deg]"
                         style={{
                             maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
                             WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',

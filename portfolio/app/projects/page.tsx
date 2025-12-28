@@ -45,7 +45,7 @@ export default function Projects() {
                 My Projects
             </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 pb-20 px-6 mt-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12 pb-20 px-6 mt-10">
                 {projects.map((proj, i) => {
                     // "Random" rotation and offsets based on index to ensure hydration consistency
                     const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];

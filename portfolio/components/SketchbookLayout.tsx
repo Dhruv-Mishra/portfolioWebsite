@@ -8,7 +8,7 @@ import {
     PaperPlaneDoodle, SaturnDoodle, MusicNoteDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
-
+import SocialSidebar from './SocialSidebar';
 import { useMousePosition } from '@/hooks/useMousePosition';
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
@@ -89,6 +89,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <main className="relative z-10 w-full h-full perspective-[2000px]">
                     {children}
                 </main>
+
+                <SocialSidebar />
             </div>
         </div>
     );

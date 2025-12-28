@@ -1,0 +1,72 @@
+"use client";
+
+import React from "react";
+import { motion } from "framer-motion";
+import { Github, Linkedin, Mail, Phone, BarChart2 } from "lucide-react";
+
+const SOCIALS = [
+    {
+        name: "GitHub",
+        icon: Github,
+        url: "https://github.com/dhruv", // Placeholder
+        color: "hover:text-gray-800"
+    },
+    {
+        name: "LinkedIn",
+        icon: Linkedin,
+        url: "https://linkedin.com/in/dhruv", // Placeholder
+        color: "hover:text-blue-700"
+    },
+    {
+        name: "Codeforces",
+        icon: BarChart2,
+        url: "https://codeforces.com/profile/dhruv", // Placeholder
+        color: "hover:text-yellow-600"
+    },
+    {
+        name: "Email",
+        icon: Mail,
+        url: "mailto:dhruv@example.com",
+        color: "hover:text-red-600"
+    },
+    {
+        name: "Phone",
+        icon: Phone,
+        url: "tel:+1234567890",
+        color: "hover:text-green-600"
+    }
+];
+
+export default function SocialSidebar() {
+    return (
+        <div className="fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-6">
+            {SOCIALS.map((social, i) => (
+                <motion.a
+                    key={social.name}
+                    href={social.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ x: 50, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 + i * 0.1, type: "spring" }}
+                    whileHover={{ scale: 1.2, rotate: Math.random() * 10 - 5 }}
+                    className={`text-gray-400 Transition-colors duration-300 ${social.color} relative group`}
+                    title={social.name}
+                >
+                    {/* Sketchy Circle Background on Hover */}
+                    <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
+
+                    <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
+
+                    {/* Tooltip Label (Handwritten) */}
+                    <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
+                        {social.name}
+                    </span>
+                </motion.a>
+            ))}
+
+            {/* Vertical Line Connecting them (optional, makes it look like a list) */}
+            <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30 mask-gradient" />
+        </div>
+    );
+}

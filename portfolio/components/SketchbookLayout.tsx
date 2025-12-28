@@ -54,9 +54,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     }}
                 />
 
-                {/* School Notebook Margin Line (Red) - Responsive positioning */}
-                <div className="absolute top-0 bottom-0 left-6 md:left-24 w-[2px] bg-red-400/30 z-0 pointer-events-none" />
-                <div className="absolute top-0 bottom-0 left-[26px] md:left-[98px] w-[1px] bg-red-400/10 z-0 pointer-events-none" /> {/* Double line effect */}
+                {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
                 {/* Global Doodles / Sprites Layer - Parallax Effect */}
                 <motion.div

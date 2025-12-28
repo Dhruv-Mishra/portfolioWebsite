@@ -70,7 +70,23 @@ export default function Terminal() {
             output: "Dhruv Mishra is a software developer skilled in competitive programming and full-stack development. I enjoy solving algorithmic challenges and building efficient systems."
         }),
         contact: () => ({
-            output: "Email: dhruvmishra.id@gmail.com | GitHub: @Dhruv-Mishra | Phone: (+91) 9599377944"
+            output: (
+                <div className="space-y-1">
+                    <p>Ways to reach me:</p>
+                    <p className="pl-4">
+                        <span className="text-gray-400 w-16 inline-block">Email:</span>
+                        <a href="mailto:dhruvmishra.id@gmail.com" className="text-blue-400 hover:underline">dhruvmishra.id@gmail.com</a>
+                    </p>
+                    <p className="pl-4">
+                        <span className="text-gray-400 w-16 inline-block">GitHub:</span>
+                        <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a>
+                    </p>
+                    <p className="pl-4">
+                        <span className="text-gray-400 w-16 inline-block">Phone:</span>
+                        <a href="tel:+919599377944" className="text-blue-400 hover:underline">(+91) 9599377944</a>
+                    </p>
+                </div>
+            )
         }),
         projects: () => ({
             output: "Navigating to projects...",

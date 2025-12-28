@@ -3,6 +3,7 @@ import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
 import SketchbookCursor from "@/components/SketchbookCursor";
+import { TerminalProvider } from "@/context/TerminalContext";
 import "./globals.css";
 
 const patrickHand = Patrick_Hand({
@@ -31,11 +32,13 @@ export default function RootLayout({
       <body
         className={`${patrickHand.variable} ${firaCode.variable} antialiased`}
       >
-        <SketchbookCursor />
-        <SketchbookLayout>
-          <Navigation />
-          {children}
-        </SketchbookLayout>
+        <TerminalProvider>
+          <SketchbookCursor />
+          <SketchbookLayout>
+            <Navigation />
+            {children}
+          </SketchbookLayout>
+        </TerminalProvider>
       </body>
     </html>
   );

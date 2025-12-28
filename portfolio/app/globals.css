@@ -1,12 +1,6 @@
 @import "tailwindcss";
 
-@theme inline {
-  --color-paper: #fdfbf7;
-  --color-ink: #2d2a2e;
-  --color-pencil: #5d5a5e;
-  --font-hand: var(--font-hand);
-  --font-code: var(--font-code);
-}
+
 
 :root {
   /* Simple grid pattern for graph paper effect */
@@ -14,9 +8,9 @@
 }
 
 body {
-  background-color: var(--color-paper);
+  background-color: #fdfbf7;
   background-image: var(--paper-pattern);
-  color: var(--color-ink);
+  color: #2d2a2e;
   font-family: var(--font-hand), cursive;
   overflow-x: hidden;
   cursor: none;

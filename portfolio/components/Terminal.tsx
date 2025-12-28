@@ -3,28 +3,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
-
-interface Command {
-    command: string;
-    output: React.ReactNode;
-}
+import { useTerminal } from "@/context/TerminalContext";
 
 export default function Terminal() {
+    const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
     const [input, setInput] = useState("");
-    const [history, setHistory] = useState<Command[]>([
-        {
-            command: "init",
-            output: (
-                <div className="text-gray-400 text-sm font-mono leading-relaxed">
-                    <p className="text-emerald-400 mb-2">Initializing Portfolio v1.0.0...</p>
-                    <p className="mb-1">[✓] Loading Graphics Engine....... <span className="text-emerald-500">Done</span></p>
-                    <p className="mb-1">[✓] Connecting to Creativity DB... <span className="text-emerald-500">Done</span></p>
-                    <p className="mb-1">[✓] Fetching Coffee............... <span className="text-emerald-500">Done</span></p>
-                    <p className="mt-4 text-white">System Ready. <span className="text-gray-500">Type 'help' for commands.</span></p>
-                </div>
-            )
-        },
-    ]);
     const [historyIndex, setHistoryIndex] = useState(-1);
 
     // Commands list for autocomplete
@@ -32,10 +15,15 @@ export default function Terminal() {
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const isInitialMount = useRef(true);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [history]);
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+        } else {
+            bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [outputLines]);
 
     const handleCommand = (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,7 +46,8 @@ export default function Terminal() {
                 );
                 break;
             case "clear":
-                setHistory([]);
+                addToHistory("clear");
+                clearOutput();
                 setInput("");
                 return;
             case "about":
@@ -83,22 +72,18 @@ export default function Terminal() {
                 output = `Command not found: ${cmd}. Type 'help' for available commands.`;
         }
 
-        const newHistoryItem = { command: input, output };
-        setHistory((prev) => [...prev, newHistoryItem]);
+        addCommand(input, output);
         setInput("");
         setHistoryIndex(-1); // Reset history pointer
     };
 
     // Better History Logic Implementation
     const navigateHistory = (direction: 'up' | 'down') => {
-        const userHistory = history.filter(h => h.command !== 'init'); // Filter out system messages if any (init is fine though)
-        // Actually our init has a command "init" so it's fine.
-
-        if (history.length === 0) return;
+        if (commandHistory.length === 0) return;
 
         let newIndex = historyIndex;
         if (direction === 'up') {
-            if (historyIndex < history.length - 1) {
+            if (historyIndex < commandHistory.length - 1) {
                 newIndex++;
             }
         } else {
@@ -114,8 +99,7 @@ export default function Terminal() {
         } else {
             // history is [oldest, ..., newest]
             // up arrow (index 0) -> newest (length - 1)
-            // up arrow (index 1) -> second newest (length - 2)
-            const targetCommand = history[history.length - 1 - newIndex].command;
+            const targetCommand = commandHistory[commandHistory.length - 1 - newIndex];
             setInput(targetCommand);
         }
     };
@@ -190,7 +174,7 @@ export default function Terminal() {
                     className="p-6 h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
                     onClick={() => inputRef.current?.focus()}
                 >
-                    {history.map((item, i) => (
+                    {outputLines.map((item, i) => (
                         <div key={i} className="mb-4">
                             <div className="flex gap-3 opacity-90">
                                 <span className="text-emerald-400 font-bold">➜</span>

@@ -79,8 +79,8 @@ export default function About() {
 
                     <div className="space-y-6 text-xl md:text-2xl font-hand leading-relaxed">
                         <p>
-                            Hey! I&apos;m <strong className="text-indigo-700">Dhruv</strong>.
-                            I&apos;ve been coding for over 30 years (in AI years, at least!).
+                            Hey! I&apos;m <strong className="text-indigo-700">Dhruv Mishra</strong>.
+                            I&apos;m a software developer with a strong foundation in <span className="underline decoration-wavy decoration-yellow-500">Competitive Programming</span> and Algorithms.
                         </p>
                         <p>
                             I specialize in building frontend experiences that feel <span className="underline decoration-wavy decoration-emerald-500">organic</span> yet perform fast.

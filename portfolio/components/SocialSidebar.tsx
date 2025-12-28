@@ -2,37 +2,43 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Github, Linkedin, Mail, Phone, BarChart2 } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy } from "lucide-react";
 
 const SOCIALS = [
     {
         name: "GitHub",
         icon: Github,
-        url: "https://github.com/dhruv", // Placeholder
+        url: "https://github.com/Dhruv-Mishra",
         color: "hover:text-gray-800"
     },
     {
         name: "LinkedIn",
         icon: Linkedin,
-        url: "https://linkedin.com/in/dhruv", // Placeholder
+        url: "https://www.linkedin.com/in/dhruv-mishra-id/",
         color: "hover:text-blue-700"
     },
     {
         name: "Codeforces",
         icon: BarChart2,
-        url: "https://codeforces.com/profile/dhruv", // Placeholder
+        url: "https://codeforces.com/profile/DhruvMishra",
         color: "hover:text-yellow-600"
+    },
+    {
+        name: "CP History",
+        icon: Trophy,
+        url: "https://zibada.guru/gcj/profile/Dhruv985",
+        color: "hover:text-amber-500"
     },
     {
         name: "Email",
         icon: Mail,
-        url: "mailto:dhruv@example.com",
+        url: "mailto:dhruvmishra.id@gmail.com",
         color: "hover:text-red-600"
     },
     {
         name: "Phone",
         icon: Phone,
-        url: "tel:+1234567890",
+        url: "tel:+919599377944",
         color: "hover:text-green-600"
     }
 ];

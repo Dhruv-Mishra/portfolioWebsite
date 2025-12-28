@@ -4,63 +4,185 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
+import TerminalJoke from "./TerminalJoke";
+import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
-
-// Command Registry for O(1) lookup and easy extension
-const COMMAND_REGISTRY: Record<string, (args: string) => { output: React.ReactNode; action?: () => void }> = {
-    help: () => ({
-        output: (
-            <div className="space-y-1">
-                <p>Available commands:</p>
-                <p className="pl-4 text-emerald-400">about    - Who is Dhruv?</p>
-                <p className="pl-4 text-emerald-400">projects - View my work</p>
-                <p className="pl-4 text-emerald-400">contact  - Get in touch</p>
-                <p className="pl-4 text-emerald-400">clear    - Clear terminal</p>
-                <p className="pl-4 text-emerald-400">init     - System status</p>
-                <p className="pl-4 text-emerald-400">resume   - View Resume</p>
-            </div>
-        )
-    }),
-    about: () => ({
-        output: "Dhruv is a frontend engineer with a passion for creative UI. I build things that live on the web."
-    }),
-    contact: () => ({
-        output: "Email: dhruv@example.com | GitHub: @dhruv"
-    }),
-    projects: () => ({
-        output: "Check out the projects on the main page!"
-    }),
-    init: () => ({
-        output: (
-            <span className="text-yellow-400">
-                System already initialized. <br />
-                &gt; Uptime: <span className="text-gray-400">{Math.floor(performance.now() / 1000)}s</span> <br />
-                &gt; Status: <span className="text-green-400">Stable</span>
-            </span>
-        )
-    }),
-    resume: () => ({
-        output: "Navigating to resume page...",
-        action: () => { window.location.href = "/resume"; }
-    }),
-    cv: () => ({
-        output: "Navigating to resume page...",
-        action: () => { window.location.href = "/resume"; }
-    }),
-    // 'clear' is handled specially in local state but can be registered for autocomplete
-    clear: () => ({ output: "" })
-};
-
-const AVAILABLE_COMMANDS = Object.keys(COMMAND_REGISTRY);
 
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
+    const router = useRouter(); // Correctly using hook inside component
+
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
+
+    // Command Registry defined inside to access router
+    const COMMAND_REGISTRY: Record<string, (args: string[]) => { output: React.ReactNode; action?: () => void } | Promise<{ output: React.ReactNode; action?: () => void }>> = React.useMemo(() => ({
+        help: () => ({
+            output: (
+                <div className="space-y-1">
+                    <p>Available commands:</p>
+                    <p className="pl-4 text-emerald-400">about      - Who is Dhruv?</p>
+                    <p className="pl-4 text-emerald-400">projects   - View my work</p>
+                    <p className="pl-4 text-emerald-400">contact    - Get in touch</p>
+                    <p className="pl-4 text-emerald-400">socials    - List social links</p>
+                    <p className="pl-4 text-emerald-400">ls         - List files</p>
+                    <p className="pl-4 text-emerald-400">cat <span className="text-gray-500">[file]</span> - Read file</p>
+                    <p className="pl-4 text-emerald-400">open <span className="text-gray-500">[file]</span> - Open file</p>
+                    <p className="pl-4 text-emerald-400">clear      - Clear terminal</p>
+                    <p className="pl-4 text-emerald-400">joke       - Tell a joke</p>
+                    <p className="pl-4 text-emerald-400">resume     - View Resume</p>
+                </div>
+            )
+        }),
+        joke: async () => {
+            try {
+                const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode');
+                const data = await res.json();
+
+                if (data.error) {
+                    return { output: <span className="text-red-400">Error: Humor module offline.</span> };
+                }
+
+                return {
+                    output: (
+                        <div className="text-emerald-300 border-l-2 border-emerald-500/30 pl-3 py-1 my-1">
+                            {data.type === 'single' ? (
+                                <p className="italic">"{data.joke}"</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p>{data.setup}</p>
+                                    <p className="text-emerald-200 font-bold">&gt; {data.delivery}</p>
+                                </div>
+                            )}
+                        </div>
+                    )
+                };
+            } catch (e) {
+                return { output: <span className="text-red-400">Error: Connection failed.</span> };
+            }
+        },
+        about: () => ({
+            output: "Dhruv Mishra is a software developer skilled in competitive programming and full-stack development. I enjoy solving algorithmic challenges and building efficient systems."
+        }),
+        contact: () => ({
+            output: "Email: dhruvmishra.id@gmail.com | GitHub: @Dhruv-Mishra | Phone: (+91) 9599377944"
+        }),
+        projects: () => ({
+            output: "Navigating to projects...",
+            action: () => router.push("/projects")
+        }),
+        init: () => ({
+            output: (
+                <span className="text-yellow-400">
+                    System already initialized. <br />
+                    &gt; Uptime: <span className="text-gray-400">{Math.floor(performance.now() / 1000)}s</span> <br />
+                    &gt; Status: <span className="text-green-400">Stable</span>
+                </span>
+            )
+        }),
+        resume: () => ({
+            output: "Navigating to resume page...",
+            action: () => router.push("/resume")
+        }),
+        cv: () => ({
+            output: "Navigating to resume page...",
+            action: () => router.push("/resume")
+        }),
+
+        // Social Commands
+        socials: () => ({
+            output: (
+                <div className="space-y-1">
+                    <p>Connect with me:</p>
+                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://github.com/Dhruv-Mishra', '_blank')}>github</p>
+                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank')}>linkedin</p>
+                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://codeforces.com/profile/DhruvMishra', '_blank')}>codeforces</p>
+                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('https://zibada.guru/gcj/profile/Dhruv985', '_blank')}>cp-history</p>
+                    <p className="pl-4 text-blue-400 hover:underline cursor-pointer" onClick={() => window.open('mailto:dhruvmishra.id@gmail.com', '_blank')}>email</p>
+                </div>
+            )
+        }),
+        github: () => ({
+            output: "Opening GitHub profile...",
+            action: () => window.open('https://github.com/Dhruv-Mishra', '_blank')
+        }),
+        linkedin: () => ({
+            output: "Opening LinkedIn profile...",
+            action: () => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank')
+        }),
+        codeforces: () => ({
+            output: "Opening Codeforces profile...",
+            action: () => window.open('https://codeforces.com/profile/DhruvMishra', '_blank')
+        }),
+        email: () => ({
+            output: "Opening mail client...",
+            action: () => window.location.href = "mailto:dhruvmishra.id@gmail.com"
+        }),
+
+        // Easter Eggs & Utility
+        ls: () => ({
+            output: (
+                <div className="grid grid-cols-2 gap-2 max-w-xs text-blue-300">
+                    <span>about.md</span>
+                    <span>projects.json</span>
+                    <span>resume.pdf</span>
+                    <span>contact.txt</span>
+                    <span>secrets.env</span>
+                </div>
+            )
+        }),
+        cat: (args: string[]) => {
+            const file = args[0];
+            if (!file) return { output: "Usage: cat [filename]" };
+
+            const files: Record<string, string> = {
+                "about.md": "Dhruv Mishra: Algorithmic thinker, Developer, and Problem Solver.",
+                "projects.json": "[ { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, ... ]",
+                "contact.txt": "Email: dhruvmishra.id@gmail.com\nPhone: (+91) 9599377944",
+                "resume.pdf": "Error: Binary file not readable. Try 'open resume.pdf'",
+                "secrets.env": "Error: Permission denied. Nice try! ;)"
+            };
+
+            return { output: files[file] || `File not found: ${file}` };
+        },
+        open: (args: string[]) => {
+            const file = args[0];
+            if (!file) return { output: "Usage: open [filename]" };
+
+            if (file === "resume.pdf") {
+                return {
+                    output: "Opening resume...",
+                    action: () => router.push("/resume")
+                };
+            }
+            if (file === "projects.json") {
+                return {
+                    output: "Opening projects...",
+                    action: () => router.push("/projects")
+                };
+            }
+            return { output: `Cannot open ${file}. Try 'cat' to read it.` };
+        },
+        whoami: () => ({
+            output: "guest@portfolio-v1"
+        }),
+        date: () => ({
+            output: new Date().toString()
+        }),
+        sudo: () => ({
+            output: <span className="text-red-500 font-bold">Permission denied: You are not authorized to perform this action.</span>
+        }),
+
+        // 'clear' is handled specially
+        clear: () => ({ output: "" })
+    }), [router]);
+
+    const AVAILABLE_COMMANDS = React.useMemo(() => Object.keys(COMMAND_REGISTRY), [COMMAND_REGISTRY]);
 
     useEffect(() => {
         if (isInitialMount.current) {
@@ -70,38 +192,51 @@ export default function Terminal() {
         }
     }, [outputLines]);
 
-    // ... inside component
-
-    const handleCommand = React.useCallback((e: React.FormEvent) => {
+    const handleCommand = React.useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
-        const cmd = input.trim().toLowerCase();
-        if (!cmd) return;
 
-        // Special handling for 'clear' as it affects localized state/context methods directly
-        if (cmd === 'clear') {
+        const trimmedInput = input.trim();
+        if (!trimmedInput) return;
+
+        // Split into command and args
+        const [cmd, ...args] = trimmedInput.split(/\s+/);
+        const lowerCmd = cmd.toLowerCase();
+
+        // Special handling for 'clear'
+        if (lowerCmd === 'clear') {
             addToHistory("clear");
             clearOutput();
             setInput("");
             return;
         }
 
-        const commandDef = COMMAND_REGISTRY[cmd];
+        setIsProcessing(true);
+        const commandDef = COMMAND_REGISTRY[lowerCmd];
         let output: React.ReactNode;
 
         if (commandDef) {
-            const result = commandDef(cmd);
-            output = result.output;
-            if (result.action) {
-                result.action();
+            try {
+                // Pass args to the command function
+                // Await result in case it's a promise
+                const result = await commandDef(args);
+                output = result.output;
+                if (result.action) {
+                    result.action();
+                }
+            } catch (err) {
+                output = <span className="text-red-400">Error executing command.</span>;
             }
         } else {
-            output = `Command not found: ${cmd}. Type 'help' for available commands.`;
+            output = `Command not found: ${lowerCmd}. Type 'help' for available commands.`;
         }
 
-        addCommand(input, output);
+        setIsProcessing(false);
+
+        // Add original input string to history
+        addCommand(trimmedInput, output);
         setInput("");
         setHistoryIndex(-1); // Reset history pointer
-    }, [input, addCommand, addToHistory, clearOutput]);
+    }, [input, addCommand, addToHistory, clearOutput, COMMAND_REGISTRY]);
 
     // Better History Logic Implementation
     const navigateHistory = React.useCallback((direction: 'up' | 'down') => {
@@ -139,12 +274,13 @@ export default function Terminal() {
             navigateHistory('down');
         } else if (e.key === "Tab") {
             e.preventDefault();
-            const match = AVAILABLE_COMMANDS.find(cmd => cmd.startsWith(input));
+            const [cmd] = input.trim().split(/\s+/); // only autocomplete first word
+            const match = AVAILABLE_COMMANDS.find(c => c.startsWith(cmd));
             if (match) {
                 setInput(match);
             }
         }
-    }, [navigateHistory, input]);
+    }, [navigateHistory, input, AVAILABLE_COMMANDS]);
 
     return (
         <motion.div

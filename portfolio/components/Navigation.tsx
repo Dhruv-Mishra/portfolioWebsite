@@ -27,17 +27,19 @@ export default function Navigation() {
                 return (
                     <Link key={item.name} href={item.href} legacyBehavior={false} passHref>
                         <motion.div
-                            initial={{ y: -50 }}
-                            animate={{ y: active ? 0 : -10 }}
-                            whileHover={{ y: 5 }}
+                            // Start way up hidden (-80), animate to visible state (-40 inactive, -30 active)
+                            // The large negative values + large padding ensures top edge is never seen
+                            initial={{ y: -100 }}
+                            animate={{ y: active ? -30 : -45 }}
+                            whileHover={{ y: -25 }}
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
                             className={cn(
-                                "cursor-pointer pt-3 pb-4 px-4 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-lg md:text-xl tracking-wide",
+                                "cursor-pointer pt-16 pb-4 px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-lg md:text-xl tracking-wide",
                                 colors[i % 3], // Cycle colors
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}
                             style={{
-                                clipPath: 'polygon(0% 0%, 100% 0%, 95% 100%, 5% 100%)' // Tapered tab shape
+                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' // Slightly steeper taper
                             }}
                         >
                             {item.name}

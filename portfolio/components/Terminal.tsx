@@ -67,7 +67,14 @@ export default function Terminal() {
             }
         },
         about: () => ({
-            output: "Dhruv Mishra is a software developer skilled in competitive programming and full-stack development. I enjoy solving algorithmic challenges and building efficient systems."
+            output: (
+                <div className="space-y-2">
+                    <p>Hey, I'm <strong className="text-emerald-400">Dhruv</strong> 👋</p>
+                    <p>I build and optimize software systems that need to be fast, reliable, and boring in production.</p>
+                    <p>I'm a <strong className="text-emerald-400">Software Engineer at Microsoft</strong>, working across Android and backend platforms used by millions—profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds (and dollars) off large systems. I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.</p>
+                    <p>I come from a strong CS background, spend time with competitive programming, and like turning complex technical problems into clean, production-ready solutions.</p>
+                </div>
+            )
         }),
         contact: () => ({
             output: (
@@ -367,10 +374,11 @@ export default function Terminal() {
                         </div>
                     ))}
 
-                    <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
+                    <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4" suppressHydrationWarning>
                         <span className="text-emerald-400 font-bold">➜</span>
                         <span className="text-blue-300 font-bold">~</span>
                         <input
+                            suppressHydrationWarning
                             ref={inputRef}
                             type="text"
                             value={input}

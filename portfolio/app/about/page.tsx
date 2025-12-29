@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 
 export default function About() {
     return (
@@ -9,35 +10,11 @@ export default function About() {
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-[#fff9c4] p-6 md:p-12 shadow-[5px_5px_15px_rgba(0,0,0,0.2)] text-gray-800 relative min-h-[400px]"
-                    style={{
-                        clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 60px), calc(100% - 60px) 100%, 0% 100%)'
-                    }}
+                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
                 >
-                    {/* Folded Corner Effect - Bottom Right */}
+                    {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
-                        className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md"
-                        style={{
-                            width: 60,
-                            height: 60,
-                            backgroundColor: 'rgba(0,0,0,0.1)',
-                            background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
-                        }}
-                    />
-                    <div
-                        className="absolute bottom-0 right-0 pointer-events-none"
-                        style={{
-                            width: 60,
-                            height: 60,
-                            backgroundColor: '#fffae5', // Slightly darker than paper
-                            filter: 'brightness(0.95)',
-                            clipPath: 'polygon(0 0, 0 100%, 100% 0)'
-                        }}
-                    />
-
-                    {/* Realistic Tape - Top Left */}
-                    <div
-                        className="absolute -top-3 -left-2 w-24 md:w-32 h-10 bg-white/40 shadow-sm backdrop-blur-[1px] z-10 -rotate-[8deg]"
+                        className="absolute -top-1 -left-6 w-24 md:w-32 h-10 bg-white/80 shadow-sm backdrop-blur-[1px] z-20 -rotate-[8deg]"
                         style={{
                             maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
                             WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
@@ -45,7 +22,7 @@ export default function About() {
                         }}
                     />
 
-                    {/* Realistic Thumbpin - Top Center (Top View) */}
+                    {/* Realistic Thumbpin - Top Center (Outside Clipped Area) */}
                     <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none drop-shadow-xl">
                         <svg width="60" height="60" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
                             {/* Paper Indent/Shadow */}
@@ -73,28 +50,73 @@ export default function About() {
                         </svg>
                     </div>
 
-                    <h1 className="text-4xl md:text-5xl font-hand font-bold mb-6 text-gray-900 border-b-2 border-gray-400/30 pb-2">
-                        About Me
-                    </h1>
+                    {/* Paper Content (Clipped) */}
+                    <div
+                        className="bg-[#fff9c4] p-6 md:p-12 w-full h-full relative"
+                        style={{
+                            clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 60px), calc(100% - 60px) 100%, 0% 100%)'
+                        }}
+                    >
+                        {/* Folded Corner Effect - Bottom Right */}
+                        <div
+                            className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md"
+                            style={{
+                                width: 60,
+                                height: 60,
+                                backgroundColor: 'rgba(0,0,0,0.1)',
+                                background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
+                            }}
+                        />
+                        <div
+                            className="absolute bottom-0 right-0 pointer-events-none"
+                            style={{
+                                width: 60,
+                                height: 60,
+                                backgroundColor: '#fffae5', // Slightly darker than paper
+                                filter: 'brightness(0.95)',
+                                clipPath: 'polygon(0 0, 0 100%, 100% 0)'
+                            }}
+                        />
 
-                    <div className="space-y-6 text-xl md:text-2xl font-hand leading-relaxed">
-                        <p>
-                            Hey! I&apos;m <strong className="text-indigo-700">Dhruv Mishra</strong>.
-                            I&apos;m a software developer with a strong foundation in <span className="underline decoration-wavy decoration-yellow-500">Competitive Programming</span> and Algorithms.
-                        </p>
-                        <p>
-                            I specialize in building frontend experiences that feel <span className="underline decoration-wavy decoration-emerald-500">organic</span> yet perform fast.
-                        </p>
-                        <p>
-                            When I&apos;m not coding, I&apos;m probably sketching ideas on actual paper or debugging my coffee machine.
-                        </p>
-                    </div>
+                        <h1 className="text-4xl md:text-5xl font-hand font-bold mb-6 text-gray-900 border-b-2 border-gray-400/30 pb-2">
+                            About Me
+                        </h1>
 
-                    <div className="mt-8 flex gap-4">
-                        <div className="bg-white p-2 shadow-sm rotate-3 border border-gray-200">
-                            <div className="w-24 h-24 bg-gray-200 flex items-center justify-center text-xs font-mono text-gray-400">
-                                [PHOTO]
+                        <div className="space-y-6 text-xl md:text-2xl font-hand leading-relaxed">
+                            {/* Pinned Photo - Floated Right */}
+                            <div className="float-right ml-6 mb-2 mt-2 relative transform rotate-3 hidden md:block z-20">
+                                <div className="bg-white p-2 shadow-md border border-gray-200 relative">
+                                    {/* Tape */}
+                                    <div
+                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 bg-white/80 shadow-sm backdrop-blur-[1px] z-30 -rotate-1 border-l border-r border-white/10"
+                                        style={{
+                                            maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
+                                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
+                                        }}
+                                    />
+                                    <div className="w-40 h-40 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
+                                        <Image
+                                            src="/resources/aboutPhoto.webp"
+                                            alt="Dhruv"
+                                            fill
+                                            className="object-cover sepia-[.3] contrast-125"
+                                        />
+                                    </div>
+                                </div>
                             </div>
+
+                            <p>
+                                Hey, I&apos;m <strong className="text-indigo-700">Dhruv</strong> 👋
+                            </p>
+                            <p>
+                                I build and optimize software systems that need to be fast, reliable, and <span className="underline decoration-wavy decoration-yellow-500">boring</span> in production.
+                            </p>
+                            <p>
+                                I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong>, working across Android and backend platforms used by millions—profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds (and dollars) off large systems. I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.
+                            </p>
+                            <p>
+                                I come from a strong CS background, spend time with <span className="underline decoration-wavy decoration-emerald-500">competitive programming</span>, and like turning complex technical problems into clean, production-ready solutions.
+                            </p>
                         </div>
                     </div>
                 </motion.div>

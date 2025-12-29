@@ -1,5 +1,6 @@
 "use client";
 import Terminal from "@/components/Terminal";
+import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { motion } from "framer-motion";
 import { Coffee } from "lucide-react";
 
@@ -46,8 +47,16 @@ export default function Home() {
       </motion.p>
 
       {/* The Terminal */}
-      <div className="w-full max-w-2xl mt-8 transform rotate-1 hover:rotate-0 transition-all duration-300 z-20">
+      <div className="w-full max-w-2xl mt-8 transform rotate-1 hover:rotate-0 transition-all duration-300 z-20 relative">
         <Terminal />
+
+        {/* Interaction Hint (Desktop Only) */}
+        <div className="hidden xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none">
+          <div className="font-hand text-4xl text-[var(--d-blue)] mb-2 text-center font-bold tracking-wide">
+            Psst... type something!
+          </div>
+          <HandDrawnArrow className="w-40 h-24 text-[var(--d-blue)] transform rotate-12 ml-auto -mt-4 mr-4" />
+        </div>
       </div>
 
       <div className="mt-8 text-sm font-mono text-gray-400">

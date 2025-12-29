@@ -18,13 +18,13 @@ export default function ResumePage() {
                 }}
             >
                 {/* Tape - Top Left */}
-                <div className="absolute -top-3 -left-8 w-32 h-8 bg-white/40 backdrop-blur-sm border border-white/50 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" />
+                <div className="absolute -top-3 -left-8 w-32 h-8 bg-white/80 backdrop-blur-sm border border-white/50 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" />
 
                 {/* Tape - Top Right */}
-                <div className="absolute -top-4 -right-8 w-32 h-8 bg-white/40 backdrop-blur-sm border border-white/50 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" />
+                <div className="absolute -top-4 -right-8 w-32 h-8 bg-white/80 backdrop-blur-sm border border-white/50 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" />
 
                 {/* Tape - Bottom Center */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-40 h-10 bg-white/40 backdrop-blur-sm border border-white/50 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" />
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-40 h-10 bg-white/80 backdrop-blur-sm border border-white/50 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" />
 
                 <div className="w-full h-full bg-white relative z-10 overflow-hidden">
                     {/* 
@@ -34,14 +34,14 @@ export default function ResumePage() {
                          #view=FitV fits the whole page vertically
                      */}
                     <object
-                        data="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
+                        data="/resources/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
                         type="application/pdf"
                         className="w-full h-full block pointer-events-none"
                     >
                         <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center text-gray-600 font-hand text-xl bg-orange-50/50">
                             <p>Ah, the classic "Browser doesn't like PDFs" issue.</p>
                             <a
-                                href="/resume.pdf"
+                                href="/resources/resume.pdf"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="px-6 py-2 bg-[#2d2a2e] text-white rounded-lg shadow-md hover:scale-105 transition-transform"
@@ -53,7 +53,7 @@ export default function ResumePage() {
 
                     {/* External Link Overlay (Since PDF is non-interactive) */}
                     <a
-                        href="/resume.pdf"
+                        href="/resources/resume.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute bottom-4 right-4 z-30 group"

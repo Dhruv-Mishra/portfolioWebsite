@@ -160,3 +160,24 @@ export const MusicNoteDoodle = () => (
         </svg>
     </div>
 );
+
+export const HandDrawnArrow = ({ className }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 200 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Shaft - Convex Swoop (Bowl shape) */}
+        <path
+            d="M20 20 Q 90 90 180 60"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            fill="none"
+        />
+        {/* Arrowhead - Pointing Right/Slightly Up from the swoop */}
+        <path
+            d="M180 60 L 150 50 M180 60 L 155 80"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+    </svg>
+);

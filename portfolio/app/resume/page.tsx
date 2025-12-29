@@ -33,23 +33,45 @@ export default function ResumePage() {
                          #scrollbar=0 hides scrollbars
                          #view=FitV fits the whole page vertically
                      */}
-                    <object
-                        data="/resources/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
-                        type="application/pdf"
-                        className="w-full h-full block pointer-events-none"
-                    >
-                        <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center text-gray-600 font-hand text-xl bg-orange-50/50">
-                            <p>Ah, the classic "Browser doesn't like PDFs" issue.</p>
-                            <a
-                                href="/resources/resume.pdf"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-6 py-2 bg-[#2d2a2e] text-white rounded-lg shadow-md hover:scale-105 transition-transform"
-                            >
-                                Open PDF in New Tab
-                            </a>
+                    {/* Desktop View: Embedded PDF */}
+                    <div className="hidden md:block w-full h-full">
+                        <object
+                            data="/resources/resume.pdf#toolbar=0&navpanes=0&scrollbar=0&view=FitV"
+                            type="application/pdf"
+                            className="w-full h-full block pointer-events-none"
+                        >
+                            <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center text-gray-600 font-hand text-xl bg-orange-50/50">
+                                <p>Unable to embed PDF.</p>
+                                <a
+                                    href="/resources/resume.pdf"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-6 py-2 bg-[#2d2a2e] text-white rounded-lg shadow-md hover:scale-105 transition-transform"
+                                >
+                                    Open PDF
+                                </a>
+                            </div>
+                        </object>
+                    </div>
+
+                    {/* Mobile View: Direct Link Card */}
+                    <div className="md:hidden w-full h-full flex flex-col items-center justify-center gap-6 p-6 text-center bg-orange-50/10">
+                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-3xl shadow-inner">
+                            📄
                         </div>
-                    </object>
+                        <div className="space-y-2">
+                            <h3 className="font-hand text-2xl font-bold text-gray-800">Resume.pdf</h3>
+                            <p className="font-hand text-lg text-gray-600">Tap to view the full document</p>
+                        </div>
+                        <a
+                            href="/resources/resume.pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-8 py-3 bg-[var(--c-ink)] text-[var(--c-paper)] rounded-full font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                        >
+                            Open Resume <span className="text-xl">↗</span>
+                        </a>
+                    </div>
 
                     {/* External Link Overlay (Since PDF is non-interactive) */}
                     <a

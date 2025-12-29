@@ -85,7 +85,7 @@ export default function Projects() {
                 </>
             ),
             lang: "Research / C++",
-            link: "https://dcll.iiitd.edu.in/team/dhruv/",
+            link: "https://repository.iiitd.edu.in/jspui/handle/123456789/1613",
             colorClass: "bg-note-gray",
             image: "/resources/BloomFiltersProject.webp",
             icon: ScrollText,
@@ -182,8 +182,7 @@ export default function Projects() {
                                 )`
                                 }}
                             >
-                                {/* Margin Line */}
-                                <div className="absolute top-0 bottom-0 left-8 w-px bg-rose-400/30 h-full pointer-events-none" />
+
 
                                 {/* Polaroid Style Photo */}
                                 <div

@@ -23,7 +23,7 @@ export default function Navigation() {
     const pathname = usePathname();
 
     return (
-        <nav className="fixed top-0 right-2 md:right-12 z-50 flex gap-2 md:gap-4 perspective-[500px]">
+        <nav className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 z-50 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]">
             {LINKS.map((item, i) => {
                 const active = pathname === item.href;
 
@@ -38,8 +38,8 @@ export default function Navigation() {
                             // Start way up hidden (-80), animate to visible state (-40 inactive, -30 active)
                             // The large negative values + large padding ensures top edge is never seen
                             initial={{ y: -100 }}
-                            animate={{ y: active ? -30 : -45 }}
-                            whileHover={{ y: -25 }}
+                            animate={{ y: active ? -5 : -25 }}
+                            whileHover={{ y: -5 }}
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
                             className={cn(
                                 "cursor-pointer pt-12 md:pt-16 pb-3 md:pb-4 px-3 md:px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-sm md:text-xl tracking-wide",
@@ -57,5 +57,4 @@ export default function Navigation() {
             })}
         </nav>
     );
-
 }

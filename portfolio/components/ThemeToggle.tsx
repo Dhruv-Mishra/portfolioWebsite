@@ -3,10 +3,9 @@
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sun, Moon } from "lucide-react";
 
 export function ThemeToggle() {
-    const { theme, setTheme } = useTheme();
+    const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = React.useState(false);
 
     // useEffect only runs on the client, so now we can safely show the UI
@@ -15,11 +14,11 @@ export function ThemeToggle() {
     }, []);
 
     if (!mounted) {
-        return null; // or a placeholder
+        return <div className="w-10 h-10" />; // Prevent layout shift
     }
 
     const toggleTheme = () => {
-        setTheme(theme === "dark" ? "light" : "dark");
+        setTheme(resolvedTheme === "dark" ? "light" : "dark");
     };
 
     return (
@@ -29,7 +28,7 @@ export function ThemeToggle() {
             aria-label="Toggle Theme"
         >
             <AnimatePresence mode="wait" initial={false}>
-                {theme === "dark" ? (
+                {resolvedTheme === "dark" ? (
                     <motion.div
                         key="moon"
                         initial={{ opacity: 0, rotate: -90, scale: 0.5 }}

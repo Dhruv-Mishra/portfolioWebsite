@@ -1,69 +1,81 @@
 # Project Context: Dhruv's Sketchbook Portfolio
 
 ## 1. Project Overview
-This is a developer portfolio website conceptualized as a **digital sketchbook**. The user interface mimics physical paper, drawing tools, and handwritten elements, providing a unique "desk" atmosphere.
+A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with developer-centric tools. The user experience is "inside" a spiral-bound notebook where code meets creativity.
 
 ### Core Metaphor
-- **The "Page"**: The central content area is a sheet of textured paper (Graph paper in Light Mode, Blackboard in Dark Mode).
-- **The "Tools"**: The cursor is a physical tool (Pencil or Chalk) that leaves a trail.
-- **The "System"**: An integrated Terminal overlay provides a developer-centric navigation method alongside standard UI.
+-   **The "Paper"**: Textured background (Graph paper in Light Mode, Blackboard/Slate in Dark Mode) using CSS-based patterns.
+-   **The "Tools"**:
+    -   **Cursor**: Custom pencil/chalk SVG that leaves a fading trail (canvas-based).
+    -   **Terminal**: A persistent, interactive command-line interface that acts as the primary power-user navigation.
+    -   **Sticky Notes**: Specific yellow shades for project management aesthetics.
 
-## 2. Technology Stack
-- **Framework**: Next.js 16 (App Router)
-- **Styling**: Tailwind CSS v4
-  - **Configuration**: Managed via `@theme` in `app/globals.css`, *not* a javascript config file.
-  - **Theming Strategy**: CSS Variables + `next-themes` (Class-based).
-- **Animation**: `framer-motion` (Page transitions, cursor movement, layout animations).
-- **Icons**: `lucide-react` & Custom SVG Doodles.
-- **Fonts**:
-  - `Patrick Hand` (Google Fonts) - Main UI/Handwriting.
-  - `Fira Code` (Google Fonts) - Terminal/Code.
+## 2. Technology Stack & Architecture
+-   **Framework**: Next.js 16 (App Router) + Turbopack.
+-   **Styling**: Tailwind CSS v4.
+    -   **Config**: Zero-config `@theme` blocks in `app/globals.css`.
+    -   **Theming**: `next-themes` (attribute="class") managing CSS variables (`--c-paper`, `--note-yellow`).
+-   **State Management**: React Context (`TerminalContext`) for command history/output persistence.
+-   **Animation**: `framer-motion` for page transitions, doodle parallax, and UI interactions.
+-   **Deployment**: Static Export compatible (for low-resource environments).
 
-## 3. Architecture & Key Areas
+## 3. Key Components & Implementation Details
 
-### A. Theming System (CRITICAL)
-The theming system was recently refactored for **instant, zero-delay switching**.
-- **Provider**: `ThemeProvider` in `app/layout.tsx` uses `attribute="class"`.
-- **Global Styles**: `app/globals.css` defines the source of truth.
-  - **Variables**: `--c-paper`, `--c-ink`, `--c-heading`, and `--d-*` (doodles).
-  - **Switching Logic**: The mechanism relies on CSS variables changing values under the `.dark` selector.
-  - **Optimization**: Do **NOT** use JavaScript state (e.g., `theme === 'dark' ? 'text-white' : 'text-black'`) for static styling. Use `text-[var(--c-heading)]` to avoid hydration mismatches and rendering lag.
+### A. Layout System (`SketchbookLayout.tsx`)
+-   **Responsive**: Uses `h-[100dvh]` (Dynamic Viewport Height) to solve mobile browser scroll issues.
+-   **Structure**: Spiral binding (CSS/SVG) fixed to the left + Main "Paper" area.
+-   **Parallax**: `framer-motion` mapped to mouse position (dampened springs) for subtle depth.
+-   **Mobile**: Optimized to ensure full scrollability of content while keeping decorations subtle.
 
-### B. Custom Cursor (`components/SketchbookCursor.tsx`)
-A complex component handling both the tool visualization and the drawing trail.
-- **Logic**: Uses `requestAnimationFrame` to draw fading lines on a `<canvas>` overlay.
-- **Theme Awareness**: Uses a `useRef` to track `resolvedTheme`. This allows the animation loop to switch between "Graphite" (Light) and "Chalk" (Dark) styles without restarting the loop or suffering from stale closures.
+### B. Theming & Aesthetics
+-   **Light Mode**:
+    -   Bg: `#fdfbf7` (Warm Paper).
+    -   Ink: `#2d2a2e` (Dark Charcoal).
+    -   Notes: `#fff9c4` (Post-it Yellow).
+    -   Text Contrast: High-performance highlights forced to `#000000` via JS-driven inline styles for maximum readability.
+-   **Dark Mode**:
+    -   Bg: `#1a1a1a` (Matte Black/Slate).
+    -   Ink: `#e5e5e5` (Chalk White).
+    -   Notes: `#222222` (Dark Cardstock).
+    -   Text Contrast: Forced to `#ffffff`.
+-   **Toggle Logic**: `ThemeToggle.tsx` uses `resolvedTheme` to handle "System" preference correctly without icon mismatch.
 
-### C. Doodles (`components/SketchbookDoodles.tsx`)
-A collection of decorative SVG elements (clouds, stars, arrows).
-- **Styling**: Controlled by CSS variables (`--d-amber`, `--d-slate`, etc.).
-- **Light Mode**: Deep, ink-like colors, 30% opacity, thin strokes (1.2px) for a subtle watermark effect.
-- **Dark Mode**: Pastel/Chalk colors, higher visibility, thicker strokes (2.5px).
+### C. Persistent Terminal (`TerminalContext.tsx`)
+-   **Global State**: History and Output persist across page navigation.
+-   **Commands**: `help`, `about`, `projects`, `resume`, `clear`.
+-   **Mobile UX**: Auto-focus disabled on mobile to prevent virtual keyboard conflict during scrolling.
 
-### D. Terminal (`components/Terminal.tsx` & `context/TerminalContext.tsx`)
-- **State**: `TerminalContext` manages output history and command memory globally.
-- **Functionality**: Fully functional CLI with commands like `help`, `projects`, `resume`, `socials`.
+### D. Navigation
+-   **Desktop**: Tabs on top-right, animated "hanging" effect.
+-   **Mobile**: Tabs centered, lowered significantly (`y: -5px` active) to ensure touch targets are fully visible and not cut off by the browser chrome.
 
-## 4. conventions & Best Practices
-1.  **Mobile Responsiveness**:
-    - **Hide Decorations**: The Cursor, Doodles, and Social Sidebar are hidden on mobile (`hidden md:block`) to prevent clutter and touch-event interference.
-    - **Layout**: Navigation shifts to a compact form; typography scales down.
-2.  **Asset Management**:
-    - Doodles are strictly defined components, not separate image files.
-    - Global font variables: `font-hand`, `font-mono`.
-3.  **Performance**:
-    - Avoid `useEffect`-based styling where CSS variables can do the job.
-    - Ensure `SketchbookCursor` is mounted only on client (`if (!mounted) return null`) to prevent hydration errors.
+### E. Pages
+-   **Home**: Intro + Terminal.
+    -   **Credits**: "Dhruv" links to LinkedIn. Bio highlights "High-Performance Systems" at Microsoft.
+-   **Projects**: Grid of Polaroid-style cards.
+    -   **Interaction**: Random rotations, tape effects, handwritten descriptions.
+    -   **Recent Fix**: Removed red margin lines for a cleaner look.
+-   **Resume**:
+    -   **Desktop**: Embedded PDF (`<object>`).
+    -   **Mobile**: Clean "Download/Open" card to avoid unresponsive embed issues.
 
-## 5. Recent Fixes (Debugging History)
-- **Fix**: Dark Mode Heading Lag.
-  - *Solution*: Removed JS-based color logic and `transition-duration` on text. Implemented `--c-heading` CSS variable.
-- **Fix**: Missing Chalk Trail.
-  - *Solution*: Updated `SketchbookCursor` to use `themeRef` instead of stale `theme` state in the canvas loop.
-- **Fix**: Doodle Visibility.
-  - *Solution*: Standardized all doodle colors to variables. Tuned Light Mode to be high-contrast "ink" but low opacity (30%) to blend with paper.
+## 4. Best Practices & Rules
+1.  **Mobile First**: Always test scroll behavior and touch targets. Use `100dvh` for full-screen containers.
+2.  **Performance**:
+    -   Use CSS variables for theming where possible.
+    -   Use `transition-none` for critical contrast elements to prevent "ghosting" during theme switches.
+    -   Keep bundle size low (removed unused libs, static export).
+3.  **Aesthetics**:
+    -   **Imperfection**: Use slight rotations (`rotate-1`, `-rotate-2`) and handwritten fonts (`Patrick Hand`) to avoid "corporate" stiffness.
+    -   **Contrast**: Ensure text is readable on distinct note backgrounds.
 
-## 6. Future Roadmap (Context for Next Agent)
-- [ ] **Persistent Terminal**: The terminal state persists, but more complex features (like a filesystem mock) could be added.
-- [ ] **Projects Page Interaction**: Currently a grid. Could be enhanced with a "folder" or "blueprint" opening animation.
-- [ ] **Sound Effects**: Adding subtle pencil scratching or page turning sounds (auditory feedback).
+## 5. Recent Refinements (Debugging Log)
+-   **Theme Toggle Bug**: Fixed by using `resolvedTheme` instead of `theme`.
+-   **Mobile Scroll**: Fixed by switching `h-screen` (which ignores browser chrome) to `h-[100dvh]` + `overflow-y-auto`.
+-   **Contrast**: Enforced pure black/white text for bio highlights using inline JS styles to bypass CSS specificity issues.
+-   **Assets**: Updated Bloom Filter project link to official repository.
+
+## 6. Future Roadmap
+-   [ ] **Sound Effects**: Audio feedback for typing/drawing.
+-   [ ] **Project Details**: Expand card into full case study page.
+-   [ ] **Blog/Notebook**: A section for markdown articles rendered as "handwritten" journal entries.

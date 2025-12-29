@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
-import TerminalJoke from "./TerminalJoke";
+
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
 
@@ -14,7 +14,6 @@ export default function Terminal() {
 
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
-    const [isProcessing, setIsProcessing] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -52,7 +51,7 @@ export default function Terminal() {
                     output: (
                         <div className="text-emerald-300 border-l-2 border-emerald-500/30 pl-3 py-1 my-1">
                             {data.type === 'single' ? (
-                                <p className="italic">"{data.joke}"</p>
+                                <p className="italic">&quot;{data.joke}&quot;</p>
                             ) : (
                                 <div className="space-y-2">
                                     <p>{data.setup}</p>
@@ -62,16 +61,16 @@ export default function Terminal() {
                         </div>
                     )
                 };
-            } catch (e) {
+            } catch {
                 return { output: <span className="text-red-400">Error: Connection failed.</span> };
             }
         },
         about: () => ({
             output: (
                 <div className="space-y-2">
-                    <p>Hey, I'm <strong className="text-emerald-400">Dhruv</strong> 👋</p>
+                    <p>Hey, I&apos;m <strong className="text-emerald-400">Dhruv</strong> 👋</p>
                     <p>I build and optimize software systems that need to be fast, reliable, and boring in production.</p>
-                    <p>I'm a <strong className="text-emerald-400">Software Engineer at Microsoft</strong>, working across Android and backend platforms used by millions—profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds (and dollars) off large systems. I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.</p>
+                    <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong>, working across Android and backend platforms used by millions—profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds (and dollars) off large systems. I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.</p>
                     <p>I come from a strong CS background, spend time with competitive programming, and like turning complex technical problems into clean, production-ready solutions.</p>
                 </div>
             )
@@ -233,7 +232,6 @@ export default function Terminal() {
             return;
         }
 
-        setIsProcessing(true);
         const commandDef = COMMAND_REGISTRY[lowerCmd];
         let output: React.ReactNode;
 
@@ -246,14 +244,12 @@ export default function Terminal() {
                 if (result.action) {
                     result.action();
                 }
-            } catch (err) {
+            } catch {
                 output = <span className="text-red-400">Error executing command.</span>;
             }
         } else {
             output = `Command not found: ${lowerCmd}. Type 'help' for available commands.`;
         }
-
-        setIsProcessing(false);
 
         // Add original input string to history
         addCommand(trimmedInput, output);
@@ -349,7 +345,7 @@ export default function Terminal() {
 
                     <div className="flex items-center gap-2 text-gray-400/60 font-hand text-lg tracking-widest uppercase relative z-10">
                         <TerminalIcon size={16} className="text-gray-500" />
-                        <span>Dhruv's Terminal v1.0</span>
+                        <span>Dhruv&apos;s Terminal v1.0</span>
                     </div>
                     <div className="w-16"></div>
                 </div>
@@ -357,7 +353,12 @@ export default function Terminal() {
                 {/* Body - Chalkboard Vibe */}
                 <div
                     className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
-                    onClick={() => inputRef.current?.focus()}
+                    onClick={() => {
+                        // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
+                        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                            inputRef.current?.focus();
+                        }
+                    }}
                 >
                     {outputLines.map((item, i) => (
                         <div key={i} className="mb-4">
@@ -374,11 +375,10 @@ export default function Terminal() {
                         </div>
                     ))}
 
-                    <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4" suppressHydrationWarning>
+                    <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
                         <span className="text-emerald-400 font-bold">➜</span>
                         <span className="text-blue-300 font-bold">~</span>
                         <input
-                            suppressHydrationWarning
                             ref={inputRef}
                             type="text"
                             value={input}

@@ -4,9 +4,20 @@ import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { motion } from "framer-motion";
 import { Coffee } from "lucide-react";
 
+import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
+
 export default function Home() {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid hydration pattern for Next.js
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
-    <div className="flex flex-col gap-6 h-full relative justify-center items-center">
+    <div className="flex flex-col gap-6 h-full relative justify-center items-center pt-24 md:pt-0">
       {/* Decor Elements */}
 
 
@@ -40,10 +51,15 @@ export default function Home() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="text-xl md:text-2xl text-gray-600 text-center max-w-lg font-hand leading-loose -rotate-1 mt-4"
+        className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center max-w-lg font-hand leading-loose -rotate-1 mt-4"
       >
-        I&apos;m <span className="font-bold text-indigo-700 decoration-indigo-300 underline underline-offset-4">Dhruv</span>.
-        This is where my messy code meets my structured creativity.
+        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 transition-all">Dhruv</a>.
+        I engineer <strong
+          style={{ color: mounted && resolvedTheme === 'dark' ? '#ffffff' : '#000000' }}
+          className="transition-none font-black"
+        >
+          high-performance systems
+        </strong>, turning complex technical problems into elegant, reliable solutions.
       </motion.p>
 
       {/* The Terminal */}

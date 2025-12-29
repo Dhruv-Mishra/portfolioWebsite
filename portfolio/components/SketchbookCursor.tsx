@@ -14,6 +14,7 @@ export default function SketchbookCursor() {
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid hydration pattern for Next.js
     useEffect(() => {
         setMounted(true);
     }, []);

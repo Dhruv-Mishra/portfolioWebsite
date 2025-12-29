@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect } from 'react';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import React from 'react';
+import { motion, useSpring, useTransform } from 'framer-motion';
 import {
     LightbulbDoodle, CloudDoodle, CurlyArrowDoodle, PencilDoodle,
     TicTacToeDoodle, PaperclipDoodle, SmileyDoodle, BugDoodle, StarDoodle,
@@ -25,7 +25,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
     const yMove = useTransform(springY, [0, 4000], [20, -20]);
 
     return (
-        <div className="h-screen w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
+        <div className="h-[100dvh] w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
             {/* Spiral Binding - Fixed to Left */}
             <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
                 {/* Holes and Rings */}
@@ -91,7 +91,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
 
                 {/* Main Content Container */}
-                <main className="relative z-10 w-full h-full perspective-[2000px]">
+                <main className="relative z-10 w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400/30 scrollbar-track-transparent">
                     {children}
                 </main>
 

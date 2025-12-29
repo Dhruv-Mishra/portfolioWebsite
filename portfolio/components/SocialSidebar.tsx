@@ -55,8 +55,8 @@ export default function SocialSidebar() {
                     initial={{ x: 50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.5 + i * 0.1, type: "spring" }}
-                    whileHover={{ scale: 1.2, rotate: Math.random() * 10 - 5 }}
-                    className={`text-gray-400 Transition-colors duration-300 ${social.color} relative group`}
+                    whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][i % 6] }}
+                    className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
                     title={social.name}
                 >
                     {/* Sketchy Circle Background on Hover */}

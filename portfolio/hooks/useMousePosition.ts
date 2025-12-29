@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useMotionValue } from 'framer-motion';
 
 export function useMousePosition() {

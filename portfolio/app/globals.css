@@ -32,6 +32,14 @@
     --d-rose: rgba(136, 19, 55, 0.3);
     --d-stroke-width: 1.2px;
 
+    /* Note Colors (Light Mode - Uniform Sticky Yellow) */
+    --note-yellow: #fff9c4;
+    --note-blue: #fff9c4;
+    --note-green: #fff9c4;
+    --note-purple: #fff9c4;
+    --note-orange: #fff9c4;
+    --note-gray: #fff9c4;
+
     /* Simple grid pattern for graph paper effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
@@ -59,6 +67,14 @@
     --d-purple: rgba(233, 213, 255, 0.3);
     --d-rose: rgba(254, 205, 211, 0.3);
 
+    /* Note Colors (Dark Mode - Matte Black #222222) */
+    --note-yellow: #222222;
+    --note-blue: #222222;
+    --note-green: #222222;
+    --note-purple: #222222;
+    --note-orange: #222222;
+    --note-gray: #222222;
+
     /* Darker grid pattern for blackboard/slate effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
@@ -71,7 +87,35 @@ body {
   font-family: var(--font-hand), cursive;
   overflow-x: hidden;
   cursor: none;
-  transition: background-color 0.5s ease, color 0.5s ease;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* Note Utility Classes - Moved to utilities layer for correct precedence */
+@layer utilities {
+  .bg-note-yellow {
+    background-color: var(--note-yellow);
+  }
+
+  .bg-note-blue {
+    background-color: var(--note-blue);
+  }
+
+  .bg-note-green {
+    background-color: var(--note-green);
+  }
+
+  .bg-note-purple {
+    background-color: var(--note-purple);
+  }
+
+  .bg-note-orange {
+    background-color: var(--note-orange);
+  }
+
+  .bg-note-gray {
+    background-color: var(--note-gray);
+  }
 }
 
 /* Force hide cursor on all interactable elements */

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const LightbulbDoodle = () => (
     <div className="hidden md:block absolute top-12 right-24 text-[var(--d-amber)] rotate-12 transform scale-125">
         <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">

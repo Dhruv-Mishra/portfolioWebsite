@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
+import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
+import { trackTerminalCommand } from "@/lib/analytics";
 
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
@@ -39,8 +41,31 @@ export default function Terminal() {
             )
         }),
         joke: async () => {
+            // Rate limit check
+            if (!rateLimiter.check('joke-api', RATE_LIMITS.JOKE_API)) {
+                const remainingTime = rateLimiter.getRemainingTime('joke-api', RATE_LIMITS.JOKE_API);
+                return { 
+                    output: (
+                        <span className="text-yellow-400">
+                            ⏳ Whoa there! Too many jokes. Try again in {remainingTime} seconds.
+                        </span>
+                    )
+                };
+            }
+
             try {
-                const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode');
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+                
+                const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode', {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) {
+                    throw new Error('API request failed');
+                }
+
                 const data = await res.json();
 
                 if (data.error) {
@@ -61,7 +86,10 @@ export default function Terminal() {
                         </div>
                     )
                 };
-            } catch {
+            } catch (error) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                    return { output: <span className="text-red-400">Error: Request timed out.</span> };
+                }
                 return { output: <span className="text-red-400">Error: Connection failed.</span> };
             }
         },
@@ -224,6 +252,9 @@ export default function Terminal() {
         const [cmd, ...args] = trimmedInput.split(/\s+/);
         const lowerCmd = cmd.toLowerCase();
 
+        // Track command usage
+        trackTerminalCommand(lowerCmd);
+
         // Special handling for 'clear'
         if (lowerCmd === 'clear') {
             addToHistory("clear");
@@ -244,11 +275,18 @@ export default function Terminal() {
                 if (result.action) {
                     result.action();
                 }
-            } catch {
+            } catch (error) {
+                console.error('Command execution error:', error);
                 output = <span className="text-red-400">Error executing command.</span>;
             }
         } else {
-            output = `Command not found: ${lowerCmd}. Type 'help' for available commands.`;
+            output = (
+                <div>
+                    <span className="text-red-400">Command not found: {lowerCmd}</span>
+                    <br />
+                    <span className="text-gray-400">Type <span className="text-emerald-400">&apos;help&apos;</span> for available commands.</span>
+                </div>
+            );
         }
 
         // Add original input string to history

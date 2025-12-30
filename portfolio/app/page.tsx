@@ -1,11 +1,19 @@
 "use client";
-import Terminal from "@/components/Terminal";
+import dynamic from "next/dynamic";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { motion } from "framer-motion";
 import { Coffee } from "lucide-react";
 
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
+
+// Lazy load Terminal to reduce initial bundle size
+const Terminal = dynamic(() => import("@/components/Terminal"), {
+  loading: () => (
+    <div className="h-[400px] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />
+  ),
+  ssr: false,
+});
 
 export default function Home() {
   const { resolvedTheme } = useTheme();
@@ -17,7 +25,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6 h-full relative justify-center items-center pt-24 md:pt-0">
+    <div className="flex flex-col gap-6 min-h-full relative justify-center items-center py-20 md:py-0">
       {/* Decor Elements */}
 
 

@@ -4,7 +4,7 @@ import Image from 'next/image';
 
 export default function About() {
     return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col justify-center">
+        <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 md:py-0">
             <div className="relative transform -rotate-1">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}

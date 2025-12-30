@@ -1,10 +1,9 @@
 "use client";
 import { motion, useSpring, useTransform } from 'framer-motion';
 import {
-    LightbulbDoodle, CloudDoodle, CurlyArrowDoodle, PencilDoodle,
-    TicTacToeDoodle, PaperclipDoodle, SmileyDoodle, BugDoodle, StarDoodle,
-    PuzzleDoodle, BracketsDoodle, DnaDoodle, LightningDoodle,
-    PaperPlaneDoodle, SaturnDoodle, MusicNoteDoodle
+    LightbulbDoodle, PencilDoodle, StarDoodle,
+    BugDoodle, PaperPlaneDoodle, SaturnDoodle,
+    CloudDoodle, SmileyDoodle, LightningDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import SocialSidebar from './SocialSidebar';
@@ -32,7 +31,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             >
                 Skip to main content
             </a>
-            
+
             {/* Spiral Binding - Fixed to Left */}
             <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
                 {/* Holes and Rings */}
@@ -70,7 +69,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
-                {/* Global Doodles / Sprites Layer - Parallax Effect */}
+                {/* Global Doodles - 9 doodles for ambience */}
                 <motion.div
                     className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
                     style={{ x: xMove, y: yMove }}
@@ -78,27 +77,20 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 >
                     <LightbulbDoodle />
                     <CloudDoodle />
-                    <CurlyArrowDoodle />
                     <PencilDoodle />
-                    <TicTacToeDoodle />
-                    <PaperclipDoodle />
-                    <SmileyDoodle />
-                    <BugDoodle />
                     <StarDoodle />
-                    <PuzzleDoodle />
-                    <BracketsDoodle />
-                    <DnaDoodle />
+                    <BugDoodle />
+                    <SmileyDoodle />
                     <LightningDoodle />
                     <PaperPlaneDoodle />
                     <SaturnDoodle />
-                    <MusicNoteDoodle />
                 </motion.div>
 
                 {/* Crease Shadow near spiral */}
                 <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
 
                 {/* Main Content Container */}
-                <main 
+                <main
                     id="main-content"
                     role="main"
                     className="relative z-10 w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400/30 scrollbar-track-transparent"

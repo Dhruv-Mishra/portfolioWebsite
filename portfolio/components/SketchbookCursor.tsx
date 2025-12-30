@@ -11,6 +11,8 @@ export default function SketchbookCursor() {
     const { resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
 
+    const [isVisible, setIsVisible] = useState(true);
+
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
 
@@ -37,8 +39,11 @@ export default function SketchbookCursor() {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
 
-            // Add point for trail
-            pointsRef.current.push({ x: e.clientX, y: e.clientY, age: 0 });
+            // Add point for trail with distance-based throttling
+            const lastPoint = pointsRef.current[pointsRef.current.length - 1];
+            if (!lastPoint || Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) > 5) {
+                pointsRef.current.push({ x: e.clientX, y: e.clientY, age: 0 });
+            }
         };
 
         const checkHover = (e: MouseEvent) => {
@@ -52,8 +57,32 @@ export default function SketchbookCursor() {
             }
         };
 
+        const handleMouseLeave = () => setIsVisible(false);
+        const handleMouseEnter = () => setIsVisible(true);
+
+        // Custom events for explicit control (e.g., from Resume page to hide cursor over interactive PDF)
+        const handleHideCursor = () => setIsVisible(false);
+        const handleShowCursor = () => setIsVisible(true);
+
+        const handleResize = () => {
+            if (canvasRef.current) {
+                canvasRef.current.width = window.innerWidth;
+                canvasRef.current.height = window.innerHeight;
+            }
+        };
+
         window.addEventListener('mousemove', moveCursor);
         window.addEventListener('mouseover', checkHover);
+        window.addEventListener('mouseleave', handleMouseLeave);
+        window.addEventListener('mouseenter', handleMouseEnter);
+        window.addEventListener('sketchbook:hideCursor', handleHideCursor);
+        window.addEventListener('sketchbook:showCursor', handleShowCursor);
+        window.addEventListener('resize', handleResize);
+        document.addEventListener('mouseleave', handleMouseLeave);
+        document.addEventListener('mouseenter', handleMouseEnter);
+
+        // Initial resize
+        handleResize();
 
         // Canvas Drawing Loop
         let animationFrameId: number;
@@ -63,10 +92,10 @@ export default function SketchbookCursor() {
         const renderTrail = () => {
             if (!canvas || !ctx) return;
 
-            // Resize canvas if needed
-            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+            // Early return if not visible to save CPU, but only after trail fades
+            if (!isVisible && pointsRef.current.length === 0) {
+                animationFrameId = requestAnimationFrame(renderTrail);
+                return;
             }
 
             // Clear canvas
@@ -121,6 +150,13 @@ export default function SketchbookCursor() {
         return () => {
             window.removeEventListener('mousemove', moveCursor);
             window.removeEventListener('mouseover', checkHover);
+            window.removeEventListener('mouseleave', handleMouseLeave);
+            window.removeEventListener('mouseenter', handleMouseEnter);
+            window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
+            window.removeEventListener('sketchbook:showCursor', handleShowCursor);
+            window.removeEventListener('resize', handleResize);
+            document.removeEventListener('mouseleave', handleMouseLeave);
+            document.removeEventListener('mouseenter', handleMouseEnter);
             cancelAnimationFrame(animationFrameId);
         };
     }, [mouseX, mouseY, mounted]); // Removed theme from dependency array, using ref instead
@@ -138,6 +174,11 @@ export default function SketchbookCursor() {
             {/* Cursor Item (Pencil or Chalk) */}
             <motion.div
                 ref={cursorRef}
+                initial={{ opacity: 0 }}
+                animate={{
+                    opacity: isVisible ? 1 : 0,
+                    scale: isVisible ? 1 : 0.8
+                }}
                 style={{
                     x: mouseX, // Direct mapping
                     y: mouseY, // Direct mapping

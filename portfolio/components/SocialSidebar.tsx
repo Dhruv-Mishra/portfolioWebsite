@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { motion } from "framer-motion";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 
 const SOCIALS = [
     {
@@ -42,40 +44,106 @@ const SOCIALS = [
     }
 ];
 
+const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) => {
+    if (isMobile) {
+        return (
+            <a
+                key={social.name}
+                href={social.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto`}
+                title={social.name}
+            >
+                <social.icon size={18} strokeWidth={2} />
+            </a>
+        );
+    }
+
+    return (
+        <motion.a
+            key={social.name}
+            href={social.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.5 + (index || 0) * 0.1, type: "spring" }}
+            whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][(index || 0) % 6] }}
+            className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
+            title={social.name}
+        >
+            <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
+            <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
+            <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
+                {social.name}
+            </span>
+        </motion.a>
+    );
+};
+
 export default function SocialSidebar() {
     return (
-        <div 
-            className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6"
-            role="complementary"
-            aria-label="Social media links"
-        >
-            {SOCIALS.map((social, i) => (
-                <motion.a
-                    key={social.name}
-                    href={social.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    initial={{ x: 50, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.5 + i * 0.1, type: "spring" }}
-                    whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][i % 6] }}
-                    className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
-                    title={social.name}
-                >
-                    {/* Sketchy Circle Background on Hover */}
-                    <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
+        <>
+            {/* Desktop: Vertical sidebar on right */}
+            <div
+                className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6"
+                role="complementary"
+                aria-label="Social media links"
+            >
+                {SOCIALS.map((social, i) => (
+                    <SocialLink key={social.name} social={social} index={i} />
+                ))}
+                <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
+            </div>
 
-                    <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
+            {/* Mobile: Floating circular buttons at bottom */}
+            <div
+                className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2"
+                role="complementary"
+                aria-label="Social media links"
+            >
+                {/* Theme Toggle */}
+                <MobileThemeButton />
 
-                    {/* Tooltip Label (Handwritten) */}
-                    <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
-                        {social.name}
-                    </span>
-                </motion.a>
-            ))}
-
-            {/* Vertical Line Connecting them (optional, makes it look like a list) */}
-            <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30 mask-gradient" />
-        </div>
+                {SOCIALS.map((social) => (
+                    <SocialLink key={social.name} social={social} isMobile />
+                ))}
+            </div>
+        </>
     );
 }
+
+
+// Mobile-only theme toggle button
+function MobileThemeButton() {
+    const { setTheme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = React.useState(false);
+
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const toggleTheme = () => {
+        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+    };
+
+    if (!mounted) return <div className="w-11 h-11" />;
+
+    const isDark = resolvedTheme === 'dark';
+
+    return (
+        <button
+            onClick={toggleTheme}
+            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto"
+            title="Toggle theme"
+        >
+            {isDark ? (
+                <Sun size={18} strokeWidth={2} />
+            ) : (
+                <Moon size={18} strokeWidth={2} />
+            )}
+        </button>
+    );
+}
+

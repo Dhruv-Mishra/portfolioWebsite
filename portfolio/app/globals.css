@@ -16,6 +16,8 @@
     --c-spiral-bg: #f0f0f0;
     --c-spiral-border: #d1d5db;
     --c-heading: #000000;
+    --c-highlight: #000000;
+    --mobile-breakpoint: 768px;
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
@@ -51,6 +53,7 @@
     --c-spiral-bg: #262626;
     --c-spiral-border: #404040;
     --c-heading: #ffffff;
+    --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;
 
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
@@ -116,7 +119,7 @@ body {
   }
 }
 
-/* Force hide cursor on all interactable elements */
+/* Cursor handling: show normal cursor on mobile, hide on desktop */
 *,
 a,
 button,
@@ -126,10 +129,35 @@ select,
 label,
 [role="button"],
 [role="link"] {
-  cursor: none !important;
+  cursor: auto;
+}
+
+@media (min-width: 768px) {
+
+  *,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  [role="button"],
+  [role="link"] {
+    cursor: none !important;
+  }
 }
 
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
+}
+
+/* Animated link hover effect */
+.link-hover {
+  transition: transform 0.15s ease-out, color 0.15s ease-out;
+  display: inline-block;
+}
+
+.link-hover:hover {
+  transform: scale(1.05) rotate(-1deg);
 }

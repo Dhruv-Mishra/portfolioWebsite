@@ -9,8 +9,8 @@ export const LightbulbDoodle = () => (
 );
 
 export const CloudDoodle = () => (
-    <div className="hidden md:block absolute top-16 left-20 text-[var(--d-slate)] -rotate-3">
-        <svg width="100" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+    <div className="absolute top-24 left-2 md:top-16 md:left-20 text-[var(--d-slate)] -rotate-3 opacity-40 md:opacity-100">
+        <svg width="50" height="30" className="md:w-[100px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
             <path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-2.6-2.2-4.7-4.8-4.7-2.3 0-4.3 1.7-4.7 3.9-.3-.1-.5-.2-.9-.2-2.2 0-4 1.8-4 4s1.8 4 4 4h14.5c1.4 0 2.5-1.1 2.5-2.5z" />
         </svg>
     </div>
@@ -85,8 +85,8 @@ export const BugDoodle = () => (
 );
 
 export const StarDoodle = () => (
-    <div className="hidden md:block absolute bottom-[40%] right-[25%] text-[var(--d-yellow)] rotate-12">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
+    <div className="absolute top-20 right-4 md:bottom-[40%] md:top-auto md:right-[25%] text-[var(--d-yellow)] rotate-12 opacity-40 md:opacity-100">
+        <svg width="24" height="24" className="md:w-[40px] md:h-[40px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
     </div>
@@ -132,8 +132,8 @@ export const LightningDoodle = () => (
 );
 
 export const PaperPlaneDoodle = () => (
-    <div className="hidden md:block absolute bottom-[15%] right-[10%] text-[var(--d-blue)] -rotate-12">
-        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+    <div className="absolute top-32 right-2 md:bottom-[15%] md:top-auto md:right-[10%] text-[var(--d-blue)] -rotate-12 opacity-40 md:opacity-100">
+        <svg width="32" height="32" className="md:w-[60px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 2L11 13" />
             <path d="M22 2L15 22L11 13L2 9L22 2Z" />
         </svg>
@@ -141,8 +141,8 @@ export const PaperPlaneDoodle = () => (
 );
 
 export const SaturnDoodle = () => (
-    <div className="hidden md:block absolute bottom-[5%] right-[5%] text-[var(--d-purple)] rotate-12">
-        <svg width="70" height="50" viewBox="0 0 70 50" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
+    <div className="absolute bottom-24 left-4 md:bottom-[5%] md:left-auto md:right-[5%] text-[var(--d-purple)] rotate-12 opacity-40 md:opacity-100">
+        <svg width="40" height="28" className="md:w-[70px] md:h-[50px]" viewBox="0 0 70 50" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
             <circle cx="35" cy="25" r="15" />
             <ellipse cx="35" cy="25" rx="30" ry="10" transform="rotate(-15 35 25)" />
         </svg>

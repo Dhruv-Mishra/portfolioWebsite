@@ -1,23 +1,21 @@
 "use client";
-import Terminal from "@/components/Terminal";
+import dynamic from "next/dynamic";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { motion } from "framer-motion";
 import { Coffee } from "lucide-react";
 
-import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+// Lazy load Terminal to reduce initial bundle size
+const Terminal = dynamic(() => import("@/components/Terminal"), {
+  loading: () => (
+    <div className="h-[400px] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />
+  ),
+  ssr: false,
+});
 
 export default function Home() {
-  const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid hydration pattern for Next.js
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   return (
-    <div className="flex flex-col gap-6 h-full relative justify-center items-center pt-24 md:pt-0">
+    <div className="flex flex-col gap-6 min-h-full relative justify-center items-center py-20 pb-24 md:py-0 md:pb-0">
       {/* Decor Elements */}
 
 
@@ -55,7 +53,7 @@ export default function Home() {
       >
         I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 transition-all">Dhruv</a>.
         I engineer <strong
-          style={{ color: mounted && resolvedTheme === 'dark' ? '#ffffff' : '#000000' }}
+          style={{ color: 'var(--c-highlight)' }}
           className="transition-none font-black"
         >
           high-performance systems

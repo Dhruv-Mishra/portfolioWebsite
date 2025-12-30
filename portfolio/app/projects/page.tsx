@@ -1,10 +1,22 @@
 "use client";
 import { motion } from 'framer-motion';
-import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText } from 'lucide-react';
+import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
 export default function Projects() {
-    const projects = [
+    interface Project {
+        name: string;
+        desc: React.ReactNode;
+        lang: string;
+        link: string;
+        colorClass: string;
+        image: string;
+        icon: any;
+        label: string;
+        imageClassName?: string;
+    }
+
+    const projects: Project[] = [
         {
             name: "Fluent UI Android",
             desc: (
@@ -15,7 +27,7 @@ export default function Projects() {
             lang: "Kotlin / Java",
             link: "https://github.com/microsoft/fluentui-android",
             colorClass: "bg-note-yellow",
-            image: "/resources/fluentProjectImage.webp",
+            image: "/resources/FluentUI.webp",
             icon: Smartphone,
             label: "Android Lib"
         },
@@ -29,10 +41,9 @@ export default function Projects() {
             lang: "Python",
             link: "https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator",
             colorClass: "bg-note-orange",
-            image: "/resources/CourseSimilarityProject.webp",
+            image: "/resources/CourseEvaluator.webp",
             icon: Search,
-            label: "Overlap Detector",
-            imageClassName: "scale-[1.35] object-top"
+            label: "Overlap Detector"
         },
         {
             name: "IVC - Vital Checkup",
@@ -44,9 +55,23 @@ export default function Projects() {
             lang: "Python / OpenCV",
             link: "https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC",
             colorClass: "bg-note-green",
-            image: "/resources/InstantVitalCheckupProject.webp",
+            image: "/resources/InstantVitalCheckup.webp",
             icon: Activity,
             label: "Vitals Scan"
+        },
+        {
+            name: "Personal Portfolio",
+            desc: (
+                <>
+                    A <strong>high-performance</strong> digital garden built with Next.js 16. Features a custom <span className="text-emerald-500 font-bold font-mono">terminal interface</span>, zero-flicker theming, and a unique hand-drawn aesthetic using a custom physics-based cursor. Optimized for best Lighthouse scores.
+                </>
+            ),
+            lang: "Next.js / TypeScript",
+            link: "https://github.com/Dhruv-Mishra/portfolio-website",
+            colorClass: "bg-note-blue",
+            image: "/resources/PersonalPorfolio.webp",
+            icon: Globe,
+            label: "This Website"
         },
         {
             name: "Hybrid Recommender",
@@ -58,7 +83,7 @@ export default function Projects() {
             lang: "Python / ML",
             link: "https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System",
             colorClass: "bg-note-purple",
-            image: "/resources/MovieRecommenderProject.webp",
+            image: "/resources/HybridRecommender.webp",
             icon: Film,
             label: "Movie Night"
         },
@@ -72,7 +97,7 @@ export default function Projects() {
             lang: "Java / MySQL",
             link: "https://github.com/Dhruv-Mishra/AtomVault",
             colorClass: "bg-note-blue",
-            image: "/resources/AtomVaultProject.webp",
+            image: "/resources/AtomVault.webp",
             icon: Database,
             label: "Bank Vault"
         },
@@ -86,7 +111,7 @@ export default function Projects() {
             lang: "Research / C++",
             link: "https://repository.iiitd.edu.in/jspui/handle/123456789/1613",
             colorClass: "bg-note-gray",
-            image: "/resources/BloomFiltersProject.webp",
+            image: "/resources/BloomFilter.webp",
             icon: ScrollText,
             label: "Research Paper"
         },

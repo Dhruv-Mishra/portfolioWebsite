@@ -13,9 +13,9 @@ import { ThemeToggle } from './ThemeToggle';
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const { x, y } = useMousePosition();
 
-    // Smooth out the mouse movement
-    const springX = useSpring(x, { stiffness: 50, damping: 20 });
-    const springY = useSpring(y, { stiffness: 50, damping: 20 });
+    // Smooth out the mouse movement - Optimized for performance
+    const springX = useSpring(x, { stiffness: 40, damping: 25, restDelta: 0.01 });
+    const springY = useSpring(y, { stiffness: 40, damping: 25, restDelta: 0.01 });
 
     // Parallax movement - Optimized to be responsive-agnostic by using larger input ranges
     // but clamping visually.
@@ -69,7 +69,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
-                {/* Global Doodles - 9 doodles for ambience */}
+                {/* Global Doodles - Conditionally rendered for performance */}
                 <motion.div
                     className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
                     style={{ x: xMove, y: yMove }}
@@ -82,8 +82,11 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     <BugDoodle />
                     <SmileyDoodle />
                     <LightningDoodle />
-                    <PaperPlaneDoodle />
-                    <SaturnDoodle />
+                    {/* These larger/complex doodles only show on desktop */}
+                    <div className="hidden md:block">
+                        <PaperPlaneDoodle />
+                        <SaturnDoodle />
+                    </div>
                 </motion.div>
 
                 {/* Crease Shadow near spiral */}

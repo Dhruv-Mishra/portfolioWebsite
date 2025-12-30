@@ -39,8 +39,11 @@ export default function SketchbookCursor() {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
 
-            // Add point for trail
-            pointsRef.current.push({ x: e.clientX, y: e.clientY, age: 0 });
+            // Add point for trail with distance-based throttling
+            const lastPoint = pointsRef.current[pointsRef.current.length - 1];
+            if (!lastPoint || Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) > 5) {
+                pointsRef.current.push({ x: e.clientX, y: e.clientY, age: 0 });
+            }
         };
 
         const checkHover = (e: MouseEvent) => {
@@ -61,14 +64,25 @@ export default function SketchbookCursor() {
         const handleHideCursor = () => setIsVisible(false);
         const handleShowCursor = () => setIsVisible(true);
 
+        const handleResize = () => {
+            if (canvasRef.current) {
+                canvasRef.current.width = window.innerWidth;
+                canvasRef.current.height = window.innerHeight;
+            }
+        };
+
         window.addEventListener('mousemove', moveCursor);
         window.addEventListener('mouseover', checkHover);
         window.addEventListener('mouseleave', handleMouseLeave);
         window.addEventListener('mouseenter', handleMouseEnter);
         window.addEventListener('sketchbook:hideCursor', handleHideCursor);
         window.addEventListener('sketchbook:showCursor', handleShowCursor);
+        window.addEventListener('resize', handleResize);
         document.addEventListener('mouseleave', handleMouseLeave);
         document.addEventListener('mouseenter', handleMouseEnter);
+
+        // Initial resize
+        handleResize();
 
         // Canvas Drawing Loop
         let animationFrameId: number;
@@ -78,10 +92,10 @@ export default function SketchbookCursor() {
         const renderTrail = () => {
             if (!canvas || !ctx) return;
 
-            // Resize canvas if needed
-            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+            // Early return if not visible to save CPU, but only after trail fades
+            if (!isVisible && pointsRef.current.length === 0) {
+                animationFrameId = requestAnimationFrame(renderTrail);
+                return;
             }
 
             // Clear canvas
@@ -140,6 +154,7 @@ export default function SketchbookCursor() {
             window.removeEventListener('mouseenter', handleMouseEnter);
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
             window.removeEventListener('sketchbook:showCursor', handleShowCursor);
+            window.removeEventListener('resize', handleResize);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
             cancelAnimationFrame(animationFrameId);

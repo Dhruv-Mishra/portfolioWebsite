@@ -3,6 +3,7 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 
 const SOCIALS = [
     {
@@ -43,6 +44,44 @@ const SOCIALS = [
     }
 ];
 
+const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) => {
+    if (isMobile) {
+        return (
+            <a
+                key={social.name}
+                href={social.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto`}
+                title={social.name}
+            >
+                <social.icon size={18} strokeWidth={2} />
+            </a>
+        );
+    }
+
+    return (
+        <motion.a
+            key={social.name}
+            href={social.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            initial={{ x: 50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.5 + (index || 0) * 0.1, type: "spring" }}
+            whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][(index || 0) % 6] }}
+            className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
+            title={social.name}
+        >
+            <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
+            <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
+            <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
+                {social.name}
+            </span>
+        </motion.a>
+    );
+};
+
 export default function SocialSidebar() {
     return (
         <>
@@ -53,24 +92,7 @@ export default function SocialSidebar() {
                 aria-label="Social media links"
             >
                 {SOCIALS.map((social, i) => (
-                    <motion.a
-                        key={social.name}
-                        href={social.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        initial={{ x: 50, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.5 + i * 0.1, type: "spring" }}
-                        whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][i % 6] }}
-                        className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
-                        title={social.name}
-                    >
-                        <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
-                        <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
-                        <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
-                            {social.name}
-                        </span>
-                    </motion.a>
+                    <SocialLink key={social.name} social={social} index={i} />
                 ))}
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
@@ -85,23 +107,13 @@ export default function SocialSidebar() {
                 <MobileThemeButton />
 
                 {SOCIALS.map((social) => (
-                    <a
-                        key={social.name}
-                        href={social.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95`}
-                        title={social.name}
-                    >
-                        <social.icon size={18} strokeWidth={2} />
-                    </a>
+                    <SocialLink key={social.name} social={social} isMobile />
                 ))}
             </div>
         </>
     );
 }
 
-import { useTheme } from "next-themes";
 
 // Mobile-only theme toggle button
 function MobileThemeButton() {

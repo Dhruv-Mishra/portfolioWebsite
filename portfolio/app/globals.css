@@ -116,7 +116,7 @@ body {
   }
 }
 
-/* Force hide cursor on all interactable elements */
+/* Cursor handling: show normal cursor on mobile, hide on desktop */
 *,
 a,
 button,
@@ -126,10 +126,35 @@ select,
 label,
 [role="button"],
 [role="link"] {
-  cursor: none !important;
+  cursor: auto;
+}
+
+@media (min-width: 768px) {
+
+  *,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  [role="button"],
+  [role="link"] {
+    cursor: none !important;
+  }
 }
 
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
+}
+
+/* Animated link hover effect */
+.link-hover {
+  transition: transform 0.15s ease-out, color 0.15s ease-out;
+  display: inline-block;
+}
+
+.link-hover:hover {
+  transform: scale(1.05) rotate(-1deg);
 }

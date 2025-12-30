@@ -45,8 +45,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">
-                {/* Theme Toggle - Bottom Left (Paper Corner) */}
-                <div className="absolute bottom-6 left-6 z-50">
+                {/* Theme Toggle - Bottom Left (Desktop only, mobile uses social bar) */}
+                <div className="hidden md:block absolute bottom-6 left-6 z-50">
                     <ThemeToggle />
                 </div>
 

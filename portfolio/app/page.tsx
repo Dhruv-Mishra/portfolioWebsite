@@ -25,7 +25,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6 min-h-full relative justify-center items-center py-20 md:py-0">
+    <div className="flex flex-col gap-6 min-h-full relative justify-center items-center py-20 pb-24 md:py-0 md:pb-0">
       {/* Decor Elements */}
 
 

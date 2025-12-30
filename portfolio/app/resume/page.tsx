@@ -79,17 +79,17 @@ export default function ResumePage() {
                         </a>
                     </div>
 
-                    {/* External Link Overlay (Since PDF is non-interactive) */}
+                    {/* External Link Overlay - Top Right, Larger and More Noticeable */}
                     <a
                         href="/resources/resume.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="absolute bottom-4 right-4 z-30 group"
+                        className="absolute top-4 right-4 z-30 group"
                         title="Open PDF in new tab"
                     >
-                        <div className="bg-yellow-100 text-gray-800 px-4 py-2 rounded-sm shadow-md border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 transition-transform font-hand font-bold flex items-center gap-2 text-sm">
+                        <div className="bg-yellow-100 text-gray-800 px-5 py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-all font-hand font-bold flex items-center gap-2 text-base md:text-lg">
                             <span>Open PDF</span>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </div>
                     </a>
                 </div>

@@ -19,11 +19,6 @@ export default function Terminal() {
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     // Command Registry defined outside
     const COMMAND_REGISTRY = React.useMemo(() => createCommandRegistry(router), [router]);
@@ -135,9 +130,7 @@ export default function Terminal() {
         }
     }, [navigateHistory, input, AVAILABLE_COMMANDS]);
 
-    if (!mounted) {
-        return <div className="h-[400px] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />;
-    }
+
 
     return (
         <motion.div

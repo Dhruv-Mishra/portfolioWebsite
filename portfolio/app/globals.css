@@ -16,6 +16,7 @@
     --c-spiral-bg: #f0f0f0;
     --c-spiral-border: #d1d5db;
     --c-heading: #000000;
+    --c-highlight: #000000;
     --mobile-breakpoint: 768px;
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
@@ -52,6 +53,7 @@
     --c-spiral-bg: #262626;
     --c-spiral-border: #404040;
     --c-heading: #ffffff;
+    --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;
 
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */

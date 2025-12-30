@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 Oops! Something went wrong
               </h1>
               <p className="text-lg font-hand text-gray-700 mb-6">
-                Don't worry, it's not your fault. The system encountered an unexpected error.
+                Don&apos;t worry, it&apos;s not your fault. The system encountered an unexpected error.
               </p>
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <pre className="text-xs text-left bg-gray-900 text-gray-100 p-4 rounded overflow-auto mb-4 max-h-40">

@@ -20,6 +20,11 @@ export default function Terminal() {
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Command Registry defined inside to access router
     const COMMAND_REGISTRY: Record<string, (args: string[]) => { output: React.ReactNode; action?: () => void } | Promise<{ output: React.ReactNode; action?: () => void }>> = React.useMemo(() => ({
@@ -44,7 +49,7 @@ export default function Terminal() {
             // Rate limit check
             if (!rateLimiter.check('joke-api', RATE_LIMITS.JOKE_API)) {
                 const remainingTime = rateLimiter.getRemainingTime('joke-api', RATE_LIMITS.JOKE_API);
-                return { 
+                return {
                     output: (
                         <span className="text-yellow-400">
                             ⏳ Whoa there! Too many jokes. Try again in {remainingTime} seconds.
@@ -56,7 +61,7 @@ export default function Terminal() {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-                
+
                 const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode', {
                     signal: controller.signal
                 });
@@ -126,15 +131,18 @@ export default function Terminal() {
             output: "Navigating to projects...",
             action: () => router.push("/projects")
         }),
-        init: () => ({
-            output: (
-                <span className="text-yellow-400">
-                    System already initialized. <br />
-                    &gt; Uptime: <span className="text-gray-400">{Math.floor(performance.now() / 1000)}s</span> <br />
-                    &gt; Status: <span className="text-green-400">Stable</span>
-                </span>
-            )
-        }),
+        init: () => {
+            const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;
+            return {
+                output: (
+                    <span className="text-yellow-400">
+                        System already initialized. <br />
+                        &gt; Uptime: <span className="text-gray-400">{uptime}s</span> <br />
+                        &gt; Status: <span className="text-green-400">Stable</span>
+                    </span>
+                )
+            };
+        },
         resume: () => ({
             output: "Navigating to resume page...",
             action: () => router.push("/resume")
@@ -339,12 +347,17 @@ export default function Terminal() {
         }
     }, [navigateHistory, input, AVAILABLE_COMMANDS]);
 
+    if (!mounted) {
+        return <div className="h-[400px] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />;
+    }
+
     return (
         <motion.div
             initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
             animate={{ scale: 1, opacity: 1, rotate: -1 }}
             transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
             className="w-full max-w-3xl mx-auto relative group perspective-[1000px]"
+            suppressHydrationWarning
         >
             {/* Rough Shadow */}
             <div

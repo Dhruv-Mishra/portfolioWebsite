@@ -101,29 +101,29 @@ export default function SocialSidebar() {
     );
 }
 
+import { useTheme } from "next-themes";
+
 // Mobile-only theme toggle button
 function MobileThemeButton() {
-    const [isDark, setIsDark] = React.useState(false);
+    const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = React.useState(false);
 
     React.useEffect(() => {
         setMounted(true);
-        setIsDark(document.documentElement.classList.contains('dark'));
     }, []);
 
     const toggleTheme = () => {
-        const newTheme = isDark ? 'light' : 'dark';
-        document.documentElement.classList.toggle('dark');
-        localStorage.setItem('theme', newTheme);
-        setIsDark(!isDark);
+        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
     };
 
     if (!mounted) return <div className="w-11 h-11" />;
 
+    const isDark = resolvedTheme === 'dark';
+
     return (
         <button
             onClick={toggleTheme}
-            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95"
+            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto"
             title="Toggle theme"
         >
             {isDark ? (

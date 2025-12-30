@@ -16,6 +16,7 @@
     --c-spiral-bg: #f0f0f0;
     --c-spiral-border: #d1d5db;
     --c-heading: #000000;
+    --mobile-breakpoint: 768px;
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);

@@ -108,33 +108,28 @@ export default function Projects() {
 
                     return (
                         <motion.div
-                            key={i}
-                            initial={{ opacity: 0, y: 30, rotate: 0 }}
-                            animate={{
+                            key={proj.name}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{
                                 opacity: 1,
                                 y: 0,
-                                rotate: rotate,
-                                transition: {
-                                    delay: i * 0.05,
-                                    duration: 0.3,
-                                    ease: "easeOut"
-                                }
+                            }}
+                            viewport={{ once: true, margin: "-50px" }}
+                            transition={{
+                                delay: i * 0.05,
+                                duration: 0.4,
+                                ease: [0.25, 0.1, 0.25, 1] // Smooth cubic bezier
                             }}
                             whileHover={{
                                 scale: 1.02,
-                                rotate: 0,
-                                zIndex: 20,
-                                transition: { duration: 0.15, ease: "easeOut" }
+                                rotate: -rotate, // Cancels out the initial rotation
+                                transition: { duration: 0.2 }
                             }}
-                            className={`
-                            relative
-                            text-[var(--c-ink)]
-                            min-h-[450px]
-                            font-hand
-                            transition-transform
-                            will-change-transform
-                            filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.1)]
-                        `}
+                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand will-change-transform"
+                            style={{
+                                transform: `rotate(${rotate}deg)`,
+                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
+                            }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div

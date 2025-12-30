@@ -7,8 +7,15 @@ export default function About() {
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 md:py-0">
             <div className="relative transform -rotate-1">
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                    whileHover={{
+                        scale: 1.01,
+                        rotate: 1, // Straightens from -1 rotation
+                        transition: { duration: 0.2 }
+                    }}
                     className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}

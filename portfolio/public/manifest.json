@@ -2,7 +2,7 @@
   "name": "Dhruv Mishra Portfolio",
   "short_name": "Dhruv's Portfolio",
   "description": "Software Engineer at Microsoft specializing in high-performance systems and distributed systems",
-  "start_url": "https://whoisdhruv.com/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#fdfbf7",
   "theme_color": "#fdfbf7",
@@ -21,7 +21,11 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["portfolio", "technology", "developer"],
+  "categories": [
+    "portfolio",
+    "technology",
+    "developer"
+  ],
   "lang": "en-US",
   "dir": "ltr"
 }

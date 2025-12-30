@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText } from 'lucide-react';
 import Image from 'next/image';
@@ -203,8 +202,11 @@ export default function Projects() {
                                         {proj.image ? (
                                             <Image
                                                 src={proj.image}
-                                                alt={proj.name}
+                                                alt={`${proj.name} project screenshot`}
                                                 fill
+                                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                                                quality={85}
+                                                loading="lazy"
                                                 className={`object-cover sepia-[.2] group-hover:sepia-0 transition-all duration-500 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (

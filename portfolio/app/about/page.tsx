@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 
@@ -97,8 +96,11 @@ export default function About() {
                                     <div className="w-40 h-40 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
                                         <Image
                                             src="/resources/aboutPhoto.webp"
-                                            alt="Dhruv"
+                                            alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
+                                            sizes="(max-width: 768px) 160px, 192px"
+                                            quality={85}
+                                            priority
                                             className="object-cover sepia-[.3] contrast-125"
                                         />
                                     </div>

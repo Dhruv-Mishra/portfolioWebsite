@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { motion } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy } from "lucide-react";
 
@@ -45,7 +44,11 @@ const SOCIALS = [
 
 export default function SocialSidebar() {
     return (
-        <div className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6">
+        <div 
+            className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6"
+            role="complementary"
+            aria-label="Social media links"
+        >
             {SOCIALS.map((social, i) => (
                 <motion.a
                     key={social.name}

@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
   // Production optimizations
   reactStrictMode: true,
   poweredByHeader: false,
+  // Turbopack configuration (Next.js 16 default)
+  // Turbopack already provides excellent code splitting and tree-shaking out of the box
+  turbopack: {},
 };
 
 export default nextConfig;

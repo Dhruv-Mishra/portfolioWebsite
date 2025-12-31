@@ -2,6 +2,7 @@
 
 import { useEffect, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import Script from 'next/script';
 import { pageview, isAnalyticsEnabled } from '@/lib/analytics';
 
 function AnalyticsInner() {
@@ -29,11 +30,14 @@ export function Analytics() {
       <Suspense fallback={null}>
         <AnalyticsInner />
       </Suspense>
-      <script
-        async
+      {/* Load Google Analytics after page is interactive - defers ~53KB */}
+      <Script
+        strategy="afterInteractive"
         src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
       />
-      <script
+      <Script
+        id="google-analytics-init"
+        strategy="afterInteractive"
         dangerouslySetInnerHTML={{
           __html: `
             window.dataLayer = window.dataLayer || [];

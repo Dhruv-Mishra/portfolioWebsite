@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from 'framer-motion';
+import { LazyMotion, domAnimation, m } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
 
@@ -9,25 +9,26 @@ export default function ResumePage() {
     const [isInteractive, setIsInteractive] = useState(false);
 
     return (
-        <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
-            {/* The Resume "Paper" */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                whileHover={{
-                    scale: 1.01,
-                    rotate: 1, // Straightens from -1 rotation
-                    transition: { duration: 0.2 }
-                }}
-                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
-                style={{
-                    height: '92vh',
-                    transform: 'rotate(-1deg)',
-                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
-                }}
-            >
+        <LazyMotion features={domAnimation} strict>
+            <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+                {/* The Resume "Paper" */}
+                <m.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                    whileHover={{
+                        scale: 1.01,
+                        rotate: 1, // Straightens from -1 rotation
+                        transition: { duration: 0.2 }
+                    }}
+                    className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+                    style={{
+                        height: '92vh',
+                        transform: 'rotate(-1deg)',
+                        boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
+                    }}
+                >
                 {/* Tape - Top Left */}
                 <div className="absolute -top-3 -left-8 w-32 h-8 bg-white/80 backdrop-blur-sm border border-white/50 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" />
 
@@ -97,7 +98,8 @@ export default function ResumePage() {
                         </div>
                     </a>
                 </div>
-            </motion.div>
+            </m.div>
         </main>
+        </LazyMotion>
     );
 }

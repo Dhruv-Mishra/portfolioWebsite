@@ -1,9 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
+import { LazyMotion, domAnimation, m } from "framer-motion";
+import dynamic from 'next/dynamic';
 import { useTheme } from "next-themes";
+
+// Dynamically import icons to reduce initial bundle size
+const Github = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Github })));
+const Linkedin = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Linkedin })));
+const Mail = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Mail })));
+const Phone = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Phone })));
+const BarChart2 = dynamic(() => import('lucide-react').then(mod => ({ default: mod.BarChart2 })));
+const Trophy = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Trophy })));
+const Sun = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Sun })));
+const Moon = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Moon })));
 
 const SOCIALS = [
     {
@@ -61,7 +71,7 @@ const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], is
     }
 
     return (
-        <motion.a
+        <m.a
             key={social.name}
             href={social.url}
             target="_blank"
@@ -78,13 +88,14 @@ const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], is
             <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
                 {social.name}
             </span>
-        </motion.a>
+        </m.a>
     );
 };
 
 export default function SocialSidebar() {
     return (
-        <>
+        <LazyMotion features={domAnimation} strict>
+            <>
             {/* Desktop: Vertical sidebar on right */}
             <div
                 className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6"
@@ -111,6 +122,7 @@ export default function SocialSidebar() {
                 ))}
             </div>
         </>
+        </LazyMotion>
     );
 }
 

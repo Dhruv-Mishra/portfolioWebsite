@@ -1,7 +1,17 @@
 "use client";
-import { motion } from 'framer-motion';
-import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
+import { LazyMotion, domAnimation, m } from 'framer-motion';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
+
+// Dynamically import icons to enable tree-shaking and reduce initial bundle
+const ExternalLink = dynamic(() => import('lucide-react').then(mod => ({ default: mod.ExternalLink })));
+const Smartphone = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Smartphone })));
+const Database = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Database })));
+const Activity = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Activity })));
+const Film = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Film })));
+const Search = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Search })));
+const ScrollText = dynamic(() => import('lucide-react').then(mod => ({ default: mod.ScrollText })));
+const Globe = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Globe })));
 
 export default function Projects() {
     interface Project {
@@ -118,44 +128,45 @@ export default function Projects() {
     ];
 
     return (
-        <div className="flex flex-col h-full">
-            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
-                My Projects
-            </h1>
+        <LazyMotion features={domAnimation} strict>
+            <div className="flex flex-col h-full">
+                <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
+                    My Projects
+                </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
-                {projects.map((proj, i) => {
-                    // "Random" rotation and offsets based on index to ensure hydration consistency
-                    const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];
-                    const photoRotate = [-3, 2, -2, 3, -1, 2][i % 6];
-                    const tapX = [40, 60, 30, 70, 50, 45][i % 6]; // Random tape position %
-                    const foldSize = 30; // Size of the folded corner
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
+                    {projects.map((proj, i) => {
+                        // "Random" rotation and offsets based on index to ensure hydration consistency
+                        const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];
+                        const photoRotate = [-3, 2, -2, 3, -1, 2][i % 6];
+                        const tapX = [40, 60, 30, 70, 50, 45][i % 6]; // Random tape position %
+                        const foldSize = 30; // Size of the folded corner
 
-                    return (
-                        <motion.div
-                            key={proj.name}
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{
-                                opacity: 1,
-                                y: 0,
-                            }}
-                            viewport={{ once: true, margin: "-50px" }}
-                            transition={{
-                                delay: i * 0.05,
-                                duration: 0.4,
-                                ease: [0.25, 0.1, 0.25, 1] // Smooth cubic bezier
-                            }}
-                            whileHover={{
-                                scale: 1.02,
-                                rotate: -rotate, // Cancels out the initial rotation
-                                transition: { duration: 0.2 }
-                            }}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand will-change-transform"
-                            style={{
-                                transform: `rotate(${rotate}deg)`,
-                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
-                            }}
-                        >
+                        return (
+                            <m.div
+                                key={proj.name}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{
+                                    opacity: 1,
+                                    y: 0,
+                                }}
+                                viewport={{ once: true, margin: "-50px" }}
+                                transition={{
+                                    delay: i * 0.05,
+                                    duration: 0.4,
+                                    ease: [0.25, 0.1, 0.25, 1] // Smooth cubic bezier
+                                }}
+                                whileHover={{
+                                    scale: 1.02,
+                                    rotate: -rotate, // Cancels out the initial rotation
+                                    transition: { duration: 0.2 }
+                                }}
+                                className="relative text-[var(--c-ink)] min-h-[450px] font-hand will-change-transform"
+                                style={{
+                                    transform: `rotate(${rotate}deg)`,
+                                    filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
+                                }}
+                            >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
                                 className="absolute -top-4 w-32 h-10 bg-white/80 shadow-sm backdrop-blur-[1px] z-20"
@@ -267,10 +278,11 @@ export default function Projects() {
                                     </a>
                                 </div>
                             </div>
-                        </motion.div>
+                        </m.div>
                     );
                 })}
             </div>
         </div>
+        </LazyMotion>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { LazyMotion, domAnimation, m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -22,22 +22,23 @@ export default function Navigation() {
     const pathname = usePathname();
 
     return (
-        <nav 
-            className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 z-50 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
-            aria-label="Main navigation"
-            role="navigation"
-        >
-            {LINKS.map((item, i) => {
-                const active = pathname === item.href;
+        <LazyMotion features={domAnimation} strict>
+            <nav 
+                className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 z-50 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
+                aria-label="Main navigation"
+                role="navigation"
+            >
+                {LINKS.map((item, i) => {
+                    const active = pathname === item.href;
 
-                return (
-                    <Link
-                        key={item.name}
-                        href={item.href}
-                        legacyBehavior={false}
-                        passHref
-                    >
-                        <motion.div
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            legacyBehavior={false}
+                            passHref
+                        >
+                            <m.div
                             // Start way up hidden (-80), animate to visible state (-40 inactive, -30 active)
                             // The large negative values + large padding ensures top edge is never seen
                             initial={{ y: -100 }}
@@ -54,10 +55,11 @@ export default function Navigation() {
                             }}
                         >
                             {item.name}
-                        </motion.div>
+                        </m.div>
                     </Link>
                 );
             })}
         </nav>
+        </LazyMotion>
     );
 }

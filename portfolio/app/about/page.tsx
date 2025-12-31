@@ -1,23 +1,24 @@
 "use client";
-import { motion } from 'framer-motion';
+import { LazyMotion, domAnimation, m } from 'framer-motion';
 import Image from 'next/image';
 
 export default function About() {
     return (
-        <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
-            <div className="relative transform -rotate-1">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                    whileHover={{
-                        scale: 1.01,
-                        rotate: 1, // Straightens from -1 rotation
-                        transition: { duration: 0.2 }
-                    }}
-                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
-                >
+        <LazyMotion features={domAnimation} strict>
+            <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
+                <div className="relative transform -rotate-1">
+                    <m.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                        whileHover={{
+                            scale: 1.01,
+                            rotate: 1, // Straightens from -1 rotation
+                            transition: { duration: 0.2 }
+                        }}
+                        className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
+                    >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
                         className="absolute -top-1 -left-6 w-24 md:w-32 h-10 bg-white/80 shadow-sm backdrop-blur-[1px] z-20 -rotate-[8deg]"
@@ -140,8 +141,9 @@ export default function About() {
                             </p>
                         </div>
                     </div>
-                </motion.div>
+                </m.div>
             </div>
         </div>
+        </LazyMotion>
     );
 }

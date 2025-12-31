@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { Terminal as TerminalIcon } from "lucide-react";
+import { LazyMotion, domAnimation, m } from "framer-motion";
+import dynamic from "next/dynamic";
+
+// Dynamically import icon
+const TerminalIcon = dynamic(() => import('lucide-react').then(mod => ({ default: mod.Terminal })));
 import { useTerminal } from "@/context/TerminalContext";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
@@ -133,13 +136,14 @@ export default function Terminal() {
 
 
     return (
-        <motion.div
-            initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
-            animate={{ scale: 1, opacity: 1, rotate: -1 }}
-            transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
-            className="w-full max-w-3xl mx-auto relative group perspective-[1000px]"
-            suppressHydrationWarning
-        >
+        <LazyMotion features={domAnimation} strict>
+            <m.div
+                initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
+                animate={{ scale: 1, opacity: 1, rotate: -1 }}
+                transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
+                className="w-full max-w-3xl mx-auto relative group perspective-[1000px]"
+                suppressHydrationWarning
+            >
             {/* Rough Shadow */}
             <div
                 className="absolute inset-0 bg-black/10 rounded-lg transform translate-x-2 translate-y-3 rotate-2 blur-sm pointer-events-none"
@@ -225,6 +229,7 @@ export default function Terminal() {
                     <div ref={bottomRef} />
                 </div>
             </div>
-        </motion.div>
+            </m.div>
+        </LazyMotion>
     );
 }

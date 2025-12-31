@@ -1,5 +1,6 @@
 "use client";
-import { motion, useSpring, useTransform } from 'framer-motion';
+import dynamic from 'next/dynamic';
+import { motion, useSpring, useTransform, LazyMotion, domAnimation, m } from 'framer-motion';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
     BugDoodle, PaperPlaneDoodle, SaturnDoodle,

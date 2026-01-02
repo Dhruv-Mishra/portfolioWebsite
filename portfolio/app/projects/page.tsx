@@ -226,7 +226,6 @@ export default function Projects() {
                                                 alt={`${proj.name} project screenshot`}
                                                 fill
                                                 sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                quality={80}
                                                 loading={i === 0 ? "eager" : "lazy"}
                                                 priority={i === 0}
                                                 className={`object-cover sepia-[.2] group-hover:sepia-0 transition-all duration-500 ${proj.imageClassName || ''}`}

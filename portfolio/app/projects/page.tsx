@@ -141,19 +141,20 @@ export default function Projects() {
                             }}
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{
-                                delay: i * 0.05,
-                                duration: 0.4,
-                                ease: [0.25, 0.1, 0.25, 1] // Smooth cubic bezier
+                                delay: Math.min(i * 0.03, 0.15), // Cap delay at 150ms
+                                duration: 0.3,
+                                ease: "easeOut"
                             }}
                             whileHover={{
                                 scale: 1.02,
-                                rotate: -rotate, // Cancels out the initial rotation
-                                transition: { duration: 0.2 }
+                                rotate: -rotate,
+                                transition: { duration: 0.15 }
                             }}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand will-change-transform"
+                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand"
                             style={{
                                 transform: `rotate(${rotate}deg)`,
-                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
+                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
+                                willChange: 'transform, opacity'
                             }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
@@ -224,9 +225,10 @@ export default function Projects() {
                                                 src={proj.image}
                                                 alt={`${proj.name} project screenshot`}
                                                 fill
-                                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                                quality={85}
-                                                loading="lazy"
+                                                sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
+                                                quality={80}
+                                                loading={i === 0 ? "eager" : "lazy"}
+                                                priority={i === 0}
                                                 className={`object-cover sepia-[.2] group-hover:sepia-0 transition-all duration-500 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (

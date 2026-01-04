@@ -22,7 +22,7 @@ export default function Projects() {
             name: "Fluent UI Android",
             desc: (
                 <>
-                    A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. It offers a robust collection of <span className="bg-blue-100 px-1 rounded">official Fluent design</span> tokens, <em>typography styles</em>, and custom controls, ensuring <span className="underline decoration-dotted decoration-gray-400">seamless integration</span> with the Microsoft ecosystem.
+                    A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. It offers a robust collection of <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">official Fluent design</span> tokens, <em>typography styles</em>, and custom controls, ensuring <span className="underline decoration-dotted decoration-gray-400">seamless integration</span> with the Microsoft ecosystem.
                 </>
             ),
             lang: "Kotlin / Java",
@@ -36,7 +36,7 @@ export default function Projects() {
             name: "Course Evaluator",
             desc: (
                 <>
-                    An <strong>intelligent Python tool</strong> designed to detect <span className="underline decoration-wavy decoration-orange-400">redundant course content</span> across university curriculums. By leveraging <span className="bg-yellow-200 px-1 rounded">fuzzy matching</span> and <span className="italic">text similarity algorithms</span>, it helps students and faculty identify overlapping modules, <span className="underline decoration-double decoration-amber-500">optimizing course selection</span>.
+                    An <strong>intelligent Python tool</strong> designed to detect <span className="underline decoration-wavy decoration-orange-400">redundant course content</span> across university curriculums. By leveraging <span className="bg-yellow-200 dark:bg-yellow-800/50 px-1 rounded">fuzzy matching</span> and <span className="italic">text similarity algorithms</span>, it helps students and faculty identify overlapping modules, <span className="underline decoration-double decoration-amber-500">optimizing course selection</span>.
                 </>
             ),
             lang: "Python",
@@ -50,7 +50,7 @@ export default function Projects() {
             name: "IVC - Vital Checkup",
             desc: (
                 <>
-                    A <span className="bg-green-100 px-1 rounded">contactless</span>, <strong>computer-vision powered</strong> health screening kiosk that <span className="underline decoration-wavy decoration-teal-400">automates patient triage</span>. Using <span className="font-mono text-sm bg-gray-200 px-1 rounded">OpenCV</span>, it calculates <em>height, weight, BMI, and pulse</em> from a distance, <span className="text-red-600 font-bold underline decoration-wavy decoration-red-300">drastically reducing wait times</span>.
+                    A <span className="bg-green-100 dark:bg-green-900/50 px-1 rounded">contactless</span>, <strong>computer-vision powered</strong> health screening kiosk that <span className="underline decoration-wavy decoration-teal-400">automates patient triage</span>. Using <span className="font-mono text-sm bg-teal-100 dark:bg-teal-900/50 px-1 rounded border border-teal-200 dark:border-teal-700">OpenCV</span>, it calculates <em>height, weight, BMI, and pulse</em> from a distance, <span className="text-red-600 dark:text-red-400 font-bold underline decoration-wavy decoration-red-300">drastically reducing wait times</span>.
                 </>
             ),
             lang: "Python / OpenCV",
@@ -64,7 +64,7 @@ export default function Projects() {
             name: "Personal Portfolio",
             desc: (
                 <>
-                    A <strong>high-performance</strong> digital garden built with <span className="bg-gray-900 text-white px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 font-bold font-mono bg-emerald-100 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">zero-flicker theming</span>, and a <span className="italic">unique hand-drawn aesthetic</span>. Optimized for <span className="underline decoration-double decoration-indigo-400">best Lighthouse scores</span>.
+                    A <strong>high-performance</strong> digital garden built with <span className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">zero-flicker theming</span>, and a <span className="italic">unique hand-drawn aesthetic</span>. Optimized for <span className="underline decoration-double decoration-indigo-400">best Lighthouse scores</span>.
                 </>
             ),
             lang: "Next.js / TypeScript",
@@ -78,7 +78,7 @@ export default function Projects() {
             name: "Hybrid Recommender",
             desc: (
                 <>
-                    A smart <span className="underline decoration-wavy decoration-pink-400">movie recommendation engine</span> for <strong>family movie nights</strong>. It balances <em>individual preferences</em> with <span className="bg-purple-100 px-1 rounded">group dynamics</span> and <span className="underline decoration-double decoration-purple-400">age-appropriateness ratings</span>, ensuring everyone finds something enjoyable together.
+                    A smart <span className="underline decoration-wavy decoration-pink-400">movie recommendation engine</span> for <strong>family movie nights</strong>. It balances <em>individual preferences</em> with <span className="bg-purple-100 dark:bg-purple-900/50 px-1 rounded">group dynamics</span> and <span className="underline decoration-double decoration-purple-400">age-appropriateness ratings</span>, ensuring everyone finds something enjoyable together.
                 </>
             ),
             lang: "Python / ML",
@@ -92,7 +92,7 @@ export default function Projects() {
             name: "AtomVault",
             desc: (
                 <>
-                    A secure, <strong className="text-blue-700">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 px-1 rounded">role-based security</span> through a <span className="underline decoration-dotted decoration-gray-400">Java Swing interface</span>.
+                    A secure, <strong className="text-blue-700 dark:text-blue-400">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">role-based security</span> through a <span className="underline decoration-dotted decoration-gray-400">Java Swing interface</span>.
                 </>
             ),
             lang: "Java / MySQL",
@@ -106,7 +106,7 @@ export default function Projects() {
             name: "Bloom Filter Research",
             desc: (
                 <>
-                    Research at <strong>DCLL</strong> focusing on optimizing <span className="bg-gray-200 px-1 rounded">Counting Bloom Filters</span> for <span className="underline decoration-wavy decoration-blue-400">high-concurrency systems</span>. Achieved a massive <span className="text-emerald-600 font-bold underline decoration-double decoration-emerald-400">300% throughput increase</span> via <em>relaxed synchronization</em> techniques in C++.
+                    Research at <strong>DCLL</strong> focusing on optimizing <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded border border-blue-200 dark:border-blue-700">Counting Bloom Filters</span> for <span className="underline decoration-wavy decoration-blue-400">high-concurrency systems</span>. Achieved a massive <span className="text-emerald-600 dark:text-emerald-400 font-bold underline decoration-double decoration-emerald-400">300% throughput increase</span> via <em>relaxed synchronization</em> techniques in C++.
                 </>
             ),
             lang: "Research / C++",

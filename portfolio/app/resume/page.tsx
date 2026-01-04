@@ -12,20 +12,21 @@ export default function ResumePage() {
         <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 10 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 whileHover={{
                     scale: 1.01,
-                    rotate: 1, // Straightens from -1 rotation
-                    transition: { duration: 0.2 }
+                    rotate: 1,
+                    transition: { duration: 0.15 }
                 }}
                 className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
                     height: '92vh',
                     transform: 'rotate(-1deg)',
-                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
+                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
+                    willChange: 'transform, opacity'
                 }}
             >
                 {/* Tape - Top Left */}

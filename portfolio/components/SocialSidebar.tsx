@@ -44,7 +44,7 @@ const SOCIALS = [
     }
 ];
 
-const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) => {
+const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {
         return (
             <a
@@ -80,7 +80,7 @@ const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], is
             </span>
         </motion.a>
     );
-};
+});
 
 export default function SocialSidebar() {
     return (
@@ -146,4 +146,3 @@ function MobileThemeButton() {
         </button>
     );
 }
-

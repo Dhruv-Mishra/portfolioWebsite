@@ -172,6 +172,25 @@ body {
       transform: translateX(0) rotate(12deg);
     }
   }
+
+  /* Respect user's motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-hero-title,
+    .animate-hero-subtitle,
+    .animate-hero-badge {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .animate-hero-title {
+      transform: rotate(-4deg);
+    }
+
+    .animate-hero-badge {
+      transform: rotate(12deg);
+    }
+  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */
@@ -215,4 +234,20 @@ label,
 
 .link-hover:hover {
   transform: scale(1.05) rotate(-1deg);
+}
+
+/* Respect user's motion preferences for all transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .link-hover:hover {
+    transform: none;
+  }
 }

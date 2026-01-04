@@ -99,7 +99,7 @@ export default function SocialSidebar() {
 
             {/* Mobile: Floating circular buttons at bottom */}
             <div
-                className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2"
+                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex gap-2"
                 role="complementary"
                 aria-label="Social media links"
             >

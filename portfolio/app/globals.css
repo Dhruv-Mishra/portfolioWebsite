@@ -117,6 +117,12 @@ body {
   .bg-note-gray {
     background-color: var(--note-gray);
   }
+
+  /* Performance: defer rendering of below-fold content */
+  .content-deferred {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */

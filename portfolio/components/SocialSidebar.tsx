@@ -44,7 +44,7 @@ const SOCIALS = [
     }
 ];
 
-const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) => {
+const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {
         return (
             <a
@@ -80,7 +80,7 @@ const SocialLink = ({ social, isMobile, index }: { social: typeof SOCIALS[0], is
             </span>
         </motion.a>
     );
-};
+});
 
 export default function SocialSidebar() {
     return (
@@ -99,7 +99,7 @@ export default function SocialSidebar() {
 
             {/* Mobile: Floating circular buttons at bottom */}
             <div
-                className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2"
+                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex gap-2"
                 role="complementary"
                 aria-label="Social media links"
             >
@@ -146,4 +146,3 @@ function MobileThemeButton() {
         </button>
     );
 }
-

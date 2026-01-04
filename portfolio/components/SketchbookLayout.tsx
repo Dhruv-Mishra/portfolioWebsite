@@ -72,7 +72,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Global Doodles - Conditionally rendered for performance */}
                 <motion.div
                     className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
-                    style={{ x: xMove, y: yMove }}
+                    style={{ x: xMove, y: yMove, contain: 'layout style' }}
                     aria-hidden="true"
                 >
                     <LightbulbDoodle />

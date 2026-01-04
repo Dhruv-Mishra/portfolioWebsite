@@ -81,6 +81,8 @@ export default function RootLayout({
       <head>
         {/* Preconnect to critical third-party origins */}
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
         <link rel="preconnect" href="https://v2.jokeapi.dev" />
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
 
@@ -89,11 +91,11 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
-        <Analytics />
       </head>
       <body
         className={`${patrickHand.variable} ${firaCode.variable} antialiased`}
       >
+        <Analytics />
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <TerminalProvider>

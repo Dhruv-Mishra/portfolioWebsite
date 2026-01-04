@@ -29,7 +29,8 @@ export default function Terminal() {
         if (isInitialMount.current) {
             isInitialMount.current = false;
         } else {
-            bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+            // Use block: 'nearest' to prevent scrolling the whole page on mobile
+            bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
     }, [outputLines]);
 

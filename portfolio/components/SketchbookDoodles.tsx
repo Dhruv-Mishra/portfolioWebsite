@@ -1,20 +1,26 @@
-export const LightbulbDoodle = () => (
-    <div className="hidden md:block absolute top-12 right-24 text-[var(--d-amber)] rotate-12 transform scale-125">
-        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5a6 6 0 0 0-12 0c0 1.5.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
-            <path d="M9 18h6" />
-            <path d="M10 22h4" />
-        </svg>
-    </div>
-);
+import React from 'react';
 
-export const CloudDoodle = () => (
-    <div className="absolute top-24 left-2 md:top-16 md:left-20 text-[var(--d-slate)] -rotate-3 opacity-40 md:opacity-100">
-        <svg width="50" height="30" className="md:w-[100px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-2.6-2.2-4.7-4.8-4.7-2.3 0-4.3 1.7-4.7 3.9-.3-.1-.5-.2-.9-.2-2.2 0-4 1.8-4 4s1.8 4 4 4h14.5c1.4 0 2.5-1.1 2.5-2.5z" />
-        </svg>
-    </div>
-);
+export const LightbulbDoodle = React.memo(function LightbulbDoodle() {
+    return (
+        <div className="hidden md:block absolute top-12 right-24 text-[var(--d-amber)] rotate-12 transform scale-125">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2 1.5-3.5a6 6 0 0 0-12 0c0 1.5.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
+            </svg>
+        </div>
+    );
+});
+
+export const CloudDoodle = React.memo(function CloudDoodle() {
+    return (
+        <div className="absolute top-24 left-2 md:top-16 md:left-20 text-[var(--d-slate)] -rotate-3 opacity-40 md:opacity-100">
+            <svg width="50" height="30" className="md:w-[100px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-2.6-2.2-4.7-4.8-4.7-2.3 0-4.3 1.7-4.7 3.9-.3-.1-.5-.2-.9-.2-2.2 0-4 1.8-4 4s1.8 4 4 4h14.5c1.4 0 2.5-1.1 2.5-2.5z" />
+            </svg>
+        </div>
+    );
+});
 
 export const CurlyArrowDoodle = () => (
     <div className="hidden md:block absolute top-[18%] left-[45%] text-[var(--d-gray)] -rotate-12">
@@ -25,14 +31,16 @@ export const CurlyArrowDoodle = () => (
     </div>
 );
 
-export const PencilDoodle = () => (
-    <div className="hidden md:block absolute top-1/3 left-8 text-[var(--d-amber)] -rotate-45">
-        <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-            <path d="m15 5 4 4" />
-        </svg>
-    </div>
-);
+export const PencilDoodle = React.memo(function PencilDoodle() {
+    return (
+        <div className="hidden md:block absolute top-1/3 left-8 text-[var(--d-amber)] -rotate-45">
+            <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                <path d="m15 5 4 4" />
+            </svg>
+        </div>
+    );
+});
 
 export const TicTacToeDoodle = () => (
     <div className="hidden md:block absolute top-[40%] right-[10%] text-[var(--d-indigo)] rotate-6">
@@ -55,16 +63,18 @@ export const PaperclipDoodle = () => (
     </div>
 );
 
-export const SmileyDoodle = () => (
-    <div className="hidden md:block absolute bottom-[25%] left-[45%] text-[var(--d-emerald)] -rotate-12">
-        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-            <line x1="9" y1="9" x2="9.01" y2="9" />
-            <line x1="15" y1="9" x2="15.01" y2="9" />
-        </svg>
-    </div>
-);
+export const SmileyDoodle = React.memo(function SmileyDoodle() {
+    return (
+        <div className="hidden md:block absolute bottom-[25%] left-[45%] text-[var(--d-emerald)] -rotate-12">
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                <line x1="9" y1="9" x2="9.01" y2="9" />
+                <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+        </div>
+    );
+});
 
 export const BugDoodle = () => (
     <div className="hidden md:block absolute bottom-32 left-16 text-[var(--d-red)] rotate-12">
@@ -84,13 +94,15 @@ export const BugDoodle = () => (
     </div>
 );
 
-export const StarDoodle = () => (
-    <div className="absolute top-20 right-4 md:bottom-[40%] md:top-auto md:right-[25%] text-[var(--d-yellow)] rotate-12 opacity-40 md:opacity-100">
-        <svg width="24" height="24" className="md:w-[40px] md:h-[40px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-    </div>
-);
+export const StarDoodle = React.memo(function StarDoodle() {
+    return (
+        <div className="absolute top-20 right-4 md:bottom-[40%] md:top-auto md:right-[25%] text-[var(--d-yellow)] rotate-12 opacity-40 md:opacity-100">
+            <svg width="24" height="24" className="md:w-[40px] md:h-[40px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+        </div>
+    );
+});
 
 export const PuzzleDoodle = () => (
     <div className="hidden md:block absolute top-[60%] right-[35%] text-[var(--d-stone)] rotate-45">
@@ -123,31 +135,37 @@ export const DnaDoodle = () => (
     </div>
 );
 
-export const LightningDoodle = () => (
-    <div className="hidden md:block absolute top-[50%] right-[3%] text-[var(--d-yellow)] -rotate-12">
-        <svg width="40" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-        </svg>
-    </div>
-);
+export const LightningDoodle = React.memo(function LightningDoodle() {
+    return (
+        <div className="hidden md:block absolute top-[50%] right-[3%] text-[var(--d-yellow)] -rotate-12">
+            <svg width="40" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+        </div>
+    );
+});
 
-export const PaperPlaneDoodle = () => (
-    <div className="absolute top-32 right-2 md:bottom-[15%] md:top-auto md:right-[10%] text-[var(--d-blue)] -rotate-12 opacity-40 md:opacity-100">
-        <svg width="32" height="32" className="md:w-[60px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 2L11 13" />
-            <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-        </svg>
-    </div>
-);
+export const PaperPlaneDoodle = React.memo(function PaperPlaneDoodle() {
+    return (
+        <div className="absolute top-32 right-2 md:bottom-[15%] md:top-auto md:right-[10%] text-[var(--d-blue)] -rotate-12 opacity-40 md:opacity-100">
+            <svg width="32" height="32" className="md:w-[60px] md:h-[60px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13" />
+                <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+            </svg>
+        </div>
+    );
+});
 
-export const SaturnDoodle = () => (
-    <div className="absolute bottom-24 left-4 md:bottom-[5%] md:left-auto md:right-[5%] text-[var(--d-purple)] rotate-12 opacity-40 md:opacity-100">
-        <svg width="40" height="28" className="md:w-[70px] md:h-[50px]" viewBox="0 0 70 50" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
-            <circle cx="35" cy="25" r="15" />
-            <ellipse cx="35" cy="25" rx="30" ry="10" transform="rotate(-15 35 25)" />
-        </svg>
-    </div>
-);
+export const SaturnDoodle = React.memo(function SaturnDoodle() {
+    return (
+        <div className="absolute bottom-24 left-4 md:bottom-[5%] md:left-auto md:right-[5%] text-[var(--d-purple)] rotate-12 opacity-40 md:opacity-100">
+            <svg width="40" height="28" className="md:w-[70px] md:h-[50px]" viewBox="0 0 70 50" fill="none" stroke="currentColor" style={{ strokeWidth: "var(--d-stroke-width)" }}>
+                <circle cx="35" cy="25" r="15" />
+                <ellipse cx="35" cy="25" rx="30" ry="10" transform="rotate(-15 35 25)" />
+            </svg>
+        </div>
+    );
+});
 
 export const MusicNoteDoodle = () => (
     <div className="hidden md:block absolute bottom-[25%] right-[5%] text-[var(--d-rose)] rotate-6">

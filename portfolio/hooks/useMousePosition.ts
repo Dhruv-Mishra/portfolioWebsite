@@ -11,7 +11,7 @@ export function useMousePosition() {
             y.set(e.clientY);
         };
 
-        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mousemove", handleMouseMove, { passive: true });
         return () => window.removeEventListener("mousemove", handleMouseMove);
     }, [x, y]);
 

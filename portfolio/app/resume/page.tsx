@@ -12,20 +12,21 @@ export default function ResumePage() {
         <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 10 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 whileHover={{
                     scale: 1.01,
-                    rotate: 1, // Straightens from -1 rotation
-                    transition: { duration: 0.2 }
+                    rotate: 1,
+                    transition: { duration: 0.15 }
                 }}
                 className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
                     height: '92vh',
                     transform: 'rotate(-1deg)',
-                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
+                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
+                    willChange: 'transform, opacity'
                 }}
             >
                 {/* Tape - Top Left */}
@@ -83,17 +84,17 @@ export default function ResumePage() {
                         </object>
                     </div>
 
-                    {/* External Link Overlay - Top Right, Larger and More Noticeable */}
+                    {/* External Link Overlay - Left on mobile, Right on desktop */}
                     <a
                         href="/resources/resume.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="absolute top-4 right-4 z-30 group"
+                        className="absolute top-2 left-2 md:top-4 md:left-auto md:right-4 z-30 group"
                         title="Open PDF in new tab"
                     >
-                        <div className="bg-yellow-100 text-gray-800 px-5 py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-all font-hand font-bold flex items-center gap-2 text-base md:text-lg">
+                        <div className="bg-yellow-100 text-gray-800 px-3 py-1.5 md:px-5 md:py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-all font-hand font-bold flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
                             <span>Open PDF</span>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </div>
                     </a>
                 </div>

@@ -31,6 +31,7 @@ export default function SketchbookCursor() {
 
     // Trail state
     const pointsRef = useRef<{ x: number, y: number, age: number }[]>([]);
+    const lastMoveTime = useRef(Date.now());
 
     useEffect(() => {
         if (!mounted) return;
@@ -38,6 +39,7 @@ export default function SketchbookCursor() {
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
+            lastMoveTime.current = Date.now();
 
             // Add point for trail with distance-based throttling
             const lastPoint = pointsRef.current[pointsRef.current.length - 1];
@@ -71,13 +73,13 @@ export default function SketchbookCursor() {
             }
         };
 
-        window.addEventListener('mousemove', moveCursor);
-        window.addEventListener('mouseover', checkHover);
+        window.addEventListener('mousemove', moveCursor, { passive: true });
+        window.addEventListener('mouseover', checkHover, { passive: true });
         window.addEventListener('mouseleave', handleMouseLeave);
         window.addEventListener('mouseenter', handleMouseEnter);
         window.addEventListener('sketchbook:hideCursor', handleHideCursor);
         window.addEventListener('sketchbook:showCursor', handleShowCursor);
-        window.addEventListener('resize', handleResize);
+        window.addEventListener('resize', handleResize, { passive: true });
         document.addEventListener('mouseleave', handleMouseLeave);
         document.addEventListener('mouseenter', handleMouseEnter);
 
@@ -95,6 +97,16 @@ export default function SketchbookCursor() {
             // Early return if not visible to save CPU, but only after trail fades
             if (!isVisible && pointsRef.current.length === 0) {
                 animationFrameId = requestAnimationFrame(renderTrail);
+                return;
+            }
+
+            // Throttle RAF loop when cursor is idle and no trail to render
+            const idleTime = Date.now() - lastMoveTime.current;
+            if (idleTime > 150 && pointsRef.current.length === 0) {
+                // Use slower polling when idle
+                setTimeout(() => {
+                    animationFrameId = requestAnimationFrame(renderTrail);
+                }, 100);
                 return;
             }
 

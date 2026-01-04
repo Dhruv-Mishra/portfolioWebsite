@@ -3,25 +3,26 @@ import { motion } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
+interface Project {
+    name: string;
+    desc: React.ReactNode;
+    lang: string;
+    link: string;
+    colorClass: string;
+    image: string;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    imageClassName?: string;
+}
+
 export default function Projects() {
-    interface Project {
-        name: string;
-        desc: React.ReactNode;
-        lang: string;
-        link: string;
-        colorClass: string;
-        image: string;
-        icon: any;
-        label: string;
-        imageClassName?: string;
-    }
 
     const projects: Project[] = [
         {
             name: "Fluent UI Android",
             desc: (
                 <>
-                    A <strong>comprehensive</strong> native Android library enabling developers to build uniform Microsoft 365 experiences. It offers a robust collection of <span className="underline decoration-wavy decoration-blue-400 underline-offset-2">official Fluent design</span> tokens, typography styles, and custom controls, ensuring seamless integration with the Microsoft ecosystem while adhering to accessibility standards.
+                    A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. It offers a robust collection of <span className="bg-blue-100 px-1 rounded">official Fluent design</span> tokens, <em>typography styles</em>, and custom controls, ensuring <span className="underline decoration-dotted decoration-gray-400">seamless integration</span> with the Microsoft ecosystem.
                 </>
             ),
             lang: "Kotlin / Java",
@@ -35,7 +36,7 @@ export default function Projects() {
             name: "Course Evaluator",
             desc: (
                 <>
-                    An <strong>intelligent Python tool</strong> designed to detect redundant course content across university curriculums. By leveraging <span className="bg-yellow-200/50 px-1 rounded-sm border border-yellow-300 dark:bg-yellow-800/30 dark:border-yellow-700">fuzzy matching</span> and text similarity algorithms, it helps students and faculty identify overlapping modules, optimizing course selection and preventing academic redundancy.
+                    An <strong>intelligent Python tool</strong> designed to detect <span className="underline decoration-wavy decoration-orange-400">redundant course content</span> across university curriculums. By leveraging <span className="bg-yellow-200 px-1 rounded">fuzzy matching</span> and <span className="italic">text similarity algorithms</span>, it helps students and faculty identify overlapping modules, <span className="underline decoration-double decoration-amber-500">optimizing course selection</span>.
                 </>
             ),
             lang: "Python",
@@ -49,7 +50,7 @@ export default function Projects() {
             name: "IVC - Vital Checkup",
             desc: (
                 <>
-                    A contactless, <strong>computer-vision powered</strong> health screening kiosk that automates patient triage. Using <em>OpenCV</em>, it instantly calculates height, weight, BMI, and pulse from a distance, significantly <span className="text-red-500 dark:text-red-400 font-bold" style={{ textShadow: '1px 1px 0px rgba(0,0,0,0.1)' }}>reducing wait times</span> and minimizing physical contact in hospital settings.
+                    A <span className="bg-green-100 px-1 rounded">contactless</span>, <strong>computer-vision powered</strong> health screening kiosk that <span className="underline decoration-wavy decoration-teal-400">automates patient triage</span>. Using <span className="font-mono text-sm bg-gray-200 px-1 rounded">OpenCV</span>, it calculates <em>height, weight, BMI, and pulse</em> from a distance, <span className="text-red-600 font-bold underline decoration-wavy decoration-red-300">drastically reducing wait times</span>.
                 </>
             ),
             lang: "Python / OpenCV",
@@ -63,7 +64,7 @@ export default function Projects() {
             name: "Personal Portfolio",
             desc: (
                 <>
-                    A <strong>high-performance</strong> digital garden built with Next.js 16. Features a custom <span className="text-emerald-500 font-bold font-mono">terminal interface</span>, zero-flicker theming, and a unique hand-drawn aesthetic using a custom physics-based cursor. Optimized for best Lighthouse scores.
+                    A <strong>high-performance</strong> digital garden built with <span className="bg-gray-900 text-white px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 font-bold font-mono bg-emerald-100 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">zero-flicker theming</span>, and a <span className="italic">unique hand-drawn aesthetic</span>. Optimized for <span className="underline decoration-double decoration-indigo-400">best Lighthouse scores</span>.
                 </>
             ),
             lang: "Next.js / TypeScript",
@@ -77,7 +78,7 @@ export default function Projects() {
             name: "Hybrid Recommender",
             desc: (
                 <>
-                    A smart movie recommendation engine tailored for <strong>family movie nights</strong>. It balances individual user preferences with group dynamics and <span className="underline decoration-double decoration-purple-400 underline-offset-2">age-appropriateness ratings</span>, ensuring that everyone from toddlers to adults finds something enjoyable to watch together.
+                    A smart <span className="underline decoration-wavy decoration-pink-400">movie recommendation engine</span> for <strong>family movie nights</strong>. It balances <em>individual preferences</em> with <span className="bg-purple-100 px-1 rounded">group dynamics</span> and <span className="underline decoration-double decoration-purple-400">age-appropriateness ratings</span>, ensuring everyone finds something enjoyable together.
                 </>
             ),
             lang: "Python / ML",
@@ -91,7 +92,7 @@ export default function Projects() {
             name: "AtomVault",
             desc: (
                 <>
-                    A secure, <strong>ACID-compliant</strong> banking database management system built for high-reliability transactions. Featured a multi-user architecture with strict <span className="bg-blue-100/50 dark:bg-blue-900/30 px-1 border border-blue-200 dark:border-blue-800 rounded-sm">role-based security</span>, ensuring safe concurrent access for customers and bank staff through a classic Java Swing interface.
+                    A secure, <strong className="text-blue-700">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 px-1 rounded">role-based security</span> through a <span className="underline decoration-dotted decoration-gray-400">Java Swing interface</span>.
                 </>
             ),
             lang: "Java / MySQL",
@@ -105,7 +106,7 @@ export default function Projects() {
             name: "Bloom Filter Research",
             desc: (
                 <>
-                    Research conducted at <strong>DCLL</strong> focusing on optimizing Counting Bloom Filters for high-concurrency systems. Achieved a massive <span className="text-emerald-600 dark:text-emerald-400 font-bold decoration-dashed underline underline-offset-4">300% throughput increase</span> by implementing relaxed synchronization techniques and advanced concurrency patterns in C++.
+                    Research at <strong>DCLL</strong> focusing on optimizing <span className="bg-gray-200 px-1 rounded">Counting Bloom Filters</span> for <span className="underline decoration-wavy decoration-blue-400">high-concurrency systems</span>. Achieved a massive <span className="text-emerald-600 font-bold underline decoration-double decoration-emerald-400">300% throughput increase</span> via <em>relaxed synchronization</em> techniques in C++.
                 </>
             ),
             lang: "Research / C++",
@@ -118,7 +119,7 @@ export default function Projects() {
     ];
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
                 My Projects
             </h1>
@@ -141,19 +142,20 @@ export default function Projects() {
                             }}
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{
-                                delay: i * 0.05,
-                                duration: 0.4,
-                                ease: [0.25, 0.1, 0.25, 1] // Smooth cubic bezier
+                                delay: Math.min(i * 0.03, 0.15), // Cap delay at 150ms
+                                duration: 0.3,
+                                ease: "easeOut"
                             }}
                             whileHover={{
                                 scale: 1.02,
-                                rotate: -rotate, // Cancels out the initial rotation
-                                transition: { duration: 0.2 }
+                                rotate: -rotate,
+                                transition: { duration: 0.15 }
                             }}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand will-change-transform"
+                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand"
                             style={{
                                 transform: `rotate(${rotate}deg)`,
-                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
+                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
+                                willChange: 'transform, opacity'
                             }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
@@ -224,9 +226,9 @@ export default function Projects() {
                                                 src={proj.image}
                                                 alt={`${proj.name} project screenshot`}
                                                 fill
-                                                sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                                quality={85}
-                                                loading="lazy"
+                                                sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
+                                                loading={i === 0 ? "eager" : "lazy"}
+                                                priority={i === 0}
                                                 className={`object-cover sepia-[.2] group-hover:sepia-0 transition-all duration-500 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (

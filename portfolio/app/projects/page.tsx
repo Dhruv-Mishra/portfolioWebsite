@@ -119,7 +119,7 @@ export default function Projects() {
     ];
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
                 My Projects
             </h1>

@@ -16,8 +16,9 @@ export default function SketchbookCursor() {
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid hydration pattern for Next.js
+    // Standard Next.js hydration pattern for client components
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Required for SSR hydration
         setMounted(true);
     }, []);
 
@@ -31,10 +32,13 @@ export default function SketchbookCursor() {
 
     // Trail state
     const pointsRef = useRef<{ x: number, y: number, age: number }[]>([]);
-    const lastMoveTime = useRef(Date.now());
+    const lastMoveTime = useRef(0);
 
     useEffect(() => {
         if (!mounted) return;
+        
+        // Initialize lastMoveTime on mount
+        lastMoveTime.current = Date.now();
 
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
@@ -171,7 +175,7 @@ export default function SketchbookCursor() {
             document.removeEventListener('mouseenter', handleMouseEnter);
             cancelAnimationFrame(animationFrameId);
         };
-    }, [mouseX, mouseY, mounted]); // Removed theme from dependency array, using ref instead
+    }, [mouseX, mouseY, mounted, isVisible]); // Added isVisible to dependency array
 
     if (!mounted) return null;
 

@@ -46,9 +46,9 @@ function AnalyticsInner() {
     // Use requestIdleCallback if available, fallback to setTimeout
     if ('requestIdleCallback' in window) {
       (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
-        .requestIdleCallback(loadGTM, { timeout: 3000 });
+        .requestIdleCallback(loadGTM, { timeout: 5000 });
     } else {
-      setTimeout(loadGTM, 2000);
+      setTimeout(loadGTM, 4000);
     }
   }, [loadGTM]);
 

@@ -61,25 +61,21 @@ export default function About() {
                     <div
                         className="bg-[#fff9c4] p-6 md:p-12 w-full h-full relative"
                         style={{
-                            clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 60px), calc(100% - 60px) 100%, 0% 100%)'
+                            clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0% 100%)'
                         }}
                     >
                         {/* Folded Corner Effect - Bottom Right */}
                         <div
-                            className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md"
+                            className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
                             style={{
-                                width: 60,
-                                height: 60,
                                 backgroundColor: 'rgba(0,0,0,0.1)',
                                 background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
                             }}
                         />
                         <div
-                            className="absolute bottom-0 right-0 pointer-events-none"
+                            className="absolute bottom-0 right-0 pointer-events-none w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
                             style={{
-                                width: 60,
-                                height: 60,
-                                backgroundColor: '#fffae5', // Slightly darker than paper
+                                backgroundColor: '#fffae5',
                                 filter: 'brightness(0.95)',
                                 clipPath: 'polygon(0 0, 0 100%, 100% 0)'
                             }}

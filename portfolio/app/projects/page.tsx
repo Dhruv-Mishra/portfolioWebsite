@@ -3,18 +3,19 @@ import { motion } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
+interface Project {
+    name: string;
+    desc: React.ReactNode;
+    lang: string;
+    link: string;
+    colorClass: string;
+    image: string;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    imageClassName?: string;
+}
+
 export default function Projects() {
-    interface Project {
-        name: string;
-        desc: React.ReactNode;
-        lang: string;
-        link: string;
-        colorClass: string;
-        image: string;
-        icon: any;
-        label: string;
-        imageClassName?: string;
-    }
 
     const projects: Project[] = [
         {

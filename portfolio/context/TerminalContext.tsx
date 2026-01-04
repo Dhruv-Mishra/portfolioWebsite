@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 
 export interface TerminalLine {
     command: string;
@@ -39,7 +39,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
     // Separate state for command history (Up/Down arrows)
     const [commandHistory, setCommandHistory] = useState<string[]>([]);
 
-    const addCommand = (command: string, output: React.ReactNode) => {
+    const addCommand = useCallback((command: string, output: React.ReactNode) => {
         // Add to display lines
         setLines(prev => [...prev, { command, output }]);
 
@@ -48,25 +48,25 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
         if (command.trim()) {
             setCommandHistory(prev => [...prev, command]);
         }
-    };
+    }, []);
 
-    const addToHistory = (command: string) => {
+    const addToHistory = useCallback((command: string) => {
         if (command.trim()) {
             setCommandHistory(prev => [...prev, command]);
         }
-    };
+    }, []);
 
-    const clearOutput = () => {
+    const clearOutput = useCallback(() => {
         setLines([]);
-    };
+    }, []);
 
-    const value = React.useMemo(() => ({
+    const value = useMemo(() => ({
         outputLines,
         commandHistory,
         addCommand,
         addToHistory,
         clearOutput
-    }), [outputLines, commandHistory]);
+    }), [outputLines, commandHistory, addCommand, addToHistory, clearOutput]);
 
     return (
         <TerminalContext.Provider value={value}>

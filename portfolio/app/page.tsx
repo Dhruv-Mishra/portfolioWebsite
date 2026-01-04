@@ -41,7 +41,7 @@ export default function Home() {
           transition={{ delay: 0.5 }}
           className="absolute -bottom-4 right-0 md:-right-12 rotate-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md transform"
         >
-          v1.0.0-beta
+          v0.0.2-beta
         </motion.div>
       </div>
 

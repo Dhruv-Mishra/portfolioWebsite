@@ -151,7 +151,7 @@ export default function Projects() {
                                 rotate: -rotate,
                                 transition: { duration: 0.15 }
                             }}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand"
+                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
                             style={{
                                 transform: `rotate(${rotate}deg)`,
                                 filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',

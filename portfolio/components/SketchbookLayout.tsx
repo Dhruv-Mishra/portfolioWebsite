@@ -37,7 +37,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Holes and Rings */}
                 {[...Array(12)].map((_, i) => (
                     <div key={i} className="relative w-full flex justify-center">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 absolute -left-4 top-1/2 -translate-y-1/2 shadow-sm" /> {/* Ring */}
+                        <div className="w-8 h-8 rounded-full bg-gray-300 md:bg-gradient-to-br md:from-gray-200 md:to-gray-400 absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm" /> {/* Ring */}
                         <div className="w-3 h-3 rounded-full bg-gray-800/80 shadow-inner" /> {/* Hole */}
                     </div>
                 ))}

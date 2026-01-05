@@ -70,16 +70,23 @@ export default function ResumePage() {
                             type="application/pdf"
                             className="w-full h-full block"
                         >
-                            <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center text-gray-600 font-hand text-xl bg-orange-50/50">
-                                <p>Unable to embed PDF.</p>
-                                <a
-                                    href="/resources/resume.pdf"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-6 py-2 bg-[#2d2a2e] text-white rounded-lg shadow-md hover:scale-105 transition-transform"
-                                >
-                                    Open PDF
-                                </a>
+                            <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center bg-orange-50/50">
+                                <div className="max-w-md">
+                                    <p className="text-xl font-hand text-gray-800 mb-2">View Resume</p>
+                                    <p className="text-sm font-code text-gray-500 mb-6">
+                                        Your browser doesn&apos;t support inline PDF viewing. No worries!
+                                    </p>
+                                    <a
+                                        href="/resources/resume.pdf"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        download="Dhruv_Mishra_Resume.pdf"
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--c-ink)] text-[var(--c-paper)] rounded-lg shadow-lg hover:scale-105 transition-transform font-bold tracking-wide group"
+                                    >
+                                        <span>Download Resume</span>
+                                        <svg className="w-5 h-5 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                    </a>
+                                </div>
                             </div>
                         </object>
                     </div>

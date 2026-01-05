@@ -2,7 +2,4 @@
 User-agent: *
 Allow: /
 
-# Disallow any admin or private paths (if you add them later)
-# Disallow: /admin/
-
 Sitemap: https://whoisdhruv.com/sitemap.xml

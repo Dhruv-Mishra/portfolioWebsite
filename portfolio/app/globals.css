@@ -141,7 +141,8 @@ body {
 
   @keyframes heroTitleIn {
     from {
-      opacity: 0;
+      opacity: 0.01;
+      /* LCP Trick: Not fully transparent = painted immediately */
       transform: scale(0.9) rotate(-4deg);
     }
 

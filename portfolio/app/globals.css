@@ -173,6 +173,37 @@ body {
       transform: translateX(0) rotate(12deg);
     }
   }
+
+  /* Navigation tab slide-in animation - CSS instead of framer-motion for faster LCP */
+  .animate-nav-tab {
+    animation: navTabIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-nav-tab-1 {
+    animation-delay: 0ms;
+  }
+
+  .animate-nav-tab-2 {
+    animation-delay: 50ms;
+  }
+
+  .animate-nav-tab-3 {
+    animation-delay: 100ms;
+  }
+
+  .animate-nav-tab-4 {
+    animation-delay: 150ms;
+  }
+
+  @keyframes navTabIn {
+    from {
+      transform: translateY(-100px);
+    }
+
+    to {
+      transform: translateY(-25px);
+    }
+  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */

@@ -13,11 +13,13 @@ const patrickHand = Patrick_Hand({
   weight: "400",
   variable: "--font-hand",
   subsets: ["latin"],
+  display: "swap", // Prevent FOIT for faster text rendering
 });
 
 const firaCode = Fira_Code({
   variable: "--font-code",
   subsets: ["latin"],
+  display: "swap", // Prevent FOIT for faster text rendering
 });
 
 export const metadata: Metadata = {
@@ -91,6 +93,41 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+
+        {/* Structured Data (JSON-LD) for SEO */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  "@id": "https://whoisdhruv.com/#website",
+                  "url": "https://whoisdhruv.com",
+                  "name": "Dhruv Mishra Portfolio",
+                  "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+                  "publisher": { "@id": "https://whoisdhruv.com/#person" }
+                },
+                {
+                  "@type": "Person",
+                  "@id": "https://whoisdhruv.com/#person",
+                  "name": "Dhruv Mishra",
+                  "url": "https://whoisdhruv.com",
+                  "jobTitle": "Software Engineer",
+                  "worksFor": {
+                    "@type": "Organization",
+                    "name": "Microsoft"
+                  },
+                  "sameAs": [
+                    "https://www.linkedin.com/in/dhruv-mishra-id/",
+                    "https://github.com/its-DhruvMishra"
+                  ]
+                }
+              ]
+            })
+          }}
+        />
       </head>
       <body
         className={`${patrickHand.variable} ${firaCode.variable} antialiased`}

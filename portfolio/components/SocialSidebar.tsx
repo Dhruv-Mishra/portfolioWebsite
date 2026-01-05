@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -44,41 +43,38 @@ const SOCIALS = [
     }
 ];
 
-const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
-    if (isMobile) {
-        return (
-            <a
-                key={social.name}
-                href={social.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto`}
-                title={social.name}
-            >
-                <social.icon size={18} strokeWidth={2} />
-            </a>
-        );
-    }
-
+// Desktop social link - uses CSS transitions instead of framer-motion
+const DesktopSocialLink = React.memo(function DesktopSocialLink({ social, index }: { social: typeof SOCIALS[0], index: number }) {
     return (
-        <motion.a
-            key={social.name}
+        <a
             href={social.url}
             target="_blank"
             rel="noopener noreferrer"
-            initial={{ x: 50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.5 + (index || 0) * 0.1, type: "spring" }}
-            whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][(index || 0) % 6] }}
-            className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
+            className={`text-gray-400 transition-all duration-300 ${social.color} relative group animate-social-slide-in hover:scale-[1.2]`}
             title={social.name}
+            style={{ animationDelay: `${500 + index * 100}ms` }}
         >
             <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
             <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
             <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 px-2 py-1 rounded shadow-sm">
                 {social.name}
             </span>
-        </motion.a>
+        </a>
+    );
+});
+
+// Mobile social link - simple and fast
+const MobileSocialLink = React.memo(function MobileSocialLink({ social }: { social: typeof SOCIALS[0] }) {
+    return (
+        <a
+            href={social.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto`}
+            title={social.name}
+        >
+            <social.icon size={18} strokeWidth={2} />
+        </a>
     );
 });
 
@@ -92,22 +88,27 @@ export default function SocialSidebar() {
                 aria-label="Social media links"
             >
                 {SOCIALS.map((social, i) => (
-                    <SocialLink key={social.name} social={social} index={i} />
+                    <DesktopSocialLink key={social.name} social={social} index={i} />
                 ))}
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
-            {/* Mobile: Floating circular buttons at bottom */}
+            {/* Mobile: Floating circular buttons at bottom - fixed height to prevent CLS */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex gap-2"
+                className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex gap-2 h-11"
                 role="complementary"
                 aria-label="Social media links"
+                style={{ 
+                    // Explicit dimensions to prevent layout shift
+                    minHeight: '44px',
+                    contain: 'layout style'
+                }}
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton />
 
                 {SOCIALS.map((social) => (
-                    <SocialLink key={social.name} social={social} isMobile />
+                    <MobileSocialLink key={social.name} social={social} />
                 ))}
             </div>
         </>
@@ -128,14 +129,15 @@ function MobileThemeButton() {
         setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
     };
 
-    if (!mounted) return <div className="w-11 h-11" />;
+    // Return placeholder with same dimensions to prevent CLS
+    if (!mounted) return <div className="w-11 h-11 rounded-full" />;
 
     const isDark = resolvedTheme === 'dark';
 
     return (
         <button
             onClick={toggleTheme}
-            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto"
+            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95 cursor-auto w-11 h-11 flex items-center justify-center"
             title="Toggle theme"
         >
             {isDark ? (

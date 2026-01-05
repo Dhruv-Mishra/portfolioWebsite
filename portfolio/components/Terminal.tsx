@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
 import { trackTerminalCommand } from "@/lib/analytics";
@@ -134,11 +133,8 @@ export default function Terminal() {
 
 
     return (
-        <motion.div
-            initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
-            animate={{ scale: 1, opacity: 1, rotate: -1 }}
-            transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
-            className="w-full max-w-3xl mx-auto relative group perspective-[1000px]"
+        <div
+            className="w-full max-w-3xl mx-auto relative group perspective-[1000px] animate-terminal-in"
             suppressHydrationWarning
         >
             {/* Rough Shadow */}
@@ -226,6 +222,6 @@ export default function Terminal() {
                     <div ref={bottomRef} />
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 }

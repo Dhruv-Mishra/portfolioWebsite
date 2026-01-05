@@ -1,6 +1,5 @@
 "use client";
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -37,24 +36,21 @@ export default function Navigation() {
                         legacyBehavior={false}
                         passHref
                     >
-                        <motion.div
-                            // Start way up hidden (-80), animate to visible state (-40 inactive, -30 active)
-                            // The large negative values + large padding ensures top edge is never seen
-                            initial={{ y: -100 }}
-                            animate={{ y: active ? -5 : -25 }}
-                            whileHover={{ y: -5 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        {/* CSS-only animation for faster LCP - no framer-motion on initial load */}
+                        <div
                             className={cn(
                                 "cursor-pointer pt-12 md:pt-16 pb-3 md:pb-4 px-3 md:px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-sm md:text-xl tracking-wide",
+                                "animate-nav-tab transition-transform duration-200 ease-out hover:-translate-y-5",
                                 COLORS[i % COLORS.length],
-                                active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
+                                active ? "z-20 scale-110 shadow-lg -translate-y-[5px]" : "z-10 opacity-90 hover:opacity-100 -translate-y-[25px]"
                             )}
                             style={{
-                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' // Slightly steeper taper
+                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)', // Slightly steeper taper
+                                animationDelay: `${i * 50}ms`
                             }}
                         >
                             {item.name}
-                        </motion.div>
+                        </div>
                     </Link>
                 );
             })}

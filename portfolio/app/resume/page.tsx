@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
 
@@ -10,23 +9,13 @@ export default function ResumePage() {
 
     return (
         <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
-            {/* The Resume "Paper" */}
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                whileHover={{
-                    scale: 1.01,
-                    rotate: 1,
-                    transition: { duration: 0.15 }
-                }}
-                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+            {/* The Resume "Paper" - CSS animation instead of framer-motion */}
+            <div
+                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px] animate-page-card-in hover:scale-[1.01] hover:rotate-1 transition-transform duration-150"
                 style={{
                     height: '92vh',
                     transform: 'rotate(-1deg)',
                     boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
-                    willChange: 'transform, opacity'
                 }}
             >
                 {/* Tape - Top Left */}
@@ -98,7 +87,7 @@ export default function ResumePage() {
                         </div>
                     </a>
                 </div>
-            </motion.div>
+            </div>
         </main>
     );
 }

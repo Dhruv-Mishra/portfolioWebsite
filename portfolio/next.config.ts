@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
   // Production optimizations
   reactStrictMode: true,
   poweredByHeader: false,
+  
+  // Target modern browsers only - eliminates legacy polyfills
+  // This reduces bundle size significantly by not transpiling 
+  // modern JS features like Array.prototype.at, Object.hasOwn, etc.
+  transpilePackages: [],
 };
 
 export default nextConfig;

@@ -1,23 +1,13 @@
 "use client";
-import { motion } from 'framer-motion';
 import Image from 'next/image';
 
 export default function About() {
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
             <div className="relative transform -rotate-1">
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    whileHover={{
-                        scale: 1.01,
-                        rotate: 1,
-                        transition: { duration: 0.15 }
-                    }}
-                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
-                    style={{ willChange: 'transform, opacity' }}
+                {/* CSS animation instead of framer-motion for faster LCP */}
+                <div
+                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)] animate-page-card-in hover:scale-[1.01] hover:rotate-1 transition-transform duration-150"
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
@@ -136,7 +126,7 @@ export default function About() {
                             </p>
                         </div>
                     </div>
-                </motion.div>
+                </div>
             </div>
         </div>
     );

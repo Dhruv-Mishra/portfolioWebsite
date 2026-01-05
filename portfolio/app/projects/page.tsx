@@ -1,5 +1,4 @@
 "use client";
-import { motion } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
@@ -133,29 +132,14 @@ export default function Projects() {
                     const foldSize = 30; // Size of the folded corner
 
                     return (
-                        <motion.div
+                        // CSS animation instead of framer-motion for faster page load
+                        <div
                             key={proj.name}
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{
-                                opacity: 1,
-                                y: 0,
-                            }}
-                            viewport={{ once: true, margin: "-50px" }}
-                            transition={{
-                                delay: Math.min(i * 0.03, 0.15), // Cap delay at 150ms
-                                duration: 0.3,
-                                ease: "easeOut"
-                            }}
-                            whileHover={{
-                                scale: 1.02,
-                                rotate: -rotate,
-                                transition: { duration: 0.15 }
-                            }}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand"
+                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand animate-project-card-in hover:scale-[1.02] transition-transform duration-150"
                             style={{
                                 transform: `rotate(${rotate}deg)`,
                                 filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
-                                willChange: 'transform, opacity'
+                                animationDelay: `${Math.min(i * 50, 200)}ms`
                             }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
@@ -269,7 +253,7 @@ export default function Projects() {
                                     </a>
                                 </div>
                             </div>
-                        </motion.div>
+                        </div>
                     );
                 })}
             </div>

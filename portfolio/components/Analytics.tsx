@@ -30,25 +30,43 @@ function AnalyticsInner() {
     window.gtag('js', new Date());
     window.gtag('config', process.env.NEXT_PUBLIC_GA_ID, {
       page_path: window.location.pathname,
+      // Optimize GA4 settings to reduce main thread work
+      send_page_view: true,
+      transport_type: 'beacon', // Use sendBeacon API for better performance
     });
 
-    // Create and inject GTM script
+    // Create and inject GTM script with lower priority
     const script = document.createElement('script');
     script.src = `https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`;
     script.async = true;
+    script.defer = true; // Defer execution
+    // Set low fetch priority to prevent blocking critical resources
+    script.setAttribute('fetchpriority', 'low');
     document.head.appendChild(script);
   }, []);
 
   useEffect(() => {
     if (!isAnalyticsEnabled()) return;
 
-    // Defer GTM loading to reduce main-thread blocking
-    // Use requestIdleCallback if available, fallback to setTimeout
-    if ('requestIdleCallback' in window) {
-      (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
-        .requestIdleCallback(loadGTM, { timeout: 5000 });
+    // Aggressively defer GTM loading to after page is fully interactive
+    // Wait for LCP to complete and page to be idle
+    const scheduleLoad = () => {
+      // Use requestIdleCallback with a longer timeout to ensure page is truly idle
+      if ('requestIdleCallback' in window) {
+        (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
+          .requestIdleCallback(loadGTM, { timeout: 8000 });
+      } else {
+        // Fallback: wait 6 seconds for slower devices
+        setTimeout(loadGTM, 6000);
+      }
+    };
+
+    // Only load after the page has had a chance to fully render
+    if (document.readyState === 'complete') {
+      // Add additional delay after load complete
+      setTimeout(scheduleLoad, 2000);
     } else {
-      setTimeout(loadGTM, 4000);
+      window.addEventListener('load', () => setTimeout(scheduleLoad, 2000), { once: true });
     }
   }, [loadGTM]);
 

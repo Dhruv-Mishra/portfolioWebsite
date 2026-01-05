@@ -1,5 +1,5 @@
 "use client";
-import { motion, useSpring, useTransform } from 'framer-motion';
+import { useRef, useEffect, useState } from 'react';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
     BugDoodle, PaperPlaneDoodle, SaturnDoodle,
@@ -7,20 +7,56 @@ import {
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import SocialSidebar from './SocialSidebar';
-import { useMousePosition } from '@/hooks/useMousePosition';
 import { ThemeToggle } from './ThemeToggle';
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
-    const { x, y } = useMousePosition();
+    const doodleRef = useRef<HTMLDivElement>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
-    // Smooth out the mouse movement - Optimized for performance
-    const springX = useSpring(x, { stiffness: 40, damping: 25, restDelta: 0.01 });
-    const springY = useSpring(y, { stiffness: 40, damping: 25, restDelta: 0.01 });
+    // Defer doodle parallax to after initial render for better LCP
+    useEffect(() => {
+        // Only enable parallax on desktop after hydration
+        const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+        if (!isDesktop) return;
+        
+        setIsMounted(true);
 
-    // Parallax movement - Optimized to be responsive-agnostic by using larger input ranges
-    // but clamping visually.
-    const xMove = useTransform(springX, [0, 4000], [20, -20]);
-    const yMove = useTransform(springY, [0, 4000], [20, -20]);
+        let rafId: number;
+        let targetX = 0;
+        let targetY = 0;
+        let currentX = 0;
+        let currentY = 0;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            // Convert mouse position to parallax offset (-20 to 20px range)
+            targetX = ((e.clientX / window.innerWidth) - 0.5) * -40;
+            targetY = ((e.clientY / window.innerHeight) - 0.5) * -40;
+        };
+
+        const animate = () => {
+            // Smooth interpolation
+            currentX += (targetX - currentX) * 0.05;
+            currentY += (targetY - currentY) * 0.05;
+
+            if (doodleRef.current) {
+                doodleRef.current.style.transform = `translate(${currentX}px, ${currentY}px)`;
+            }
+
+            rafId = requestAnimationFrame(animate);
+        };
+
+        // Start animation loop after a delay to not block LCP
+        const timeoutId = setTimeout(() => {
+            window.addEventListener('mousemove', handleMouseMove, { passive: true });
+            rafId = requestAnimationFrame(animate);
+        }, 1000);
+
+        return () => {
+            clearTimeout(timeoutId);
+            window.removeEventListener('mousemove', handleMouseMove);
+            cancelAnimationFrame(rafId);
+        };
+    }, []);
 
     return (
         <div className="h-[100dvh] w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
@@ -69,10 +105,14 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
-                {/* Global Doodles - Conditionally rendered for performance */}
-                <motion.div
-                    className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
-                    style={{ x: xMove, y: yMove, contain: 'layout style' }}
+                {/* Global Doodles - CSS transform with RAF for better performance */}
+                <div
+                    ref={doodleRef}
+                    className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+                    style={{ 
+                        contain: 'layout style paint',
+                        willChange: isMounted ? 'transform' : 'auto'
+                    }}
                     aria-hidden="true"
                 >
                     <LightbulbDoodle />
@@ -87,7 +127,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                         <PaperPlaneDoodle />
                         <SaturnDoodle />
                     </div>
-                </motion.div>
+                </div>
 
                 {/* Crease Shadow near spiral */}
                 <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />

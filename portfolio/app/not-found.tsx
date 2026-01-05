@@ -1,23 +1,14 @@
 "use client";
 
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Home, FileQuestion } from 'lucide-react';
 
 export default function NotFound() {
   return (
     <div className="min-h-full flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-        whileHover={{
-          scale: 1.02,
-          rotate: 2, // Straightens from -2 rotation
-          transition: { duration: 0.2 }
-        }}
-        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative"
+      {/* CSS animation instead of framer-motion */}
+      <div
+        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative animate-page-card-in hover:scale-[1.02] hover:rotate-0 transition-transform duration-200"
         style={{ transform: 'rotate(-2deg)' }}
       >
         {/* Tape decoration */}
@@ -25,13 +16,10 @@ export default function NotFound() {
         <div className="absolute -top-4 right-1/4 w-24 h-8 bg-white/80 backdrop-blur-sm shadow-sm transform rotate-12" />
 
         <div className="text-center relative z-10">
-          <motion.div
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="inline-block mb-6"
-          >
+          {/* CSS animation for the icon */}
+          <div className="inline-block mb-6 animate-wiggle">
             <FileQuestion size={120} className="text-gray-400 mx-auto" strokeWidth={1.5} />
-          </motion.div>
+          </div>
 
           <h1 className="text-6xl md:text-8xl font-hand font-bold text-gray-900 mb-4">
             404
@@ -48,42 +36,33 @@ export default function NotFound() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link href="/">
-              <motion.button
-                whileHover={{ scale: 1.05, rotate: 2 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-700 transition-colors"
+              <button
+                className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-700 hover:scale-105 hover:rotate-2 active:scale-95 transition-all"
               >
                 <Home size={24} />
                 Go Home
-              </motion.button>
+              </button>
             </Link>
 
             <Link href="/projects">
-              <motion.button
-                whileHover={{ scale: 1.05, rotate: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
+              <button
+                className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 hover:scale-105 hover:-rotate-2 active:scale-95 transition-all"
               >
                 View Projects
-              </motion.button>
+              </button>
             </Link>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-8 text-gray-600 font-hand text-lg"
-          >
+          <div className="mt-8 text-gray-600 font-hand text-lg animate-fade-in" style={{ animationDelay: '0.5s' }}>
             <p>Or try typing <span className="bg-gray-200 px-2 py-1 rounded font-code text-indigo-600">help</span> in the terminal on the home page</p>
-          </motion.div>
+          </div>
         </div>
 
         {/* Corner fold */}
         <div className="absolute bottom-0 right-0 w-16 h-16 overflow-hidden">
           <div className="absolute bottom-0 right-0 w-16 h-16 bg-gray-200 transform origin-bottom-right rotate-45 translate-x-8 translate-y-8" />
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -8,8 +8,8 @@ export default function NotFound() {
     <div className="min-h-full flex items-center justify-center p-4">
       {/* CSS animation instead of framer-motion */}
       <div
-        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative animate-page-card-in hover:scale-[1.02] hover:rotate-0 transition-transform duration-200"
-        style={{ transform: 'rotate(-2deg)' }}
+        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative animate-page-card-in note-tilt"
+        style={{ ['--note-rotate' as string]: '-2deg' }}
       >
         {/* Tape decoration */}
         <div className="absolute -top-4 left-1/4 w-24 h-8 bg-white/80 backdrop-blur-sm shadow-sm transform -rotate-12" />

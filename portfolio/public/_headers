@@ -1,13 +1,14 @@
 # Headers file for static hosting platforms (Cloudflare Pages, Netlify, etc.)
-# These headers help improve caching and security
+# Optimized for performance and security
 
-# All pages
+# All pages - security headers
 /*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   X-XSS-Protection: 1; mode=block
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://v2.jokeapi.dev https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://www.google-analytics.com https://v2.jokeapi.dev https://analytics.google.com https://region1.google-analytics.com https://cloudflareinsights.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self';
 
 # Static assets - aggressive caching (1 year)
 /_next/static/*

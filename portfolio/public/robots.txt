@@ -1,24 +1,10 @@
 # https://www.robotstxt.org/robotstxt.html
+# Maximum visibility - allow all crawlers including AI agents
 User-agent: *
 Allow: /
 
-# Disallow any admin or private paths (if you add them later)
-# Disallow: /admin/
-
-# Block AI training crawlers while allowing search indexing
-User-agent: GPTBot
-Disallow: /
-
-User-agent: ChatGPT-User
-Disallow: /
-
-User-agent: CCBot
-Disallow: /
-
-User-agent: anthropic-ai
-Disallow: /
-
-User-agent: Google-Extended
-Disallow: /
-
+# Sitemap for search engines
 Sitemap: https://whoisdhruv.com/sitemap.xml
+
+# Host directive (helps some crawlers)
+Host: https://whoisdhruv.com

@@ -19,8 +19,8 @@ export default function Error({
     <div className="min-h-screen flex items-center justify-center p-4 bg-paper">
       {/* CSS animation instead of framer-motion */}
       <div
-        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl transform relative animate-page-card-in"
-        style={{ transform: 'rotate(1deg)' }}
+        className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative animate-page-card-in note-tilt"
+        style={{ ['--note-rotate' as string]: '1deg' }}
       >
         {/* Tape decoration */}
         <div className="absolute -top-4 left-1/3 w-32 h-10 bg-white/80 backdrop-blur-sm shadow-sm transform -rotate-6" />

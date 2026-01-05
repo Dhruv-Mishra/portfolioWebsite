@@ -7,7 +7,8 @@ export default function About() {
             <div className="relative transform -rotate-1">
                 {/* CSS animation instead of framer-motion for faster LCP */}
                 <div
-                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)] animate-page-card-in hover:scale-[1.01] hover:rotate-1 transition-transform duration-150"
+                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)] animate-page-card-in note-tilt"
+                    style={{ ['--note-rotate' as string]: '-1deg' }}
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div

@@ -90,6 +90,41 @@ body {
   font-family: var(--font-hand), cursive;
   overflow-x: hidden;
   cursor: none;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Mobile touch optimizations */
+@media (max-width: 767px) {
+  body {
+    cursor: auto;
+    /* Prevent pull-to-refresh on mobile */
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Larger tap targets for mobile */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Disable hover effects that cause 300ms delay on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Respect reduced motion preference - important for accessibility & battery */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Note Utility Classes - Moved to utilities layer for correct precedence */
@@ -227,21 +262,18 @@ body {
     }
   }
 
-  /* Page card animation - for About, Resume pages */
+  /* Page card animation - for About, Resume pages (opacity only to allow hover transform) */
   .animate-page-card-in {
-    animation: pageCardIn 0.3s ease-out forwards;
-    opacity: 0;
+    animation: pageCardFadeIn 0.3s ease-out forwards;
   }
 
-  @keyframes pageCardIn {
+  @keyframes pageCardFadeIn {
     from {
       opacity: 0;
-      transform: translateY(10px);
     }
 
     to {
       opacity: 1;
-      transform: translateY(0);
     }
   }
 
@@ -260,24 +292,38 @@ body {
     }
   }
 
+  /* Single note tilt on hover (for about, error, not-found pages) */
+  .note-tilt {
+    transform: rotate(var(--note-rotate, 0deg));
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+  }
+
   /* Project note tilt on hover - mimics framer-motion whileHover */
   .project-note-tilt {
     transform: rotate(var(--note-rotate, 0deg));
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
   }
 
-  .project-note-tilt:hover {
-    transform: rotate(0deg) scale(1.03);
-    filter: drop-shadow(8px 8px 20px rgba(0,0,0,0.15));
-  }
+  /* Desktop only: hover effects (no hover on touch devices) */
+  @media (hover: hover) and (pointer: fine) {
+    .note-tilt:hover {
+      transform: rotate(0deg) scale(1.02);
+      filter: drop-shadow(8px 8px 20px rgba(0,0,0,0.15));
+    }
 
-  /* Alternate tilt directions for variety */
-  .project-note-tilt-0:hover { transform: rotate(-1deg) scale(1.03); }
-  .project-note-tilt-1:hover { transform: rotate(1.5deg) scale(1.03); }
-  .project-note-tilt-2:hover { transform: rotate(-0.5deg) scale(1.03); }
-  .project-note-tilt-3:hover { transform: rotate(1deg) scale(1.03); }
-  .project-note-tilt-4:hover { transform: rotate(-2deg) scale(1.03); }
-  .project-note-tilt-5:hover { transform: rotate(0.5deg) scale(1.03); }
+    .project-note-tilt:hover {
+      transform: rotate(0deg) scale(1.03);
+      filter: drop-shadow(8px 8px 20px rgba(0,0,0,0.15));
+    }
+
+    /* Alternate tilt directions for variety */
+    .project-note-tilt-0:hover { transform: rotate(-1deg) scale(1.03); }
+    .project-note-tilt-1:hover { transform: rotate(1.5deg) scale(1.03); }
+    .project-note-tilt-2:hover { transform: rotate(-0.5deg) scale(1.03); }
+    .project-note-tilt-3:hover { transform: rotate(1deg) scale(1.03); }
+    .project-note-tilt-4:hover { transform: rotate(-2deg) scale(1.03); }
+    .project-note-tilt-5:hover { transform: rotate(0.5deg) scale(1.03); }
+  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */

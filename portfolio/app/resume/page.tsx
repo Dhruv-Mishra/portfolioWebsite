@@ -11,10 +11,10 @@ export default function ResumePage() {
         <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" - CSS animation instead of framer-motion */}
             <div
-                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px] animate-page-card-in hover:scale-[1.01] hover:rotate-1 transition-transform duration-150"
+                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px] animate-page-card-in note-tilt"
                 style={{
                     height: '92vh',
-                    transform: 'rotate(-1deg)',
+                    ['--note-rotate' as string]: '-1deg',
                     boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
                 }}
             >

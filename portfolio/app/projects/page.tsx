@@ -135,9 +135,9 @@ export default function Projects() {
                         // CSS animation instead of framer-motion for faster page load
                         <div
                             key={proj.name}
-                            className="relative text-[var(--c-ink)] min-h-[450px] font-hand animate-project-card-in hover:scale-[1.02] transition-transform duration-150"
+                            className={`relative text-[var(--c-ink)] min-h-[450px] font-hand animate-project-card-in project-note-tilt project-note-tilt-${i % 6}`}
                             style={{
-                                transform: `rotate(${rotate}deg)`,
+                                ['--note-rotate' as string]: `${rotate}deg`,
                                 filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
                                 animationDelay: `${Math.min(i * 50, 200)}ms`
                             }}

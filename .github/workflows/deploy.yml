@@ -4,60 +4,122 @@ on:
   # Trigger manually from GitHub Actions tab
   workflow_dispatch:
     inputs:
+      skip_git:
+        description: 'Skip git pull (use code already on server)'
+        required: false
+        default: false
+        type: boolean
       skip_build:
         description: 'Skip npm build (only update nginx config)'
         required: false
-        default: 'false'
+        default: false
+        type: boolean
+      force:
+        description: 'Force deployment (ignore uncommitted changes)'
+        required: false
+        default: false
         type: boolean
 
-  # Trigger automatically on push to master (optional - uncomment to enable)
-  # push:
-  #   branches:
-  #     - master
-  #   paths-ignore:
-  #     - '**.md'
-  #     - '.github/**'
+  # Trigger automatically on push to master
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
+      - 'LICENSE'
+
+# Ensure only one deployment runs at a time
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  DEPLOY_SCRIPT: /home/portfolioWebsite/portfolio/scripts/deploy.sh
 
 jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
-    # Prevent concurrent deployments
-    concurrency:
-      group: production-deployment
-      cancel-in-progress: false
+    # Use GitHub environment for deployment protection rules (optional)
+    environment:
+      name: production
+      url: https://whoisdhruv.com
     
     steps:
+      - name: Deployment Started
+        run: |
+          echo "## 🚀 Deployment Started" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skip Git | ${{ inputs.skip_git || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skip Build | ${{ inputs.skip_build || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Force | ${{ inputs.force || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+
       - name: Deploy to Server
+        id: deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
+          port: ${{ secrets.SERVER_PORT }}
           script_stop: true
+          command_timeout: 12m
           script: |
             echo "🚀 Starting deployment..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             # Build deploy command with options
-            DEPLOY_CMD="sudo /home/portfolioWebsite/portfolio/scripts/deploy.sh"
+            DEPLOY_CMD="sudo ${{ env.DEPLOY_SCRIPT }}"
+            
+            if [ "${{ inputs.skip_git }}" = "true" ]; then
+              DEPLOY_CMD="$DEPLOY_CMD --skip-git"
+              echo "ℹ️  Skipping git pull"
+            fi
             
             if [ "${{ inputs.skip_build }}" = "true" ]; then
               DEPLOY_CMD="$DEPLOY_CMD --skip-build"
+              echo "ℹ️  Skipping build"
             fi
+            
+            if [ "${{ inputs.force }}" = "true" ]; then
+              DEPLOY_CMD="$DEPLOY_CMD --force"
+              echo "ℹ️  Force mode enabled"
+            fi
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             # Execute deployment
             $DEPLOY_CMD
             
-            echo "✅ Deployment completed!"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "✅ Deployment completed successfully!"
 
-      - name: Deployment Summary
-        if: always()
+      - name: Deployment Success
+        if: success()
         run: |
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Skip Build:** ${{ inputs.skip_build || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Website:** [https://whoisdhruv.com](https://whoisdhruv.com)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Deployment Failed
+        if: failure()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. SSH into the server and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Run manually: \`sudo deploy-portfolio\`" >> $GITHUB_STEP_SUMMARY
+

@@ -60,7 +60,6 @@ readonly GIT_BRANCH="master"
 readonly GIT_REMOTE="origin"
 
 # Node settings
-readonly NODE_ENV="production"
 readonly NPM_BUILD_TIMEOUT=600  # 10 minutes
 
 #===============================================================================
@@ -529,7 +528,7 @@ build_project() {
     fi
     
     # Set environment for production build
-    export NODE_ENV="${NODE_ENV}"
+    export NODE_ENV="production"
     
     # Run build with timeout
     log DEBUG "Running npm run build (timeout: ${NPM_BUILD_TIMEOUT}s)..."

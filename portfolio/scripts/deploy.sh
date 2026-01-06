@@ -478,6 +478,22 @@ git_pull() {
     log DEBUG "Last commit: $(git log -1 --pretty=format:'%h - %s (%an, %ar)')"
 }
 
+cleanup_git_changes() {
+    log STEP "Cleaning up build-generated file changes..."
+    
+    cd "${GIT_ROOT}"
+    
+    # Discard any changes to package files that may have been modified during build
+    # This prevents "uncommitted changes" errors on subsequent deployments
+    if ! git diff --quiet -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null; then
+        log DEBUG "Discarding changes to package.json and package-lock.json..."
+        git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null || true
+        log SUCCESS "Build-generated changes cleaned up"
+    else
+        log DEBUG "No package file changes to clean up"
+    fi
+}
+
 #===============================================================================
 # BUILD OPERATIONS
 #===============================================================================
@@ -492,16 +508,17 @@ install_dependencies() {
         log DEBUG "node_modules exists, checking for changes..."
         
         # Use npm ci for faster, more reliable installs in CI/CD
-        if ! npm ci --omit=dev 2>&1 | tee -a "${LOG_FILE}"; then
+        # Include devDependencies since TypeScript is needed for build
+        if ! npm ci 2>&1 | tee -a "${LOG_FILE}"; then
             log WARN "npm ci failed, falling back to npm install..."
-            if ! npm install --omit=dev 2>&1 | tee -a "${LOG_FILE}"; then
+            if ! npm install 2>&1 | tee -a "${LOG_FILE}"; then
                 log ERROR "Failed to install dependencies"
                 exit 1
             fi
         fi
     else
         log DEBUG "Fresh install required..."
-        if ! npm install --omit=dev 2>&1 | tee -a "${LOG_FILE}"; then
+        if ! npm install 2>&1 | tee -a "${LOG_FILE}"; then
             log ERROR "Failed to install dependencies"
             exit 1
         fi
@@ -895,6 +912,9 @@ main() {
         install_dependencies
     fi
     build_project
+    
+    # Clean up any package file changes from build process
+    cleanup_git_changes
     
     # Nginx operations
     deploy_nginx

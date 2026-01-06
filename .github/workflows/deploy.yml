@@ -1,0 +1,63 @@
+name: Deploy Portfolio
+
+on:
+  # Trigger manually from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip npm build (only update nginx config)'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Trigger automatically on push to master (optional - uncomment to enable)
+  # push:
+  #   branches:
+  #     - master
+  #   paths-ignore:
+  #     - '**.md'
+  #     - '.github/**'
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    # Prevent concurrent deployments
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+    
+    steps:
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          script: |
+            echo "🚀 Starting deployment..."
+            
+            # Build deploy command with options
+            DEPLOY_CMD="sudo /home/portfolioWebsite/portfolio/scripts/deploy.sh"
+            
+            if [ "${{ inputs.skip_build }}" = "true" ]; then
+              DEPLOY_CMD="$DEPLOY_CMD --skip-build"
+            fi
+            
+            # Execute deployment
+            $DEPLOY_CMD
+            
+            echo "✅ Deployment completed!"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Skip Build:** ${{ inputs.skip_build || 'false' }}" >> $GITHUB_STEP_SUMMARY

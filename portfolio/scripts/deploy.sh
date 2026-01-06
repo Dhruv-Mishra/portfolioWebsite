@@ -29,7 +29,8 @@ set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 # CONFIGURATION - ABSOLUTE PATHS
 #===============================================================================
 
-# Project paths
+# Repository and project paths
+readonly GIT_ROOT="/home/portfolioWebsite"
 readonly PROJECT_ROOT="/home/portfolioWebsite/portfolio"
 readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/nginx-cloudflare.conf"
 readonly BUILD_OUTPUT_DIR="${PROJECT_ROOT}/out"
@@ -353,11 +354,11 @@ check_disk_space() {
 check_git_status() {
     log STEP "Checking git repository status..."
     
-    cd "${PROJECT_ROOT}"
+    cd "${GIT_ROOT}"
     
     # Check if it's a git repository
     if [[ ! -d ".git" ]]; then
-        log ERROR "Not a git repository: ${PROJECT_ROOT}"
+        log ERROR "Not a git repository: ${GIT_ROOT}"
         exit 1
     fi
     
@@ -446,7 +447,7 @@ git_pull() {
     
     log STEP "Pulling latest code from ${GIT_REMOTE}/${GIT_BRANCH}..."
     
-    cd "${PROJECT_ROOT}"
+    cd "${GIT_ROOT}"
     
     # Fetch latest changes
     log DEBUG "Fetching from remote..."
@@ -825,9 +826,10 @@ print_summary() {
     
     echo ""
     echo -e "${WHITE}Deployment Summary:${NC}"
+    echo -e "  ${CYAN}•${NC} Git Root: ${GIT_ROOT}"
     echo -e "  ${CYAN}•${NC} Project: ${PROJECT_ROOT}"
     echo -e "  ${CYAN}•${NC} Branch: ${GIT_BRANCH}"
-    echo -e "  ${CYAN}•${NC} Commit: $(cd "${PROJECT_ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
+    echo -e "  ${CYAN}•${NC} Commit: $(cd "${GIT_ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
     echo -e "  ${CYAN}•${NC} Build Output: ${BUILD_OUTPUT_DIR}"
     echo -e "  ${CYAN}•${NC} Nginx Config: ${NGINX_ACTIVE_CONF}"
     echo -e "  ${CYAN}•${NC} Log File: ${LOG_FILE}"

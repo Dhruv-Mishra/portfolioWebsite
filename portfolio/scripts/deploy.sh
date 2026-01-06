@@ -756,60 +756,60 @@ health_check() {
     local failed_checks=""
     
     # Check 1: Nginx process
-    ((checks_total++))
+    checks_total=$((checks_total + 1))
     if systemctl is-active --quiet nginx; then
         log DEBUG "✓ Nginx process is running"
-        ((checks_passed++))
+        checks_passed=$((checks_passed + 1))
     else
         log WARN "✗ Nginx process is not running"
         failed_checks="${failed_checks} nginx-process"
     fi
     
     # Check 2: Nginx listening on port 80
-    ((checks_total++))
+    checks_total=$((checks_total + 1))
     if ss -tlnp | grep -q ':80 '; then
         log DEBUG "✓ Nginx listening on port 80"
-        ((checks_passed++))
+        checks_passed=$((checks_passed + 1))
     else
         log WARN "✗ Nginx not listening on port 80"
         failed_checks="${failed_checks} port-80"
     fi
     
     # Check 3: Nginx listening on port 443
-    ((checks_total++))
+    checks_total=$((checks_total + 1))
     if ss -tlnp | grep -q ':443 '; then
         log DEBUG "✓ Nginx listening on port 443"
-        ((checks_passed++))
+        checks_passed=$((checks_passed + 1))
     else
         log WARN "✗ Nginx not listening on port 443"
         failed_checks="${failed_checks} port-443"
     fi
     
     # Check 4: Build output exists
-    ((checks_total++))
+    checks_total=$((checks_total + 1))
     if [[ -d "${BUILD_OUTPUT_DIR}" ]] && [[ -f "${BUILD_OUTPUT_DIR}/index.html" ]]; then
         log DEBUG "✓ Build output exists with index.html"
-        ((checks_passed++))
+        checks_passed=$((checks_passed + 1))
     else
         log WARN "✗ Build output missing or incomplete"
         failed_checks="${failed_checks} build-output"
     fi
     
     # Check 5: Local HTTP response (optional - may fail if only accessible via HTTPS)
-    ((checks_total++))
+    checks_total=$((checks_total + 1))
     if command -v curl &>/dev/null; then
         local http_code
         http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost" 2>/dev/null || echo "000")
         if echo "${http_code}" | grep -qE '^(200|301|302)$'; then
             log DEBUG "✓ HTTP response OK (${http_code})"
-            ((checks_passed++))
+            checks_passed=$((checks_passed + 1))
         else
             log DEBUG "? HTTP check returned ${http_code} (may be expected with HTTPS-only setup)"
-            ((checks_passed++))  # Don't fail on this
+            checks_passed=$((checks_passed + 1))  # Don't fail on this
         fi
     else
         log WARN "? curl not available, skipping HTTP check"
-        ((checks_passed++))
+        checks_passed=$((checks_passed + 1))
     fi
     
     if [[ ${checks_passed} -eq ${checks_total} ]]; then

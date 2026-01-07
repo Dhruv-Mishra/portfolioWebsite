@@ -43,7 +43,7 @@ export default function Home() {
       <p
         className="animate-hero-subtitle text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center max-w-lg font-hand leading-loose -rotate-1 mt-4"
       >
-        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 transition-all">Dhruv</a>.
+        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-300 hover:scale-105 hover:-rotate-2 inline-block transition-all duration-200">Dhruv</a>.
         I engineer <strong
           style={{ color: 'var(--c-highlight)' }}
           className="transition-none font-black"

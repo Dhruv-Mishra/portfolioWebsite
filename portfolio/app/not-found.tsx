@@ -8,17 +8,16 @@ export default function NotFound() {
   return (
     <div className="min-h-full flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, scale: 0.95, rotate: -2 }}
+        whileInView={{ opacity: 1, scale: 1, rotate: -2 }}
         viewport={{ once: true }}
         transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
         whileHover={{
           scale: 1.02,
-          rotate: 2, // Straightens from -2 rotation
+          rotate: 0,
           transition: { duration: 0.2 }
         }}
         className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative"
-        style={{ transform: 'rotate(-2deg)' }}
       >
         {/* Tape decoration */}
         <div className="absolute -top-4 left-1/4 w-24 h-8 bg-white/80 backdrop-blur-sm shadow-sm transform -rotate-12" />

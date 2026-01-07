@@ -135,10 +135,11 @@ export default function Projects() {
                     return (
                         <motion.div
                             key={proj.name}
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
                                 y: 0,
+                                rotate: rotate,
                             }}
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{
@@ -148,12 +149,11 @@ export default function Projects() {
                             }}
                             whileHover={{
                                 scale: 1.02,
-                                rotate: -rotate,
+                                rotate: 0,
                                 transition: { duration: 0.15 }
                             }}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
                             style={{
-                                transform: `rotate(${rotate}deg)`,
                                 filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
                                 willChange: 'transform, opacity'
                             }}

@@ -171,7 +171,7 @@ export default function SketchbookCursor() {
             document.removeEventListener('mouseenter', handleMouseEnter);
             cancelAnimationFrame(animationFrameId);
         };
-    }, [mouseX, mouseY, mounted]); // Removed theme from dependency array, using ref instead
+    }, [mouseX, mouseY, mounted, isVisible]); // isVisible changes should update animation loop
 
     if (!mounted) return null;
 

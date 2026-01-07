@@ -62,6 +62,7 @@ export default function Error({
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <motion.button
+              type="button"
               whileHover={{ scale: 1.05, rotate: -2 }}
               whileTap={{ scale: 0.95 }}
               onClick={reset}
@@ -72,6 +73,7 @@ export default function Error({
             </motion.button>
             
             <motion.button
+              type="button"
               whileHover={{ scale: 1.05, rotate: 2 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => window.location.href = '/'}

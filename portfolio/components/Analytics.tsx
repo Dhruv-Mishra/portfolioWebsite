@@ -4,14 +4,6 @@ import { useEffect, Suspense, useCallback, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { pageview, isAnalyticsEnabled } from '@/lib/analytics';
 
-// Declare gtag on window for TypeScript
-declare global {
-  interface Window {
-    dataLayer?: unknown[];
-    gtag?: (...args: unknown[]) => void;
-  }
-}
-
 function AnalyticsInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();

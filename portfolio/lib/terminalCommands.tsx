@@ -127,19 +127,19 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         output: (
             <div className="space-y-1">
                 <p>Connect with me:</p>
-                <p className="pl-4"><span className="text-gray-400">GitHub:</span> <a href="https://github.com/Dhruv-Mishra" target="_blank" className="text-blue-400 hover:underline">@Dhruv-Mishra</a></p>
-                <p className="pl-4"><span className="text-gray-400">LinkedIn:</span> <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" className="text-blue-400 hover:underline">@dhruv-mishra-id</a></p>
-                <p className="pl-4"><span className="text-gray-400">Codeforces:</span> <a href="https://codeforces.com/profile/DhruvMishra" target="_blank" className="text-blue-400 hover:underline">@DhruvMishra</a></p>
+                <p className="pl-4"><span className="text-gray-400">GitHub:</span> <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a></p>
+                <p className="pl-4"><span className="text-gray-400">LinkedIn:</span> <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@dhruv-mishra-id</a></p>
+                <p className="pl-4"><span className="text-gray-400">Codeforces:</span> <a href="https://codeforces.com/profile/DhruvMishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@DhruvMishra</a></p>
             </div>
         )
     }),
     github: () => ({
         output: "Opening GitHub profile...",
-        action: () => window.open('https://github.com/Dhruv-Mishra', '_blank')
+        action: () => window.open('https://github.com/Dhruv-Mishra', '_blank', 'noopener,noreferrer')
     }),
     linkedin: () => ({
         output: "Opening LinkedIn profile...",
-        action: () => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank')
+        action: () => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank', 'noopener,noreferrer')
     }),
     ls: () => ({
         output: (

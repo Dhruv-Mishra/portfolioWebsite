@@ -6,6 +6,8 @@
   --color-grid: var(--c-grid);
   --color-spiral-bg: var(--c-spiral-bg);
   --color-spiral-border: var(--c-spiral-border);
+  --color-spiral-ring: var(--c-spiral-ring);
+  --color-spiral-hole: var(--c-spiral-hole);
 }
 
 @layer base {
@@ -15,6 +17,8 @@
     --c-grid: #9ca3af;
     --c-spiral-bg: #f0f0f0;
     --c-spiral-border: #d1d5db;
+    --c-spiral-ring: #d1d5db;
+    --c-spiral-hole: rgba(31, 41, 55, 0.8);
     --c-heading: #000000;
     --c-highlight: #000000;
     --mobile-breakpoint: 768px;
@@ -52,6 +56,8 @@
     --c-grid: #404040;
     --c-spiral-bg: #262626;
     --c-spiral-border: #404040;
+    --c-spiral-ring: #525252;
+    --c-spiral-hole: rgba(229, 231, 235, 0.8);
     --c-heading: #ffffff;
     --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;

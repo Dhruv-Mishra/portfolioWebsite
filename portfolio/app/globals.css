@@ -175,8 +175,9 @@ body {
   }
 
   /* Navigation tab slide-in animation - CSS instead of framer-motion for faster LCP */
+  /* Note: We use 'none' fill mode so framer-motion can take over after animation ends */
   .animate-nav-tab {
-    animation: navTabIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    animation: navTabIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) none;
   }
 
   .animate-nav-tab-1 {

@@ -13,6 +13,7 @@ interface Project {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     imageClassName?: string;
+    stack: string[];
 }
 
 export default function Projects() {
@@ -30,7 +31,8 @@ export default function Projects() {
             colorClass: "bg-note-yellow",
             image: "/resources/FluentUI.webp",
             icon: Smartphone,
-            label: "Android Lib"
+            label: "Android Lib",
+            stack: ["Kotlin", "Java", "Android SDK", "Design Systems"]
         },
         {
             name: "Course Evaluator",
@@ -44,7 +46,8 @@ export default function Projects() {
             colorClass: "bg-note-orange",
             image: "/resources/CourseEvaluator.webp",
             icon: Search,
-            label: "Overlap Detector"
+            label: "Overlap Detector",
+            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis"]
         },
         {
             name: "IVC - Vital Checkup",
@@ -58,7 +61,8 @@ export default function Projects() {
             colorClass: "bg-note-green",
             image: "/resources/InstantVitalCheckup.webp",
             icon: Activity,
-            label: "Vitals Scan"
+            label: "Vitals Scan",
+            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech"]
         },
         {
             name: "Personal Portfolio",
@@ -72,7 +76,8 @@ export default function Projects() {
             colorClass: "bg-note-blue",
             image: "/resources/PersonalPorfolio.webp",
             icon: Globe,
-            label: "This Website"
+            label: "This Website",
+            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion"]
         },
         {
             name: "Hybrid Recommender",
@@ -86,7 +91,8 @@ export default function Projects() {
             colorClass: "bg-note-purple",
             image: "/resources/HybridRecommender.webp",
             icon: Film,
-            label: "Movie Night"
+            label: "Movie Night",
+            stack: ["Python", "Scikit-Learn", "Collaborative Filtering"]
         },
         {
             name: "AtomVault",
@@ -100,7 +106,8 @@ export default function Projects() {
             colorClass: "bg-note-blue",
             image: "/resources/AtomVault.webp",
             icon: Database,
-            label: "Bank Vault"
+            label: "Bank Vault",
+            stack: ["Java", "MySQL", "JDBC", "Swing"]
         },
         {
             name: "Bloom Filter Research",
@@ -114,7 +121,8 @@ export default function Projects() {
             colorClass: "bg-note-gray",
             image: "/resources/BloomFilter.webp",
             icon: ScrollText,
-            label: "Research Paper"
+            label: "Research Paper",
+            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization"]
         },
     ];
 
@@ -255,6 +263,15 @@ export default function Projects() {
                                 {/* Description */}
                                 <div className="text-lg leading-relaxed flex-1 mb-6 font-medium opacity-90 pl-6 relative z-10">
                                     {proj.desc}
+                                </div>
+
+                                {/* Stack Tags */}
+                                <div className="pl-6 mb-6 flex flex-wrap gap-2 relative z-10">
+                                    {proj.stack.map((tech) => (
+                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm scale-95 hover:scale-105 transition-transform cursor-default">
+                                            #{tech}
+                                        </span>
+                                    ))}
                                 </div>
 
                                 {/* Link - Handwritten Button */}

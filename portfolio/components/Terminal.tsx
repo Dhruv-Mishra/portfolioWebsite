@@ -8,6 +8,7 @@ import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
 import { createCommandRegistry } from "@/lib/terminalCommands";
+import { WindowControls } from "./DoodleIcons";
 
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
@@ -161,20 +162,7 @@ export default function Terminal() {
                     <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: HEADER_NOISE_SVG }} />
 
                     {/* Sketchy Window Controls */}
-                    <div className="flex gap-3 relative z-10 pl-2">
-                        {/* Red Scribble */}
-                        <div className="w-4 h-4 text-red-400/80 hover:text-red-400 transition-colors cursor-pointer">
-                            <svg viewBox="0 0 100 100" fill="currentColor"><path d="M50 5 Q80 5 90 30 Q95 60 70 85 Q40 95 15 70 Q5 40 20 15 Q35 5 50 5 Z" /></svg>
-                        </div>
-                        {/* Yellow Scribble */}
-                        <div className="w-4 h-4 text-amber-400/80 hover:text-amber-400 transition-colors cursor-pointer">
-                            <svg viewBox="0 0 100 100" fill="currentColor"><path d="M45 5 Q75 10 90 35 Q95 70 65 90 Q35 95 10 70 Q5 35 25 10 Q45 5 45 5 Z" /></svg>
-                        </div>
-                        {/* Green Scribble */}
-                        <div className="w-4 h-4 text-emerald-400/80 hover:text-emerald-400 transition-colors cursor-pointer">
-                            <svg viewBox="0 0 100 100" fill="currentColor"><path d="M55 5 Q85 15 90 45 Q85 80 55 90 Q25 85 15 55 Q10 25 40 10 Q55 5 55 5 Z" /></svg>
-                        </div>
-                    </div>
+                    <WindowControls />
 
                     <div className="flex items-center gap-2 text-gray-400/60 font-hand text-lg tracking-widest uppercase relative z-10">
                         <TerminalIcon size={16} className="text-gray-500" />

@@ -1,6 +1,7 @@
 "use client";
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { Thumbpin } from '@/components/DoodleIcons';
 
 export default function About() {
     return (
@@ -30,32 +31,7 @@ export default function About() {
                     />
 
                     {/* Realistic Thumbpin - Top Center (Outside Clipped Area) */}
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none drop-shadow-xl">
-                        <svg width="60" height="60" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            {/* Paper Indent/Shadow */}
-                            <ellipse cx="25" cy="28" rx="6" ry="3" fill="black" fillOpacity="0.2" filter="blur(2px)" />
-
-                            {/* Pin Head - Red Plastic Top View */}
-                            <circle cx="25" cy="25" r="12" fill="#dc2626" /> {/* Dark Red Base */}
-                            <circle cx="25" cy="25" r="11" fill="url(#pin-shine-top)" /> {/* Gradient Shine */}
-                            <circle cx="25" cy="25" r="12" stroke="#991b1b" strokeWidth="1" strokeOpacity="0.5" /> {/* Border */}
-
-                            {/* Center metal cap/dimple */}
-                            <circle cx="25" cy="25" r="4" fill="#b91c1c" />
-                            <circle cx="25" cy="25" r="3" fill="#ef4444" />
-
-                            {/* Glossy Highlight */}
-                            <path d="M25 16 A 9 9 0 0 1 32 20" stroke="white" strokeWidth="2" strokeOpacity="0.4" strokeLinecap="round" />
-                            <circle cx="20" cy="20" r="2" fill="white" fillOpacity="0.5" filter="blur(1px)" />
-
-                            <defs>
-                                <radialGradient id="pin-shine-top" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(20 18) rotate(45) scale(18)">
-                                    <stop stopColor="#fca5a5" />
-                                    <stop offset="1" stopColor="#b91c1c" />
-                                </radialGradient>
-                            </defs>
-                        </svg>
-                    </div>
+                    <Thumbpin className="absolute -top-2 left-1/2 -translate-x-1/2 z-20" />
 
                     {/* Paper Content (Clipped) */}
                     <div

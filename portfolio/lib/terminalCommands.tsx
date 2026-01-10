@@ -23,6 +23,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">open <span className="text-gray-500">[file]</span> - Open file</p>
                 <p className="pl-4 text-emerald-400">clear      - Clear terminal</p>
                 <p className="pl-4 text-emerald-400">joke       - Tell a joke</p>
+                <p className="pl-4 text-emerald-400">skills     - View Tech Stack</p>
                 <p className="pl-4 text-emerald-400">resume     - View Resume</p>
             </div>
         )
@@ -140,6 +141,33 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     linkedin: () => ({
         output: "Opening LinkedIn profile...",
         action: () => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank', 'noopener,noreferrer')
+    }),
+    skills: () => ({
+        output: (
+            <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p className="text-emerald-400 font-bold border-b border-gray-600 mb-1">Languages</p>
+                        <div className="pl-2 space-y-0.5 text-gray-300">
+                            <p>• Python <span className="text-gray-500 text-xs">(Advanced)</span></p>
+                            <p>• Kotlin / Java <span className="text-gray-500 text-xs">(Android Expert)</span></p>
+                            <p>• TypeScript / JS <span className="text-gray-500 text-xs">(Full Stack)</span></p>
+                            <p>• C++ <span className="text-gray-500 text-xs">(Competitive)</span></p>
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-blue-400 font-bold border-b border-gray-600 mb-1">Frameworks & Tools</p>
+                        <div className="pl-2 space-y-0.5 text-gray-300">
+                            <p>• Next.js / React</p>
+                            <p>• Android SDK / Jetpack</p>
+                            <p>• Git / GitHub Actions</p>
+                            <p>• Linux / Bash</p>
+                        </div>
+                    </div>
+                </div>
+                <p className="text-gray-500 italic text-xs mt-2">Type &apos;projects&apos; to see them in action.</p>
+            </div>
+        )
     }),
     ls: () => ({
         output: (

@@ -26,7 +26,7 @@ export default function Home() {
 
         {/* Hero title - CSS animation instead of framer-motion for faster LCP */}
         <h1
-          className="animate-hero-title text-4xl md:text-8xl lg:text-9xl font-hand font-extrabold tracking-tighter text-indigo-900 drop-shadow-sm p-4"
+          className="animate-hero-title text-6xl md:text-8xl lg:text-9xl font-hand font-extrabold tracking-tighter text-indigo-900 drop-shadow-sm p-4"
         >
           Hello World!
         </h1>

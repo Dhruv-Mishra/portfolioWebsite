@@ -61,6 +61,10 @@ export default function ResumePage() {
                             <div
                                 className="absolute inset-0 z-20 cursor-none"
                                 onClick={() => setIsInteractive(true)}
+                                role="button"
+                                tabIndex={0}
+                                aria-label="Click to enable PDF interaction"
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsInteractive(true); }}
                                 title="Click to enable PDF interaction"
                             />
                         )}
@@ -81,6 +85,7 @@ export default function ResumePage() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         download="Dhruv_Mishra_Resume.pdf"
+                                        aria-label="Download Dhruv Mishra's Resume (PDF)"
                                         className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--c-ink)] text-[var(--c-paper)] rounded-lg shadow-lg hover:scale-105 transition-transform font-bold tracking-wide group"
                                     >
                                         <span>Download Resume</span>

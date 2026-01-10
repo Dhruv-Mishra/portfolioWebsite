@@ -54,6 +54,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
                 rel="noopener noreferrer"
                 className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95`}
                 title={social.name}
+                aria-label={social.name}
             >
                 <social.icon size={18} strokeWidth={2} />
             </a>
@@ -72,6 +73,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
             whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][(index || 0) % 6] }}
             className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
             title={social.name}
+            aria-label={social.name}
         >
             <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
             <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
@@ -137,6 +139,7 @@ function MobileThemeButton() {
             onClick={toggleTheme}
             className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95"
             title="Toggle theme"
+            aria-label="Toggle theme"
         >
             {isDark ? (
                 <Sun size={18} strokeWidth={2} />

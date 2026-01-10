@@ -280,6 +280,7 @@ export default function Projects() {
                                         href={proj.link}
                                         target="_blank"
                                         rel="noreferrer"
+                                        aria-label={`View details for ${proj.name}`}
                                         className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-all hover:-rotate-2 shadow-sm font-bold bg-white/20 dark:bg-black/10 backdrop-blur-sm"
                                     >
                                         Check it out! <ExternalLink size={18} />

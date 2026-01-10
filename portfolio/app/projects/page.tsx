@@ -32,7 +32,7 @@ export default function Projects() {
             image: "/resources/FluentUI.webp",
             icon: Smartphone,
             label: "Android Lib",
-            stack: ["Kotlin", "Java", "Android SDK", "Design Systems"]
+            stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"]
         },
         {
             name: "Course Evaluator",
@@ -47,7 +47,7 @@ export default function Projects() {
             image: "/resources/CourseEvaluator.webp",
             icon: Search,
             label: "Overlap Detector",
-            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis"]
+            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"]
         },
         {
             name: "IVC - Vital Checkup",
@@ -62,7 +62,7 @@ export default function Projects() {
             image: "/resources/InstantVitalCheckup.webp",
             icon: Activity,
             label: "Vitals Scan",
-            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech"]
+            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"]
         },
         {
             name: "Personal Portfolio",
@@ -77,7 +77,7 @@ export default function Projects() {
             image: "/resources/PersonalPorfolio.webp",
             icon: Globe,
             label: "This Website",
-            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion"]
+            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"]
         },
         {
             name: "Hybrid Recommender",
@@ -92,7 +92,7 @@ export default function Projects() {
             image: "/resources/HybridRecommender.webp",
             icon: Film,
             label: "Movie Night",
-            stack: ["Python", "Scikit-Learn", "Collaborative Filtering"]
+            stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"]
         },
         {
             name: "AtomVault",
@@ -107,7 +107,7 @@ export default function Projects() {
             image: "/resources/AtomVault.webp",
             icon: Database,
             label: "Bank Vault",
-            stack: ["Java", "MySQL", "JDBC", "Swing"]
+            stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"]
         },
         {
             name: "Bloom Filter Research",
@@ -122,7 +122,7 @@ export default function Projects() {
             image: "/resources/BloomFilter.webp",
             icon: ScrollText,
             label: "Research Paper",
-            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization"]
+            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"]
         },
     ];
 

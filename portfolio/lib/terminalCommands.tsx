@@ -144,28 +144,40 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     }),
     skills: () => ({
         output: (
-            <div className="space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <p className="text-emerald-400 font-bold border-b border-gray-600 mb-1">Languages</p>
-                        <div className="pl-2 space-y-0.5 text-gray-300">
-                            <p>• Python <span className="text-gray-500 text-xs">(Advanced)</span></p>
-                            <p>• Kotlin / Java <span className="text-gray-500 text-xs">(Android Expert)</span></p>
-                            <p>• TypeScript / JS <span className="text-gray-500 text-xs">(Full Stack)</span></p>
-                            <p>• C++ <span className="text-gray-500 text-xs">(Competitive)</span></p>
+                        <p className="text-emerald-400 font-bold border-b border-gray-600 mb-2 uppercase tracking-wider text-xs">Core Tech</p>
+                        <div className="pl-1 space-y-1 text-gray-300">
+                            <p>• <span className="text-white font-semibold">Languages:</span> C#, Python, Kotlin, Java, TypeScript, C++</p>
+                            <p>• <span className="text-white font-semibold">Frontend:</span> Next.js, React, Tailwind, Framer Motion</p>
+                            <p>• <span className="text-white font-semibold">Backend:</span> Node.js, MySQL, Azure, Dev Ops</p>
+                            <p>• <span className="text-white font-semibold">Mobile:</span> Android SDK, Jetpack Compose, DI (Hilt)</p>
                         </div>
                     </div>
                     <div>
-                        <p className="text-blue-400 font-bold border-b border-gray-600 mb-1">Frameworks & Tools</p>
-                        <div className="pl-2 space-y-0.5 text-gray-300">
-                            <p>• Next.js / React</p>
-                            <p>• Android SDK / Jetpack</p>
-                            <p>• Git / GitHub Actions</p>
-                            <p>• Linux / Bash</p>
+                        <p className="text-blue-400 font-bold border-b border-gray-600 mb-2 uppercase tracking-wider text-xs">Competencies</p>
+                        <div className="pl-1 space-y-1 text-gray-300">
+                            <p>• System Design & Scalability</p>
+                            <p>• High-Performance Computing</p>
+                            <p>• Distributed Systems</p>
+                            <p>• OOP & Clean Architecture</p>
+                            <p>• Algorithms (Codeforces Expert)</p>
                         </div>
                     </div>
                 </div>
-                <p className="text-gray-500 italic text-xs mt-2">Type &apos;projects&apos; to see them in action.</p>
+
+                <div className="bg-gray-800/30 p-2 rounded border border-gray-700/50">
+                    <p className="text-amber-400 font-bold mb-1 text-xs uppercase tracking-wider">Rankings & Achievements</p>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-400">
+                        <span>🏆 Codeforces Expert (Max 1703)</span>
+                        <span>⭐ Microsoft FHL Winner</span>
+                        <span>🥇 Google Farewell Round (Global Rank 291)</span>
+                        <span>🎓 IIITD CSAM Honors (8.96 GPA)</span>
+                    </div>
+                </div>
+
+                <p className="text-gray-500 italic text-xs">Type &apos;projects&apos; to see the code backing these up.</p>
             </div>
         )
     }),

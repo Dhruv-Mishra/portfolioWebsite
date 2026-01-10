@@ -132,7 +132,7 @@ body {
 
   /* Hero animations - CSS instead of framer-motion for faster LCP */
   .animate-hero-title {
-    animation: heroTitleIn 0.6s ease-out forwards;
+    animation: heroTitleIn 0.3s ease-out forwards;
   }
 
   .animate-hero-subtitle {
@@ -147,7 +147,7 @@ body {
 
   @keyframes heroTitleIn {
     from {
-      opacity: 0.01;
+      opacity: 0.1;
       /* LCP Trick: Not fully transparent = painted immediately */
       transform: scale(0.9) rotate(-4deg);
     }

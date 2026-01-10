@@ -6,6 +6,7 @@ import Navigation from "@/components/Navigation";
 import SketchbookCursor from "@/components/SketchbookCursor";
 import { TerminalProvider } from "@/context/TerminalContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+// Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import "./globals.css";
 
@@ -83,8 +84,9 @@ export default function RootLayout({
       <head>
         {/* Preconnect to critical third-party origins */}
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://www.googletagmanager.com" />
-        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+        {/* GTM Deferred */}
+        {/* <link rel="preconnect" href="https://www.googletagmanager.com" /> */}
+        {/* <link rel="dns-prefetch" href="https://www.google-analytics.com" /> */}
         <link rel="preconnect" href="https://v2.jokeapi.dev" />
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
 

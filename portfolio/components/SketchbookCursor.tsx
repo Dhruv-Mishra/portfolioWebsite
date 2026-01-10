@@ -31,9 +31,10 @@ export default function SketchbookCursor() {
 
     // Trail state
     const pointsRef = useRef<{ x: number, y: number, age: number }[]>([]);
-    const lastMoveTime = useRef(Date.now());
+    const lastMoveTime = useRef(0);
 
     useEffect(() => {
+        lastMoveTime.current = Date.now(); // Initialize on mount
         if (!mounted) return;
 
         const moveCursor = (e: MouseEvent) => {

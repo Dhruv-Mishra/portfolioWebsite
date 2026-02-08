@@ -18,7 +18,6 @@ export default function About() {
                         transition: { duration: 0.15 }
                     }}
                     className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
-                    style={{ willChange: 'transform, opacity' }}
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
@@ -78,8 +77,8 @@ export default function About() {
                                             src="/resources/aboutPhoto.webp"
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
-                                            sizes="(max-width: 768px) 160px, 192px"
-                                            priority
+                                            sizes="192px"
+                                            loading="eager"
                                             className="object-cover sepia-[.3] contrast-125"
                                         />
                                     </div>

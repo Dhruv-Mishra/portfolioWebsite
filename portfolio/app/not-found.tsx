@@ -26,7 +26,7 @@ export default function NotFound() {
         <div className="text-center relative z-10">
           <motion.div
             animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 2, repeat: 3, ease: "easeInOut" }}
             className="inline-block mb-6"
           >
             <FileQuestion size={120} className="text-gray-400 mx-auto" strokeWidth={1.5} />

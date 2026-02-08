@@ -211,33 +211,36 @@ body {
       transform: translateY(-25px);
     }
   }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */
-*,
-a,
-button,
-input,
-textarea,
-select,
-label,
-[role="button"],
-[role="link"] {
-  cursor: auto;
+@media (min-width: 768px) {
+  * {
+    cursor: none !important;
+  }
 }
 
-@media (min-width: 768px) {
-
+/* Respect prefers-reduced-motion for accessibility and performance */
+@media (prefers-reduced-motion: reduce) {
   *,
-  a,
-  button,
-  input,
-  textarea,
-  select,
-  label,
-  [role="button"],
-  [role="link"] {
-    cursor: none !important;
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-hero-title,
+  .animate-hero-subtitle,
+  .animate-hero-badge,
+  .animate-nav-tab {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }
 

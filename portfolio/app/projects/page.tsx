@@ -162,8 +162,7 @@ export default function Projects() {
                             }}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
                             style={{
-                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))',
-                                willChange: 'transform, opacity'
+                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
                             }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}

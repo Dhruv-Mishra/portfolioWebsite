@@ -25,8 +25,7 @@ export default function ResumePage() {
                 style={{
                     height: '92vh',
                     transform: 'rotate(-1deg)',
-                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
-                    willChange: 'transform, opacity'
+                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
                 }}
             >
                 {/* Tape - Top Left */}

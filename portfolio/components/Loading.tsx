@@ -1,48 +1,20 @@
-"use client";
-
 import React, { Suspense } from 'react';
-import { motion } from 'framer-motion';
 
 interface LoadingSpinnerProps {
   message?: string;
 }
 
+// Pure CSS loading spinner — no framer-motion needed for the critical loading path
 export function LoadingSpinner({ message = "Loading..." }: LoadingSpinnerProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className="flex flex-col items-center gap-6"
-      >
-        {/* Pencil/Chalk Loading Animation */}
-        <motion.div
-          animate={{
-            rotate: [0, 360],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="w-16 h-16 border-4 border-gray-300 border-t-indigo-600 rounded-full"
-        />
-        
-        <motion.p
-          animate={{
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            duration: 1.5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="text-xl font-hand text-gray-600 dark:text-gray-400"
-        >
+      <div className="flex flex-col items-center gap-6 animate-[fadeIn_0.3s_ease-out]">
+        {/* CSS-only spinner */}
+        <div className="w-16 h-16 border-4 border-gray-300 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-xl font-hand text-gray-600 dark:text-gray-400 animate-pulse">
           {message}
-        </motion.p>
-      </motion.div>
+        </p>
+      </div>
     </div>
   );
 }

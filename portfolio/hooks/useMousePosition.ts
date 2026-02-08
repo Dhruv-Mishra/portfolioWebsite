@@ -6,6 +6,9 @@ export function useMousePosition() {
     const y = useMotionValue(0);
 
     useEffect(() => {
+        // Skip mouse tracking on mobile — no mouse, no parallax needed
+        if (window.matchMedia('(max-width: 767px)').matches) return;
+
         const handleMouseMove = (e: MouseEvent) => {
             x.set(e.clientX);
             y.set(e.clientY);

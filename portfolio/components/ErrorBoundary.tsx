@@ -1,7 +1,6 @@
 "use client";
 
 import React, { Component, ReactNode } from 'react';
-import { motion } from 'framer-motion';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -13,6 +12,8 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+// ErrorBoundary must NOT depend on framer-motion — if framer-motion itself
+// caused the crash, the error fallback would also crash. Pure CSS animations only.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -35,10 +36,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-paper">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-md w-full bg-note-yellow p-8 rounded-lg shadow-xl transform -rotate-1"
+          <div
+            className="max-w-md w-full bg-note-yellow p-8 rounded-lg shadow-xl transform -rotate-1 animate-[fadeIn_0.4s_ease-out]"
           >
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>
@@ -61,7 +60,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 Go Back Home
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       );
     }

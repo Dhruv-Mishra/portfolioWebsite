@@ -181,8 +181,8 @@ export default function Terminal() {
                         }
                     }}
                 >
-                    {outputLines.map((item, i) => (
-                        <div key={i} className="mb-4">
+                    {outputLines.map((item) => (
+                        <div key={item.id} className="mb-4">
                             <div className="flex gap-3 opacity-90">
                                 <span className="text-emerald-400 font-bold">➜</span>
                                 <span className="text-blue-300 font-bold">~</span>

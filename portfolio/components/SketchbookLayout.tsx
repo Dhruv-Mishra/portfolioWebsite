@@ -9,16 +9,19 @@ import { PAPER_NOISE_SVG } from '@/lib/assets';
 import SocialSidebar from './SocialSidebar';
 import { useMousePosition } from '@/hooks/useMousePosition';
 import { ThemeToggle } from './ThemeToggle';
+import { useIsMobile } from '@/hooks/useIsMobile';
+
+const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
+    const isMobile = useIsMobile();
     const { x, y } = useMousePosition();
 
     // Smooth out the mouse movement - Optimized for performance
     const springX = useSpring(x, { stiffness: 40, damping: 25, restDelta: 0.01 });
     const springY = useSpring(y, { stiffness: 40, damping: 25, restDelta: 0.01 });
 
-    // Parallax movement - Optimized to be responsive-agnostic by using larger input ranges
-    // but clamping visually.
+    // Parallax movement - disabled on mobile to save CPU
     const xMove = useTransform(springX, [0, 4000], [20, -20]);
     const yMove = useTransform(springY, [0, 4000], [20, -20]);
 
@@ -35,7 +38,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             {/* Spiral Binding - Fixed to Left */}
             <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
                 {/* Holes and Rings */}
-                {[...Array(12)].map((_, i) => (
+                {SPIRAL_HOLES.map((i) => (
                     <div key={i} className="relative w-full flex justify-center">
                         <div className="w-8 h-8 rounded-full bg-spiral-ring absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
                         <div className="w-3 h-3 rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
@@ -51,10 +54,10 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
-                {/* Paper Texture Noise Overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1] mix-blend-multiply"
                     style={{
-                        backgroundImage: PAPER_NOISE_SVG
+                        backgroundImage: PAPER_NOISE_SVG,
+                        contain: 'strict'
                     }}
                 />
 
@@ -63,31 +66,31 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     style={{
                         backgroundSize: '100px 100px',
                         backgroundImage: `linear-gradient(to right, #9ca3af 1px, transparent 1px),
-                                      linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`
+                                      linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`,
+                        contain: 'strict'
                     }}
                 />
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
                 {/* Global Doodles - Conditionally rendered for performance */}
-                <motion.div
-                    className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
-                    style={{ x: xMove, y: yMove, contain: 'layout style' }}
-                    aria-hidden="true"
-                >
-                    <LightbulbDoodle />
-                    <CloudDoodle />
-                    <PencilDoodle />
-                    <StarDoodle />
-                    <BugDoodle />
-                    <SmileyDoodle />
-                    <LightningDoodle />
-                    {/* These larger/complex doodles only show on desktop */}
-                    <div className="hidden md:block">
+                {!isMobile && (
+                    <motion.div
+                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
+                        style={{ x: xMove, y: yMove, contain: 'layout style' }}
+                        aria-hidden="true"
+                    >
+                        <LightbulbDoodle />
+                        <CloudDoodle />
+                        <PencilDoodle />
+                        <StarDoodle />
+                        <BugDoodle />
+                        <SmileyDoodle />
+                        <LightningDoodle />
                         <PaperPlaneDoodle />
                         <SaturnDoodle />
-                    </div>
-                </motion.div>
+                    </motion.div>
+                )}
 
                 {/* Crease Shadow near spiral */}
                 <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />

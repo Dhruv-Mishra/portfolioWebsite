@@ -30,8 +30,8 @@ set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 #===============================================================================
 
 # Repository and project paths
-readonly GIT_ROOT="/home/portfolioWebsite"
-readonly PROJECT_ROOT="/home/portfolioWebsite/portfolio"
+readonly GIT_ROOT="/home/portfolioWebsite/portfolio"
+readonly PROJECT_ROOT="/home/portfolioWebsite/portfolio/portfolio"
 readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/nginx-cloudflare.conf"
 readonly BUILD_OUTPUT_DIR="${PROJECT_ROOT}/out"
 readonly SCRIPTS_DIR="${PROJECT_ROOT}/scripts"

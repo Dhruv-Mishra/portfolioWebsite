@@ -392,14 +392,15 @@ check_git_status() {
 #===============================================================================
 
 setup_directories() {
-    log STEP "Setting up required directories..."
-    
-    # Create log directory
+    # Create log directory and file BEFORE any logging
     if [[ ! -d "${LOG_DIR}" ]]; then
         mkdir -p "${LOG_DIR}"
         chmod 755 "${LOG_DIR}"
-        log DEBUG "Created log directory: ${LOG_DIR}"
     fi
+    touch "${LOG_FILE}"
+    chmod 644 "${LOG_FILE}"
+
+    log STEP "Setting up required directories..."
     
     # Create backup directory
     if [[ ! -d "${BACKUP_DIR}" ]]; then
@@ -407,10 +408,6 @@ setup_directories() {
         chmod 755 "${BACKUP_DIR}"
         log DEBUG "Created backup directory: ${BACKUP_DIR}"
     fi
-    
-    # Initialize log file
-    touch "${LOG_FILE}"
-    chmod 644 "${LOG_FILE}"
     
     log SUCCESS "Directories setup complete"
 }
@@ -579,12 +576,22 @@ build_project() {
     log DEBUG "Setting permissions on build output..."
     chmod -R 755 "${BUILD_OUTPUT_DIR}"
     
+    # Pre-compress static assets for gzip_static
+    log DEBUG "Pre-compressing static assets for gzip_static..."
+    local gz_count
+    find "${BUILD_OUTPUT_DIR}" -type f \( \
+        -name "*.html" -o -name "*.css" -o -name "*.js" \
+        -o -name "*.json" -o -name "*.svg" -o -name "*.xml" \
+        -o -name "*.txt" \) -exec gzip -9 -k {} \;
+    gz_count=$(find "${BUILD_OUTPUT_DIR}" -name '*.gz' -type f | wc -l)
+    log DEBUG "Pre-compressed ${gz_count} files"
+    
     # Clean up successful build backup
     if [[ -n "${OLD_BUILD_BACKUP}" ]] && [[ -d "${OLD_BUILD_BACKUP}" ]]; then
         rm -rf "${OLD_BUILD_BACKUP}"
     fi
     
-    log SUCCESS "Build completed successfully (${file_count} files)"
+    log SUCCESS "Build completed successfully (${file_count} files, ${gz_count} pre-compressed)"
 }
 
 #===============================================================================

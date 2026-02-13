@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Eraser } from 'lucide-react';
+import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
@@ -100,7 +100,7 @@ const WavyUnderline = () => (
 );
 
 // ─── Suggested Question Strip ───
-const SuggestionStrip = ({ text, onClick }: { text: string; onClick: () => void }) => (
+const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?: boolean; onClick: () => void }) => (
   <motion.button
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
@@ -108,11 +108,15 @@ const SuggestionStrip = ({ text, onClick }: { text: string; onClick: () => void 
     whileHover={{ scale: 1.05, rotate: -1 }}
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
-    className="px-4 py-2 bg-[var(--c-paper)] border border-[var(--c-grid)] rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity"
+    className={cn(
+      "px-4 py-2 bg-[var(--c-paper)] border rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
+      isAction ? "border-amber-400/60 dark:border-amber-500/40" : "border-[var(--c-grid)]",
+    )}
     style={{
       clipPath: 'polygon(2% 0%, 98% 3%, 100% 97%, 0% 100%)',
     }}
   >
+    {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
     {text}
   </motion.button>
 );
@@ -126,6 +130,7 @@ const StickyNote = memo(function StickyNote({
   isStreaming?: boolean;
 }) {
   const isUser = message.role === 'user';
+  const hasAction = !!(message.navigateTo || message.themeAction || message.openUrl);
   const rotation = useRef(
     isUser
       ? (Math.random() * 1 + 0.5) // +0.5° to +1.5°
@@ -223,6 +228,16 @@ const StickyNote = memo(function StickyNote({
       )}>
         — {isUser ? 'You' : 'Dhruv'}
       </div>
+
+      {/* Action performed badge */}
+      {hasAction && !isUser && (
+        <div className={cn(
+          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-600 dark:text-amber-400 opacity-70",
+        )}>
+          <Zap size={10} />
+          <span>action</span>
+        </div>
+      )}
     </motion.div>
   );
 });
@@ -265,6 +280,17 @@ const FOLLOWUP_SUGGESTIONS = [
   "Toggle the theme 🎨",
   "Open your LinkedIn",
 ];
+
+// Suggestions that trigger actions (used to show the Zap indicator)
+const ACTION_SUGGESTIONS = new Set([
+  "Switch to dark mode \uD83C\uDF19",
+  "Open your GitHub profile",
+  "Show me your resume PDF",
+  "Take me to the projects page",
+  "Open the Fluent UI repo",
+  "Toggle the theme \uD83C\uDFA8",
+  "Open your LinkedIn",
+]);
 
 // Pick N random items from an array without duplicates
 function pickRandom<T>(arr: T[], n: number): T[] {
@@ -428,7 +454,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
             >
               {activeSuggestions.map(q => (
-                <SuggestionStrip key={q} text={q} onClick={() => handleSuggestion(q)} />
+                <SuggestionStrip key={q} text={q} isAction={ACTION_SUGGESTIONS.has(q)} onClick={() => handleSuggestion(q)} />
               ))}
             </motion.div>
           )}

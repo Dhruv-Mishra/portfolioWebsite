@@ -57,4 +57,8 @@ export const RATE_LIMITS = {
     maxRequests: 10,
     windowMs: 10000, // 10 requests per 10 seconds
   },
+  CHAT_API: {
+    maxRequests: 20,
+    windowMs: 300000, // 20 messages per 5 minutes
+  },
 } as const;

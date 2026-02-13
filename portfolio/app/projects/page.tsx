@@ -1,5 +1,5 @@
 "use client";
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
@@ -16,9 +16,8 @@ interface Project {
     stack: string[];
 }
 
-export default function Projects() {
-
-    const projects: Project[] = [
+// Static project data — defined outside component to avoid re-creation on every render
+const PROJECTS: Project[] = [
         {
             name: "Fluent UI Android",
             desc: (
@@ -126,6 +125,7 @@ export default function Projects() {
         },
     ];
 
+export default function Projects() {
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
@@ -133,7 +133,7 @@ export default function Projects() {
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
-                {projects.map((proj, i) => {
+                {PROJECTS.map((proj, i) => {
                     // "Random" rotation and offsets based on index to ensure hydration consistency
                     const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];
                     const photoRotate = [-3, 2, -2, 3, -1, 2][i % 6];
@@ -141,7 +141,7 @@ export default function Projects() {
                     const foldSize = 30; // Size of the folded corner
 
                     return (
-                        <motion.div
+                        <m.div
                             key={proj.name}
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
@@ -167,12 +167,11 @@ export default function Projects() {
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
-                                className="absolute -top-4 w-32 h-10 bg-white/80 shadow-sm backdrop-blur-[1px] z-20"
+                                className="absolute -top-4 w-32 h-10 shadow-sm z-20"
                                 style={{
                                     left: `${tapX}%`,
                                     transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`,
-                                    maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
-                                    WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
+                                    backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
                                     clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
                                 }}
                             />
@@ -219,11 +218,11 @@ export default function Projects() {
                                 >
                                     {/* Photo Tape */}
                                     <div
-                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-white/60 shadow-sm backdrop-blur-[1px] z-20"
+                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
                                         style={{
                                             transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`,
-                                            maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
-                                            WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
+                                            backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
+                                            clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
                                         }}
                                     />
 
@@ -286,7 +285,7 @@ export default function Projects() {
                                     </a>
                                 </div>
                             </div>
-                        </motion.div>
+                        </m.div>
                     );
                 })}
             </div>

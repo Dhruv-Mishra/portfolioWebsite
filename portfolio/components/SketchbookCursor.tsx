@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
-import { motion, useMotionValue } from 'framer-motion';
+import { m, useMotionValue } from 'framer-motion';
 
 import { useTheme } from 'next-themes';
 
@@ -221,7 +221,7 @@ export default function SketchbookCursor() {
             />
 
             {/* Cursor Item (Pencil or Chalk) */}
-            <motion.div
+            <m.div
                 ref={cursorRef}
                 initial={{ opacity: 0 }}
                 animate={{
@@ -271,7 +271,7 @@ export default function SketchbookCursor() {
                         </svg>
                     )}
                 </div>
-            </motion.div>
+            </m.div>
         </div>
     );
 }

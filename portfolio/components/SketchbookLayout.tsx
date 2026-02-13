@@ -1,5 +1,5 @@
 "use client";
-import { motion, useSpring, useTransform } from 'framer-motion';
+import { m, useSpring, useTransform } from 'framer-motion';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
     BugDoodle, PaperPlaneDoodle, SaturnDoodle,
@@ -75,7 +75,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* Global Doodles - Conditionally rendered for performance */}
                 {!isMobile && (
-                    <motion.div
+                    <m.div
                         className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
                         style={{ x: xMove, y: yMove, contain: 'layout style' }}
                         aria-hidden="true"
@@ -89,7 +89,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                         <LightningDoodle />
                         <PaperPlaneDoodle />
                         <SaturnDoodle />
-                    </motion.div>
+                    </m.div>
                 )}
 
                 {/* Crease Shadow near spiral */}

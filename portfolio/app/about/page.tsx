@@ -1,5 +1,5 @@
 "use client";
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Image from 'next/image';
 import { Thumbpin } from '@/components/DoodleIcons';
 
@@ -7,7 +7,7 @@ export default function About() {
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
             <div className="relative transform -rotate-1">
-                <motion.div
+                <m.div
                     initial={{ opacity: 0, y: 10 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
@@ -21,10 +21,9 @@ export default function About() {
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
-                        className="absolute -top-1 -left-6 w-24 md:w-32 h-10 bg-white/80 shadow-sm backdrop-blur-[1px] z-20 -rotate-[8deg]"
+                        className="absolute -top-1 -left-6 w-24 md:w-32 h-10 shadow-sm z-20 -rotate-[8deg]"
                         style={{
-                            maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
+                            backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
                             clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
                         }}
                     />
@@ -66,10 +65,10 @@ export default function About() {
                                 <div className="bg-white p-2 shadow-md border border-gray-200 relative">
                                     {/* Tape */}
                                     <div
-                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 bg-white/80 shadow-sm backdrop-blur-[1px] z-30 -rotate-1 border-l border-r border-white/10"
+                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 shadow-sm z-30 -rotate-1"
                                         style={{
-                                            maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
-                                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
+                                            backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
+                                            clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
                                         }}
                                     />
                                     <div className="w-40 h-40 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
@@ -111,7 +110,7 @@ export default function About() {
                             </p>
                         </div>
                     </div>
-                </motion.div>
+                </m.div>
             </div>
         </div>
     );

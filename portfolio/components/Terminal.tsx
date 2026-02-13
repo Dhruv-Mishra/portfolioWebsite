@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
 import { trackTerminalCommand } from "@/lib/analytics";
@@ -135,7 +135,7 @@ export default function Terminal() {
 
 
     return (
-        <motion.div
+        <m.div
             initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
             animate={{ scale: 1, opacity: 1, rotate: -1 }}
             transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
@@ -214,6 +214,6 @@ export default function Terminal() {
                     <div ref={bottomRef} />
                 </div>
             </div>
-        </motion.div>
+        </m.div>
     );
 }

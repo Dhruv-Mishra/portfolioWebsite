@@ -226,6 +226,9 @@ export function useStickyChat(): UseStickyChat {
       timestamp: Date.now(),
     }]);
 
+    // Client-side timeout: abort if no complete response within the limit
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     try {
       // Build conversation history (exclude welcome, limit context window)
       const recentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
@@ -236,6 +239,10 @@ export function useStickyChat(): UseStickyChat {
       ];
 
       abortControllerRef.current = new AbortController();
+
+      timeoutId = setTimeout(() => {
+        abortControllerRef.current?.abort('timeout');
+      }, CHAT_CONFIG.responseTimeoutMs);
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -296,6 +303,7 @@ export function useStickyChat(): UseStickyChat {
       }
 
       // Final parse: extract all actions and clean content
+      clearTimeout(timeoutId);
       if (accumulated) {
         const { content: finalContent, navigateTo, themeAction, openUrl } = parseActions(accumulated);
         setMessages(prev =>
@@ -316,8 +324,24 @@ export function useStickyChat(): UseStickyChat {
         );
       }
     } catch (err) {
+      clearTimeout(timeoutId);
+
       if (err instanceof Error && err.name === 'AbortError') {
-        setMessages(prev => prev.filter(m => m.id !== assistantId || m.content));
+        // Timeout abort: if we got partial content keep it, otherwise show fallback
+        const isTimeout = abortControllerRef.current?.signal.reason === 'timeout';
+        if (isTimeout) {
+          setMessages(prev =>
+            prev.map(m => {
+              if (m.id !== assistantId) return m;
+              return m.content
+                ? m // keep partial streamed content
+                : { ...m, content: getRandomFallback() };
+            })
+          );
+        } else {
+          // Manual/navigation abort — drop empty placeholder
+          setMessages(prev => prev.filter(m => m.id !== assistantId || m.content));
+        }
         return;
       }
 

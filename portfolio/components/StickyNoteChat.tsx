@@ -207,14 +207,12 @@ const StickyNote = memo(function StickyNote({
           !isUser && showContent !== message.content && "absolute inset-0",
         )}>
           {showContent}
-          {isStreaming && !message.content && (
-            <span className="inline-block w-2 h-5 bg-current animate-pulse ml-0.5" />
-          )}
+
         </div>
       </div>
 
-      {/* Typing ellipsis while streaming or typewriting */}
-      {showPencil && showContent && (
+      {/* Typing ellipsis — shows from note spawn until generation/typewriting finishes */}
+      {showPencil && (
         <div className="absolute bottom-2 right-4" style={{ color: 'var(--note-ai-ink)' }}>
           <TypingEllipsis />
         </div>
@@ -272,8 +270,8 @@ const RateLimitNote = ({ seconds }: { seconds: number }) => (
 const INITIAL_SUGGESTIONS = [
   "What's your tech stack?",
   "Tell me about Fluent UI",
-  "How did you optimize cold starts?",
-  "What's your CP rating?",
+  "Toggle the theme",
+  "Take me to the projects page",
 ];
 
 // Follow-up suggestions shown after each LLM response (rotated randomly)

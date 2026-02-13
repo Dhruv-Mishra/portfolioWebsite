@@ -99,7 +99,7 @@ export default function MiniChat() {
           whileTap={{ scale: 0.95 }}
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
           className={cn(
             "relative w-12 h-12 md:w-14 md:h-14 rounded shadow-lg flex items-center justify-center transition-colors",
             isOpen

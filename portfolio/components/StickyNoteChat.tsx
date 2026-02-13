@@ -242,12 +242,35 @@ const RateLimitNote = ({ seconds }: { seconds: number }) => (
 );
 
 // ─── Suggested Questions ───
-const SUGGESTIONS = [
+// Initial suggestions shown before any conversation
+const INITIAL_SUGGESTIONS = [
   "What's your tech stack?",
   "Tell me about Fluent UI",
   "How did you optimize cold starts?",
   "What's your CP rating?",
 ];
+
+// Follow-up suggestions shown after each LLM response (rotated randomly)
+const FOLLOWUP_SUGGESTIONS = [
+  // Conversational
+  "What projects have you worked on?",
+  "Tell me about your time at IIIT Delhi",
+  "What's your favorite language?",
+  // Action hints — teach users they can trigger actions
+  "Switch to dark mode 🌙",
+  "Open your GitHub profile",
+  "Show me your resume PDF",
+  "Take me to the projects page",
+  "Open the Fluent UI repo",
+  "Toggle the theme 🎨",
+  "Open your LinkedIn",
+];
+
+// Pick N random items from an array without duplicates
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
+}
 
 // ═════════════════════════════════════════════════
 // ─── Main StickyNoteChat Component ───
@@ -257,10 +280,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [activeSuggestions, setActiveSuggestions] = useState<string[]>(INITIAL_SUGGESTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const handledActionsRef = useRef<Set<string>>(new Set());
+  const lastSuggestionMsgRef = useRef<string | null>(null);
 
   // Handle LLM-triggered actions (navigation, theme switch, open URL)
   useEffect(() => {
@@ -298,11 +322,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     return () => clearTimeout(timer);
   }, [messages, isStreaming, router, setTheme, resolvedTheme]);
 
-  // Show/hide suggestions based on whether real messages exist
+  // Rotate suggestions after each new assistant response
   useEffect(() => {
-    const hasRealMessages = messages.some(m => m.id !== 'welcome');
-    setShowSuggestions(!hasRealMessages);
-  }, [messages]);
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.id !== 'welcome');
+    if (!lastAssistant || isStreaming) return;
+    // Only update suggestions once per new assistant message
+    if (lastSuggestionMsgRef.current === lastAssistant.id) return;
+    lastSuggestionMsgRef.current = lastAssistant.id;
+    setActiveSuggestions(pickRandom(FOLLOWUP_SUGGESTIONS, 3));
+  }, [messages, isStreaming]);
 
   // Auto-scroll to newest note
   useEffect(() => {
@@ -327,9 +355,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [handleSend]);
 
   const handleSuggestion = useCallback((text: string) => {
-    setInput(text);
-    inputRef.current?.focus();
-  }, []);
+    sendMessage(text);
+  }, [sendMessage]);
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
@@ -389,16 +416,18 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           );
         })}
 
-        {/* Suggested questions — show when only the welcome message exists */}
-        <AnimatePresence>
-          {messages.length <= 1 && showSuggestions && (
+        {/* Suggested questions — shown initially and after each LLM response */}
+        <AnimatePresence mode="wait">
+          {!isStreaming && activeSuggestions.length > 0 && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-wrap justify-center gap-2 md:gap-3 mt-4"
+              key={activeSuggestions.join()}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25 }}
+              className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
             >
-              {SUGGESTIONS.map(q => (
+              {activeSuggestions.map(q => (
                 <SuggestionStrip key={q} text={q} onClick={() => handleSuggestion(q)} />
               ))}
             </motion.div>
@@ -422,7 +451,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {hasMessages && (
           <div className="flex justify-end mb-2">
             <button
-              onClick={clearMessages}
+              onClick={() => { clearMessages(); setActiveSuggestions(INITIAL_SUGGESTIONS); lastSuggestionMsgRef.current = null; }}
               className="flex items-center gap-1 text-xs font-hand text-[var(--c-ink)] opacity-40 hover:opacity-70 transition-opacity"
               title="Clear desk"
             >
@@ -456,11 +485,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
               onKeyDown={handleKeyDown}
               placeholder="Write a note..."
-              rows={compact ? 1 : 2}
+              rows={1}
               disabled={isStreaming}
               className={cn(
                 "flex-1 bg-transparent resize-none font-hand text-[var(--note-user-ink)] placeholder:text-[var(--note-user-ink)]/40 focus:outline-none",
-                compact ? "text-sm" : "text-base md:text-lg",
+                compact ? "text-sm leading-snug" : "text-base md:text-lg",
               )}
             />
 

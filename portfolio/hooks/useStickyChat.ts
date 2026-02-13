@@ -306,10 +306,14 @@ export function useStickyChat(): UseStickyChat {
       clearTimeout(timeoutId);
       if (accumulated) {
         const { content: finalContent, navigateTo, themeAction, openUrl } = parseActions(accumulated);
+        // If the LLM only sent a tag with no text, provide a short acknowledgement
+        const hasAction = !!(navigateTo || themeAction || openUrl);
+        const displayContent = finalContent
+          || (hasAction ? 'On it ~' : accumulated);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: finalContent || accumulated, navigateTo, themeAction, openUrl }
+              ? { ...m, content: displayContent, navigateTo, themeAction, openUrl }
               : m
           )
         );

@@ -4,6 +4,41 @@ import { DHRUV_SYSTEM_PROMPT, CHAT_CONFIG } from '@/lib/chatContext';
 
 export const runtime = 'nodejs';
 
+// ─── LLM provider config ───────────────────────────────────────────────
+// Primary provider is tried first. If it fails or times out, fallback is used.
+// To swap which is primary, just rename the env vars.
+interface LLMProvider {
+  apiKey: string;
+  baseURL: string;
+  model: string;
+  label: string;
+}
+
+function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null } {
+  const primary = (process.env.LLM_API_KEY && process.env.LLM_BASE_URL && process.env.LLM_MODEL)
+    ? {
+        apiKey: process.env.LLM_API_KEY,
+        baseURL: process.env.LLM_BASE_URL,
+        model: process.env.LLM_MODEL,
+        label: process.env.LLM_MODEL,
+      }
+    : null;
+
+  const fallback = (process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_MODEL)
+    ? {
+        apiKey: process.env.LLM_FALLBACK_API_KEY,
+        baseURL: process.env.LLM_FALLBACK_BASE_URL,
+        model: process.env.LLM_FALLBACK_MODEL,
+        label: process.env.LLM_FALLBACK_MODEL,
+      }
+    : null;
+
+  return { primary, fallback };
+}
+
+/** Timeout (ms) for the primary provider before falling back. */
+const PRIMARY_TIMEOUT_MS = 12_000;
+
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
 const RATE_LIMIT = { maxRequests: 20, windowMs: 300_000 }; // 20 per 5 min
@@ -93,46 +128,70 @@ export async function POST(request: NextRequest) {
       ...sanitized,
     ];
 
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL;
-    const model = process.env.LLM_MODEL;
-
-    if (!apiKey || !baseURL || !model) {
-      console.error('Missing LLM environment variables');
+    const { primary, fallback } = getProviders();
+    if (!primary) {
+      console.error('Missing LLM environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)');
       return Response.json({ error: 'Chat service is not configured' }, { status: 500 });
     }
 
-    // Proxy to NVIDIA/LLM API
-    const llmResponse = await fetch(`${baseURL}/chat/completions`, {
+    // Try primary provider, fall back if it errors or takes too long
+    const streamResponse = await callProvider(primary, apiMessages)
+      .catch(async (err) => {
+        if (fallback) {
+          console.warn(`Primary LLM failed (${err?.message}), trying fallback...`);
+          return callProvider(fallback, apiMessages);
+        }
+        throw err;
+      });
+
+    return streamResponse;
+  } catch (err) {
+    console.error('Chat API error:', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * Call a single LLM provider and return a streaming Response.
+ * Applies PRIMARY_TIMEOUT_MS as an AbortSignal to guard against slow responses.
+ */
+async function callProvider(
+  provider: LLMProvider,
+  messages: { role: string; content: string }[],
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PRIMARY_TIMEOUT_MS);
+
+  try {
+    const llmResponse = await fetch(`${provider.baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${provider.apiKey}`,
       },
       body: JSON.stringify({
-        model,
-        messages: apiMessages,
+        model: provider.model,
+        messages,
         temperature: CHAT_CONFIG.temperature,
         top_p: CHAT_CONFIG.topP,
         max_tokens: CHAT_CONFIG.maxTokens,
         stream: true,
       }),
+      signal: controller.signal,
     });
 
     if (!llmResponse.ok) {
       const errText = await llmResponse.text().catch(() => 'Unknown upstream error');
-      console.error(`LLM API error (${llmResponse.status}):`, errText);
-      return Response.json(
-        { error: 'Failed to get a response. Please try again.' },
-        { status: 502 }
-      );
+      throw new Error(`${provider.label} responded ${llmResponse.status}: ${errText}`);
     }
 
     if (!llmResponse.body) {
-      return Response.json({ error: 'No response stream' }, { status: 502 });
+      throw new Error(`${provider.label}: no response stream`);
     }
 
-    // Stream the SSE response back to the client
+    // Clear the connection timeout once we start streaming
+    clearTimeout(timeout);
+
     return new Response(llmResponse.body, {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -141,7 +200,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    console.error('Chat API error:', err);
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
+    clearTimeout(timeout);
+    throw err;
   }
 }

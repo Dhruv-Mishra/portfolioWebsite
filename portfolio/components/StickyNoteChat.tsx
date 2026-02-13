@@ -87,8 +87,8 @@ const TapeStrip = ({ className }: { className?: string }) => (
 );
 
 // ─── Wavy Underline SVG ───
-const WavyUnderline = () => (
-  <svg className="w-full h-3 mt-1" viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+const WavyUnderline = ({ className }: { className?: string }) => (
+  <svg className={cn("w-full h-3 mt-1", className)} viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M0 6 Q25 0 50 6 Q75 12 100 6 Q125 0 150 6 Q175 12 200 6 Q225 0 250 6 Q275 12 300 6"
       stroke="currentColor"
@@ -110,7 +110,7 @@ const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?:
     onClick={onClick}
     className={cn(
       "px-4 py-2 bg-[var(--c-paper)] border rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
-      isAction ? "border-amber-400/60 dark:border-amber-500/40" : "border-[var(--c-grid)]",
+      isAction ? "border-amber-500 dark:border-amber-500/60" : "border-[var(--c-grid)]",
     )}
     style={{
       clipPath: 'polygon(2% 0%, 98% 3%, 100% 97%, 0% 100%)',
@@ -232,11 +232,23 @@ const StickyNote = memo(function StickyNote({
       {/* Action performed badge */}
       {hasAction && !isUser && (
         <div className={cn(
-          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-600 dark:text-amber-400 opacity-70",
+          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-800 dark:text-amber-400",
         )}>
           <Zap size={10} />
           <span>action</span>
         </div>
+      )}
+
+      {/* Fallback link when popup was blocked */}
+      {message.openUrl && message.openUrlFailed && (
+        <a
+          href={message.openUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 font-hand text-xs text-blue-700 dark:text-blue-400 underline underline-offset-2 decoration-dotted hover:decoration-solid"
+        >
+          Open link here ~
+        </a>
       )}
     </motion.div>
   );
@@ -252,7 +264,7 @@ const RateLimitNote = ({ seconds }: { seconds: number }) => (
     className="relative max-w-sm mx-auto p-4 bg-[#ffccbc] dark:bg-[#3e2723] text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
   >
     <TapeStrip />
-    Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds. ⏳
+    Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
   </motion.div>
 );
 
@@ -272,23 +284,23 @@ const FOLLOWUP_SUGGESTIONS = [
   "Tell me about your time at IIIT Delhi",
   "What's your favorite language?",
   // Action hints — teach users they can trigger actions
-  "Switch to dark mode 🌙",
+  "Switch to dark mode",
   "Open your GitHub profile",
   "Show me your resume PDF",
   "Take me to the projects page",
   "Open the Fluent UI repo",
-  "Toggle the theme 🎨",
+  "Toggle the theme",
   "Open your LinkedIn",
 ];
 
 // Suggestions that trigger actions (used to show the Zap indicator)
 const ACTION_SUGGESTIONS = new Set([
-  "Switch to dark mode \uD83C\uDF19",
+  "Switch to dark mode",
   "Open your GitHub profile",
   "Show me your resume PDF",
   "Take me to the projects page",
   "Open the Fluent UI repo",
-  "Toggle the theme \uD83C\uDFA8",
+  "Toggle the theme",
   "Open your LinkedIn",
 ]);
 
@@ -302,7 +314,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isStreaming, error, sendMessage, clearMessages, rateLimitRemaining } = useStickyChat();
+  const { messages, isStreaming, error, sendMessage, clearMessages, markOpenUrlFailed, rateLimitRemaining } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
@@ -334,9 +346,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         }
       }
 
-      // Open URL in new tab
+      // Open URL in new tab — handle popup blockers
       if (lastMsg.openUrl) {
-        window.open(lastMsg.openUrl, '_blank', 'noopener,noreferrer');
+        const popup = window.open(lastMsg.openUrl, '_blank', 'noopener,noreferrer');
+        if (!popup) {
+          // Popup was blocked — mark the message so a fallback link is shown
+          markOpenUrlFailed(lastMsg.id);
+        }
       }
 
       // Page navigation
@@ -346,7 +362,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [messages, isStreaming, router, setTheme, resolvedTheme]);
+  }, [messages, isStreaming, router, setTheme, resolvedTheme, markOpenUrlFailed]);
 
   // Rotate suggestions after each new assistant response
   useEffect(() => {
@@ -392,8 +408,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       "flex flex-col h-full",
       compact ? "max-h-full" : ""
     )}>
-      {/* ─── Header (full page only) ─── */}
-      {!compact && (
+      {/* ─── Header ─── */}
+      {!compact ? (
         <div className="text-center pt-2 pb-4 md:pt-4 md:pb-6 shrink-0">
           <motion.h1
             initial={{ opacity: 0, rotate: -3 }}
@@ -412,12 +428,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Ask me anything — powered by AI, answered as Dhruv.
           </motion.p>
         </div>
+      ) : (
+        <div className="shrink-0 pt-2 px-3">
+          <WavyUnderline className="!mt-0 opacity-40" />
+        </div>
       )}
 
       {/* ─── Messages Area ─── */}
       <div className={cn(
         "flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 ruler-scrollbar",
-        compact && "px-2 py-2 gap-4",
+        compact && "px-2 pt-4 pb-2 gap-4",
       )}>
         {/* Messages (welcome note is always first) */}
         {messages.map((msg, idx) => {

@@ -14,6 +14,7 @@ export interface ChatMessage {
   navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
   openUrl?: string; // External URL to open in new tab
+  openUrlFailed?: boolean; // True if popup was blocked — show fallback link
 }
 
 interface UseStickyChat {
@@ -22,6 +23,7 @@ interface UseStickyChat {
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
+  markOpenUrlFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
 }
 
@@ -112,8 +114,8 @@ function loadMessages(): ChatMessage[] {
     const stored = localStorage.getItem(CHAT_CONFIG.storageKey);
     if (!stored) return [];
     const parsed: ChatMessage[] = JSON.parse(stored);
-    // Mark all loaded messages as "old", clear action triggers
-    return parsed.map(m => ({ ...m, isOld: true, navigateTo: undefined, themeAction: undefined, openUrl: undefined }));
+    // Mark all loaded messages as "old" (isOld prevents actions from re-triggering)
+    return parsed.map(m => ({ ...m, isOld: true }));
   } catch {
     return [];
   }
@@ -122,10 +124,10 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip transient fields and welcome message before saving
+    // Strip isOld flag and welcome message before saving; keep action metadata for display
     const toSave = messages
       .filter(m => m.id !== 'welcome')
-      .map(({ isOld: _, navigateTo: _n, themeAction: _t, openUrl: _o, ...m }) => m)
+      .map(({ isOld: _, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
   } catch {
@@ -339,12 +341,19 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []);
 
+  const markOpenUrlFailed = useCallback((messageId: string) => {
+    setMessages(prev =>
+      prev.map(m => m.id === messageId ? { ...m, openUrlFailed: true } : m)
+    );
+  }, []);
+
   return {
     messages,
     isStreaming,
     error,
     sendMessage,
     clearMessages,
+    markOpenUrlFailed,
     rateLimitRemaining,
   };
 }

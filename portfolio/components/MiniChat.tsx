@@ -127,7 +127,7 @@ export default function MiniChat() {
             <>
               <StickyNoteDoodle />
               {/* Pulsing dot */}
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
             </>
           )}
         </motion.button>

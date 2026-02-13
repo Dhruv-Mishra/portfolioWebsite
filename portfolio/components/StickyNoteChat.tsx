@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Eraser } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
+import { CHAT_CONFIG } from '@/lib/chatContext';
 
 // ─── Typewriter hook: reveals text gradually (only for new messages) ───
 function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed = 18) {
@@ -251,10 +253,26 @@ const SUGGESTIONS = [
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
   const { messages, isStreaming, error, sendMessage, clearMessages, rateLimitRemaining } = useStickyChat();
+  const router = useRouter();
   const [input, setInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const navigatedRef = useRef<Set<string>>(new Set());
+
+  // Handle LLM-triggered page navigation
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.navigateTo && !lastMsg.isOld && !isStreaming && !navigatedRef.current.has(lastMsg.id)) {
+      navigatedRef.current.add(lastMsg.id);
+      // Delay navigation slightly so user can read the note
+      const timer = setTimeout(() => {
+        router.push(lastMsg.navigateTo!);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [messages, isStreaming, router]);
 
   // Show/hide suggestions based on whether real messages exist
   useEffect(() => {
@@ -363,19 +381,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           )}
         </AnimatePresence>
 
-        {/* Error / Rate limit notes */}
+        {/* Rate limit note */}
         {error && rateLimitRemaining && (
           <RateLimitNote seconds={rateLimitRemaining} />
-        )}
-        {error && !rateLimitRemaining && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, rotate: 1 }}
-            className="relative max-w-sm mx-auto p-4 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 shadow-md font-hand text-sm rounded"
-          >
-            <TapeStrip />
-            {error}
-          </motion.div>
         )}
 
         <div ref={messagesEndRef} />
@@ -421,7 +429,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
               onKeyDown={handleKeyDown}
               placeholder="Write a note..."
               rows={compact ? 1 : 2}

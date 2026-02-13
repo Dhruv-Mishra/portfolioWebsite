@@ -49,10 +49,20 @@ export async function POST(request: NextRequest) {
     // Validate message format (only user/assistant roles from client)
     const sanitized = userMessages
       .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+      .map(m => ({ role: m.role, content: String(m.content).slice(0, 500) }))
+      .slice(-12); // Only keep last 12 messages for context (server-side cap)
 
     if (sanitized.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });
+    }
+
+    // Count user messages — hard limit on conversation length
+    const userMsgCount = sanitized.filter(m => m.role === 'user').length;
+    if (userMsgCount > 25) {
+      return Response.json(
+        { error: 'Conversation is too long. Please clear and start a new chat.' },
+        { status: 400 }
+      );
     }
 
     // Build full message array with system prompt (server-side only!)

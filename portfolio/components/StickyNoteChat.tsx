@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Eraser } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
@@ -254,25 +255,48 @@ const SUGGESTIONS = [
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
   const { messages, isStreaming, error, sendMessage, clearMessages, rateLimitRemaining } = useStickyChat();
   const router = useRouter();
+  const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const navigatedRef = useRef<Set<string>>(new Set());
+  const handledActionsRef = useRef<Set<string>>(new Set());
 
-  // Handle LLM-triggered page navigation
+  // Handle LLM-triggered actions (navigation, theme switch, open URL)
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.navigateTo && !lastMsg.isOld && !isStreaming && !navigatedRef.current.has(lastMsg.id)) {
-      navigatedRef.current.add(lastMsg.id);
-      // Delay navigation slightly so user can read the note
-      const timer = setTimeout(() => {
-        router.push(lastMsg.navigateTo!);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [messages, isStreaming, router]);
+    if (!lastMsg || lastMsg.isOld || isStreaming || lastMsg.role !== 'assistant') return;
+    if (handledActionsRef.current.has(lastMsg.id)) return;
+
+    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || lastMsg.openUrl;
+    if (!hasAction) return;
+
+    handledActionsRef.current.add(lastMsg.id);
+
+    // Delay so user can read the note first
+    const timer = setTimeout(() => {
+      // Theme switching
+      if (lastMsg.themeAction) {
+        if (lastMsg.themeAction === 'toggle') {
+          setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+        } else {
+          setTheme(lastMsg.themeAction);
+        }
+      }
+
+      // Open URL in new tab
+      if (lastMsg.openUrl) {
+        window.open(lastMsg.openUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      // Page navigation
+      if (lastMsg.navigateTo) {
+        router.push(lastMsg.navigateTo);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [messages, isStreaming, router, setTheme, resolvedTheme]);
 
   // Show/hide suggestions based on whether real messages exist
   useEffect(() => {

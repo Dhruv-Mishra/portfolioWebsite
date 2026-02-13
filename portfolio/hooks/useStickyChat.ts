@@ -12,6 +12,8 @@ export interface ChatMessage {
   timestamp: number;
   isOld?: boolean; // Messages loaded from localStorage
   navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
+  themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
+  openUrl?: string; // External URL to open in new tab
 }
 
 interface UseStickyChat {
@@ -27,18 +29,77 @@ function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Parse and strip [[NAVIGATE:/path]] from message content
+// Parse and strip action tags from message content
 const NAVIGATE_RE = /\[\[NAVIGATE:(\/[a-z-]*)\]\]/i;
-function parseNavigation(text: string): { content: string; navigateTo?: string } {
-  const match = text.match(NAVIGATE_RE);
-  if (match) {
-    const path = match[1];
+const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
+const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/i;
+
+// Map OPEN: keys to actual URLs
+const OPEN_LINKS: Record<string, string> = {
+  github: 'https://github.com/Dhruv-Mishra',
+  linkedin: 'https://www.linkedin.com/in/dhruv-mishra-id/',
+  codeforces: 'https://codeforces.com/profile/DhruvMishra',
+  cphistory: 'https://zibada.guru/gcj/profile/Dhruv985',
+  email: 'mailto:dhruvmishra.id@gmail.com',
+  phone: 'tel:+919599377944',
+  resume: '/resources/resume.pdf',
+  'project-fluentui': 'https://github.com/microsoft/fluentui-android',
+  'project-courseevaluator': 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
+  'project-ivc': 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
+  'project-portfolio': 'https://github.com/Dhruv-Mishra/portfolio-website',
+  'project-recommender': 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
+  'project-atomvault': 'https://github.com/Dhruv-Mishra/AtomVault',
+  'project-bloomfilter': 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',
+};
+
+interface ParsedActions {
+  content: string;
+  navigateTo?: string;
+  themeAction?: 'dark' | 'light' | 'toggle';
+  openUrl?: string;
+}
+
+function parseActions(text: string): ParsedActions {
+  let content = text;
+  let navigateTo: string | undefined;
+  let themeAction: ('dark' | 'light' | 'toggle') | undefined;
+  let openUrl: string | undefined;
+
+  // Parse [[NAVIGATE:/path]]
+  const navMatch = content.match(NAVIGATE_RE);
+  if (navMatch) {
+    const path = navMatch[1];
     const validPaths = ['/', '/about', '/projects', '/resume', '/chat'];
     if (validPaths.includes(path)) {
-      return { content: text.replace(NAVIGATE_RE, '').trim(), navigateTo: path };
+      navigateTo = path;
     }
+    content = content.replace(NAVIGATE_RE, '').trim();
   }
-  return { content: text };
+
+  // Parse [[THEME:dark|light|toggle]]
+  const themeMatch = content.match(THEME_RE);
+  if (themeMatch) {
+    themeAction = themeMatch[1].toLowerCase() as 'dark' | 'light' | 'toggle';
+    content = content.replace(THEME_RE, '').trim();
+  }
+
+  // Parse [[OPEN:key]]
+  const openMatch = content.match(OPEN_RE);
+  if (openMatch) {
+    const key = openMatch[1].toLowerCase();
+    if (OPEN_LINKS[key]) {
+      openUrl = OPEN_LINKS[key];
+    }
+    content = content.replace(OPEN_RE, '').trim();
+  }
+
+  return { content, navigateTo, themeAction, openUrl };
+}
+
+// Strip all action tags for display (used during streaming)
+const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN):[^\]]*\]\]/gi;
+function stripActionTags(text: string): string {
+  return text.replace(ALL_ACTION_TAGS_RE, '').trim();
 }
 
 function getRandomFallback(): string {
@@ -51,8 +112,8 @@ function loadMessages(): ChatMessage[] {
     const stored = localStorage.getItem(CHAT_CONFIG.storageKey);
     if (!stored) return [];
     const parsed: ChatMessage[] = JSON.parse(stored);
-    // Mark all loaded messages as "old", clear navigation triggers
-    return parsed.map(m => ({ ...m, isOld: true, navigateTo: undefined }));
+    // Mark all loaded messages as "old", clear action triggers
+    return parsed.map(m => ({ ...m, isOld: true, navigateTo: undefined, themeAction: undefined, openUrl: undefined }));
   } catch {
     return [];
   }
@@ -61,10 +122,10 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip isOld/navigateTo and welcome message before saving
+    // Strip transient fields and welcome message before saving
     const toSave = messages
       .filter(m => m.id !== 'welcome')
-      .map(({ isOld: _, navigateTo: __, ...m }) => m)
+      .map(({ isOld: _, navigateTo: _n, themeAction: _t, openUrl: _o, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
   } catch {
@@ -213,8 +274,8 @@ export function useStickyChat(): UseStickyChat {
             const chunkContent = parsed.choices?.[0]?.delta?.content || '';
             if (chunkContent) {
               accumulated += chunkContent;
-              // Strip navigation tags from displayed content during streaming
-              const { content: displayContent } = parseNavigation(accumulated);
+              // Strip action tags from displayed content during streaming
+              const displayContent = stripActionTags(accumulated);
               setMessages(prev =>
                 prev.map(m =>
                   m.id === assistantId
@@ -229,13 +290,13 @@ export function useStickyChat(): UseStickyChat {
         }
       }
 
-      // Final parse: extract navigation and clean content
+      // Final parse: extract all actions and clean content
       if (accumulated) {
-        const { content: finalContent, navigateTo } = parseNavigation(accumulated);
+        const { content: finalContent, navigateTo, themeAction, openUrl } = parseActions(accumulated);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: finalContent || accumulated, navigateTo }
+              ? { ...m, content: finalContent || accumulated, navigateTo, themeAction, openUrl }
               : m
           )
         );

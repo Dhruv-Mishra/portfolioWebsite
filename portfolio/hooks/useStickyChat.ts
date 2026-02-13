@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { CHAT_CONFIG } from '@/lib/chatContext';
+import { CHAT_CONFIG, WELCOME_MESSAGE } from '@/lib/chatContext';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 
 export interface ChatMessage {
@@ -42,8 +42,9 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip isOld flag before saving, keep only recent messages
+    // Strip isOld flag and welcome message before saving, keep only recent messages
     const toSave = messages
+      .filter(m => m.id !== 'welcome')
       .map(({ isOld: _, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
@@ -65,9 +66,17 @@ export function useStickyChat(): UseStickyChat {
     if (!hasHydrated.current) {
       hasHydrated.current = true;
       const stored = loadMessages();
-      if (stored.length > 0) {
-        setMessages(stored);
-      }
+      // Always ensure welcome message is first
+      const welcomeMsg: ChatMessage = {
+        id: 'welcome',
+        role: 'assistant',
+        content: WELCOME_MESSAGE,
+        timestamp: 0,
+        isOld: true, // Always skip typewriter for welcome
+      };
+      // Filter out any previously-saved welcome message to avoid duplicates
+      const filtered = stored.filter(m => m.id !== 'welcome');
+      setMessages([welcomeMsg, ...filtered]);
     }
   }, []);
 
@@ -114,9 +123,10 @@ export function useStickyChat(): UseStickyChat {
     }]);
 
     try {
-      // Build conversation history (system prompt is added server-side)
+      // Build conversation history (system prompt is added server-side, exclude welcome stub)
       const conversationMessages = [
         ...messages
+          .filter(m => m.id !== 'welcome')
           .filter(m => !m.isOld || messages.indexOf(m) >= messages.length - 10)
           .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user' as const, content: trimmed },
@@ -212,7 +222,8 @@ export function useStickyChat(): UseStickyChat {
   }, [isStreaming, messages]);
 
   const clearMessages = useCallback(() => {
-    setMessages([]);
+    // Keep the welcome message, clear everything else
+    setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setError(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CHAT_CONFIG.storageKey);

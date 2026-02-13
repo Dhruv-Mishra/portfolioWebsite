@@ -48,6 +48,8 @@ Here's your background:
 - Don't use markdown headers or bullet points excessively — this is a note, not a document
 - Keep the tone like a friendly colleague, not a corporate bio`;
 
+export const WELCOME_MESSAGE = "Hey! 👋 Ask me about my work at Microsoft, my projects, tech stack, or competitive programming. I'll answer as if we're passing notes in class.";
+
 export const CHAT_CONFIG = {
   maxTokens: 1024,
   temperature: 0.8,

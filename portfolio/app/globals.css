@@ -53,6 +53,7 @@
     --note-ai-ink: #0d47a1;
     --note-system: #e3f2fd;
     --note-system-ink: #0d47a1;
+    --tape-color: rgba(194, 163, 120, 0.6);
 
     /* Simple grid pattern for graph paper effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
@@ -99,6 +100,7 @@
     --note-ai-ink: #93c5fd;
     --note-system: #1a2030;
     --note-system-ink: #93c5fd;
+    --tape-color: rgba(255, 255, 255, 0.3);
 
     /* Darker grid pattern for blackboard/slate effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
@@ -115,6 +117,46 @@ body {
 }
 
 /* Note Utility Classes - Moved to utilities layer for correct precedence */
+
+/* ─── Ruler-themed scrollbar for chat ─── */
+.ruler-scrollbar::-webkit-scrollbar {
+  width: 18px;
+}
+
+.ruler-scrollbar::-webkit-scrollbar-track {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 9px,
+      var(--c-ink-faint, rgba(0,0,0,0.12)) 9px,
+      var(--c-ink-faint, rgba(0,0,0,0.12)) 10px
+    ),
+    linear-gradient(to right, rgba(0,0,0,0.03), rgba(0,0,0,0.06));
+  border-left: 2px solid var(--c-ink-faint, rgba(0,0,0,0.15));
+  border-right: 1px solid var(--c-ink-faint, rgba(0,0,0,0.08));
+}
+
+.ruler-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--tape-color, rgba(194, 163, 120, 0.6));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 2px;
+  min-height: 40px;
+}
+
+.ruler-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(194, 163, 120, 0.85);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Firefox ruler scrollbar */
+.ruler-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tape-color, rgba(194, 163, 120, 0.6)) rgba(0,0,0,0.04);
+}
+
 @layer utilities {
   .bg-note-yellow {
     background-color: var(--note-yellow);
@@ -237,17 +279,6 @@ body {
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* Pencil writing animation for AI streaming */
-  .animate-pencil-write {
-    animation: pencilWrite 0.8s ease-in-out infinite;
-  }
-
-  @keyframes pencilWrite {
-    0%, 100% { transform: translateX(0) rotate(0deg); }
-    25% { transform: translateX(2px) rotate(3deg); }
-    50% { transform: translateX(-1px) rotate(-2deg); }
-    75% { transform: translateX(1px) rotate(1deg); }
-  }
 }
 
 /* Cursor handling: show normal cursor on mobile, hide on desktop */

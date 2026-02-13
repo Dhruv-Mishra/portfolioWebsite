@@ -5,23 +5,79 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Eraser } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
-import { Thumbpin } from '@/components/DoodleIcons';
 
-// ─── Pencil Animation SVG (shown while streaming) ───
-const PencilWriting = ({ className }: { className?: string }) => (
-  <svg className={cn("w-6 h-6 animate-pencil-write", className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    <path d="m15 5 4 4" />
-  </svg>
+// ─── Typewriter hook: reveals text gradually (only for new messages) ───
+function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed = 18) {
+  const [displayed, setDisplayed] = useState(skip ? text : '');
+  const [isTyping, setIsTyping] = useState(false);
+  const prevLenRef = useRef(skip ? text.length : 0);
+
+  useEffect(() => {
+    // Skip entirely for old/restored messages
+    if (skip) {
+      setDisplayed(text);
+      setIsTyping(false);
+      prevLenRef.current = text.length;
+      return undefined;
+    }
+
+    // If streaming is actively pushing new chars, just show everything
+    // (the LLM stream is already gradual)
+    if (isStreaming) {
+      setDisplayed(text);
+      prevLenRef.current = text.length;
+      setIsTyping(true);
+      return undefined;
+    }
+
+    // Stream just finished — typewrite any remaining text
+    if (text.length > 0 && prevLenRef.current === 0 && displayed.length < text.length) {
+      setIsTyping(true);
+      let i = displayed.length;
+      const interval = setInterval(() => {
+        i++;
+        if (i >= text.length) {
+          setDisplayed(text);
+          setIsTyping(false);
+          prevLenRef.current = text.length;
+          clearInterval(interval);
+        } else {
+          setDisplayed(text.slice(0, i));
+        }
+      }, speed);
+      return () => clearInterval(interval);
+    }
+
+    // Normal case: show full text
+    setDisplayed(text);
+    setIsTyping(false);
+    prevLenRef.current = text.length;
+    return undefined;
+  }, [text, isStreaming, skip, speed, displayed.length]);
+
+  return { displayed, isTyping };
+}
+
+// ─── Typing Ellipsis (shown while AI is streaming) ───
+const TypingEllipsis = () => (
+  <span className="inline-flex items-center gap-0.5 ml-1 align-baseline">
+    {[0, 1, 2].map(i => (
+      <motion.span
+        key={i}
+        className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-60"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+      />
+    ))}
+  </span>
 );
 
-// ─── Tape Strip (realistic torn-edge tape matching About page) ───
+// ─── Tape Strip (realistic torn-edge, brownish tint visible on light blue) ───
 const TapeStrip = ({ className }: { className?: string }) => (
   <div
-    className={cn("absolute -top-3 left-1/2 -translate-x-1/2 w-24 md:w-32 h-7 md:h-9 bg-white/80 dark:bg-white/15 shadow-sm backdrop-blur-[1px] z-20", className)}
+    className={cn("absolute -top-3 left-1/2 -translate-x-1/2 w-24 md:w-32 h-7 md:h-9 shadow-sm z-20", className)}
     style={{
-      maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
-      WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
+      backgroundColor: 'var(--tape-color, rgba(210, 180, 140, 0.55))',
       clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)',
     }}
   />
@@ -69,9 +125,18 @@ const StickyNote = memo(function StickyNote({
   const isUser = message.role === 'user';
   const rotation = useRef(
     isUser
-      ? (Math.random() * 2 + 1) // +1° to +3°
+      ? (Math.random() * 1 + 0.5) // +0.5° to +1.5°
       : -(Math.random() * 1 + 0.5) // -0.5° to -1.5°
   ).current;
+
+  // Typewriter effect for AI notes (skip for old/restored messages)
+  const { displayed, isTyping } = useTypewriter(
+    message.content,
+    isUser ? false : isStreaming,
+    isUser || !!message.isOld, // skip typewriter for user msgs and old msgs
+  );
+  const showContent = isUser ? message.content : displayed;
+  const showPencil = !isUser && (isStreaming || isTyping);
 
   return (
     <motion.div
@@ -87,8 +152,7 @@ const StickyNote = memo(function StickyNote({
         duration: 0.4,
       }}
       className={cn(
-        "relative max-w-[85%] md:max-w-[70%] p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
-        isUser ? "self-start" : "self-end",
+        "relative max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
         isUser
           ? "bg-[var(--note-user)] text-[var(--note-user-ink)]"
           : "bg-[var(--note-ai)] text-[var(--note-ai-ink)]",
@@ -96,20 +160,14 @@ const StickyNote = memo(function StickyNote({
       )}
       style={{
         clipPath: isUser
-          ? 'polygon(0% 0%, 100% 0%, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0% 100%)'
-          : 'polygon(0% 0%, 100% 0%, 100% 100%, 20px 100%, 0% calc(100% - 20px))',
+          ? undefined // No clipPath — tape needs to overflow top edge
+          : undefined,
       }}
     >
-      {/* Attachment: Thumbpin for user, Tape for AI */}
-      {isUser ? (
-        <div className="absolute -top-4 -left-1 scale-50 md:scale-60 hidden md:block">
-          <Thumbpin />
-        </div>
-      ) : (
-        <TapeStrip />
-      )}
+      {/* Tape on all notes */}
+      <TapeStrip />
 
-      {/* Mobile: colored left/right border instead of pins */}
+      {/* Mobile: colored left/right border */}
       <div className={cn(
         "absolute top-0 bottom-0 w-1 md:hidden",
         isUser ? "left-0 bg-yellow-500/50" : "right-0 bg-blue-400/50",
@@ -128,18 +186,30 @@ const StickyNote = memo(function StickyNote({
         }}
       />
 
-      {/* Message content */}
-      <div className="whitespace-pre-wrap break-words leading-relaxed">
-        {message.content}
-        {isStreaming && !message.content && (
-          <span className="inline-block w-2 h-5 bg-current animate-pulse ml-0.5" />
+      {/* Message content — invisible full text for width sizing, visible typewritten text on top */}
+      <div className="relative">
+        {/* Invisible sizer: establishes the note's full width so it doesn't expand horizontally */}
+        {!isUser && showContent !== message.content && (
+          <div className="whitespace-pre-wrap break-words leading-relaxed invisible" aria-hidden="true">
+            {message.content}
+          </div>
         )}
+        {/* Visible text (positioned over sizer when sizer is present) */}
+        <div className={cn(
+          "whitespace-pre-wrap break-words leading-relaxed",
+          !isUser && showContent !== message.content && "absolute inset-0",
+        )}>
+          {showContent}
+          {isStreaming && !message.content && (
+            <span className="inline-block w-2 h-5 bg-current animate-pulse ml-0.5" />
+          )}
+        </div>
       </div>
 
-      {/* Pencil animation while streaming */}
-      {isStreaming && message.content && (
-        <div className="absolute bottom-1 right-3 text-[var(--note-ai-ink)] opacity-40">
-          <PencilWriting />
+      {/* Typing ellipsis while streaming or typewriting */}
+      {showPencil && showContent && (
+        <div className="absolute bottom-2 right-4" style={{ color: 'var(--note-ai-ink)' }}>
+          <TypingEllipsis />
         </div>
       )}
 
@@ -154,26 +224,7 @@ const StickyNote = memo(function StickyNote({
   );
 });
 
-// ─── Welcome Note ───
-const WelcomeNote = () => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0, rotate: -1.5 }}
-    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-    className="relative max-w-md mx-auto p-5 md:p-6 pb-8 bg-[var(--note-system)] text-[var(--note-system-ink)] shadow-md font-hand text-base md:text-lg"
-    style={{
-      clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0% 100%)',
-    }}
-  >
-    <TapeStrip />
-    <div className="leading-relaxed">
-      Hey! 👋 Ask me about my work at Microsoft, my projects, tech stack, or competitive programming. I&apos;ll answer as if we&apos;re passing notes in class.
-    </div>
-    <div className="absolute bottom-1.5 right-3 font-hand text-xs opacity-40 italic">
-      — Dhruv
-    </div>
-  </motion.div>
-);
+// WelcomeNote removed — welcome message is now a permanent first assistant message in the chat
 
 // ─── Rate Limit Note ───
 const RateLimitNote = ({ seconds }: { seconds: number }) => (
@@ -205,11 +256,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Hide suggestions after first message
+  // Show/hide suggestions based on whether real messages exist
   useEffect(() => {
-    if (messages.some(m => !m.isOld)) {
-      setShowSuggestions(false);
-    }
+    const hasRealMessages = messages.some(m => m.id !== 'welcome');
+    setShowSuggestions(!hasRealMessages);
   }, [messages]);
 
   // Auto-scroll to newest note
@@ -239,8 +289,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     inputRef.current?.focus();
   }, []);
 
-  const hasMessages = messages.length > 0;
-  const hasOldMessages = messages.some(m => m.isOld);
+  const hasMessages = messages.length > 1; // >1 because welcome message is always present
+  const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
 
   return (
     <div className={cn(
@@ -271,24 +321,35 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Messages Area ─── */}
       <div className={cn(
-        "flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 flex flex-col gap-4 md:gap-5 scrollbar-thin scrollbar-thumb-gray-400/30 scrollbar-track-transparent",
-        compact && "px-2 py-2 gap-3",
+        "flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 ruler-scrollbar",
+        compact && "px-2 py-2 gap-4",
       )}>
-        {/* Welcome note if no messages */}
-        {!hasMessages && <WelcomeNote />}
+        {/* Messages (welcome note is always first) */}
+        {messages.map((msg, idx) => {
+          // Show "old notes" divider before the first non-welcome old message
+          const showDivider = hasOldMessages && msg.isOld && msg.id !== 'welcome' &&
+            !messages.slice(0, idx).some(m => m.isOld && m.id !== 'welcome');
 
-        {/* Old messages divider */}
-        {hasOldMessages && hasMessages && (
-          <div className="flex items-center gap-3 opacity-40 my-2">
-            <div className="flex-1 h-px bg-[var(--c-grid)]" />
-            <span className="font-hand text-xs text-[var(--c-ink)]">old notes</span>
-            <div className="flex-1 h-px bg-[var(--c-grid)]" />
-          </div>
-        )}
+          return (
+            <div key={msg.id}>
+              {showDivider && (
+                <div className="flex items-center gap-3 opacity-40 my-2 mb-4">
+                  <div className="flex-1 h-px bg-[var(--c-grid)]" />
+                  <span className="font-hand text-xs text-[var(--c-ink)]">old notes</span>
+                  <div className="flex-1 h-px bg-[var(--c-grid)]" />
+                </div>
+              )}
+              <StickyNote
+                message={msg}
+                isStreaming={isStreaming && msg.role === 'assistant' && idx === messages.length - 1}
+              />
+            </div>
+          );
+        })}
 
-        {/* Suggested questions */}
+        {/* Suggested questions — show when only the welcome message exists */}
         <AnimatePresence>
-          {!hasMessages && showSuggestions && (
+          {messages.length <= 1 && showSuggestions && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -301,15 +362,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Messages */}
-        {messages.map((msg, idx) => (
-          <StickyNote
-            key={msg.id}
-            message={msg}
-            isStreaming={isStreaming && msg.role === 'assistant' && idx === messages.length - 1}
-          />
-        ))}
 
         {/* Error / Rate limit notes */}
         {error && rateLimitRemaining && (
@@ -362,9 +414,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         >
           {/* Thumbpin on input */}
           {!compact && (
-            <div className="absolute -top-4 -left-1 scale-40 md:scale-50 hidden md:block">
-              <Thumbpin />
-            </div>
+            <TapeStrip className="!w-20 !md:w-24 !h-5 !md:h-7" />
           )}
 
           <div className="flex items-end gap-2">

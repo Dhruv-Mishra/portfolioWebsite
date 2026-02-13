@@ -25,6 +25,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">joke       - Tell a joke</p>
                 <p className="pl-4 text-emerald-400">skills     - View Tech Stack</p>
                 <p className="pl-4 text-emerald-400">resume     - View Resume</p>
+                <p className="pl-4 text-emerald-400">chat       - Talk to AI-me</p>
             </div>
         )
     }),
@@ -109,7 +110,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         return {
             output: (
                 <span className="text-yellow-400">
-                    System already initialized. <br />
+                    System already initialized. (v0.0.4) <br />
                     &gt; Uptime: <span className="text-gray-400">{uptime}s</span> <br />
                     &gt; Status: <span className="text-green-400">Stable</span>
                 </span>
@@ -123,6 +124,10 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     cv: () => ({
         output: "Navigating to resume page...",
         action: () => router.push("/resume")
+    }),
+    chat: () => ({
+        output: "Navigating to chat...",
+        action: () => router.push("/chat")
     }),
     socials: () => ({
         output: (

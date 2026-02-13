@@ -35,7 +35,7 @@ export default function Home() {
         <div
           className="animate-hero-badge absolute -bottom-4 right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
         >
-          v0.0.2-beta
+          v0.0.4
         </div>
       </div>
 

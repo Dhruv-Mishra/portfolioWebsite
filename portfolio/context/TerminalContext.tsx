@@ -32,7 +32,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
             command: "init",
             output: (
                 <div className="text-gray-400 text-sm font-mono leading-relaxed">
-                    <p className="text-emerald-400 mb-2">Initializing Portfolio v1.0.0...</p>
+                    <p className="text-emerald-400 mb-2">Initializing Portfolio v0.0.4...</p>
                     <p className="mb-1">[✓] Loading Graphics Engine....... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Connecting to Creativity DB... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Fetching Coffee............... <span className="text-emerald-500">Done</span></p>

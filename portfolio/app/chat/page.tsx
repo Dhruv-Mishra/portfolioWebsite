@@ -8,7 +8,7 @@ export default function ChatPage() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="h-full max-w-3xl mx-auto flex flex-col"
+      className="h-full max-w-3xl mx-auto flex flex-col pt-14 md:pt-0"
     >
       <StickyNoteChat />
     </motion.div>

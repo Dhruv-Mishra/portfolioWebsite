@@ -49,8 +49,8 @@
     /* Chat Note Colors (Light Mode) */
     --note-user: #fff9c4;
     --note-user-ink: #5d4037;
-    --note-ai: #e8f5e9;
-    --note-ai-ink: #1b5e20;
+    --note-ai: #e3f2fd;
+    --note-ai-ink: #0d47a1;
     --note-system: #e3f2fd;
     --note-system-ink: #0d47a1;
 
@@ -95,8 +95,8 @@
     /* Chat Note Colors (Dark Mode) */
     --note-user: #2a2520;
     --note-user-ink: #fde68a;
-    --note-ai: #1a2a20;
-    --note-ai-ink: #a7f3d0;
+    --note-ai: #1a2030;
+    --note-ai-ink: #93c5fd;
     --note-system: #1a2030;
     --note-system-ink: #93c5fd;
 

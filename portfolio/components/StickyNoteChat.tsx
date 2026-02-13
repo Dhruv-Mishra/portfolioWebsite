@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Paperclip, Eraser } from 'lucide-react';
+import { Send, Eraser } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
 import { Thumbpin } from '@/components/DoodleIcons';
@@ -15,13 +15,14 @@ const PencilWriting = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// ─── Tape Strip SVG ───
+// ─── Tape Strip (realistic torn-edge tape matching About page) ───
 const TapeStrip = ({ className }: { className?: string }) => (
   <div
-    className={cn("absolute -top-2 left-1/2 -translate-x-1/2 w-20 md:w-28 h-6 md:h-8 bg-white/60 dark:bg-white/15 shadow-sm backdrop-blur-[1px] z-20", className)}
+    className={cn("absolute -top-3 left-1/2 -translate-x-1/2 w-24 md:w-32 h-7 md:h-9 bg-white/80 dark:bg-white/15 shadow-sm backdrop-blur-[1px] z-20", className)}
     style={{
       maskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
       WebkitMaskImage: 'linear-gradient(to right, transparent 2%, black 5%, black 95%, transparent 98%)',
+      clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)',
     }}
   />
 );
@@ -69,7 +70,7 @@ const StickyNote = memo(function StickyNote({
   const rotation = useRef(
     isUser
       ? (Math.random() * 2 + 1) // +1° to +3°
-      : -(Math.random() * 2 + 1) // -1° to -3°
+      : -(Math.random() * 1 + 0.5) // -0.5° to -1.5°
   ).current;
 
   return (
@@ -111,7 +112,7 @@ const StickyNote = memo(function StickyNote({
       {/* Mobile: colored left/right border instead of pins */}
       <div className={cn(
         "absolute top-0 bottom-0 w-1 md:hidden",
-        isUser ? "left-0 bg-yellow-500/50" : "right-0 bg-emerald-500/50",
+        isUser ? "left-0 bg-yellow-500/50" : "right-0 bg-blue-400/50",
       )} />
 
       {/* Folded corner effect */}
@@ -393,10 +394,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
                   : "text-gray-400 dark:text-gray-600",
               )}
-              title="Pin this note"
+              title="Send note"
               aria-label="Send message"
             >
-              <Paperclip size={compact ? 18 : 22} />
+              <Send size={compact ? 18 : 22} />
             </motion.button>
           </div>
         </motion.div>

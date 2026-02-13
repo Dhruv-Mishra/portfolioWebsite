@@ -56,10 +56,6 @@ export default function Navigation() {
                             }}
                         >
                             {item.name}
-                            {/* Pulsing AI dot on Chat tab */}
-                            {item.name === 'Chat' && (
-                                <span className="absolute top-8 md:top-10 right-2 md:right-3 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                            )}
                         </motion.div>
                     </Link>
                 );

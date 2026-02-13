@@ -46,6 +46,14 @@
     --note-orange: #fff9c4;
     --note-gray: #fff9c4;
 
+    /* Chat Note Colors (Light Mode) */
+    --note-user: #fff9c4;
+    --note-user-ink: #5d4037;
+    --note-ai: #e8f5e9;
+    --note-ai-ink: #1b5e20;
+    --note-system: #e3f2fd;
+    --note-system-ink: #0d47a1;
+
     /* Simple grid pattern for graph paper effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.15' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
@@ -83,6 +91,14 @@
     --note-purple: #222222;
     --note-orange: #222222;
     --note-gray: #222222;
+
+    /* Chat Note Colors (Dark Mode) */
+    --note-user: #2a2520;
+    --note-user-ink: #fde68a;
+    --note-ai: #1a2a20;
+    --note-ai-ink: #a7f3d0;
+    --note-system: #1a2030;
+    --note-system-ink: #93c5fd;
 
     /* Darker grid pattern for blackboard/slate effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
@@ -202,6 +218,10 @@ body {
     animation-delay: 150ms;
   }
 
+  .animate-nav-tab-5 {
+    animation-delay: 200ms;
+  }
+
   @keyframes navTabIn {
     from {
       transform: translateY(-100px);
@@ -215,6 +235,18 @@ body {
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Pencil writing animation for AI streaming */
+  .animate-pencil-write {
+    animation: pencilWrite 0.8s ease-in-out infinite;
+  }
+
+  @keyframes pencilWrite {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25% { transform: translateX(2px) rotate(3deg); }
+    50% { transform: translateX(-1px) rotate(-2deg); }
+    75% { transform: translateX(1px) rotate(1deg); }
   }
 }
 

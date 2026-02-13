@@ -6,6 +6,7 @@ import Navigation from "@/components/Navigation";
 import SketchbookCursor from "@/components/SketchbookCursor";
 import { TerminalProvider } from "@/context/TerminalContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import MiniChat from "@/components/MiniChat";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import "./globals.css";
@@ -143,6 +144,7 @@ export default function RootLayout({
                 <Navigation />
                 {children}
               </SketchbookLayout>
+              <MiniChat />
             </TerminalProvider>
           </ThemeProvider>
         </ErrorBoundary>

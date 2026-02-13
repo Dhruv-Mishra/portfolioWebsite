@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
+  // Note: output: "export" removed to enable API routes (needed for /api/chat).
+  // Deploy with `next start` behind nginx instead of serving static files.
   images: {
-    unoptimized: true, // Required for static export
+    unoptimized: true,
   },
   // Optimize bundle
   compiler: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -64,7 +64,7 @@ export default function MiniChat() {
     <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20 z-50">
       <AnimatePresence>
         {isOpen && !isDismissed && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -98,13 +98,13 @@ export default function MiniChat() {
               </div>
               <StickyNoteChat compact />
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* Floating sticky note button */}
       {!isDismissed || !isOpen ? (
-        <motion.button
+        <m.button
           onClick={handleToggle}
           whileHover={{ scale: 1.1, rotate: -5 }}
           whileTap={{ scale: 0.95 }}
@@ -130,7 +130,7 @@ export default function MiniChat() {
               <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
             </>
           )}
-        </motion.button>
+        </m.button>
       ) : null}
     </div>
   );

@@ -7,8 +7,30 @@ export const runtime = 'nodejs';
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
 const RATE_LIMIT = { maxRequests: 20, windowMs: 300_000 }; // 20 per 5 min
+const MAX_TRACKED_IPS = 500; // Cap to prevent unbounded memory growth on e2-micro
+let requestsSinceCleanup = 0;
+
+/** Evict expired entries from the rate-limit map to bound memory usage. */
+function evictStaleEntries() {
+  const cutoff = Date.now() - RATE_LIMIT.windowMs;
+  for (const [ip, times] of ipRequests) {
+    const valid = times.filter(t => t > cutoff);
+    if (valid.length === 0) {
+      ipRequests.delete(ip);
+    } else {
+      ipRequests.set(ip, valid);
+    }
+  }
+}
 
 function isRateLimited(ip: string): { limited: boolean; retryAfter: number } {
+  // Periodic cleanup every 50 requests to prevent memory leak
+  requestsSinceCleanup++;
+  if (requestsSinceCleanup >= 50 || ipRequests.size > MAX_TRACKED_IPS) {
+    requestsSinceCleanup = 0;
+    evictStaleEntries();
+  }
+
   const now = Date.now();
   const windowStart = now - RATE_LIMIT.windowMs;
   let times = ipRequests.get(ip) || [];

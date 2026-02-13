@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
 
@@ -11,7 +11,7 @@ export default function ResumePage() {
     return (
         <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
-            <motion.div
+            <m.div
                 initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -109,7 +109,7 @@ export default function ResumePage() {
                         </div>
                     </a>
                 </div>
-            </motion.div>
+            </m.div>
         </main>
     );
 }

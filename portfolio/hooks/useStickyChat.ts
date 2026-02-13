@@ -142,6 +142,8 @@ export function useStickyChat(): UseStickyChat {
   const [rateLimitRemaining, setRateLimitRemaining] = useState<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasHydrated = useRef(false);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   // Load from localStorage after mount (hydration-safe)
   useEffect(() => {
@@ -172,8 +174,9 @@ export function useStickyChat(): UseStickyChat {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isStreaming) return;
 
-    // Check conversation turn limit
-    const userTurns = messages.filter(m => m.role === 'user').length;
+    // Check conversation turn limit (read from ref to avoid dependency)
+    const currentMessages = messagesRef.current;
+    const userTurns = currentMessages.filter(m => m.role === 'user').length;
     if (userTurns >= CHAT_CONFIG.maxConversationTurns) {
       // Add a gentle wrap-up note instead of calling the API
       const wrapUpMsg: ChatMessage = {
@@ -225,7 +228,7 @@ export function useStickyChat(): UseStickyChat {
 
     try {
       // Build conversation history (exclude welcome, limit context window)
-      const recentMessages = messages.filter(m => m.id !== 'welcome');
+      const recentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
       const contextWindow = recentMessages.slice(-10); // Last 10 messages for context
       const conversationMessages = [
         ...contextWindow.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -331,7 +334,7 @@ export function useStickyChat(): UseStickyChat {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, messages]);
+  }, [isStreaming]);
 
   const clearMessages = useCallback(() => {
     setMessages(prev => prev.filter(m => m.id === 'welcome'));

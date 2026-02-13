@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
@@ -29,7 +29,7 @@ export function ThemeToggle() {
         >
             <AnimatePresence mode="wait" initial={false}>
                 {resolvedTheme === "dark" ? (
-                    <motion.div
+                    <m.div
                         key="moon"
                         initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
                         animate={{ opacity: 1, rotate: 0, scale: 1 }}
@@ -43,9 +43,9 @@ export function ThemeToggle() {
                             <path d="M19 3v2" className="opacity-50" />
                             <path d="M21 5h-2" className="opacity-50" />
                         </svg>
-                    </motion.div>
+                    </m.div>
                 ) : (
-                    <motion.div
+                    <m.div
                         key="sun"
                         initial={{ opacity: 0, rotate: 90, scale: 0.5 }}
                         animate={{ opacity: 1, rotate: 0, scale: 1 }}
@@ -64,7 +64,7 @@ export function ThemeToggle() {
                             <path d="m6.34 17.66-1.41 1.41" />
                             <path d="m19.07 4.93-1.41 1.41" />
                         </svg>
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
 

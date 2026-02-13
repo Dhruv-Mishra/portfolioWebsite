@@ -1,5 +1,5 @@
 "use client";
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import Image from 'next/image';
 import { Thumbpin } from '@/components/DoodleIcons';
 
@@ -7,7 +7,7 @@ export default function About() {
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
             <div className="relative transform -rotate-1">
-                <motion.div
+                <m.div
                     initial={{ opacity: 0, y: 10 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
@@ -110,7 +110,7 @@ export default function About() {
                             </p>
                         </div>
                     </div>
-                </motion.div>
+                </m.div>
             </div>
         </div>
     );

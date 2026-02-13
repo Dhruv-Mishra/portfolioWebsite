@@ -1,5 +1,5 @@
 "use client";
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 
@@ -16,9 +16,8 @@ interface Project {
     stack: string[];
 }
 
-export default function Projects() {
-
-    const projects: Project[] = [
+// Static project data — defined outside component to avoid re-creation on every render
+const PROJECTS: Project[] = [
         {
             name: "Fluent UI Android",
             desc: (
@@ -126,6 +125,7 @@ export default function Projects() {
         },
     ];
 
+export default function Projects() {
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
@@ -133,7 +133,7 @@ export default function Projects() {
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
-                {projects.map((proj, i) => {
+                {PROJECTS.map((proj, i) => {
                     // "Random" rotation and offsets based on index to ensure hydration consistency
                     const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];
                     const photoRotate = [-3, 2, -2, 3, -1, 2][i % 6];
@@ -141,7 +141,7 @@ export default function Projects() {
                     const foldSize = 30; // Size of the folded corner
 
                     return (
-                        <motion.div
+                        <m.div
                             key={proj.name}
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
@@ -285,7 +285,7 @@ export default function Projects() {
                                     </a>
                                 </div>
                             </div>
-                        </motion.div>
+                        </m.div>
                     );
                 })}
             </div>

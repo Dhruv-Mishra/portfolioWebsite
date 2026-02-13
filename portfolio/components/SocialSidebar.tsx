@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -62,7 +62,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
     }
 
     return (
-        <motion.a
+        <m.a
             key={social.name}
             href={social.url}
             target="_blank"
@@ -80,7 +80,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
             <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded shadow-sm">
                 {social.name}
             </span>
-        </motion.a>
+        </m.a>
     );
 });
 

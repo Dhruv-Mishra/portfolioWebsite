@@ -17,8 +17,6 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['framer-motion', 'lucide-react'],
     optimizeCss: true,
   },
-  // Ensure modern bundle output
-  transpilePackages: ['lucide-react', 'framer-motion'],
   // Production optimizations
   reactStrictMode: true,
   poweredByHeader: false,

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
@@ -61,15 +61,14 @@ function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed 
   return { displayed, isTyping };
 }
 
-// ─── Typing Ellipsis (shown while AI is streaming) ───
+// ─── Typing Ellipsis (shown while AI is streaming) — CSS animation to avoid framer-motion overhead ───
 const TypingEllipsis = () => (
   <span className="inline-flex items-center gap-0.5 ml-1 align-baseline">
     {[0, 1, 2].map(i => (
-      <motion.span
+      <span
         key={i}
-        className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-60"
-        animate={{ y: [0, -4, 0] }}
-        transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
+        className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-60 animate-typing-dot"
+        style={{ animationDelay: `${i * 150}ms` }}
       />
     ))}
   </span>
@@ -101,7 +100,7 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 
 // ─── Suggested Question Strip ───
 const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?: boolean; onClick: () => void }) => (
-  <motion.button
+  <m.button
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.9 }}
@@ -118,7 +117,7 @@ const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?:
   >
     {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
     {text}
-  </motion.button>
+  </m.button>
 );
 
 // ─── Single Sticky Note ───
@@ -147,7 +146,7 @@ const StickyNote = memo(function StickyNote({
   const showPencil = !isUser && (isStreaming || isTyping);
 
   return (
-    <motion.div
+    <m.div
       initial={isUser
         ? { opacity: 0, y: 30, rotate: rotation + 5 }
         : { opacity: 0, x: 50, rotate: rotation - 5 }
@@ -250,7 +249,7 @@ const StickyNote = memo(function StickyNote({
           Open link here ~
         </a>
       )}
-    </motion.div>
+    </m.div>
   );
 });
 
@@ -258,14 +257,14 @@ const StickyNote = memo(function StickyNote({
 
 // ─── Rate Limit Note ───
 const RateLimitNote = ({ seconds }: { seconds: number }) => (
-  <motion.div
+  <m.div
     initial={{ opacity: 0, scale: 0.9 }}
     animate={{ opacity: 1, scale: 1, rotate: 2 }}
     className="relative max-w-sm mx-auto p-4 bg-[#ffccbc] dark:bg-[#3e2723] text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
   >
     <TapeStrip />
     Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
-  </motion.div>
+  </m.div>
 );
 
 // ─── Suggested Questions ───
@@ -411,22 +410,22 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       {/* ─── Header ─── */}
       {!compact ? (
         <div className="text-center pt-2 pb-4 md:pt-4 md:pb-6 shrink-0">
-          <motion.h1
+          <m.h1
             initial={{ opacity: 0, rotate: -3 }}
             animate={{ opacity: 1, rotate: -2 }}
             className="text-4xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
           >
             Pass me a note
-          </motion.h1>
+          </m.h1>
           <WavyUnderline />
-          <motion.p
+          <m.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
             className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2"
           >
             Ask me anything — powered by AI, answered as Dhruv.
-          </motion.p>
+          </m.p>
         </div>
       ) : (
         <div className="shrink-0 pt-2 px-3">
@@ -465,7 +464,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {/* Suggested questions — shown initially and after each LLM response */}
         <AnimatePresence mode="wait">
           {!isStreaming && activeSuggestions.length > 0 && (
-            <motion.div
+            <m.div
               key={activeSuggestions.join()}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -476,7 +475,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               {activeSuggestions.map(q => (
                 <SuggestionStrip key={q} text={q} isAction={ACTION_SUGGESTIONS.has(q)} onClick={() => handleSuggestion(q)} />
               ))}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
@@ -508,7 +507,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         )}
 
         {/* The input "sticky note" */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
@@ -540,7 +539,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             />
 
             {/* Paperclip send button */}
-            <motion.button
+            <m.button
               whileHover={{ scale: 1.15, rotate: 10 }}
               whileTap={{ scale: 0.9 }}
               onClick={handleSend}
@@ -555,9 +554,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               aria-label="Send message"
             >
               <Send size={compact ? 18 : 22} />
-            </motion.button>
+            </m.button>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </div>
   );

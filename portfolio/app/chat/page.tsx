@@ -1,16 +1,16 @@
 "use client";
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import StickyNoteChat from '@/components/StickyNoteChat';
 
 export default function ChatPage() {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="h-full max-w-3xl mx-auto flex flex-col pt-14 md:pt-0"
     >
       <StickyNoteChat />
-    </motion.div>
+    </m.div>
   );
 }

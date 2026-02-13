@@ -1,6 +1,6 @@
 "use client";
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -39,7 +39,7 @@ export default function Navigation() {
                         legacyBehavior={false}
                         passHref
                     >
-                        <motion.div
+                        <m.div
                             // CSS handles initial animation, framer-motion only for hover
                             animate={{ y: active ? -5 : -25 }}
                             whileHover={{ y: -5 }}
@@ -56,7 +56,7 @@ export default function Navigation() {
                             }}
                         >
                             {item.name}
-                        </motion.div>
+                        </m.div>
                     </Link>
                 );
             })}

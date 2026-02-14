@@ -33,7 +33,7 @@ export default function Error({
               rotate: [0, 10, -10, 10, 0],
               scale: [1, 1.1, 1, 1.1, 1]
             }}
-            transition={{ duration: 2, repeat: 3, ease: "easeInOut" }}
+            transition={{ duration: 2, repeat: 1, ease: "easeInOut" }}
             className="inline-block mb-6"
           >
             <AlertTriangle size={100} className="text-amber-600 mx-auto" strokeWidth={2} />

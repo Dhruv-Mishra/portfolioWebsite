@@ -78,11 +78,6 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    // Add these when you have them
-    // google: 'your-google-verification-code',
-    // yandex: 'your-yandex-verification-code',
-  },
 };
 
 export default function RootLayout({
@@ -95,16 +90,8 @@ export default function RootLayout({
       <head>
         {/* Preconnect to critical third-party origins */}
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* GTM Deferred */}
-        {/* <link rel="preconnect" href="https://www.googletagmanager.com" /> */}
-        {/* <link rel="dns-prefetch" href="https://www.google-analytics.com" /> */}
-        <link rel="preconnect" href="https://v2.jokeapi.dev" />
+        {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
-
-        <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="32x32" />
-        <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
-        <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />

@@ -14,6 +14,12 @@ function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed 
   const [displayed, setDisplayed] = useState(skip ? text : '');
   const [isTyping, setIsTyping] = useState(false);
   const prevLenRef = useRef(skip ? text.length : 0);
+  const displayedLenRef = useRef(skip ? text.length : 0);
+
+  // Keep ref in sync without triggering re-effects
+  useEffect(() => {
+    displayedLenRef.current = displayed.length;
+  });
 
   useEffect(() => {
     // Skip entirely for old/restored messages
@@ -34,9 +40,10 @@ function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed 
     }
 
     // Stream just finished — typewrite any remaining text
-    if (text.length > 0 && prevLenRef.current === 0 && displayed.length < text.length) {
+    const currentDisplayedLen = displayedLenRef.current;
+    if (text.length > 0 && prevLenRef.current === 0 && currentDisplayedLen < text.length) {
       setIsTyping(true);
-      let i = displayed.length;
+      let i = currentDisplayedLen;
       const interval = setInterval(() => {
         i++;
         if (i >= text.length) {
@@ -56,7 +63,7 @@ function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed 
     setIsTyping(false);
     prevLenRef.current = text.length;
     return undefined;
-  }, [text, isStreaming, skip, speed, displayed.length]);
+  }, [text, isStreaming, skip, speed]);
 
   return { displayed, isTyping };
 }
@@ -385,12 +392,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     setActiveSuggestions(pickRandom(FOLLOWUP_SUGGESTIONS, 3));
   }, [messages, isStreaming]);
 
-  // Auto-scroll to newest note
+  // Auto-scroll to newest note (only when messages change count or streaming ends)
+  const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
-    if (messagesEndRef.current) {
+    const countChanged = messages.length !== prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+    if ((countChanged || !isStreaming) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isStreaming]);
+  }, [messages.length, isStreaming]);
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isStreaming) return;

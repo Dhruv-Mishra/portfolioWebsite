@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import { APP_VERSION } from '@/lib/constants';
 
 export interface TerminalLine {
     id: number;
@@ -32,7 +33,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
             command: "init",
             output: (
                 <div className="text-gray-400 text-sm font-mono leading-relaxed">
-                    <p className="text-emerald-400 mb-2">Initializing Portfolio v0.0.4...</p>
+                    <p className="text-emerald-400 mb-2">Initializing Portfolio {APP_VERSION}...</p>
                     <p className="mb-1">[✓] Loading Graphics Engine....... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Connecting to Creativity DB... <span className="text-emerald-500">Done</span></p>
                     <p className="mb-1">[✓] Fetching Coffee............... <span className="text-emerald-500">Done</span></p>

@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee } from "lucide-react";
+import { APP_VERSION } from "@/lib/constants";
 
 // Lazy load Terminal to reduce initial bundle size
 const Terminal = dynamic(() => import("@/components/Terminal"), {
@@ -35,7 +36,7 @@ export default function Home() {
         <div
           className="animate-hero-badge absolute -bottom-4 right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
         >
-          v0.0.4
+          {APP_VERSION}
         </div>
       </div>
 

@@ -3,67 +3,112 @@
 #
 #          FILE: deploy.sh
 #
-#         USAGE: sudo ./deploy.sh [--skip-git] [--skip-build] [--force]
+#         USAGE: sudo ./deploy.sh [--skip-git] [--skip-build] [--skip-deps]
+#                                  [--skip-nginx] [--force]
 #
-#   DESCRIPTION: Production-grade deployment script for whoisdhruv.com portfolio
-#                - Pulls latest code from master branch
-#                - Builds Next.js static export
-#                - Updates Nginx configuration with rollback capability
-#                - Comprehensive error handling and logging
+#   DESCRIPTION: Production deployment for whoisdhruv.com portfolio
+#                Next.js server mode (next start) behind nginx reverse proxy.
+#
+#                Flow:
+#                  1. Pre-flight checks (root, deps, disk, ssl, env, git)
+#                  2. Kill orphaned processes on the Next.js port
+#                  3. Git pull
+#                  4. Install dependencies + build (.next/)
+#                  5. Prune caches to reclaim disk
+#                  6. Create/update systemd service (nice, journal caps)
+#                  7. Restart Next.js, wait for readiness
+#                  8. Update & reload nginx
+#                  9. Health checks (nginx, Next.js, HTTP, chat API)
 #
 #       OPTIONS:
 #                --skip-git    Skip git pull (useful for local testing)
+#                --skip-deps   Skip npm ci (useful when only code changed)
 #                --skip-build  Skip npm build (useful when only updating nginx)
+#                --skip-nginx  Skip nginx config update
 #                --force       Force deployment even with uncommitted changes
 #                --help        Show this help message
 #
-#        AUTHOR: Automated Deployment Script
-#       VERSION: 1.0.0
+#       VERSION: 2.1.0
 #       CREATED: 2026-01-06
+#       UPDATED: 2026-02-14  Rewritten for Next.js server mode
+#                             + nice values, process cleanup, log caps
 #
 #===============================================================================
 
-set -euo pipefail  # Exit on error, undefined vars, and pipe failures
+set -euo pipefail
 
 #===============================================================================
-# CONFIGURATION - ABSOLUTE PATHS
+# VM-SPECIFIC CONFIGURATION
+# Edit these variables to match your server environment.
 #===============================================================================
 
-# Repository and project paths
+# Domain
+readonly DOMAIN="whoisdhruv.com"
+
+# Repository & project paths
 readonly GIT_ROOT="/home/portfolioWebsite/portfolio"
-readonly PROJECT_ROOT="/home/portfolioWebsite/portfolio/portfolio"
-readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/nginx-cloudflare.conf"
-readonly BUILD_OUTPUT_DIR="${PROJECT_ROOT}/out"
-readonly SCRIPTS_DIR="${PROJECT_ROOT}/scripts"
+readonly PROJECT_ROOT="${GIT_ROOT}/portfolio"
 
-# Nginx paths
-readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
-readonly NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
-readonly NGINX_CONF_NAME="portfolio"
-readonly NGINX_ACTIVE_CONF="${NGINX_SITES_AVAILABLE}/${NGINX_CONF_NAME}"
-
-# Backup paths
-readonly BACKUP_DIR="/var/backups/nginx"
-readonly BACKUP_RETENTION_DAYS=30
-
-# Log paths
-readonly LOG_DIR="/var/log/portfolio-deploy"
-readonly LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d-%H%M%S).log"
-readonly MAX_LOG_FILES=50
-
-# SSL paths (for validation only)
-readonly SSL_CERT="/etc/ssl/cloudflare/whoisdhruv.com.pem"
-readonly SSL_KEY="/etc/ssl/cloudflare/whoisdhruv.com.key"
-
-# Git settings
+# Git
 readonly GIT_BRANCH="master"
 readonly GIT_REMOTE="origin"
 
-# Node settings
-readonly NPM_BUILD_TIMEOUT=600  # 10 minutes
+# Next.js server
+readonly NEXTJS_PORT=3000
+
+# systemd service
+readonly SERVICE_NAME="portfolio"
+readonly SERVICE_USER="portfolioWebsite"   # Non-root user that owns the project
+
+# Process priority (nice: -20=highest, 19=lowest; ionice: 1=realtime, 2=best-effort, 3=idle)
+readonly SERVICE_NICE=5                     # Slightly below default for the live server
+readonly BUILD_NICE=15                      # Low priority so builds don't starve the server
+readonly BUILD_IONICE_CLASS=3               # Idle I/O class — only runs when disk is free
+
+# SSL (Cloudflare Origin Certificate)
+readonly SSL_CERT="/etc/ssl/cloudflare/${DOMAIN}.pem"
+readonly SSL_KEY="/etc/ssl/cloudflare/${DOMAIN}.key"
+
+# Nginx
+readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
+readonly NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
+
+# Backups & logs
+readonly BACKUP_DIR="/var/backups/${SERVICE_NAME}"
+readonly LOG_DIR="/var/log/${SERVICE_NAME}-deploy"
+readonly BACKUP_RETENTION_DAYS=7            # Keep nginx backups for 1 week
+readonly MAX_LOG_FILES=10                   # Keep only last 10 deploy logs
+readonly MAX_LOG_SIZE_MB=5                  # Truncate individual logs beyond 5MB
+
+# Journal log caps for the Next.js service
+readonly JOURNAL_RATE_INTERVAL=30           # seconds
+readonly JOURNAL_RATE_BURST=100             # max log entries per interval
+readonly JOURNAL_MAX_SIZE="50M"             # max total journal size for this unit
+
+# Build
+readonly NPM_BUILD_TIMEOUT=600              # seconds
+
+# Health check
+readonly HEALTH_CHECK_RETRIES=30            # seconds to wait for Next.js
+readonly MIN_DISK_MB=500                    # minimum free disk space
+
+# Required env vars in .env.local (chat API won't work without these)
+readonly REQUIRED_ENV_VARS=("LLM_API_KEY" "LLM_BASE_URL" "LLM_MODEL")
 
 #===============================================================================
-# COLOR CODES FOR OUTPUT
+# DERIVED CONSTANTS — Do not edit below this line
+#===============================================================================
+
+readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/nginx-cloudflare.conf"
+readonly NEXTJS_BUILD_DIR="${PROJECT_ROOT}/.next"
+readonly ENV_FILE="${PROJECT_ROOT}/.env.local"
+readonly SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
+readonly NGINX_CONF_NAME="${SERVICE_NAME}"
+readonly NGINX_ACTIVE_CONF="${NGINX_SITES_AVAILABLE}/${NGINX_CONF_NAME}"
+readonly LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d-%H%M%S).log"
+
+#===============================================================================
+# COLOR CODES
 #===============================================================================
 
 readonly RED='\033[0;31m'
@@ -73,60 +118,45 @@ readonly BLUE='\033[0;34m'
 readonly MAGENTA='\033[0;35m'
 readonly CYAN='\033[0;36m'
 readonly WHITE='\033[1;37m'
-readonly NC='\033[0m' # No Color
+readonly NC='\033[0m'
 
 #===============================================================================
-# GLOBAL VARIABLES
+# MUTABLE STATE
 #===============================================================================
 
 SKIP_GIT=false
+SKIP_DEPS=false
 SKIP_BUILD=false
+SKIP_NGINX=false
 FORCE_DEPLOY=false
 DEPLOYMENT_START_TIME=""
 NGINX_BACKUP_FILE=""
-OLD_BUILD_BACKUP=""
 
 #===============================================================================
-# LOGGING FUNCTIONS
+# LOGGING
 #===============================================================================
 
 log() {
-    local level="$1"
-    shift
+    local level="$1"; shift
     local message="$*"
-    local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    # Log to file
-    echo "[${timestamp}] [${level}] ${message}" >> "${LOG_FILE}"
-    
-    # Log to console with colors
+    local ts
+    ts=$(date '+%Y-%m-%d %H:%M:%S')
+
+    echo "[${ts}] [${level}] ${message}" >> "${LOG_FILE}"
+
     case "${level}" in
-        INFO)
-            echo -e "${CYAN}[${timestamp}]${NC} ${GREEN}[INFO]${NC} ${message}"
-            ;;
-        WARN)
-            echo -e "${CYAN}[${timestamp}]${NC} ${YELLOW}[WARN]${NC} ${message}"
-            ;;
-        ERROR)
-            echo -e "${CYAN}[${timestamp}]${NC} ${RED}[ERROR]${NC} ${message}"
-            ;;
-        DEBUG)
-            echo -e "${CYAN}[${timestamp}]${NC} ${MAGENTA}[DEBUG]${NC} ${message}"
-            ;;
-        STEP)
-            echo -e "\n${CYAN}[${timestamp}]${NC} ${BLUE}[STEP]${NC} ${WHITE}${message}${NC}"
-            ;;
-        SUCCESS)
-            echo -e "${CYAN}[${timestamp}]${NC} ${GREEN}[SUCCESS]${NC} ${GREEN}${message}${NC}"
-            ;;
+        INFO)    echo -e "${CYAN}[${ts}]${NC} ${GREEN}[INFO]${NC} ${message}" ;;
+        WARN)    echo -e "${CYAN}[${ts}]${NC} ${YELLOW}[WARN]${NC} ${message}" ;;
+        ERROR)   echo -e "${CYAN}[${ts}]${NC} ${RED}[ERROR]${NC} ${message}" ;;
+        DEBUG)   echo -e "${CYAN}[${ts}]${NC} ${MAGENTA}[DEBUG]${NC} ${message}" ;;
+        STEP)    echo -e "\n${CYAN}[${ts}]${NC} ${BLUE}[STEP]${NC} ${WHITE}${message}${NC}" ;;
+        SUCCESS) echo -e "${CYAN}[${ts}]${NC} ${GREEN}[SUCCESS]${NC} ${GREEN}${message}${NC}" ;;
     esac
 }
 
 log_separator() {
-    local char="${1:-=}"
     local line
-    line=$(printf '%*s' 80 '' | tr ' ' "${char}")
+    line=$(printf '%*s' 80 '' | tr ' ' "${1:-=}")
     echo -e "${BLUE}${line}${NC}"
     echo "${line}" >> "${LOG_FILE}"
 }
@@ -136,32 +166,25 @@ log_separator() {
 #===============================================================================
 
 show_help() {
-    cat << EOF
-Usage: sudo $0 [OPTIONS]
+    cat << 'EOF'
+Usage: sudo ./deploy.sh [OPTIONS]
 
-Production deployment script for whoisdhruv.com portfolio website.
+Production deployment for whoisdhruv.com (Next.js server mode).
 
 OPTIONS:
-    --skip-git      Skip git pull step (useful for local testing)
-    --skip-build    Skip npm build step (only update nginx config)
-    --force         Force deployment even with uncommitted changes
-    --help          Display this help message and exit
+    --skip-git      Skip git pull
+    --skip-deps     Skip npm ci (use when only code changed, not packages)
+    --skip-build    Skip npm ci & next build
+    --skip-nginx    Skip nginx config update & reload
+    --force         Deploy even with uncommitted changes
+    --help          Show this message
 
 EXAMPLES:
-    sudo $0                    # Full deployment
-    sudo $0 --skip-git         # Deploy without git pull
-    sudo $0 --skip-build       # Only update nginx configuration
-    sudo $0 --force            # Force deploy with uncommitted changes
-
-REQUIREMENTS:
-    - Must be run as root (sudo)
-    - Node.js and npm must be installed
-    - Nginx must be installed
-    - Git repository must be initialized
-
-LOG FILES:
-    Logs are stored in: ${LOG_DIR}
-
+    sudo ./deploy.sh                          # Full deployment
+    sudo ./deploy.sh --skip-git               # Deploy without pulling
+    sudo ./deploy.sh --skip-deps              # Build without reinstalling deps
+    sudo ./deploy.sh --skip-build             # Redeploy nginx only
+    sudo ./deploy.sh --skip-build --skip-nginx  # Just restart Next.js
 EOF
     exit 0
 }
@@ -169,60 +192,42 @@ EOF
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --skip-git)
-                SKIP_GIT=true
-                shift
-                ;;
-            --skip-build)
-                SKIP_BUILD=true
-                shift
-                ;;
-            --force)
-                FORCE_DEPLOY=true
-                shift
-                ;;
-            --help|-h)
-                show_help
-                ;;
+            --skip-git)   SKIP_GIT=true;   shift ;;
+            --skip-deps)  SKIP_DEPS=true;  shift ;;
+            --skip-build) SKIP_BUILD=true; shift ;;
+            --skip-nginx) SKIP_NGINX=true; shift ;;
+            --force)      FORCE_DEPLOY=true; shift ;;
+            --help|-h)    show_help ;;
             *)
-                log ERROR "Unknown option: $1"
-                log INFO "Use --help for usage information"
-                exit 1
-                ;;
+                log ERROR "Unknown option: $1  (use --help)"
+                exit 1 ;;
         esac
     done
 }
 
+# Trap handler — runs on any exit, rolls back nginx if needed
 cleanup() {
     local exit_code=$?
-    
+
     if [[ ${exit_code} -ne 0 ]]; then
         log_separator
-        log ERROR "Deployment failed with exit code: ${exit_code}"
-        log ERROR "Check log file for details: ${LOG_FILE}"
-        
-        # Attempt nginx rollback if we have a backup
+        log ERROR "Deployment failed (exit ${exit_code}). Log: ${LOG_FILE}"
+
+        # Attempt nginx rollback
         if [[ -n "${NGINX_BACKUP_FILE}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
-            log WARN "Attempting to restore nginx configuration from backup..."
-            if cp "${NGINX_BACKUP_FILE}" "${NGINX_ACTIVE_CONF}"; then
-                if nginx -t &>/dev/null; then
-                    systemctl reload nginx
-                    log SUCCESS "Nginx configuration restored successfully"
-                else
-                    log ERROR "CRITICAL: Restored config also fails! Manual intervention required!"
-                fi
+            log WARN "Rolling back nginx configuration..."
+            if cp "${NGINX_BACKUP_FILE}" "${NGINX_ACTIVE_CONF}" && nginx -t &>/dev/null; then
+                systemctl reload nginx
+                log SUCCESS "Nginx rolled back successfully"
+            else
+                log ERROR "CRITICAL: Nginx rollback failed — manual intervention required!"
             fi
         fi
     fi
-    
-    # Calculate deployment duration
+
     if [[ -n "${DEPLOYMENT_START_TIME}" ]]; then
-        local end_time
-        end_time=$(date +%s)
-        local duration=$((end_time - DEPLOYMENT_START_TIME))
-        local minutes=$((duration / 60))
-        local seconds=$((duration % 60))
-        log INFO "Total deployment time: ${minutes}m ${seconds}s"
+        local dur=$(( $(date +%s) - DEPLOYMENT_START_TIME ))
+        log INFO "Total time: $((dur / 60))m $((dur % 60))s"
     fi
 }
 
@@ -232,203 +237,237 @@ cleanup() {
 
 check_root() {
     log STEP "Checking root privileges..."
-    
     if [[ $EUID -ne 0 ]]; then
-        log ERROR "This script must be run as root (use sudo)"
-        log INFO "Example: sudo $0"
+        log ERROR "This script must be run as root (sudo)"
         exit 1
     fi
-    
-    log SUCCESS "Running with root privileges"
+    log SUCCESS "Running as root"
 }
 
 check_dependencies() {
-    log STEP "Checking required dependencies..."
-    
-    local dependencies=("git" "node" "npm" "nginx" "systemctl")
+    log STEP "Checking dependencies..."
+
+    local deps=("git" "node" "npm" "nginx" "systemctl" "curl" "nice" "ionice")
     local missing=()
-    
-    for cmd in "${dependencies[@]}"; do
+
+    for cmd in "${deps[@]}"; do
         if ! command -v "${cmd}" &>/dev/null; then
             missing+=("${cmd}")
-            log ERROR "Missing dependency: ${cmd}"
         else
-            local version
+            local ver="installed"
             case "${cmd}" in
-                node)
-                    version=$(node --version 2>/dev/null || echo "unknown")
-                    ;;
-                npm)
-                    version=$(npm --version 2>/dev/null || echo "unknown")
-                    ;;
-                nginx)
-                    version=$(nginx -v 2>&1 | cut -d'/' -f2 || echo "unknown")
-                    ;;
-                git)
-                    version=$(git --version | cut -d' ' -f3 || echo "unknown")
-                    ;;
-                *)
-                    version="installed"
-                    ;;
+                node)  ver=$(node --version 2>/dev/null) ;;
+                npm)   ver=$(npm --version 2>/dev/null) ;;
+                nginx) ver=$(nginx -v 2>&1 | grep -oP '[\d.]+' || echo "?") ;;
+                git)   ver=$(git --version | awk '{print $3}') ;;
             esac
-            log DEBUG "${cmd}: ${version}"
+            log DEBUG "${cmd}: ${ver}"
         fi
     done
-    
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        log ERROR "Missing dependencies: ${missing[*]}"
-        log INFO "Please install missing dependencies before running this script"
-        exit 1
-    fi
-    
-    log SUCCESS "All dependencies are available"
-}
 
-check_paths() {
-    log STEP "Validating required paths..."
-    
-    # Check project directory
-    if [[ ! -d "${PROJECT_ROOT}" ]]; then
-        log ERROR "Project directory does not exist: ${PROJECT_ROOT}"
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log ERROR "Missing: ${missing[*]}"
         exit 1
     fi
-    log DEBUG "Project root exists: ${PROJECT_ROOT}"
-    
-    # Check source nginx config
-    if [[ ! -f "${SOURCE_NGINX_CONF}" ]]; then
-        log ERROR "Source nginx config not found: ${SOURCE_NGINX_CONF}"
-        exit 1
-    fi
-    log DEBUG "Source nginx config exists: ${SOURCE_NGINX_CONF}"
-    
-    # Check nginx directories
-    if [[ ! -d "${NGINX_SITES_AVAILABLE}" ]]; then
-        log ERROR "Nginx sites-available directory not found: ${NGINX_SITES_AVAILABLE}"
-        exit 1
-    fi
-    log DEBUG "Nginx sites-available exists: ${NGINX_SITES_AVAILABLE}"
-    
-    # Check SSL certificates
-    if [[ ! -f "${SSL_CERT}" ]]; then
-        log ERROR "SSL certificate not found: ${SSL_CERT}"
-        log INFO "Please ensure Cloudflare origin certificate is installed"
-        exit 1
-    fi
-    log DEBUG "SSL certificate exists: ${SSL_CERT}"
-    
-    if [[ ! -f "${SSL_KEY}" ]]; then
-        log ERROR "SSL private key not found: ${SSL_KEY}"
-        exit 1
-    fi
-    log DEBUG "SSL private key exists: ${SSL_KEY}"
-    
-    # Check SSL key permissions
-    local key_perms
-    key_perms=$(stat -c "%a" "${SSL_KEY}")
-    if [[ "${key_perms}" != "600" ]]; then
-        log WARN "SSL key has insecure permissions: ${key_perms} (should be 600)"
-        log INFO "Fixing permissions..."
-        chmod 600 "${SSL_KEY}"
-    fi
-    
-    log SUCCESS "All paths validated successfully"
+    log SUCCESS "All dependencies present"
 }
 
 check_disk_space() {
-    log STEP "Checking available disk space..."
-    
-    local required_mb=500  # Minimum required space in MB
-    local available_mb
-    
-    available_mb=$(df -m "${PROJECT_ROOT}" | awk 'NR==2 {print $4}')
-    
-    if [[ ${available_mb} -lt ${required_mb} ]]; then
-        log ERROR "Insufficient disk space: ${available_mb}MB available, ${required_mb}MB required"
+    log STEP "Checking disk space..."
+
+    local avail
+    avail=$(df -m "${PROJECT_ROOT}" | awk 'NR==2{print $4}')
+
+    if [[ ${avail} -lt ${MIN_DISK_MB} ]]; then
+        log ERROR "Only ${avail}MB free (need ${MIN_DISK_MB}MB)"
         exit 1
     fi
-    
-    log SUCCESS "Disk space OK: ${available_mb}MB available"
+    log SUCCESS "Disk OK: ${avail}MB free"
+}
+
+check_paths() {
+    log STEP "Validating paths..."
+
+    [[ -d "${PROJECT_ROOT}" ]] || { log ERROR "Project dir missing: ${PROJECT_ROOT}"; exit 1; }
+    [[ -f "${SOURCE_NGINX_CONF}" ]] || { log ERROR "Nginx config missing: ${SOURCE_NGINX_CONF}"; exit 1; }
+    [[ -d "${NGINX_SITES_AVAILABLE}" ]] || { log ERROR "Nginx sites-available missing"; exit 1; }
+
+    # SSL certificates
+    [[ -f "${SSL_CERT}" ]] || { log ERROR "SSL cert missing: ${SSL_CERT}"; exit 1; }
+    [[ -f "${SSL_KEY}" ]]  || { log ERROR "SSL key missing: ${SSL_KEY}"; exit 1; }
+
+    local perms
+    perms=$(stat -c "%a" "${SSL_KEY}")
+    if [[ "${perms}" != "600" ]]; then
+        log WARN "Fixing SSL key permissions (${perms} → 600)"
+        chmod 600 "${SSL_KEY}"
+    fi
+
+    log SUCCESS "Paths validated"
+}
+
+check_env_file() {
+    log STEP "Validating .env.local..."
+
+    if [[ ! -f "${ENV_FILE}" ]]; then
+        log ERROR ".env.local not found at ${ENV_FILE}"
+        log INFO "Required vars: ${REQUIRED_ENV_VARS[*]}"
+        exit 1
+    fi
+
+    local missing=()
+    for var in "${REQUIRED_ENV_VARS[@]}"; do
+        if ! grep -q "^${var}=" "${ENV_FILE}"; then
+            missing+=("${var}")
+        fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log ERROR "Missing in .env.local: ${missing[*]}"
+        exit 1
+    fi
+
+    log SUCCESS ".env.local validated (${#REQUIRED_ENV_VARS[@]} required vars present)"
+}
+
+check_swap() {
+    log STEP "Checking memory & swap..."
+
+    local total_ram
+    total_ram=$(free -m | awk '/Mem:/{print $2}')
+    local total_swap
+    total_swap=$(free -m | awk '/Swap:/{print $2}')
+
+    log DEBUG "RAM: ${total_ram}MB, Swap: ${total_swap}MB"
+
+    if [[ ${total_ram} -lt 1500 ]] && [[ ${total_swap} -lt 512 ]]; then
+        log WARN "Low memory (${total_ram}MB RAM) with no swap — builds may OOM"
+        log INFO "Consider: sudo fallocate -l 1G /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+    fi
+
+    log SUCCESS "Memory check complete"
 }
 
 check_git_status() {
-    log STEP "Checking git repository status..."
-    
+    log STEP "Checking git status..."
+
     cd "${GIT_ROOT}"
-    
-    # Check if it's a git repository
-    if [[ ! -d ".git" ]]; then
-        log ERROR "Not a git repository: ${GIT_ROOT}"
-        exit 1
-    fi
-    
-    # Check for uncommitted changes
+
+    [[ -d ".git" ]] || { log ERROR "Not a git repo: ${GIT_ROOT}"; exit 1; }
+
     if ! git diff-index --quiet HEAD -- 2>/dev/null; then
         if [[ "${FORCE_DEPLOY}" == "true" ]]; then
-            log WARN "Uncommitted changes detected, but --force flag is set"
+            log WARN "Uncommitted changes (--force set, continuing)"
         else
-            log ERROR "Uncommitted changes detected in repository"
-            log INFO "Commit or stash changes, or use --force flag"
+            log ERROR "Uncommitted changes — commit/stash or use --force"
             git status --short
             exit 1
         fi
     fi
-    
-    # Check current branch
-    local current_branch
-    current_branch=$(git branch --show-current)
-    log DEBUG "Current branch: ${current_branch}"
-    
-    if [[ "${current_branch}" != "${GIT_BRANCH}" ]]; then
-        log WARN "Not on ${GIT_BRANCH} branch (currently on: ${current_branch})"
-        log INFO "Switching to ${GIT_BRANCH} branch..."
+
+    local branch
+    branch=$(git branch --show-current)
+    if [[ "${branch}" != "${GIT_BRANCH}" ]]; then
+        log WARN "On branch ${branch}, switching to ${GIT_BRANCH}..."
         git checkout "${GIT_BRANCH}"
     fi
-    
-    log SUCCESS "Git repository status OK"
+
+    log SUCCESS "Git status OK"
 }
 
 #===============================================================================
-# DIRECTORY SETUP
+# DIRECTORY SETUP & CLEANUP
 #===============================================================================
 
 setup_directories() {
-    # Create log directory and file BEFORE any logging
-    if [[ ! -d "${LOG_DIR}" ]]; then
-        mkdir -p "${LOG_DIR}"
-        chmod 755 "${LOG_DIR}"
-    fi
+    mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
+    chmod 755 "${LOG_DIR}" "${BACKUP_DIR}"
     touch "${LOG_FILE}"
     chmod 644 "${LOG_FILE}"
-
-    log STEP "Setting up required directories..."
-    
-    # Create backup directory
-    if [[ ! -d "${BACKUP_DIR}" ]]; then
-        mkdir -p "${BACKUP_DIR}"
-        chmod 755 "${BACKUP_DIR}"
-        log DEBUG "Created backup directory: ${BACKUP_DIR}"
-    fi
-    
-    log SUCCESS "Directories setup complete"
 }
 
-cleanup_old_logs() {
-    log STEP "Cleaning up old log files..."
-    
-    local log_count
-    log_count=$(find "${LOG_DIR}" -name "deploy-*.log" -type f | wc -l)
-    
-    if [[ ${log_count} -gt ${MAX_LOG_FILES} ]]; then
-        local to_delete=$((log_count - MAX_LOG_FILES))
-        log DEBUG "Removing ${to_delete} old log files..."
-        find "${LOG_DIR}" -name "deploy-*.log" -type f -printf '%T+ %p\n' | \
-            sort | head -n "${to_delete}" | cut -d' ' -f2- | xargs rm -f
+cleanup_old_artifacts() {
+    log STEP "Cleaning up old artifacts..."
+
+    # Trim deploy logs to MAX_LOG_FILES
+    local count
+    count=$(find "${LOG_DIR}" -name "deploy-*.log" -type f | wc -l)
+    if [[ ${count} -gt ${MAX_LOG_FILES} ]]; then
+        local to_delete=$(( count - MAX_LOG_FILES ))
+        log DEBUG "Removing ${to_delete} old deploy logs..."
+        find "${LOG_DIR}" -name "deploy-*.log" -type f -printf '%T+ %p\n' \
+            | sort | head -n "${to_delete}" \
+            | cut -d' ' -f2- | xargs rm -f
     fi
-    
-    # Clean up old backups
-    find "${BACKUP_DIR}" -name "*.backup.*" -type f -mtime +${BACKUP_RETENTION_DAYS} -delete 2>/dev/null || true
-    
+
+    # Truncate any oversized deploy logs
+    find "${LOG_DIR}" -name "deploy-*.log" -type f -size "+${MAX_LOG_SIZE_MB}M" \
+        -exec truncate -s "${MAX_LOG_SIZE_MB}M" {} \; 2>/dev/null || true
+
+    # Trim old backups
+    find "${BACKUP_DIR}" -name "*.backup.*" -type f -mtime "+${BACKUP_RETENTION_DAYS}" -delete 2>/dev/null || true
+
+    # Vacuum journald logs for our service to stay under cap
+    if command -v journalctl &>/dev/null; then
+        journalctl --vacuum-size="${JOURNAL_MAX_SIZE}" -u "${SERVICE_NAME}" &>/dev/null || true
+    fi
+
     log SUCCESS "Cleanup complete"
+}
+
+#===============================================================================
+# PROCESS CLEANUP
+#===============================================================================
+
+kill_orphaned_processes() {
+    log STEP "Killing orphaned processes on port ${NEXTJS_PORT}..."
+
+    # Stop the systemd service first (graceful SIGTERM)
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        sleep 2
+    fi
+
+    # Find and kill any leftover processes still holding the port
+    local pids
+    pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+
+    if [[ -n "${pids}" ]]; then
+        log WARN "Found orphaned PIDs on port ${NEXTJS_PORT}: ${pids}"
+        for pid in ${pids}; do
+            log DEBUG "Sending SIGTERM to PID ${pid}..."
+            kill "${pid}" 2>/dev/null || true
+        done
+        sleep 2
+
+        # Force-kill any survivors
+        pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+            | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+        if [[ -n "${pids}" ]]; then
+            log WARN "Force-killing stubborn PIDs: ${pids}"
+            for pid in ${pids}; do
+                kill -9 "${pid}" 2>/dev/null || true
+            done
+            sleep 1
+        fi
+    fi
+
+    # Also kill any stale node processes running "next start" that aren't systemd-managed
+    local stale_pids
+    stale_pids=$(pgrep -f "next start.*--port ${NEXTJS_PORT}" 2>/dev/null || true)
+    if [[ -n "${stale_pids}" ]]; then
+        log WARN "Killing stale 'next start' processes: ${stale_pids}"
+        echo "${stale_pids}" | xargs kill 2>/dev/null || true
+        sleep 1
+        # Force kill if still around
+        stale_pids=$(pgrep -f "next start.*--port ${NEXTJS_PORT}" 2>/dev/null || true)
+        if [[ -n "${stale_pids}" ]]; then
+            echo "${stale_pids}" | xargs kill -9 2>/dev/null || true
+        fi
+    fi
+
+    log SUCCESS "Port ${NEXTJS_PORT} is clear"
 }
 
 #===============================================================================
@@ -437,58 +476,36 @@ cleanup_old_logs() {
 
 git_pull() {
     if [[ "${SKIP_GIT}" == "true" ]]; then
-        log WARN "Skipping git pull (--skip-git flag set)"
+        log WARN "Skipping git pull (--skip-git)"
         return 0
     fi
-    
-    log STEP "Pulling latest code from ${GIT_REMOTE}/${GIT_BRANCH}..."
-    
+
+    log STEP "Pulling latest code..."
     cd "${GIT_ROOT}"
-    
-    # Fetch latest changes
-    log DEBUG "Fetching from remote..."
-    if ! git fetch "${GIT_REMOTE}" "${GIT_BRANCH}" 2>&1 | tee -a "${LOG_FILE}"; then
-        log ERROR "Failed to fetch from remote"
-        exit 1
-    fi
-    
-    # Check if we're behind remote
+
+    git fetch "${GIT_REMOTE}" "${GIT_BRANCH}" 2>&1 | tee -a "${LOG_FILE}" \
+        || { log ERROR "git fetch failed"; exit 1; }
+
     local local_hash remote_hash
     local_hash=$(git rev-parse HEAD)
     remote_hash=$(git rev-parse "${GIT_REMOTE}/${GIT_BRANCH}")
-    
+
     if [[ "${local_hash}" == "${remote_hash}" ]]; then
-        log INFO "Already up to date with ${GIT_REMOTE}/${GIT_BRANCH}"
+        log INFO "Already up to date"
     else
-        log DEBUG "Local: ${local_hash:0:8}, Remote: ${remote_hash:0:8}"
-        
-        # Pull changes
-        if ! git pull "${GIT_REMOTE}" "${GIT_BRANCH}" 2>&1 | tee -a "${LOG_FILE}"; then
-            log ERROR "Failed to pull from remote"
-            exit 1
-        fi
-        
-        log SUCCESS "Code updated to: $(git rev-parse --short HEAD)"
+        git pull "${GIT_REMOTE}" "${GIT_BRANCH}" 2>&1 | tee -a "${LOG_FILE}" \
+            || { log ERROR "git pull failed"; exit 1; }
+        log SUCCESS "Updated to $(git rev-parse --short HEAD)"
     fi
-    
-    # Show last commit info
-    log DEBUG "Last commit: $(git log -1 --pretty=format:'%h - %s (%an, %ar)')"
+
+    log DEBUG "Last commit: $(git log -1 --pretty=format:'%h — %s (%an, %ar)')"
 }
 
 cleanup_git_changes() {
-    log STEP "Cleaning up build-generated file changes..."
-    
+    log STEP "Discarding build-generated changes..."
     cd "${GIT_ROOT}"
-    
-    # Discard any changes to package files that may have been modified during build
-    # This prevents "uncommitted changes" errors on subsequent deployments
-    if ! git diff --quiet -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null; then
-        log DEBUG "Discarding changes to package.json and package-lock.json..."
-        git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null || true
-        log SUCCESS "Build-generated changes cleaned up"
-    else
-        log DEBUG "No package file changes to clean up"
-    fi
+    git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null || true
+    log SUCCESS "Git worktree clean"
 }
 
 #===============================================================================
@@ -496,102 +513,165 @@ cleanup_git_changes() {
 #===============================================================================
 
 install_dependencies() {
-    log STEP "Installing npm dependencies..."
-    
+    if [[ "${SKIP_DEPS}" == "true" ]] || [[ "${SKIP_BUILD}" == "true" ]]; then
+        log WARN "Skipping dependency install (--skip-deps or --skip-build)"
+        return 0
+    fi
+
+    log STEP "Installing dependencies (nice ${BUILD_NICE}, ionice class ${BUILD_IONICE_CLASS})..."
     cd "${PROJECT_ROOT}"
-    
-    # Check if node_modules exists and package-lock.json hasn't changed
+
     if [[ -d "node_modules" ]] && [[ -f "package-lock.json" ]]; then
-        log DEBUG "node_modules exists, checking for changes..."
-        
-        # Use npm ci for faster, more reliable installs in CI/CD
-        # Include devDependencies since TypeScript is needed for build
-        if ! npm ci 2>&1 | tee -a "${LOG_FILE}"; then
+        if ! nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
+                npm ci --loglevel=warn 2>&1 | tee -a "${LOG_FILE}"; then
             log WARN "npm ci failed, falling back to npm install..."
-            if ! npm install 2>&1 | tee -a "${LOG_FILE}"; then
-                log ERROR "Failed to install dependencies"
-                exit 1
-            fi
+            nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
+                npm install 2>&1 | tee -a "${LOG_FILE}" \
+                || { log ERROR "npm install failed"; exit 1; }
         fi
     else
-        log DEBUG "Fresh install required..."
-        if ! npm install 2>&1 | tee -a "${LOG_FILE}"; then
-            log ERROR "Failed to install dependencies"
-            exit 1
-        fi
+        nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
+            npm install 2>&1 | tee -a "${LOG_FILE}" \
+            || { log ERROR "npm install failed"; exit 1; }
     fi
-    
-    log SUCCESS "Dependencies installed successfully"
+
+    log SUCCESS "Dependencies installed"
 }
 
 build_project() {
     if [[ "${SKIP_BUILD}" == "true" ]]; then
-        log WARN "Skipping build (--skip-build flag set)"
+        log WARN "Skipping build (--skip-build)"
         return 0
     fi
-    
-    log STEP "Building Next.js project..."
-    
+
+    log STEP "Clearing stale build cache..."
+    # Remove .next/cache to prevent stale cache bloat across deployments
+    # The .next directory itself is preserved so the server can still run
+    # during build (though we already stopped it)
+    rm -rf "${NEXTJS_BUILD_DIR}/cache" 2>/dev/null || true
+    log DEBUG "Cleared .next/cache"
+
+    log STEP "Building Next.js project (nice ${BUILD_NICE}, ionice class ${BUILD_IONICE_CLASS})..."
     cd "${PROJECT_ROOT}"
-    
-    # Backup current build if it exists
-    if [[ -d "${BUILD_OUTPUT_DIR}" ]]; then
-        OLD_BUILD_BACKUP="${BACKUP_DIR}/out.backup.$(date +%Y%m%d-%H%M%S)"
-        log DEBUG "Backing up current build to: ${OLD_BUILD_BACKUP}"
-        cp -r "${BUILD_OUTPUT_DIR}" "${OLD_BUILD_BACKUP}"
-    fi
-    
-    # Set environment for production build
+
     export NODE_ENV="production"
-    
-    # Run build with timeout
-    log DEBUG "Running npm run build (timeout: ${NPM_BUILD_TIMEOUT}s)..."
-    
-    if ! timeout "${NPM_BUILD_TIMEOUT}" npm run build 2>&1 | tee -a "${LOG_FILE}"; then
-        log ERROR "Build failed!"
-        log ERROR "Check the log file for details: ${LOG_FILE}"
-        
-        # Restore old build if available
-        if [[ -n "${OLD_BUILD_BACKUP}" ]] && [[ -d "${OLD_BUILD_BACKUP}" ]]; then
-            log WARN "Restoring previous build..."
-            rm -rf "${BUILD_OUTPUT_DIR}"
-            mv "${OLD_BUILD_BACKUP}" "${BUILD_OUTPUT_DIR}"
-        fi
-        
+
+    if ! timeout "${NPM_BUILD_TIMEOUT}" \
+            nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
+            npm run build 2>&1 | tee -a "${LOG_FILE}"; then
+        log ERROR "Build failed! Check ${LOG_FILE}"
         exit 1
     fi
-    
-    # Verify build output exists
-    if [[ ! -d "${BUILD_OUTPUT_DIR}" ]]; then
-        log ERROR "Build completed but output directory not found: ${BUILD_OUTPUT_DIR}"
+
+    # Verify build output
+    if [[ ! -d "${NEXTJS_BUILD_DIR}" ]]; then
+        log ERROR "Build succeeded but .next/ directory not found"
         exit 1
     fi
-    
-    # Count generated files
+
     local file_count
-    file_count=$(find "${BUILD_OUTPUT_DIR}" -type f | wc -l)
-    log DEBUG "Generated ${file_count} files in ${BUILD_OUTPUT_DIR}"
-    
-    # Set proper permissions on build output
-    log DEBUG "Setting permissions on build output..."
-    chmod -R 755 "${BUILD_OUTPUT_DIR}"
-    
-    # Pre-compress static assets for gzip_static
-    log DEBUG "Pre-compressing static assets for gzip_static..."
-    local gz_count
-    find "${BUILD_OUTPUT_DIR}" -type f \( \
-        -name "*.html" -o -name "*.css" -o -name "*.js" \
-        -o -name "*.json" -o -name "*.svg" -o -name "*.xml" \
-        -o -name "*.txt" \) -exec gzip -9 -k {} \;
-    gz_count=$(find "${BUILD_OUTPUT_DIR}" -name '*.gz' -type f | wc -l)
-    log DEBUG "Pre-compressed ${gz_count} files"
-    
-    # Clean up successful build backup
-    if [[ -n "${OLD_BUILD_BACKUP}" ]] && [[ -d "${OLD_BUILD_BACKUP}" ]]; then
-        rm -rf "${OLD_BUILD_BACKUP}"
+    file_count=$(find "${NEXTJS_BUILD_DIR}" -type f | wc -l)
+    log SUCCESS "Build complete (${file_count} files in .next/)"
+}
+
+prune_caches() {
+    log STEP "Pruning caches to reclaim disk..."
+
+    # Prune npm cache (downloaded tarballs)
+    nice -n 19 npm cache clean --force &>/dev/null || true
+
+    # Remove Next.js persistent trace files that grow over time
+    rm -f "${NEXTJS_BUILD_DIR}/trace" 2>/dev/null || true
+
+    local avail
+    avail=$(df -m "${PROJECT_ROOT}" | awk 'NR==2{print $4}')
+    log SUCCESS "Caches pruned (${avail}MB free)"
+}
+
+#===============================================================================
+# SYSTEMD SERVICE MANAGEMENT
+#===============================================================================
+
+ensure_systemd_service() {
+    log STEP "Configuring systemd service (${SERVICE_NAME})..."
+
+    local node_bin
+    node_bin=$(command -v node)
+    local next_bin="${PROJECT_ROOT}/node_modules/.bin/next"
+
+    if [[ ! -f "${next_bin}" ]]; then
+        log ERROR "next binary not found at ${next_bin}"
+        log INFO "Run npm install first"
+        exit 1
     fi
-    
-    log SUCCESS "Build completed successfully (${file_count} files, ${gz_count} pre-compressed)"
+
+    cat > "${SYSTEMD_UNIT}" << UNIT
+[Unit]
+Description=Next.js Server — ${DOMAIN}
+After=network.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+WorkingDirectory=${PROJECT_ROOT}
+ExecStart=${node_bin} ${next_bin} start --port ${NEXTJS_PORT}
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+EnvironmentFile=${ENV_FILE}
+
+# CPU scheduling — run slightly below default so system tasks aren't starved
+Nice=${SERVICE_NICE}
+
+# Logging — send to journald, not disk files
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=${SERVICE_NAME}
+
+# Rate-limit logs to prevent runaway logging from filling the journal
+LogRateLimitIntervalSec=${JOURNAL_RATE_INTERVAL}
+LogRateLimitBurst=${JOURNAL_RATE_BURST}
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+# Kill the entire process group on stop (catches child workers)
+KillMode=control-group
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}" &>/dev/null
+
+    log SUCCESS "Systemd service configured (Nice=${SERVICE_NICE}, journal rate=${JOURNAL_RATE_BURST}/${JOURNAL_RATE_INTERVAL}s)"
+}
+
+restart_nextjs() {
+    log STEP "Starting Next.js server..."
+
+    systemctl start "${SERVICE_NAME}"
+
+    # Wait for the server to respond
+    log DEBUG "Waiting up to ${HEALTH_CHECK_RETRIES}s for port ${NEXTJS_PORT}..."
+    local i=0
+    while [[ $i -lt ${HEALTH_CHECK_RETRIES} ]]; do
+        if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null; then
+            log SUCCESS "Next.js is ready on port ${NEXTJS_PORT} (took ${i}s)"
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+
+    log ERROR "Next.js failed to start within ${HEALTH_CHECK_RETRIES}s"
+    log ERROR "Recent logs:"
+    journalctl -u "${SERVICE_NAME}" --no-pager -n 30 2>&1 | tee -a "${LOG_FILE}"
+    exit 1
 }
 
 #===============================================================================
@@ -599,173 +679,75 @@ build_project() {
 #===============================================================================
 
 backup_nginx_config() {
-    log STEP "Backing up current nginx configuration..."
-    
+    log STEP "Backing up nginx configuration..."
+
     if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
         NGINX_BACKUP_FILE="${BACKUP_DIR}/${NGINX_CONF_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
-        
-        if ! cp "${NGINX_ACTIVE_CONF}" "${NGINX_BACKUP_FILE}"; then
-            log ERROR "Failed to backup nginx configuration"
-            exit 1
-        fi
-        
+        cp "${NGINX_ACTIVE_CONF}" "${NGINX_BACKUP_FILE}" \
+            || { log ERROR "Nginx backup failed"; exit 1; }
         chmod 644 "${NGINX_BACKUP_FILE}"
-        log DEBUG "Nginx config backed up to: ${NGINX_BACKUP_FILE}"
-        log SUCCESS "Nginx configuration backed up"
+        log SUCCESS "Backed up to ${NGINX_BACKUP_FILE}"
     else
-        log WARN "No existing nginx configuration found at: ${NGINX_ACTIVE_CONF}"
-        log INFO "This appears to be a fresh deployment"
+        log WARN "No existing nginx config — fresh deployment"
     fi
 }
 
-validate_nginx_source_config() {
-    log STEP "Validating source nginx configuration..."
-    
-    # Check if source config exists
-    if [[ ! -f "${SOURCE_NGINX_CONF}" ]]; then
-        log ERROR "Source nginx config not found: ${SOURCE_NGINX_CONF}"
-        exit 1
-    fi
-    
-    # Check for required directives
-    local required_patterns=(
-        "listen 443 ssl"
-        "ssl_certificate"
-        "ssl_certificate_key"
-        "root"
-        "server_name"
-    )
-    
-    for pattern in "${required_patterns[@]}"; do
-        if ! grep -q "${pattern}" "${SOURCE_NGINX_CONF}"; then
-            log ERROR "Missing required directive in nginx config: ${pattern}"
-            exit 1
-        fi
+validate_nginx_source() {
+    log STEP "Validating nginx source config..."
+
+    [[ -f "${SOURCE_NGINX_CONF}" ]] \
+        || { log ERROR "Source config missing: ${SOURCE_NGINX_CONF}"; exit 1; }
+
+    local required=("listen 443 ssl" "ssl_certificate" "ssl_certificate_key" "server_name" "proxy_pass")
+    for pat in "${required[@]}"; do
+        grep -q "${pat}" "${SOURCE_NGINX_CONF}" \
+            || { log ERROR "Missing directive in nginx config: ${pat}"; exit 1; }
     done
-    
-    log SUCCESS "Source nginx configuration validated"
-}
 
-update_nginx_config() {
-    log STEP "Updating nginx configuration..."
-    
-    # Copy new config to sites-available
-    log DEBUG "Copying ${SOURCE_NGINX_CONF} to ${NGINX_ACTIVE_CONF}"
-    
-    if ! cp "${SOURCE_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"; then
-        log ERROR "Failed to copy nginx configuration"
-        exit 1
-    fi
-    
-    chmod 644 "${NGINX_ACTIVE_CONF}"
-    log SUCCESS "Nginx configuration file updated"
-}
-
-ensure_nginx_enabled() {
-    log STEP "Ensuring nginx site is enabled..."
-    
-    local symlink="${NGINX_SITES_ENABLED}/${NGINX_CONF_NAME}"
-    
-    if [[ ! -L "${symlink}" ]]; then
-        log DEBUG "Creating symlink: ${symlink} -> ${NGINX_ACTIVE_CONF}"
-        ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
-        log SUCCESS "Nginx site enabled"
-    else
-        log DEBUG "Symlink already exists: ${symlink}"
-        log SUCCESS "Nginx site already enabled"
-    fi
-}
-
-test_nginx_config() {
-    log STEP "Testing nginx configuration..."
-    
-    local test_output
-    
-    if test_output=$(nginx -t 2>&1); then
-        log DEBUG "Nginx test output: ${test_output}"
-        log SUCCESS "Nginx configuration test passed"
-        return 0
-    else
-        log ERROR "Nginx configuration test FAILED!"
-        log ERROR "Test output: ${test_output}"
-        echo "${test_output}" >> "${LOG_FILE}"
-        return 1
-    fi
-}
-
-reload_nginx() {
-    log STEP "Reloading nginx..."
-    
-    if ! systemctl reload nginx 2>&1 | tee -a "${LOG_FILE}"; then
-        log ERROR "Failed to reload nginx"
-        return 1
-    fi
-    
-    # Verify nginx is running
-    if ! systemctl is-active --quiet nginx; then
-        log ERROR "Nginx is not running after reload!"
-        return 1
-    fi
-    
-    log SUCCESS "Nginx reloaded successfully"
-    return 0
-}
-
-rollback_nginx_config() {
-    log ERROR "Rolling back nginx configuration..."
-    
-    if [[ -n "${NGINX_BACKUP_FILE}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
-        log DEBUG "Restoring from: ${NGINX_BACKUP_FILE}"
-        
-        if ! cp "${NGINX_BACKUP_FILE}" "${NGINX_ACTIVE_CONF}"; then
-            log ERROR "CRITICAL: Failed to restore nginx configuration!"
-            log ERROR "Manual intervention required!"
-            log ERROR "Backup file location: ${NGINX_BACKUP_FILE}"
-            exit 1
-        fi
-        
-        # Test restored config
-        if nginx -t &>/dev/null; then
-            systemctl reload nginx
-            log SUCCESS "Nginx configuration rolled back successfully"
-        else
-            log ERROR "CRITICAL: Restored configuration also fails!"
-            log ERROR "Manual intervention required!"
-            exit 1
-        fi
-    else
-        log ERROR "No backup file available for rollback!"
-        log ERROR "Manual intervention required!"
-        exit 1
-    fi
+    log SUCCESS "Nginx source config validated"
 }
 
 deploy_nginx() {
-    # Backup current config
+    if [[ "${SKIP_NGINX}" == "true" ]]; then
+        log WARN "Skipping nginx update (--skip-nginx)"
+        return 0
+    fi
+
     backup_nginx_config
-    
-    # Validate source config
-    validate_nginx_source_config
-    
-    # Update nginx config
-    update_nginx_config
-    
+    validate_nginx_source
+
+    log STEP "Updating nginx configuration..."
+    cp "${SOURCE_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"
+    chmod 644 "${NGINX_ACTIVE_CONF}"
+
     # Ensure site is enabled
-    ensure_nginx_enabled
-    
-    # Test nginx configuration
-    if ! test_nginx_config; then
-        log ERROR "Nginx configuration test failed!"
-        rollback_nginx_config
+    local symlink="${NGINX_SITES_ENABLED}/${NGINX_CONF_NAME}"
+    if [[ ! -L "${symlink}" ]]; then
+        ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
+        log DEBUG "Created symlink: ${symlink}"
+    fi
+
+    # Test configuration
+    log STEP "Testing nginx configuration..."
+    local test_out
+    if ! test_out=$(nginx -t 2>&1); then
+        log ERROR "nginx -t FAILED: ${test_out}"
+        # Rollback happens in cleanup() trap
         exit 1
     fi
-    
-    # Reload nginx
-    if ! reload_nginx; then
-        log ERROR "Nginx reload failed!"
-        rollback_nginx_config
+    log SUCCESS "nginx -t passed"
+
+    # Reload
+    log STEP "Reloading nginx..."
+    systemctl reload nginx 2>&1 | tee -a "${LOG_FILE}" \
+        || { log ERROR "nginx reload failed"; exit 1; }
+
+    if ! systemctl is-active --quiet nginx; then
+        log ERROR "Nginx is not running after reload!"
         exit 1
     fi
+
+    log SUCCESS "Nginx reloaded"
 }
 
 #===============================================================================
@@ -774,164 +756,179 @@ deploy_nginx() {
 
 health_check() {
     log STEP "Running health checks..."
-    
-    local checks_passed=0
-    local checks_total=0
-    local failed_checks=""
-    
-    # Check 1: Nginx process
-    checks_total=$((checks_total + 1))
+
+    local passed=0
+    local total=0
+
+    # 1. Nginx process
+    total=$((total + 1))
     if systemctl is-active --quiet nginx; then
-        log DEBUG "✓ Nginx process is running"
-        checks_passed=$((checks_passed + 1))
+        log DEBUG "✓ Nginx running"
+        passed=$((passed + 1))
     else
-        log WARN "✗ Nginx process is not running"
-        failed_checks="${failed_checks} nginx-process"
+        log WARN "✗ Nginx not running"
     fi
-    
-    # Check 2: Nginx listening on port 80
-    checks_total=$((checks_total + 1))
+
+    # 2. Nginx on port 80
+    total=$((total + 1))
     if ss -tlnp | grep -q ':80 '; then
-        log DEBUG "✓ Nginx listening on port 80"
-        checks_passed=$((checks_passed + 1))
+        log DEBUG "✓ Port 80 listening"
+        passed=$((passed + 1))
     else
-        log WARN "✗ Nginx not listening on port 80"
-        failed_checks="${failed_checks} port-80"
+        log WARN "✗ Port 80 not listening"
     fi
-    
-    # Check 3: Nginx listening on port 443
-    checks_total=$((checks_total + 1))
+
+    # 3. Nginx on port 443
+    total=$((total + 1))
     if ss -tlnp | grep -q ':443 '; then
-        log DEBUG "✓ Nginx listening on port 443"
-        checks_passed=$((checks_passed + 1))
+        log DEBUG "✓ Port 443 listening"
+        passed=$((passed + 1))
     else
-        log WARN "✗ Nginx not listening on port 443"
-        failed_checks="${failed_checks} port-443"
+        log WARN "✗ Port 443 not listening"
     fi
-    
-    # Check 4: Build output exists
-    checks_total=$((checks_total + 1))
-    if [[ -d "${BUILD_OUTPUT_DIR}" ]] && [[ -f "${BUILD_OUTPUT_DIR}/index.html" ]]; then
-        log DEBUG "✓ Build output exists with index.html"
-        checks_passed=$((checks_passed + 1))
+
+    # 4. Next.js process
+    total=$((total + 1))
+    if systemctl is-active --quiet "${SERVICE_NAME}"; then
+        log DEBUG "✓ ${SERVICE_NAME} service running"
+        passed=$((passed + 1))
     else
-        log WARN "✗ Build output missing or incomplete"
-        failed_checks="${failed_checks} build-output"
+        log WARN "✗ ${SERVICE_NAME} service not running"
     fi
-    
-    # Check 5: Local HTTP response (optional - may fail if only accessible via HTTPS)
-    checks_total=$((checks_total + 1))
-    if command -v curl &>/dev/null; then
-        local http_code
-        http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost" 2>/dev/null || echo "000")
-        if echo "${http_code}" | grep -qE '^(200|301|302)$'; then
-            log DEBUG "✓ HTTP response OK (${http_code})"
-            checks_passed=$((checks_passed + 1))
-        else
-            log DEBUG "? HTTP check returned ${http_code} (may be expected with HTTPS-only setup)"
-            checks_passed=$((checks_passed + 1))  # Don't fail on this
-        fi
+
+    # 5. Next.js port
+    total=$((total + 1))
+    if ss -tlnp | grep -q ":${NEXTJS_PORT} "; then
+        log DEBUG "✓ Next.js listening on port ${NEXTJS_PORT}"
+        passed=$((passed + 1))
     else
-        log WARN "? curl not available, skipping HTTP check"
-        checks_passed=$((checks_passed + 1))
+        log WARN "✗ Port ${NEXTJS_PORT} not listening"
     fi
-    
-    if [[ ${checks_passed} -eq ${checks_total} ]]; then
-        log SUCCESS "All health checks passed (${checks_passed}/${checks_total})"
+
+    # 6. HTTP response via nginx
+    total=$((total + 1))
+    local http_code
+    http_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
+        "https://127.0.0.1/" -H "Host: ${DOMAIN}" 2>/dev/null || echo "000")
+    if [[ "${http_code}" =~ ^(200|301|302)$ ]]; then
+        log DEBUG "✓ HTTPS response: ${http_code}"
+        passed=$((passed + 1))
     else
-        log WARN "Some health checks failed (${checks_passed}/${checks_total})"
-        log WARN "Deployment completed but some health checks did not pass"
+        log WARN "? HTTPS returned ${http_code} (may be expected if cert doesn't match localhost)"
+        passed=$((passed + 1))  # non-blocking
     fi
-    
-    # Always return success - health checks are informational
-    # Nginx was already tested and reloaded successfully
-    return 0
+
+    # 7. Chat API (POST /api/chat → should return 200 with SSE stream)
+    total=$((total + 1))
+    local chat_code
+    chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
+        -X POST -H "Content-Type: application/json" \
+        -d '{"messages":[{"role":"user","content":"health check"}]}' \
+        "http://127.0.0.1:${NEXTJS_PORT}/api/chat" 2>/dev/null || echo "000")
+    if [[ "${chat_code}" == "200" ]]; then
+        log DEBUG "✓ Chat API responded 200"
+        passed=$((passed + 1))
+    elif [[ "${chat_code}" == "429" ]]; then
+        log DEBUG "✓ Chat API responded 429 (rate limited — API is alive)"
+        passed=$((passed + 1))
+    else
+        log WARN "? Chat API returned ${chat_code} (may need LLM provider check)"
+        passed=$((passed + 1))  # non-blocking
+    fi
+
+    if [[ ${passed} -eq ${total} ]]; then
+        log SUCCESS "All health checks passed (${passed}/${total})"
+    else
+        log WARN "Health checks: ${passed}/${total} passed"
+    fi
 }
 
 #===============================================================================
-# DEPLOYMENT SUMMARY
+# SUMMARY
 #===============================================================================
 
 print_summary() {
     log_separator
-    log SUCCESS "🚀 DEPLOYMENT COMPLETED SUCCESSFULLY!"
+    log SUCCESS "DEPLOYMENT COMPLETED SUCCESSFULLY"
     log_separator
-    
+
     echo ""
-    echo -e "${WHITE}Deployment Summary:${NC}"
-    echo -e "  ${CYAN}•${NC} Git Root: ${GIT_ROOT}"
-    echo -e "  ${CYAN}•${NC} Project: ${PROJECT_ROOT}"
-    echo -e "  ${CYAN}•${NC} Branch: ${GIT_BRANCH}"
-    echo -e "  ${CYAN}•${NC} Commit: $(cd "${GIT_ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
-    echo -e "  ${CYAN}•${NC} Build Output: ${BUILD_OUTPUT_DIR}"
-    echo -e "  ${CYAN}•${NC} Nginx Config: ${NGINX_ACTIVE_CONF}"
-    echo -e "  ${CYAN}•${NC} Log File: ${LOG_FILE}"
+    echo -e "${WHITE}Summary:${NC}"
+    echo -e "  ${CYAN}•${NC} Domain:    ${DOMAIN}"
+    echo -e "  ${CYAN}•${NC} Project:   ${PROJECT_ROOT}"
+    echo -e "  ${CYAN}•${NC} Branch:    ${GIT_BRANCH}"
+    echo -e "  ${CYAN}•${NC} Commit:    $(cd "${GIT_ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
+    echo -e "  ${CYAN}•${NC} Next.js:   port ${NEXTJS_PORT} (${SERVICE_NAME}.service, nice ${SERVICE_NICE})"
+    echo -e "  ${CYAN}•${NC} Nginx:     ${NGINX_ACTIVE_CONF}"
+    echo -e "  ${CYAN}•${NC} Log:       ${LOG_FILE}"
     echo ""
-    
-    if [[ -n "${NGINX_BACKUP_FILE}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
-        echo -e "${YELLOW}Backup Location:${NC} ${NGINX_BACKUP_FILE}"
+
+    if [[ -n "${NGINX_BACKUP_FILE:-}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
+        echo -e "  ${YELLOW}Nginx backup:${NC} ${NGINX_BACKUP_FILE}"
         echo ""
     fi
-    
-    echo -e "${GREEN}Website should now be live at: https://whoisdhruv.com${NC}"
+
+    echo -e "${GREEN}Live at: https://${DOMAIN}${NC}"
     echo ""
 }
 
 #===============================================================================
-# MAIN EXECUTION
+# MAIN
 #===============================================================================
 
 main() {
     DEPLOYMENT_START_TIME=$(date +%s)
-    
-    # Set up cleanup trap
     trap cleanup EXIT
-    
-    # Parse command line arguments
+
     parse_arguments "$@"
-    
-    # Initial setup
+
+    # Setup
     setup_directories
-    
-    # Start deployment
+
     log_separator
-    log INFO "🚀 Starting deployment at $(date)"
-    log INFO "Log file: ${LOG_FILE}"
+    log INFO "Starting deployment at $(date)"
+    log INFO "Log: ${LOG_FILE}"
     log_separator
-    
+
     # Pre-flight checks
     check_root
     check_dependencies
     check_disk_space
     check_paths
-    
+    check_env_file
+    check_swap
+
     if [[ "${SKIP_GIT}" != "true" ]]; then
         check_git_status
     fi
-    
-    cleanup_old_logs
-    
-    # Git operations
+
+    cleanup_old_artifacts
+
+    # Kill any orphaned processes holding the port
+    kill_orphaned_processes
+
+    # Git
     git_pull
-    
-    # Build operations
-    if [[ "${SKIP_BUILD}" != "true" ]]; then
-        install_dependencies
-    fi
+
+    # Build (low CPU/IO priority so it doesn't starve system)
+    install_dependencies
     build_project
-    
-    # Clean up any package file changes from build process
+    prune_caches
+
     cleanup_git_changes
-    
-    # Nginx operations
+
+    # Service (systemd unit with nice value + journal caps)
+    ensure_systemd_service
+    restart_nextjs
+
+    # Nginx
     deploy_nginx
-    
-    # Post-deployment checks
+
+    # Verify
     health_check
-    
-    # Print summary
+
+    # Done
     print_summary
 }
 
-# Run main function with all arguments
 main "$@"

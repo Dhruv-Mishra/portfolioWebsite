@@ -22,6 +22,7 @@ interface UseStickyChat {
   isStreaming: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
+  addLocalExchange: (userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => void;
   clearMessages: () => void;
   markOpenUrlFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
@@ -364,6 +365,24 @@ export function useStickyChat(): UseStickyChat {
     }
   }, [isStreaming]);
 
+  // Add a user message + pre-built assistant response without calling the LLM.
+  // Used for hardcoded suggestion actions (theme toggle, navigation, URL open).
+  const addLocalExchange = useCallback((userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => {
+    const userMsg: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: userText,
+      timestamp: Date.now(),
+    };
+    const assistantMsg: ChatMessage = {
+      id: generateId(),
+      role: 'assistant',
+      timestamp: Date.now(),
+      ...response,
+    };
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
+  }, []);
+
   const clearMessages = useCallback(() => {
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setError(null);
@@ -383,6 +402,7 @@ export function useStickyChat(): UseStickyChat {
     isStreaming,
     error,
     sendMessage,
+    addLocalExchange,
     clearMessages,
     markOpenUrlFailed,
     rateLimitRemaining,

@@ -52,11 +52,11 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95`}
+                className={`flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
                 title={social.name}
                 aria-label={social.name}
             >
-                <social.icon size={18} strokeWidth={2} />
+                <social.icon size={16} strokeWidth={2.5} />
             </a>
         );
     }
@@ -99,9 +99,9 @@ export default function SocialSidebar() {
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
-            {/* Mobile: Floating circular buttons at bottom */}
+            {/* Mobile: Floating circular buttons at bottom — offset by half the spiral width (w-12 = 48px → 24px) to center within the content area */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex gap-2 min-h-[44px]"
+                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)]/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
                 role="complementary"
                 aria-label="Social media links"
             >
@@ -130,21 +130,21 @@ function MobileThemeButton() {
         setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
     };
 
-    if (!mounted) return <div className="w-11 h-11" />;
+    if (!mounted) return <div className="w-10 h-10" />;
 
     const isDark = resolvedTheme === 'dark';
 
     return (
         <button
             onClick={toggleTheme}
-            className="bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 p-2.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700 active:scale-95"
+            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
             title="Toggle theme"
             aria-label="Toggle theme"
         >
             {isDark ? (
-                <Sun size={18} strokeWidth={2} />
+                <Sun size={16} strokeWidth={2.5} />
             ) : (
-                <Moon size={18} strokeWidth={2} />
+                <Moon size={16} strokeWidth={2.5} />
             )}
         </button>
     );

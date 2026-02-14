@@ -515,7 +515,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           <div className="flex justify-end mb-2">
             <button
               onClick={() => { clearMessages(); setActiveSuggestions(INITIAL_SUGGESTIONS); lastSuggestionMsgRef.current = null; }}
-              className="flex items-center gap-1 text-xs font-hand text-[var(--c-ink)] opacity-40 hover:opacity-70 transition-opacity"
+              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
               title="Clear desk"
             >
               <Eraser size={14} />

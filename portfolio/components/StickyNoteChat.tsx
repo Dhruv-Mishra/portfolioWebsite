@@ -77,7 +77,7 @@ const TypingEllipsis = () => (
 // ─── Tape Strip (realistic torn-edge, brownish tint visible on light blue) ───
 const TapeStrip = ({ className }: { className?: string }) => (
   <div
-    className={cn("absolute -top-3 left-1/2 -translate-x-1/2 w-24 md:w-32 h-7 md:h-9 shadow-sm z-20", className)}
+    className={cn("absolute -top-2 left-1/2 -translate-x-1/2 w-16 md:w-24 h-5 md:h-6 shadow-sm z-20", className)}
     style={{
       backgroundColor: 'var(--tape-color, rgba(210, 180, 140, 0.55))',
       clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)',
@@ -108,11 +108,11 @@ const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?:
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
     className={cn(
-      "px-4 py-2 bg-[var(--c-paper)] border rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
-      isAction ? "border-amber-500 dark:border-amber-500/60" : "border-[var(--c-grid)]",
+      "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
+      isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
     )}
     style={{
-      clipPath: 'polygon(2% 0%, 98% 3%, 100% 97%, 0% 100%)',
+      transform: `rotate(${isAction ? '-0.5' : '0.3'}deg)`,
     }}
   >
     {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
@@ -229,7 +229,7 @@ const StickyNote = memo(function StickyNote({
       {/* Action performed badge */}
       {hasAction && !isUser && (
         <div className={cn(
-          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-800 dark:text-amber-400",
+          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-950 dark:text-amber-400",
         )}>
           <Zap size={10} />
           <span>action</span>
@@ -301,6 +301,20 @@ const ACTION_SUGGESTIONS = new Set([
   "Open your LinkedIn",
 ]);
 
+// Pre-built responses for hardcoded action suggestions — avoids an LLM call.
+// Each entry maps suggestion text → { content, ...action metadata }.
+// `content` is the assistant's reply; action fields trigger the UI side-effect.
+// The `themeAction` value 'toggle' is resolved at runtime by the action handler.
+const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').ChatMessage, 'id' | 'role' | 'timestamp'>> = {
+  "Switch to dark mode": { content: "Switching to dark mode for you ~", themeAction: 'dark' },
+  "Toggle the theme": { content: "Toggling the theme ~", themeAction: 'toggle' },
+  "Take me to the projects page": { content: "Here are my projects!", navigateTo: '/projects' },
+  "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrl: 'https://github.com/Dhruv-Mishra' },
+  "Show me your resume PDF": { content: "Here's my resume!", openUrl: '/resources/resume.pdf' },
+  "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrl: 'https://github.com/microsoft/fluentui-android' },
+  "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrl: 'https://www.linkedin.com/in/dhruv-mishra-id/' },
+};
+
 // Pick N random items from an array without duplicates
 function pickRandom<T>(arr: T[], n: number): T[] {
   const shuffled = [...arr].sort(() => Math.random() - 0.5);
@@ -311,7 +325,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isStreaming, error, sendMessage, clearMessages, markOpenUrlFailed, rateLimitRemaining } = useStickyChat();
+  const { messages, isStreaming, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlFailed, rateLimitRemaining } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
@@ -394,8 +408,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [handleSend]);
 
   const handleSuggestion = useCallback((text: string) => {
-    sendMessage(text);
-  }, [sendMessage]);
+    const hardcoded = HARDCODED_ACTIONS[text];
+    if (hardcoded) {
+      // Bypass the LLM — use the pre-built response + action metadata
+      addLocalExchange(text, hardcoded);
+    } else {
+      sendMessage(text);
+    }
+  }, [addLocalExchange, sendMessage]);
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
@@ -407,7 +427,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     )}>
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-2 pb-4 md:pt-4 md:pb-6 shrink-0">
+        <div className="text-center pt-2 pb-2 md:pt-4 md:pb-6 shrink-0">
           <m.h1
             initial={{ opacity: 0, rotate: -3 }}
             animate={{ opacity: 1, rotate: -2 }}
@@ -487,7 +507,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Input Area (sticky note style) ─── */}
       <div className={cn(
-        "shrink-0 px-2 md:px-6 pb-3 md:pb-4 pt-2",
+        "shrink-0 px-2 md:px-6 pb-14 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}
@@ -495,7 +515,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           <div className="flex justify-end mb-2">
             <button
               onClick={() => { clearMessages(); setActiveSuggestions(INITIAL_SUGGESTIONS); lastSuggestionMsgRef.current = null; }}
-              className="flex items-center gap-1 text-xs font-hand text-[var(--c-ink)] opacity-40 hover:opacity-70 transition-opacity"
+              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
               title="Clear desk"
             >
               <Eraser size={14} />
@@ -510,7 +530,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           animate={{ opacity: 1, y: 0 }}
           className={cn(
             "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
-            compact ? "p-2" : "p-3 md:p-4",
+            compact ? "p-2" : "p-2 md:p-4",
           )}
           style={{
             transform: 'rotate(0.5deg)',

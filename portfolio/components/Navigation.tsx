@@ -1,4 +1,5 @@
 "use client";
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
@@ -22,6 +23,10 @@ const COLORS = [
 
 export default function Navigation() {
     const pathname = usePathname();
+    const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+
+    const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
+    const onHoverEnd = useCallback(() => setHoveredTab(null), []);
 
     return (
         <nav
@@ -31,6 +36,7 @@ export default function Navigation() {
         >
             {LINKS.map((item, i) => {
                 const active = pathname === item.href;
+                const isHovered = hoveredTab === item.name;
 
                 return (
                     <Link
@@ -40,9 +46,14 @@ export default function Navigation() {
                         passHref
                     >
                         <m.div
-                            // CSS handles initial animation, framer-motion only for hover
-                            animate={{ y: active ? -5 : -25 }}
-                            whileHover={{ y: -5 }}
+                            // Merge hover into animate to avoid whileHover gesture priority conflicts.
+                            // whileHover overrides animate, which caused tabs to stay "pulled down"
+                            // after navigating away while the cursor was still on the old tab.
+                            animate={{
+                                y: active ? -5 : isHovered ? -10 : -25,
+                            }}
+                            onHoverStart={() => onHoverStart(item.name)}
+                            onHoverEnd={onHoverEnd}
                             transition={{ type: "spring", stiffness: 300, damping: 20 }}
                             className={cn(
                                 // CSS animation for initial render (faster LCP)
@@ -52,7 +63,7 @@ export default function Navigation() {
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}
                             style={{
-                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' // Slightly steeper taper
+                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)'
                             }}
                         >
                             {item.name}

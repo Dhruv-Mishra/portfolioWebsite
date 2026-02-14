@@ -42,6 +42,14 @@ export default function MiniChat() {
     }
   }, []);
 
+  // Close the mini-chat when the user navigates to a different page
+  useEffect(() => {
+    if (isOpen) {
+      setIsOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to pathname changes, not isOpen
+  }, [pathname]);
+
   // Don't show on /chat page
   if (pathname === '/chat') return null;
   if (!hasMounted) return null;

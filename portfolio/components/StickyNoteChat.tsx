@@ -427,7 +427,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     )}>
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-6 pb-4 md:pt-4 md:pb-6 shrink-0">
+        <div className="text-center pt-2 pb-2 md:pt-4 md:pb-6 shrink-0">
           <m.h1
             initial={{ opacity: 0, rotate: -3 }}
             animate={{ opacity: 1, rotate: -2 }}
@@ -507,7 +507,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Input Area (sticky note style) ─── */}
       <div className={cn(
-        "shrink-0 px-2 md:px-6 pb-3 md:pb-4 pt-2",
+        "shrink-0 px-2 md:px-6 pb-14 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}

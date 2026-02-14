@@ -9,8 +9,18 @@ on:
         required: false
         default: false
         type: boolean
+      skip_deps:
+        description: 'Skip npm ci (code-only change, no package updates)'
+        required: false
+        default: false
+        type: boolean
       skip_build:
         description: 'Skip npm build (only update nginx config)'
+        required: false
+        default: false
+        type: boolean
+      skip_nginx:
+        description: 'Skip nginx config update & reload'
         required: false
         default: false
         type: boolean
@@ -35,7 +45,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DEPLOY_SCRIPT: /home/portfolioWebsite/portfolio/scripts/deploy.sh
+  # GIT_ROOT/portfolio/scripts/deploy.sh
+  DEPLOY_SCRIPT: /home/portfolioWebsite/portfolio/portfolio/scripts/deploy.sh
+  DOMAIN: whoisdhruv.com
 
 jobs:
   deploy:
@@ -59,7 +71,9 @@ jobs:
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Skip Git | ${{ inputs.skip_git || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skip Deps | ${{ inputs.skip_deps || 'false' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Skip Build | ${{ inputs.skip_build || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Skip Nginx | ${{ inputs.skip_nginx || 'false' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Force | ${{ inputs.force || 'false' }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Deploy to Server
@@ -76,6 +90,13 @@ jobs:
             echo "🚀 Starting deployment..."
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
+            # Verify deploy script exists
+            if [ ! -f "${{ env.DEPLOY_SCRIPT }}" ]; then
+              echo "❌ Deploy script not found: ${{ env.DEPLOY_SCRIPT }}"
+              echo "   Expected at: GIT_ROOT/portfolio/scripts/deploy.sh"
+              exit 1
+            fi
+            
             # Build deploy command with options
             DEPLOY_CMD="sudo ${{ env.DEPLOY_SCRIPT }}"
             
@@ -84,9 +105,19 @@ jobs:
               echo "ℹ️  Skipping git pull"
             fi
             
+            if [ "${{ inputs.skip_deps }}" = "true" ]; then
+              DEPLOY_CMD="$DEPLOY_CMD --skip-deps"
+              echo "ℹ️  Skipping npm ci"
+            fi
+            
             if [ "${{ inputs.skip_build }}" = "true" ]; then
               DEPLOY_CMD="$DEPLOY_CMD --skip-build"
               echo "ℹ️  Skipping build"
+            fi
+            
+            if [ "${{ inputs.skip_nginx }}" = "true" ]; then
+              DEPLOY_CMD="$DEPLOY_CMD --skip-nginx"
+              echo "ℹ️  Skipping nginx update"
             fi
             
             if [ "${{ inputs.force }}" = "true" ]; then
@@ -94,6 +125,7 @@ jobs:
               echo "ℹ️  Force mode enabled"
             fi
             
+            echo "Command: $DEPLOY_CMD"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             # Execute deployment
@@ -103,13 +135,55 @@ jobs:
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "✅ Deployment completed successfully!"
 
+      - name: Verify Deployment
+        if: success()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          command_timeout: 2m
+          script: |
+            echo "🔍 Post-deploy verification..."
+            
+            # Check systemd service
+            if sudo systemctl is-active --quiet portfolio; then
+              echo "✅ portfolio.service is running"
+            else
+              echo "❌ portfolio.service is NOT running"
+              sudo journalctl -u portfolio --no-pager -n 10
+              exit 1
+            fi
+            
+            # Check Next.js responds
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3000/ 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Next.js responding (HTTP $HTTP_CODE)"
+            else
+              echo "⚠️  Next.js returned HTTP $HTTP_CODE"
+            fi
+            
+            # Check nginx
+            if sudo systemctl is-active --quiet nginx; then
+              echo "✅ nginx is running"
+            else
+              echo "❌ nginx is NOT running"
+              exit 1
+            fi
+            
+            # Disk usage
+            echo ""
+            echo "📊 Disk usage:"
+            df -h / | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
+
       - name: Deployment Success
         if: success()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 **Website:** [https://whoisdhruv.com](https://whoisdhruv.com)" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Website:** [https://${{ env.DOMAIN }}](https://${{ env.DOMAIN }})" >> $GITHUB_STEP_SUMMARY
 
       - name: Deployment Failed
         if: failure()
@@ -121,5 +195,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
           echo "1. SSH into the server and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Run manually: \`sudo deploy-portfolio\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check service status: \`sudo systemctl status portfolio\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. View recent logs: \`sudo journalctl -u portfolio --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Run manually: \`sudo /home/portfolioWebsite/portfolio/portfolio/scripts/deploy.sh\`" >> $GITHUB_STEP_SUMMARY
 

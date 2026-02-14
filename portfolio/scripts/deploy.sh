@@ -28,10 +28,9 @@
 #                --force       Force deployment even with uncommitted changes
 #                --help        Show this help message
 #
-#       VERSION: 2.1.0
+#       VERSION: 2.2.0
 #       CREATED: 2026-01-06
-#       UPDATED: 2026-02-14  Rewritten for Next.js server mode
-#                             + nice values, process cleanup, log caps
+#       UPDATED: 2026-02-15  PM2 cleanup, SERVICE_USER fix, chown after build
 #
 #===============================================================================
 
@@ -58,7 +57,7 @@ readonly NEXTJS_PORT=3000
 
 # systemd service
 readonly SERVICE_NAME="portfolio"
-readonly SERVICE_USER="portfolioWebsite"   # Non-root user that owns the project
+readonly SERVICE_USER="ubuntu"              # Non-root user that owns the project
 
 # Process priority (nice: -20=highest, 19=lowest; ionice: 1=realtime, 2=best-effort, 3=idle)
 readonly SERVICE_NICE=5                     # Slightly below default for the live server
@@ -422,13 +421,47 @@ cleanup_old_artifacts() {
 kill_orphaned_processes() {
     log STEP "Killing orphaned processes on port ${NEXTJS_PORT}..."
 
-    # Stop the systemd service first (graceful SIGTERM)
+    # --- PM2 cleanup ---
+    # A previous deployment method may have left a PM2 God Daemon running.
+    # PM2 respawns killed processes, so we must stop it *before* killing PIDs.
+    if command -v pm2 &>/dev/null; then
+        log DEBUG "PM2 detected — checking for managed processes..."
+
+        # Try as SERVICE_USER first (pm2 is per-user)
+        local pm2_list
+        pm2_list=$(sudo -u "${SERVICE_USER}" pm2 jlist 2>/dev/null || echo "[]")
+
+        if echo "${pm2_list}" | grep -q '"name":"'"${SERVICE_NAME}"'"'; then
+            log WARN "Found PM2-managed '${SERVICE_NAME}' — stopping and deleting..."
+            sudo -u "${SERVICE_USER}" pm2 stop "${SERVICE_NAME}" 2>/dev/null || true
+            sudo -u "${SERVICE_USER}" pm2 delete "${SERVICE_NAME}" 2>/dev/null || true
+            sudo -u "${SERVICE_USER}" pm2 save --force 2>/dev/null || true
+        fi
+
+        # If no PM2 processes remain, kill the daemon entirely
+        local remaining
+        remaining=$(sudo -u "${SERVICE_USER}" pm2 jlist 2>/dev/null || echo "[]")
+        if [[ "${remaining}" == "[]" ]] || [[ -z "${remaining}" ]]; then
+            log DEBUG "No PM2 processes left — killing daemon..."
+            sudo -u "${SERVICE_USER}" pm2 kill 2>/dev/null || true
+        fi
+
+        # Remove PM2 startup hook if present (prevents respawn on reboot)
+        if ls /etc/systemd/system/pm2-* &>/dev/null; then
+            log WARN "Removing PM2 systemd startup hook..."
+            sudo env PATH="$PATH:/usr/bin" pm2 unstartup systemd -u "${SERVICE_USER}" --hp "/home/${SERVICE_USER}" 2>/dev/null || true
+            systemctl daemon-reload
+        fi
+    fi
+
+    # --- systemd service stop ---
     if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        log DEBUG "Stopping ${SERVICE_NAME}.service..."
         systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
         sleep 2
     fi
 
-    # Find and kill any leftover processes still holding the port
+    # --- Kill any leftover processes still holding the port ---
     local pids
     pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
         | grep -oP 'pid=\K[0-9]+' | sort -u || true)
@@ -453,18 +486,27 @@ kill_orphaned_processes() {
         fi
     fi
 
-    # Also kill any stale node processes running "next start" that aren't systemd-managed
+    # --- Kill stale "next start" processes not managed by systemd ---
     local stale_pids
     stale_pids=$(pgrep -f "next start.*--port ${NEXTJS_PORT}" 2>/dev/null || true)
     if [[ -n "${stale_pids}" ]]; then
         log WARN "Killing stale 'next start' processes: ${stale_pids}"
         echo "${stale_pids}" | xargs kill 2>/dev/null || true
         sleep 1
-        # Force kill if still around
         stale_pids=$(pgrep -f "next start.*--port ${NEXTJS_PORT}" 2>/dev/null || true)
         if [[ -n "${stale_pids}" ]]; then
             echo "${stale_pids}" | xargs kill -9 2>/dev/null || true
         fi
+    fi
+
+    # Final verification
+    local remaining_pids
+    remaining_pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+    if [[ -n "${remaining_pids}" ]]; then
+        log ERROR "Port ${NEXTJS_PORT} still occupied by PIDs: ${remaining_pids}"
+        log ERROR "Manual intervention required"
+        exit 1
     fi
 
     log SUCCESS "Port ${NEXTJS_PORT} is clear"
@@ -568,6 +610,11 @@ build_project() {
         log ERROR "Build succeeded but .next/ directory not found"
         exit 1
     fi
+
+    # Fix ownership: build runs as root (sudo), but the service runs as SERVICE_USER.
+    # Without this, Next.js cannot read its own build output.
+    log DEBUG "Fixing .next/ ownership to ${SERVICE_USER}:${SERVICE_USER}..."
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${NEXTJS_BUILD_DIR}"
 
     local file_count
     file_count=$(find "${NEXTJS_BUILD_DIR}" -type f | wc -l)

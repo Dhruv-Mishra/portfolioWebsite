@@ -7,6 +7,7 @@ import { useTerminal } from "@/context/TerminalContext";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
+import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
 
@@ -176,7 +177,7 @@ export default function Terminal() {
                     className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
                     onClick={() => {
                         // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
-                        if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                        if (typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT) {
                             inputRef.current?.focus();
                         }
                     }}

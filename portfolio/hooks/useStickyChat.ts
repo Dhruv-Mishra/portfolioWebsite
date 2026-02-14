@@ -145,6 +145,15 @@ export function useStickyChat(): UseStickyChat {
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const isStreamingRef = useRef(isStreaming);
+  isStreamingRef.current = isStreaming;
+
+  // Abort in-flight requests on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort('unmount');
+    };
+  }, []);
 
   // Load from localStorage after mount (hydration-safe)
   useEffect(() => {
@@ -173,7 +182,7 @@ export function useStickyChat(): UseStickyChat {
   const sendMessage = useCallback(async (content: string) => {
     // Enforce max user message length
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
-    if (!trimmed || isStreaming) return;
+    if (!trimmed || isStreamingRef.current) return;
 
     // Check conversation turn limit (read from ref to avoid dependency)
     const currentMessages = messagesRef.current;
@@ -363,7 +372,7 @@ export function useStickyChat(): UseStickyChat {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming]);
+  }, []); // Stable: reads all mutable state via refs
 
   // Add a user message + pre-built assistant response without calling the LLM.
   // Used for hardcoded suggestion actions (theme toggle, navigation, URL open).

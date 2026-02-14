@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useMotionValue } from 'framer-motion';
+import { MOBILE_BREAKPOINT } from '@/lib/constants';
 
 export function useMousePosition() {
     const x = useMotionValue(0);
@@ -7,7 +8,7 @@ export function useMousePosition() {
 
     useEffect(() => {
         // Skip mouse tracking on mobile — no mouse, no parallax needed
-        if (window.matchMedia('(max-width: 767px)').matches) return;
+        if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
 
         const handleMouseMove = (e: MouseEvent) => {
             x.set(e.clientX);

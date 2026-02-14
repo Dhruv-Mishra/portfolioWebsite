@@ -1,6 +1,7 @@
 import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
+import { APP_VERSION } from "@/lib/constants";
 
 export interface CommandResult {
     output: React.ReactNode;
@@ -110,7 +111,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         return {
             output: (
                 <span className="text-yellow-400">
-                    System already initialized. (v0.0.4) <br />
+                    System already initialized. ({APP_VERSION}) <br />
                     &gt; Uptime: <span className="text-gray-400">{uptime}s</span> <br />
                     &gt; Status: <span className="text-green-400">Stable</span>
                 </span>

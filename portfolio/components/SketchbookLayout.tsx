@@ -67,7 +67,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                         backgroundSize: '100px 100px',
                         backgroundImage: `linear-gradient(to right, #9ca3af 1px, transparent 1px),
                                       linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`,
-                        contain: 'strict'
+                        contain: 'strict',
+                        willChange: 'auto',
                     }}
                 />
 
@@ -76,8 +77,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Global Doodles - Conditionally rendered for performance */}
                 {!isMobile && (
                     <m.div
-                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden will-change-transform"
-                        style={{ x: xMove, y: yMove, contain: 'layout style' }}
+                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+                        style={{ x: xMove, y: yMove, contain: 'layout style', willChange: 'transform' }}
                         aria-hidden="true"
                     >
                         <LightbulbDoodle />

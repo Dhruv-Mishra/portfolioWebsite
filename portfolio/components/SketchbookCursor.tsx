@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 import { m, useMotionValue } from 'framer-motion';
+import { MOBILE_BREAKPOINT } from '@/lib/constants';
 
 import { useTheme } from 'next-themes';
 
@@ -45,7 +46,7 @@ export default function SketchbookCursor() {
         if (!mounted) return;
 
         // Don't run on mobile
-        if (window.matchMedia('(max-width: 767px)').matches) return;
+        if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
 
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);

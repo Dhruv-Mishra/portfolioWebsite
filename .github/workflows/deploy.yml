@@ -45,28 +45,46 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # GIT_ROOT/portfolio/scripts/deploy.sh
-  DEPLOY_SCRIPT: /home/portfolioWebsite/portfolio/portfolio/scripts/deploy.sh
   DOMAIN: whoisdhruv.com
+  # Each machine creates this symlink/alias pointing to its own deploy.sh.
+  # Setup: sudo ln -sf /path/to/your/deploy.sh /usr/local/bin/deployWebsite
+  DEPLOY_CMD: deployWebsite
 
 jobs:
   deploy:
-    name: Deploy to Production
+    name: Deploy to ${{ matrix.server.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
-    # Use GitHub environment for deployment protection rules (optional)
+
+    strategy:
+      # Don't cancel other servers if one fails
+      fail-fast: false
+      matrix:
+        server:
+          - name: production
+            host_secret: SERVER_HOST
+            user_secret: SERVER_USERNAME
+            key_secret: SERVER_SSH_KEY
+            port_secret: SERVER_PORT
+          # To add more machines, duplicate the block above:
+          # - name: staging
+          #   host_secret: STAGING_HOST
+          #   user_secret: STAGING_USERNAME
+          #   key_secret: STAGING_SSH_KEY
+          #   port_secret: STAGING_PORT
+
     environment:
-      name: production
-      url: https://whoisdhruv.com
-    
+      name: ${{ matrix.server.name }}
+      url: https://${{ env.DOMAIN }}
+
     steps:
-      - name: Deployment Started
+      - name: Deployment Started (${{ matrix.server.name }})
         run: |
-          echo "## 🚀 Deployment Started" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Deployment Started — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Server | ${{ matrix.server.name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
@@ -76,77 +94,82 @@ jobs:
           echo "| Skip Nginx | ${{ inputs.skip_nginx || 'false' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Force | ${{ inputs.force || 'false' }} |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Deploy to Server
+      - name: Deploy to ${{ matrix.server.name }}
         id: deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
           script_stop: true
           command_timeout: 12m
           script: |
-            echo "🚀 Starting deployment..."
+            echo "🚀 Deploying to ${{ matrix.server.name }}..."
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # Verify deploy script exists
-            if [ ! -f "${{ env.DEPLOY_SCRIPT }}" ]; then
-              echo "❌ Deploy script not found: ${{ env.DEPLOY_SCRIPT }}"
-              echo "   Expected at: GIT_ROOT/portfolio/scripts/deploy.sh"
+
+            # Verify the deployWebsite command exists on this machine
+            if ! command -v ${{ env.DEPLOY_CMD }} &>/dev/null; then
+              echo "❌ '${{ env.DEPLOY_CMD }}' command not found on this machine."
+              echo ""
+              echo "Setup required (run once per machine):"
+              echo "  sudo ln -sf /path/to/your/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
+              echo ""
+              echo "Example:"
+              echo "  sudo ln -sf /home/ubuntu/portfolio/portfolio/scripts/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
               exit 1
             fi
-            
+
             # Build deploy command with options
-            DEPLOY_CMD="sudo ${{ env.DEPLOY_SCRIPT }}"
-            
+            DEPLOY="sudo ${{ env.DEPLOY_CMD }}"
+
             if [ "${{ inputs.skip_git }}" = "true" ]; then
-              DEPLOY_CMD="$DEPLOY_CMD --skip-git"
+              DEPLOY="$DEPLOY --skip-git"
               echo "ℹ️  Skipping git pull"
             fi
-            
+
             if [ "${{ inputs.skip_deps }}" = "true" ]; then
-              DEPLOY_CMD="$DEPLOY_CMD --skip-deps"
+              DEPLOY="$DEPLOY --skip-deps"
               echo "ℹ️  Skipping npm ci"
             fi
-            
+
             if [ "${{ inputs.skip_build }}" = "true" ]; then
-              DEPLOY_CMD="$DEPLOY_CMD --skip-build"
+              DEPLOY="$DEPLOY --skip-build"
               echo "ℹ️  Skipping build"
             fi
-            
+
             if [ "${{ inputs.skip_nginx }}" = "true" ]; then
-              DEPLOY_CMD="$DEPLOY_CMD --skip-nginx"
+              DEPLOY="$DEPLOY --skip-nginx"
               echo "ℹ️  Skipping nginx update"
             fi
-            
+
             if [ "${{ inputs.force }}" = "true" ]; then
-              DEPLOY_CMD="$DEPLOY_CMD --force"
+              DEPLOY="$DEPLOY --force"
               echo "ℹ️  Force mode enabled"
             fi
-            
-            echo "Command: $DEPLOY_CMD"
+
+            echo "Command: $DEPLOY"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
+
             # Execute deployment
-            $DEPLOY_CMD
-            
+            $DEPLOY
+
             echo ""
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "✅ Deployment completed successfully!"
+            echo "✅ ${{ matrix.server.name }}: Deployment completed successfully!"
 
-      - name: Verify Deployment
+      - name: Verify Deployment (${{ matrix.server.name }})
         if: success()
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 2m
           script: |
-            echo "🔍 Post-deploy verification..."
-            
+            echo "🔍 Post-deploy verification (${{ matrix.server.name }})..."
+
             # Check systemd service
             if sudo systemctl is-active --quiet portfolio; then
               echo "✅ portfolio.service is running"
@@ -155,7 +178,7 @@ jobs:
               sudo journalctl -u portfolio --no-pager -n 10
               exit 1
             fi
-            
+
             # Check Next.js responds
             HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3000/ 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
@@ -163,7 +186,7 @@ jobs:
             else
               echo "⚠️  Next.js returned HTTP $HTTP_CODE"
             fi
-            
+
             # Check nginx
             if sudo systemctl is-active --quiet nginx; then
               echo "✅ nginx is running"
@@ -171,25 +194,25 @@ jobs:
               echo "❌ nginx is NOT running"
               exit 1
             fi
-            
+
             # Disk usage
             echo ""
             echo "📊 Disk usage:"
             df -h / | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
 
-      - name: Deployment Success
+      - name: Deployment Success (${{ matrix.server.name }})
         if: success()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ ${{ matrix.server.name }}: Deployment Successful" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🌐 **Website:** [https://${{ env.DOMAIN }}](https://${{ env.DOMAIN }})" >> $GITHUB_STEP_SUMMARY
 
-      - name: Deployment Failed
+      - name: Deployment Failed (${{ matrix.server.name }})
         if: failure()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ ${{ matrix.server.name }}: Deployment Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -197,5 +220,5 @@ jobs:
           echo "1. SSH into the server and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
           echo "2. Check service status: \`sudo systemctl status portfolio\`" >> $GITHUB_STEP_SUMMARY
           echo "3. View recent logs: \`sudo journalctl -u portfolio --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
-          echo "4. Run manually: \`sudo /home/portfolioWebsite/portfolio/portfolio/scripts/deploy.sh\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Run manually: \`sudo deployWebsite\`" >> $GITHUB_STEP_SUMMARY
 

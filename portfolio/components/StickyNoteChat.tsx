@@ -136,7 +136,7 @@ const StickyNote = memo(function StickyNote({
   isStreaming?: boolean;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || message.openUrl);
+  const hasAction = !!(message.navigateTo || message.themeAction || message.openUrl || message.feedbackAction);
   const rotation = useRef(
     isUser
       ? (Math.random() * 1 + 0.5) // +0.5° to +1.5°
@@ -278,7 +278,7 @@ const INITIAL_SUGGESTIONS = [
   "What's your tech stack?",
   "Tell me about Fluent UI",
   "Toggle the theme",
-  "Take me to the projects page",
+  "Report a bug",
 ];
 
 // Follow-up suggestions shown after each LLM response (rotated randomly)
@@ -295,6 +295,7 @@ const FOLLOWUP_SUGGESTIONS = [
   "Open the Fluent UI repo",
   "Toggle the theme",
   "Open your LinkedIn",
+  "Report a bug",
 ];
 
 // Suggestions that trigger actions (used to show the Zap indicator)
@@ -306,6 +307,7 @@ const ACTION_SUGGESTIONS = new Set([
   "Open the Fluent UI repo",
   "Toggle the theme",
   "Open your LinkedIn",
+  "Report a bug",
 ]);
 
 // Pre-built responses for hardcoded action suggestions — avoids an LLM call.
@@ -320,6 +322,7 @@ const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').Cha
   "Show me your resume PDF": { content: "Here's my resume!", openUrl: '/resources/resume.pdf' },
   "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrl: 'https://github.com/microsoft/fluentui-android' },
   "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrl: 'https://www.linkedin.com/in/dhruv-mishra-id/' },
+  "Report a bug": { content: "Opening the feedback form for you ~", feedbackAction: true },
 };
 
 // Pick N random items from an array without duplicates
@@ -348,7 +351,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastMsg || lastMsg.isOld || isStreaming || lastMsg.role !== 'assistant') return;
     if (handledActionsRef.current.has(lastMsg.id)) return;
 
-    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || lastMsg.openUrl;
+    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || lastMsg.openUrl || lastMsg.feedbackAction;
     if (!hasAction) return;
 
     handledActionsRef.current.add(lastMsg.id);
@@ -362,6 +365,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         } else {
           setTheme(lastMsg.themeAction);
         }
+      }
+
+      // Open feedback modal (dispatch to global instance in SketchbookLayout)
+      if (lastMsg.feedbackAction) {
+        window.dispatchEvent(new CustomEvent('open-feedback'));
       }
 
       // Open URL in new tab — handle popup blockers
@@ -586,6 +594,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           </div>
         </m.div>
       </div>
+
     </div>
   );
 }

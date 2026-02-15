@@ -15,6 +15,7 @@ export interface ChatMessage {
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
   openUrl?: string; // External URL to open in new tab
   openUrlFailed?: boolean; // True if popup was blocked — show fallback link
+  feedbackAction?: boolean; // True when [[FEEDBACK]] tag is parsed
 }
 
 interface UseStickyChat {
@@ -36,6 +37,7 @@ function generateId(): string {
 const NAVIGATE_RE = /\[\[NAVIGATE:(\/[a-z-]*)\]\]/i;
 const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
 const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/i;
+const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
 
 // Map OPEN: keys to actual URLs
 const OPEN_LINKS: Record<string, string> = {
@@ -60,6 +62,7 @@ interface ParsedActions {
   navigateTo?: string;
   themeAction?: 'dark' | 'light' | 'toggle';
   openUrl?: string;
+  feedbackAction?: boolean;
 }
 
 function parseActions(text: string): ParsedActions {
@@ -96,11 +99,19 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(OPEN_RE, '').trim();
   }
 
-  return { content, navigateTo, themeAction, openUrl };
+  // Parse [[FEEDBACK]]
+  let feedbackAction: boolean | undefined;
+  const feedbackMatch = content.match(FEEDBACK_RE);
+  if (feedbackMatch) {
+    feedbackAction = true;
+    content = content.replace(FEEDBACK_RE, '').trim();
+  }
+
+  return { content, navigateTo, themeAction, openUrl, feedbackAction };
 }
 
 // Strip all action tags for display (used during streaming)
-const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN):[^\]]*\]\]/gi;
+const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN|FEEDBACK)[^\]]*\]\]/gi;
 function stripActionTags(text: string): string {
   return text.replace(ALL_ACTION_TAGS_RE, '').trim();
 }
@@ -315,15 +326,15 @@ export function useStickyChat(): UseStickyChat {
       // Final parse: extract all actions and clean content
       clearTimeout(timeoutId);
       if (accumulated) {
-        const { content: finalContent, navigateTo, themeAction, openUrl } = parseActions(accumulated);
+        const { content: finalContent, navigateTo, themeAction, openUrl, feedbackAction } = parseActions(accumulated);
         // If the LLM only sent a tag with no text, provide a short acknowledgement
-        const hasAction = !!(navigateTo || themeAction || openUrl);
+        const hasAction = !!(navigateTo || themeAction || openUrl || feedbackAction);
         const displayContent = finalContent
           || (hasAction ? 'On it ~' : accumulated);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, navigateTo, themeAction, openUrl }
+              ? { ...m, content: displayContent, navigateTo, themeAction, openUrl, feedbackAction }
               : m
           )
         );

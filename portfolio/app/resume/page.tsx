@@ -3,6 +3,7 @@
 import { m } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
 
 export default function ResumePage() {
     const isMobile = useIsMobile();
@@ -29,13 +30,13 @@ export default function ResumePage() {
                 }}
             >
                 {/* Tape - Top Left */}
-                <div className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={{ backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))', clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)' }} />
+                <div className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Top Right */}
-                <div className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={{ backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))', clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)' }} />
+                <div className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Bottom Center */}
-                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={{ backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))', clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)' }} />
+                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 <div className="w-full h-full bg-white relative z-10 overflow-hidden">
                     {/* 

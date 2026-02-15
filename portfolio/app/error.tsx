@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { m } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
 
 export default function Error({
   error,
@@ -25,7 +26,7 @@ export default function Error({
         className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl transform relative"
       >
         {/* Tape decoration */}
-        <div className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6" style={{ backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))', clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)' }} />
+        <div className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6" style={TAPE_STYLE_DECOR} />
         
         <div className="text-center relative z-10">
           <m.div

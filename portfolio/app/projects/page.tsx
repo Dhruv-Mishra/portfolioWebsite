@@ -2,6 +2,7 @@
 import { m } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
 
 interface Project {
     name: string;
@@ -171,8 +172,7 @@ export default function Projects() {
                                 style={{
                                     left: `${tapX}%`,
                                     transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`,
-                                    backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
-                                    clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
+                                    ...TAPE_STYLE_DECOR,
                                 }}
                             />
 
@@ -221,8 +221,7 @@ export default function Projects() {
                                         className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
                                         style={{
                                             transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`,
-                                            backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
-                                            clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)'
+                                            ...TAPE_STYLE_DECOR,
                                         }}
                                     />
 

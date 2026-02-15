@@ -61,4 +61,8 @@ export const RATE_LIMITS = {
     maxRequests: 20,
     windowMs: 300000, // 20 messages per 5 minutes
   },
+  FEEDBACK: {
+    maxRequests: 3,
+    windowMs: 3600000, // 3 submissions per hour
+  },
 } as const;

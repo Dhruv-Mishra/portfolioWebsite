@@ -27,6 +27,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">skills     - View Tech Stack</p>
                 <p className="pl-4 text-emerald-400">resume     - View Resume</p>
                 <p className="pl-4 text-emerald-400">chat       - Talk to AI-me</p>
+                <p className="pl-4 text-emerald-400">feedback   - Report a bug / send feedback</p>
             </div>
         )
     }),
@@ -220,5 +221,15 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
     date: () => ({ output: new Date().toString() }),
     sudo: () => ({ output: <span className="text-red-500 font-bold">Permission denied: You are not authorized.</span> }),
+    feedback: () => ({
+        output: (
+            <span className="text-emerald-300">Opening feedback form... ✏️</span>
+        ),
+        action: () => {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('open-feedback'));
+            }
+        }
+    }),
     clear: () => ({ output: "" })
 });

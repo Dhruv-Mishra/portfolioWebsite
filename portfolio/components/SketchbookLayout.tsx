@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect, useCallback } from 'react';
 import { m, useSpring, useTransform } from 'framer-motion';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
@@ -10,12 +11,22 @@ import SocialSidebar from './SocialSidebar';
 import { useMousePosition } from '@/hooks/useMousePosition';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
 const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
     const { x, y } = useMousePosition();
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+    // Listen for 'open-feedback' custom event (from terminal command)
+    const openFeedback = useCallback(() => setFeedbackOpen(true), []);
+    const closeFeedback = useCallback(() => setFeedbackOpen(false), []);
+    useEffect(() => {
+        window.addEventListener('open-feedback', openFeedback);
+        return () => window.removeEventListener('open-feedback', openFeedback);
+    }, [openFeedback]);
 
     // Smooth out the mouse movement - Optimized for performance
     const springX = useSpring(x, { stiffness: 40, damping: 25, restDelta: 0.01 });
@@ -107,6 +118,10 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </main>
 
                 <SocialSidebar />
+
+                {/* Feedback icon (floating bottom-right) + modal */}
+                <FeedbackTab onClick={openFeedback} />
+                <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} />
             </div>
         </div>
     );

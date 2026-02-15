@@ -13,8 +13,9 @@ export interface ChatMessage {
   isOld?: boolean; // Messages loaded from localStorage
   navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
-  openUrl?: string; // External URL to open in new tab
-  openUrlFailed?: boolean; // True if popup was blocked — show fallback link
+  openUrls?: string[]; // External URLs to open in new tabs (parsed from [[OPEN:key]])
+  openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
+  feedbackAction?: boolean; // True when [[FEEDBACK]] tag is parsed
 }
 
 interface UseStickyChat {
@@ -24,7 +25,7 @@ interface UseStickyChat {
   sendMessage: (content: string) => Promise<void>;
   addLocalExchange: (userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => void;
   clearMessages: () => void;
-  markOpenUrlFailed: (messageId: string) => void;
+  markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
 }
 
@@ -35,7 +36,9 @@ function generateId(): string {
 // Parse and strip action tags from message content
 const NAVIGATE_RE = /\[\[NAVIGATE:(\/[a-z-]*)\]\]/i;
 const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
-const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/i;
+const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/gi;  // global: find ALL OPEN tags
+const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
+const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
 
 // Map OPEN: keys to actual URLs
 const OPEN_LINKS: Record<string, string> = {
@@ -59,14 +62,15 @@ interface ParsedActions {
   content: string;
   navigateTo?: string;
   themeAction?: 'dark' | 'light' | 'toggle';
-  openUrl?: string;
+  openUrls?: string[];
+  feedbackAction?: boolean;
 }
 
 function parseActions(text: string): ParsedActions {
   let content = text;
   let navigateTo: string | undefined;
   let themeAction: ('dark' | 'light' | 'toggle') | undefined;
-  let openUrl: string | undefined;
+  const openUrls: string[] = [];
 
   // Parse [[NAVIGATE:/path]]
   const navMatch = content.match(NAVIGATE_RE);
@@ -86,21 +90,35 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(THEME_RE, '').trim();
   }
 
-  // Parse [[OPEN:key]]
-  const openMatch = content.match(OPEN_RE);
-  if (openMatch) {
-    const key = openMatch[1].toLowerCase();
+  // Parse ALL [[OPEN:key]] tags (supports multiple)
+  const openMatches = [...text.matchAll(OPEN_RE)];
+  for (const match of openMatches) {
+    const key = match[1].toLowerCase();
     if (OPEN_LINKS[key]) {
-      openUrl = OPEN_LINKS[key];
+      openUrls.push(OPEN_LINKS[key]);
     }
-    content = content.replace(OPEN_RE, '').trim();
+  }
+  content = content.replace(OPEN_SINGLE_RE, '').trim();
+
+  // Parse [[FEEDBACK]]
+  let feedbackAction: boolean | undefined;
+  const feedbackMatch = content.match(FEEDBACK_RE);
+  if (feedbackMatch) {
+    feedbackAction = true;
+    content = content.replace(FEEDBACK_RE, '').trim();
   }
 
-  return { content, navigateTo, themeAction, openUrl };
+  return {
+    content,
+    navigateTo,
+    themeAction,
+    openUrls: openUrls.length > 0 ? openUrls : undefined,
+    feedbackAction,
+  };
 }
 
 // Strip all action tags for display (used during streaming)
-const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN):[^\]]*\]\]/gi;
+const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN|FEEDBACK)[^\]]*\]\]/gi;
 function stripActionTags(text: string): string {
   return text.replace(ALL_ACTION_TAGS_RE, '').trim();
 }
@@ -172,11 +190,13 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []);
 
-  // Save to localStorage whenever messages change
+  // Save to localStorage when messages change, debounced and skipped while streaming
   useEffect(() => {
-    if (hasHydrated.current && messages.length > 0) {
-      saveMessages(messages);
-    }
+    if (!hasHydrated.current || messages.length === 0) return;
+    // Skip saves during streaming — we'll save once streaming ends
+    if (isStreamingRef.current) return;
+    const id = setTimeout(() => saveMessages(messages), 300);
+    return () => clearTimeout(id);
   }, [messages]);
 
   const sendMessage = useCallback(async (content: string) => {
@@ -274,6 +294,23 @@ export function useStickyChat(): UseStickyChat {
       const decoder = new TextDecoder();
       let accumulated = '';
       let buffer = '';
+      let rafId: number | null = null;
+      let dirty = false;
+
+      // Flush accumulated content to React state at most once per frame
+      const flush = () => {
+        rafId = null;
+        if (!dirty) return;
+        dirty = false;
+        const displayContent = stripActionTags(accumulated);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, content: displayContent }
+              : m
+          )
+        );
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -296,34 +333,34 @@ export function useStickyChat(): UseStickyChat {
             const chunkContent = parsed.choices?.[0]?.delta?.content || '';
             if (chunkContent) {
               accumulated += chunkContent;
-              // Strip action tags from displayed content during streaming
-              const displayContent = stripActionTags(accumulated);
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === assistantId
-                    ? { ...m, content: displayContent }
-                    : m
-                )
-              );
+              dirty = true;
             }
           } catch {
             // Skip malformed JSON chunks
           }
         }
+
+        // Schedule a single RAF flush per read batch instead of per chunk
+        if (dirty && rafId === null) {
+          rafId = requestAnimationFrame(flush);
+        }
       }
+
+      // Cancel any pending RAF and do a final synchronous flush
+      if (rafId !== null) cancelAnimationFrame(rafId);
 
       // Final parse: extract all actions and clean content
       clearTimeout(timeoutId);
       if (accumulated) {
-        const { content: finalContent, navigateTo, themeAction, openUrl } = parseActions(accumulated);
+        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(accumulated);
         // If the LLM only sent a tag with no text, provide a short acknowledgement
-        const hasAction = !!(navigateTo || themeAction || openUrl);
+        const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction);
         const displayContent = finalContent
           || (hasAction ? 'On it ~' : accumulated);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, navigateTo, themeAction, openUrl }
+              ? { ...m, content: displayContent, navigateTo, themeAction, openUrls, feedbackAction }
               : m
           )
         );
@@ -400,9 +437,9 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []);
 
-  const markOpenUrlFailed = useCallback((messageId: string) => {
+  const markOpenUrlsFailed = useCallback((messageId: string) => {
     setMessages(prev =>
-      prev.map(m => m.id === messageId ? { ...m, openUrlFailed: true } : m)
+      prev.map(m => m.id === messageId ? { ...m, openUrlsFailed: true } : m)
     );
   }, []);
 
@@ -413,7 +450,7 @@ export function useStickyChat(): UseStickyChat {
     sendMessage,
     addLocalExchange,
     clearMessages,
-    markOpenUrlFailed,
+    markOpenUrlsFailed,
     rateLimitRemaining,
   };
 }

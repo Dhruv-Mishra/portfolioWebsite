@@ -43,6 +43,7 @@ next-env.d.ts
 # Per-machine deployment (each VM has its own version)
 scripts/deploy.sh
 nginx-cloudflare.conf
+optimize_vm.sh
 
 #other
 *.md

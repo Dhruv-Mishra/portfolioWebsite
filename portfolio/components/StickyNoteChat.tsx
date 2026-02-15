@@ -136,7 +136,7 @@ const StickyNote = memo(function StickyNote({
   isStreaming?: boolean;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || message.openUrl || message.feedbackAction);
+  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
   const rotation = useRef(
     isUser
       ? (Math.random() * 1 + 0.5) // +0.5° to +1.5°
@@ -243,16 +243,21 @@ const StickyNote = memo(function StickyNote({
         </div>
       )}
 
-      {/* Fallback link when popup was blocked */}
-      {message.openUrl && message.openUrlFailed && (
-        <a
-          href={message.openUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 font-hand text-xs text-blue-700 dark:text-blue-400 underline underline-offset-2 decoration-dotted hover:decoration-solid"
-        >
-          Open link here ~
-        </a>
+      {/* Fallback links when popup was blocked */}
+      {message.openUrls && message.openUrlsFailed && (
+        <div className="mt-2 flex flex-col gap-1">
+          {message.openUrls.map((url, i) => (
+            <a
+              key={i}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-hand text-xs text-blue-700 dark:text-blue-400 underline underline-offset-2 decoration-dotted hover:decoration-solid"
+            >
+              Open link{message.openUrls!.length > 1 ? ` ${i + 1}` : ''} here ~
+            </a>
+          ))}
+        </div>
       )}
     </m.div>
   );
@@ -318,10 +323,10 @@ const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').Cha
   "Switch to dark mode": { content: "Switching to dark mode for you ~", themeAction: 'dark' },
   "Toggle the theme": { content: "Toggling the theme ~", themeAction: 'toggle' },
   "Take me to the projects page": { content: "Here are my projects!", navigateTo: '/projects' },
-  "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrl: 'https://github.com/Dhruv-Mishra' },
-  "Show me your resume PDF": { content: "Here's my resume!", openUrl: '/resources/resume.pdf' },
-  "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrl: 'https://github.com/microsoft/fluentui-android' },
-  "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrl: 'https://www.linkedin.com/in/dhruv-mishra-id/' },
+  "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrls: ['https://github.com/Dhruv-Mishra'] },
+  "Show me your resume PDF": { content: "Here's my resume!", openUrls: ['/resources/resume.pdf'] },
+  "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrls: ['https://github.com/microsoft/fluentui-android'] },
+  "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrls: ['https://www.linkedin.com/in/dhruv-mishra-id/'] },
   "Report a bug": { content: "Opening the feedback form for you ~", feedbackAction: true },
 };
 
@@ -335,7 +340,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isStreaming, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlFailed, rateLimitRemaining } = useStickyChat();
+  const { messages, isStreaming, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
@@ -351,7 +356,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastMsg || lastMsg.isOld || isStreaming || lastMsg.role !== 'assistant') return;
     if (handledActionsRef.current.has(lastMsg.id)) return;
 
-    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || lastMsg.openUrl || lastMsg.feedbackAction;
+    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || (lastMsg.openUrls && lastMsg.openUrls.length > 0) || lastMsg.feedbackAction;
     if (!hasAction) return;
 
     handledActionsRef.current.add(lastMsg.id);
@@ -372,12 +377,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         window.dispatchEvent(new CustomEvent('open-feedback'));
       }
 
-      // Open URL in new tab — handle popup blockers
-      if (lastMsg.openUrl) {
-        const popup = window.open(lastMsg.openUrl, '_blank', 'noopener,noreferrer');
-        if (!popup) {
-          // Popup was blocked — mark the message so a fallback link is shown
-          markOpenUrlFailed(lastMsg.id);
+      // Open URLs in new tabs — handle popup blockers
+      if (lastMsg.openUrls && lastMsg.openUrls.length > 0) {
+        let anyBlocked = false;
+        for (const url of lastMsg.openUrls) {
+          const popup = window.open(url, '_blank', 'noopener,noreferrer');
+          if (!popup) anyBlocked = true;
+        }
+        if (anyBlocked) {
+          markOpenUrlsFailed(lastMsg.id);
         }
       }
 
@@ -388,7 +396,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [messages, isStreaming, router, setTheme, resolvedTheme, markOpenUrlFailed]);
+  }, [messages, isStreaming, router, setTheme, resolvedTheme, markOpenUrlsFailed]);
 
   // Rotate suggestions after each new assistant response
   useEffect(() => {

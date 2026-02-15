@@ -63,36 +63,30 @@ const PaperAirplaneSuccess = () => (
 );
 
 // ═════════════════════════════════════════════════
-// ─── Floating Tab Trigger (bottom-left torn paper) ─────────
+// ─── Floating Feedback Icon (right side, minimal) ──────────
 // ═════════════════════════════════════════════════
 export function FeedbackTab({ onClick }: { onClick: () => void }) {
   return (
     <m.button
-      initial={{ x: -60 }}
-      animate={{ x: 0 }}
-      transition={{ delay: 1.5, type: 'spring', stiffness: 200, damping: 20 }}
-      whileHover={{ x: 4, scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      initial={{ opacity: 0, scale: 0.6 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 1.5, type: 'spring', stiffness: 260, damping: 20 }}
+      whileHover={{ scale: 1.15, rotate: -8 }}
+      whileTap={{ scale: 0.9 }}
       onClick={onClick}
       className={cn(
-        "fixed bottom-24 md:bottom-8 left-0 z-40",
-        "bg-[var(--c-paper)] border-r-2 border-t-2 border-b-2 border-[var(--c-grid)]/40",
-        "rounded-r-lg shadow-md",
-        "px-2 py-3 md:px-3 md:py-4",
-        "font-hand text-xs md:text-sm text-[var(--c-ink)] opacity-60 hover:opacity-100",
-        "transition-opacity duration-200",
-        "flex flex-col items-center gap-1",
-        "writing-mode-vertical",
+        "fixed bottom-20 md:bottom-8 right-4 md:right-8 z-40",
+        "w-10 h-10 md:w-11 md:h-11 rounded-full",
+        "bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50",
+        "shadow-md hover:shadow-lg",
+        "flex items-center justify-center",
+        "text-[var(--c-ink)] opacity-50 hover:opacity-100",
+        "transition-all duration-200",
       )}
       title="Send feedback"
       aria-label="Open feedback form"
-      style={{
-        writingMode: 'vertical-rl',
-        textOrientation: 'mixed',
-      }}
     >
-      <Bug size={14} className="rotate-90 mb-1" />
-      <span>feedback</span>
+      <MessageSquare size={18} className="md:w-5 md:h-5" />
     </m.button>
   );
 }

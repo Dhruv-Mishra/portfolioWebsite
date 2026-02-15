@@ -13,8 +13,8 @@ export interface ChatMessage {
   isOld?: boolean; // Messages loaded from localStorage
   navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
-  openUrl?: string; // External URL to open in new tab
-  openUrlFailed?: boolean; // True if popup was blocked — show fallback link
+  openUrls?: string[]; // External URLs to open in new tabs (parsed from [[OPEN:key]])
+  openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when [[FEEDBACK]] tag is parsed
 }
 
@@ -25,7 +25,7 @@ interface UseStickyChat {
   sendMessage: (content: string) => Promise<void>;
   addLocalExchange: (userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => void;
   clearMessages: () => void;
-  markOpenUrlFailed: (messageId: string) => void;
+  markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
 }
 
@@ -36,7 +36,8 @@ function generateId(): string {
 // Parse and strip action tags from message content
 const NAVIGATE_RE = /\[\[NAVIGATE:(\/[a-z-]*)\]\]/i;
 const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
-const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/i;
+const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/gi;  // global: find ALL OPEN tags
+const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
 const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
 
 // Map OPEN: keys to actual URLs
@@ -61,7 +62,7 @@ interface ParsedActions {
   content: string;
   navigateTo?: string;
   themeAction?: 'dark' | 'light' | 'toggle';
-  openUrl?: string;
+  openUrls?: string[];
   feedbackAction?: boolean;
 }
 
@@ -69,7 +70,7 @@ function parseActions(text: string): ParsedActions {
   let content = text;
   let navigateTo: string | undefined;
   let themeAction: ('dark' | 'light' | 'toggle') | undefined;
-  let openUrl: string | undefined;
+  const openUrls: string[] = [];
 
   // Parse [[NAVIGATE:/path]]
   const navMatch = content.match(NAVIGATE_RE);
@@ -89,15 +90,15 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(THEME_RE, '').trim();
   }
 
-  // Parse [[OPEN:key]]
-  const openMatch = content.match(OPEN_RE);
-  if (openMatch) {
-    const key = openMatch[1].toLowerCase();
+  // Parse ALL [[OPEN:key]] tags (supports multiple)
+  const openMatches = [...text.matchAll(OPEN_RE)];
+  for (const match of openMatches) {
+    const key = match[1].toLowerCase();
     if (OPEN_LINKS[key]) {
-      openUrl = OPEN_LINKS[key];
+      openUrls.push(OPEN_LINKS[key]);
     }
-    content = content.replace(OPEN_RE, '').trim();
   }
+  content = content.replace(OPEN_SINGLE_RE, '').trim();
 
   // Parse [[FEEDBACK]]
   let feedbackAction: boolean | undefined;
@@ -107,7 +108,13 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(FEEDBACK_RE, '').trim();
   }
 
-  return { content, navigateTo, themeAction, openUrl, feedbackAction };
+  return {
+    content,
+    navigateTo,
+    themeAction,
+    openUrls: openUrls.length > 0 ? openUrls : undefined,
+    feedbackAction,
+  };
 }
 
 // Strip all action tags for display (used during streaming)
@@ -326,15 +333,15 @@ export function useStickyChat(): UseStickyChat {
       // Final parse: extract all actions and clean content
       clearTimeout(timeoutId);
       if (accumulated) {
-        const { content: finalContent, navigateTo, themeAction, openUrl, feedbackAction } = parseActions(accumulated);
+        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(accumulated);
         // If the LLM only sent a tag with no text, provide a short acknowledgement
-        const hasAction = !!(navigateTo || themeAction || openUrl || feedbackAction);
+        const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction);
         const displayContent = finalContent
           || (hasAction ? 'On it ~' : accumulated);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, navigateTo, themeAction, openUrl, feedbackAction }
+              ? { ...m, content: displayContent, navigateTo, themeAction, openUrls, feedbackAction }
               : m
           )
         );
@@ -411,9 +418,9 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []);
 
-  const markOpenUrlFailed = useCallback((messageId: string) => {
+  const markOpenUrlsFailed = useCallback((messageId: string) => {
     setMessages(prev =>
-      prev.map(m => m.id === messageId ? { ...m, openUrlFailed: true } : m)
+      prev.map(m => m.id === messageId ? { ...m, openUrlsFailed: true } : m)
     );
   }, []);
 
@@ -424,7 +431,7 @@ export function useStickyChat(): UseStickyChat {
     sendMessage,
     addLocalExchange,
     clearMessages,
-    markOpenUrlFailed,
+    markOpenUrlsFailed,
     rateLimitRemaining,
   };
 }

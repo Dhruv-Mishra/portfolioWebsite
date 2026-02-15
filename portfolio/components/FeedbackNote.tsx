@@ -2,23 +2,25 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Bug, Lightbulb, MessageSquare, Send, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 
 // ─── Types ──────────────────────────────────────────────────────────────
-type FeedbackCategory = 'bug' | 'idea' | 'other';
+type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
 type FeedbackState = 'idle' | 'submitting' | 'success' | 'error';
 
 const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; color: string }[] = [
   { id: 'bug', label: 'Bug', icon: Bug, color: 'bg-[#ff9b9b] text-red-900 border-red-300' },
-  { id: 'idea', label: 'Idea', icon: Lightbulb, color: 'bg-[#fff9c4] text-yellow-900 border-yellow-300' },
+  { id: 'idea', label: 'Idea', icon: Lightbulb, color: 'bg-[#ffe082] text-amber-900 border-amber-400' },
+  { id: 'kudos', label: 'Kudos', icon: Heart, color: 'bg-[#f8bbd0] text-pink-900 border-pink-300' },
   { id: 'other', label: 'Other', icon: MessageSquare, color: 'bg-[#c5e1a5] text-green-900 border-green-300' },
 ];
 
 const MAX_MESSAGE_LENGTH = 1000;
+const FEEDBACK_DRAFT_KEY = 'dhruv-feedback-draft';
 
 // ─── Tape Strip (reused from StickyNoteChat) ────────────────────────────
 const TapeStrip = ({ className }: { className?: string }) => (
@@ -75,7 +77,7 @@ export function FeedbackTab({ onClick }: { onClick: () => void }) {
       whileTap={{ scale: 0.9 }}
       onClick={onClick}
       className={cn(
-        "fixed bottom-20 md:bottom-8 right-4 md:right-8 z-40",
+        "fixed bottom-[8.5rem] md:bottom-20 right-4 md:right-8 z-40",
         "w-10 h-10 md:w-11 md:h-11 rounded-full",
         "bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50",
         "shadow-md hover:shadow-lg",
@@ -107,6 +109,35 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pathname = usePathname();
   const { resolvedTheme } = useTheme();
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem(FEEDBACK_DRAFT_KEY);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.message) setMessage(parsed.message);
+        if (parsed.category) setCategory(parsed.category);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Save draft to localStorage when message or category changes
+  useEffect(() => {
+    try {
+      if (message || category !== 'bug') {
+        localStorage.setItem(FEEDBACK_DRAFT_KEY, JSON.stringify({ message, category }));
+      } else {
+        localStorage.removeItem(FEEDBACK_DRAFT_KEY);
+      }
+    } catch { /* ignore */ }
+  }, [message, category]);
+
+  const clearDraft = useCallback(() => {
+    setMessage('');
+    setCategory('bug');
+    try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch { /* ignore */ }
+  }, []);
 
   // Focus textarea when opened
   useEffect(() => {
@@ -173,6 +204,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       }
 
       setState('success');
+      // Clear draft on successful send
+      try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch { /* ignore */ }
       // Auto-close after success
       setTimeout(() => {
         setMessage('');
@@ -239,7 +272,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             </button>
 
             {/* Content */}
-            <div className="p-5 pt-8 pb-6 md:p-7 md:pt-10 md:pb-8">
+            <div className="p-4 pt-7 pb-4 md:p-5 md:pt-9 md:pb-5">
               {/* Success state */}
               {state === 'success' ? (
                 <m.div
@@ -261,33 +294,42 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                   <WavyUnderline />
 
                   {/* Category tabs */}
-                  <div className="flex justify-center gap-2 mt-4 mb-4">
+                  <div className="flex justify-center gap-2 mt-3 mb-3">
                     {CATEGORIES.map((cat) => {
                       const active = category === cat.id;
                       return (
-                        <button
+                        <m.button
                           key={cat.id}
                           onClick={() => setCategory(cat.id)}
+                          animate={{ scale: active ? 1.08 : 1 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                           className={cn(
-                            "px-3 py-1.5 rounded-b-lg border-x-2 border-b-2 font-hand font-bold text-sm transition-all duration-150",
+                            "px-4 py-1.5 rounded-full border-2 font-hand font-bold text-sm",
                             cat.color,
                             active
-                              ? "scale-105 shadow-md opacity-100"
-                              : "opacity-60 hover:opacity-85 scale-95",
+                              ? "shadow-md opacity-100 border-[var(--c-grid)]/50"
+                              : "opacity-50 hover:opacity-80 border-transparent",
                           )}
-                          style={{
-                            clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)',
-                          }}
                         >
-                          <cat.icon size={13} className="inline mr-1 -mt-0.5" />
+                          <cat.icon size={14} className="inline mr-1 -mt-0.5" />
                           {cat.label}
-                        </button>
+                        </m.button>
                       );
                     })}
                   </div>
 
-                  {/* Text area */}
+                  {/* Text area with spiral notepad */}
                   <div className="relative">
+                    {/* Spiral binding holes */}
+                    <div className="absolute top-0 left-0 right-0 h-6 bg-[var(--c-paper)] border-2 border-b-0 border-[var(--c-grid)]/30 rounded-t-md z-10 flex items-center justify-evenly px-2">
+                      {Array.from({ length: 15 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-2.5 h-2.5 flex-shrink-0 rounded-full border-2 border-[var(--c-grid)]/40 bg-[var(--c-paper)]"
+                          style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }}
+                        />
+                      ))}
+                    </div>
                     <textarea
                       ref={textareaRef}
                       value={message}
@@ -298,23 +340,26 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           ? "What went wrong? Where did it happen?"
                           : category === 'idea'
                           ? "What would make this site better?"
+                          : category === 'kudos'
+                          ? "What do you like about this site?"
                           : "What's on your mind?"
                       }
-                      rows={6}
+                      rows={12}
                       disabled={state === 'submitting'}
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
-                        "p-3 font-hand text-base text-[var(--c-ink)]",
+                        "px-3 pb-3 font-hand text-sm md:text-base text-[var(--c-ink)]",
                         "placeholder:text-[var(--c-ink)]/30",
                         "focus:outline-none focus:border-[var(--c-grid)]/60",
                         "resize-none transition-colors",
                         "disabled:opacity-50",
                       )}
                       style={{
-                        backgroundImage: 'repeating-linear-gradient(transparent, transparent 27px, var(--c-grid) 27px, var(--c-grid) 28px)',
-                        backgroundPosition: '0 8px',
-                        lineHeight: '28px',
-                        paddingTop: '8px',
+                        backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, var(--c-grid) 23px, var(--c-grid) 24px)',
+                        backgroundAttachment: 'local',
+                        backgroundPosition: '0 26px',
+                        lineHeight: '24px',
+                        paddingTop: '26px',
                       }}
                     />
                     {/* Character count */}
@@ -323,48 +368,62 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                     </span>
                   </div>
 
-                  {/* Auto-detected page */}
-                  <p className="text-xs text-[var(--c-ink)] opacity-30 mt-1 ml-1">
-                    Page: {pathname} &middot; {resolvedTheme} mode
-                  </p>
+                  {/* Action bar: page info, clear, send */}
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <p className="text-xs text-[var(--c-ink)] opacity-30 truncate mr-2">
+                      {pathname} &middot; {resolvedTheme} &middot; Ctrl+Enter
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {message.length > 0 && (
+                        <m.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={clearDraft}
+                          className={cn(
+                            "flex items-center gap-1 px-2.5 py-1.5 rounded-md",
+                            "border-2 border-dashed border-[var(--c-grid)]/40",
+                            "text-[var(--c-ink)] opacity-50 hover:opacity-80",
+                            "font-hand text-sm transition-opacity",
+                          )}
+                          title="Clear text"
+                        >
+                          <Trash2 size={13} />
+                          Clear
+                        </m.button>
+                      )}
+                      <m.button
+                        whileHover={{ scale: 1.05, rotate: -1 }}
+                        whileTap={{ scale: 0.92 }}
+                        onClick={handleSubmit}
+                        disabled={!message.trim() || state === 'submitting'}
+                        className={cn(
+                          "flex items-center gap-1.5 px-4 py-1.5 rounded-md",
+                          "bg-[var(--c-ink)] text-[var(--c-paper)]",
+                          "font-hand font-bold text-sm",
+                          "shadow-sm transition-opacity",
+                          "disabled:opacity-30 disabled:cursor-not-allowed",
+                          state === 'submitting' && "animate-pulse",
+                        )}
+                      >
+                        <Send size={14} />
+                        {state === 'submitting' ? 'Sending...' : 'Send'}
+                      </m.button>
+                    </div>
+                  </div>
 
                   {/* Error message */}
                   {errorMsg && (
                     <m.p
                       initial={{ opacity: 0, y: -5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400 mt-2"
+                      className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400 mt-1"
                     >
                       <AlertTriangle size={14} />
                       {errorMsg}
                     </m.p>
                   )}
-
-                  {/* Submit button */}
-                  <div className="flex justify-end mt-4">
-                    <m.button
-                      whileHover={{ scale: 1.05, rotate: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleSubmit}
-                      disabled={!message.trim() || state === 'submitting'}
-                      className={cn(
-                        "flex items-center gap-2 px-5 py-2.5 rounded-md",
-                        "bg-[var(--c-ink)] text-[var(--c-paper)]",
-                        "font-hand font-bold text-base",
-                        "shadow-md transition-opacity",
-                        "disabled:opacity-40 disabled:cursor-not-allowed",
-                        state === 'submitting' && "animate-pulse",
-                      )}
-                    >
-                      <Send size={16} />
-                      {state === 'submitting' ? 'Sending...' : 'Send note'}
-                    </m.button>
-                  </div>
-
-                  {/* Keyboard shortcut hint */}
-                  <p className="text-xs text-[var(--c-ink)] opacity-20 text-center mt-3">
-                    Ctrl+Enter to send
-                  </p>
                 </>
               )}
             </div>

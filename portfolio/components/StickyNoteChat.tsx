@@ -8,6 +8,7 @@ import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { TAPE_STYLE } from '@/lib/constants';
 
 // ─── Typewriter hook: reveals text gradually (only for new messages) ───
 function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed = 18) {
@@ -85,10 +86,7 @@ const TypingEllipsis = () => (
 const TapeStrip = ({ className }: { className?: string }) => (
   <div
     className={cn("absolute -top-2 left-1/2 -translate-x-1/2 w-16 md:w-24 h-5 md:h-6 shadow-sm z-20", className)}
-    style={{
-      backgroundColor: 'var(--tape-color, rgba(210, 180, 140, 0.55))',
-      clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 98% 10%, 100% 15%, 98% 20%, 100% 25%, 98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 2% 90%, 0% 85%, 2% 80%, 0% 75%, 2% 70%, 0% 65%, 2% 60%, 0% 55%, 2% 50%, 0% 45%, 2% 40%, 0% 35%, 2% 30%, 0% 25%, 2% 20%, 0% 15%, 2% 10%, 0% 5%)',
-    }}
+    style={TAPE_STYLE}
   />
 );
 

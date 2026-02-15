@@ -41,18 +41,20 @@ function isRateLimited(ip: string): { limited: boolean; retryAfter: number } {
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────
-const VALID_CATEGORIES = ['bug', 'idea', 'other'] as const;
+const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
 type FeedbackCategory = typeof VALID_CATEGORIES[number];
 
 const LABEL_MAP: Record<FeedbackCategory, string> = {
   bug: 'bug',
   idea: 'enhancement',
+  kudos: 'kudos',
   other: 'feedback',
 };
 
 const TITLE_PREFIX: Record<FeedbackCategory, string> = {
   bug: '🐛 Bug',
   idea: '💡 Idea',
+  kudos: '💜 Kudos',
   other: '📝 Feedback',
 };
 

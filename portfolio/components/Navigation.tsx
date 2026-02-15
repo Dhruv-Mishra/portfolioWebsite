@@ -32,7 +32,6 @@ export default function Navigation() {
         <nav
             className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 z-50 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
             aria-label="Main navigation"
-            role="navigation"
         >
             {LINKS.map((item, i) => {
                 const active = pathname === item.href;

@@ -19,9 +19,10 @@ const patrickHand = Patrick_Hand({
 });
 
 const firaCode = Fira_Code({
+  weight: "400",
   variable: "--font-code",
   subsets: ["latin"],
-  display: "swap", // Prevent FOIT for faster text rendering
+  display: "optional", // Fira Code is secondary (monospace only) — don't block render
 });
 
 export const metadata: Metadata = {
@@ -88,8 +89,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Preconnect to critical third-party origins */}
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
         <link rel="manifest" href="/manifest.json" />

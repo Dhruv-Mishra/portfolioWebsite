@@ -1,6 +1,7 @@
 // app/api/chat/route.ts — Server-side proxy for LLM API (keeps API key secret)
 import { NextRequest } from 'next/server';
-import { DHRUV_SYSTEM_PROMPT, CHAT_CONFIG } from '@/lib/chatContext';
+import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
+import { CHAT_CONFIG } from '@/lib/chatContext';
 
 export const runtime = 'nodejs';
 

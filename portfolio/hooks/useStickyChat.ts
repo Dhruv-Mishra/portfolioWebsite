@@ -190,11 +190,13 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []);
 
-  // Save to localStorage whenever messages change
+  // Save to localStorage when messages change, debounced and skipped while streaming
   useEffect(() => {
-    if (hasHydrated.current && messages.length > 0) {
-      saveMessages(messages);
-    }
+    if (!hasHydrated.current || messages.length === 0) return;
+    // Skip saves during streaming — we'll save once streaming ends
+    if (isStreamingRef.current) return;
+    const id = setTimeout(() => saveMessages(messages), 300);
+    return () => clearTimeout(id);
   }, [messages]);
 
   const sendMessage = useCallback(async (content: string) => {
@@ -292,6 +294,23 @@ export function useStickyChat(): UseStickyChat {
       const decoder = new TextDecoder();
       let accumulated = '';
       let buffer = '';
+      let rafId: number | null = null;
+      let dirty = false;
+
+      // Flush accumulated content to React state at most once per frame
+      const flush = () => {
+        rafId = null;
+        if (!dirty) return;
+        dirty = false;
+        const displayContent = stripActionTags(accumulated);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, content: displayContent }
+              : m
+          )
+        );
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -314,21 +333,21 @@ export function useStickyChat(): UseStickyChat {
             const chunkContent = parsed.choices?.[0]?.delta?.content || '';
             if (chunkContent) {
               accumulated += chunkContent;
-              // Strip action tags from displayed content during streaming
-              const displayContent = stripActionTags(accumulated);
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === assistantId
-                    ? { ...m, content: displayContent }
-                    : m
-                )
-              );
+              dirty = true;
             }
           } catch {
             // Skip malformed JSON chunks
           }
         }
+
+        // Schedule a single RAF flush per read batch instead of per chunk
+        if (dirty && rafId === null) {
+          rafId = requestAnimationFrame(flush);
+        }
       }
+
+      // Cancel any pending RAF and do a final synchronous flush
+      if (rafId !== null) cancelAnimationFrame(rafId);
 
       // Final parse: extract all actions and clean content
       clearTimeout(timeoutId);

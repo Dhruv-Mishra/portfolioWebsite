@@ -113,7 +113,6 @@ body {
   color: var(--c-ink);
   font-family: var(--font-hand), cursive;
   overflow-x: hidden;
-  cursor: none;
 }
 
 /* Note Utility Classes - Moved to utilities layer for correct precedence */
@@ -289,9 +288,21 @@ body {
     50% { transform: translateY(-4px); }
   }
 
+  /* CSS theme icon swap animation (replaces framer-motion AnimatePresence) */
+  .animate-theme-icon {
+    animation: themeIconIn 0.2s ease-out both;
+  }
+
+  @keyframes themeIconIn {
+    from { opacity: 0; transform: rotate(90deg) scale(0.5); }
+    to { opacity: 1; transform: rotate(0deg) scale(1); }
+  }
+
 }
 
-/* Cursor handling: show normal cursor on mobile, hide on desktop */
+/* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.
+   Must use * selector because Tailwind v4 preflight sets cursor: default on *,
+   which overrides inherited cursor: none from body. */
 @media (min-width: 768px) {
   * {
     cursor: none !important;

@@ -22,6 +22,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
     // Listen for 'open-feedback' custom event (from terminal command)
     const openFeedback = useCallback(() => setFeedbackOpen(true), []);
+    const closeFeedback = useCallback(() => setFeedbackOpen(false), []);
     useEffect(() => {
         window.addEventListener('open-feedback', openFeedback);
         return () => window.removeEventListener('open-feedback', openFeedback);
@@ -119,8 +120,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <SocialSidebar />
 
                 {/* Feedback icon (floating bottom-right) + modal */}
-                <FeedbackTab onClick={() => setFeedbackOpen(true)} />
-                <FeedbackNote isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+                <FeedbackTab onClick={openFeedback} />
+                <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} />
             </div>
         </div>
     );

@@ -99,7 +99,9 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
     return () => { cancelRef.current++; };
   }, [text, skip, speed, eraseSpeed]);
 
-  return { displayed, isTyping, isFiller: isFiller && (phase !== 'idle' || displayed === text) };
+  // Filler styling stays on during erase phase (old filler disappearing)
+  // and switches off when typing of the real response begins
+  return { displayed, isTyping, isFiller: phase === 'erasing' || (isFiller && (phase !== 'idle' || displayed === text)) };
 }
 
 // ─── Typing Ellipsis — bouncing dots with scale wave, Framer Motion ───
@@ -738,7 +740,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             <TapeStrip className="!w-20 !md:w-24 !h-5 !md:h-7" />
           )}
 
-          <div className="flex items-end gap-2">
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- delegates to textarea focus for mobile UX */}
+          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
             <textarea
               ref={inputRef}
               value={input}

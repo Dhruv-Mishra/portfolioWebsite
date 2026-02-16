@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { m, useSpring, useTransform } from 'framer-motion';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
     BugDoodle, PaperPlaneDoodle, SaturnDoodle,
@@ -8,18 +7,14 @@ import {
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import SocialSidebar from './SocialSidebar';
-import { useMousePosition } from '@/hooks/useMousePosition';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useSoftwareRenderer } from '@/hooks/useGpuTier';
 import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
 const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
-    const isSoftware = useSoftwareRenderer();
-    const { x, y } = useMousePosition();
     const [feedbackOpen, setFeedbackOpen] = useState(false);
 
     // Listen for 'open-feedback' custom event (from terminal command)
@@ -29,14 +24,6 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
         window.addEventListener('open-feedback', openFeedback);
         return () => window.removeEventListener('open-feedback', openFeedback);
     }, [openFeedback]);
-
-    // Smooth out the mouse movement - Optimized for performance
-    const springX = useSpring(x, { stiffness: 40, damping: 25, restDelta: 0.01 });
-    const springY = useSpring(y, { stiffness: 40, damping: 25, restDelta: 0.01 });
-
-    // Parallax movement - disabled on mobile to save CPU
-    const xMove = useTransform(springX, [0, 4000], [20, -20]);
-    const yMove = useTransform(springY, [0, 4000], [20, -20]);
 
     return (
         <div className="h-[100dvh] w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
@@ -87,28 +74,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
-                {/* Global Doodles - Conditionally rendered for performance */}
-                {/* Parallax disabled on software renderers — continuous spring-driven
-                    transforms are very expensive without GPU compositing */}
-                {!isMobile && !isSoftware && (
-                    <m.div
-                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
-                        style={{ x: xMove, y: yMove, contain: 'layout style', willChange: 'transform' }}
-                        aria-hidden="true"
-                    >
-                        <LightbulbDoodle />
-                        <CloudDoodle />
-                        <PencilDoodle />
-                        <StarDoodle />
-                        <BugDoodle />
-                        <SmileyDoodle />
-                        <LightningDoodle />
-                        <PaperPlaneDoodle />
-                        <SaturnDoodle />
-                    </m.div>
-                )}
-                {/* Static doodles on software renderer (no parallax, no m.div) */}
-                {!isMobile && isSoftware && (
+                {/* Global Doodles (static — parallax removed for performance) */}
+                {!isMobile && (
                     <div
                         className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
                         aria-hidden="true"

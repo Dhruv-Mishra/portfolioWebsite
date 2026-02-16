@@ -5,6 +5,12 @@ import { MOBILE_BREAKPOINT } from '@/lib/constants';
 
 import { useTheme } from 'next-themes';
 
+// Trail point with timestamp for time-based aging (framerate-independent)
+interface TrailPoint { x: number; y: number; t: number }
+
+// Pre-allocated ring buffer for trail points — zero GC pressure
+const MAX_POINTS = 128;
+
 export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,9 +36,10 @@ export default function SketchbookCursor() {
     const mouseX = useMotionValue(-100);
     const mouseY = useMotionValue(-100);
 
-    // Trail state - use start index instead of shift() for O(1) removal
-    const pointsRef = useRef<{ x: number, y: number, age: number }[]>([]);
-    const pointsStartRef = useRef(0);
+    // Ring buffer for trail points — fixed-size, no allocations during render
+    const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
+    const headRef = useRef(0);  // next write index
+    const tailRef = useRef(0);  // oldest live index
     const lastMoveTime = useRef(0);
     const isVisibleRef = useRef(true);
 
@@ -48,30 +55,49 @@ export default function SketchbookCursor() {
         // Don't run on mobile
         if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
 
+        const ring = ringRef.current;
+
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
-            lastMoveTime.current = Date.now();
+            const now = performance.now();
+            lastMoveTime.current = now;
 
-            // Add point for trail with distance-based throttling
-            const points = pointsRef.current;
-            const lastPoint = points[points.length - 1];
-            const dist = lastPoint ? Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) : Infinity;
-            // Min distance: skip tiny movements. Max distance: break the trail on
-            // sudden jumps (e.g. fast flicks) so it doesn't draw a long ugly line.
-            if (dist > 12 && dist < 80) {
-                points.push({ x: e.clientX, y: e.clientY, age: 0 });
-                // Compact array periodically to prevent unbounded growth
-                const start = pointsStartRef.current;
-                if (start > 50) {
-                    pointsRef.current = points.slice(start);
-                    pointsStartRef.current = 0;
+            // Distance-based throttling against last written point
+            const prevIdx = (headRef.current - 1 + MAX_POINTS) % MAX_POINTS;
+            const prev = headRef.current !== tailRef.current ? ring[prevIdx] : null;
+            const dx = prev ? e.clientX - prev.x : Infinity;
+            const dy = prev ? e.clientY - prev.y : Infinity;
+            const dist2 = dx * dx + dy * dy; // avoid sqrt
+
+            // Min 5px (25 sq), Max 80px (6400 sq)
+            if (dist2 > 25 && dist2 < 6400) {
+                const idx = headRef.current;
+                // Reuse or create point object in ring slot
+                if (ring[idx]) {
+                    ring[idx].x = e.clientX;
+                    ring[idx].y = e.clientY;
+                    ring[idx].t = now;
+                } else {
+                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
                 }
-            } else if (dist >= 80) {
-                // Large jump — start a new trail segment from current position
-                // Expire all old points immediately
-                pointsStartRef.current = points.length;
-                points.push({ x: e.clientX, y: e.clientY, age: 0 });
+                headRef.current = (idx + 1) % MAX_POINTS;
+                // If head catches tail, advance tail (drop oldest point)
+                if (headRef.current === tailRef.current) {
+                    tailRef.current = (tailRef.current + 1) % MAX_POINTS;
+                }
+            } else if (dist2 >= 6400) {
+                // Large jump — clear trail, start fresh
+                tailRef.current = headRef.current;
+                const idx = headRef.current;
+                if (ring[idx]) {
+                    ring[idx].x = e.clientX;
+                    ring[idx].y = e.clientY;
+                    ring[idx].t = now;
+                } else {
+                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
+                }
+                headRef.current = (idx + 1) % MAX_POINTS;
             }
         };
 
@@ -122,38 +148,36 @@ export default function SketchbookCursor() {
         // Initial resize
         handleResize();
 
-        // Canvas Drawing Loop
+        // Canvas Drawing Loop — runs at native refresh rate (60/120/144fps)
         let animationFrameId: number;
         const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
+        const ctx = canvas?.getContext('2d', { alpha: true });
 
         let idleFrameCount = 0;
-        let frameCount = 0;
+
+        // Trail lifetime in ms — time-based so it's framerate-independent
+        const TRAIL_LIFE_DARK = 60;    // chalk: very short trail
+        const TRAIL_LIFE_LIGHT = 80;   // pencil: short trail
+
         const renderTrail = () => {
             if (!canvas || !ctx) return;
 
-            const start = pointsStartRef.current;
-            const activePoints = pointsRef.current.length - start;
+            const now = performance.now();
+            let tail = tailRef.current;
+            const head = headRef.current;
+            const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
 
-            // Early return if not visible to save CPU, but only after trail fades
+            // Early return if not visible and no trail to fade
             if (!isVisibleRef.current && activePoints === 0) {
                 animationFrameId = requestAnimationFrame(renderTrail);
                 return;
             }
 
-            // Run at ~30fps (skip every other frame) to reduce CPU/GPU load
-            frameCount++;
-            if (frameCount % 2 !== 0 && activePoints > 0) {
-                animationFrameId = requestAnimationFrame(renderTrail);
-                return;
-            }
-
-            // Throttle RAF loop when cursor is idle and no trail to render
-            const idleTime = Date.now() - lastMoveTime.current;
-            if (idleTime > 150 && activePoints === 0) {
-                // Use slower polling when idle via frame skipping (avoids setTimeout leak)
+            // Throttle when idle and nothing to draw
+            const idleTime = now - lastMoveTime.current;
+            if (idleTime > 200 && activePoints === 0) {
                 idleFrameCount++;
-                if (idleFrameCount < 6) { // ~100ms at 60fps
+                if (idleFrameCount < 6) {
                     animationFrameId = requestAnimationFrame(renderTrail);
                     return;
                 }
@@ -166,46 +190,52 @@ export default function SketchbookCursor() {
             const dpr = window.devicePixelRatio || 1;
             ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
-            // Determine stroke style based on theme (resolvedTheme via ref)
             const isDark = themeRef.current === 'dark';
+            const trailLife = isDark ? TRAIL_LIFE_DARK : TRAIL_LIFE_LIGHT;
 
-            // Draw trail
-            ctx.beginPath();
-
-            if (isDark) {
-                // Chalk Style: Thinner stroke, no shadowBlur
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-                ctx.lineWidth = 5;
-                ctx.shadowBlur = 0;
-                ctx.shadowColor = 'transparent';
-            } else {
-                // Pencil Style: Thin, Sharp, Graphite
-                ctx.strokeStyle = 'rgba(60, 60, 60, 0.1)';
-                ctx.lineWidth = 2;
-                ctx.shadowBlur = 0;
-                ctx.shadowColor = 'transparent';
-            }
-
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            const points = pointsRef.current;
-            const isDarkTrail = themeRef.current === 'dark';
-            const maxAge = isDarkTrail ? 5 : 3;
-            if (points.length - pointsStartRef.current > 1) {
-                ctx.moveTo(points[pointsStartRef.current].x, points[pointsStartRef.current].y);
-
-                for (let i = pointsStartRef.current + 1; i < points.length; i++) {
-                    const point = points[i];
-                    point.age += 1;
-
-                    if (point.age > maxAge) {
-                        pointsStartRef.current = i; // O(1) instead of O(n) shift()
-                        continue;
-                    }
-
-                    ctx.lineTo(point.x, point.y);
+            // Expire old points from tail
+            while (tail !== head) {
+                if (now - ring[tail].t > trailLife) {
+                    tail = (tail + 1) % MAX_POINTS;
+                } else {
+                    break;
                 }
+            }
+            tailRef.current = tail;
+
+            // Single-path draw: 1 beginPath + 1 stroke = 1 GPU draw call
+            const count = (head - tail + MAX_POINTS) % MAX_POINTS;
+            if (count > 1) {
+                ctx.beginPath();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (isDark) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                    ctx.lineWidth = 4;
+                } else {
+                    ctx.strokeStyle = 'rgba(60,60,60,0.12)';
+                    ctx.lineWidth = 2;
+                }
+
+                // Start from oldest live point
+                const p0 = ring[tail];
+                ctx.moveTo(p0.x, p0.y);
+
+                let i = (tail + 1) % MAX_POINTS;
+                let prev = p0;
+
+                while (i !== head) {
+                    const pt = ring[i];
+                    // Quadratic bezier through midpoints for smooth curves
+                    const mx = (prev.x + pt.x) * 0.5;
+                    const my = (prev.y + pt.y) * 0.5;
+                    ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+                    prev = pt;
+                    i = (i + 1) % MAX_POINTS;
+                }
+                // Final segment to last point
+                ctx.lineTo(prev.x, prev.y);
                 ctx.stroke();
             }
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,45 +16,38 @@ import { TAPE_STYLE } from '@/lib/constants';
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
 function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void) {
-  const [displayed, setDisplayed] = useState(skip ? text : '');
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
+  const textNodeRef = useRef<HTMLSpanElement>(null);
   const prevTextRef = useRef(skip ? text : '');
-  const cancelRef = useRef(0); // Incrementing token — any interval checks this to self-cancel
+  const cancelRef = useRef(0);
   const eraseSpeed = Math.max(speed * 0.6, 8);
-  // Stable ref for callback so the effect doesn't re-fire when identity changes
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
   const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
-    // Bump cancel token to kill any running intervals from previous effect
     const token = ++cancelRef.current;
     const cancelled = () => cancelRef.current !== token;
+    const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
 
     if (skip) {
-      setDisplayed(text);
+      setDOM(text);
       setPhase('idle');
       prevTextRef.current = text;
       return;
     }
 
-    // Empty text and nothing previously shown — noop
     if (text === '' && !prevTextRef.current) {
       setPhase('idle');
       return;
     }
 
-    // Same text — no work
     if (text === prevTextRef.current) return;
 
     const prevText = prevTextRef.current;
     const newText = text;
-    // Don't update prevTextRef here — only on successful typing completion.
-    // This prevents React strict-mode double-invocation from breaking:
-    // if cleanup cancels the first run, the second run still sees prevText !== text.
 
-    // Helper: type newText from char 0
     const startTyping = () => {
       setPhase('typing');
       let i = 0;
@@ -62,46 +55,40 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
         if (cancelled()) { clearInterval(id); return; }
         i++;
         if (i >= newText.length) {
-          setDisplayed(newText);
-          prevTextRef.current = newText; // Mark as completed
+          setDOM(newText);
+          prevTextRef.current = newText;
           setPhase('idle');
           clearInterval(id);
-          // Signal completion (only for non-filler final text)
           if (!isFiller) onCompleteRef.current?.();
         } else {
-          setDisplayed(newText.slice(0, i));
+          setDOM(newText.slice(0, i));
         }
       }, speed);
     };
 
-    // No previous text — just type forward
     if (!prevText) {
       startTyping();
       return;
     }
 
-    // Erase old text, then type new text
     setPhase('erasing');
     let eraseLen = prevText.length;
     const eraseId = setInterval(() => {
       if (cancelled()) { clearInterval(eraseId); return; }
       eraseLen--;
       if (eraseLen <= 0) {
-        setDisplayed('');
+        setDOM('');
         clearInterval(eraseId);
         if (!cancelled()) startTyping();
       } else {
-        setDisplayed(prevText.slice(0, eraseLen));
+        setDOM(prevText.slice(0, eraseLen));
       }
     }, eraseSpeed);
 
-    // Cleanup: bump token so all intervals self-cancel on next tick
     return () => { cancelRef.current++; };
   }, [text, skip, speed, eraseSpeed]);
 
-  // Filler styling stays on during erase phase (old filler disappearing)
-  // and switches off when typing of the real response begins
-  return { displayed, isTyping, isFiller: phase === 'erasing' || (isFiller && (phase !== 'idle' || displayed === text)) };
+  return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
 }
 
 // ─── Typing Ellipsis — bouncing dots with scale wave, Framer Motion ───
@@ -192,14 +179,13 @@ const StickyNote = memo(function StickyNote({
   ).current;
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
-  const { displayed, isFiller: isDisplayingFiller } = useTypewriter(
+  const { textNodeRef, isFiller: isDisplayingFiller } = useTypewriter(
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
     18,
     onTypewriterDone,
   );
-  const showContent = isUser ? message.content : displayed;
   const showPencil = !isUser && isLoading;
 
   return (
@@ -255,7 +241,11 @@ const StickyNote = memo(function StickyNote({
         // Prevent note from collapsing to 0 height during erase→type transition
         style={{ minHeight: '1.5em' }}
         >
-          {showContent}
+          {isUser ? (
+            message.content
+          ) : (
+            <span ref={textNodeRef}>{message.isOld ? message.content : ''}</span>
+          )}
         </div>
       </div>
 

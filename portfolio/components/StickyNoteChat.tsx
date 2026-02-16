@@ -10,73 +10,98 @@ import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import { TAPE_STYLE } from '@/lib/constants';
 
-// ─── Typewriter hook: reveals text gradually (only for new messages) ───
-function useTypewriter(text: string, isStreaming: boolean, skip: boolean, speed = 18) {
+// ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
+// Supports erase→type transitions for filler text swaps and filler→real response.
+// Uses a cancelled ref + single interval to avoid leaked interval races.
+type TypewriterPhase = 'idle' | 'typing' | 'erasing';
+
+function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18) {
   const [displayed, setDisplayed] = useState(skip ? text : '');
-  const [isTyping, setIsTyping] = useState(false);
-  const prevLenRef = useRef(skip ? text.length : 0);
-  const displayedLenRef = useRef(skip ? text.length : 0);
+  const [phase, setPhase] = useState<TypewriterPhase>('idle');
+  const prevTextRef = useRef(skip ? text : '');
+  const cancelRef = useRef(0); // Incrementing token — any interval checks this to self-cancel
+  const eraseSpeed = Math.max(speed * 0.6, 8);
 
-  // Keep ref in sync without triggering re-effects
-  useEffect(() => {
-    displayedLenRef.current = displayed.length;
-  });
+  const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
-    // Skip entirely for old/restored messages
+    // Bump cancel token to kill any running intervals from previous effect
+    const token = ++cancelRef.current;
+    const cancelled = () => cancelRef.current !== token;
+
     if (skip) {
       setDisplayed(text);
-      setIsTyping(false);
-      prevLenRef.current = text.length;
-      return undefined;
+      setPhase('idle');
+      prevTextRef.current = text;
+      return;
     }
 
-    // If streaming is actively pushing new chars, just show everything
-    // (the LLM stream is already gradual)
-    if (isStreaming) {
-      setDisplayed(text);
-      prevLenRef.current = text.length;
-      setIsTyping(true);
-      return undefined;
+    // Empty text and nothing previously shown — noop
+    if (text === '' && !prevTextRef.current) {
+      setPhase('idle');
+      return;
     }
 
-    // Stream just finished — typewrite any remaining text
-    const currentDisplayedLen = displayedLenRef.current;
-    if (text.length > 0 && prevLenRef.current === 0 && currentDisplayedLen < text.length) {
-      setIsTyping(true);
-      let i = currentDisplayedLen;
-      const interval = setInterval(() => {
+    // Same text — no work
+    if (text === prevTextRef.current) return;
+
+    const prevText = prevTextRef.current;
+    const newText = text;
+    prevTextRef.current = newText;
+
+    // Helper: type newText from char 0
+    const startTyping = () => {
+      setPhase('typing');
+      let i = 0;
+      const id = setInterval(() => {
+        if (cancelled()) { clearInterval(id); return; }
         i++;
-        if (i >= text.length) {
-          setDisplayed(text);
-          setIsTyping(false);
-          prevLenRef.current = text.length;
-          clearInterval(interval);
+        if (i >= newText.length) {
+          setDisplayed(newText);
+          setPhase('idle');
+          clearInterval(id);
         } else {
-          setDisplayed(text.slice(0, i));
+          setDisplayed(newText.slice(0, i));
         }
       }, speed);
-      return () => clearInterval(interval);
+    };
+
+    // No previous text — just type forward
+    if (!prevText) {
+      startTyping();
+      return;
     }
 
-    // Normal case: show full text
-    setDisplayed(text);
-    setIsTyping(false);
-    prevLenRef.current = text.length;
-    return undefined;
-  }, [text, isStreaming, skip, speed]);
+    // Erase old text, then type new text
+    setPhase('erasing');
+    let eraseLen = prevText.length;
+    const eraseId = setInterval(() => {
+      if (cancelled()) { clearInterval(eraseId); return; }
+      eraseLen--;
+      if (eraseLen <= 0) {
+        setDisplayed('');
+        clearInterval(eraseId);
+        if (!cancelled()) startTyping();
+      } else {
+        setDisplayed(prevText.slice(0, eraseLen));
+      }
+    }, eraseSpeed);
 
-  return { displayed, isTyping };
+    // Cleanup: bump token so all intervals self-cancel on next tick
+    return () => { cancelRef.current++; };
+  }, [text, skip, speed, eraseSpeed]);
+
+  return { displayed, isTyping, isFiller: isFiller && (phase !== 'idle' || displayed === text) };
 }
 
-// ─── Typing Ellipsis (shown while AI is streaming) — CSS animation to avoid framer-motion overhead ───
+// ─── Typing Ellipsis — bouncing dots with scale wave, pure CSS ───
 const TypingEllipsis = () => (
-  <span className="inline-flex items-center gap-0.5 ml-1 align-baseline">
+  <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline">
     {[0, 1, 2].map(i => (
       <span
         key={i}
-        className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-60 animate-typing-dot"
-        style={{ animationDelay: `${i * 150}ms` }}
+        className="inline-block w-[5px] h-[5px] rounded-full bg-current opacity-70 animate-bounce-dot"
+        style={{ animationDelay: `${i * 160}ms` }}
       />
     ))}
   </span>
@@ -128,10 +153,10 @@ const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?:
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
-  isStreaming = false,
+  isLoading = false,
 }: {
   message: ChatMessage;
-  isStreaming?: boolean;
+  isLoading?: boolean;
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
@@ -141,14 +166,14 @@ const StickyNote = memo(function StickyNote({
       : -(Math.random() * 1 + 0.5) // -0.5° to -1.5°
   ).current;
 
-  // Typewriter effect for AI notes (skip for old/restored messages)
-  const { displayed, isTyping } = useTypewriter(
+  // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
+  const { displayed, isTyping, isFiller: isDisplayingFiller } = useTypewriter(
     message.content,
-    isUser ? false : isStreaming,
-    isUser || !!message.isOld, // skip typewriter for user msgs and old msgs
+    !!message.isFiller,
+    isUser || !!message.isOld,
   );
   const showContent = isUser ? message.content : displayed;
-  const showPencil = !isUser && (isStreaming || isTyping);
+  const showPencil = !isUser && (isLoading || isTyping);
 
   return (
     <m.div
@@ -198,21 +223,14 @@ const StickyNote = memo(function StickyNote({
         }}
       />
 
-      {/* Message content — invisible full text for width sizing, visible typewritten text on top */}
+      {/* Message content — rendered inline so the note grows naturally with typewritten text */}
       <div className="relative">
-        {/* Invisible sizer: establishes the note's full width so it doesn't expand horizontally */}
-        {!isUser && showContent !== message.content && (
-          <div className="whitespace-pre-wrap break-words leading-relaxed invisible" aria-hidden="true">
-            {message.content}
-          </div>
-        )}
-        {/* Visible text (positioned over sizer when sizer is present) */}
         <div className={cn(
           "whitespace-pre-wrap break-words leading-relaxed",
-          !isUser && showContent !== message.content && "absolute inset-0",
+          // Filler text: same color, just faded + italic to distinguish from final response
+          !isUser && isDisplayingFiller && "italic opacity-50",
         )}>
           {showContent}
-
         </div>
       </div>
 
@@ -338,20 +356,26 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isStreaming, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
-  const [activeSuggestions, setActiveSuggestions] = useState<string[]>(INITIAL_SUGGESTIONS);
+  // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
+  // Start empty to prevent flash on page return — hydration effect fills them
+  const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
+  const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
+  const [suggestionsReady, setSuggestionsReady] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const handledActionsRef = useRef<Set<string>>(new Set());
-  const lastSuggestionMsgRef = useRef<string | null>(null);
+  const hasFetchedSuggestionsRef = useRef<string | null>(null);
+  const hasInitializedSuggestionsRef = useRef(false);
+  const lastTypewriterIdRef = useRef<string | null>(null);
 
   // Handle LLM-triggered actions (navigation, theme switch, open URL)
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
-    if (!lastMsg || lastMsg.isOld || isStreaming || lastMsg.role !== 'assistant') return;
+    if (!lastMsg || lastMsg.isOld || isLoading || lastMsg.role !== 'assistant') return;
     if (handledActionsRef.current.has(lastMsg.id)) return;
 
     const hasAction = lastMsg.navigateTo || lastMsg.themeAction || (lastMsg.openUrls && lastMsg.openUrls.length > 0) || lastMsg.feedbackAction;
@@ -394,35 +418,99 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [messages, isStreaming, router, setTheme, resolvedTheme, markOpenUrlsFailed]);
+  }, [messages, isLoading, router, setTheme, resolvedTheme, markOpenUrlsFailed]);
 
-  // Rotate suggestions after each new assistant response
+  // One-time suggestion initialization after hydration — prevents flash on page return
+  useEffect(() => {
+    if (hasInitializedSuggestionsRef.current || messages.length === 0) return;
+    hasInitializedSuggestionsRef.current = true;
+
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.id !== 'welcome');
+    if (lastAssistant?.isOld) {
+      // Returning to chat with history — use cached LLM suggestions if available
+      hasFetchedSuggestionsRef.current = lastAssistant.id;
+      const base = pickRandom(FOLLOWUP_SUGGESTIONS, 2);
+      setBaseSuggestions(base);
+      if (llmSuggestions.length > 0) {
+        setExtraSuggestions(llmSuggestions.slice(0, 2));
+      } else {
+        setExtraSuggestions(pickRandom(FOLLOWUP_SUGGESTIONS.filter(s => !base.includes(s)), 2));
+      }
+    } else {
+      // Fresh visit — show initial suggestions
+      setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
+      setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
+    }
+    setSuggestionsReady(true);
+  }, [messages, llmSuggestions]);
+
+  // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual
   useEffect(() => {
     const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.id !== 'welcome');
-    if (!lastAssistant || isStreaming) return;
-    // Only update suggestions once per new assistant message
-    if (lastSuggestionMsgRef.current === lastAssistant.id) return;
-    lastSuggestionMsgRef.current = lastAssistant.id;
-    setActiveSuggestions(pickRandom(FOLLOWUP_SUGGESTIONS, 3));
-  }, [messages, isStreaming]);
+    if (!lastAssistant || isLoading || lastAssistant.isOld) return;
+    if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
+    hasFetchedSuggestionsRef.current = lastAssistant.id;
+    // 2 hardcoded suggestions (shown once typewriter finishes)
+    const hardcoded = pickRandom(FOLLOWUP_SUGGESTIONS, 2);
+    setBaseSuggestions(hardcoded);
+    setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
+    // Fire background LLM request for 2 contextual suggestions
+    fetchSuggestions();
+  }, [messages, isLoading, fetchSuggestions]);
+
+  // When LLM contextual suggestions arrive (or fail), fill the extra slots
+  useEffect(() => {
+    if (isSuggestionsLoading || !hasFetchedSuggestionsRef.current) return;
+    if (llmSuggestions.length > 0) {
+      setExtraSuggestions(llmSuggestions.slice(0, 2));
+    } else {
+      // LLM failed — fill with 2 more hardcoded (different from base)
+      setExtraSuggestions(
+        pickRandom(FOLLOWUP_SUGGESTIONS.filter(s => !baseSuggestions.includes(s)), 2)
+      );
+    }
+  }, [isSuggestionsLoading, llmSuggestions, baseSuggestions]);
+
+  // Gate suggestion visibility: hide during loading + typewriting, show after typewriter finishes
+  useEffect(() => {
+    if (isLoading) {
+      setSuggestionsReady(false);
+      return undefined;
+    }
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.role === 'assistant' && !lastMsg.isOld && lastMsg.id !== 'welcome' && lastMsg.content) {
+      if (lastTypewriterIdRef.current !== lastMsg.id) {
+        lastTypewriterIdRef.current = lastMsg.id;
+        setSuggestionsReady(false);
+        // Estimate typewriter duration: erase old (if filler was showing) + type new chars * 18ms + buffer
+        // Filler erase: ~50 chars * 11ms ≈ 550ms; be generous with 800ms extra for erase phase
+        const eraseEstimate = 800;
+        const typeEstimate = lastMsg.content.length * 18;
+        const delay = Math.min(eraseEstimate + typeEstimate + 500, 10000);
+        const timer = setTimeout(() => setSuggestionsReady(true), delay);
+        return () => clearTimeout(timer);
+      }
+    }
+    return undefined;
+  }, [isLoading, messages]);
 
   // Auto-scroll to newest note (only when messages change count or streaming ends)
   const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
     const countChanged = messages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = messages.length;
-    if ((countChanged || !isStreaming) && messagesEndRef.current) {
+    if ((countChanged || !isLoading) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, isStreaming]);
+  }, [messages.length, isLoading]);
 
   const handleSend = useCallback(() => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isLoading) return;
     sendMessage(input.trim());
     setInput('');
     // Re-focus input
     setTimeout(() => inputRef.current?.focus(), 100);
-  }, [input, isStreaming, sendMessage]);
+  }, [input, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -497,24 +585,24 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               )}
               <StickyNote
                 message={msg}
-                isStreaming={isStreaming && msg.role === 'assistant' && idx === messages.length - 1}
+                isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
               />
             </div>
           );
         })}
 
-        {/* Suggested questions — shown initially and after each LLM response */}
+        {/* Suggested questions — shown after typewriter finishes */}
         <AnimatePresence mode="wait">
-          {!isStreaming && activeSuggestions.length > 0 && (
+          {!isLoading && suggestionsReady && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
             <m.div
-              key={activeSuggestions.join()}
+              key={[...baseSuggestions, ...extraSuggestions].join('|')}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.2 }}
               className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
             >
-              {activeSuggestions.map(q => (
+              {[...baseSuggestions, ...extraSuggestions].map(q => (
                 <SuggestionStrip key={q} text={q} isAction={ACTION_SUGGESTIONS.has(q)} onClick={() => handleSuggestion(q)} />
               ))}
             </m.div>
@@ -538,8 +626,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {hasMessages && (
           <div className="flex justify-end mb-2">
             <button
-              onClick={() => { clearMessages(); setActiveSuggestions(INITIAL_SUGGESTIONS); lastSuggestionMsgRef.current = null; }}
-              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
+              onClick={() => { clearMessages(); setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2)); setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2)); setSuggestionsReady(true); hasFetchedSuggestionsRef.current = null; lastTypewriterIdRef.current = null; }}
+              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
               title="Clear desk"
             >
               <Eraser size={14} />
@@ -573,7 +661,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               onKeyDown={handleKeyDown}
               placeholder="Write a note..."
               rows={1}
-              disabled={isStreaming}
+              disabled={isLoading}
               className={cn(
                 "flex-1 bg-transparent resize-none font-hand text-[var(--note-user-ink)] placeholder:text-[var(--note-user-ink)]/40 focus:outline-none",
                 compact ? "text-sm leading-snug" : "text-base md:text-lg",
@@ -585,10 +673,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               whileHover={{ scale: 1.15, rotate: 10 }}
               whileTap={{ scale: 0.9 }}
               onClick={handleSend}
-              disabled={!input.trim() || isStreaming}
+              disabled={!input.trim() || isLoading}
               className={cn(
                 "p-2 rounded-full transition-colors shrink-0",
-                input.trim() && !isStreaming
+                input.trim() && !isLoading
                   ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
                   : "text-gray-400 dark:text-gray-600",
               )}

@@ -278,16 +278,6 @@ body {
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* CSS typing dot animation (replaces framer-motion infinite animation) */
-  .animate-typing-dot {
-    animation: typingDot 0.6s ease-in-out infinite;
-  }
-
-  @keyframes typingDot {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
-
   /* CSS theme icon swap animation (replaces framer-motion AnimatePresence) */
   .animate-theme-icon {
     animation: themeIconIn 0.2s ease-out both;
@@ -298,6 +288,18 @@ body {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
+}
+
+/* Bouncing typing dots — outside @layer so Tailwind v4 won't purge it */
+.animate-bounce-dot {
+  animation: bounceDot 1.2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes bounceDot {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
+  25% { transform: translateY(-7px) scale(1.35); opacity: 1; }
+  50% { transform: translateY(0) scale(1); opacity: 0.35; }
 }
 
 /* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.

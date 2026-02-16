@@ -1,4 +1,4 @@
-// hooks/useStickyChat.ts — Chat logic with streaming and localStorage persistence
+// hooks/useStickyChat.ts — Chat logic with buffered LLM responses and localStorage persistence
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -11,6 +11,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   isOld?: boolean; // Messages loaded from localStorage
+  isFiller?: boolean; // True when showing thinking/filler text (not final response)
   navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
   openUrls?: string[]; // External URLs to open in new tabs (parsed from [[OPEN:key]])
@@ -20,13 +21,16 @@ export interface ChatMessage {
 
 interface UseStickyChat {
   messages: ChatMessage[];
-  isStreaming: boolean;
+  isLoading: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   addLocalExchange: (userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => void;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
+  fetchSuggestions: () => void;
+  suggestions: string[];
+  isSuggestionsLoading: boolean;
 }
 
 function generateId(): string {
@@ -117,14 +121,62 @@ function parseActions(text: string): ParsedActions {
   };
 }
 
-// Strip all action tags for display (used during streaming)
-const ALL_ACTION_TAGS_RE = /\[\[(NAVIGATE|THEME|OPEN|FEEDBACK)[^\]]*\]\]/gi;
-function stripActionTags(text: string): string {
-  return text.replace(ALL_ACTION_TAGS_RE, '').trim();
-}
+// (stripActionTags removed — no longer needed without streaming)
 
 function getRandomFallback(): string {
   return FALLBACK_MESSAGES[Math.floor(Math.random() * FALLBACK_MESSAGES.length)];
+}
+
+// Tiered filler messages — each tier shown at its corresponding delay
+const FILLER_5S = [
+  "This one's making me think hard...",
+  "Hmm, let me think about this...",
+  "Still working on this one...",
+  "Give me a moment, this is a good one...",
+  "Thinking extra hard on this one...",
+];
+
+const FILLER_10S = [
+  "Did anyone ever tell you that you could be a quizmaster?",
+  "Is this an interview? Because I'm polishing my basics again...",
+  "You're really putting me through my paces here!",
+  "Hold on, I'm flipping through my mental textbook...",
+  "Wow, you don't ask the easy ones, do you?",
+];
+
+const FILLER_15S = [
+  "Using 100% brain power...",
+  "Calling on every last braincell and neuron!",
+  "Pretty sure steam is coming out of my ears right now...",
+  "My neurons are having a team meeting about this one.",
+  "If I had a whiteboard, it would be COVERED right now.",
+];
+
+const FILLER_20S = [
+  "Is this an NP-hard problem? You might have to wait a few lifetimes...",
+  "How many stars in the sky would have been an easier question :P",
+  "I think you just discovered a new millennium prize problem.",
+  "My brain's running O(n!) on this — please stand by...",
+  "At this point I'm just brute-forcing every possible answer.",
+];
+
+const FILLER_TIMEOUT = [
+  "You win! I give up, you're too good for me!",
+  "I zoned out there — do you mind repeating yourself?",
+  "My brain just blue-screened. Can we try that again?",
+  "Error 418: I'm a teapot, not a supercomputer.",
+  "Okay, you officially broke me. Well played.",
+];
+
+const FILLER_TIERS = [
+  { delay: 2_000, pool: FILLER_5S },
+  { delay: 8_000, pool: FILLER_10S },
+  { delay: 14_000, pool: FILLER_15S },
+  { delay: 20_000, pool: FILLER_20S },
+];
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function loadMessages(): ChatMessage[] {
@@ -143,10 +195,10 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip isOld flag and welcome message before saving; keep action metadata for display
+    // Strip isOld/isFiller flags and welcome message before saving; keep action metadata for display
     const toSave = messages
       .filter(m => m.id !== 'welcome')
-      .map(({ isOld: _, ...m }) => m)
+      .map(({ isOld: _, isFiller: _f, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
   } catch {
@@ -156,17 +208,19 @@ function saveMessages(messages: ChatMessage[]) {
 
 export function useStickyChat(): UseStickyChat {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimitRemaining, setRateLimitRemaining] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
-  const isStreamingRef = useRef(isStreaming);
-  isStreamingRef.current = isStreaming;
+  const isLoadingRef = useRef(isLoading);
+  isLoadingRef.current = isLoading;
 
-  // Abort in-flight requests on unmount to prevent memory leaks
+  // Abort in-flight requests on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort('unmount');
@@ -187,28 +241,67 @@ export function useStickyChat(): UseStickyChat {
       };
       const filtered = stored.filter(m => m.id !== 'welcome');
       setMessages([welcomeMsg, ...filtered]);
+
+      // Restore cached LLM suggestions
+      try {
+        const cachedSuggestions = localStorage.getItem(CHAT_CONFIG.suggestionsStorageKey);
+        if (cachedSuggestions) {
+          const parsed = JSON.parse(cachedSuggestions);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSuggestions(parsed);
+          }
+        }
+      } catch { /* ignore */ }
     }
   }, []);
 
-  // Save to localStorage when messages change, debounced and skipped while streaming
+  // Save to localStorage when messages change (skip while loading)
   useEffect(() => {
     if (!hasHydrated.current || messages.length === 0) return;
-    // Skip saves during streaming — we'll save once streaming ends
-    if (isStreamingRef.current) return;
+    if (isLoadingRef.current) return;
     const id = setTimeout(() => saveMessages(messages), 300);
     return () => clearTimeout(id);
   }, [messages]);
 
-  const sendMessage = useCallback(async (content: string) => {
-    // Enforce max user message length
-    const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
-    if (!trimmed || isStreamingRef.current) return;
+  // Fetch LLM-generated suggestions based on conversation context
+  const fetchSuggestions = useCallback(() => {
+    const currentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
+    if (currentMessages.length === 0) return;
 
-    // Check conversation turn limit (read from ref to avoid dependency)
+    setSuggestions([]);
+    setIsSuggestionsLoading(true);
+    const contextMessages = currentMessages
+      .slice(-4)
+      .map(m => ({ role: m.role, content: m.content }));
+
+    fetch('/api/chat/suggestions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: contextMessages }),
+    })
+      .then(res => res.ok ? res.json() : { suggestions: [] })
+      .then(data => {
+        const newSuggestions: string[] = data.suggestions || [];
+        setSuggestions(newSuggestions);
+        // Cache to localStorage so they survive page switches
+        try {
+          if (newSuggestions.length > 0) {
+            localStorage.setItem(CHAT_CONFIG.suggestionsStorageKey, JSON.stringify(newSuggestions));
+          }
+        } catch { /* ignore */ }
+      })
+      .catch(() => { /* silently fail — hardcoded fallbacks will show */ })
+      .finally(() => setIsSuggestionsLoading(false));
+  }, []);
+
+  const sendMessage = useCallback(async (content: string) => {
+    const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
+    if (!trimmed || isLoadingRef.current) return;
+
+    // Check conversation turn limit
     const currentMessages = messagesRef.current;
     const userTurns = currentMessages.filter(m => m.role === 'user').length;
     if (userTurns >= CHAT_CONFIG.maxConversationTurns) {
-      // Add a gentle wrap-up note instead of calling the API
       const wrapUpMsg: ChatMessage = {
         id: generateId(),
         role: 'user',
@@ -244,32 +337,44 @@ export function useStickyChat(): UseStickyChat {
       timestamp: Date.now(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
-    setIsStreaming(true);
-
-    // Prepare assistant placeholder
+    // Add assistant placeholder (empty content — typewriter will reveal it)
     const assistantId = generateId();
-    setMessages(prev => [...prev, {
+    setMessages(prev => [...prev, userMsg, {
       id: assistantId,
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
     }]);
+    setIsLoading(true);
 
-    // Client-side timeout: abort if no complete response within the limit
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    // Tiered filler timers — each one updates the placeholder with a progressively funnier message
+    const fillerTimerIds: ReturnType<typeof setTimeout>[] = [];
+    for (const tier of FILLER_TIERS) {
+      const tid = setTimeout(() => {
+        if (!isLoadingRef.current) return;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, content: pickRandom(tier.pool), isFiller: true }
+              : m
+          )
+        );
+      }, tier.delay);
+      fillerTimerIds.push(tid);
+    }
+    const clearFillerTimers = () => fillerTimerIds.forEach(t => clearTimeout(t));
 
     try {
-      // Build conversation history (exclude welcome, limit context window)
+      // Build conversation history
       const recentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
-      const contextWindow = recentMessages.slice(-10); // Last 10 messages for context
+      const contextWindow = recentMessages.slice(-10);
       const conversationMessages = [
         ...contextWindow.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         { role: 'user' as const, content: trimmed },
       ];
 
       abortControllerRef.current = new AbortController();
-
       timeoutId = setTimeout(() => {
         abortControllerRef.current?.abort('timeout');
       }, CHAT_CONFIG.responseTimeoutMs);
@@ -281,113 +386,52 @@ export function useStickyChat(): UseStickyChat {
         signal: abortControllerRef.current.signal,
       });
 
+      clearTimeout(timeoutId);
+      clearFillerTimers();
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || `Error (${response.status})`);
       }
 
-      if (!response.body) {
-        throw new Error('No response body for streaming');
-      }
+      const data = await response.json();
+      const rawReply: string = data.reply || '';
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = '';
-      let buffer = '';
-      let rafId: number | null = null;
-      let dirty = false;
-
-      // Flush accumulated content to React state at most once per frame
-      const flush = () => {
-        rafId = null;
-        if (!dirty) return;
-        dirty = false;
-        const displayContent = stripActionTags(accumulated);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId
-              ? { ...m, content: displayContent }
-              : m
-          )
-        );
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
-
-          const data = trimmedLine.slice(6);
-          if (data === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(data);
-            const chunkContent = parsed.choices?.[0]?.delta?.content || '';
-            if (chunkContent) {
-              accumulated += chunkContent;
-              dirty = true;
-            }
-          } catch {
-            // Skip malformed JSON chunks
-          }
-        }
-
-        // Schedule a single RAF flush per read batch instead of per chunk
-        if (dirty && rafId === null) {
-          rafId = requestAnimationFrame(flush);
-        }
-      }
-
-      // Cancel any pending RAF and do a final synchronous flush
-      if (rafId !== null) cancelAnimationFrame(rafId);
-
-      // Final parse: extract all actions and clean content
-      clearTimeout(timeoutId);
-      if (accumulated) {
-        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(accumulated);
-        // If the LLM only sent a tag with no text, provide a short acknowledgement
+      if (rawReply) {
+        // Parse action tags from the complete response
+        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(rawReply);
         const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction);
-        const displayContent = finalContent
-          || (hasAction ? 'On it ~' : accumulated);
+        const displayContent = finalContent || (hasAction ? 'On it ~' : rawReply);
+
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, navigateTo, themeAction, openUrls, feedbackAction }
+              ? { ...m, content: displayContent, isFiller: false, navigateTo, themeAction, openUrls, feedbackAction }
               : m
           )
         );
       } else {
-        // No content — show a friendly fallback
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: getRandomFallback() }
+              ? { ...m, content: getRandomFallback(), isFiller: false }
               : m
           )
         );
       }
     } catch (err) {
       clearTimeout(timeoutId);
+      clearFillerTimers();
 
       if (err instanceof Error && err.name === 'AbortError') {
-        // Timeout abort: if we got partial content keep it, otherwise show fallback
         const isTimeout = abortControllerRef.current?.signal.reason === 'timeout';
         if (isTimeout) {
           setMessages(prev =>
-            prev.map(m => {
-              if (m.id !== assistantId) return m;
-              return m.content
-                ? m // keep partial streamed content
-                : { ...m, content: getRandomFallback() };
-            })
+            prev.map(m =>
+              m.id === assistantId
+                ? { ...m, content: pickRandom(FILLER_TIMEOUT), isFiller: false }
+                : m
+            )
           );
         } else {
           // Manual/navigation abort — drop empty placeholder
@@ -396,23 +440,20 @@ export function useStickyChat(): UseStickyChat {
         return;
       }
 
-      // Instead of showing an error, replace with a friendly fallback note
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: getRandomFallback() }
+            ? { ...m, content: getRandomFallback(), isFiller: false }
             : m
         )
       );
-      // Don't set error — the fallback note handles it gracefully
     } finally {
-      setIsStreaming(false);
+      setIsLoading(false);
       abortControllerRef.current = null;
     }
   }, []); // Stable: reads all mutable state via refs
 
   // Add a user message + pre-built assistant response without calling the LLM.
-  // Used for hardcoded suggestion actions (theme toggle, navigation, URL open).
   const addLocalExchange = useCallback((userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => {
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -432,8 +473,10 @@ export function useStickyChat(): UseStickyChat {
   const clearMessages = useCallback(() => {
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setError(null);
+    setSuggestions([]);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CHAT_CONFIG.storageKey);
+      localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);
     }
   }, []);
 
@@ -445,12 +488,15 @@ export function useStickyChat(): UseStickyChat {
 
   return {
     messages,
-    isStreaming,
+    isLoading,
     error,
     sendMessage,
     addLocalExchange,
     clearMessages,
     markOpenUrlsFailed,
     rateLimitRemaining,
+    fetchSuggestions,
+    suggestions,
+    isSuggestionsLoading,
   };
 }

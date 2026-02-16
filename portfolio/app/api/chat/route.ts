@@ -37,8 +37,8 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
   return { primary, fallback };
 }
 
-/** Timeout (ms) for the primary provider before falling back. */
-const PRIMARY_TIMEOUT_MS = 12_000;
+/** Timeout (ms) per provider before aborting. Buffered (non-streaming) needs more time. */
+const PROVIDER_TIMEOUT_MS = 25_000;
 
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Try primary provider, fall back if it errors or takes too long
-    const streamResponse = await callProvider(primary, apiMessages)
+    const result = await callProvider(primary, apiMessages)
       .catch(async (err) => {
         if (fallback) {
           console.warn(`Primary LLM failed (${err?.message}), trying fallback...`);
@@ -145,7 +145,9 @@ export async function POST(request: NextRequest) {
         throw err;
       });
 
-    return streamResponse;
+    return Response.json(result, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch (err) {
     console.error('Chat API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
@@ -153,15 +155,15 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Call a single LLM provider and return a streaming Response.
- * Applies PRIMARY_TIMEOUT_MS as an AbortSignal to guard against slow responses.
+ * Call a single LLM provider and return the complete response.
+ * Non-streaming: simpler, fewer resources, client typewriters the buffered result.
  */
 async function callProvider(
   provider: LLMProvider,
   messages: { role: string; content: string }[],
-): Promise<Response> {
+): Promise<{ reply: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PRIMARY_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
 
   try {
     const llmResponse = await fetch(`${provider.baseURL}/chat/completions`, {
@@ -176,30 +178,22 @@ async function callProvider(
         temperature: CHAT_CONFIG.temperature,
         top_p: CHAT_CONFIG.topP,
         max_tokens: CHAT_CONFIG.maxTokens,
-        stream: true,
+        stream: false,
       }),
       signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!llmResponse.ok) {
       const errText = await llmResponse.text().catch(() => 'Unknown upstream error');
       throw new Error(`${provider.label} responded ${llmResponse.status}: ${errText}`);
     }
 
-    if (!llmResponse.body) {
-      throw new Error(`${provider.label}: no response stream`);
-    }
+    const data = await llmResponse.json();
+    const reply = data.choices?.[0]?.message?.content || '';
 
-    // Clear the connection timeout once we start streaming
-    clearTimeout(timeout);
-
-    return new Response(llmResponse.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    return { reply };
   } catch (err) {
     clearTimeout(timeout);
     throw err;

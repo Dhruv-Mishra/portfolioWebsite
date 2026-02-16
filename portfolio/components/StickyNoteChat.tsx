@@ -229,7 +229,10 @@ const StickyNote = memo(function StickyNote({
           "whitespace-pre-wrap break-words leading-relaxed",
           // Filler text: same color, just faded + italic to distinguish from final response
           !isUser && isDisplayingFiller && "italic opacity-50",
-        )}>
+        )}
+        // Prevent note from collapsing to 0 height during erase→type transition
+        style={{ minHeight: '1.5em' }}
+        >
           {showContent}
         </div>
       </div>
@@ -356,7 +359,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, suggestionActions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
@@ -591,22 +594,39 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           );
         })}
 
-        {/* Suggested questions — shown after typewriter finishes */}
-        <AnimatePresence mode="wait">
+        {/* Suggested questions — shown after typewriter finishes.
+            Base (hardcoded) suggestions render immediately when ready;
+            Extra (LLM) suggestions animate in alongside without re-mounting base. */}
+        <AnimatePresence>
           {!isLoading && suggestionsReady && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
-            <m.div
-              key={[...baseSuggestions, ...extraSuggestions].join('|')}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
-            >
-              {[...baseSuggestions, ...extraSuggestions].map(q => (
-                <SuggestionStrip key={q} text={q} isAction={ACTION_SUGGESTIONS.has(q)} onClick={() => handleSuggestion(q)} />
-              ))}
-            </m.div>
-          )}
+              <m.div
+                key="suggestions-container"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
+              >
+                {baseSuggestions.map(q => (
+                  <SuggestionStrip
+                    key={q}
+                    text={q}
+                    isAction={ACTION_SUGGESTIONS.has(q) || suggestionActions.has(q)}
+                    onClick={() => handleSuggestion(q)}
+                  />
+                ))}
+                <AnimatePresence>
+                  {extraSuggestions.map(q => (
+                    <SuggestionStrip
+                      key={q}
+                      text={q}
+                      isAction={ACTION_SUGGESTIONS.has(q) || suggestionActions.has(q)}
+                      onClick={() => handleSuggestion(q)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </m.div>
+        )}
         </AnimatePresence>
 
         {/* Rate limit note */}

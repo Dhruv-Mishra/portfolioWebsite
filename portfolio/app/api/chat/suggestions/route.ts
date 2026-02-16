@@ -21,9 +21,17 @@ CONTEXT-AWARENESS (most important):
 - Don't repeat what the user asked in their MOST RECENT message. Earlier topics are fine to revisit if contextually relevant.
 - Suggestions should dig DEEPER into what was just discussed, not restart the conversation. If Dhruv just explained Fluent UI, suggest something specific about Fluent UI — not a generic "What projects have you worked on?".
 
+ACTION TAGGING (be strict!):
+Only prefix a suggestion with [ACTION] if clicking it would DIRECTLY cause a visible side-effect: navigating to a different page, opening a URL/link, toggling the theme, or opening feedback. Affirmative confirmations to action offers also count (e.g. "[ACTION] Sure, open it!").
+Do NOT tag:
+- Questions asking for information ("Tell me about X", "What's your experience with Y?")
+- Conversational responses that don't trigger a navigation/link/theme change
+- Declines or redirects ("Not right now", "Tell me about something else")
+When in doubt, do NOT add the [ACTION] prefix.
+
 Rules:
 1. Return EXACTLY 2 suggestions, one per line. Nothing else — no numbering, no bullets, no quotes.
-2. Each suggestion must be 2-8 words, conversational and casual.
+2. Each suggestion must be 2-8 words, conversational and casual (the [ACTION] prefix does NOT count toward the word limit).
 3. Make both suggestions directly relevant to the last assistant message.
 4. Don't repeat anything the user already asked or that was already covered.
 5. Vary the suggestions — don't always suggest the same actions.
@@ -84,14 +92,24 @@ export async function POST(request: NextRequest) {
       const data = await llmResponse.json();
       const raw = data.choices?.[0]?.message?.content || '';
 
-      // Parse: expect 2 lines, one suggestion each
+      // Parse: expect 2 lines, one suggestion each. Strip [ACTION] prefix and track which are actions.
+      const ACTION_PREFIX = /^\[ACTION\]\s*/i;
+      const actionSuggestions: string[] = [];
       const suggestions = raw
         .split('\n')
         .map((s: string) => s.replace(/^[\d.\-*)\s]+/, '').replace(/^["']|["']$/g, '').trim())
-        .filter((s: string) => s.length >= 3 && s.length <= 60)
-        .slice(0, 2);
+        .filter((s: string) => s.length >= 3 && s.length <= 80)
+        .slice(0, 2)
+        .map((s: string) => {
+          if (ACTION_PREFIX.test(s)) {
+            const cleaned = s.replace(ACTION_PREFIX, '').trim();
+            actionSuggestions.push(cleaned);
+            return cleaned;
+          }
+          return s;
+        });
 
-      return Response.json({ suggestions }, {
+      return Response.json({ suggestions, actionSuggestions }, {
         headers: { 'Cache-Control': 'no-store' },
       });
     } catch {

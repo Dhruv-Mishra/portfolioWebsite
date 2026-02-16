@@ -30,6 +30,7 @@ interface UseStickyChat {
   rateLimitRemaining: number | null;
   fetchSuggestions: () => void;
   suggestions: string[];
+  suggestionActions: Set<string>;
   isSuggestionsLoading: boolean;
 }
 
@@ -212,6 +213,7 @@ export function useStickyChat(): UseStickyChat {
   const [error, setError] = useState<string | null>(null);
   const [rateLimitRemaining, setRateLimitRemaining] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionActions, setSuggestionActions] = useState<Set<string>>(new Set());
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasHydrated = useRef(false);
@@ -242,12 +244,18 @@ export function useStickyChat(): UseStickyChat {
       const filtered = stored.filter(m => m.id !== 'welcome');
       setMessages([welcomeMsg, ...filtered]);
 
-      // Restore cached LLM suggestions
+      // Restore cached LLM suggestions + action flags
       try {
         const cachedSuggestions = localStorage.getItem(CHAT_CONFIG.suggestionsStorageKey);
         if (cachedSuggestions) {
           const parsed = JSON.parse(cachedSuggestions);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (parsed && Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
+            setSuggestions(parsed.suggestions);
+            if (Array.isArray(parsed.actions)) {
+              setSuggestionActions(new Set(parsed.actions));
+            }
+          } else if (Array.isArray(parsed) && parsed.length > 0) {
+            // Legacy format (plain string array) — no action data
             setSuggestions(parsed);
           }
         }
@@ -269,6 +277,7 @@ export function useStickyChat(): UseStickyChat {
     if (currentMessages.length === 0) return;
 
     setSuggestions([]);
+    setSuggestionActions(new Set());
     setIsSuggestionsLoading(true);
     const contextMessages = currentMessages
       .slice(-4)
@@ -282,11 +291,16 @@ export function useStickyChat(): UseStickyChat {
       .then(res => res.ok ? res.json() : { suggestions: [] })
       .then(data => {
         const newSuggestions: string[] = data.suggestions || [];
+        const newActions: string[] = data.actionSuggestions || [];
         setSuggestions(newSuggestions);
+        setSuggestionActions(new Set(newActions));
         // Cache to localStorage so they survive page switches
         try {
           if (newSuggestions.length > 0) {
-            localStorage.setItem(CHAT_CONFIG.suggestionsStorageKey, JSON.stringify(newSuggestions));
+            localStorage.setItem(CHAT_CONFIG.suggestionsStorageKey, JSON.stringify({
+              suggestions: newSuggestions,
+              actions: newActions,
+            }));
           }
         } catch { /* ignore */ }
       })
@@ -297,26 +311,6 @@ export function useStickyChat(): UseStickyChat {
   const sendMessage = useCallback(async (content: string) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isLoadingRef.current) return;
-
-    // Check conversation turn limit
-    const currentMessages = messagesRef.current;
-    const userTurns = currentMessages.filter(m => m.role === 'user').length;
-    if (userTurns >= CHAT_CONFIG.maxConversationTurns) {
-      const wrapUpMsg: ChatMessage = {
-        id: generateId(),
-        role: 'user',
-        content: trimmed,
-        timestamp: Date.now(),
-      };
-      const limitMsg: ChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: "We've been passing quite a few notes! 📝 I think we've covered a lot. Check out my resume, projects, or about page for even more details!",
-        timestamp: Date.now(),
-      };
-      setMessages(prev => [...prev, wrapUpMsg, limitMsg]);
-      return;
-    }
 
     // Rate limit check
     const allowed = rateLimiter.check('chat', RATE_LIMITS.CHAT_API);
@@ -474,6 +468,7 @@ export function useStickyChat(): UseStickyChat {
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setError(null);
     setSuggestions([]);
+    setSuggestionActions(new Set());
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CHAT_CONFIG.storageKey);
       localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);
@@ -497,6 +492,7 @@ export function useStickyChat(): UseStickyChat {
     rateLimitRemaining,
     fetchSuggestions,
     suggestions,
+    suggestionActions,
     isSuggestionsLoading,
   };
 }

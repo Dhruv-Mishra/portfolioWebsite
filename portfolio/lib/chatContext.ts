@@ -14,7 +14,6 @@ export const CHAT_CONFIG = {
   temperature: 0.6,     // Slightly lower for more reliable action-tag compliance
   topP: 0.9,
   maxStoredMessages: 50,
-  maxConversationTurns: 20, // Max user messages before suggesting to explore other pages
   maxUserMessageLength: 500, // Max characters per user message
   responseTimeoutMs: 30_000, // Client-side timeout: abort fetch after 30s of no completion
   storageKey: 'dhruv-chat-history',

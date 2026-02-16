@@ -145,7 +145,7 @@ export default function Terminal() {
         >
             {/* Rough Shadow */}
             <div
-                className="absolute inset-0 bg-black/10 rounded-lg transform translate-x-2 translate-y-3 rotate-2 blur-sm pointer-events-none"
+                className="absolute inset-0 bg-black/8 rounded-lg transform translate-x-2 translate-y-3 rotate-2 pointer-events-none"
                 style={{ borderRadius: "255px 15px 225px 15px / 15px 225px 15px 255px" }}
             />
 

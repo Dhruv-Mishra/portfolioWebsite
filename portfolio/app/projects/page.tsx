@@ -190,7 +190,7 @@ export default function Projects() {
                                 style={{
                                     width: foldSize,
                                     height: foldSize,
-                                    filter: 'brightness(0.9)',
+                                    opacity: 0.85,
                                     clipPath: 'polygon(0 0, 0 100%, 100% 0)'
                                 }}
                             />
@@ -233,7 +233,7 @@ export default function Projects() {
                                                 sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
                                                 loading={i === 0 ? "eager" : "lazy"}
                                                 priority={i === 0}
-                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-500 ${proj.imageClassName || ''}`}
+                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300">

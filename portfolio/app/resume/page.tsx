@@ -104,7 +104,7 @@ export default function ResumePage() {
                         className="absolute top-2 left-2 md:top-4 md:left-auto md:right-4 z-30 group"
                         title="Open PDF in new tab"
                     >
-                        <div className="bg-yellow-100 text-gray-800 px-3 py-1.5 md:px-5 md:py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-all font-hand font-bold flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
+                        <div className="bg-yellow-100 text-gray-800 px-3 py-1.5 md:px-5 md:py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-[transform] font-hand font-bold flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
                             <span>Open PDF</span>
                             <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </div>

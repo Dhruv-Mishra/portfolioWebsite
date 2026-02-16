@@ -47,8 +47,7 @@ export default function About() {
                         <div
                             className="absolute bottom-0 right-0 pointer-events-none w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
                             style={{
-                                backgroundColor: '#fffae5',
-                                filter: 'brightness(0.95)',
+                                backgroundColor: '#f0e6a0',
                                 clipPath: 'polygon(0 0, 0 100%, 100% 0)'
                             }}
                         />
@@ -73,14 +72,14 @@ export default function About() {
                                             fill
                                             sizes="192px"
                                             loading="eager"
-                                            className="object-cover sepia-[.3] contrast-125"
+                                            className="object-cover sepia-[.3]"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             <p>
-                                Hey, I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-bold bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-all inline-block hover:-rotate-2">Dhruv</a> 👋
+                                Hey, I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-bold bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">Dhruv</a> 👋
                             </p>
                             <p>
                                 I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong>, building and optimizing systems that need to be fast, reliable, and <span className="italic">boring</span> in production.
@@ -92,16 +91,16 @@ export default function About() {
                                 I&apos;m fluent in <span className="font-bold text-orange-700">Kotlin</span>, <span className="font-bold text-blue-700">Java</span>, <span className="font-bold text-sky-600">TypeScript</span>, <span className="font-bold text-yellow-700">Python</span>, and <span className="font-bold text-cyan-700">C++</span>. I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.
                             </p>
                             <p>
-                                I&apos;m an active <span className="underline decoration-wavy decoration-rose-400">open source contributor</span>—from Microsoft&apos;s <a href="https://github.com/microsoft/fluentui-android" target="_blank" rel="noreferrer" className="bg-blue-200 hover:bg-blue-300 px-1.5 py-0.5 rounded text-blue-800 transition-all inline-block hover:-rotate-2">Fluent UI Android</a> to some <span className="italic">Web3</span> projects. I love collaborating on work that pushes boundaries.
+                                I&apos;m an active <span className="underline decoration-wavy decoration-rose-400">open source contributor</span>—from Microsoft&apos;s <a href="https://github.com/microsoft/fluentui-android" target="_blank" rel="noreferrer" className="bg-blue-200 hover:bg-blue-300 px-1.5 py-0.5 rounded text-blue-800 transition-[background-color,transform] inline-block hover:-rotate-2">Fluent UI Android</a> to some <span className="italic">Web3</span> projects. I love collaborating on work that pushes boundaries.
                             </p>
                             <p>
-                                I graduated with <strong className="text-gray-900">Honors in CSAM</strong> from <a href="https://www.linkedin.com/in/dhruv-mishra-id/details/education/" target="_blank" rel="noreferrer" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-all inline-block hover:-rotate-2">IIIT Delhi</a>, and spend time honing my skills through <a href="https://codeforces.com/profile/whoisDhruvMishra" target="_blank" rel="noreferrer" className="bg-emerald-200 hover:bg-emerald-300 px-1.5 py-0.5 rounded text-emerald-800 transition-all inline-block hover:-rotate-2">competitive programming</a>.
+                                I graduated with <strong className="text-gray-900">Honors in CSAM</strong> from <a href="https://www.linkedin.com/in/dhruv-mishra-id/details/education/" target="_blank" rel="noreferrer" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">IIIT Delhi</a>, and spend time honing my skills through <a href="https://codeforces.com/profile/whoisDhruvMishra" target="_blank" rel="noreferrer" className="bg-emerald-200 hover:bg-emerald-300 px-1.5 py-0.5 rounded text-emerald-800 transition-[background-color,transform] inline-block hover:-rotate-2">competitive programming</a>.
                             </p>
                             <p className="text-base md:text-lg text-gray-600 mt-4">
-                                💬 Reach out: <a href="mailto:dhruvmishra.id@gmail.com" className="bg-red-200 hover:bg-red-300 px-1.5 py-0.5 rounded text-red-800 transition-all inline-block hover:-rotate-2">dhruvmishra.id@gmail.com</a> • <a href="tel:+919599377944" className="bg-green-200 hover:bg-green-300 px-1.5 py-0.5 rounded text-green-800 transition-all inline-block hover:-rotate-2">+91-9599377944</a>
+                                💬 Reach out: <a href="mailto:dhruvmishra.id@gmail.com" className="bg-red-200 hover:bg-red-300 px-1.5 py-0.5 rounded text-red-800 transition-[background-color,transform] inline-block hover:-rotate-2">dhruvmishra.id@gmail.com</a> • <a href="tel:+919599377944" className="bg-green-200 hover:bg-green-300 px-1.5 py-0.5 rounded text-green-800 transition-[background-color,transform] inline-block hover:-rotate-2">+91-9599377944</a>
                             </p>
                             <p className="text-base md:text-lg text-gray-600 mt-2 italic">
-                                📄 For more details, check out my <a href="/resume" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-all inline-block hover:-rotate-2">resume</a>.
+                                📄 For more details, check out my <a href="/resume" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-[background-color,transform] inline-block hover:-rotate-2">resume</a>.
                             </p>
                         </div>
                     </div>

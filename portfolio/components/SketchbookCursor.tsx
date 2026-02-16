@@ -56,7 +56,10 @@ export default function SketchbookCursor() {
             // Add point for trail with distance-based throttling
             const points = pointsRef.current;
             const lastPoint = points[points.length - 1];
-            if (!lastPoint || Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) > 12) {
+            const dist = lastPoint ? Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) : Infinity;
+            // Min distance: skip tiny movements. Max distance: break the trail on
+            // sudden jumps (e.g. fast flicks) so it doesn't draw a long ugly line.
+            if (dist > 12 && dist < 80) {
                 points.push({ x: e.clientX, y: e.clientY, age: 0 });
                 // Compact array periodically to prevent unbounded growth
                 const start = pointsStartRef.current;
@@ -64,6 +67,11 @@ export default function SketchbookCursor() {
                     pointsRef.current = points.slice(start);
                     pointsStartRef.current = 0;
                 }
+            } else if (dist >= 80) {
+                // Large jump — start a new trail segment from current position
+                // Expire all old points immediately
+                pointsStartRef.current = points.length;
+                points.push({ x: e.clientX, y: e.clientY, age: 0 });
             }
         };
 
@@ -165,9 +173,9 @@ export default function SketchbookCursor() {
             ctx.beginPath();
 
             if (isDark) {
-                // Chalk Style: Wide stroke, no shadowBlur (expensive per-frame Gaussian)
+                // Chalk Style: Thinner stroke, no shadowBlur
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-                ctx.lineWidth = 8;
+                ctx.lineWidth = 5;
                 ctx.shadowBlur = 0;
                 ctx.shadowColor = 'transparent';
             } else {
@@ -182,7 +190,8 @@ export default function SketchbookCursor() {
             ctx.lineJoin = 'round';
 
             const points = pointsRef.current;
-            const maxAge = 3;
+            const isDarkTrail = themeRef.current === 'dark';
+            const maxAge = isDarkTrail ? 5 : 3;
             if (points.length - pointsStartRef.current > 1) {
                 ctx.moveTo(points[pointsStartRef.current].x, points[pointsStartRef.current].y);
 

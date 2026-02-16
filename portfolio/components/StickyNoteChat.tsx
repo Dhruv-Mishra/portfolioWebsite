@@ -140,12 +140,12 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
 const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
 
-const SuggestionStrip = ({ text, isAction, onClick, index = 0 }: { text: string; isAction?: boolean; onClick: () => void; index?: number }) => (
+const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: { text: string; isAction?: boolean; onClick: () => void; index?: number; skipEntrance?: boolean }) => (
   <m.button
-    initial={{ opacity: 0, y: 10 }}
+    initial={skipEntrance ? false : { opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.9 }}
-    transition={{ delay: index * 0.07, duration: 0.2 }}
+    transition={skipEntrance ? { duration: 0 } : { delay: index * 0.07, duration: 0.2 }}
     whileHover={{ scale: 1.05, rotate: -1 }}
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
@@ -530,6 +530,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
+  const hasHadInteractionRef = useRef(false);
   const hasInitializedSuggestionsRef = useRef(false);
 
   // Handle LLM-triggered actions (navigation, theme switch, open URL)
@@ -682,6 +683,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading) return;
+    hasHadInteractionRef.current = true;
     sendMessage(input.trim());
     setInput('');
     // Re-focus input
@@ -696,6 +698,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [handleSend]);
 
   const handleSuggestion = useCallback((text: string) => {
+    hasHadInteractionRef.current = true;
     // Resolve to a known action (exact or fuzzy match) — bypasses LLM, executes directly
     const actionKey = resolveAction(text);
     if (actionKey) {
@@ -794,6 +797,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     isAction={!!resolveAction(q)}
                     onClick={() => handleSuggestion(q)}
                     index={i}
+                    skipEntrance={!hasHadInteractionRef.current}
                   />
                 ))}
                 <AnimatePresence>
@@ -804,6 +808,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                       isAction={!!resolveAction(q)}
                       onClick={() => handleSuggestion(q)}
                       index={i}
+                      skipEntrance={!hasHadInteractionRef.current}
                     />
                   ))}
                 </AnimatePresence>

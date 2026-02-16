@@ -15,12 +15,15 @@ import { TAPE_STYLE } from '@/lib/constants';
 // Uses a cancelled ref + single interval to avoid leaked interval races.
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
-function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18) {
+function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void) {
   const [displayed, setDisplayed] = useState(skip ? text : '');
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const prevTextRef = useRef(skip ? text : '');
   const cancelRef = useRef(0); // Incrementing token — any interval checks this to self-cancel
   const eraseSpeed = Math.max(speed * 0.6, 8);
+  // Stable ref for callback so the effect doesn't re-fire when identity changes
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const isTyping = phase === 'typing' || phase === 'erasing';
 
@@ -63,6 +66,8 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
           prevTextRef.current = newText; // Mark as completed
           setPhase('idle');
           clearInterval(id);
+          // Signal completion (only for non-filler final text)
+          if (!isFiller) onCompleteRef.current?.();
         } else {
           setDisplayed(newText.slice(0, i));
         }
@@ -142,11 +147,12 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 );
 
 // ─── Suggested Question Strip ───
-const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?: boolean; onClick: () => void }) => (
+const SuggestionStrip = ({ text, isAction, onClick, index = 0 }: { text: string; isAction?: boolean; onClick: () => void; index?: number }) => (
   <m.button
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.9 }}
+    transition={{ delay: index * 0.07, duration: 0.2 }}
     whileHover={{ scale: 1.05, rotate: -1 }}
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
@@ -167,9 +173,11 @@ const SuggestionStrip = ({ text, isAction, onClick }: { text: string; isAction?:
 const StickyNote = memo(function StickyNote({
   message,
   isLoading = false,
+  onTypewriterDone,
 }: {
   message: ChatMessage;
   isLoading?: boolean;
+  onTypewriterDone?: () => void;
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
@@ -184,6 +192,8 @@ const StickyNote = memo(function StickyNote({
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
+    18,
+    onTypewriterDone,
   );
   const showContent = isUser ? message.content : displayed;
   const showPencil = !isUser && isLoading;
@@ -318,13 +328,18 @@ const INITIAL_SUGGESTIONS = [
   "Report a bug",
 ];
 
-// Follow-up suggestions shown after each LLM response (rotated randomly)
-const FOLLOWUP_SUGGESTIONS = [
-  // Conversational
+// Follow-up suggestions — split into pools so we can guarantee
+// at least one conversational suggestion per batch.
+const FOLLOWUP_CONVERSATIONAL = [
   "What projects have you worked on?",
   "Tell me about your time at IIIT Delhi",
   "What's your favorite language?",
-  // Action hints — teach users they can trigger actions
+  "How did you get into competitive programming?",
+  "What do you enjoy most about your work?",
+  "Tell me about your research",
+];
+
+const FOLLOWUP_ACTIONS = [
   "Switch to dark mode",
   "Open your GitHub profile",
   "Show me your resume PDF",
@@ -404,9 +419,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasInitializedSuggestionsRef = useRef(false);
-  const lastTypewriterIdRef = useRef<string | null>(null);
 
   // Handle LLM-triggered actions (navigation, theme switch, open URL)
+  // Actions are executed when the typewriter finishes typing the response,
+  // so the user reads the full note before any side-effect fires.
+  // We store a ref of pending actions — the typewriter callback drains it.
+  const pendingActionRef = useRef<ChatMessage | null>(null);
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
     if (!lastMsg || lastMsg.isOld || isLoading || lastMsg.role !== 'assistant') return;
@@ -416,43 +434,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!hasAction) return;
 
     handledActionsRef.current.add(lastMsg.id);
-
-    // Delay so user can read the note first
-    const timer = setTimeout(() => {
-      // Theme switching
-      if (lastMsg.themeAction) {
-        if (lastMsg.themeAction === 'toggle') {
-          setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-        } else {
-          setTheme(lastMsg.themeAction);
-        }
-      }
-
-      // Open feedback modal (dispatch to global instance in SketchbookLayout)
-      if (lastMsg.feedbackAction) {
-        window.dispatchEvent(new CustomEvent('open-feedback'));
-      }
-
-      // Open URLs in new tabs — handle popup blockers
-      if (lastMsg.openUrls && lastMsg.openUrls.length > 0) {
-        let anyBlocked = false;
-        for (const url of lastMsg.openUrls) {
-          const popup = window.open(url, '_blank', 'noopener,noreferrer');
-          if (!popup) anyBlocked = true;
-        }
-        if (anyBlocked) {
-          markOpenUrlsFailed(lastMsg.id);
-        }
-      }
-
-      // Page navigation
-      if (lastMsg.navigateTo) {
-        router.push(lastMsg.navigateTo);
-      }
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [messages, isLoading, router, setTheme, resolvedTheme, markOpenUrlsFailed]);
+    pendingActionRef.current = lastMsg;
+  }, [messages, isLoading]);
 
   // One-time suggestion initialization after hydration — prevents flash on page return
   useEffect(() => {
@@ -463,12 +446,18 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (lastAssistant?.isOld) {
       // Returning to chat with history — use cached LLM suggestions if available
       hasFetchedSuggestionsRef.current = lastAssistant.id;
-      const base = pickRandom(FOLLOWUP_SUGGESTIONS, 2);
+      const base = [
+        ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
+        ...pickRandom(FOLLOWUP_ACTIONS, 1),
+      ];
       setBaseSuggestions(base);
       if (llmSuggestions.length > 0) {
         setExtraSuggestions(llmSuggestions.slice(0, 2));
       } else {
-        setExtraSuggestions(pickRandom(FOLLOWUP_SUGGESTIONS.filter(s => !base.includes(s)), 2));
+        setExtraSuggestions([
+          ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
+          ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !base.includes(s)), 1),
+        ]);
       }
     } else {
       // Fresh visit — show initial suggestions
@@ -484,8 +473,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastAssistant || isLoading || lastAssistant.isOld) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
     hasFetchedSuggestionsRef.current = lastAssistant.id;
-    // 2 hardcoded suggestions (shown once typewriter finishes)
-    const hardcoded = pickRandom(FOLLOWUP_SUGGESTIONS, 2);
+    // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)
+    const hardcoded = [
+      ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
+      ...pickRandom(FOLLOWUP_ACTIONS, 1),
+    ];
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
     // Fire background LLM request for 2 contextual suggestions
@@ -498,42 +490,61 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (llmSuggestions.length > 0) {
       setExtraSuggestions(llmSuggestions.slice(0, 2));
     } else {
-      // LLM failed — fill with 2 more hardcoded (different from base)
-      setExtraSuggestions(
-        pickRandom(FOLLOWUP_SUGGESTIONS.filter(s => !baseSuggestions.includes(s)), 2)
-      );
+      // LLM failed — fill with 1 conversational + 1 action (different from base)
+      setExtraSuggestions([
+        ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
+        ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !baseSuggestions.includes(s)), 1),
+      ]);
     }
   }, [isSuggestionsLoading, llmSuggestions, baseSuggestions]);
 
-  // Gate suggestion visibility: hide during loading + typewriting, show after typewriter finishes.
-  // Timer is stored in a ref so that re-renders (e.g. markOpenUrlsFailed mutating the
-  // same message) don't accidentally cancel the in-progress delay.
-  const suggestionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Gate suggestion visibility: hide during loading, show when typewriter signals completion.
+  // Also executes any pending actions (navigation, theme, URLs) once the note is fully typed.
+  const onLastTypewriterDone = useCallback(() => {
+    setSuggestionsReady(true);
+
+    // Drain pending action
+    const action = pendingActionRef.current;
+    if (!action) return;
+    pendingActionRef.current = null;
+
+    // Theme switching
+    if (action.themeAction) {
+      if (action.themeAction === 'toggle') {
+        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+      } else {
+        setTheme(action.themeAction);
+      }
+    }
+
+    // Open feedback modal
+    if (action.feedbackAction) {
+      window.dispatchEvent(new CustomEvent('open-feedback'));
+    }
+
+    // Open URLs in new tabs — handle popup blockers
+    if (action.openUrls && action.openUrls.length > 0) {
+      let anyBlocked = false;
+      for (const url of action.openUrls) {
+        const popup = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!popup) anyBlocked = true;
+      }
+      if (anyBlocked) {
+        markOpenUrlsFailed(action.id);
+      }
+    }
+
+    // Page navigation — slight delay so the user can read the confirmation
+    if (action.navigateTo) {
+      const dest = action.navigateTo;
+      setTimeout(() => router.push(dest), 600);
+    }
+  }, [router, setTheme, resolvedTheme, markOpenUrlsFailed]);
   useEffect(() => {
     if (isLoading) {
-      // New request started — hide suggestions and cancel any pending reveal
-      if (suggestionsTimerRef.current) { clearTimeout(suggestionsTimerRef.current); suggestionsTimerRef.current = null; }
       setSuggestionsReady(false);
-      return;
     }
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.role === 'assistant' && !lastMsg.isOld && lastMsg.id !== 'welcome' && lastMsg.content) {
-      if (lastTypewriterIdRef.current !== lastMsg.id) {
-        lastTypewriterIdRef.current = lastMsg.id;
-        setSuggestionsReady(false);
-        // Estimate typewriter duration: erase old (if filler was showing) + type new chars * 18ms + buffer
-        const eraseEstimate = 800;
-        const typeEstimate = lastMsg.content.length * 18;
-        const delay = Math.min(eraseEstimate + typeEstimate + 500, 10000);
-        if (suggestionsTimerRef.current) clearTimeout(suggestionsTimerRef.current);
-        suggestionsTimerRef.current = setTimeout(() => {
-          suggestionsTimerRef.current = null;
-          setSuggestionsReady(true);
-        }, delay);
-      }
-      // If lastTypewriterIdRef already matches → timer is already running, don't touch it
-    }
-  }, [isLoading, messages]);
+  }, [isLoading]);
 
   // Auto-scroll to newest note (only when messages change count or streaming ends)
   const prevMessageCountRef = useRef(messages.length);
@@ -627,6 +638,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               <StickyNote
                 message={msg}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                onTypewriterDone={idx === messages.length - 1 && msg.role === 'assistant' ? onLastTypewriterDone : undefined}
               />
             </div>
           );
@@ -645,21 +657,23 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 transition={{ duration: 0.2 }}
                 className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
               >
-                {baseSuggestions.map(q => (
+                {baseSuggestions.map((q, i) => (
                   <SuggestionStrip
                     key={q}
                     text={q}
                     isAction={!!resolveAction(q)}
                     onClick={() => handleSuggestion(q)}
+                    index={i}
                   />
                 ))}
                 <AnimatePresence>
-                  {extraSuggestions.map(q => (
+                  {extraSuggestions.map((q, i) => (
                     <SuggestionStrip
                       key={q}
                       text={q}
                       isAction={!!resolveAction(q)}
                       onClick={() => handleSuggestion(q)}
+                      index={i}
                     />
                   ))}
                 </AnimatePresence>
@@ -684,7 +698,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {hasMessages && (
           <div className="flex justify-end mb-2">
             <button
-              onClick={() => { clearMessages(); setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2)); setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2)); setSuggestionsReady(true); hasFetchedSuggestionsRef.current = null; lastTypewriterIdRef.current = null; }}
+              onClick={() => { clearMessages(); setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2)); setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2)); setSuggestionsReady(true); hasFetchedSuggestionsRef.current = null; }}
               className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
               title="Clear desk"
             >

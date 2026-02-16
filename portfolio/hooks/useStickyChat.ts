@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { CHAT_CONFIG, WELCOME_MESSAGE, FALLBACK_MESSAGES } from '@/lib/chatContext';
+import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 
 export interface ChatMessage {
@@ -123,49 +123,43 @@ function parseActions(text: string): ParsedActions {
 
 // (stripActionTags removed — no longer needed without streaming)
 
-function getRandomFallback(): string {
-  return FALLBACK_MESSAGES[Math.floor(Math.random() * FALLBACK_MESSAGES.length)];
-}
-
-// Tiered filler messages — each tier shown at its corresponding delay
+// Tiered filler messages — each tier shown at its corresponding delay.
+// Written as short, first-person "thinking out loud" lines that fit a sticky-note chat
+// from a software engineer. No question-specific context needed.
 const FILLER_5S = [
-  "This one's making me think hard...",
   "Hmm, let me think about this...",
-  "Still working on this one...",
-  "Give me a moment, this is a good one...",
-  "Thinking extra hard on this one...",
+  "Give me a sec, putting my thoughts together...",
+  "One moment — organizing my notes...",
+  "Let me dig into this for you...",
+  "Working on it, hang tight...",
+  "Hold on — juggling a few conversations here...",
 ];
 
 const FILLER_10S = [
-  "Did anyone ever tell you that you could be a quizmaster?",
-  "Is this an interview? Because I'm polishing my basics again...",
-  "You're really putting me through my paces here!",
-  "Hold on, I'm flipping through my mental textbook...",
-  "Wow, you don't ask the easy ones, do you?",
+  "Still on it — this needs a bit more thought...",
+  "Pulling up some details, almost there...",
+  "Taking a bit longer than I expected — bear with me!",
+  "Writing you a proper answer, one sec...",
+  "Almost done — just connecting a few dots...",
+  "Talking to a lot of people today — you're next in line!",
 ];
 
 const FILLER_15S = [
-  "Using 100% brain power...",
-  "Calling on every last braincell and neuron!",
-  "Pretty sure steam is coming out of my ears right now...",
-  "My neurons are having a team meeting about this one.",
-  "If I had a whiteboard, it would be COVERED right now.",
+  "Okay, this one's taking some real brainpower...",
+  "Deep in thought — haven't forgotten about you!",
+  "Still here! Just making sure I get this right.",
+  "This turned out to be a bigger topic than I thought...",
+  "Running through my mental notes, almost there...",
+  "I've gotten really popular lately — hard to keep up!",
 ];
 
 const FILLER_20S = [
-  "Is this an NP-hard problem? You might have to wait a few lifetimes...",
-  "How many stars in the sky would have been an easier question :P",
-  "I think you just discovered a new millennium prize problem.",
-  "My brain's running O(n!) on this — please stand by...",
-  "At this point I'm just brute-forcing every possible answer.",
-];
-
-const FILLER_TIMEOUT = [
-  "You win! I give up, you're too good for me!",
-  "I zoned out there — do you mind repeating yourself?",
-  "My brain just blue-screened. Can we try that again?",
-  "Error 418: I'm a teapot, not a supercomputer.",
-  "Okay, you officially broke me. Well played.",
+  "Is this an NP-hard problem? Please stand by...",
+  "My brain's running O(n!) on this one — hang in there...",
+  "Pretty sure this needs a whiteboard and three cups of coffee...",
+  "Brute-forcing every possible answer at this point...",
+  "Segfault in my brain. Restarting thought process...",
+  "Managing this many conversations is basically distributed systems at this point...",
 ];
 
 const FILLER_TIERS = [
@@ -409,7 +403,7 @@ export function useStickyChat(): UseStickyChat {
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: getRandomFallback(), isFiller: false }
+              ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
               : m
           )
         );
@@ -424,7 +418,7 @@ export function useStickyChat(): UseStickyChat {
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantId
-                ? { ...m, content: pickRandom(FILLER_TIMEOUT), isFiller: false }
+                ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
                 : m
             )
           );
@@ -438,7 +432,7 @@ export function useStickyChat(): UseStickyChat {
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: getRandomFallback(), isFiller: false }
+            ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
             : m
         )
       );

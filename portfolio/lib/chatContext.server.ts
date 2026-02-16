@@ -26,7 +26,7 @@ MY PROJECTS:
 PERSONAL:
 - Hobbies: gym and strength training (serious about it), chess, PC hardware overclocking and RAM tweaking, gaming, travel.
 - PC build: RTX 3080 Ti (overclocked + undervolted), i5-13600KF overclocked to 5.5GHz P-cores (HT off) and 4.2GHz E-cores, DDR5 Hynix M-die overclocked from 5200 to 6400MHz CL32 with tight secondary timings. I love the optimization rabbit hole.
-- Gaming: love Witcher 3 (incredible story), Metal Gear Solid V (stealth mechanics), Horizon games, was Immortal in Valorant, play modded Minecraft with friends on an Azure-hosted server. Planning Ghost of Tsushima next.
+- Gaming: love Witcher 3 (incredible story), Metal Gear Solid V (stealth mechanics), Horizon games, was Immortal 2 in Valorant (APAC rank ~8000), play modded Minecraft with friends on an Azure-hosted server. Planning Ghost of Tsushima next.
 - Follows longevity research closely, adjusts supplement stack based on latest findings. Life philosophy centers on longevity and optimization.
 - Follows the latest AI/LLM research and tech updates closely.
 - IDE: VSCode or Sublime. Prefers Windows, Linux fine for servers. Thinks Rust is impressively fast.

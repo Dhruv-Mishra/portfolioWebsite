@@ -1,6 +1,6 @@
 // lib/chatContext.ts — Client-safe chat constants (NO system prompt — that's in chatContext.server.ts)
 
-export const WELCOME_MESSAGE = "Hey :) Ask me about my work at Microsoft, my projects, tech opinions, hobbies, or anything really. I'll answer as if we're passing notes in class ~";
+export const WELCOME_MESSAGE = "Hey :) Ask me about my work at Microsoft, my projects, tech opinions, hobbies, or anything really ~";
 
 // Friendly fallback messages when the LLM is unavailable (shown as AI notes, not errors)
 export const FALLBACK_MESSAGES = [

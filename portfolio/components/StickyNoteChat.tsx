@@ -624,7 +624,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             transition={{ delay: 0.2 }}
             className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2"
           >
-            Ask me anything — powered by AI, answered as Dhruv.
+            Ask me anything ~
           </m.p>
         </div>
       ) : (

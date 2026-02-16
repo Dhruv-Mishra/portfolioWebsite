@@ -72,11 +72,11 @@ export function FeedbackTab({ onClick }: { onClick: () => void }) {
       whileTap={{ scale: 0.9, transition: { duration: 0.1 } }}
       onClick={onClick}
       className={cn(
-        "fixed bottom-[8.5rem] md:bottom-20 right-4 md:right-8 z-40",
+        "hidden md:flex fixed bottom-20 right-4 md:right-8 z-40",
         "w-10 h-10 md:w-11 md:h-11 rounded-full",
         "bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50",
         "shadow-md hover:shadow-lg",
-        "flex items-center justify-center",
+        "items-center justify-center",
         "text-[var(--c-ink)] opacity-50 hover:opacity-100",
         "transition-[opacity,box-shadow] duration-150",
       )}

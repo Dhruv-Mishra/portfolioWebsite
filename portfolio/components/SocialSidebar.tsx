@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { m } from "framer-motion";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon, MessageSquare } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const SOCIALS = [
@@ -48,7 +48,6 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
     if (isMobile) {
         return (
             <a
-                key={social.name}
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -63,7 +62,6 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
 
     return (
         <m.a
-            key={social.name}
             href={social.url}
             target="_blank"
             rel="noopener noreferrer"
@@ -84,7 +82,10 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
     );
 });
 
-export default function SocialSidebar() {
+// Pre-computed mobile social list (CP History replaced by feedback button)
+const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
+
+export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     return (
         <>
             {/* Desktop: Vertical sidebar on right */}
@@ -108,9 +109,21 @@ export default function SocialSidebar() {
                 {/* Theme Toggle */}
                 <MobileThemeButton />
 
-                {SOCIALS.map((social) => (
+                {MOBILE_SOCIALS.map((social) => (
                     <SocialLink key={social.name} social={social} isMobile />
                 ))}
+
+                {/* Feedback button (replaces CP History on mobile) */}
+                {onFeedbackClick && (
+                    <button
+                        onClick={onFeedbackClick}
+                        className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+                        title="Send feedback"
+                        aria-label="Open feedback form"
+                    >
+                        <MessageSquare size={16} strokeWidth={2.5} />
+                    </button>
+                )}
             </div>
         </>
     );

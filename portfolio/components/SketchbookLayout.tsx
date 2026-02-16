@@ -105,7 +105,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     {children}
                 </main>
 
-                <SocialSidebar />
+                <SocialSidebar onFeedbackClick={openFeedback} />
 
                 {/* Feedback icon (floating bottom-right) + modal */}
                 <FeedbackTab onClick={openFeedback} />

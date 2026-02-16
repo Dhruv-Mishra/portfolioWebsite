@@ -17,7 +17,7 @@ MY PROJECTS:
 - Fluent UI Android (Microsoft, past): Kotlin/Compose design-system for M365 apps — Outlook, Teams, etc.
 - Course Similarity Evaluator: NLP course comparison — Python + scikit-learn.
 - Instant Vital Checkup (IVC): CV Android app for heart rate/SpO2 — Kotlin + OpenCV.
-- This Portfolio: Sketchbook-themed Next.js 16, React 19, Tailwind v4, Framer Motion site.
+- This Portfolio: Sketchbook-themed Next.js 16, React 19, Tailwind v4, Framer Motion site with AI chat. Georedundant — hosted on multiple VMs across the globe with a backend and traffic manager. Separate GitHub Actions deployment pipelines. Runs on combined infrastructure from Oracle Cloud, GCP, and Azure — entirely free, only pay for the domain.
 - Hybrid Entertainment Recommender: Age/context-sensitive rec engine — Python.
 - AtomVault: Secure file-encryption CLI — C++.
 - Bloom Filter Research: Concurrent counting-bloom-filter optimization in C++.

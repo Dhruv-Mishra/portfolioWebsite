@@ -290,17 +290,7 @@ body {
 
 }
 
-/* Bouncing typing dots — outside @layer so Tailwind v4 won't purge it */
-.animate-bounce-dot {
-  animation: bounceDot 1.2s ease-in-out infinite;
-  will-change: transform, opacity;
-}
 
-@keyframes bounceDot {
-  0%, 100% { transform: translateY(0) scale(1); opacity: 0.35; }
-  25% { transform: translateY(-7px) scale(1.35); opacity: 1; }
-  50% { transform: translateY(0) scale(1); opacity: 0.35; }
-}
 
 /* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.
    Must use * selector because Tailwind v4 preflight sets cursor: default on *,

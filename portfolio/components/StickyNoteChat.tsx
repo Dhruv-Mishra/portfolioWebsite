@@ -47,7 +47,9 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
 
     const prevText = prevTextRef.current;
     const newText = text;
-    prevTextRef.current = newText;
+    // Don't update prevTextRef here — only on successful typing completion.
+    // This prevents React strict-mode double-invocation from breaking:
+    // if cleanup cancels the first run, the second run still sees prevText !== text.
 
     // Helper: type newText from char 0
     const startTyping = () => {
@@ -58,6 +60,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
         i++;
         if (i >= newText.length) {
           setDisplayed(newText);
+          prevTextRef.current = newText; // Mark as completed
           setPhase('idle');
           clearInterval(id);
         } else {
@@ -94,14 +97,24 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
   return { displayed, isTyping, isFiller: isFiller && (phase !== 'idle' || displayed === text) };
 }
 
-// ─── Typing Ellipsis — bouncing dots with scale wave, pure CSS ───
+// ─── Typing Ellipsis — bouncing dots with scale wave, Framer Motion ───
 const TypingEllipsis = () => (
   <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline">
     {[0, 1, 2].map(i => (
-      <span
+      <m.span
         key={i}
-        className="inline-block w-[5px] h-[5px] rounded-full bg-current opacity-70 animate-bounce-dot"
-        style={{ animationDelay: `${i * 160}ms` }}
+        className="inline-block w-[5px] h-[5px] rounded-full bg-current"
+        animate={{
+          y: [0, -7, 0, 0],
+          scale: [1, 1.35, 1, 1],
+          opacity: [0.35, 1, 0.35, 0.35],
+        }}
+        transition={{
+          duration: 1.2,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: i * 0.16,
+        }}
       />
     ))}
   </span>
@@ -167,13 +180,13 @@ const StickyNote = memo(function StickyNote({
   ).current;
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
-  const { displayed, isTyping, isFiller: isDisplayingFiller } = useTypewriter(
+  const { displayed, isFiller: isDisplayingFiller } = useTypewriter(
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
   );
   const showContent = isUser ? message.content : displayed;
-  const showPencil = !isUser && (isLoading || isTyping);
+  const showPencil = !isUser && isLoading;
 
   return (
     <m.div
@@ -322,17 +335,35 @@ const FOLLOWUP_SUGGESTIONS = [
   "Report a bug",
 ];
 
-// Suggestions that trigger actions (used to show the Zap indicator)
-const ACTION_SUGGESTIONS = new Set([
-  "Switch to dark mode",
-  "Open your GitHub profile",
-  "Show me your resume PDF",
-  "Take me to the projects page",
-  "Open the Fluent UI repo",
-  "Toggle the theme",
-  "Open your LinkedIn",
-  "Report a bug",
-]);
+// Keyword patterns → HARDCODED_ACTIONS key. Used to fuzzy-match LLM suggestions
+// to known executable actions. Only matches when an action verb is present to
+// avoid false positives on conversational questions.
+const ACTION_MATCHERS: [RegExp, string][] = [
+  [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Switch to dark mode"],
+  [/\btoggle\b.*\btheme\b/i, "Toggle the theme"],
+  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Toggle the theme"],
+  [/\b(go|take|navigate|visit)\b.*\bprojects?\s*page\b/i, "Take me to the projects page"],
+  [/\bopen\b.*\bgithub\b/i, "Open your GitHub profile"],
+  [/\b(open|show|view|see)\b.*\bresume\b/i, "Show me your resume PDF"],
+  [/\bopen\b.*\bfluent\s*ui\b.*\brepo\b/i, "Open the Fluent UI repo"],
+  [/\bopen\b.*\blinkedin\b/i, "Open your LinkedIn"],
+  [/\breport\b.*\bbug\b|\bfeedback\s*form\b|\bsubmit\b.*\bfeedback\b/i, "Report a bug"],
+];
+
+// Try to match suggestion text to a known executable action.
+// Returns the HARDCODED_ACTIONS key if matched, null otherwise.
+function resolveAction(text: string): string | null {
+  // Exact match (case-insensitive) against HARDCODED_ACTIONS keys
+  const exactKey = Object.keys(HARDCODED_ACTIONS).find(
+    k => k.toLowerCase() === text.toLowerCase(),
+  );
+  if (exactKey) return exactKey;
+  // Keyword-based fuzzy match
+  for (const [pattern, key] of ACTION_MATCHERS) {
+    if (pattern.test(text)) return key;
+  }
+  return null;
+}
 
 // Pre-built responses for hardcoded action suggestions — avoids an LLM call.
 // Each entry maps suggestion text → { content, ...action metadata }.
@@ -359,7 +390,7 @@ function pickRandom<T>(arr: T[], n: number): T[] {
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, suggestionActions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const [input, setInput] = useState('');
@@ -474,11 +505,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [isSuggestionsLoading, llmSuggestions, baseSuggestions]);
 
-  // Gate suggestion visibility: hide during loading + typewriting, show after typewriter finishes
+  // Gate suggestion visibility: hide during loading + typewriting, show after typewriter finishes.
+  // Timer is stored in a ref so that re-renders (e.g. markOpenUrlsFailed mutating the
+  // same message) don't accidentally cancel the in-progress delay.
+  const suggestionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (isLoading) {
+      // New request started — hide suggestions and cancel any pending reveal
+      if (suggestionsTimerRef.current) { clearTimeout(suggestionsTimerRef.current); suggestionsTimerRef.current = null; }
       setSuggestionsReady(false);
-      return undefined;
+      return;
     }
     const lastMsg = messages[messages.length - 1];
     if (lastMsg?.role === 'assistant' && !lastMsg.isOld && lastMsg.id !== 'welcome' && lastMsg.content) {
@@ -486,15 +522,17 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         lastTypewriterIdRef.current = lastMsg.id;
         setSuggestionsReady(false);
         // Estimate typewriter duration: erase old (if filler was showing) + type new chars * 18ms + buffer
-        // Filler erase: ~50 chars * 11ms ≈ 550ms; be generous with 800ms extra for erase phase
         const eraseEstimate = 800;
         const typeEstimate = lastMsg.content.length * 18;
         const delay = Math.min(eraseEstimate + typeEstimate + 500, 10000);
-        const timer = setTimeout(() => setSuggestionsReady(true), delay);
-        return () => clearTimeout(timer);
+        if (suggestionsTimerRef.current) clearTimeout(suggestionsTimerRef.current);
+        suggestionsTimerRef.current = setTimeout(() => {
+          suggestionsTimerRef.current = null;
+          setSuggestionsReady(true);
+        }, delay);
       }
+      // If lastTypewriterIdRef already matches → timer is already running, don't touch it
     }
-    return undefined;
   }, [isLoading, messages]);
 
   // Auto-scroll to newest note (only when messages change count or streaming ends)
@@ -523,10 +561,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [handleSend]);
 
   const handleSuggestion = useCallback((text: string) => {
-    const hardcoded = HARDCODED_ACTIONS[text];
-    if (hardcoded) {
-      // Bypass the LLM — use the pre-built response + action metadata
-      addLocalExchange(text, hardcoded);
+    // Resolve to a known action (exact or fuzzy match) — bypasses LLM, executes directly
+    const actionKey = resolveAction(text);
+    if (actionKey) {
+      addLocalExchange(text, HARDCODED_ACTIONS[actionKey]);
     } else {
       sendMessage(text);
     }
@@ -611,7 +649,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   <SuggestionStrip
                     key={q}
                     text={q}
-                    isAction={ACTION_SUGGESTIONS.has(q) || suggestionActions.has(q)}
+                    isAction={!!resolveAction(q)}
                     onClick={() => handleSuggestion(q)}
                   />
                 ))}
@@ -620,7 +658,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     <SuggestionStrip
                       key={q}
                       text={q}
-                      isAction={ACTION_SUGGESTIONS.has(q) || suggestionActions.has(q)}
+                      isAction={!!resolveAction(q)}
                       onClick={() => handleSuggestion(q)}
                     />
                   ))}

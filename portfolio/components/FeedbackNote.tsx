@@ -155,10 +155,11 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     }
   }, [isOpen]);
 
-  // Close on Escape
+  // Close on Escape — only attach listener when modal is open
   useEffect(() => {
+    if (!isOpen) return;
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);

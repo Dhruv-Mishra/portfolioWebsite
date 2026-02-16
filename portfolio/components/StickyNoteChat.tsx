@@ -147,6 +147,10 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 );
 
 // ─── Suggested Question Strip ───
+// Static rotation styles hoisted to module scope to avoid re-creating objects per render
+const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
+const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
+
 const SuggestionStrip = ({ text, isAction, onClick, index = 0 }: { text: string; isAction?: boolean; onClick: () => void; index?: number }) => (
   <m.button
     initial={{ opacity: 0, y: 10 }}
@@ -160,9 +164,7 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0 }: { text: string;
       "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
       isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
     )}
-    style={{
-      transform: `rotate(${isAction ? '-0.5' : '0.3'}deg)`,
-    }}
+    style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
   >
     {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
     {text}
@@ -218,11 +220,6 @@ const StickyNote = memo(function StickyNote({
           : "bg-[var(--note-ai)] text-[var(--note-ai-ink)]",
         message.isOld && "sepia-[.15] dark:sepia-0",
       )}
-      style={{
-        clipPath: isUser
-          ? undefined // No clipPath — tape needs to overflow top edge
-          : undefined,
-      }}
     >
       {/* Tape on all notes */}
       <TapeStrip />
@@ -453,7 +450,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (hasInitializedSuggestionsRef.current || messages.length === 0) return;
     hasInitializedSuggestionsRef.current = true;
 
-    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.id !== 'welcome');
+    const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
     if (lastAssistant?.isOld) {
       // Returning to chat with history — use cached LLM suggestions if available
       hasFetchedSuggestionsRef.current = lastAssistant.id;
@@ -480,13 +477,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual
   useEffect(() => {
-    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.id !== 'welcome');
+    const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
     if (!lastAssistant || isLoading || lastAssistant.isOld) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
     hasFetchedSuggestionsRef.current = lastAssistant.id;
 
     // Exclude the suggestion the user just clicked (= their last message text)
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserMsg = messages.findLast(m => m.role === 'user');
     const lastUserText = lastUserMsg?.content?.toLowerCase() || '';
 
     // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)

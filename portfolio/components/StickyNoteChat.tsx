@@ -729,7 +729,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {hasMessages && (
           <div className="flex justify-end mb-2">
             <button
-              onClick={() => { clearMessages(); setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2)); setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2)); setSuggestionsReady(true); hasFetchedSuggestionsRef.current = null; }}
+              onClick={() => {
+                clearMessages();
+                setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
+                setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
+                setSuggestionsReady(true);
+                hasFetchedSuggestionsRef.current = null;
+                hasInitializedSuggestionsRef.current = false;
+                pendingActionRef.current = null;
+                handledActionsRef.current.clear();
+              }}
               className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
               title="Clear desk"
             >

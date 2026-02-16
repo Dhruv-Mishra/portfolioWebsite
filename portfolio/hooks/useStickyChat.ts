@@ -209,6 +209,7 @@ export function useStickyChat(): UseStickyChat {
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suggestionsAbortRef = useRef<AbortController | null>(null);
+  const fillerCleanupRef = useRef<(() => void) | null>(null);
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -352,7 +353,8 @@ export function useStickyChat(): UseStickyChat {
       }, tier.delay);
       fillerTimerIds.push(tid);
     }
-    const clearFillerTimers = () => fillerTimerIds.forEach(t => clearTimeout(t));
+    const clearFillerTimers = () => { fillerTimerIds.forEach(t => clearTimeout(t)); fillerCleanupRef.current = null; };
+    fillerCleanupRef.current = clearFillerTimers;
 
     try {
       // Build conversation history
@@ -413,8 +415,12 @@ export function useStickyChat(): UseStickyChat {
       clearFillerTimers();
 
       if (err instanceof Error && err.name === 'AbortError') {
-        const isTimeout = abortControllerRef.current?.signal.reason === 'timeout';
-        if (isTimeout) {
+        const reason = abortControllerRef.current?.signal.reason;
+        if (reason === 'clear') {
+          // clearMessages already wiped state — nothing to do
+          return;
+        }
+        if (reason === 'timeout') {
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantId
@@ -460,9 +466,19 @@ export function useStickyChat(): UseStickyChat {
   }, []);
 
   const clearMessages = useCallback(() => {
+    // Abort any in-flight LLM request and suggestions fetch
+    abortControllerRef.current?.abort('clear');
+    abortControllerRef.current = null;
+    suggestionsAbortRef.current?.abort('clear');
+    suggestionsAbortRef.current = null;
+    // Cancel any pending filler timers
+    fillerCleanupRef.current?.();
+    // Reset all state
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
+    setIsLoading(false);
     setError(null);
     setSuggestions([]);
+    setIsSuggestionsLoading(false);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CHAT_CONFIG.storageKey);
       localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);

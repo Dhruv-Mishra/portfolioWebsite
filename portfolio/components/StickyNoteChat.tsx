@@ -339,16 +339,18 @@ const FOLLOWUP_CONVERSATIONAL = [
   "Tell me about your research",
 ];
 
-const FOLLOWUP_ACTIONS = [
-  "Switch to dark mode",
+// Theme-dependent actions are resolved at render time via getFollowupActions()
+const FOLLOWUP_ACTIONS_BASE = [
   "Open your GitHub profile",
   "Show me your resume PDF",
   "Take me to the projects page",
   "Open the Fluent UI repo",
-  "Toggle the theme",
   "Open your LinkedIn",
+  "Show your Codeforces profile",
   "Report a bug",
 ];
+const FOLLOWUP_ACTIONS_DARK_ONLY = ["Switch to light mode"];
+const FOLLOWUP_ACTIONS_LIGHT_ONLY = ["Switch to dark mode", "Toggle the theme"];
 
 // Keyword patterns → HARDCODED_ACTIONS key. Used to fuzzy-match LLM suggestions
 // to known executable actions. Only matches when an action verb is present to
@@ -356,12 +358,13 @@ const FOLLOWUP_ACTIONS = [
 const ACTION_MATCHERS: [RegExp, string][] = [
   [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Switch to dark mode"],
   [/\btoggle\b.*\btheme\b/i, "Toggle the theme"],
-  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Toggle the theme"],
+  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Switch to light mode"],
   [/\b(go|take|navigate|visit)\b.*\bprojects?\s*page\b/i, "Take me to the projects page"],
-  [/\bopen\b.*\bgithub\b/i, "Open your GitHub profile"],
+  [/\b(open|show|view|see)\b.*\bgithub\b/i, "Open your GitHub profile"],
   [/\b(open|show|view|see)\b.*\bresume\b/i, "Show me your resume PDF"],
-  [/\bopen\b.*\bfluent\s*ui\b.*\brepo\b/i, "Open the Fluent UI repo"],
-  [/\bopen\b.*\blinkedin\b/i, "Open your LinkedIn"],
+  [/\b(open|show|view|see)\b.*\bfluent\s*ui\b.*\brepo\b/i, "Open the Fluent UI repo"],
+  [/\b(open|show|view|see)\b.*\blinkedin\b/i, "Open your LinkedIn"],
+  [/\b(open|show|view|see)\b.*\bcodeforces\b/i, "Show your Codeforces profile"],
   [/\breport\b.*\bbug\b|\bfeedback\s*form\b|\bsubmit\b.*\bfeedback\b/i, "Report a bug"],
 ];
 
@@ -386,12 +389,14 @@ function resolveAction(text: string): string | null {
 // The `themeAction` value 'toggle' is resolved at runtime by the action handler.
 const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').ChatMessage, 'id' | 'role' | 'timestamp'>> = {
   "Switch to dark mode": { content: "Switching to dark mode for you ~", themeAction: 'dark' },
+  "Switch to light mode": { content: "Switching to light mode for you ~", themeAction: 'light' },
   "Toggle the theme": { content: "Toggling the theme ~", themeAction: 'toggle' },
   "Take me to the projects page": { content: "Here are my projects!", navigateTo: '/projects' },
   "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrls: ['https://github.com/Dhruv-Mishra'] },
   "Show me your resume PDF": { content: "Here's my resume!", openUrls: ['/resources/resume.pdf'] },
   "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrls: ['https://github.com/microsoft/fluentui-android'] },
   "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrls: ['https://www.linkedin.com/in/dhruv-mishra-id/'] },
+  "Show your Codeforces profile": { content: "Opening Codeforces for you ~", openUrls: ['https://codeforces.com/profile/DhruvMishra'] },
   "Report a bug": { content: "Opening the feedback form for you ~", feedbackAction: true },
 };
 
@@ -414,6 +419,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [suggestionsReady, setSuggestionsReady] = useState(false);
+
+  // Compute theme-aware action pool (avoids showing "Switch to dark" when already dark)
+  const followupActions = [
+    ...FOLLOWUP_ACTIONS_BASE,
+    ...(resolvedTheme === 'dark' ? FOLLOWUP_ACTIONS_DARK_ONLY : FOLLOWUP_ACTIONS_LIGHT_ONLY),
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const handledActionsRef = useRef<Set<string>>(new Set());
@@ -448,7 +459,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       hasFetchedSuggestionsRef.current = lastAssistant.id;
       const base = [
         ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
-        ...pickRandom(FOLLOWUP_ACTIONS, 1),
+        ...pickRandom(followupActions, 1),
       ];
       setBaseSuggestions(base);
       if (llmSuggestions.length > 0) {
@@ -456,7 +467,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       } else {
         setExtraSuggestions([
           ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
-          ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !base.includes(s)), 1),
+          ...pickRandom(followupActions.filter(s => !base.includes(s)), 1),
         ]);
       }
     } else {
@@ -473,10 +484,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastAssistant || isLoading || lastAssistant.isOld) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
     hasFetchedSuggestionsRef.current = lastAssistant.id;
+
+    // Exclude the suggestion the user just clicked (= their last message text)
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastUserText = lastUserMsg?.content?.toLowerCase() || '';
+
     // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)
     const hardcoded = [
-      ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
-      ...pickRandom(FOLLOWUP_ACTIONS, 1),
+      ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => s.toLowerCase() !== lastUserText), 1),
+      ...pickRandom(followupActions.filter(s => s.toLowerCase() !== lastUserText), 1),
     ];
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
@@ -493,7 +509,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       // LLM failed — fill with 1 conversational + 1 action (different from base)
       setExtraSuggestions([
         ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
-        ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !baseSuggestions.includes(s)), 1),
+        ...pickRandom(followupActions.filter(s => !baseSuggestions.includes(s)), 1),
       ]);
     }
   }, [isSuggestionsLoading, llmSuggestions, baseSuggestions]);

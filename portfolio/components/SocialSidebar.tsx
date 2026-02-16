@@ -52,7 +52,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-all duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
+                className={`flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
                 title={social.name}
                 aria-label={social.name}
             >
@@ -137,7 +137,7 @@ function MobileThemeButton() {
     return (
         <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-all duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
             title="Toggle theme"
             aria-label="Toggle theme"
         >

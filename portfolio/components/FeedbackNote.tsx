@@ -99,6 +99,7 @@ interface FeedbackNoteProps {
 export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const [category, setCategory] = useState<FeedbackCategory>('bug');
   const [message, setMessage] = useState('');
+  const [contact, setContact] = useState('');
   const [state, setState] = useState<FeedbackState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -113,6 +114,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
         const parsed = JSON.parse(draft);
         if (parsed.message) setMessage(parsed.message);
         if (parsed.category) setCategory(parsed.category);
+        if (parsed.contact) setContact(parsed.contact);
       }
     } catch { /* ignore */ }
   }, []);
@@ -121,18 +123,19 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   useEffect(() => {
     const id = setTimeout(() => {
       try {
-        if (message || category !== 'bug') {
-          localStorage.setItem(FEEDBACK_DRAFT_KEY, JSON.stringify({ message, category }));
+        if (message || category !== 'bug' || contact) {
+          localStorage.setItem(FEEDBACK_DRAFT_KEY, JSON.stringify({ message, category, contact }));
         } else {
           localStorage.removeItem(FEEDBACK_DRAFT_KEY);
         }
       } catch { /* ignore */ }
     }, 400);
     return () => clearTimeout(id);
-  }, [message, category]);
+  }, [message, category, contact]);
 
   const clearDraft = useCallback(() => {
     setMessage('');
+    setContact('');
     setCategory('bug');
     try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch { /* ignore */ }
   }, []);
@@ -185,6 +188,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
         body: JSON.stringify({
           category,
           message: trimmed,
+          contact: contact.trim() || undefined,
           page: pathname,
           theme: resolvedTheme || 'unknown',
           viewport: typeof window !== 'undefined'
@@ -207,6 +211,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       // Auto-close after success
       setTimeout(() => {
         setMessage('');
+        setContact('');
         setCategory('bug');
         onClose();
         // Reset state after close animation
@@ -364,6 +369,25 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                     <span className="absolute bottom-2 right-3 text-xs text-[var(--c-ink)] opacity-30 font-code">
                       {message.length}/{MAX_MESSAGE_LENGTH}
                     </span>
+                  </div>
+
+                  {/* Optional contact field */}
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value.slice(0, 120))}
+                      placeholder="Name / email / socials (optional)"
+                      disabled={state === 'submitting'}
+                      className={cn(
+                        "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
+                        "px-3 py-2 font-hand text-sm text-[var(--c-ink)]",
+                        "placeholder:text-[var(--c-ink)]/30",
+                        "focus:outline-none focus:border-[var(--c-grid)]/60",
+                        "transition-colors",
+                        "disabled:opacity-50",
+                      )}
+                    />
                   </div>
 
                   {/* Action bar: page info, clear, send */}

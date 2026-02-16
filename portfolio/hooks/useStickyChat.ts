@@ -214,6 +214,7 @@ export function useStickyChat(): UseStickyChat {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const suggestionsAbortRef = useRef<AbortController | null>(null);
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -224,6 +225,7 @@ export function useStickyChat(): UseStickyChat {
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort('unmount');
+      suggestionsAbortRef.current?.abort('unmount');
     };
   }, []);
 
@@ -270,6 +272,11 @@ export function useStickyChat(): UseStickyChat {
     const currentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
     if (currentMessages.length === 0) return;
 
+    // Abort any in-flight suggestion request to prevent stale results / leaks
+    suggestionsAbortRef.current?.abort('superseded');
+    const controller = new AbortController();
+    suggestionsAbortRef.current = controller;
+
     setSuggestions([]);
     setIsSuggestionsLoading(true);
     const contextMessages = currentMessages
@@ -280,6 +287,7 @@ export function useStickyChat(): UseStickyChat {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: contextMessages }),
+      signal: controller.signal,
     })
       .then(res => res.ok ? res.json() : { suggestions: [] })
       .then(data => {
@@ -292,8 +300,13 @@ export function useStickyChat(): UseStickyChat {
           }
         } catch { /* ignore */ }
       })
-      .catch(() => { /* silently fail — hardcoded fallbacks will show */ })
-      .finally(() => setIsSuggestionsLoading(false));
+      .catch((err) => {
+        // Only set empty on real failures, not abort
+        if (err?.name !== 'AbortError') setSuggestions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsSuggestionsLoading(false);
+      });
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {

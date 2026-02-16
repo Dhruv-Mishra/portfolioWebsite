@@ -54,7 +54,7 @@ export function ThemeToggle() {
             </div>
 
             {/* Rough circle hover effect that looks drawn */}
-            <div className="absolute inset-0 border-2 border-gray-400/0 group-hover:border-gray-400/30 rounded-full scale-110 opacity-0 group-hover:opacity-100 transition-all pointer-events-none" style={{ borderRadius: "50% 40% 60% 50% / 50% 60% 40% 50%" }}></div>
+            <div className="absolute inset-0 border-2 border-gray-400/0 group-hover:border-gray-400/30 rounded-full scale-110 opacity-0 group-hover:opacity-100 transition-[border-color,opacity] duration-150 pointer-events-none" style={{ borderRadius: "50% 40% 60% 50% / 50% 60% 40% 50%" }}></div>
         </button>
     );
 }

@@ -61,6 +61,7 @@ const TITLE_PREFIX: Record<FeedbackCategory, string> = {
 interface FeedbackBody {
   category: FeedbackCategory;
   message: string;
+  contact?: string;
   page?: string;
   theme?: string;
   viewport?: string;
@@ -105,8 +106,11 @@ export async function POST(request: NextRequest) {
     // Build GitHub issue
     const title = `[${TITLE_PREFIX[body.category]}] ${message.slice(0, 60)}${message.length > 60 ? '...' : ''}`;
 
+    const contact = String(body.contact || '').trim().slice(0, 120);
+
     const metadataLines = [
       `**Category:** ${TITLE_PREFIX[body.category]}`,
+      ...(contact ? [`**Contact:** ${contact}`] : []),
       `**Page:** ${body.page || 'Unknown'}`,
       `**Theme:** ${body.theme || 'Unknown'}`,
       `**Viewport:** ${body.viewport || 'Unknown'}`,

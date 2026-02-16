@@ -21,12 +21,18 @@ CONTEXT-AWARENESS (most important):
 - Don't repeat what the user asked in their MOST RECENT message. Earlier topics are fine to revisit if contextually relevant.
 - Suggestions should dig DEEPER into what was just discussed, not restart the conversation. If Dhruv just explained Fluent UI, suggest something specific about Fluent UI — not a generic "What projects have you worked on?".
 
+DIVERSITY (critical):
+- The two suggestions MUST be meaningfully different from each other. Never rephrase the same idea twice.
+- Each suggestion should lead the conversation in a distinct direction.
+- BAD: "Tell me about your projects" / "What projects have you built?" (same topic, different wording)
+- GOOD: "What was hardest about Fluent UI?" / "Open your GitHub profile" (different directions)
+
 Rules:
 1. Return EXACTLY 2 suggestions, one per line. Nothing else — no numbering, no bullets, no quotes.
-2. Each suggestion must be 2-8 words, conversational and casual (the [ACTION] prefix does NOT count toward the word limit).
+2. Each suggestion must be 2-8 words, conversational and casual.
 3. Make both suggestions directly relevant to the last assistant message.
 4. Don't repeat anything the user already asked or that was already covered.
-5. Vary the suggestions — don't always suggest the same actions.
+5. The two suggestions must explore DIFFERENT aspects or offer DIFFERENT actions.
 6. Always write from the user's voice — "you/your" refers to Dhruv.`;
 
 const PROVIDER_TIMEOUT_MS = 8_000;

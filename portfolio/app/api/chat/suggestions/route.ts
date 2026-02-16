@@ -8,8 +8,6 @@ const SUGGESTIONS_SYSTEM_PROMPT = `You generate 2 short follow-up suggestions th
 CRITICAL: Suggestions are written FROM THE USER'S PERSPECTIVE, addressed TO Dhruv. The user is talking to Dhruv, so use "you/your" (meaning Dhruv), never "my/I" (that would be Dhruv speaking).
 - CORRECT: "Open your GitHub profile" (user asking to see Dhruv's GitHub)
 - WRONG:  "Open my GitHub to see projects" (sounds like Dhruv talking about himself)
-- CORRECT: "Tell me about your research"
-- WRONG:  "Tell me about my research"
 
 Available action types the user can trigger:
 - Navigate to pages: home, about, projects, resume, chat
@@ -17,15 +15,19 @@ Available action types the user can trigger:
 - Toggle theme (dark/light)
 - Report a bug / give feedback
 
+CONTEXT-AWARENESS (most important):
+- Read the LAST assistant message carefully. Your suggestions must be a DIRECT, logical follow-up to what was just said.
+- If the assistant just ASKED A QUESTION or offered to do something ("Want me to open X?", "Should I take you to Y?", "Want details on Z?"), BOTH suggestions should be quick responses — one affirmative ("Yes please!", "Sure, open it!", "Yeah, show me!") and one decline/redirect ("Not right now", "Nah, tell me about X instead", "Maybe later"). Keep them short and natural.
+- Don't repeat what the user asked in their MOST RECENT message. Earlier topics are fine to revisit if contextually relevant.
+- Suggestions should dig DEEPER into what was just discussed, not restart the conversation. If Dhruv just explained Fluent UI, suggest something specific about Fluent UI — not a generic "What projects have you worked on?".
+
 Rules:
 1. Return EXACTLY 2 suggestions, one per line. Nothing else — no numbering, no bullets, no quotes.
 2. Each suggestion must be 2-8 words, conversational and casual.
-3. One should be a conversational question about Dhruv's work/projects/skills.
-4. The other should hint at an action (navigate, open link, toggle theme, etc.).
-5. Don't repeat anything the user already asked.
-6. Make them contextually relevant to the conversation so far.
-7. Vary the suggestions — don't always suggest the same actions.
-8. Always write from the user's voice — "you/your" refers to Dhruv.`;
+3. Make both suggestions directly relevant to the last assistant message.
+4. Don't repeat anything the user already asked or that was already covered.
+5. Vary the suggestions — don't always suggest the same actions.
+6. Always write from the user's voice — "you/your" refers to Dhruv.`;
 
 const PROVIDER_TIMEOUT_MS = 8_000;
 

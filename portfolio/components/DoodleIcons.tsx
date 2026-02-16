@@ -20,7 +20,7 @@ export const WindowControls = () => (
 
 // Realistic Thumbpin SVG
 export const Thumbpin = ({ className }: { className?: string }) => (
-    <div className={`pointer-events-none drop-shadow-xl ${className}`}>
+    <div className={`pointer-events-none ${className}`}>
         <svg width="60" height="60" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* Paper Indent/Shadow */}
             <ellipse cx="25" cy="28" rx="6" ry="3" fill="black" fillOpacity="0.2" filter="blur(2px)" />

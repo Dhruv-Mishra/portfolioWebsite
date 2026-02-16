@@ -56,7 +56,7 @@ export default function SketchbookCursor() {
             // Add point for trail with distance-based throttling
             const points = pointsRef.current;
             const lastPoint = points[points.length - 1];
-            if (!lastPoint || Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) > 5) {
+            if (!lastPoint || Math.hypot(e.clientX - lastPoint.x, e.clientY - lastPoint.y) > 12) {
                 points.push({ x: e.clientX, y: e.clientY, age: 0 });
                 // Compact array periodically to prevent unbounded growth
                 const start = pointsStartRef.current;
@@ -120,6 +120,7 @@ export default function SketchbookCursor() {
         const ctx = canvas?.getContext('2d');
 
         let idleFrameCount = 0;
+        let frameCount = 0;
         const renderTrail = () => {
             if (!canvas || !ctx) return;
 
@@ -128,6 +129,13 @@ export default function SketchbookCursor() {
 
             // Early return if not visible to save CPU, but only after trail fades
             if (!isVisibleRef.current && activePoints === 0) {
+                animationFrameId = requestAnimationFrame(renderTrail);
+                return;
+            }
+
+            // Run at ~30fps (skip every other frame) to reduce CPU/GPU load
+            frameCount++;
+            if (frameCount % 2 !== 0 && activePoints > 0) {
                 animationFrameId = requestAnimationFrame(renderTrail);
                 return;
             }
@@ -157,11 +165,11 @@ export default function SketchbookCursor() {
             ctx.beginPath();
 
             if (isDark) {
-                // Chalk Style: Thick, Hazy, White
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.lineWidth = 6;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+                // Chalk Style: Wide stroke, no shadowBlur (expensive per-frame Gaussian)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.lineWidth = 8;
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
             } else {
                 // Pencil Style: Thin, Sharp, Graphite
                 ctx.strokeStyle = 'rgba(60, 60, 60, 0.1)';
@@ -174,6 +182,7 @@ export default function SketchbookCursor() {
             ctx.lineJoin = 'round';
 
             const points = pointsRef.current;
+            const maxAge = 3;
             if (points.length - pointsStartRef.current > 1) {
                 ctx.moveTo(points[pointsStartRef.current].x, points[pointsStartRef.current].y);
 
@@ -181,7 +190,7 @@ export default function SketchbookCursor() {
                     const point = points[i];
                     point.age += 1;
 
-                    if (point.age > 10) { // Reduced Max Age
+                    if (point.age > maxAge) {
                         pointsStartRef.current = i; // O(1) instead of O(n) shift()
                         continue;
                     }
@@ -236,7 +245,7 @@ export default function SketchbookCursor() {
                 }}
                 className="absolute top-0 left-0"
             >
-                <div className="w-8 h-8 md:w-10 md:h-10 drop-shadow-lg" style={{ transform: resolvedTheme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
+                <div className="w-8 h-8 md:w-10 md:h-10" style={{ transform: resolvedTheme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
                     {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">

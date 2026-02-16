@@ -68,11 +68,8 @@ const PaperAirplaneSuccess = () => (
 export function FeedbackTab({ onClick }: { onClick: () => void }) {
   return (
     <m.button
-      initial={{ opacity: 0, scale: 0.6 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: 1.5, type: 'spring', stiffness: 260, damping: 20 }}
-      whileHover={{ scale: 1.15, rotate: -8 }}
-      whileTap={{ scale: 0.9 }}
+      whileHover={{ scale: 1.15, rotate: -8, transition: { duration: 0.15 } }}
+      whileTap={{ scale: 0.9, transition: { duration: 0.1 } }}
       onClick={onClick}
       className={cn(
         "fixed bottom-[8.5rem] md:bottom-20 right-4 md:right-8 z-40",
@@ -81,7 +78,7 @@ export function FeedbackTab({ onClick }: { onClick: () => void }) {
         "shadow-md hover:shadow-lg",
         "flex items-center justify-center",
         "text-[var(--c-ink)] opacity-50 hover:opacity-100",
-        "transition-all duration-200",
+        "transition-[opacity,box-shadow] duration-150",
       )}
       title="Send feedback"
       aria-label="Open feedback form"

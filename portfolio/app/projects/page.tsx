@@ -163,7 +163,7 @@ export default function Projects() {
                             }}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
                             style={{
-                                filter: 'drop-shadow(5px 5px 15px rgba(0,0,0,0.1))'
+                                boxShadow: '5px 5px 15px rgba(0,0,0,0.1)'
                             }}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
@@ -178,11 +178,10 @@ export default function Projects() {
 
                             {/* The Fold Triangle (Outside Clipped Area) */}
                             <div
-                                className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md z-10"
+                                className="absolute bottom-0 right-0 pointer-events-none z-10"
                                 style={{
                                     width: foldSize,
                                     height: foldSize,
-                                    backgroundColor: 'rgba(0,0,0,0.1)',
                                     background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
                                 }}
                             />
@@ -234,7 +233,7 @@ export default function Projects() {
                                                 sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
                                                 loading={i === 0 ? "eager" : "lazy"}
                                                 priority={i === 0}
-                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-all duration-500 ${proj.imageClassName || ''}`}
+                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-500 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300">
@@ -278,7 +277,7 @@ export default function Projects() {
                                         target="_blank"
                                         rel="noreferrer"
                                         aria-label={`View details for ${proj.name}`}
-                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-all hover:-rotate-2 shadow-sm font-bold bg-white/20 dark:bg-black/10 backdrop-blur-sm"
+                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors hover:-rotate-2 shadow-sm font-bold bg-white/30 dark:bg-black/20"
                                     >
                                         Check it out! <ExternalLink size={18} />
                                     </a>

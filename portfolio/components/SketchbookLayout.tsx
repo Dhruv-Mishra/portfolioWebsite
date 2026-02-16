@@ -11,12 +11,14 @@ import SocialSidebar from './SocialSidebar';
 import { useMousePosition } from '@/hooks/useMousePosition';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSoftwareRenderer } from '@/hooks/useGpuTier';
 import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
 const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
+    const isSoftware = useSoftwareRenderer();
     const { x, y } = useMousePosition();
     const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -65,7 +67,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1] mix-blend-multiply"
+                <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1]"
                     style={{
                         backgroundImage: PAPER_NOISE_SVG,
                         contain: 'strict'
@@ -86,7 +88,9 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
                 {/* Global Doodles - Conditionally rendered for performance */}
-                {!isMobile && (
+                {/* Parallax disabled on software renderers — continuous spring-driven
+                    transforms are very expensive without GPU compositing */}
+                {!isMobile && !isSoftware && (
                     <m.div
                         className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
                         style={{ x: xMove, y: yMove, contain: 'layout style', willChange: 'transform' }}
@@ -102,6 +106,23 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                         <PaperPlaneDoodle />
                         <SaturnDoodle />
                     </m.div>
+                )}
+                {/* Static doodles on software renderer (no parallax, no m.div) */}
+                {!isMobile && isSoftware && (
+                    <div
+                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+                        aria-hidden="true"
+                    >
+                        <LightbulbDoodle />
+                        <CloudDoodle />
+                        <PencilDoodle />
+                        <StarDoodle />
+                        <BugDoodle />
+                        <SmileyDoodle />
+                        <LightningDoodle />
+                        <PaperPlaneDoodle />
+                        <SaturnDoodle />
+                    </div>
                 )}
 
                 {/* Crease Shadow near spiral */}

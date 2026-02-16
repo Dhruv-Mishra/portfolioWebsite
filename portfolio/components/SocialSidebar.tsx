@@ -75,7 +75,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
             title={social.name}
             aria-label={social.name}
         >
-            <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10 blur-sm" />
+            <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10" />
             <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
             <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded shadow-sm">
                 {social.name}
@@ -101,7 +101,7 @@ export default function SocialSidebar() {
 
             {/* Mobile: Floating circular buttons at bottom — offset by half the spiral width (w-12 = 48px → 24px) to center within the content area */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)]/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
+                className="md:hidden fixed bottom-4 left-[calc(50%+24px)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
                 role="complementary"
                 aria-label="Social media links"
             >

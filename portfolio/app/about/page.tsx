@@ -18,7 +18,8 @@ export default function About() {
                         rotate: 1,
                         transition: { duration: 0.15 }
                     }}
-                    className="relative min-h-[400px] text-gray-800 filter drop-shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
+                    className="relative min-h-[400px] text-gray-800"
+                    style={{ boxShadow: '5px 5px 15px rgba(0,0,0,0.2)' }}
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
@@ -38,9 +39,8 @@ export default function About() {
                     >
                         {/* Folded Corner Effect - Bottom Right */}
                         <div
-                            className="absolute bottom-0 right-0 pointer-events-none drop-shadow-md w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
+                            className="absolute bottom-0 right-0 pointer-events-none w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
                             style={{
-                                backgroundColor: 'rgba(0,0,0,0.1)',
                                 background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
                             }}
                         />

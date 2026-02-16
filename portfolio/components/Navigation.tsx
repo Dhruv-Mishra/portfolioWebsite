@@ -21,6 +21,10 @@ const COLORS = [
     "bg-[#ffccbc] text-orange-900 border-orange-300" // Coral for Chat
 ];
 
+// Hoisted static styles — avoids allocation per render
+const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
+const TAB_SPRING = { type: "spring" as const, stiffness: 300, damping: 20 };
+
 export default function Navigation() {
     const pathname = usePathname();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
@@ -53,7 +57,7 @@ export default function Navigation() {
                             }}
                             onHoverStart={() => onHoverStart(item.name)}
                             onHoverEnd={onHoverEnd}
-                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            transition={TAB_SPRING}
                             className={cn(
                                 // CSS animation for initial render (faster LCP)
                                 `animate-nav-tab animate-nav-tab-${i + 1}`,
@@ -61,9 +65,7 @@ export default function Navigation() {
                                 COLORS[i % COLORS.length],
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}
-                            style={{
-                                clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)'
-                            }}
+                            style={TAB_CLIP_STYLE}
                         >
                             {item.name}
                         </m.div>

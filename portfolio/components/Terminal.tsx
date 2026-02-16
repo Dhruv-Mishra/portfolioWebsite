@@ -10,6 +10,7 @@ import { HEADER_NOISE_SVG } from "@/lib/assets";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
 import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
+import PillScrollbar from "@/components/PillScrollbar";
 
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
@@ -20,6 +21,7 @@ export default function Terminal() {
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
 
     // Command Registry defined outside
@@ -173,8 +175,10 @@ export default function Terminal() {
                 </div>
 
                 {/* Body - Chalkboard Vibe */}
+                <div className="relative">
                 <div
-                    className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent selection:bg-gray-600 selection:text-white"
+                    ref={scrollRef}
+                    className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white"
                     onClick={() => {
                         // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
                         if (typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT) {
@@ -213,6 +217,8 @@ export default function Terminal() {
                         />
                     </form>
                     <div ref={bottomRef} />
+                </div>
+                <PillScrollbar scrollRef={scrollRef} color="rgba(156,163,175,0.6)" />
                 </div>
             </div>
         </m.div>

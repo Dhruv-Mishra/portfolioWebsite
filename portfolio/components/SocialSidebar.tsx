@@ -44,6 +44,10 @@ const SOCIALS = [
     }
 ];
 
+// Hoisted per-index whileHover rotate values — avoids object allocation per render
+const HOVER_ROTATIONS = [3, -4, 2, -3, 4, -2];
+const DESKTOP_SPRING = { type: "spring" as const, stiffness: 400, damping: 15 };
+
 const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {
         return (
@@ -67,8 +71,8 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
             rel="noopener noreferrer"
             initial={{ x: 50, opacity: 0 }}
             animate={{ x: 0, opacity: 1, transition: { delay: 0.5 + (index || 0) * 0.1, type: "spring" } }}
-            whileHover={{ scale: 1.2, rotate: [3, -4, 2, -3, 4, -2][(index || 0) % 6] }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
+            whileHover={{ scale: 1.2, rotate: HOVER_ROTATIONS[(index || 0) % 6] }}
+            transition={DESKTOP_SPRING}
             className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
             title={social.name}
             aria-label={social.name}

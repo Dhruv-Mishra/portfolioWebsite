@@ -17,11 +17,6 @@ export default function ResumePage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
-                whileHover={{
-                    scale: 1.01,
-                    rotate: 1,
-                    transition: { duration: 0.15 }
-                }}
                 className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
                     height: '92vh',

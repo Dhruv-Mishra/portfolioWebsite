@@ -13,6 +13,10 @@ import { TAPE_STYLE } from '@/lib/constants';
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
 type FeedbackState = 'idle' | 'submitting' | 'success' | 'error';
 
+// Hoisted — avoids re-allocation per render
+const SPIRAL_HOLES = Array.from({ length: 15 });
+const SPIRAL_HOLE_SHADOW = { boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' } as const;
+
 const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; color: string }[] = [
   { id: 'bug', label: 'Bug', icon: Bug, color: 'bg-[#ff9b9b] text-red-900 border-red-300' },
   { id: 'idea', label: 'Idea', icon: Lightbulb, color: 'bg-[#ffe082] text-amber-900 border-amber-400' },
@@ -222,7 +226,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       setState('error');
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
     }
-  }, [message, category, pathname, resolvedTheme, onClose]);
+  }, [message, category, contact, pathname, resolvedTheme, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -326,11 +330,11 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                   <div className="relative">
                     {/* Spiral binding holes */}
                     <div className="absolute top-0 left-0 right-0 h-6 bg-[var(--c-paper)] border-2 border-b-0 border-[var(--c-grid)]/30 rounded-t-md z-10 flex items-center justify-evenly px-2">
-                      {Array.from({ length: 15 }).map((_, i) => (
+                      {SPIRAL_HOLES.map((_, i) => (
                         <div
                           key={i}
                           className="w-2.5 h-2.5 flex-shrink-0 rounded-full border-2 border-[var(--c-grid)]/40 bg-[var(--c-paper)]"
-                          style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }}
+                          style={SPIRAL_HOLE_SHADOW}
                         />
                       ))}
                     </div>

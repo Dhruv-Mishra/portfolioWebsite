@@ -288,8 +288,6 @@ body {
 
 }
 
-
-
 /* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.
    Must use * selector because Tailwind v4 preflight sets cursor: default on *,
    which overrides inherited cursor: none from body. */

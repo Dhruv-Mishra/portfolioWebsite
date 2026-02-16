@@ -126,6 +126,15 @@ const PROJECTS: Project[] = [
         },
     ];
 
+// Pre-computed per-card style values — deterministic (index-based), hoisted to module scope
+const ROTATIONS = [2, -3, 1.5, -2, 4, -1];
+const PHOTO_ROTATIONS = [-3, 2, -2, 3, -1, 2];
+const TAPE_POSITIONS = [40, 60, 30, 70, 50, 45];
+const FOLD_SIZE = 30;
+const CARD_SHADOW = { boxShadow: '5px 5px 15px rgba(0,0,0,0.1)' } as const;
+const CARD_SPRING = { duration: 0.3, ease: "easeOut" as const };
+const CARD_HOVER = { scale: 1.02, rotate: 0, transition: { duration: 0.15 } } as const;
+
 export default function Projects() {
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
@@ -135,11 +144,9 @@ export default function Projects() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
-                    // "Random" rotation and offsets based on index to ensure hydration consistency
-                    const rotate = [2, -3, 1.5, -2, 4, -1][i % 6];
-                    const photoRotate = [-3, 2, -2, 3, -1, 2][i % 6];
-                    const tapX = [40, 60, 30, 70, 50, 45][i % 6]; // Random tape position %
-                    const foldSize = 30; // Size of the folded corner
+                    const rotate = ROTATIONS[i % 6];
+                    const photoRotate = PHOTO_ROTATIONS[i % 6];
+                    const tapX = TAPE_POSITIONS[i % 6];
 
                     return (
                         <m.div
@@ -153,18 +160,11 @@ export default function Projects() {
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{
                                 delay: Math.min(i * 0.03, 0.15), // Cap delay at 150ms
-                                duration: 0.3,
-                                ease: "easeOut"
+                                ...CARD_SPRING,
                             }}
-                            whileHover={{
-                                scale: 1.02,
-                                rotate: 0,
-                                transition: { duration: 0.15 }
-                            }}
+                            whileHover={CARD_HOVER}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
-                            style={{
-                                boxShadow: '5px 5px 15px rgba(0,0,0,0.1)'
-                            }}
+                            style={CARD_SHADOW}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
@@ -180,16 +180,16 @@ export default function Projects() {
                             <div
                                 className="absolute bottom-0 right-0 pointer-events-none z-10"
                                 style={{
-                                    width: foldSize,
-                                    height: foldSize,
+                                    width: FOLD_SIZE,
+                                    height: FOLD_SIZE,
                                     background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
                                 }}
                             />
                             <div
                                 className={`absolute bottom-0 right-0 pointer-events-none z-10 ${proj.colorClass}`}
                                 style={{
-                                    width: foldSize,
-                                    height: foldSize,
+                                    width: FOLD_SIZE,
+                                    height: FOLD_SIZE,
                                     opacity: 0.85,
                                     clipPath: 'polygon(0 0, 0 100%, 100% 0)'
                                 }}
@@ -202,8 +202,8 @@ export default function Projects() {
                                     clipPath: `polygon(
                                     0% 0%,
                                     100% 0%,
-                                    100% calc(100% - ${foldSize}px),
-                                    calc(100% - ${foldSize}px) 100%,
+                                    100% calc(100% - ${FOLD_SIZE}px),
+                                    calc(100% - ${FOLD_SIZE}px) 100%,
                                     0% 100%
                                 )`
                                 }}

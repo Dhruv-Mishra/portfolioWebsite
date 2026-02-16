@@ -13,13 +13,7 @@ export default function About() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
-                    whileHover={{
-                        scale: 1.01,
-                        rotate: 1,
-                        transition: { duration: 0.15 }
-                    }}
-                    className="relative min-h-[400px] text-gray-800"
-                    style={{ boxShadow: '5px 5px 15px rgba(0,0,0,0.2)' }}
+                    className="relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div

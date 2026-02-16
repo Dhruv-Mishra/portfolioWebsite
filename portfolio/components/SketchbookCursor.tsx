@@ -42,6 +42,8 @@ export default function SketchbookCursor() {
     const tailRef = useRef(0);  // oldest live index
     const lastMoveTime = useRef(0);
     const isVisibleRef = useRef(true);
+    const rafIdRef = useRef<number>(0);   // 0 = stopped
+    const dprRef = useRef(1);             // cached devicePixelRatio
 
     // Keep isVisibleRef in sync without restarting the effect
     useEffect(() => {
@@ -56,6 +58,14 @@ export default function SketchbookCursor() {
         if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
 
         const ring = ringRef.current;
+        dprRef.current = window.devicePixelRatio || 1;
+
+        // ─── Wake the rAF loop if it's sleeping ───
+        const wakeLoop = () => {
+            if (rafIdRef.current === 0) {
+                rafIdRef.current = requestAnimationFrame(renderTrail);
+            }
+        };
 
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
@@ -99,6 +109,9 @@ export default function SketchbookCursor() {
                 }
                 headRef.current = (idx + 1) % MAX_POINTS;
             }
+
+            // Ensure the render loop is running whenever the mouse moves
+            wakeLoop();
         };
 
         const checkHover = (e: MouseEvent) => {
@@ -125,6 +138,7 @@ export default function SketchbookCursor() {
             resizeTimer = setTimeout(() => {
                 if (canvasRef.current) {
                     const dpr = window.devicePixelRatio || 1;
+                    dprRef.current = dpr;
                     canvasRef.current.width = window.innerWidth * dpr;
                     canvasRef.current.height = window.innerHeight * dpr;
                     canvasRef.current.style.width = window.innerWidth + 'px';
@@ -137,57 +151,35 @@ export default function SketchbookCursor() {
 
         window.addEventListener('mousemove', moveCursor, { passive: true });
         window.addEventListener('mouseover', checkHover, { passive: true });
-        window.addEventListener('mouseleave', handleMouseLeave);
-        window.addEventListener('mouseenter', handleMouseEnter);
+        // Use single listener on document (captures mouseleave from window too)
+        document.addEventListener('mouseleave', handleMouseLeave);
+        document.addEventListener('mouseenter', handleMouseEnter);
         window.addEventListener('sketchbook:hideCursor', handleHideCursor);
         window.addEventListener('sketchbook:showCursor', handleShowCursor);
         window.addEventListener('resize', handleResize, { passive: true });
-        document.addEventListener('mouseleave', handleMouseLeave);
-        document.addEventListener('mouseenter', handleMouseEnter);
 
         // Initial resize
         handleResize();
 
-        // Canvas Drawing Loop — runs at native refresh rate (60/120/144fps)
-        let animationFrameId: number;
+        // Canvas Drawing Loop — self-stopping: sleeps when idle, woken by mousemove
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d', { alpha: true });
-
-        let idleFrameCount = 0;
 
         // Trail lifetime in ms — time-based so it's framerate-independent
         const TRAIL_LIFE_DARK = 60;    // chalk: very short trail
         const TRAIL_LIFE_LIGHT = 80;   // pencil: short trail
 
         const renderTrail = () => {
+            rafIdRef.current = 0; // mark as not-scheduled until we re-schedule below
             if (!canvas || !ctx) return;
 
             const now = performance.now();
             let tail = tailRef.current;
             const head = headRef.current;
-            const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
 
-            // Early return if not visible and no trail to fade
-            if (!isVisibleRef.current && activePoints === 0) {
-                animationFrameId = requestAnimationFrame(renderTrail);
-                return;
-            }
-
-            // Throttle when idle and nothing to draw
-            const idleTime = now - lastMoveTime.current;
-            if (idleTime > 200 && activePoints === 0) {
-                idleFrameCount++;
-                if (idleFrameCount < 6) {
-                    animationFrameId = requestAnimationFrame(renderTrail);
-                    return;
-                }
-                idleFrameCount = 0;
-            } else {
-                idleFrameCount = 0;
-            }
+            const dpr = dprRef.current;
 
             // Clear canvas
-            const dpr = window.devicePixelRatio || 1;
             ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
 
             const isDark = themeRef.current === 'dark';
@@ -239,23 +231,30 @@ export default function SketchbookCursor() {
                 ctx.stroke();
             }
 
-            animationFrameId = requestAnimationFrame(renderTrail);
+            // Self-stop: if trail is empty and cursor idle, let the loop sleep.
+            // The next mousemove will call wakeLoop() to restart it.
+            const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
+            if (activePoints === 0 && now - lastMoveTime.current > 200) {
+                // Loop stops — zero CPU while idle
+                return;
+            }
+
+            rafIdRef.current = requestAnimationFrame(renderTrail);
         };
 
-        renderTrail();
+        // Start the loop (will self-stop once idle)
+        wakeLoop();
 
         return () => {
             window.removeEventListener('mousemove', moveCursor);
             window.removeEventListener('mouseover', checkHover);
-            window.removeEventListener('mouseleave', handleMouseLeave);
-            window.removeEventListener('mouseenter', handleMouseEnter);
+            document.removeEventListener('mouseleave', handleMouseLeave);
+            document.removeEventListener('mouseenter', handleMouseEnter);
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
             window.removeEventListener('sketchbook:showCursor', handleShowCursor);
             window.removeEventListener('resize', handleResize);
-            document.removeEventListener('mouseleave', handleMouseLeave);
-            document.removeEventListener('mouseenter', handleMouseEnter);
             clearTimeout(resizeTimer);
-            cancelAnimationFrame(animationFrameId);
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
         };
     }, [mouseX, mouseY, mounted]); // isVisible tracked via ref to avoid effect restart
 

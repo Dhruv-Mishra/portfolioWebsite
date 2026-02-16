@@ -79,8 +79,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             <div className="space-y-2">
                 <p>Hey, I&apos;m <strong className="text-emerald-400">Dhruv</strong> 👋</p>
                 <p>I build and optimize software systems that need to be fast, reliable, and boring in production.</p>
-                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong>, working across Android and backend platforms used by millions—profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds off large systems.</p>
-                <p>I come from a strong CS background and spend time with competitive programming.</p>
+                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong> on the M365 Shell Team — our service handles identity and user data at 7B+ hits/day. I work with C++ and C# on enterprise encryption flows, cutting infrastructure costs and driving AI workflow adoption.</p>
+                <p>I come from a strong CS background, enjoy competitive programming, and love optimizing things — from code to PC hardware.</p>
             </div>
         )
     }),
@@ -156,9 +156,9 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                     <div>
                         <p className="text-emerald-400 font-bold border-b border-gray-600 mb-2 uppercase tracking-wider text-xs">Core Tech</p>
                         <div className="pl-1 space-y-1 text-gray-300">
-                            <p>• <span className="text-white font-semibold">Languages:</span> C#, Python, Kotlin, Java, TypeScript, C++</p>
+                            <p>• <span className="text-white font-semibold">Languages:</span> C++, C#, Python, TypeScript, Java, Kotlin</p>
                             <p>• <span className="text-white font-semibold">Frontend:</span> Next.js, React, Tailwind, Framer Motion</p>
-                            <p>• <span className="text-white font-semibold">Backend:</span> Node.js, MySQL, Azure, Dev Ops</p>
+                            <p>• <span className="text-white font-semibold">Backend:</span> Node.js, MySQL, Azure, CI/CD</p>
                             <p>• <span className="text-white font-semibold">Mobile:</span> Android SDK, Jetpack Compose, DI (Hilt)</p>
                         </div>
                     </div>

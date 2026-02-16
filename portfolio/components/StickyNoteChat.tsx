@@ -321,8 +321,8 @@ const RateLimitNote = ({ seconds }: { seconds: number }) => (
 // ─── Suggested Questions ───
 // Initial suggestions shown before any conversation
 const INITIAL_SUGGESTIONS = [
+  "What do you work on at Microsoft?",
   "What's your tech stack?",
-  "Tell me about Fluent UI",
   "Toggle the theme",
   "Report a bug",
 ];
@@ -336,6 +336,9 @@ const FOLLOWUP_CONVERSATIONAL = [
   "How did you get into competitive programming?",
   "What do you enjoy most about your work?",
   "Tell me about your research",
+  "What are your hobbies?",
+  "Tell me about your PC build",
+  "What games do you play?",
 ];
 
 // Theme-dependent actions are resolved at render time via getFollowupActions()

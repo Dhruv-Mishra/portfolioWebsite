@@ -160,6 +160,114 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0 }: { text: string;
   </m.button>
 );
 
+// ─── Custom Pill Scrollbar ───
+// Tiny draggable pill on the right edge. Native scrollbar hidden via .scrollbar-hidden.
+// Zero polling — driven by passive scroll + ResizeObserver only.
+// Pill position written directly to DOM via ref to avoid React re-renders on scroll.
+const PILL_HEIGHT_RATIO = 0.12;
+const PILL_MIN_PX = 20;
+
+function PillScrollbar({ scrollRef }: { scrollRef: React.RefObject<HTMLDivElement | null> }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Position the pill via direct DOM writes (no state, no re-render).
+  // Uses rAF to coalesce rapid scroll events into a single layout read+write per frame.
+  const rafRef = useRef(0);
+
+  const updatePill = useCallback(() => {
+    if (rafRef.current) return; // already scheduled
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      const el = scrollRef.current;
+      const pill = pillRef.current;
+      const track = trackRef.current;
+      if (!el || !pill || !track) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const maxScroll = scrollHeight - clientHeight;
+      if (maxScroll < 1) { pill.style.opacity = '0'; return; }
+
+      const pillH = Math.max(track.clientHeight * PILL_HEIGHT_RATIO, PILL_MIN_PX);
+      const top = (scrollTop / maxScroll) * (track.clientHeight - pillH);
+
+      pill.style.height = `${pillH}px`;
+      pill.style.top = `${top}px`;
+      pill.style.opacity = '0.5';
+
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = setTimeout(() => {
+        if (!draggingRef.current && pillRef.current) pillRef.current.style.opacity = '0';
+      }, 1200);
+    });
+  }, [scrollRef]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updatePill, { passive: true });
+    const ro = new ResizeObserver(updatePill);
+    ro.observe(el);
+    updatePill();
+    return () => {
+      el.removeEventListener('scroll', updatePill);
+      ro.disconnect();
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [scrollRef, updatePill]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    const track = trackRef.current;
+    const scrollEl = scrollRef.current;
+    const pill = pillRef.current;
+    if (!track || !scrollEl || !pill) return;
+
+    pill.style.opacity = '0.5';
+    const trackRect = track.getBoundingClientRect();
+    const pillH = Math.max(trackRect.height * PILL_HEIGHT_RATIO, PILL_MIN_PX);
+    const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
+
+    const move = (ev: PointerEvent) => {
+      const y = ev.clientY - trackRect.top - pillH / 2;
+      const trackUsable = trackRect.height - pillH;
+      scrollEl.scrollTop = Math.max(0, Math.min(1, y / trackUsable)) * maxScroll;
+    };
+
+    const up = () => {
+      draggingRef.current = false;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      fadeTimerRef.current = setTimeout(() => {
+        if (pillRef.current) pillRef.current.style.opacity = '0';
+      }, 1200);
+    };
+
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    move(e.nativeEvent);
+  }, [scrollRef]);
+
+  return (
+    <div
+      ref={trackRef}
+      className="absolute top-0 right-0 bottom-0 w-4 z-20"
+      onPointerDown={onPointerDown}
+      aria-hidden
+    >
+      <div
+        ref={pillRef}
+        className="absolute right-[3px] w-[5px] rounded-full"
+        style={{ opacity: 0, backgroundColor: 'var(--c-ink)', transition: 'opacity 0.3s' }}
+      />
+    </div>
+  );
+}
+
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
@@ -418,6 +526,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     ...(resolvedTheme === 'dark' ? FOLLOWUP_ACTIONS_DARK_ONLY : FOLLOWUP_ACTIONS_LIGHT_ONLY),
   ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
@@ -632,9 +741,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Messages + Input (overlaid) ─── */}
       <div className="relative flex-1 min-h-0">
+      {/* ─── Custom pill scrollbar ─── */}
+      <PillScrollbar scrollRef={messagesScrollRef} />
       {/* ─── Messages Area ─── */}
-      <div className={cn(
-        "absolute inset-0 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 pb-36 md:pb-28 flex flex-col gap-6 md:gap-7 ruler-scrollbar",
+      <div
+        ref={messagesScrollRef}
+        className={cn(
+        "absolute inset-0 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 pb-36 md:pb-28 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
         compact && "px-2 pt-4 pb-24 gap-4",
       )}>
         {/* Messages (welcome note is always first) */}

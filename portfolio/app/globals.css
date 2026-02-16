@@ -117,43 +117,41 @@ body {
 
 /* Note Utility Classes - Moved to utilities layer for correct precedence */
 
-/* ─── Ruler-themed scrollbar for chat ─── */
+/* ─── Minimal pill scrollbar (for non-chat scroll areas) ─── */
 .ruler-scrollbar::-webkit-scrollbar {
-  width: 18px;
+  width: 5px;
 }
 
 .ruler-scrollbar::-webkit-scrollbar-track {
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      transparent,
-      transparent 9px,
-      var(--c-ink-faint, rgba(0,0,0,0.12)) 9px,
-      var(--c-ink-faint, rgba(0,0,0,0.12)) 10px
-    ),
-    linear-gradient(to right, rgba(0,0,0,0.03), rgba(0,0,0,0.06));
-  border-left: 2px solid var(--c-ink-faint, rgba(0,0,0,0.15));
-  border-right: 1px solid var(--c-ink-faint, rgba(0,0,0,0.08));
+  background: transparent;
+}
+
+.ruler-scrollbar::-webkit-scrollbar-button {
+  display: none;
 }
 
 .ruler-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--tape-color, rgba(194, 163, 120, 0.6));
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  border-radius: 2px;
-  min-height: 40px;
+  background-color: color-mix(in srgb, var(--c-ink) 15%, transparent);
+  border-radius: 9999px;
 }
 
 .ruler-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(194, 163, 120, 0.85);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--c-ink) 30%, transparent);
 }
 
-/* Firefox ruler scrollbar */
+/* Firefox */
 .ruler-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: var(--tape-color, rgba(194, 163, 120, 0.6)) rgba(0,0,0,0.04);
+  scrollbar-color: color-mix(in srgb, var(--c-ink) 15%, transparent) transparent;
+}
+
+/* ─── Hide native scrollbar but keep scrollable ─── */
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 
 @layer utilities {

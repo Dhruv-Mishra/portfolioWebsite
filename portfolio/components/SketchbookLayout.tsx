@@ -99,7 +99,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <main
                     id="main-content"
                     role="main"
-                    className="relative z-10 w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-400/30 scrollbar-track-transparent"
+                    className="relative z-10 w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden ruler-scrollbar"
                     tabIndex={-1}
                 >
                     {children}

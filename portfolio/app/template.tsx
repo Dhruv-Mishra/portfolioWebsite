@@ -19,7 +19,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0, x: fadeOnly ? 0 : 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ ease: "easeOut", duration: 0.3 }}
-            className={`h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 ${fullBleed ? '' : 'p-8 md:p-12'}`}
+            className={`h-full ${fullBleed ? 'overflow-hidden' : 'overflow-y-auto p-8 md:p-12 ruler-scrollbar'}`}
         >
             {children}
         </m.div>

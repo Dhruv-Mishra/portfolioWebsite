@@ -623,10 +623,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         </div>
       )}
 
+      {/* ─── Messages + Input (overlaid) ─── */}
+      <div className="relative flex-1 min-h-0">
       {/* ─── Messages Area ─── */}
       <div className={cn(
-        "flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 ruler-scrollbar",
-        compact && "px-2 pt-4 pb-2 gap-4",
+        "absolute inset-0 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 pb-36 md:pb-28 flex flex-col gap-6 md:gap-7 ruler-scrollbar",
+        compact && "px-2 pt-4 pb-24 gap-4",
       )}>
         {/* Messages (welcome note is always first) */}
         {messages.map((msg, idx) => {
@@ -697,9 +699,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ─── Input Area (sticky note style) ─── */}
+      {/* ─── Input Area (floating overlay with gradient fade) ─── */}
       <div className={cn(
-        "shrink-0 px-2 md:px-6 pb-14 md:pb-4 pt-2",
+        "absolute bottom-0 inset-x-0 pointer-events-none",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
+      )}>
+      <div className={cn(
+        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-14 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}
@@ -719,7 +725,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {/* The input "sticky note" */}
         <m.div
           initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: 0.92, y: 0 }}
           className={cn(
             "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
             compact ? "p-2" : "p-2 md:p-4",
@@ -728,10 +734,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             transform: 'rotate(0.5deg)',
           }}
         >
-          {/* Thumbpin on input */}
-          {!compact && (
-            <TapeStrip className="!w-20 !md:w-24 !h-5 !md:h-7" />
-          )}
 
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- delegates to textarea focus for mobile UX */}
           <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
@@ -768,6 +770,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             </m.button>
           </div>
         </m.div>
+      </div>
+      </div>
       </div>
 
     </div>

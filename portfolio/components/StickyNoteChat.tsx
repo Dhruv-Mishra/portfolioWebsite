@@ -554,7 +554,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [isLoading]);
 
-  // Auto-scroll to newest note (only when messages change count or streaming ends)
+  // Auto-scroll to newest note (on message count change, streaming end, or suggestions appearing)
   const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
     const countChanged = messages.length !== prevMessageCountRef.current;
@@ -563,6 +563,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, isLoading]);
+
+  // Scroll down when suggestions first appear (e.g. on page load) so they're not hidden behind input
+  useEffect(() => {
+    if (suggestionsReady && !isLoading && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [suggestionsReady, isLoading]);
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading) return;
@@ -599,7 +606,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     )}>
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-2 pb-2 md:pt-4 md:pb-6 shrink-0">
+        <div className="text-center pt-12 pb-2 md:pt-10 md:pb-6 shrink-0">
           <m.h1
             initial={{ opacity: 0, rotate: -3 }}
             animate={{ opacity: 1, rotate: -2 }}
@@ -705,7 +712,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
       )}>
       <div className={cn(
-        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-14 md:pb-4 pt-2",
+        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}

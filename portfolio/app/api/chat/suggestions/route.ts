@@ -39,8 +39,8 @@ export async function POST(request: NextRequest) {
         ? [{ apiKey: suggestionsApiKey, baseURL: suggestionsBaseURL, model: suggestionsModel, timeoutMs: 8_000 }]
         : []),
       // Fallback to primary/fallback chain
-      { apiKey: process.env.LLM_API_KEY, baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL, timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 20_000 },
-      { apiKey: process.env.LLM_FALLBACK_API_KEY, baseURL: process.env.LLM_FALLBACK_BASE_URL, model: process.env.LLM_FALLBACK_MODEL, timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 25_000 },
+      { apiKey: process.env.LLM_API_KEY, baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL, timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 30_000 },
+      { apiKey: process.env.LLM_FALLBACK_API_KEY, baseURL: process.env.LLM_FALLBACK_BASE_URL, model: process.env.LLM_FALLBACK_MODEL, timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 30_000 },
     ].filter(p => p.apiKey && p.baseURL && p.model);
 
     if (providers.length === 0) {

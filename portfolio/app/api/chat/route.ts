@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { searchWeb } from '@/lib/webSearch';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_BASE_URL,
         model: process.env.LLM_MODEL,
         label: process.env.LLM_MODEL,
-        timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 20_000,
+        timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 30_000,
       }
     : null;
 
@@ -33,7 +34,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_FALLBACK_BASE_URL,
         model: process.env.LLM_FALLBACK_MODEL,
         label: process.env.LLM_FALLBACK_MODEL,
-        timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 25_000,
+        timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 30_000,
       }
     : null;
 
@@ -137,9 +138,13 @@ export async function POST(request: NextRequest) {
 
     // Dual dispatch: fire both providers simultaneously, first success wins.
     // If only primary is configured, call it directly.
-    const result = fallback
+    let result = fallback
       ? await dualDispatch(primary, fallback, apiMessages)
       : await callProvider(primary, apiMessages);
+
+    // If the LLM requested web searches via [[SEARCH:query]] tags, perform them
+    // and re-query with search results injected into the system prompt.
+    result = await handleSearchTags(result, primary, fallback, sanitized);
 
     return Response.json(result, {
       headers: { 'Cache-Control': 'no-store' },
@@ -147,6 +152,79 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('Chat API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// ─── Web search handling ────────────────────────────────────────────────
+const SEARCH_TAG_RE = /\[\[SEARCH:([^\]]{1,100})\]\]/gi;
+const MAX_SEARCH_QUERIES = 2;
+const SEARCH_REQUERY_TIMEOUT_MS = 8_000; // Fast re-query — search context gives LLM clear direction
+
+/**
+ * If the LLM response contains [[SEARCH:query]] tags, perform DuckDuckGo searches,
+ * inject results into the system prompt, and re-query the LLM for a final answer.
+ * Single-pass: only processes search tags once (no recursion).
+ */
+async function handleSearchTags(
+  result: { reply: string },
+  primary: LLMProvider,
+  fallback: LLMProvider | null,
+  userMessages: { role: string; content: string }[],
+): Promise<{ reply: string }> {
+  // Reset regex state (global flag)
+  SEARCH_TAG_RE.lastIndex = 0;
+  const matches = [...result.reply.matchAll(SEARCH_TAG_RE)];
+  if (matches.length === 0) return result;
+
+  const queries = matches
+    .slice(0, MAX_SEARCH_QUERIES)
+    .map(m => m[1].trim())
+    .filter(Boolean);
+  if (queries.length === 0) return result;
+
+  // Perform searches in parallel
+  const searchResults = await Promise.all(queries.map(q => searchWeb(q)));
+
+  // Format results for LLM context
+  const resultsText = searchResults
+    .map((results, i) => {
+      if (results.length === 0) return `"${queries[i]}": no results found`;
+      return `"${queries[i]}":\n${results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
+    })
+    .join('\n\n');
+
+  // If all searches empty, strip tags and return original text
+  const hasAnyResults = searchResults.some(r => r.length > 0);
+  if (!hasAnyResults) {
+    SEARCH_TAG_RE.lastIndex = 0;
+    return { reply: result.reply.replace(SEARCH_TAG_RE, '').trim() };
+  }
+
+  // Re-query LLM with search results appended to system prompt
+  const systemWithSearch = DHRUV_SYSTEM_PROMPT +
+    `\n\nWEB_SEARCH_RESULTS (use to inform your answer, stay in character as Dhruv):\n${resultsText}`;
+
+  const apiMessages = [
+    { role: 'system', content: systemWithSearch },
+    ...userMessages,
+  ];
+
+  // Use shorter timeouts for re-query since search context makes generation faster
+  const fastPrimary = { ...primary, timeoutMs: SEARCH_REQUERY_TIMEOUT_MS };
+  const fastFallback = fallback ? { ...fallback, timeoutMs: SEARCH_REQUERY_TIMEOUT_MS } : null;
+
+  try {
+    const searchResult = fastFallback
+      ? await dualDispatch(fastPrimary, fastFallback, apiMessages)
+      : await callProvider(fastPrimary, apiMessages);
+
+    // Strip any search tags from second response to prevent leakage
+    SEARCH_TAG_RE.lastIndex = 0;
+    return { reply: searchResult.reply.replace(SEARCH_TAG_RE, '').trim() };
+  } catch {
+    // If re-query fails, return original response with tags stripped
+    SEARCH_TAG_RE.lastIndex = 0;
+    return { reply: result.reply.replace(SEARCH_TAG_RE, '').trim() };
   }
 }
 

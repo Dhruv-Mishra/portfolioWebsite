@@ -82,7 +82,7 @@ export const CHAT_CONFIG = {
   topP: 0.85,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
-  responseTimeoutMs: 30_000, // Client-side timeout: abort fetch after 30s of no completion
+  responseTimeoutMs: 45_000, // Client-side timeout: 45s to accommodate LLM + search + re-query path
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
   miniChatDismissedKey: 'dhruv-minichat-dismissed',

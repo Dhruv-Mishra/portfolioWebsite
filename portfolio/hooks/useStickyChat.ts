@@ -43,6 +43,7 @@ const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
 const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/gi;  // global: find ALL OPEN tags
 const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
 const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
+const SEARCH_RE = /\[\[SEARCH:[^\]]*\]\]/gi; // server-side only — strip if leaked
 
 // Map OPEN: keys to actual URLs
 const OPEN_LINKS: Record<string, string> = {
@@ -112,6 +113,9 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(FEEDBACK_RE, '').trim();
   }
 
+  // Strip [[SEARCH:...]] tags — server-side only, should never reach client
+  content = content.replace(SEARCH_RE, '').trim();
+
   return {
     content,
     navigateTo,
@@ -162,11 +166,29 @@ const FILLER_20S = [
   "Managing this many conversations is basically distributed systems at this point...",
 ];
 
+const FILLER_28S = [
+  "Okay this one might involve actual research — digging through my notes...",
+  "Consulting my sources — this deserves a proper answer...",
+  "Went down a rabbit hole. Climbing back out with answers shortly...",
+  "Cross-referencing a few things — want to make sure I'm accurate...",
+  "This one triggered a deep dive. Almost back with results...",
+];
+
+const FILLER_36S = [
+  "Still here! This turned into a whole research project...",
+  "Almost done — had to double-check a few things. Hang tight!",
+  "Running final checks on what I found. Worth the wait, I promise ~",
+  "Last stretch — compiling everything together for you...",
+  "The internet and my brain are having a serious discussion right now...",
+];
+
 const FILLER_TIERS = [
   { delay: 2_000, pool: FILLER_5S },
   { delay: 8_000, pool: FILLER_10S },
   { delay: 14_000, pool: FILLER_15S },
   { delay: 20_000, pool: FILLER_20S },
+  { delay: 28_000, pool: FILLER_28S },
+  { delay: 36_000, pool: FILLER_36S },
 ];
 
 function pickRandom<T>(arr: T[]): T {

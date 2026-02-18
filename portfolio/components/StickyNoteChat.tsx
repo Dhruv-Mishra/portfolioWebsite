@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
@@ -394,26 +394,23 @@ const FOLLOWUP_CONVERSATIONAL = [
   "What games do you play?",
 ];
 
-// Theme-dependent actions are resolved at render time via getFollowupActions()
-const FOLLOWUP_ACTIONS_BASE = [
+// Actionable follow-up suggestions shown alongside conversational ones
+const FOLLOWUP_ACTIONS = [
   "Open your GitHub profile",
   "Show me your resume PDF",
   "Take me to the projects page",
   "Open the Fluent UI repo",
   "Open your LinkedIn",
   "Show your Codeforces profile",
+  "Toggle the theme",
   "Report a bug",
 ];
-const FOLLOWUP_ACTIONS_DARK_ONLY = ["Switch to light mode"];
-const FOLLOWUP_ACTIONS_LIGHT_ONLY = ["Switch to dark mode", "Toggle the theme"];
 
 // Keyword patterns → HARDCODED_ACTIONS key. Used to fuzzy-match LLM suggestions
 // to known executable actions. Only matches when an action verb is present to
 // avoid false positives on conversational questions.
 const ACTION_MATCHERS: [RegExp, string][] = [
-  [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Switch to dark mode"],
-  [/\btoggle\b.*\btheme\b/i, "Toggle the theme"],
-  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Switch to light mode"],
+  [/\b(switch|change|enable|toggle)\b.*\b(theme|dark\s*mode|light\s*mode)\b/i, "Toggle the theme"],
   [/\b(go|take|navigate|visit)\b.*\bprojects?\s*page\b/i, "Take me to the projects page"],
   [/\b(open|show|view|see)\b.*\bgithub\b/i, "Open your GitHub profile"],
   [/\b(open|show|view|see)\b.*\bresume\b/i, "Show me your resume PDF"],
@@ -443,8 +440,6 @@ function resolveAction(text: string): string | null {
 // `content` is the assistant's reply; action fields trigger the UI side-effect.
 // The `themeAction` value 'toggle' is resolved at runtime by the action handler.
 const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').ChatMessage, 'id' | 'role' | 'timestamp'>> = {
-  "Switch to dark mode": { content: "Switching to dark mode for you ~", themeAction: 'dark' },
-  "Switch to light mode": { content: "Switching to light mode for you ~", themeAction: 'light' },
   "Toggle the theme": { content: "Toggling the theme ~", themeAction: 'toggle' },
   "Take me to the projects page": { content: "Here are my projects!", navigateTo: '/projects' },
   "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrls: ['https://github.com/Dhruv-Mishra'] },
@@ -475,12 +470,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [suggestionsReady, setSuggestionsReady] = useState(false);
 
-  // Compute theme-aware action pool (avoids showing "Switch to dark" when already dark)
-  // Memoized — only recomputes when theme actually changes
-  const followupActions = useMemo(() => [
-    ...FOLLOWUP_ACTIONS_BASE,
-    ...(resolvedTheme === 'dark' ? FOLLOWUP_ACTIONS_DARK_ONLY : FOLLOWUP_ACTIONS_LIGHT_ONLY),
-  ], [resolvedTheme]);
+  // Static action pool — no longer theme-dependent (uses generic "Toggle the theme")
+  const followupActions = FOLLOWUP_ACTIONS;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);

@@ -3,37 +3,15 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-const SUGGESTIONS_SYSTEM_PROMPT = `You generate 2 short follow-up suggestions that a VISITOR (the user) might click next in a conversation with Dhruv Mishra's portfolio chatbot. The chatbot answers as Dhruv — a Software Engineer at Microsoft working on Fluent UI Android.
+const SUGGESTIONS_SYSTEM_PROMPT = `Generate 2 short follow-up suggestions a VISITOR would click next in a chat with Dhruv Mishra (SWE @ Microsoft). Written from visitor's perspective TO Dhruv — "you/your" = Dhruv, never "my/I".
 
-CRITICAL: Suggestions are written FROM THE USER'S PERSPECTIVE, addressed TO Dhruv. The user is talking to Dhruv, so use "you/your" (meaning Dhruv), never "my/I" (that would be Dhruv speaking).
-- CORRECT: "Open your GitHub profile" (user asking to see Dhruv's GitHub)
-- WRONG:  "Open my GitHub to see projects" (sounds like Dhruv talking about himself)
+Actions available: navigate (home/about/projects/resume/chat), open links (GitHub/LinkedIn/Codeforces/email/resume PDF/project repos), toggle theme, report bug/feedback.
 
-Available action types the user can trigger:
-- Navigate to pages: home, about, projects, resume, chat
-- Open links: GitHub, LinkedIn, Codeforces, email, resume PDF, project repos
-- Toggle theme (dark/light)
-- Report a bug / give feedback
+CONTEXT: Suggestions must directly follow up the LAST assistant message. If assistant proposed an action ("Want me to open X?"), one suggestion = affirmative ("Yes please!"), one = decline/redirect ("Nah, tell me about Y instead"). Otherwise: dig deeper into what was just discussed, don't restart conversation. Never repeat the user's most recent question.
 
-CONTEXT-AWARENESS (most important):
-- Read the LAST assistant message carefully. Your suggestions must be a DIRECT, logical follow-up to what was just said.
-- If the assistant just ASKED A QUESTION or offered to do something ("Want me to open X?", "Should I take you to Y?", "Want details on Z?"), BOTH suggestions should be quick responses — one affirmative ("Yes please!", "Sure, open it!", "Yeah, show me!") and one decline/redirect ("Not right now", "Nah, tell me about X instead", "Maybe later"). Keep them short and natural.
-- Don't repeat what the user asked in their MOST RECENT message. Earlier topics are fine to revisit if contextually relevant.
-- Suggestions should dig DEEPER into what was just discussed, not restart the conversation. If Dhruv just explained Fluent UI, suggest something specific about Fluent UI — not a generic "What projects have you worked on?".
+DIVERSITY: Two suggestions must lead in DISTINCT directions. Bad: same topic reworded. Good: one info-question + one action, or two different subtopics.
 
-DIVERSITY (critical):
-- The two suggestions MUST be meaningfully different from each other. Never rephrase the same idea twice.
-- Each suggestion should lead the conversation in a distinct direction.
-- BAD: "Tell me about your projects" / "What projects have you built?" (same topic, different wording)
-- GOOD: "What was hardest about Fluent UI?" / "Open your GitHub profile" (different directions)
-
-Rules:
-1. Return EXACTLY 2 suggestions, one per line. Nothing else — no numbering, no bullets, no quotes.
-2. Each suggestion must be 2-8 words, conversational and casual.
-3. Make both suggestions directly relevant to the last assistant message.
-4. Don't repeat anything the user already asked or that was already covered.
-5. The two suggestions must explore DIFFERENT aspects or offer DIFFERENT actions.
-6. Always write from the user's voice — "you/your" refers to Dhruv.`;
+Output: EXACTLY 2 lines, no numbering/bullets/quotes. 2-8 words each, casual. Always from visitor voice.`;
 
 const PROVIDER_TIMEOUT_MS = 8_000;
 

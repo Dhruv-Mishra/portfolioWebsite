@@ -98,11 +98,13 @@ function useTypewriter(
           setPhase('idle');
           phaseRef.current = 'idle';
           clearInterval(id);
-          onTypingTickRef.current?.();
-          if (!isFillerRef.current) onCompleteRef.current?.();
+          if (!isFillerRef.current) {
+            onTypingTickRef.current?.();
+            onCompleteRef.current?.();
+          }
         } else {
           setDOM(targetText.slice(0, i));
-          if (tickCounter % 3 === 0) onTypingTickRef.current?.();
+          if (!isFillerRef.current && tickCounter % 3 === 0) onTypingTickRef.current?.();
         }
       }, speed);
     };

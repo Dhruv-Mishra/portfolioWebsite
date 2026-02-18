@@ -14,9 +14,18 @@ import { TAPE_STYLE } from '@/lib/constants';
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
 // Uses a cancelled ref + single interval to avoid leaked interval races.
+// FIX: If new text arrives while erasing, we queue it and finish the erase first
+// instead of cancelling mid-erase and restarting (which caused the "re-show" bug).
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
-function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void) {
+function useTypewriter(
+  text: string,
+  isFiller: boolean,
+  skip: boolean,
+  speed = 18,
+  onComplete?: () => void,
+  onTypingTick?: () => void,
+) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const textNodeRef = useRef<HTMLSpanElement>(null);
   const prevTextRef = useRef(skip ? text : '');
@@ -24,69 +33,112 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
   const eraseSpeed = Math.max(speed * 0.6, 8);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const onTypingTickRef = useRef(onTypingTick);
+  onTypingTickRef.current = onTypingTick;
+  // Queue: if text changes during erase, store the target here.
+  // The erase-completion handler will pick it up instead of re-running the effect.
+  const queuedTextRef = useRef<string | null>(null);
+  const isFillerRef = useRef(isFiller);
+  isFillerRef.current = isFiller;
+  const phaseRef = useRef<TypewriterPhase>('idle');
 
   const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
-    const token = ++cancelRef.current;
-    const cancelled = () => cancelRef.current !== token;
     const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
 
     if (skip) {
       setDOM(text);
       setPhase('idle');
+      phaseRef.current = 'idle';
       prevTextRef.current = text;
+      queuedTextRef.current = null;
       return;
     }
 
     if (text === '' && !prevTextRef.current) {
       setPhase('idle');
+      phaseRef.current = 'idle';
       return;
     }
 
     if (text === prevTextRef.current) return;
 
+    // If currently erasing, queue the new text — the erase handler will pick it up
+    if (phaseRef.current === 'erasing') {
+      queuedTextRef.current = text;
+      return;
+    }
+
     const prevText = prevTextRef.current;
     const newText = text;
 
-    const startTyping = () => {
+    const startTyping = (targetText: string) => {
       setPhase('typing');
+      phaseRef.current = 'typing';
       let i = 0;
+      // Scroll callback counter — fire every 3 chars to avoid excessive scrolling
+      let tickCounter = 0;
       const id = setInterval(() => {
-        if (cancelled()) { clearInterval(id); return; }
-        i++;
-        if (i >= newText.length) {
-          setDOM(newText);
-          prevTextRef.current = newText;
-          setPhase('idle');
+        // Check if newer text arrived while we're typing
+        if (queuedTextRef.current !== null && queuedTextRef.current !== targetText) {
           clearInterval(id);
-          if (!isFiller) onCompleteRef.current?.();
+          const queued = queuedTextRef.current;
+          queuedTextRef.current = null;
+          // Erase current typed text, then type the queued text
+          const currentlyShown = targetText.slice(0, i);
+          startErase(currentlyShown, queued);
+          return;
+        }
+        i++;
+        tickCounter++;
+        if (i >= targetText.length) {
+          setDOM(targetText);
+          prevTextRef.current = targetText;
+          setPhase('idle');
+          phaseRef.current = 'idle';
+          clearInterval(id);
+          onTypingTickRef.current?.();
+          if (!isFillerRef.current) onCompleteRef.current?.();
         } else {
-          setDOM(newText.slice(0, i));
+          setDOM(targetText.slice(0, i));
+          if (tickCounter % 3 === 0) onTypingTickRef.current?.();
         }
       }, speed);
     };
 
+    const startErase = (textToErase: string, nextText: string) => {
+      setPhase('erasing');
+      phaseRef.current = 'erasing';
+      let eraseLen = textToErase.length;
+      const eraseId = setInterval(() => {
+        eraseLen--;
+        if (eraseLen <= 0) {
+          setDOM('');
+          clearInterval(eraseId);
+          prevTextRef.current = '';
+          // Check if an even newer text arrived while erasing
+          const finalTarget = queuedTextRef.current ?? nextText;
+          queuedTextRef.current = null;
+          startTyping(finalTarget);
+        } else {
+          setDOM(textToErase.slice(0, eraseLen));
+        }
+      }, eraseSpeed);
+    };
+
     if (!prevText) {
-      startTyping();
+      startTyping(newText);
       return;
     }
 
-    setPhase('erasing');
-    let eraseLen = prevText.length;
-    const eraseId = setInterval(() => {
-      if (cancelled()) { clearInterval(eraseId); return; }
-      eraseLen--;
-      if (eraseLen <= 0) {
-        setDOM('');
-        clearInterval(eraseId);
-        if (!cancelled()) startTyping();
-      } else {
-        setDOM(prevText.slice(0, eraseLen));
-      }
-    }, eraseSpeed);
+    startErase(prevText, newText);
 
-    return () => { cancelRef.current++; };
+    return () => {
+      // On cleanup, cancel by incrementing token — but the queue-based approach
+      // means in-flight erases won't re-trigger the full effect
+      cancelRef.current++;
+    };
   }, [text, skip, speed, eraseSpeed]);
 
   return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
@@ -153,13 +205,20 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: {
     whileHover={{ scale: 1.05, rotate: -1 }}
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
+    title={isAction ? 'This will perform an action' : undefined}
     className={cn(
       "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
       isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
     )}
     style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
   >
-    {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
+    {isAction && (
+      <span className="inline-flex items-center gap-0.5 mr-1.5 text-amber-600 dark:text-amber-400">
+        <Zap size={11} className="-mt-0.5" />
+        <span className="text-[10px] font-bold uppercase tracking-wide">action</span>
+        <span className="text-amber-400/60 dark:text-amber-500/40">|</span>
+      </span>
+    )}
     {text}
   </m.button>
 );
@@ -169,10 +228,12 @@ const StickyNote = memo(function StickyNote({
   message,
   isLoading = false,
   onTypewriterDone,
+  onTypingTick,
 }: {
   message: ChatMessage;
   isLoading?: boolean;
   onTypewriterDone?: () => void;
+  onTypingTick?: () => void;
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
@@ -189,6 +250,7 @@ const StickyNote = memo(function StickyNote({
     isUser || !!message.isOld,
     18,
     onTypewriterDone,
+    onTypingTick,
   );
   const showPencil = !isUser && isLoading;
 
@@ -664,6 +726,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 message={msg}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
                 onTypewriterDone={idx === messages.length - 1 && msg.role === 'assistant' ? onLastTypewriterDone : undefined}
+                onTypingTick={idx === messages.length - 1 && msg.role === 'assistant' ? () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) : undefined}
               />
             </div>
           );

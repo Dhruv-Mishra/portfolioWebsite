@@ -48,8 +48,19 @@ export async function POST(request: NextRequest) {
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
       .slice(-4);
 
-    // Try primary provider, then fallback if it fails
+    // Suggestions use a dedicated model if configured (LLM_SUGGESTIONS_MODEL),
+    // otherwise fall back to primary → fallback provider chain.
+    // Speed is the priority here — use a fast, lightweight model.
+    const suggestionsModel = process.env.LLM_SUGGESTIONS_MODEL;
+    const suggestionsBaseURL = process.env.LLM_SUGGESTIONS_BASE_URL || process.env.LLM_BASE_URL;
+    const suggestionsApiKey = process.env.LLM_SUGGESTIONS_API_KEY || process.env.LLM_API_KEY;
+
     const providers = [
+      // Dedicated suggestions model (fast/lightweight) — first priority
+      ...(suggestionsModel && suggestionsBaseURL && suggestionsApiKey
+        ? [{ apiKey: suggestionsApiKey, baseURL: suggestionsBaseURL, model: suggestionsModel, timeoutMs: 8_000 }]
+        : []),
+      // Fallback to primary/fallback chain
       { apiKey: process.env.LLM_API_KEY, baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL, timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 20_000 },
       { apiKey: process.env.LLM_FALLBACK_API_KEY, baseURL: process.env.LLM_FALLBACK_BASE_URL, model: process.env.LLM_FALLBACK_MODEL, timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 25_000 },
     ].filter(p => p.apiKey && p.baseURL && p.model);

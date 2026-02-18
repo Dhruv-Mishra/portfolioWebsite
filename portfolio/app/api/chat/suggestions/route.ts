@@ -48,48 +48,67 @@ export async function POST(request: NextRequest) {
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
       .slice(-4);
 
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL;
-    const model = process.env.LLM_MODEL;
+    // Try primary provider, then fallback if it fails
+    const providers = [
+      { apiKey: process.env.LLM_API_KEY, baseURL: process.env.LLM_BASE_URL, model: process.env.LLM_MODEL, timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 20_000 },
+      { apiKey: process.env.LLM_FALLBACK_API_KEY, baseURL: process.env.LLM_FALLBACK_BASE_URL, model: process.env.LLM_FALLBACK_MODEL, timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 25_000 },
+    ].filter(p => p.apiKey && p.baseURL && p.model);
 
-    if (!apiKey || !baseURL || !model) {
+    if (providers.length === 0) {
       return Response.json({ suggestions: [] });
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    let raw = '';
+    for (const provider of providers) {
+      const controller = new AbortController();
+      // Suggestions get a shorter timeout than chat
+      const timeout = setTimeout(() => controller.abort(), Math.min(provider.timeoutMs, PROVIDER_TIMEOUT_MS));
 
-    try {
-      const llmResponse = await fetch(`${baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
-            ...context,
-            { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
-          ],
-          temperature: 0.9,
-          top_p: 0.95,
-          max_tokens: 80,
-          stream: false,
-        }),
-        signal: controller.signal,
-      });
+      try {
+        const llmResponse = await fetch(`${provider.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${provider.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [
+              { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+              ...context,
+              { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
+            ],
+            temperature: 0.9,
+            top_p: 0.95,
+            max_tokens: 80,
+            stream: false,
+          }),
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeout);
+        clearTimeout(timeout);
 
-      if (!llmResponse.ok) {
-        return Response.json({ suggestions: [] });
+        if (!llmResponse.ok) {
+          console.warn(`Suggestions: ${provider.model} responded ${llmResponse.status}`);
+          continue; // try next provider
+        }
+
+        const data = await llmResponse.json();
+        // Use content only — ignore reasoning_content (GLM5)
+        raw = data.choices?.[0]?.message?.content || '';
+        if (raw) break; // got a response, stop trying
+      } catch (err) {
+        clearTimeout(timeout);
+        console.warn(`Suggestions: ${provider.model} failed:`, (err as Error)?.message);
+        continue; // try next provider
       }
+    }
 
-      const data = await llmResponse.json();
-      const raw = data.choices?.[0]?.message?.content || '';
+    if (!raw) {
+      return Response.json({ suggestions: [] });
+    }
 
+    {
       // Parse: expect 2 lines, one suggestion each
       const suggestions = raw
         .split('\n')
@@ -100,9 +119,6 @@ export async function POST(request: NextRequest) {
       return Response.json({ suggestions }, {
         headers: { 'Cache-Control': 'no-store' },
       });
-    } catch {
-      clearTimeout(timeout);
-      return Response.json({ suggestions: [] });
     }
   } catch {
     return Response.json({ suggestions: [] });

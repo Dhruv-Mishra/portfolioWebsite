@@ -77,9 +77,9 @@ export function getContextualFallback(userPrompt: string): string {
 }
 
 export const CHAT_CONFIG = {
-  maxTokens: 256,       // Tight sticky-note responses — matches terse persona
-  temperature: 0.6,     // Slightly lower for more reliable action-tag compliance
-  topP: 0.9,
+  maxTokens: 150,       // Short sticky-note responses — keeps latency low
+  temperature: 0.7,     // Slightly higher for natural, snappy persona
+  topP: 0.85,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
   responseTimeoutMs: 30_000, // Client-side timeout: abort fetch after 30s of no completion

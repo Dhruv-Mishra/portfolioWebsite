@@ -6,13 +6,14 @@ import { CHAT_CONFIG } from '@/lib/chatContext';
 export const runtime = 'nodejs';
 
 // ─── LLM provider config ───────────────────────────────────────────────
-// Primary provider is tried first. If it fails or times out, fallback is used.
-// To swap which is primary, just rename the env vars.
+// Both providers are fired simultaneously (dual dispatch). First success wins.
+// Timeouts are per-provider, configurable via LLM_TIMEOUT_MS / LLM_FALLBACK_TIMEOUT_MS.
 interface LLMProvider {
   apiKey: string;
   baseURL: string;
   model: string;
   label: string;
+  timeoutMs: number;
 }
 
 function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null } {
@@ -22,6 +23,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_BASE_URL,
         model: process.env.LLM_MODEL,
         label: process.env.LLM_MODEL,
+        timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 20_000,
       }
     : null;
 
@@ -31,14 +33,12 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_FALLBACK_BASE_URL,
         model: process.env.LLM_FALLBACK_MODEL,
         label: process.env.LLM_FALLBACK_MODEL,
+        timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 25_000,
       }
     : null;
 
   return { primary, fallback };
 }
-
-/** Timeout (ms) per provider before aborting. Buffered (non-streaming) needs more time. */
-const PROVIDER_TIMEOUT_MS = 25_000;
 
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
@@ -135,15 +135,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Chat service is not configured' }, { status: 500 });
     }
 
-    // Try primary provider, fall back if it errors or takes too long
-    const result = await callProvider(primary, apiMessages)
-      .catch(async (err) => {
-        if (fallback) {
-          console.warn(`Primary LLM failed (${err?.message}), trying fallback...`);
-          return callProvider(fallback, apiMessages);
-        }
-        throw err;
-      });
+    // Dual dispatch: fire both providers simultaneously, first success wins.
+    // If only primary is configured, call it directly.
+    const result = fallback
+      ? await dualDispatch(primary, fallback, apiMessages)
+      : await callProvider(primary, apiMessages);
 
     return Response.json(result, {
       headers: { 'Cache-Control': 'no-store' },
@@ -155,35 +151,109 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Dual dispatch: fire both providers simultaneously, resolve with the first
+ * successful response, abort the slower one to save resources.
+ */
+async function dualDispatch(
+  primary: LLMProvider,
+  fallback: LLMProvider,
+  messages: { role: string; content: string }[],
+): Promise<{ reply: string }> {
+  const primaryAC = new AbortController();
+  const fallbackAC = new AbortController();
+
+  return new Promise<{ reply: string }>((resolve, reject) => {
+    let resolved = false;
+    let primaryDone = false;
+    let fallbackDone = false;
+
+    callProvider(primary, messages, primaryAC.signal)
+      .then(result => {
+        primaryDone = true;
+        if (!resolved) {
+          resolved = true;
+          fallbackAC.abort();
+          resolve(result);
+        }
+      })
+      .catch(err => {
+        primaryDone = true;
+        console.warn(`Primary (${primary.label}) failed: ${err?.message}`);
+        if (fallbackDone && !resolved) {
+          reject(new Error('All LLM providers failed'));
+        }
+      });
+
+    callProvider(fallback, messages, fallbackAC.signal)
+      .then(result => {
+        fallbackDone = true;
+        if (!resolved) {
+          resolved = true;
+          primaryAC.abort();
+          resolve(result);
+        }
+      })
+      .catch(err => {
+        fallbackDone = true;
+        console.warn(`Fallback (${fallback.label}) failed: ${err?.message}`);
+        if (primaryDone && !resolved) {
+          reject(new Error('All LLM providers failed'));
+        }
+      });
+  });
+}
+
+/**
  * Call a single LLM provider and return the complete response.
  * Non-streaming: simpler, fewer resources, client typewriters the buffered result.
+ * Accepts an optional external AbortSignal for dual-dispatch cancellation.
  */
 async function callProvider(
   provider: LLMProvider,
   messages: { role: string; content: string }[],
+  externalSignal?: AbortSignal,
 ): Promise<{ reply: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), provider.timeoutMs);
+
+  // Forward external abort (from dualDispatch winner) to our controller
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timeout);
+      throw new Error('Aborted before start');
+    }
+    externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
 
   try {
+    // Build request body — add model-specific params
+    const body: Record<string, unknown> = {
+      model: provider.model,
+      messages,
+      temperature: CHAT_CONFIG.temperature,
+      top_p: CHAT_CONFIG.topP,
+      max_tokens: CHAT_CONFIG.maxTokens,
+      stream: false,
+    };
+
+    // GLM5 thinking mode: include chain-of-thought but keep it in response
+    if (/glm/i.test(provider.model)) {
+      body.chat_template_kwargs = { enable_thinking: true, clear_thinking: false };
+    }
+
     const llmResponse = await fetch(`${provider.baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${provider.apiKey}`,
       },
-      body: JSON.stringify({
-        model: provider.model,
-        messages,
-        temperature: CHAT_CONFIG.temperature,
-        top_p: CHAT_CONFIG.topP,
-        max_tokens: CHAT_CONFIG.maxTokens,
-        stream: false,
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
 
     clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
 
     if (!llmResponse.ok) {
       const errText = await llmResponse.text().catch(() => 'Unknown upstream error');
@@ -191,11 +261,13 @@ async function callProvider(
     }
 
     const data = await llmResponse.json();
+    // Use content only — ignore reasoning_content (GLM5 thinking output)
     const reply = data.choices?.[0]?.message?.content || '';
 
     return { reply };
   } catch (err) {
     clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
     throw err;
   }
 }

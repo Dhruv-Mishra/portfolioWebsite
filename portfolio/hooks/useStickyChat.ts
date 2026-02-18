@@ -71,7 +71,11 @@ interface ParsedActions {
   feedbackAction?: boolean;
 }
 
-function parseActions(text: string): ParsedActions {
+// Confirmation patterns — user must START with one of these for NAVIGATE/OPEN to fire
+// Permissive trailing: "yes please", "yeah go ahead", "sure thing" all match
+const CONFIRMATION_RE = /^\s*(yes|yeah|yep|y|ok|okay|sure|go\s*ahead|do\s*it|please|absolutely|definitely|of\s*course|go\s*for\s*it|why\s*not|let'?s\s*go)\b/i;
+
+function parseActions(text: string, userMessage?: string): ParsedActions {
   let content = text;
   let navigateTo: string | undefined;
   let themeAction: ('dark' | 'light' | 'toggle') | undefined;
@@ -115,6 +119,14 @@ function parseActions(text: string): ParsedActions {
 
   // Strip [[SEARCH:...]] tags — server-side only, should never reach client
   content = content.replace(SEARCH_RE, '').trim();
+
+  // Confirmation gate: only honor NAVIGATE and OPEN if user's last message is a confirmation
+  if (userMessage && (navigateTo || openUrls.length > 0)) {
+    if (!CONFIRMATION_RE.test(userMessage)) {
+      navigateTo = undefined;
+      openUrls.length = 0;
+    }
+  }
 
   return {
     content,
@@ -182,6 +194,24 @@ const FILLER_36S = [
   "The internet and my brain are having a serious discussion right now...",
 ];
 
+const FILLER_45S = [
+  "Wow, this one's really putting me through my paces...",
+  "Okay, I promise I haven't fallen asleep — just thinking REALLY hard...",
+  "If this were a coding interview, I'd be asking for a hint right about now...",
+  "My brain's doing a full table scan at this point. Almost there!",
+  "Plot twist: the answer was inside me all along. Just need to find it...",
+];
+
+const FILLER_55S = [
+  "Still here! This response is brewing like fine coffee ☕",
+  "Final stretch — assembling the pieces now...",
+  "Almost got it. Appreciate your patience!",
+  "One more moment — want to make sure this is worth the wait...",
+];
+
+// Filler tiers must stay below CHAT_CONFIG.responseTimeoutMs (60s).
+// Server worst case: 4s classifier + 6s DDG + 45s LLM = 55s.
+// Last filler at 55s covers the server-max edge; client aborts at 60s.
 const FILLER_TIERS = [
   { delay: 2_000, pool: FILLER_5S },
   { delay: 8_000, pool: FILLER_10S },
@@ -189,6 +219,8 @@ const FILLER_TIERS = [
   { delay: 20_000, pool: FILLER_20S },
   { delay: 28_000, pool: FILLER_28S },
   { delay: 36_000, pool: FILLER_36S },
+  { delay: 45_000, pool: FILLER_45S },
+  { delay: 55_000, pool: FILLER_55S },
 ];
 
 function pickRandom<T>(arr: T[]): T {
@@ -412,7 +444,7 @@ export function useStickyChat(): UseStickyChat {
 
       if (rawReply) {
         // Parse action tags from the complete response
-        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(rawReply);
+        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(rawReply, trimmed);
         const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction);
         const displayContent = finalContent || (hasAction ? 'On it ~' : rawReply);
 

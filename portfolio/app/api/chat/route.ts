@@ -2,11 +2,26 @@
 import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
-import { searchWeb } from '@/lib/webSearch';
+import { searchWeb, type SearchResult } from '@/lib/webSearch';
 
 export const runtime = 'nodejs';
 
+// ─── Debug logging ──────────────────────────────────────────────────────
+// Set LOG_RAW=true in .env.local to enable, LOG_RAW=false to disable.
+// Defaults to ON in development, OFF in production.
+const LOG_RAW = process.env.LOG_RAW
+  ? process.env.LOG_RAW === 'true'
+  : process.env.NODE_ENV !== 'production';
+
 // ─── LLM provider config ───────────────────────────────────────────────
+// TIMEOUT CHAIN (keep these consistent across all files!):
+//   Classifier LLM:     4s  (CLASSIFIER_TIMEOUT_MS below)
+//   DDG search total:   6s  (SEARCH_BUDGET_MS in webSearch.ts)
+//   Main LLM provider: 45s  (LLM_TIMEOUT_MS env or default below)
+//   Server worst case: 55s  (4 + 6 + 45)
+//   Client abort:      60s  (CHAT_CONFIG.responseTimeoutMs in chatContext.ts)
+//   Filler tiers:  2s → 55s (useStickyChat.ts — last tier at server max edge)
+//
 // Both providers are fired simultaneously (dual dispatch). First success wins.
 // Timeouts are per-provider, configurable via LLM_TIMEOUT_MS / LLM_FALLBACK_TIMEOUT_MS.
 interface LLMProvider {
@@ -24,7 +39,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_BASE_URL,
         model: process.env.LLM_MODEL,
         label: process.env.LLM_MODEL,
-        timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 30_000,
+        timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 45_000,
       }
     : null;
 
@@ -34,7 +49,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
         baseURL: process.env.LLM_FALLBACK_BASE_URL,
         model: process.env.LLM_FALLBACK_MODEL,
         label: process.env.LLM_FALLBACK_MODEL,
-        timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 30_000,
+        timeoutMs: Number(process.env.LLM_FALLBACK_TIMEOUT_MS) || 45_000,
       }
     : null;
 
@@ -124,17 +139,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build full message array with system prompt (server-side only!)
-    const apiMessages = [
-      { role: 'system', content: DHRUV_SYSTEM_PROMPT },
-      ...sanitized,
-    ];
-
     const { primary, fallback } = getProviders();
     if (!primary) {
       console.error('Missing LLM environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)');
       return Response.json({ error: 'Chat service is not configured' }, { status: 500 });
     }
+
+    // ─── Search-first flow ───────────────────────────────────────────────
+    // 1. Fast classifier LLM decides if a web search is needed (and what query)
+    // 2. If search needed → DDG search runs in parallel with nothing blocking
+    // 3. Main LLM gets ONE call with search results pre-injected (no re-query)
+    const searchResults = await classifyAndSearch(sanitized);
+    let systemPrompt = DHRUV_SYSTEM_PROMPT;
+    if (searchResults) {
+      systemPrompt += `\n\nWEB_SEARCH_RESULTS (use these to inform your answer — do NOT output [[SEARCH:]] tags, results are already here):\n${searchResults}`;
+    }
+
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      ...sanitized,
+    ];
 
     // Dual dispatch: fire both providers simultaneously, first success wins.
     // If only primary is configured, call it directly.
@@ -142,9 +166,15 @@ export async function POST(request: NextRequest) {
       ? await dualDispatch(primary, fallback, apiMessages)
       : await callProvider(primary, apiMessages);
 
-    // If the LLM requested web searches via [[SEARCH:query]] tags, perform them
-    // and re-query with search results injected into the system prompt.
-    result = await handleSearchTags(result, primary, fallback, sanitized);
+    // Safety net: if main LLM still emits [[SEARCH:]] tags (shouldn't happen), strip them
+    SEARCH_TAG_RE.lastIndex = 0;
+    result = { reply: result.reply.replace(SEARCH_TAG_RE, '').trim() };
+
+    if (LOG_RAW) {
+      console.log(`\n════ FINAL REPLY (sent to client) ══════`);
+      console.log(result.reply);
+      console.log('════════════════════════════════════════\n');
+    }
 
     return Response.json(result, {
       headers: { 'Cache-Control': 'no-store' },
@@ -155,76 +185,123 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── Web search handling ────────────────────────────────────────────────
+// ─── Search-first: classifier + DDG search ─────────────────────────────
 const SEARCH_TAG_RE = /\[\[SEARCH:([^\]]{1,100})\]\]/gi;
 const MAX_SEARCH_QUERIES = 2;
-const SEARCH_REQUERY_TIMEOUT_MS = 8_000; // Fast re-query — search context gives LLM clear direction
+const CLASSIFIER_TIMEOUT_MS = 4_000;
+
+// Search classifier system prompt — kept minimal for fast/cheap models
+const SEARCH_CLASSIFIER_PROMPT = `You decide if a web search is needed to answer the user's latest message in a chat with Dhruv Mishra (SWE @ Microsoft).
+
+SEARCH when: user asks about current events, recent tech news, specific facts not in the chat, weather, scores, releases, updates.
+DO NOT SEARCH when: user asks about Dhruv himself, his work, projects, hobbies (already in chat context), greetings, opinions, navigation requests, theme/action requests.
+
+If search is needed, respond with ONLY the search query (1 line, <80 chars, search-engine friendly).
+If no search needed, respond with exactly: NO_SEARCH
+
+Examples:
+User: "What's new in Rust 2025?" → Rust 2025 edition new features
+User: "Tell me about your PC build" → NO_SEARCH
+User: "What's the weather in Delhi?" → Delhi weather today
+User: "Take me to projects page" → NO_SEARCH
+User: "Latest NVIDIA GPU news" → NVIDIA GPU latest news 2026`;
 
 /**
- * If the LLM response contains [[SEARCH:query]] tags, perform DuckDuckGo searches,
- * inject results into the system prompt, and re-query the LLM for a final answer.
- * Single-pass: only processes search tags once (no recursion).
+ * Use a fast/cheap LLM to classify if a search is needed, then perform DDG search.
+ * Returns formatted search results string, or null if no search needed.
  */
-async function handleSearchTags(
-  result: { reply: string },
-  primary: LLMProvider,
-  fallback: LLMProvider | null,
+async function classifyAndSearch(
   userMessages: { role: string; content: string }[],
-): Promise<{ reply: string }> {
-  // Reset regex state (global flag)
-  SEARCH_TAG_RE.lastIndex = 0;
-  const matches = [...result.reply.matchAll(SEARCH_TAG_RE)];
-  if (matches.length === 0) return result;
+): Promise<string | null> {
+  // Get classifier model config — reuses suggestions model (fast/cheap)
+  const apiKey = process.env.LLM_SUGGESTIONS_API_KEY || process.env.LLM_API_KEY;
+  const baseURL = process.env.LLM_SUGGESTIONS_BASE_URL || process.env.LLM_BASE_URL;
+  const model = process.env.LLM_SUGGESTIONS_MODEL || process.env.LLM_MODEL;
 
-  const queries = matches
-    .slice(0, MAX_SEARCH_QUERIES)
-    .map(m => m[1].trim())
-    .filter(Boolean);
-  if (queries.length === 0) return result;
+  if (!apiKey || !baseURL || !model) return null;
 
-  // Perform searches in parallel
-  const searchResults = await Promise.all(queries.map(q => searchWeb(q)));
-
-  // Format results for LLM context
-  const resultsText = searchResults
-    .map((results, i) => {
-      if (results.length === 0) return `"${queries[i]}": no results found`;
-      return `"${queries[i]}":\n${results.map(r => `- ${r.title}: ${r.snippet}`).join('\n')}`;
-    })
-    .join('\n\n');
-
-  // If all searches empty, strip tags and return original text
-  const hasAnyResults = searchResults.some(r => r.length > 0);
-  if (!hasAnyResults) {
-    SEARCH_TAG_RE.lastIndex = 0;
-    return { reply: result.reply.replace(SEARCH_TAG_RE, '').trim() };
-  }
-
-  // Re-query LLM with search results appended to system prompt
-  const systemWithSearch = DHRUV_SYSTEM_PROMPT +
-    `\n\nWEB_SEARCH_RESULTS (use to inform your answer, stay in character as Dhruv):\n${resultsText}`;
-
-  const apiMessages = [
-    { role: 'system', content: systemWithSearch },
-    ...userMessages,
-  ];
-
-  // Use shorter timeouts for re-query since search context makes generation faster
-  const fastPrimary = { ...primary, timeoutMs: SEARCH_REQUERY_TIMEOUT_MS };
-  const fastFallback = fallback ? { ...fallback, timeoutMs: SEARCH_REQUERY_TIMEOUT_MS } : null;
+  // Only send last 2 messages for context (classifier just needs the latest exchange)
+  const recentMessages = userMessages.slice(-2);
 
   try {
-    const searchResult = fastFallback
-      ? await dualDispatch(fastPrimary, fastFallback, apiMessages)
-      : await callProvider(fastPrimary, apiMessages);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CLASSIFIER_TIMEOUT_MS);
 
-    // Strip any search tags from second response to prevent leakage
-    SEARCH_TAG_RE.lastIndex = 0;
-    return { reply: searchResult.reply.replace(SEARCH_TAG_RE, '').trim() };
-  } catch {
-    // If re-query fails, return original response with tags stripped
-    SEARCH_TAG_RE.lastIndex = 0;
-    return { reply: result.reply.replace(SEARCH_TAG_RE, '').trim() };
+    const response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SEARCH_CLASSIFIER_PROMPT },
+          ...recentMessages,
+        ],
+        temperature: 0.1, // Low temp — deterministic classification
+        max_tokens: 80,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    let raw = (data.choices?.[0]?.message?.content || '').trim();
+
+    // Strip <think> tags if classifier model uses them
+    raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    raw = raw.replace(/<think>[\s\S]*/gi, '').trim();
+
+    if (LOG_RAW) {
+      console.log(`\n🔍 SEARCH CLASSIFIER [${model}]: "${raw}"`);
+    }
+
+    // Check if classifier said no search needed
+    if (!raw || /^no.?search$/i.test(raw)) {
+      if (LOG_RAW) console.log('   → No search needed\n');
+      return null;
+    }
+
+    // Extract query — take first line, strip any prefix
+    const query = raw.split('\n')[0].replace(/^(search|query):?\s*/i, '').trim().slice(0, 80);
+    if (!query || query.length < 3) return null;
+
+    if (LOG_RAW) console.log(`   → Searching: "${query}"`);
+
+    // Perform DDG search
+    const results: SearchResult[][] = await Promise.all(
+      [query].slice(0, MAX_SEARCH_QUERIES).map(q => searchWeb(q))
+    );
+
+    const hasAnyResults = results.some(r => r.length > 0);
+    if (!hasAnyResults) {
+      if (LOG_RAW) console.log('   → No search results found\n');
+      return null;
+    }
+
+    // Format results for LLM context
+    const resultsText = results
+      .map((searchRes, i) => {
+        const q = [query][i];
+        if (searchRes.length === 0) return `"${q}": no results found`;
+        return `"${q}":\n${searchRes.map(r => `- [${r.title}](${r.url})\n  ${r.snippet}`).join('\n')}`;
+      })
+      .join('\n\n');
+
+    if (LOG_RAW) {
+      console.log(`   → ${results.flat().length} results found`);
+      console.log(resultsText.slice(0, 300));
+      console.log('\n');
+    }
+
+    return resultsText;
+  } catch (err) {
+    if (LOG_RAW) console.warn('Search classifier failed:', (err as Error)?.message);
+    return null; // Graceful degradation — chat works without search
   }
 }
 
@@ -339,8 +416,24 @@ async function callProvider(
     }
 
     const data = await llmResponse.json();
-    // Use content only — ignore reasoning_content (GLM5 thinking output)
-    const reply = data.choices?.[0]?.message?.content || '';
+
+    if (LOG_RAW) {
+      // Log full response structure to debug empty/unexpected responses
+      const msg = data.choices?.[0]?.message;
+      console.log(`\n──── RAW LLM [${provider.label}] ────`);
+      console.log('content:', JSON.stringify(msg?.content ?? null));
+      if (msg?.reasoning_content) console.log('reasoning_content:', JSON.stringify(msg.reasoning_content.slice(0, 200)));
+      if (msg?.reasoning) console.log('reasoning:', JSON.stringify(msg.reasoning.slice(0, 200)));
+      console.log('────────────────────────────────────\n');
+    }
+
+    // Extract reply: prefer content, fall back to reasoning_content for models that split them
+    let reply = data.choices?.[0]?.message?.content || '';
+
+    // Strip <think>...</think> blocks (Nemotron, Qwen, DeepSeek thinking output)
+    reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    // Handle unclosed <think> (model hit token limit mid-thought)
+    reply = reply.replace(/<think>[\s\S]*/gi, '').trim();
 
     return { reply };
   } catch (err) {

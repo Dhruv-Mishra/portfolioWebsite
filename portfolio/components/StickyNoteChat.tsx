@@ -5,11 +5,99 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
 import { TAPE_STYLE } from '@/lib/constants';
+
+// ─── Markdown component overrides for chat notes ────────────────────────────
+// Keep rendering compact and readable inside sticky-note cards.
+const MD_COMPONENTS: Components = {
+  // Paragraphs: tighten spacing
+  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+  // Bold / italic — inherit font
+  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  // Links — underline, open external in new tab
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target={href?.startsWith('/') ? undefined : '_blank'}
+      rel={href?.startsWith('/') ? undefined : 'noopener noreferrer'}
+      className="underline decoration-1 underline-offset-2 opacity-80 hover:opacity-100 transition-opacity"
+    >
+      {children}
+    </a>
+  ),
+  // Lists — compact, slightly indented
+  ul: ({ children }) => <ul className="list-disc pl-4 mb-2 last:mb-0 space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 last:mb-0 space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  // Code — inline and block
+  code: ({ className, children }) => {
+    const isBlock = className?.includes('language-');
+    if (isBlock) {
+      return (
+        <code className={cn(
+          "block bg-black/5 dark:bg-white/10 rounded px-2 py-1.5 my-1.5 text-[0.85em] font-mono overflow-x-auto whitespace-pre",
+          className,
+        )}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className="bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 text-[0.85em] font-mono">
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }) => <pre className="mb-2 last:mb-0">{children}</pre>,
+  // Headings — scale down to fit notes
+  h1: ({ children }) => <p className="font-bold text-lg mb-1">{children}</p>,
+  h2: ({ children }) => <p className="font-bold text-base mb-1">{children}</p>,
+  h3: ({ children }) => <p className="font-bold text-sm mb-1">{children}</p>,
+  // Blockquote
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-2 border-current/30 pl-3 italic opacity-80 mb-2 last:mb-0">
+      {children}
+    </blockquote>
+  ),
+  // Horizontal rule
+  hr: () => <hr className="border-current/20 my-2" />,
+};
+
+// ─── Lightweight markdown→HTML for typewriter phase ─────────────────────────
+// Runs on every character tick via innerHTML. Full ReactMarkdown takes over
+// once typing completes (handles edge cases, semantic HTML, accessibility).
+// Intentionally simple — handles the common patterns LLMs produce.
+function markdownToHtml(text: string): string {
+  if (!text) return '';
+  // 1. Escape HTML entities (XSS prevention)
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  // 2. Fenced code blocks: ```lang\ncode\n```
+  html = html.replace(/```(?:\w*)\n?([\s\S]*?)```/g,
+    '<pre class="chat-md-pre"><code>$1</code></pre>');
+  // 3. Inline code: `code`
+  html = html.replace(/`([^`\n]+)`/g, '<code class="chat-md-code">$1</code>');
+  // 4. Bold: **text**
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // 5. Italic: *text* (not adjacent to other *)
+  html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+  // 6. Strikethrough: ~~text~~
+  html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  // 7. Links: [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="chat-md-link">$1</a>');
+  // 8. Line breaks
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
@@ -45,7 +133,7 @@ function useTypewriter(
   const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
-    const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
+    const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.innerHTML = markdownToHtml(s); };
 
     if (skip) {
       setDOM(text);
@@ -143,7 +231,9 @@ function useTypewriter(
     };
   }, [text, skip, speed, eraseSpeed]);
 
-  return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
+  // typingDone: true once first real (non-filler) text finishes typing
+  const typingDone = phase === 'idle' && !isFiller && text.length > 0;
+  return { textNodeRef, isTyping, typingDone, isFiller: phase === 'erasing' || isFiller };
 }
 
 // ─── Typing Ellipsis — bouncing dots with staggered scale wave ───
@@ -246,7 +336,7 @@ const StickyNote = memo(function StickyNote({
   ).current;
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
-  const { textNodeRef, isFiller: isDisplayingFiller } = useTypewriter(
+  const { textNodeRef, typingDone, isFiller: isDisplayingFiller } = useTypewriter(
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
@@ -254,6 +344,10 @@ const StickyNote = memo(function StickyNote({
     onTypewriterDone,
     onTypingTick,
   );
+
+  // Render markdown for: old assistant messages OR new ones after typewriter finishes.
+  // During typing animation, plain text span is used (markdown mid-type looks broken).
+  const showMarkdown = !isUser && (!!message.isOld || typingDone);
   const showPencil = !isUser && isLoading;
 
   return (
@@ -297,7 +391,9 @@ const StickyNote = memo(function StickyNote({
       {/* Message content — rendered inline so the note grows naturally with typewritten text */}
       <div className="relative">
         <div className={cn(
-          "whitespace-pre-wrap break-words leading-relaxed",
+          "break-words leading-relaxed",
+          // Use pre-wrap for plain text (user msgs + typewriter); markdown renders its own whitespace
+          (isUser || !showMarkdown) && "whitespace-pre-wrap",
           // Filler text: same color, just faded + italic to distinguish from final response
           !isUser && isDisplayingFiller && "italic opacity-50",
         )}
@@ -306,8 +402,10 @@ const StickyNote = memo(function StickyNote({
         >
           {isUser ? (
             message.content
+          ) : showMarkdown ? (
+            <ReactMarkdown components={MD_COMPONENTS}>{message.content}</ReactMarkdown>
           ) : (
-            <span ref={textNodeRef}>{message.isOld ? message.content : ''}</span>
+            <span ref={textNodeRef}>{''}</span>
           )}
         </div>
       </div>

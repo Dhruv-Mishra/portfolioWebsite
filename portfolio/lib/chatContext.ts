@@ -77,12 +77,15 @@ export function getContextualFallback(userPrompt: string): string {
 }
 
 export const CHAT_CONFIG = {
-  maxTokens: 150,       // Short sticky-note responses — keeps latency low
+  maxTokens: 2048,      // Hard generation cap — NOT a target length. High to avoid cropping thinking models (<think> blocks stripped post-response)
   temperature: 0.7,     // Slightly higher for natural, snappy persona
   topP: 0.85,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
-  responseTimeoutMs: 45_000, // Client-side timeout: 45s to accommodate LLM + search + re-query path
+  // Client-side abort timeout. Must exceed server worst case:
+  //   4s classifier + 6s DDG (budget cap) + 45s LLM = 55s server max
+  //   60s client abort = 5s buffer over server max
+  responseTimeoutMs: 60_000,
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
   miniChatDismissedKey: 'dhruv-minichat-dismissed',

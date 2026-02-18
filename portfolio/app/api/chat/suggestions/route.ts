@@ -3,6 +3,11 @@ import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
+// ─── Debug logging (mirrors chat route — controlled via LOG_RAW in .env.local) ───
+const LOG_RAW = process.env.LOG_RAW
+  ? process.env.LOG_RAW === 'true'
+  : process.env.NODE_ENV !== 'production';
+
 const SUGGESTIONS_SYSTEM_PROMPT = `Generate 2 short follow-up suggestions a VISITOR would click next in a chat with Dhruv Mishra (SWE @ Microsoft). Written from visitor's perspective TO Dhruv — "you/your" = Dhruv, never "my/I".
 
 Actions available: navigate (home/about/projects/resume/chat), open links (GitHub/LinkedIn/Codeforces/email/resume PDF/project repos), toggle theme, report bug/feedback.
@@ -69,7 +74,7 @@ export async function POST(request: NextRequest) {
             ],
             temperature: 0.9,
             top_p: 0.95,
-            max_tokens: 80,
+            max_tokens: 800,  // High to avoid cropping thinking models; actual suggestions are ~50 tokens
             stream: false,
           }),
           signal: controller.signal,
@@ -85,6 +90,18 @@ export async function POST(request: NextRequest) {
         const data = await llmResponse.json();
         // Use content only — ignore reasoning_content (GLM5)
         raw = data.choices?.[0]?.message?.content || '';
+
+        if (LOG_RAW) {
+          console.log(`\n──── RAW SUGGESTIONS [${provider.model}] ────`);
+          console.log(raw || '(empty)');
+          console.log('────────────────────────────────────\n');
+        }
+
+        // Strip <think>...</think> blocks — handle both closed AND unclosed tags
+        raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        // If an unclosed <think> remains (model hit token limit mid-thought), strip it too
+        raw = raw.replace(/<think>[\s\S]*/gi, '').trim();
+
         if (raw) break; // got a response, stop trying
       } catch (err) {
         clearTimeout(timeout);

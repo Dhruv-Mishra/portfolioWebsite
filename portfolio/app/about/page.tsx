@@ -65,7 +65,7 @@ export default function About() {
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
                                             sizes="192px"
-                                            loading="eager"
+                                            priority
                                             className="object-cover sepia-[.3]"
                                         />
                                     </div>

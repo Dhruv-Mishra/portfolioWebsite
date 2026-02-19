@@ -76,13 +76,15 @@ export function getContextualFallback(userPrompt: string): string {
   return pickRandom(GENERIC_FALLBACKS);
 }
 
+import { CLIENT_TIMEOUT_MS } from '@/lib/constants';
+
 export const CHAT_CONFIG = {
   maxTokens: 256,       // Tight sticky-note responses — matches terse persona
   temperature: 0.6,     // Slightly lower for more reliable action-tag compliance
   topP: 0.9,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
-  responseTimeoutMs: 30_000, // Client-side timeout: abort fetch after 30s of no completion
+  responseTimeoutMs: CLIENT_TIMEOUT_MS, // Client-side abort — derived from central LLM_TIMEOUT_MS + buffer
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
   miniChatDismissedKey: 'dhruv-minichat-dismissed',

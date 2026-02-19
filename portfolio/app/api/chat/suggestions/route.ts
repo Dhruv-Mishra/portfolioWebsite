@@ -1,5 +1,6 @@
 // app/api/chat/suggestions/route.ts — Generate contextual follow-up suggestions via LLM
 import { NextRequest } from 'next/server';
+import { SUGGESTIONS_TIMEOUT_MS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -35,7 +36,7 @@ Rules:
 5. The two suggestions must explore DIFFERENT aspects or offer DIFFERENT actions.
 6. Always write from the user's voice — "you/your" refers to Dhruv.`;
 
-const PROVIDER_TIMEOUT_MS = 8_000;
+const PROVIDER_TIMEOUT_MS = SUGGESTIONS_TIMEOUT_MS;
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,9 +49,10 @@ export async function POST(request: NextRequest) {
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
       .slice(-4);
 
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL;
-    const model = process.env.LLM_MODEL;
+    // Prefer dedicated suggestions LLM vars, fall back to primary LLM
+    const apiKey = process.env.LLM_SUGGESTIONS_API_KEY || process.env.LLM_API_KEY;
+    const baseURL = process.env.LLM_SUGGESTIONS_BASE_URL || process.env.LLM_BASE_URL;
+    const model = process.env.LLM_SUGGESTIONS_MODEL || process.env.LLM_MODEL;
 
     if (!apiKey || !baseURL || !model) {
       return Response.json({ suggestions: [] });

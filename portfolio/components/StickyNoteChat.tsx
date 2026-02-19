@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
@@ -9,28 +9,34 @@ import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
-import { TAPE_STYLE } from '@/lib/constants';
+import { TAPE_STYLE, NAV_DELAY_MS } from '@/lib/constants';
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
 // Uses a cancelled ref + single interval to avoid leaked interval races.
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
-function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void) {
+function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void, onTypingTick?: () => void) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const textNodeRef = useRef<HTMLSpanElement>(null);
   const prevTextRef = useRef(skip ? text : '');
   const cancelRef = useRef(0);
+  const displayLenRef = useRef(skip ? text.length : 0); // tracks chars currently visible in DOM
   const eraseSpeed = Math.max(speed * 0.6, 8);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const onTypingTickRef = useRef(onTypingTick);
+  onTypingTickRef.current = onTypingTick;
 
   const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
     const token = ++cancelRef.current;
     const cancelled = () => cancelRef.current !== token;
-    const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
+    const setDOM = (s: string) => {
+      if (textNodeRef.current) textNodeRef.current.textContent = s;
+      displayLenRef.current = s.length;
+    };
 
     if (skip) {
       setDOM(text);
@@ -46,12 +52,13 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
 
     if (text === prevTextRef.current) return;
 
-    const prevText = prevTextRef.current;
     const newText = text;
 
     const startTyping = () => {
       setPhase('typing');
       let i = 0;
+      let tickCounter = 0;
+      const TICK_INTERVAL = Math.max(1, Math.round(200 / speed)); // fire onTypingTick every ~200ms
       const id = setInterval(() => {
         if (cancelled()) { clearInterval(id); return; }
         i++;
@@ -63,26 +70,38 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
           if (!isFiller) onCompleteRef.current?.();
         } else {
           setDOM(newText.slice(0, i));
+          // Fire scroll tick periodically during real response typing (not filler)
+          tickCounter++;
+          if (!isFiller && tickCounter >= TICK_INTERVAL) {
+            tickCounter = 0;
+            onTypingTickRef.current?.();
+          }
         }
       }, speed);
     };
 
-    if (!prevText) {
+    // If no previous text, just start typing
+    if (!prevTextRef.current && displayLenRef.current === 0) {
       startTyping();
       return;
     }
 
+    // Erase from current display length (not full prev text length).
+    // This prevents the bug where filler text mid-erase re-appears fully
+    // when a new text arrives — we continue erasing from where we are.
     setPhase('erasing');
-    let eraseLen = prevText.length;
+    const currentlyDisplayed = textNodeRef.current?.textContent || '';
+    let eraseLen = currentlyDisplayed.length;
     const eraseId = setInterval(() => {
       if (cancelled()) { clearInterval(eraseId); return; }
       eraseLen--;
       if (eraseLen <= 0) {
         setDOM('');
         clearInterval(eraseId);
+        prevTextRef.current = '';
         if (!cancelled()) startTyping();
       } else {
-        setDOM(prevText.slice(0, eraseLen));
+        setDOM(currentlyDisplayed.slice(0, eraseLen));
       }
     }, eraseSpeed);
 
@@ -159,7 +178,12 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: {
     )}
     style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
   >
-    {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
+    {isAction && (
+      <span className="inline-flex items-center gap-1 mr-1.5 px-1.5 py-0.5 -ml-1 rounded bg-amber-500/15 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] md:text-xs font-semibold uppercase tracking-wide align-middle">
+        <Zap size={10} className="shrink-0" />
+        Action
+      </span>
+    )}
     {text}
   </m.button>
 );
@@ -169,10 +193,12 @@ const StickyNote = memo(function StickyNote({
   message,
   isLoading = false,
   onTypewriterDone,
+  onTypingTick,
 }: {
   message: ChatMessage;
   isLoading?: boolean;
   onTypewriterDone?: () => void;
+  onTypingTick?: () => void;
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
@@ -189,6 +215,7 @@ const StickyNote = memo(function StickyNote({
     isUser || !!message.isOld,
     18,
     onTypewriterDone,
+    onTypingTick,
   );
   const showPencil = !isUser && isLoading;
 
@@ -330,8 +357,8 @@ const FOLLOWUP_CONVERSATIONAL = [
   "What games do you play?",
 ];
 
-// Theme-dependent actions are resolved at render time via getFollowupActions()
-const FOLLOWUP_ACTIONS_BASE = [
+// Action suggestions — static pool (no theme-dependent filtering to avoid flicker on theme switch)
+const FOLLOWUP_ACTIONS = [
   "Open your GitHub profile",
   "Show me your resume PDF",
   "Take me to the projects page",
@@ -339,17 +366,16 @@ const FOLLOWUP_ACTIONS_BASE = [
   "Open your LinkedIn",
   "Show your Codeforces profile",
   "Report a bug",
+  "Toggle the theme",
 ];
-const FOLLOWUP_ACTIONS_DARK_ONLY = ["Switch to light mode"];
-const FOLLOWUP_ACTIONS_LIGHT_ONLY = ["Switch to dark mode", "Toggle the theme"];
 
 // Keyword patterns → HARDCODED_ACTIONS key. Used to fuzzy-match LLM suggestions
 // to known executable actions. Only matches when an action verb is present to
 // avoid false positives on conversational questions.
 const ACTION_MATCHERS: [RegExp, string][] = [
-  [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Switch to dark mode"],
+  [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Toggle the theme"],
   [/\btoggle\b.*\btheme\b/i, "Toggle the theme"],
-  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Switch to light mode"],
+  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Toggle the theme"],
   [/\b(go|take|navigate|visit)\b.*\bprojects?\s*page\b/i, "Take me to the projects page"],
   [/\b(open|show|view|see)\b.*\bgithub\b/i, "Open your GitHub profile"],
   [/\b(open|show|view|see)\b.*\bresume\b/i, "Show me your resume PDF"],
@@ -411,12 +437,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [suggestionsReady, setSuggestionsReady] = useState(false);
 
-  // Compute theme-aware action pool (avoids showing "Switch to dark" when already dark)
-  // Memoized — only recomputes when theme actually changes
-  const followupActions = useMemo(() => [
-    ...FOLLOWUP_ACTIONS_BASE,
-    ...(resolvedTheme === 'dark' ? FOLLOWUP_ACTIONS_DARK_ONLY : FOLLOWUP_ACTIONS_LIGHT_ONLY),
-  ], [resolvedTheme]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -424,6 +444,27 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
   const hasInitializedSuggestionsRef = useRef(false);
+  const userScrolledAwayRef = useRef(false);
+
+  // Detect when user manually scrolls away from the bottom — suppress auto-scroll
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    const THRESHOLD = 80; // px from bottom to consider "at bottom"
+    const onScroll = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < THRESHOLD;
+      userScrolledAwayRef.current = !atBottom;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Scroll callback fired periodically during typewriter typing (not filler)
+  const scrollDuringTyping = useCallback(() => {
+    if (!userScrolledAwayRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
 
   // Handle LLM-triggered actions (navigation, theme switch, open URL)
   // Actions are executed when the typewriter finishes typing the response,
@@ -453,7 +494,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       hasFetchedSuggestionsRef.current = lastAssistant.id;
       const base = [
         ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
-        ...pickRandom(followupActions, 1),
+        ...pickRandom(FOLLOWUP_ACTIONS, 1),
       ];
       setBaseSuggestions(base);
       if (llmSuggestions.length > 0) {
@@ -461,7 +502,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       } else {
         setExtraSuggestions([
           ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
-          ...pickRandom(followupActions.filter(s => !base.includes(s)), 1),
+          ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !base.includes(s)), 1),
         ]);
       }
     } else {
@@ -470,7 +511,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
     }
     setSuggestionsReady(true);
-  }, [messages, llmSuggestions, followupActions]);
+  }, [messages, llmSuggestions]);
 
   // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual
   useEffect(() => {
@@ -486,13 +527,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)
     const hardcoded = [
       ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => s.toLowerCase() !== lastUserText), 1),
-      ...pickRandom(followupActions.filter(s => s.toLowerCase() !== lastUserText), 1),
+      ...pickRandom(FOLLOWUP_ACTIONS.filter(s => s.toLowerCase() !== lastUserText), 1),
     ];
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
     // Fire background LLM request for 2 contextual suggestions
     fetchSuggestions();
-  }, [messages, isLoading, fetchSuggestions, followupActions]);
+  }, [messages, isLoading, fetchSuggestions]);
 
   // When LLM contextual suggestions arrive (or fail), fill the extra slots
   useEffect(() => {
@@ -503,10 +544,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       // LLM failed — fill with 1 conversational + 1 action (different from base)
       setExtraSuggestions([
         ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
-        ...pickRandom(followupActions.filter(s => !baseSuggestions.includes(s)), 1),
+        ...pickRandom(FOLLOWUP_ACTIONS.filter(s => !baseSuggestions.includes(s)), 1),
       ]);
     }
-  }, [isSuggestionsLoading, llmSuggestions, baseSuggestions, followupActions]);
+  }, [isSuggestionsLoading, llmSuggestions, baseSuggestions]);
 
   // Gate suggestion visibility: hide during loading, show when typewriter signals completion.
   // Also executes any pending actions (navigation, theme, URLs) once the note is fully typed.
@@ -547,7 +588,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // Page navigation — slight delay so the user can read the confirmation
     if (action.navigateTo) {
       const dest = action.navigateTo;
-      setTimeout(() => router.push(dest), 600);
+      setTimeout(() => router.push(dest), NAV_DELAY_MS);
     }
   }, [router, setTheme, resolvedTheme, markOpenUrlsFailed]);
   useEffect(() => {
@@ -557,10 +598,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [isLoading]);
 
   // Auto-scroll to newest note (on message count change, streaming end, or suggestions appearing)
+  // Also reset userScrolledAway when a new message appears so responses auto-scroll
   const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
     const countChanged = messages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = messages.length;
+    if (countChanged) {
+      userScrolledAwayRef.current = false; // new message = re-engage auto-scroll
+    }
     if ((countChanged || !isLoading) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
@@ -664,6 +709,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 message={msg}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
                 onTypewriterDone={idx === messages.length - 1 && msg.role === 'assistant' ? onLastTypewriterDone : undefined}
+                onTypingTick={idx === messages.length - 1 && msg.role === 'assistant' ? scrollDuringTyping : undefined}
               />
             </div>
           );

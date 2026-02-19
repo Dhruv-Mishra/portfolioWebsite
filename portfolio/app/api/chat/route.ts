@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { LLM_TIMEOUT_MS } from '@/lib/constants';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +38,8 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
   return { primary, fallback };
 }
 
-/** Timeout (ms) per provider before aborting. Buffered (non-streaming) needs more time. */
-const PROVIDER_TIMEOUT_MS = 25_000;
+/** Timeout (ms) per provider — derived from central constant in lib/constants.ts */
+const PROVIDER_TIMEOUT_MS = LLM_TIMEOUT_MS;
 
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
@@ -155,6 +156,31 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Server-side safeguard for the two-step action confirmation rule.
+ *
+ * Weaker LLMs sometimes emit [[ACTION]] tags in the same response where
+ * they propose an action ("Want me to…?"). This function detects proposal
+ * language and strips all action tags so only a clean PROPOSE response
+ * reaches the client. The tags are only allowed through when the response
+ * does NOT contain a confirmation question (i.e., it's an EXECUTE response).
+ */
+const ACTION_TAG_RE = /\[\[(?:NAVIGATE|THEME|OPEN|FEEDBACK)(?::[^\]]+)?\]\]/gi;
+const PROPOSAL_RE = /(?:want\s+me\s+to|should\s+i|shall\s+i|do\s+you\s+want|would\s+you\s+like|i\s+can\s+(?:open|show|take|navigate|switch|toggle))\b.*\?/i;
+
+function sanitizeActionTags(reply: string): string {
+  if (!ACTION_TAG_RE.test(reply)) return reply;
+  // Reset lastIndex after test (global flag)
+  ACTION_TAG_RE.lastIndex = 0;
+
+  if (PROPOSAL_RE.test(reply)) {
+    // Proposal detected — strip all tags, let the user confirm first
+    return reply.replace(ACTION_TAG_RE, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  return reply;
+}
+
+/**
  * Call a single LLM provider and return the complete response.
  * Non-streaming: simpler, fewer resources, client typewriters the buffered result.
  */
@@ -191,7 +217,14 @@ async function callProvider(
     }
 
     const data = await llmResponse.json();
-    const reply = data.choices?.[0]?.message?.content || '';
+    const raw = data.choices?.[0]?.message?.content || '';
+
+    // Server-side safeguard: strip action tags from responses that look like
+    // proposals (contain a confirmation question). Weaker models sometimes
+    // emit [[TAGS]] in the same response where they ask "Want me to…?" —
+    // violating the two-step confirmation rule. This ensures the tag only
+    // fires on a genuine EXECUTE response, never on a PROPOSE.
+    const reply = sanitizeActionTags(raw);
 
     return { reply };
   } catch (err) {

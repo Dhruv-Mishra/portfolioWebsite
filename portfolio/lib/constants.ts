@@ -25,3 +25,16 @@ export const TAPE_STYLE_DECOR = {
   backgroundColor: 'var(--tape-color, rgba(194, 163, 120, 0.6))',
   clipPath: TAPE_CLIP_PATH,
 } as const;
+
+// ─── LLM & Network Timeouts ────────────────────────────────────────────
+/** Server-side timeout per LLM provider (ms). Buffered (non-streaming) needs generous time. */
+export const LLM_TIMEOUT_MS = 25_000;
+
+/** Client-side abort timeout (ms). Adds headroom over server timeout for network/serialization. */
+export const CLIENT_TIMEOUT_MS = LLM_TIMEOUT_MS + 5_000;
+
+/** Suggestions LLM timeout (ms). Shorter — suggestions are non-critical. */
+export const SUGGESTIONS_TIMEOUT_MS = 8_000;
+
+/** Delay (ms) before programmatic page navigation — lets user read the response first. */
+export const NAV_DELAY_MS = 600;

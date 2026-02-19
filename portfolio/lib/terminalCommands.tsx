@@ -1,7 +1,7 @@
 import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSION, NAV_DELAY_MS } from "@/lib/constants";
 
 export interface CommandResult {
     output: React.ReactNode;
@@ -105,7 +105,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     }),
     projects: () => ({
         output: "Navigating to projects...",
-        action: () => router.push("/projects")
+        action: () => setTimeout(() => router.push("/projects"), NAV_DELAY_MS)
     }),
     init: () => {
         const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;
@@ -121,15 +121,15 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     resume: () => ({
         output: "Navigating to resume page...",
-        action: () => router.push("/resume")
+        action: () => setTimeout(() => router.push("/resume"), NAV_DELAY_MS)
     }),
     cv: () => ({
         output: "Navigating to resume page...",
-        action: () => router.push("/resume")
+        action: () => setTimeout(() => router.push("/resume"), NAV_DELAY_MS)
     }),
     chat: () => ({
         output: "Navigating to chat...",
-        action: () => router.push("/chat")
+        action: () => setTimeout(() => router.push("/chat"), NAV_DELAY_MS)
     }),
     socials: () => ({
         output: (
@@ -214,8 +214,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     open: (args: string[]) => {
         const file = args[0];
         if (!file) return { output: "Usage: open [filename]" };
-        if (file === "resume.pdf") return { output: "Opening resume...", action: () => router.push("/resume") };
-        if (file === "projects.json") return { output: "Opening projects...", action: () => router.push("/projects") };
+        if (file === "resume.pdf") return { output: "Opening resume...", action: () => setTimeout(() => router.push("/resume"), NAV_DELAY_MS) };
+        if (file === "projects.json") return { output: "Opening projects...", action: () => setTimeout(() => router.push("/projects"), NAV_DELAY_MS) };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),

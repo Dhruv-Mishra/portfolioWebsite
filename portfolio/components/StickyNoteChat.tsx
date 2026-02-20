@@ -298,8 +298,8 @@ const StickyNote = memo(function StickyNote({
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
   const rotation = useRef(
     isUser
-      ? (Math.random() * NOTE_ROTATION.maxDeg + NOTE_ROTATION.minDeg)
-      : -(Math.random() * NOTE_ROTATION.maxDeg + NOTE_ROTATION.minDeg)
+      ? (Math.random() * NOTE_ROTATION.rangeDeg + NOTE_ROTATION.minDeg)
+      : -(Math.random() * NOTE_ROTATION.rangeDeg + NOTE_ROTATION.minDeg)
   ).current;
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)

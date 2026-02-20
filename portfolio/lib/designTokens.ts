@@ -611,7 +611,7 @@ export const SOCIAL_INTERACTION = {
 /** Note rotation config */
 export const NOTE_ROTATION = {
   minDeg: 0.5,
-  maxDeg: 1.5,
+  rangeDeg: 1,
   inputRotation: 0.5,
 } as const;
 

@@ -189,14 +189,6 @@ export default function About() {
                                     </div>
                                 </div>
                             </Link>
-
-                            {/* Quick link pills — sketchbook style */}
-                            <div className="flex flex-wrap gap-2 mt-4">
-                                <Link href="/projects" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">📂 Projects</Link>
-                                <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">🐙 GitHub</a>
-                                <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">💼 LinkedIn</a>
-                                <a href="https://codeforces.com/profile/DhruvMishra" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">🏆 Codeforces</a>
-                            </div>
                         </div>
                     </div>
                 </m.div>

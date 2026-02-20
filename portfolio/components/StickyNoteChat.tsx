@@ -133,7 +133,71 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
 }
 
 // ─── Typing Ellipsis — bouncing dots with staggered scale wave ───
-// Hoisted animation configs — avoids 6 object allocations per render (2 per dot × 3 dots)
+// ─── Placeholder Typewriter — cycles through hint texts in the input box ———
+const PLACEHOLDER_TEXTS = [
+  'Write a note...',
+  'Ask about my projects...',
+  'What tech do I use?',
+  'Tell me a fun fact...',
+  'What games do I play?',
+  'Ask me anything...',
+] as const;
+const PLACEHOLDER_TYPE_SPEED = 35;
+const PLACEHOLDER_ERASE_SPEED = 20;
+const PLACEHOLDER_PAUSE_MS = 2500;
+
+function usePlaceholderTypewriter() {
+  const ref = useRef<HTMLSpanElement>(null);
+  const idxRef = useRef(0);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
+    const setDOM = (s: string) => { if (ref.current) ref.current.textContent = s; };
+
+    const cycle = () => {
+      if (cancelled) return;
+      const text = PLACEHOLDER_TEXTS[idxRef.current % PLACEHOLDER_TEXTS.length];
+      let i = 0;
+      // Type phase
+      interval = setInterval(() => {
+        if (cancelled) { if (interval) clearInterval(interval); return; }
+        i++;
+        setDOM(text.slice(0, i));
+        if (i >= text.length) {
+          if (interval) clearInterval(interval);
+          // Pause, then erase
+          timer = setTimeout(() => {
+            if (cancelled) return;
+            let len = text.length;
+            interval = setInterval(() => {
+              if (cancelled) { if (interval) clearInterval(interval); return; }
+              len--;
+              setDOM(text.slice(0, len));
+              if (len <= 0) {
+                if (interval) clearInterval(interval);
+                idxRef.current++;
+                timer = setTimeout(cycle, 300);
+              }
+            }, PLACEHOLDER_ERASE_SPEED);
+          }, PLACEHOLDER_PAUSE_MS);
+        }
+      }, PLACEHOLDER_TYPE_SPEED);
+    };
+
+    // Start after a short delay
+    timer = setTimeout(cycle, 600);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      if (interval) clearInterval(interval);
+    };
+  }, []);
+
+  return ref;
+}// Hoisted animation configs — avoids 6 object allocations per render (2 per dot × 3 dots)
 const ELLIPSIS_ANIMATE = {
   y: [0, -7, 0, 0],
   scale: [1, 1.35, 1, 1],
@@ -687,6 +751,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
+  const placeholderRef = usePlaceholderTypewriter();
 
   return (
     <div className={cn(
@@ -855,19 +920,32 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- delegates to textarea focus for mobile UX */}
           <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
-              onKeyDown={handleKeyDown}
-              placeholder="Write a note..."
-              rows={1}
-              disabled={isLoading}
-              className={cn(
-                "flex-1 bg-transparent resize-none font-hand text-[var(--note-user-ink)] placeholder:text-[var(--note-user-ink)]/40 focus:outline-none",
-                compact ? "text-sm leading-snug" : "text-base md:text-lg",
+            <div className="relative flex-1">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
+                onKeyDown={handleKeyDown}
+                placeholder=""
+                rows={1}
+                disabled={isLoading}
+                className={cn(
+                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
+                  compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                )}
+              />
+              {/* Typewriter placeholder overlay — hidden when user has typed */}
+              {!input && (
+                <span
+                  ref={placeholderRef}
+                  aria-hidden
+                  className={cn(
+                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden",
+                    compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                  )}
+                />
               )}
-            />
+            </div>
 
             {/* Paperclip send button */}
             <m.button

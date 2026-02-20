@@ -178,12 +178,12 @@ export default function About() {
                                         </svg>
                                     </div>
                                     <div>
-                                        <p className="font-hand text-lg md:text-xl text-gray-500 group-hover:text-indigo-700 transition-colors">
+                                        <p className="font-hand text-sm md:text-lg text-gray-500 group-hover:text-indigo-700 transition-colors">
                                             <span>{ctaText}</span>
                                             <span className="inline-block w-[2px] h-[1.1em] bg-gray-400 group-hover:bg-indigo-600 ml-0.5 align-middle animate-pulse" />
                                         </p>
-                                        <p className="font-hand text-sm text-gray-400 group-hover:text-indigo-500 transition-colors mt-1">
-                                            Chat with me — I&apos;ll pass you a note back ✏️
+                                        <p className="font-hand text-xs md:text-sm text-gray-400 group-hover:text-indigo-500 transition-colors mt-1">
+                                            Click here to chat with me
                                         </p>
                                     </div>
                                 </div>

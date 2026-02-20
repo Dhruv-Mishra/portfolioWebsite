@@ -275,12 +275,13 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: {
     )}
     style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
   >
-    {isAction && (
-      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider mb-0.5">
-        <Zap size={10} className="text-amber-500" />
-        action
-      </span>
-    )}
+    <span className={cn(
+      "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-0.5",
+      isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
+    )}>
+      {isAction ? <Zap size={10} className="text-amber-500" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
+      {isAction ? 'action' : 'suggestion'}
+    </span>
     {text}
   </m.button>
 );

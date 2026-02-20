@@ -6,11 +6,13 @@ import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
-import { cn } from '@/lib/utils';
+import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
-import { TAPE_STYLE } from '@/lib/constants';
+import { TapeStrip } from '@/components/ui/TapeStrip';
+import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { ANIMATION_TOKENS, TIMING_TOKENS, ELLIPSIS_CONFIG, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { resolveAction, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
 
 /** Delay (ms) before executing page navigation after action confirmation */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
@@ -224,27 +226,6 @@ const TypingEllipsis = () => (
   </span>
 );
 
-// ─── Tape Strip (realistic torn-edge, brownish tint visible on light blue) ───
-const TapeStrip = ({ className }: { className?: string }) => (
-  <div
-    className={cn("absolute -top-2 left-1/2 -translate-x-1/2 w-16 md:w-24 h-5 md:h-6 shadow-sm z-20", className)}
-    style={TAPE_STYLE}
-  />
-);
-
-// ─── Wavy Underline SVG ───
-const WavyUnderline = ({ className }: { className?: string }) => (
-  <svg className={cn("w-full h-3 mt-1", className)} viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M0 6 Q25 0 50 6 Q75 12 100 6 Q125 0 150 6 Q175 12 200 6 Q225 0 250 6 Q275 12 300 6"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      opacity="0.3"
-    />
-  </svg>
-);
-
 // Hoisted animation constants — avoids allocation per StickyNote render
 const NOTE_SPRING = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.default, duration: 0.4 };
 
@@ -423,96 +404,6 @@ const RateLimitNote = ({ seconds }: { seconds: number }) => (
   </m.div>
 );
 
-// ─── Suggested Questions ───
-// Initial suggestions shown before any conversation
-const INITIAL_SUGGESTIONS = [
-  "What do you work on at Microsoft?",
-  "What's your tech stack?",
-  "Toggle the theme",
-  "Report a bug",
-];
-
-// Follow-up suggestions — split into pools so we can guarantee
-// at least one conversational suggestion per batch.
-const FOLLOWUP_CONVERSATIONAL = [
-  "What projects have you worked on?",
-  "Tell me about your time at IIIT Delhi",
-  "What's your favorite language?",
-  "How did you get into competitive programming?",
-  "What do you enjoy most about your work?",
-  "Tell me about your research",
-  "What are your hobbies?",
-  "Tell me about your PC build",
-  "What games do you play?",
-];
-
-// Theme-dependent actions are resolved at render time via getFollowupActions()
-const FOLLOWUP_ACTIONS_BASE = [
-  "Open your GitHub profile",
-  "Show me your resume PDF",
-  "Take me to the projects page",
-  "Open the Fluent UI repo",
-  "Open your LinkedIn",
-  "Show your Codeforces profile",
-  "Report a bug",
-];
-const FOLLOWUP_ACTIONS_DARK_ONLY = ["Switch to light mode"];
-const FOLLOWUP_ACTIONS_LIGHT_ONLY = ["Switch to dark mode", "Toggle the theme"];
-
-// Keyword patterns → HARDCODED_ACTIONS key. Used to fuzzy-match LLM suggestions
-// to known executable actions. Only matches when an action verb is present to
-// avoid false positives on conversational questions.
-const ACTION_MATCHERS: [RegExp, string][] = [
-  [/\b(switch|change|enable)\b.*\bdark\s*mode\b/i, "Switch to dark mode"],
-  [/\btoggle\b.*\btheme\b/i, "Toggle the theme"],
-  [/\b(switch|change|enable)\b.*\blight\s*mode\b/i, "Switch to light mode"],
-  [/\b(go|take|navigate|visit)\b.*\bprojects?\s*page\b/i, "Take me to the projects page"],
-  [/\b(open|show|view|see)\b.*\bgithub\b/i, "Open your GitHub profile"],
-  [/\b(open|show|view|see)\b.*\bresume\b/i, "Show me your resume PDF"],
-  [/\b(open|show|view|see)\b.*\bfluent\s*ui\b.*\brepo\b/i, "Open the Fluent UI repo"],
-  [/\b(open|show|view|see)\b.*\blinkedin\b/i, "Open your LinkedIn"],
-  [/\b(open|show|view|see)\b.*\bcodeforces\b/i, "Show your Codeforces profile"],
-  [/\breport\b.*\bbug\b|\bfeedback\s*form\b|\bsubmit\b.*\bfeedback\b/i, "Report a bug"],
-];
-
-// Try to match suggestion text to a known executable action.
-// Returns the HARDCODED_ACTIONS key if matched, null otherwise.
-function resolveAction(text: string): string | null {
-  // Exact match (case-insensitive) against HARDCODED_ACTIONS keys
-  const exactKey = Object.keys(HARDCODED_ACTIONS).find(
-    k => k.toLowerCase() === text.toLowerCase(),
-  );
-  if (exactKey) return exactKey;
-  // Keyword-based fuzzy match
-  for (const [pattern, key] of ACTION_MATCHERS) {
-    if (pattern.test(text)) return key;
-  }
-  return null;
-}
-
-// Pre-built responses for hardcoded action suggestions — avoids an LLM call.
-// Each entry maps suggestion text → { content, ...action metadata }.
-// `content` is the assistant's reply; action fields trigger the UI side-effect.
-// The `themeAction` value 'toggle' is resolved at runtime by the action handler.
-const HARDCODED_ACTIONS: Record<string, Omit<import('@/hooks/useStickyChat').ChatMessage, 'id' | 'role' | 'timestamp'>> = {
-  "Switch to dark mode": { content: "Switching to dark mode for you ~", themeAction: 'dark' },
-  "Switch to light mode": { content: "Switching to light mode for you ~", themeAction: 'light' },
-  "Toggle the theme": { content: "Toggling the theme ~", themeAction: 'toggle' },
-  "Take me to the projects page": { content: "Here are my projects!", navigateTo: '/projects' },
-  "Open your GitHub profile": { content: "Opening GitHub for you ~", openUrls: ['https://github.com/Dhruv-Mishra'] },
-  "Show me your resume PDF": { content: "Here's my resume!", openUrls: ['/resources/resume.pdf'] },
-  "Open the Fluent UI repo": { content: "Opening the Fluent UI Android repo ~", openUrls: ['https://github.com/microsoft/fluentui-android'] },
-  "Open your LinkedIn": { content: "Opening LinkedIn for you ~", openUrls: ['https://www.linkedin.com/in/dhruv-mishra-id/'] },
-  "Show your Codeforces profile": { content: "Opening Codeforces for you ~", openUrls: ['https://codeforces.com/profile/DhruvMishra'] },
-  "Report a bug": { content: "Opening the feedback form for you ~", feedbackAction: true },
-};
-
-// Pick N random items from an array without duplicates
-function pickRandom<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
-}
-
 // ═════════════════════════════════════════════════
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
@@ -529,10 +420,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   // Compute theme-aware action pool (avoids showing "Switch to dark" when already dark)
   // Memoized — only recomputes when theme actually changes
-  const followupActions = useMemo(() => [
-    ...FOLLOWUP_ACTIONS_BASE,
-    ...(resolvedTheme === 'dark' ? FOLLOWUP_ACTIONS_DARK_ONLY : FOLLOWUP_ACTIONS_LIGHT_ONLY),
-  ], [resolvedTheme]);
+  const followupActions = useMemo(() => getFollowupActions(resolvedTheme), [resolvedTheme]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -709,9 +597,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     // Resolve to a known action (exact or fuzzy match) — bypasses LLM, executes directly
-    const actionKey = resolveAction(text);
-    if (actionKey) {
-      addLocalExchange(text, HARDCODED_ACTIONS[actionKey]);
+    const action = resolveAction(text);
+    if (action) {
+      addLocalExchange(text, {
+        content: action.response,
+        navigateTo: action.navigateTo,
+        themeAction: action.themeAction,
+        openUrls: action.openUrls,
+        feedbackAction: action.feedbackAction,
+      });
     } else {
       sendMessage(text);
     }
@@ -832,10 +726,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       {/* ─── Input Area (floating overlay with gradient fade) ─── */}
       <div className={cn(
         "absolute bottom-0 inset-x-0 pointer-events-none",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-paper)] before:to-transparent",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-transparent before:to-transparent",
       )}>
       <div className={cn(
-        "pointer-events-auto bg-[var(--c-paper)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
+        "pointer-events-auto bg-transparent px-2 md:px-6 pb-22 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}

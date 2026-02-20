@@ -39,10 +39,6 @@ class RateLimiter {
     
     return Math.ceil(remaining / 1000); // Convert to seconds
   }
-
-  clear(key: string): void {
-    this.requests.delete(key);
-  }
 }
 
 export const rateLimiter = new RateLimiter();
@@ -52,10 +48,6 @@ export const RATE_LIMITS = {
   JOKE_API: {
     maxRequests: 5,
     windowMs: 60000, // 5 requests per minute
-  },
-  EXTERNAL_LINKS: {
-    maxRequests: 10,
-    windowMs: 10000, // 10 requests per 10 seconds
   },
   CHAT_API: {
     maxRequests: 20,

@@ -7,7 +7,8 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
-import { TAPE_STYLE } from '@/lib/constants';
+import { TapeStrip } from '@/components/ui/TapeStrip';
+import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS, TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -18,11 +19,11 @@ type FeedbackState = 'idle' | 'submitting' | 'success' | 'error';
 const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.feedbackSpiralHoles });
 const SPIRAL_HOLE_SHADOW = { boxShadow: SHADOW_TOKENS.spiralHole } as const;
 
-const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; bg: string; classes: string }[] = [
-  { id: 'bug', label: 'Bug', icon: Bug, bg: FEEDBACK_COLORS.bug.bg, classes: `${FEEDBACK_COLORS.bug.text} ${FEEDBACK_COLORS.bug.border}` },
-  { id: 'idea', label: 'Idea', icon: Lightbulb, bg: FEEDBACK_COLORS.idea.bg, classes: `${FEEDBACK_COLORS.idea.text} ${FEEDBACK_COLORS.idea.border}` },
-  { id: 'kudos', label: 'Kudos', icon: Heart, bg: FEEDBACK_COLORS.kudos.bg, classes: `${FEEDBACK_COLORS.kudos.text} ${FEEDBACK_COLORS.kudos.border}` },
-  { id: 'other', label: 'Other', icon: MessageSquare, bg: FEEDBACK_COLORS.other.bg, classes: `${FEEDBACK_COLORS.other.text} ${FEEDBACK_COLORS.other.border}` },
+const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; bg: string; classes: string; placeholder: string }[] = [
+  { id: 'bug', label: 'Bug', icon: Bug, bg: FEEDBACK_COLORS.bug.bg, classes: `${FEEDBACK_COLORS.bug.text} ${FEEDBACK_COLORS.bug.border}`, placeholder: "What went wrong? Where did it happen?" },
+  { id: 'idea', label: 'Idea', icon: Lightbulb, bg: FEEDBACK_COLORS.idea.bg, classes: `${FEEDBACK_COLORS.idea.text} ${FEEDBACK_COLORS.idea.border}`, placeholder: "What would make this site better?" },
+  { id: 'kudos', label: 'Kudos', icon: Heart, bg: FEEDBACK_COLORS.kudos.bg, classes: `${FEEDBACK_COLORS.kudos.text} ${FEEDBACK_COLORS.kudos.border}`, placeholder: "What do you like about this site?" },
+  { id: 'other', label: 'Other', icon: MessageSquare, bg: FEEDBACK_COLORS.other.bg, classes: `${FEEDBACK_COLORS.other.text} ${FEEDBACK_COLORS.other.border}`, placeholder: "What's on your mind?" },
 ];
 
 const MAX_MESSAGE_LENGTH = LAYOUT_TOKENS.maxMessageLength;
@@ -36,27 +37,6 @@ const TEXTAREA_LINED_STYLE = {
   lineHeight: '24px',
   paddingTop: '26px',
 } as const;
-
-// ─── Tape Strip (reused from StickyNoteChat) ────────────────────────────
-const TapeStrip = ({ className }: { className?: string }) => (
-  <div
-    className={cn("absolute -top-3 left-1/2 -translate-x-1/2 w-24 md:w-32 h-7 md:h-9 shadow-sm z-20", className)}
-    style={TAPE_STYLE}
-  />
-);
-
-// ─── Wavy Underline SVG (reused from StickyNoteChat) ────────────────────
-const WavyUnderline = () => (
-  <svg className="w-full h-3 mt-1" viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M0 6 Q25 0 50 6 Q75 12 100 6 Q125 0 150 6 Q175 12 200 6 Q225 0 250 6 Q275 12 300 6"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      opacity="0.3"
-    />
-  </svg>
-);
 
 // ─── Paper Airplane fly-away animation ──────────────────────────────────
 const PaperAirplaneSuccess = () => (
@@ -278,7 +258,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             aria-label="Feedback form"
           >
             {/* Tape strip */}
-            <TapeStrip />
+            <TapeStrip size="md" />
 
             {/* Close button */}
             <button
@@ -354,15 +334,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       value={message}
                       onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
                       onKeyDown={handleKeyDown}
-                      placeholder={
-                        category === 'bug'
-                          ? "What went wrong? Where did it happen?"
-                          : category === 'idea'
-                          ? "What would make this site better?"
-                          : category === 'kudos'
-                          ? "What do you like about this site?"
-                          : "What's on your mind?"
-                      }
+                      placeholder={CATEGORIES.find(c => c.id === category)?.placeholder ?? "What's on your mind?"}
                       rows={12}
                       disabled={state === 'submitting'}
                       className={cn(

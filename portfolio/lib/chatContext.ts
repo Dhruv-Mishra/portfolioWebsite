@@ -1,5 +1,6 @@
 // lib/chatContext.ts — Client-safe chat constants (NO system prompt — that's in chatContext.server.ts)
 import { LLM_CLIENT_TIMEOUT_MS } from '@/lib/llmConfig';
+import { pickRandom } from '@/lib/utils';
 
 export const WELCOME_MESSAGE = "Hey :) Ask me about my work at Microsoft, my projects, tech opinions, hobbies, or anything really ~";
 
@@ -13,13 +14,17 @@ const GENERIC_FALLBACKS = [
 ];
 
 // Contextual fallback pools — matched against user prompt keywords via regex.
-// Patterns are intentionally narrow (word boundaries, multi-word phrases) so most
-// prompts fall through to GENERIC_FALLBACKS. Only clearly topical questions match.
-// Each message leads with a "caught off guard" feel, gives a real nugget, then redirects.
+// Keywords are auto-compiled to regex. Each message leads with a "caught off guard"
+// feel, gives a real nugget, then redirects.
 // All facts sourced from DHRUV_SYSTEM_PROMPT in chatContext.server.ts.
-const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
+interface ContextualFallback {
+  keywords: string[];
+  messages: string[];
+}
+
+const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
-    pattern: /\bprojects?\b|(?:your|dhruv'?s)\s+(?:portfolio|work)|(?:built|shipped|made)\s+(?:any|what)|microsoft\s+(?:work|intern|project)/i,
+    keywords: ['project', 'portfolio', 'work', 'built', 'shipped', 'microsoft'],
     messages: [
       "Got a bit scrambled there — I've worked on Fluent UI Android (ships in Outlook/Teams), did Bloom Filter research with a 300% throughput gain, and built this site. Projects page has the full list!",
       "Sorry, lost my thread for a sec. I've built an NLP course evaluator, a vital-checkup app with OpenCV, a hybrid movie recommender, and more — check the projects page ~",
@@ -27,7 +32,7 @@ const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
     ],
   },
   {
-    pattern: /\bresume\b|\bcv\b|(?:your|dhruv'?s)\s+(?:experience|education|skills|background)|(?:hire|hiring)\s+(?:you|dhruv)/i,
+    keywords: ['resume', 'cv', 'experience', 'education', 'skills', 'background', 'hire', 'hiring'],
     messages: [
       "A little foggy right now — but quick version: Microsoft M365 Shell Team, cut infra COGS by $240K/year, FHL hackathon winner. IIIT Delhi, 8.96 GPA. Resume page has the rest!",
       "Bit scattered, sorry. I'm at Microsoft doing C++/C# at 7B+ hits/day scale, previously shipped Fluent UI Android. The resume page has the details ~",
@@ -35,7 +40,7 @@ const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
     ],
   },
   {
-    pattern: /\b(?:tech\s*stack|react|next\.?js|typescript|rust)\b|(?:programming|coding)\s+(?:language|experience)|(?:what|which)\s+(?:languages?|frameworks?)\b/i,
+    keywords: ['tech', 'stack', 'react', 'nextjs', 'typescript', 'rust', 'programming', 'coding', 'language', 'framework'],
     messages: [
       "Got a bit turned around — I use C++ and C# at Microsoft, Python/TypeScript on the side, and did a lot of Kotlin/Android (Compose, Hilt) before. This site runs Next.js 16 + Tailwind v4. Ask me again!",
       "Head's in a muddle. C++ is my favorite — also fluent in C#, TypeScript, Python, Java, and Kotlin. Comfortable with Azure, MySQL, and distributed systems. Try again in a sec!",
@@ -43,7 +48,7 @@ const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
     ],
   },
   {
-    pattern: /\bhobbies\b|\bfree\s*time\b|(?:outside|beyond)\s+(?:work|coding)|(?:who\s+(?:are|is)\s+(?:you|dhruv))|(?:about\s+(?:you|yourself|dhruv))\b/i,
+    keywords: ['hobbies', 'free time', 'outside work', 'about you', 'yourself', 'who are you'],
     messages: [
       "Got a bit distracted — I'm into gym, chess, and PC overclocking (3080 Ti, 5.5GHz i5, DDR5 tuned to 6400MHz). The about page has the full story!",
       "Sorry, thoughts went sideways. I was Immortal 2 in Valorant, play modded Minecraft on Azure, and love Witcher 3. Traveled to EU, Singapore, Vietnam, US too — about page has more ~",
@@ -51,7 +56,7 @@ const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
     ],
   },
   {
-    pattern: /\b(?:email|linkedin|twitter|github)\b|(?:contact|reach|get\s*in\s*touch\s*with)\s+(?:you|dhruv)|(?:your|dhruv'?s)\s+(?:socials?|links?)\b/i,
+    keywords: ['email', 'linkedin', 'twitter', 'github', 'contact', 'reach', 'socials', 'links'],
     messages: [
       "Got a bit jumbled — you can reach me at dhruvmishra.id@gmail.com, or find me on LinkedIn and GitHub (Dhruv-Mishra). All in the sidebar!",
       "Sorry, lost my place. I'm on GitHub (Dhruv-Mishra), LinkedIn, and Codeforces (DhruvMishra, Expert, max 1703). Social sidebar has the links →",
@@ -60,9 +65,11 @@ const CONTEXTUAL_FALLBACKS: { pattern: RegExp; messages: string[] }[] = [
   },
 ];
 
-function pickRandom(arr: string[]): string {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
+// Auto-generate regex from keyword lists
+const CONTEXTUAL_FALLBACKS = CONTEXTUAL_FALLBACK_DEFS.map(({ keywords, messages }) => ({
+  pattern: new RegExp(`\\b(${keywords.join('|')})`, 'i'),
+  messages,
+}));
 
 /**
  * Returns a fallback message contextual to the user's prompt.

@@ -1,5 +1,3 @@
-import React, { Suspense } from 'react';
-
 interface LoadingSpinnerProps {
   message?: string;
 }
@@ -16,18 +14,5 @@ export function LoadingSpinner({ message = "Loading..." }: LoadingSpinnerProps) 
         </p>
       </div>
     </div>
-  );
-}
-
-interface PageWrapperProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
-
-export function PageWrapper({ children, fallback }: PageWrapperProps) {
-  return (
-    <Suspense fallback={fallback || <LoadingSpinner />}>
-      {children}
-    </Suspense>
   );
 }

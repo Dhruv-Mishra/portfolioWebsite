@@ -1,44 +1,10 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
 import { NextRequest } from 'next/server';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 
 export const runtime = 'nodejs';
 
-// ─── Server-side rate limiting (per-IP, in-memory) ─────────────────────
-const ipRequests = new Map<string, number[]>();
-const RATE_LIMIT = { maxRequests: 3, windowMs: 3_600_000 }; // 3 per hour
-const MAX_TRACKED_IPS = 200;
-let requestsSinceCleanup = 0;
-
-function evictStaleEntries() {
-  const cutoff = Date.now() - RATE_LIMIT.windowMs;
-  for (const [ip, times] of ipRequests) {
-    const valid = times.filter(t => t > cutoff);
-    if (valid.length === 0) ipRequests.delete(ip);
-    else ipRequests.set(ip, valid);
-  }
-}
-
-function isRateLimited(ip: string): { limited: boolean; retryAfter: number } {
-  requestsSinceCleanup++;
-  if (requestsSinceCleanup >= 30 || ipRequests.size > MAX_TRACKED_IPS) {
-    requestsSinceCleanup = 0;
-    evictStaleEntries();
-  }
-
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT.windowMs;
-  let times = ipRequests.get(ip) || [];
-  times = times.filter(t => t > windowStart);
-
-  if (times.length >= RATE_LIMIT.maxRequests) {
-    const retryAfter = Math.ceil((times[0] + RATE_LIMIT.windowMs - now) / 1000);
-    return { limited: true, retryAfter };
-  }
-
-  times.push(now);
-  ipRequests.set(ip, times);
-  return { limited: false, retryAfter: 0 };
-}
+const feedbackRateLimiter = createServerRateLimiter({ maxRequests: 3, windowMs: 3_600_000, maxTrackedIPs: 200, cleanupInterval: 30 });
 
 // ─── Validation ─────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
@@ -70,11 +36,9 @@ interface FeedbackBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+    const ip = getClientIP(request);
 
-    const { limited, retryAfter } = isRateLimited(ip);
+    const { limited, retryAfter } = feedbackRateLimiter.check(ip);
     if (limited) {
       return Response.json(
         { error: `Too many feedback submissions. Try again in ${Math.ceil(retryAfter / 60)} minutes.` },

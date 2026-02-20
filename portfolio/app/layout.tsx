@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import MiniChat from "@/components/MiniChat";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
+import { PERSONAL_LINKS, SITE } from "@/lib/links";
 import "./globals.css";
 
 const patrickHand = Patrick_Hand({
@@ -29,10 +30,10 @@ export const metadata: Metadata = {
   title: "Dhruv Mishra | Software Engineer",
   description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems. Expert in performance optimization, competitive programming, and building production-ready solutions.",
   keywords: ["Dhruv Mishra", "Software Engineer", "Microsoft", "Android Developer", "Performance Optimization", "Distributed Systems", "Competitive Programming", "Full Stack Developer"],
-  authors: [{ name: "Dhruv Mishra", url: "https://www.linkedin.com/in/dhruv-mishra-id/" }],
+  authors: [{ name: SITE.name, url: PERSONAL_LINKS.linkedin }],
   creator: "Dhruv Mishra",
   publisher: "Dhruv Mishra",
-  metadataBase: new URL('https://whoisdhruv.com'),
+  metadataBase: new URL(SITE.url),
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://whoisdhruv.com',
+    url: SITE.url,
     title: "Dhruv Mishra | Software Engineer",
     description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
     siteName: "Dhruv Mishra Portfolio",
@@ -104,25 +105,25 @@ export default function RootLayout({
               "@graph": [
                 {
                   "@type": "WebSite",
-                  "@id": "https://whoisdhruv.com/#website",
-                  "url": "https://whoisdhruv.com",
+                  "@id": `${SITE.url}/#website`,
+                  "url": SITE.url,
                   "name": "Dhruv Mishra Portfolio",
                   "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
                   "publisher": { "@id": "https://whoisdhruv.com/#person" }
                 },
                 {
                   "@type": "Person",
-                  "@id": "https://whoisdhruv.com/#person",
-                  "name": "Dhruv Mishra",
-                  "url": "https://whoisdhruv.com",
+                  "@id": `${SITE.url}/#person`,
+                  "name": SITE.name,
+                  "url": SITE.url,
                   "jobTitle": "Software Engineer",
                   "worksFor": {
                     "@type": "Organization",
                     "name": "Microsoft"
                   },
                   "sameAs": [
-                    "https://www.linkedin.com/in/dhruv-mishra-id/",
-                    "https://github.com/its-DhruvMishra"
+                    PERSONAL_LINKS.linkedin,
+                    PERSONAL_LINKS.github,
                   ]
                 }
               ]

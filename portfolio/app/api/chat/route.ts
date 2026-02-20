@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import { LLM_PROVIDER_TIMEOUT_MS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 
 export const runtime = 'nodejs';
 
@@ -39,57 +40,14 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
 }
 
 
-
-// Server-side rate limiting (per-IP, simple in-memory)
-const ipRequests = new Map<string, number[]>();
-const RATE_LIMIT = { maxRequests: 20, windowMs: 300_000 }; // 20 per 5 min
-const MAX_TRACKED_IPS = 500; // Cap to prevent unbounded memory growth on e2-micro
-let requestsSinceCleanup = 0;
-
-/** Evict expired entries from the rate-limit map to bound memory usage. */
-function evictStaleEntries() {
-  const cutoff = Date.now() - RATE_LIMIT.windowMs;
-  for (const [ip, times] of ipRequests) {
-    const valid = times.filter(t => t > cutoff);
-    if (valid.length === 0) {
-      ipRequests.delete(ip);
-    } else {
-      ipRequests.set(ip, valid);
-    }
-  }
-}
-
-function isRateLimited(ip: string): { limited: boolean; retryAfter: number } {
-  // Periodic cleanup every 50 requests to prevent memory leak
-  requestsSinceCleanup++;
-  if (requestsSinceCleanup >= 50 || ipRequests.size > MAX_TRACKED_IPS) {
-    requestsSinceCleanup = 0;
-    evictStaleEntries();
-  }
-
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT.windowMs;
-  let times = ipRequests.get(ip) || [];
-  times = times.filter(t => t > windowStart);
-
-  if (times.length >= RATE_LIMIT.maxRequests) {
-    const retryAfter = Math.ceil((times[0] + RATE_LIMIT.windowMs - now) / 1000);
-    return { limited: true, retryAfter };
-  }
-
-  times.push(now);
-  ipRequests.set(ip, times);
-  return { limited: false, retryAfter: 0 };
-}
+const chatRateLimiter = createServerRateLimiter({ maxRequests: 20, windowMs: 300_000, maxTrackedIPs: 500, cleanupInterval: 50 });
 
 export async function POST(request: NextRequest) {
   try {
     // Get client IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+    const ip = getClientIP(request);
 
-    const { limited, retryAfter } = isRateLimited(ip);
+    const { limited, retryAfter } = chatRateLimiter.check(ip);
     if (limited) {
       return Response.json(
         { error: `Rate limited. Try again in ${retryAfter} seconds.` },

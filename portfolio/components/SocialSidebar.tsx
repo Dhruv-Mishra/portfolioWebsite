@@ -5,42 +5,43 @@ import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { SOCIAL_COLORS, SOCIAL_INTERACTION, ANIMATION_TOKENS } from '@/lib/designTokens';
+import { PERSONAL_LINKS } from '@/lib/links';
 
 const SOCIALS = [
     {
         name: "GitHub",
         icon: Github,
-        url: "https://github.com/Dhruv-Mishra",
+        url: PERSONAL_LINKS.github,
         color: SOCIAL_COLORS.github
     },
     {
         name: "LinkedIn",
         icon: Linkedin,
-        url: "https://www.linkedin.com/in/dhruv-mishra-id/",
+        url: PERSONAL_LINKS.linkedin,
         color: SOCIAL_COLORS.linkedin
     },
     {
         name: "Codeforces",
         icon: BarChart2,
-        url: "https://codeforces.com/profile/DhruvMishra",
+        url: PERSONAL_LINKS.codeforces,
         color: SOCIAL_COLORS.codeforces
     },
     {
         name: "CP History",
         icon: Trophy,
-        url: "https://zibada.guru/gcj/profile/Dhruv985",
+        url: PERSONAL_LINKS.cpHistory,
         color: SOCIAL_COLORS.cpHistory
     },
     {
         name: "Email",
         icon: Mail,
-        url: "mailto:dhruvmishra.id@gmail.com",
+        url: PERSONAL_LINKS.email,
         color: SOCIAL_COLORS.email
     },
     {
         name: "Phone",
         icon: Phone,
-        url: "tel:+919599377944",
+        url: PERSONAL_LINKS.phone,
         color: SOCIAL_COLORS.phone
     }
 ];

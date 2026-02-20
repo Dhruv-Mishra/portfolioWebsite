@@ -9,9 +9,6 @@ export const LLM_SUGGESTIONS_TIMEOUT_MS = 8_000;
 /** Client-side timeout (ms): abort the fetch to /api/chat after this duration. */
 export const LLM_CLIENT_TIMEOUT_MS = 30_000;
 
-/** Additional client-side buffer (ms) on top of server timeout for network overhead. */
-export const LLM_CLIENT_BUFFER_MS = 5_000;
-
 /**
  * Whether to log raw LLM responses to the server console.
  * Reads LOG_RAW env var. Always disabled in production.

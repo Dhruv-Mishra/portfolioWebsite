@@ -4,6 +4,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
+import { OPEN_LINK_KEYS } from '@/lib/links';
+import { pickRandom } from '@/lib/utils';
+import { TIMING_TOKENS } from '@/lib/designTokens';
 
 export interface ChatMessage {
   id: string;
@@ -45,22 +48,7 @@ const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
 const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
 
 // Map OPEN: keys to actual URLs
-const OPEN_LINKS: Record<string, string> = {
-  github: 'https://github.com/Dhruv-Mishra',
-  linkedin: 'https://www.linkedin.com/in/dhruv-mishra-id/',
-  codeforces: 'https://codeforces.com/profile/DhruvMishra',
-  cphistory: 'https://zibada.guru/gcj/profile/Dhruv985',
-  email: 'mailto:dhruvmishra.id@gmail.com',
-  phone: 'tel:+919599377944',
-  resume: '/resources/resume.pdf',
-  'project-fluentui': 'https://github.com/microsoft/fluentui-android',
-  'project-courseevaluator': 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
-  'project-ivc': 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
-  'project-portfolio': 'https://github.com/Dhruv-Mishra/portfolio-website',
-  'project-recommender': 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
-  'project-atomvault': 'https://github.com/Dhruv-Mishra/AtomVault',
-  'project-bloomfilter': 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',
-};
+const OPEN_LINKS = OPEN_LINK_KEYS;
 
 interface ParsedActions {
   content: string;
@@ -163,15 +151,11 @@ const FILLER_20S = [
 ];
 
 const FILLER_TIERS = [
-  { delay: 2_000, pool: FILLER_5S },
-  { delay: 8_000, pool: FILLER_10S },
-  { delay: 14_000, pool: FILLER_15S },
-  { delay: 20_000, pool: FILLER_20S },
+  { delay: TIMING_TOKENS.fillerTier1, pool: FILLER_5S },
+  { delay: TIMING_TOKENS.fillerTier2, pool: FILLER_10S },
+  { delay: TIMING_TOKENS.fillerTier3, pool: FILLER_15S },
+  { delay: TIMING_TOKENS.fillerTier4, pool: FILLER_20S },
 ];
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
 
 function loadMessages(): ChatMessage[] {
   if (typeof window === 'undefined') return [];

@@ -80,6 +80,7 @@ export function StyleProvider({ children }: { children: React.ReactNode }) {
 /**
  * Hook to access the style context.
  * Must be used within a StyleProvider.
+ * NOTE: Currently unused — kept for future use since StyleProvider IS used in the layout.
  */
 export function useStyle(): StyleContextValue {
   const ctx = React.useContext(StyleContext);

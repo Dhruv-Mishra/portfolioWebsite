@@ -117,21 +117,20 @@ export default function About() {
                             About Me
                         </h1>
 
-                        <div className="space-y-5 text-lg md:text-xl font-hand leading-relaxed">
-                            {/* Pinned Photo - Floated Right */}
-                            <div className="float-right ml-6 mb-2 mt-2 relative transform rotate-3 hidden md:block z-20">
-                                <div className="bg-white p-2 shadow-md border border-gray-200 relative">
-                                    {/* Tape */}
+                        <div className="space-y-3 md:space-y-5 text-base md:text-xl font-hand leading-relaxed">
+                            {/* Pinned Photo — floated right on all sizes, smaller on mobile */}
+                            <div className="float-right ml-3 md:ml-6 mb-1 md:mb-2 mt-1 md:mt-2 relative transform rotate-3 z-20">
+                                <div className="bg-white p-1 md:p-2 shadow-md border border-gray-200 relative">
                                     <div
-                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-8 shadow-sm z-30 -rotate-1"
+                                        className="absolute -top-2 md:-top-3 left-1/2 -translate-x-1/2 w-16 md:w-24 h-6 md:h-8 shadow-sm z-30 -rotate-1"
                                         style={TAPE_STYLE_DECOR}
                                     />
-                                    <div className="w-40 h-40 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
+                                    <div className="w-24 h-24 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
                                         <Image
                                             src="/resources/aboutPhoto.webp"
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
-                                            sizes="192px"
+                                            sizes="(max-width: 768px) 96px, 192px"
                                             loading="eager"
                                             className="object-cover sepia-[.3]"
                                         />

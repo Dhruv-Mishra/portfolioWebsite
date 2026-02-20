@@ -539,37 +539,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Track if user is scrolled to bottom — controls "Ask me anything" floating subheader
-  // The subheader auto-hides after a timeout, reappears only on real user scroll (not layout reflow)
-  const [showSubheader, setShowSubheader] = useState(true);
-  const subheaderTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const lastScrollTopRef = useRef<number>(0);
-  const SUBHEADER_AUTO_HIDE_MS = 4000;
-  const SCROLL_THRESHOLD = 10; // px — ignore tiny layout-induced scrolls
-
-  // Auto-hide after initial timeout
-  useEffect(() => {
-    subheaderTimerRef.current = setTimeout(() => setShowSubheader(false), SUBHEADER_AUTO_HIDE_MS);
-    return () => { if (subheaderTimerRef.current) clearTimeout(subheaderTimerRef.current); };
-  }, []);
-
-  // Re-show on real user scroll (ignore layout-induced micro-scrolls)
-  useEffect(() => {
-    const el = messagesScrollRef.current;
-    if (!el) return;
-    lastScrollTopRef.current = el.scrollTop;
-    const handleScroll = () => {
-      const delta = Math.abs(el.scrollTop - lastScrollTopRef.current);
-      lastScrollTopRef.current = el.scrollTop;
-      // Only react to intentional user scrolls, not layout reflow
-      if (delta < SCROLL_THRESHOLD) return;
-      setShowSubheader(true);
-      if (subheaderTimerRef.current) clearTimeout(subheaderTimerRef.current);
-      subheaderTimerRef.current = setTimeout(() => setShowSubheader(false), SUBHEADER_AUTO_HIDE_MS);
-    };
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, []);
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
@@ -761,7 +730,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     )}>
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-12 pb-2 md:pt-10 md:pb-6 shrink-0">
+        <div className="text-center pt-12 pb-0 md:pt-10 md:pb-1 shrink-0">
           <m.h1
             initial={{ opacity: 0, rotate: -3 }}
             animate={{ opacity: 1, rotate: -2 }}
@@ -770,21 +739,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Pass me a note
           </m.h1>
           <WavyUnderline />
-          <div className="h-8 md:h-9 overflow-hidden">
-            <AnimatePresence>
-              {showSubheader && (
-                <m.p
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 0.6, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="font-hand text-lg md:text-xl text-[var(--c-ink)] mt-2"
-                >
-                  Ask me anything ~
-                </m.p>
-              )}
-            </AnimatePresence>
-          </div>
+          <p className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2">
+            Ask me anything ~
+          </p>
         </div>
       ) : (
         <div className="shrink-0 pt-2 px-3">

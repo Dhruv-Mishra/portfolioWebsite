@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { m } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 
 // Hoisted animation configs — avoid allocation per render
 const ALERT_SHAKE_ANIMATE = {
@@ -29,7 +30,7 @@ export default function Error({
       <m.div
         initial={{ opacity: 0, scale: 0.9, rotate: 1 }}
         animate={{ opacity: 1, scale: 1, rotate: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: ANIMATION_TOKENS.duration.slow }}
         className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl transform relative"
       >
         {/* Tape decoration */}
@@ -68,8 +69,8 @@ export default function Error({
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <m.button
               type="button"
-              whileHover={{ scale: 1.05, rotate: -2 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={INTERACTION_TOKENS.hover.lift}
+              whileTap={INTERACTION_TOKENS.tap.press}
               onClick={reset}
               className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-700 transition-colors"
             >
@@ -79,8 +80,8 @@ export default function Error({
             
             <m.button
               type="button"
-              whileHover={{ scale: 1.05, rotate: 2 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={INTERACTION_TOKENS.hover.liftRotate}
+              whileTap={INTERACTION_TOKENS.tap.press}
               onClick={() => window.location.href = '/'}
               className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
             >

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { LazyMotion, domAnimation } from "framer-motion";
+import { StyleProvider } from "@/context/StyleContext";
 
 export function ThemeProvider({
     children,
@@ -10,9 +11,11 @@ export function ThemeProvider({
 }: React.ComponentProps<typeof NextThemesProvider>) {
     return (
         <NextThemesProvider {...props}>
-            <LazyMotion features={domAnimation} strict>
-                {children}
-            </LazyMotion>
+            <StyleProvider>
+                <LazyMotion features={domAnimation} strict>
+                    {children}
+                </LazyMotion>
+            </StyleProvider>
         </NextThemesProvider>
     );
 }

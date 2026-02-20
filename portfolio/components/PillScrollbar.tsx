@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useEffect, useCallback } from 'react';
+import { LAYOUT_TOKENS, TIMING_TOKENS } from '@/lib/designTokens';
 
 // Pill position written directly to DOM via ref to avoid React re-renders on scroll.
-const PILL_HEIGHT_RATIO = 0.12;
-const PILL_MIN_PX = 20;
+const PILL_HEIGHT_RATIO = LAYOUT_TOKENS.pillHeightRatio;
+const PILL_MIN_PX = LAYOUT_TOKENS.pillMinPx;
 
 const DEFAULT_PILL_STYLE = { opacity: 0, backgroundColor: 'var(--c-ink)', transition: 'opacity 0.3s' } as const;
 
@@ -47,7 +48,7 @@ export default function PillScrollbar({
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
       fadeTimerRef.current = setTimeout(() => {
         if (!draggingRef.current && pillRef.current) pillRef.current.style.opacity = '0';
-      }, 1200);
+      }, TIMING_TOKENS.scrollbarFadeDelay);
     });
   }, [scrollRef]);
 
@@ -91,7 +92,7 @@ export default function PillScrollbar({
       document.removeEventListener('pointerup', up);
       fadeTimerRef.current = setTimeout(() => {
         if (pillRef.current) pillRef.current.style.opacity = '0';
-      }, 1200);
+      }, TIMING_TOKENS.scrollbarFadeDelay);
     };
 
     document.addEventListener('pointermove', move);
@@ -112,7 +113,7 @@ export default function PillScrollbar({
     >
       <div
         ref={pillRef}
-        className="absolute right-[3px] w-[5px] rounded-full"
+        className="absolute right-[3px] w-[var(--c-pill-w)] rounded-full"
         style={pillStyle}
       />
     </div>

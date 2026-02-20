@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 import { APP_VERSION } from '@/lib/constants';
+import { LAYOUT_TOKENS } from '@/lib/designTokens';
 
 export interface TerminalLine {
     id: number;
@@ -20,8 +21,8 @@ interface TerminalContextType {
 
 const TerminalContext = createContext<TerminalContextType | undefined>(undefined);
 
-const MAX_OUTPUT_LINES = 100;
-const MAX_HISTORY = 200;
+const MAX_OUTPUT_LINES = LAYOUT_TOKENS.maxOutputLines;
+const MAX_HISTORY = LAYOUT_TOKENS.maxHistory;
 let nextLineId = 1;
 
 export function TerminalProvider({ children }: { children: ReactNode }) {

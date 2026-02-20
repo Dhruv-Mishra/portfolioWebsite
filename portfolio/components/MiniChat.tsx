@@ -8,6 +8,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 
 // Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
 const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
@@ -76,15 +77,15 @@ export default function MiniChat() {
       <AnimatePresence>
         {isOpen && !isDismissed && (
           <m.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            initial={INTERACTION_TOKENS.entrance.popIn.initial}
+            animate={INTERACTION_TOKENS.entrance.popIn.animate}
+            exit={INTERACTION_TOKENS.exit.popOut}
+            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
             className={cn(
               "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-2xl overflow-hidden",
               // Mobile: full screen overlay
-              "w-[calc(100vw-2rem)] h-[70vh] md:w-[380px] md:h-[480px]",
-              "max-w-[380px]",
+              "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
+              "max-w-[var(--c-chat-max-w)]",
             )}
             style={{ transform: 'rotate(-0.5deg)' }}
           >
@@ -117,12 +118,12 @@ export default function MiniChat() {
       {!isDismissed || !isOpen ? (
         <m.button
           onClick={handleToggle}
-          whileHover={{ scale: 1.1, rotate: -5 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={INTERACTION_TOKENS.hover.scaleUp}
+          whileTap={INTERACTION_TOKENS.tap.press}
           initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 15 } }}
+          animate={{ opacity: 1, scale: 1, transition: { type: 'spring', ...ANIMATION_TOKENS.spring.bouncy } }}
           className={cn(
-            "relative w-12 h-12 md:w-14 md:h-14 rounded shadow-lg flex items-center justify-center transition-colors",
+            "relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
             isOpen
               ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
               : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",

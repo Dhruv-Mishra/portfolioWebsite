@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from 'react';
-import { MOBILE_BREAKPOINT } from '@/lib/constants';
+import { LAYOUT_TOKENS } from '@/lib/designTokens';
 
 /**
  * Custom hook to detect if the current viewport is mobile.
@@ -11,12 +11,12 @@ import { MOBILE_BREAKPOINT } from '@/lib/constants';
 export function useIsMobile() {
     return useSyncExternalStore(
         (callback: () => void) => {
-            const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+            const mql = window.matchMedia(`(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`);
             const handler = () => callback();
             mql.addEventListener('change', handler);
             return () => mql.removeEventListener('change', handler);
         },
-        () => window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches,
+        () => window.matchMedia(`(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`).matches,
         () => false
     );
 }

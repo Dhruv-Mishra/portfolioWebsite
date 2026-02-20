@@ -2,7 +2,9 @@
  * Central breakpoint for mobile detection.
  * Matches Tailwind's 'md' default (768px).
  */
-export const MOBILE_BREAKPOINT = 768;
+import { LAYOUT_TOKENS } from '@/lib/designTokens';
+
+export const MOBILE_BREAKPOINT = LAYOUT_TOKENS.mobileBreakpoint;
 
 /** Portfolio version — single source of truth */
 export const APP_VERSION = 'v0.0.4';

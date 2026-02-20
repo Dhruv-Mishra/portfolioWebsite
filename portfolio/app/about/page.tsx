@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { TIMING_TOKENS, ANIMATION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 const ABOUT_CTA_TEXTS = [
     "Curious about my work? Ask me anything",
@@ -15,9 +16,9 @@ const ABOUT_CTA_TEXTS = [
     "Curious about Microsoft? Chat with me",
 ];
 
-const CTA_TYPE_SPEED = 40;
-const CTA_ERASE_SPEED = 25;
-const CTA_PAUSE_MS = 2000;
+const CTA_TYPE_SPEED = TIMING_TOKENS.ctaTypeSpeed;
+const CTA_ERASE_SPEED = TIMING_TOKENS.ctaEraseSpeed;
+const CTA_PAUSE_MS = TIMING_TOKENS.pauseLong;
 
 export default function About() {
     const [ctaText, setCtaText] = useState('');
@@ -48,7 +49,7 @@ export default function About() {
                 timeout = setTimeout(eraseNext, CTA_ERASE_SPEED);
             } else {
                 ctaIndexRef.current++;
-                timeout = setTimeout(() => { if (!cancelled) cycle(); }, 300);
+                timeout = setTimeout(() => { if (!cancelled) cycle(); }, TIMING_TOKENS.pauseShort);
             }
         };
 
@@ -64,7 +65,7 @@ export default function About() {
         let cleanupCycle: (() => void) | undefined;
         const timeout = setTimeout(() => {
             cleanupCycle = cycle();
-        }, 1000);
+        }, TIMING_TOKENS.ctaInitialDelay);
 
         return () => {
             clearTimeout(timeout);
@@ -79,7 +80,7 @@ export default function About() {
                     initial={{ opacity: 0, y: 10 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    transition={{ duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut }}
                     className="relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
                 >
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
@@ -100,15 +101,15 @@ export default function About() {
                     >
                         {/* Folded Corner Effect - Bottom Right */}
                         <div
-                            className="absolute bottom-0 right-0 pointer-events-none w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
+                            className="absolute bottom-0 right-0 pointer-events-none w-[var(--c-corner-fold)] h-[var(--c-corner-fold)] md:w-[var(--c-corner-fold-md)] md:h-[var(--c-corner-fold-md)]"
                             style={{
-                                background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
+                                background: GRADIENT_TOKENS.foldCorner,
                             }}
                         />
                         <div
-                            className="absolute bottom-0 right-0 pointer-events-none w-[30px] h-[30px] md:w-[60px] md:h-[60px]"
+                            className="absolute bottom-0 right-0 pointer-events-none w-[var(--c-corner-fold)] h-[var(--c-corner-fold)] md:w-[var(--c-corner-fold-md)] md:h-[var(--c-corner-fold-md)]"
                             style={{
-                                backgroundColor: '#f0e6a0',
+                                backgroundColor: GRADIENT_TOKENS.foldUnderside,
                                 clipPath: 'polygon(0 0, 0 100%, 100% 0)'
                             }}
                         />

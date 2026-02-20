@@ -10,22 +10,23 @@ import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
 import { TAPE_STYLE } from '@/lib/constants';
+import { ANIMATION_TOKENS, TIMING_TOKENS, ELLIPSIS_CONFIG, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 /** Delay (ms) before executing page navigation after action confirmation */
-const NAVIGATION_DELAY_MS = 800;
+const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
 // Uses a cancelled ref + single interval to avoid leaked interval races.
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
-function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 18, onComplete?: () => void) {
+function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = TIMING_TOKENS.typeSpeed, onComplete?: () => void) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const textNodeRef = useRef<HTMLSpanElement>(null);
   const prevTextRef = useRef(skip ? text : '');
   const cancelRef = useRef(0);
   const pendingTextRef = useRef<{ text: string; isFiller: boolean } | null>(null);
-  const eraseSpeed = Math.max(speed * 0.6, 8);
+  const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const phaseRef = useRef<TypewriterPhase>('idle');
@@ -142,9 +143,9 @@ const PLACEHOLDER_TEXTS = [
   'What games do I play?',
   'Ask me anything...',
 ] as const;
-const PLACEHOLDER_TYPE_SPEED = 35;
-const PLACEHOLDER_ERASE_SPEED = 20;
-const PLACEHOLDER_PAUSE_MS = 2500;
+const PLACEHOLDER_TYPE_SPEED = TIMING_TOKENS.placeholderTypeSpeed;
+const PLACEHOLDER_ERASE_SPEED = TIMING_TOKENS.placeholderEraseSpeed;
+const PLACEHOLDER_PAUSE_MS = TIMING_TOKENS.pauseExtra;
 
 function usePlaceholderTypewriter() {
   const ref = useRef<HTMLSpanElement>(null);
@@ -178,7 +179,7 @@ function usePlaceholderTypewriter() {
               if (len <= 0) {
                 if (interval) clearInterval(interval);
                 idxRef.current++;
-                timer = setTimeout(cycle, 300);
+                timer = setTimeout(cycle, TIMING_TOKENS.pauseShort);
               }
             }, PLACEHOLDER_ERASE_SPEED);
           }, PLACEHOLDER_PAUSE_MS);
@@ -187,7 +188,7 @@ function usePlaceholderTypewriter() {
     };
 
     // Start after a short delay
-    timer = setTimeout(cycle, 600);
+    timer = setTimeout(cycle, TIMING_TOKENS.initialDelay);
 
     return () => {
       cancelled = true;
@@ -199,15 +200,16 @@ function usePlaceholderTypewriter() {
   return ref;
 }// Hoisted animation configs — avoids 6 object allocations per render (2 per dot × 3 dots)
 const ELLIPSIS_ANIMATE = {
-  y: [0, -7, 0, 0],
-  scale: [1, 1.35, 1, 1],
-  opacity: [0.35, 1, 0.35, 0.35],
+  y: [...ELLIPSIS_CONFIG.animate.y],
+  scale: [...ELLIPSIS_CONFIG.animate.scale],
+  opacity: [...ELLIPSIS_CONFIG.animate.opacity],
 };
-const ELLIPSIS_TRANSITIONS = [
-  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0 },
-  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0.16 },
-  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0.32 },
-];
+const ELLIPSIS_TRANSITIONS = ELLIPSIS_CONFIG.delays.map(delay => ({
+  duration: ELLIPSIS_CONFIG.duration,
+  repeat: Infinity,
+  ease: 'easeInOut' as const,
+  delay,
+}));
 
 const TypingEllipsis = () => (
   <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline">
@@ -244,15 +246,11 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 );
 
 // Hoisted animation constants — avoids allocation per StickyNote render
-const NOTE_SPRING = { type: 'spring' as const, stiffness: 300, damping: 20, duration: 0.4 };
+const NOTE_SPRING = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.default, duration: 0.4 };
 
 // Hoisted inline style objects for StickyNote — avoids per-note allocation
-const FOLD_STYLE_USER = {
-  background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-} as const;
-const FOLD_STYLE_AI = {
-  background: 'linear-gradient(225deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-} as const;
+const FOLD_STYLE_USER = { background: GRADIENT_TOKENS.foldCorner } as const;
+const FOLD_STYLE_AI = { background: GRADIENT_TOKENS.foldCornerAlt } as const;
 const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 
 // ─── Suggested Question Strip ───
@@ -300,8 +298,8 @@ const StickyNote = memo(function StickyNote({
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
   const rotation = useRef(
     isUser
-      ? (Math.random() * 1 + 0.5) // +0.5° to +1.5°
-      : -(Math.random() * 1 + 0.5) // -0.5° to -1.5°
+      ? (Math.random() * NOTE_ROTATION.maxDeg + NOTE_ROTATION.minDeg)
+      : -(Math.random() * NOTE_ROTATION.maxDeg + NOTE_ROTATION.minDeg)
   ).current;
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
@@ -309,7 +307,7 @@ const StickyNote = memo(function StickyNote({
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
-    18,
+    TIMING_TOKENS.typeSpeed,
     onTypewriterDone,
   );
   const showPencil = !isUser && isLoading;
@@ -317,10 +315,10 @@ const StickyNote = memo(function StickyNote({
   return (
     <m.div
       initial={isUser
-        ? { opacity: 0, y: 30, rotate: rotation + 5 }
-        : { opacity: 0, x: 50, rotate: rotation - 5 }
+        ? { opacity: 0, y: NOTE_ENTRANCE.userY, rotate: rotation + NOTE_ENTRANCE.userRotateOffset }
+        : { opacity: 0, x: NOTE_ENTRANCE.aiX, rotate: rotation + NOTE_ENTRANCE.aiRotateOffset }
       }
-      animate={{ opacity: message.isOld ? 0.7 : 1, y: 0, x: 0, rotate: rotation }}
+      animate={{ opacity: message.isOld ? NOTE_ENTRANCE.oldNoteOpacity : 1, y: 0, x: 0, rotate: rotation }}
       transition={NOTE_SPRING}
       className={cn(
         "relative max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
@@ -698,7 +696,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     sendMessage(input.trim());
     setInput('');
     // Re-focus input
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
   }, [input, isLoading, sendMessage]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -834,10 +832,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       {/* ─── Input Area (floating overlay with gradient fade) ─── */}
       <div className={cn(
         "absolute bottom-0 inset-x-0 pointer-events-none",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-paper)] before:to-transparent",
       )}>
       <div className={cn(
-        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
+        "pointer-events-auto bg-[var(--c-paper)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}

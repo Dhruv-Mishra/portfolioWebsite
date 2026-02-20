@@ -1,15 +1,14 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 import { m, useMotionValue } from 'framer-motion';
-import { MOBILE_BREAKPOINT } from '@/lib/constants';
-
+import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS } from '@/lib/designTokens';
 import { useTheme } from 'next-themes';
 
 // Trail point with timestamp for time-based aging (framerate-independent)
 interface TrailPoint { x: number; y: number; t: number }
 
 // Pre-allocated ring buffer for trail points — zero GC pressure
-const MAX_POINTS = 128;
+const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
 
 // Hoisted cursor inner-div transform styles — avoids object allocation per render
 const CURSOR_TRANSFORM_DARK = { transform: 'translate(-2px, -9px)' } as const;
@@ -59,7 +58,7 @@ export default function SketchbookCursor() {
         if (!mounted) return;
 
         // Don't run on mobile
-        if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
+        if (window.matchMedia(`(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`).matches) return;
 
         const ring = ringRef.current;
         dprRef.current = window.devicePixelRatio || 1;
@@ -103,7 +102,7 @@ export default function SketchbookCursor() {
             const dist2 = dx * dx + dy * dy; // avoid sqrt
 
             // Min 5px (25 sq), Max 80px (6400 sq)
-            if (dist2 > 25 && dist2 < 6400) {
+            if (dist2 > LAYOUT_TOKENS.cursorMinDist2 && dist2 < LAYOUT_TOKENS.cursorMaxDist2) {
                 const idx = headRef.current;
                 // Reuse or create point object in ring slot
                 if (ring[idx]) {
@@ -118,7 +117,7 @@ export default function SketchbookCursor() {
                 if (headRef.current === tailRef.current) {
                     tailRef.current = (tailRef.current + 1) % MAX_POINTS;
                 }
-            } else if (dist2 >= 6400) {
+            } else if (dist2 >= LAYOUT_TOKENS.cursorMaxDist2) {
                 // Large jump — clear trail, start fresh
                 tailRef.current = headRef.current;
                 const idx = headRef.current;
@@ -157,7 +156,7 @@ export default function SketchbookCursor() {
                     const ctx = canvasRef.current.getContext('2d');
                     ctx?.scale(dpr, dpr);
                 }
-            }, 100);
+            }, TIMING_TOKENS.resizeDebounce);
         };
 
         window.addEventListener('mousemove', moveCursor, { passive: true });
@@ -176,8 +175,8 @@ export default function SketchbookCursor() {
         const ctx = canvas?.getContext('2d', { alpha: true });
 
         // Trail lifetime in ms — time-based so it's framerate-independent
-        const TRAIL_LIFE_DARK = 60;    // chalk: very short trail
-        const TRAIL_LIFE_LIGHT = 80;   // pencil: short trail
+        const TRAIL_LIFE_DARK = TIMING_TOKENS.trailLifeDark;    // chalk: very short trail
+        const TRAIL_LIFE_LIGHT = TIMING_TOKENS.trailLifeLight;   // pencil: short trail
 
         const renderTrail = () => {
             rafIdRef.current = 0; // mark as not-scheduled until we re-schedule below
@@ -213,11 +212,11 @@ export default function SketchbookCursor() {
                 ctx.lineJoin = 'round';
 
                 if (isDark) {
-                    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = CURSOR_TRAIL.dark.color;
+                    ctx.lineWidth = CURSOR_TRAIL.dark.lineWidth;
                 } else {
-                    ctx.strokeStyle = 'rgba(60,60,60,0.12)';
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = CURSOR_TRAIL.light.color;
+                    ctx.lineWidth = CURSOR_TRAIL.light.lineWidth;
                 }
 
                 // Start from oldest live point
@@ -244,7 +243,7 @@ export default function SketchbookCursor() {
             // Self-stop: if trail is empty and cursor idle, let the loop sleep.
             // The next mousemove will call wakeLoop() to restart it.
             const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
-            if (activePoints === 0 && now - lastMoveTime.current > 200) {
+            if (activePoints === 0 && now - lastMoveTime.current > TIMING_TOKENS.cursorIdleThreshold) {
                 // Loop stops — zero CPU while idle
                 return;
             }
@@ -292,7 +291,7 @@ export default function SketchbookCursor() {
                 }}
                 className="absolute top-0 left-0"
             >
-                <div className="w-8 h-8 md:w-10 md:h-10" style={resolvedTheme === 'dark' ? CURSOR_TRANSFORM_DARK : CURSOR_TRANSFORM_LIGHT}>
+                <div className="w-[var(--c-cursor-size)] md:w-[var(--c-cursor-size-md)] h-[var(--c-cursor-size)] md:h-[var(--c-cursor-size-md)]" style={resolvedTheme === 'dark' ? CURSOR_TRANSFORM_DARK : CURSOR_TRANSFORM_LIGHT}>
                     {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">

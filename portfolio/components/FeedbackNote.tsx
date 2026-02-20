@@ -8,23 +8,24 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { TAPE_STYLE } from '@/lib/constants';
+import { ANIMATION_TOKENS, INTERACTION_TOKENS, TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
 type FeedbackState = 'idle' | 'submitting' | 'success' | 'error';
 
 // Hoisted — avoids re-allocation per render
-const SPIRAL_HOLES = Array.from({ length: 15 });
-const SPIRAL_HOLE_SHADOW = { boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' } as const;
+const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.feedbackSpiralHoles });
+const SPIRAL_HOLE_SHADOW = { boxShadow: SHADOW_TOKENS.spiralHole } as const;
 
-const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; color: string }[] = [
-  { id: 'bug', label: 'Bug', icon: Bug, color: 'bg-[#ff9b9b] text-red-900 border-red-300' },
-  { id: 'idea', label: 'Idea', icon: Lightbulb, color: 'bg-[#ffe082] text-amber-900 border-amber-400' },
-  { id: 'kudos', label: 'Kudos', icon: Heart, color: 'bg-[#f8bbd0] text-pink-900 border-pink-300' },
-  { id: 'other', label: 'Other', icon: MessageSquare, color: 'bg-[#c5e1a5] text-green-900 border-green-300' },
+const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; bg: string; classes: string }[] = [
+  { id: 'bug', label: 'Bug', icon: Bug, bg: FEEDBACK_COLORS.bug.bg, classes: `${FEEDBACK_COLORS.bug.text} ${FEEDBACK_COLORS.bug.border}` },
+  { id: 'idea', label: 'Idea', icon: Lightbulb, bg: FEEDBACK_COLORS.idea.bg, classes: `${FEEDBACK_COLORS.idea.text} ${FEEDBACK_COLORS.idea.border}` },
+  { id: 'kudos', label: 'Kudos', icon: Heart, bg: FEEDBACK_COLORS.kudos.bg, classes: `${FEEDBACK_COLORS.kudos.text} ${FEEDBACK_COLORS.kudos.border}` },
+  { id: 'other', label: 'Other', icon: MessageSquare, bg: FEEDBACK_COLORS.other.bg, classes: `${FEEDBACK_COLORS.other.text} ${FEEDBACK_COLORS.other.border}` },
 ];
 
-const MAX_MESSAGE_LENGTH = 1000;
+const MAX_MESSAGE_LENGTH = LAYOUT_TOKENS.maxMessageLength;
 const FEEDBACK_DRAFT_KEY = 'dhruv-feedback-draft';
 
 /** Hoisted textarea style — lined notebook effect. Avoids re-allocation per render. */
@@ -142,7 +143,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
           localStorage.removeItem(FEEDBACK_DRAFT_KEY);
         }
       } catch { /* ignore */ }
-    }, 400);
+    }, TIMING_TOKENS.draftSaveDebounce);
     return () => clearTimeout(id);
   }, [message, category, contact]);
 
@@ -156,7 +157,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   // Focus textarea when opened
   useEffect(() => {
     if (isOpen && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), 300);
+      setTimeout(() => textareaRef.current?.focus(), TIMING_TOKENS.focusDelay);
     }
   }, [isOpen]);
 
@@ -229,8 +230,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
         setCategory('bug');
         onClose();
         // Reset state after close animation
-        setTimeout(() => setState('idle'), 300);
-      }, 2000);
+        setTimeout(() => setState('idle'), TIMING_TOKENS.closeResetDelay);
+      }, TIMING_TOKENS.successAutoClose);
     } catch (err) {
       setState('error');
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
@@ -259,15 +260,15 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
           {/* Modal */}
           <m.div
-            initial={{ opacity: 0, scale: 0.85, y: 40, rotate: 2 }}
-            animate={{ opacity: 1, scale: 1, y: 0, rotate: -1 }}
-            exit={{ opacity: 0, scale: 0.85, y: 40, rotate: 2 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
+            animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
+            exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
+            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
             className={cn(
               "fixed z-[61] inset-x-3 md:inset-x-auto",
               "md:left-1/2 md:-translate-x-1/2",
-              "top-[8vh] md:top-[12vh]",
-              "w-auto md:w-[500px] max-w-[500px]",
+              "top-[var(--c-modal-top)] md:top-[var(--c-modal-top-md)]",
+              "w-auto md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
               "mt-4",  // Room for tape strip above
               "bg-[var(--note-user)] shadow-xl",
               "font-hand",
@@ -322,11 +323,12 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                           className={cn(
                             "px-4 py-1.5 rounded-full border-2 font-hand font-bold text-sm",
-                            cat.color,
+                            cat.classes,
                             active
                               ? "shadow-md opacity-100 border-[var(--c-grid)]/50"
                               : "opacity-50 hover:opacity-80 border-transparent",
                           )}
+                          style={{ backgroundColor: cat.bg }}
                         >
                           <cat.icon size={14} className="inline mr-1 -mt-0.5" />
                           {cat.label}
@@ -384,7 +386,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                     <input
                       type="text"
                       value={contact}
-                      onChange={(e) => setContact(e.target.value.slice(0, 120))}
+                      onChange={(e) => setContact(e.target.value.slice(0, LAYOUT_TOKENS.contactMaxLength))}
                       placeholder="Name / email / socials (optional)"
                       disabled={state === 'submitting'}
                       className={cn(
@@ -462,7 +464,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             <div
               className="absolute bottom-0 right-0 w-[20px] h-[20px] pointer-events-none"
               style={{
-                background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
+                background: GRADIENT_TOKENS.foldCorner,
               }}
             />
           </m.div>

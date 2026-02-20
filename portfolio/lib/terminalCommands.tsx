@@ -2,9 +2,10 @@ import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
 import { APP_VERSION } from "@/lib/constants";
+import { TIMING_TOKENS } from '@/lib/designTokens';
 
 /** Delay (ms) before executing page navigation from terminal commands */
-const NAVIGATION_DELAY_MS = 500;
+const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
 
 export interface CommandResult {
     output: React.ReactNode;
@@ -48,7 +49,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), TIMING_TOKENS.jokeApiTimeout);
 
             const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode', {
                 signal: controller.signal

@@ -4,6 +4,7 @@ import { m } from 'framer-motion';
 import Link from 'next/link';
 import { Home, FileQuestion } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 
 export default function NotFound() {
   return (
@@ -11,11 +12,10 @@ export default function NotFound() {
       <m.div
         initial={{ opacity: 0, scale: 0.95, rotate: -2 }}
         animate={{ opacity: 1, scale: 1, rotate: -2 }}
-        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: ANIMATION_TOKENS.duration.slow, ease: ANIMATION_TOKENS.easing.smooth }}
         whileHover={{
-          scale: 1.02,
-          rotate: 0,
-          transition: { duration: 0.2 }
+          ...INTERACTION_TOKENS.hover.card,
+          transition: { duration: ANIMATION_TOKENS.duration.normal }
         }}
         className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl relative"
       >
@@ -49,8 +49,8 @@ export default function NotFound() {
             <Link href="/">
               <m.button
                 type="button"
-                whileHover={{ scale: 1.05, rotate: 2 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={INTERACTION_TOKENS.hover.liftRotate}
+                whileTap={INTERACTION_TOKENS.tap.press}
                 className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-700 transition-colors"
               >
                 <Home size={24} />
@@ -61,8 +61,8 @@ export default function NotFound() {
             <Link href="/projects">
               <m.button
                 type="button"
-                whileHover={{ scale: 1.05, rotate: -2 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={INTERACTION_TOKENS.hover.lift}
+                whileTap={INTERACTION_TOKENS.tap.press}
                 className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
               >
                 View Projects

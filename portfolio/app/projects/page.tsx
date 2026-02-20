@@ -3,6 +3,7 @@ import { m } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 interface Project {
     name: string;
@@ -127,13 +128,13 @@ const PROJECTS: Project[] = [
     ];
 
 // Pre-computed per-card style values — deterministic (index-based), hoisted to module scope
-const ROTATIONS = [2, -3, 1.5, -2, 4, -1];
-const PHOTO_ROTATIONS = [-3, 2, -2, 3, -1, 2];
-const TAPE_POSITIONS = [40, 60, 30, 70, 50, 45];
-const FOLD_SIZE = 30;
-const CARD_SHADOW = { boxShadow: '5px 5px 15px rgba(0,0,0,0.1)' } as const;
-const CARD_SPRING = { duration: 0.3, ease: "easeOut" as const };
-const CARD_HOVER = { scale: 1.02, rotate: 0, transition: { duration: 0.15 } } as const;
+const ROTATIONS = PROJECT_TOKENS.rotations;
+const PHOTO_ROTATIONS = PROJECT_TOKENS.photoRotations;
+const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
+const FOLD_SIZE = PROJECT_TOKENS.foldSize;
+const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
+const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
+const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { duration: ANIMATION_TOKENS.duration.fast } } as const;
 
 export default function Projects() {
     return (
@@ -157,9 +158,9 @@ export default function Projects() {
                                 y: 0,
                                 rotate: rotate,
                             }}
-                            viewport={{ once: true, margin: "-50px" }}
+                            viewport={{ once: true, margin: PROJECT_TOKENS.viewportMargin }}
                             transition={{
-                                delay: Math.min(i * 0.03, 0.15), // Cap delay at 150ms
+                                delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
                                 ...CARD_SPRING,
                             }}
                             whileHover={CARD_HOVER}
@@ -182,7 +183,7 @@ export default function Projects() {
                                 style={{
                                     width: FOLD_SIZE,
                                     height: FOLD_SIZE,
-                                    background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
+                                    background: GRADIENT_TOKENS.foldCorner,
                                 }}
                             />
                             <div

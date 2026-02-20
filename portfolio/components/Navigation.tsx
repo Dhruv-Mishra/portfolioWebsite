@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { NAV_TAB_COLORS, NAV_POSITIONS, ANIMATION_TOKENS } from '@/lib/designTokens';
 
 const LINKS = [
     { name: 'Home', href: '/' },
@@ -13,17 +14,11 @@ const LINKS = [
     { name: 'Chat', href: '/chat' },
 ];
 
-const COLORS = [
-    "bg-[#ff9b9b] text-red-900 border-red-300", // Pink
-    "bg-[#fff9c4] text-yellow-900 border-yellow-300", // Yellow
-    "bg-[#c5e1a5] text-green-900 border-green-300", // Green
-    "bg-[#b3e5fc] text-blue-900 border-blue-300",    // Blue for Resume
-    "bg-[#ffccbc] text-orange-900 border-orange-300" // Coral for Chat
-];
+const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
-const TAB_SPRING = { type: "spring" as const, stiffness: 300, damping: 20 };
+const TAB_SPRING = { type: "spring" as const, ...ANIMATION_TOKENS.spring.default };
 
 export default function Navigation() {
     const pathname = usePathname();
@@ -40,6 +35,8 @@ export default function Navigation() {
             {LINKS.map((item, i) => {
                 const active = pathname === item.href;
                 const isHovered = hoveredTab === item.name;
+                const colorKey = COLOR_ORDER[i % COLOR_ORDER.length];
+                const color = NAV_TAB_COLORS[colorKey];
 
                 return (
                     <Link
@@ -53,7 +50,7 @@ export default function Navigation() {
                             // whileHover overrides animate, which caused tabs to stay "pulled down"
                             // after navigating away while the cursor was still on the old tab.
                             animate={{
-                                y: active ? -5 : isHovered ? -10 : -25,
+                                y: active ? NAV_POSITIONS.active : isHovered ? NAV_POSITIONS.hovered : NAV_POSITIONS.default,
                             }}
                             onHoverStart={() => onHoverStart(item.name)}
                             onHoverEnd={onHoverEnd}
@@ -61,11 +58,11 @@ export default function Navigation() {
                             className={cn(
                                 // CSS animation for initial render (faster LCP)
                                 `animate-nav-tab animate-nav-tab-${i + 1}`,
-                                "cursor-pointer pt-12 md:pt-16 pb-3 md:pb-4 px-3 md:px-5 rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-sm md:text-xl tracking-wide relative",
-                                COLORS[i % COLORS.length],
+                                "cursor-pointer pt-[var(--c-nav-tab-pt)] md:pt-[var(--c-nav-tab-pt-md)] pb-[var(--c-nav-tab-py)] md:pb-[var(--c-nav-tab-py-md)] px-[var(--c-nav-tab-px)] md:px-[var(--c-nav-tab-px-md)] rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-[length:var(--t-nav)] md:text-[length:var(--t-nav-md)] tracking-wide relative",
+                                color.text, color.border,
                                 active ? "z-20 scale-110 shadow-lg" : "z-10 opacity-90 hover:opacity-100"
                             )}
-                            style={TAB_CLIP_STYLE}
+                            style={{ ...TAB_CLIP_STYLE, backgroundColor: color.bg }}
                         >
                             {item.name}
                         </m.div>

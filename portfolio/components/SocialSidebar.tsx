@@ -4,49 +4,50 @@ import * as React from "react";
 import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { SOCIAL_COLORS, SOCIAL_INTERACTION, ANIMATION_TOKENS } from '@/lib/designTokens';
 
 const SOCIALS = [
     {
         name: "GitHub",
         icon: Github,
         url: "https://github.com/Dhruv-Mishra",
-        color: "hover:text-gray-800"
+        color: SOCIAL_COLORS.github
     },
     {
         name: "LinkedIn",
         icon: Linkedin,
         url: "https://www.linkedin.com/in/dhruv-mishra-id/",
-        color: "hover:text-blue-700"
+        color: SOCIAL_COLORS.linkedin
     },
     {
         name: "Codeforces",
         icon: BarChart2,
         url: "https://codeforces.com/profile/DhruvMishra",
-        color: "hover:text-yellow-600"
+        color: SOCIAL_COLORS.codeforces
     },
     {
         name: "CP History",
         icon: Trophy,
         url: "https://zibada.guru/gcj/profile/Dhruv985",
-        color: "hover:text-amber-500"
+        color: SOCIAL_COLORS.cpHistory
     },
     {
         name: "Email",
         icon: Mail,
         url: "mailto:dhruvmishra.id@gmail.com",
-        color: "hover:text-red-600"
+        color: SOCIAL_COLORS.email
     },
     {
         name: "Phone",
         icon: Phone,
         url: "tel:+919599377944",
-        color: "hover:text-green-600"
+        color: SOCIAL_COLORS.phone
     }
 ];
 
 // Hoisted per-index whileHover rotate values — avoids object allocation per render
-const HOVER_ROTATIONS = [3, -4, 2, -3, 4, -2];
-const DESKTOP_SPRING = { type: "spring" as const, stiffness: 400, damping: 15 };
+const HOVER_ROTATIONS = SOCIAL_INTERACTION.hoverRotations;
+const DESKTOP_SPRING = { type: "spring" as const, ...ANIMATION_TOKENS.spring.bouncy };
 
 const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {

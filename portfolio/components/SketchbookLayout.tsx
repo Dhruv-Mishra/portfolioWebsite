@@ -6,12 +6,13 @@ import {
     CloudDoodle, SmileyDoodle, LightningDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
+import { LAYOUT_TOKENS, GRID_PATTERN } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
-const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
+const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.spiralHoles }, (_, i) => i);
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
@@ -36,12 +37,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             </a>
 
             {/* Spiral Binding - Fixed to Left */}
-            <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
+            <div className="w-[var(--c-spiral-w)] md:w-[var(--c-spiral-w-md)] h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
                 {/* Holes and Rings */}
                 {SPIRAL_HOLES.map((i) => (
                     <div key={i} className="relative w-full flex justify-center">
-                        <div className="w-8 h-8 rounded-full bg-spiral-ring absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
-                        <div className="w-3 h-3 rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
+                        <div className="w-[var(--c-ring-size)] h-[var(--c-ring-size)] rounded-full bg-spiral-ring absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
+                        <div className="w-[var(--c-hole-size)] h-[var(--c-hole-size)] rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
                     </div>
                 ))}
             </div>
@@ -64,9 +65,9 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Background Grid Pattern - Thicker and Larger */}
                 <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
                     style={{
-                        backgroundSize: '100px 100px',
-                        backgroundImage: `linear-gradient(to right, #9ca3af 1px, transparent 1px),
-                                      linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`,
+                        backgroundSize: GRID_PATTERN.backgroundSize,
+                        backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
+                                      linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
                         contain: 'strict',
                         willChange: 'auto',
                     }}

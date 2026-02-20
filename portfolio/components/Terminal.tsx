@@ -7,7 +7,14 @@ import { useTerminal } from "@/context/TerminalContext";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
-import { MOBILE_BREAKPOINT } from "@/lib/constants";
+import {
+    TERMINAL_COLORS,
+    SKETCH_RADIUS,
+    SHADOW_TOKENS,
+    INTERACTION_TOKENS,
+    ANIMATION_TOKENS,
+    LAYOUT_TOKENS,
+} from "@/lib/designTokens";
 import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
@@ -73,14 +80,14 @@ export default function Terminal() {
                 }
             } catch (error) {
                 console.error('Command execution error:', error);
-                output = <span className="text-red-400">Error executing command.</span>;
+                output = <span className={TERMINAL_COLORS.error}>Error executing command.</span>;
             }
         } else {
             output = (
                 <div>
-                    <span className="text-red-400">Command not found: {lowerCmd}</span>
+                    <span className={TERMINAL_COLORS.error}>Command not found: {lowerCmd}</span>
                     <br />
-                    <span className="text-gray-400">Type <span className="text-emerald-400">&apos;help&apos;</span> for available commands.</span>
+                    <span className="text-gray-400">Type <span className={TERMINAL_COLORS.prompt}>&apos;help&apos;</span> for available commands.</span>
                 </div>
             );
         }
@@ -139,35 +146,39 @@ export default function Terminal() {
 
     return (
         <m.div
-            initial={{ scale: 0.95, opacity: 0, rotate: 1 }}
-            animate={{ scale: 1, opacity: 1, rotate: -1 }}
-            transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
-            className="w-full max-w-3xl mx-auto relative group perspective-[1000px]"
+            initial={INTERACTION_TOKENS.entrance.scaleRotate.initial}
+            animate={INTERACTION_TOKENS.entrance.scaleRotate.animate}
+            transition={{ duration: ANIMATION_TOKENS.duration.slow, type: "spring", bounce: 0.4 }}
+            className="w-full max-w-[var(--c-terminal-max-w)] mx-auto relative group perspective-[1000px]"
             suppressHydrationWarning
         >
             {/* Rough Shadow */}
             <div
                 className="absolute inset-0 bg-black/8 rounded-lg transform translate-x-2 translate-y-3 rotate-2 pointer-events-none"
-                style={{ borderRadius: "255px 15px 225px 15px / 15px 225px 15px 255px" }}
+                style={{ borderRadius: SKETCH_RADIUS.terminal }}
             />
 
             {/* Terminal Container - Charcoal Block */}
             <div
-                className="relative bg-[#2d2a2e] text-gray-200 overflow-hidden border-[3px] border-gray-700/50 shadow-inner"
+                className={`relative ${TERMINAL_COLORS.text} overflow-hidden border-[3px] ${TERMINAL_COLORS.border} shadow-inner`}
                 style={{
-                    borderRadius: "255px 15px 225px 15px / 15px 225px 15px 255px",
-                    boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
+                    borderRadius: SKETCH_RADIUS.terminal,
+                    boxShadow: SHADOW_TOKENS.terminal,
+                    backgroundColor: TERMINAL_COLORS.bg,
                 }}
             >
                 {/* Sketchy Header */}
-                <div className="bg-[#383436] p-3 flex items-center justify-between border-b-2 border-gray-600/30 relative overflow-hidden">
+                <div
+                    className={`p-3 flex items-center justify-between border-b-2 ${TERMINAL_COLORS.headerBorder} relative overflow-hidden`}
+                    style={{ backgroundColor: TERMINAL_COLORS.headerBg }}
+                >
                     {/* Scribble Noise Texture for Header */}
                     <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: HEADER_NOISE_SVG }} />
 
                     {/* Sketchy Window Controls */}
                     <WindowControls />
 
-                    <div className="flex items-center gap-2 text-gray-400/60 font-hand text-lg tracking-widest uppercase relative z-10">
+                    <div className={`flex items-center gap-2 ${TERMINAL_COLORS.headerLabel} font-hand text-lg tracking-widest uppercase relative z-10`}>
                         <TerminalIcon size={16} className="text-gray-500" />
                         <span>Dhruv&apos;s Terminal v1.0</span>
                     </div>
@@ -178,10 +189,10 @@ export default function Terminal() {
                 <div className="relative">
                 <div
                     ref={scrollRef}
-                    className="p-4 md:p-6 h-[50vh] min-h-[300px] md:h-[400px] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white"
+                    className="p-4 md:p-6 h-[var(--c-terminal-h)] min-h-[var(--c-terminal-min-h)] md:h-[var(--c-terminal-h-md)] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white"
                     onClick={() => {
                         // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
-                        if (typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT) {
+                        if (typeof window !== 'undefined' && window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) {
                             inputRef.current?.focus();
                         }
                     }}
@@ -189,12 +200,12 @@ export default function Terminal() {
                     {outputLines.map((item) => (
                         <div key={item.id} className="mb-4">
                             <div className="flex gap-3 opacity-90">
-                                <span className="text-emerald-400 font-bold">➜</span>
-                                <span className="text-blue-300 font-bold">~</span>
-                                <span className="text-gray-100">{item.command}</span>
+                                <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
+                                <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
+                                <span className={TERMINAL_COLORS.command}>{item.command}</span>
                             </div>
                             {item.output && (
-                                <div className="ml-7 mt-2 text-gray-300/90 tracking-wide leading-relaxed border-l-2 border-gray-700/50 pl-3">
+                                <div className={`ml-7 mt-2 ${TERMINAL_COLORS.output} tracking-wide leading-relaxed border-l-2 ${TERMINAL_COLORS.border} pl-3`}>
                                     {item.output}
                                 </div>
                             )}
@@ -202,15 +213,15 @@ export default function Terminal() {
                     ))}
 
                     <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
-                        <span className="text-emerald-400 font-bold">➜</span>
-                        <span className="text-blue-300 font-bold">~</span>
+                        <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
+                        <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
                         <input
                             ref={inputRef}
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDownReal}
-                            className="bg-transparent border-none outline-none text-white flex-1 caret-emerald-400 placeholder-gray-600"
+                            className={`bg-transparent border-none outline-none text-white flex-1 ${TERMINAL_COLORS.caret} ${TERMINAL_COLORS.placeholder}`}
                             autoComplete="off"
                             aria-label="Terminal Command Input"
                             placeholder="Type a command..."
@@ -218,7 +229,7 @@ export default function Terminal() {
                     </form>
                     <div ref={bottomRef} />
                 </div>
-                <PillScrollbar scrollRef={scrollRef} color="rgba(156,163,175,0.6)" />
+                <PillScrollbar scrollRef={scrollRef} color={TERMINAL_COLORS.scrollbarColor} />
                 </div>
             </div>
         </m.div>

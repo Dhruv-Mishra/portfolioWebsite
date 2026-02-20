@@ -130,11 +130,6 @@ export const TIMING_TOKENS = {
   cursorIdleThreshold: 200,
   resizeDebounce: 100,
   scrollbarFadeDelay: 1200,
-  fillerTier1: 2_000,
-  fillerTier2: 8_000,
-  fillerTier3: 14_000,
-  fillerTier4: 20_000,
-  jokeApiTimeout: 5000,
 } as const;
 
 /** Layout & dimension tokens used in JS logic */

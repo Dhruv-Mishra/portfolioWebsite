@@ -3,6 +3,7 @@ import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.share
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
 import { APP_VERSION } from "@/lib/constants";
 import { TIMING_TOKENS } from '@/lib/designTokens';
+import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
 
 /** Delay (ms) before executing page navigation from terminal commands */
@@ -50,7 +51,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), TIMING_TOKENS.jokeApiTimeout);
+            const timeoutId = setTimeout(() => controller.abort(), EXTERNAL_API_TIMEOUT_MS);
 
             const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode', {
                 signal: controller.signal

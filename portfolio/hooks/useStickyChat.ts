@@ -7,6 +7,7 @@ import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { OPEN_LINK_KEYS } from '@/lib/links';
 import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
+import { FILLER_DELAYS } from '@/lib/llmConfig';
 
 export interface ChatMessage {
   id: string;
@@ -151,10 +152,10 @@ const FILLER_20S = [
 ];
 
 const FILLER_TIERS = [
-  { delay: TIMING_TOKENS.fillerTier1, pool: FILLER_5S },
-  { delay: TIMING_TOKENS.fillerTier2, pool: FILLER_10S },
-  { delay: TIMING_TOKENS.fillerTier3, pool: FILLER_15S },
-  { delay: TIMING_TOKENS.fillerTier4, pool: FILLER_20S },
+  { delay: FILLER_DELAYS.tier1, pool: FILLER_5S },
+  { delay: FILLER_DELAYS.tier2, pool: FILLER_10S },
+  { delay: FILLER_DELAYS.tier3, pool: FILLER_15S },
+  { delay: FILLER_DELAYS.tier4, pool: FILLER_20S },
 ];
 
 function loadMessages(): ChatMessage[] {
@@ -242,7 +243,7 @@ export function useStickyChat(): UseStickyChat {
   useEffect(() => {
     if (!hasHydrated.current || messages.length === 0) return;
     if (isLoadingRef.current) return;
-    const id = setTimeout(() => saveMessages(messages), 300);
+    const id = setTimeout(() => saveMessages(messages), TIMING_TOKENS.storageSaveDebounce);
     return () => clearTimeout(id);
   }, [messages]);
 

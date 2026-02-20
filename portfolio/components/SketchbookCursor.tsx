@@ -11,6 +11,10 @@ interface TrailPoint { x: number; y: number; t: number }
 // Pre-allocated ring buffer for trail points — zero GC pressure
 const MAX_POINTS = 128;
 
+// Hoisted cursor inner-div transform styles — avoids object allocation per render
+const CURSOR_TRANSFORM_DARK = { transform: 'translate(-2px, -9px)' } as const;
+const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
+
 export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,9 +71,27 @@ export default function SketchbookCursor() {
             }
         };
 
+        // checkHover merged into mousemove — avoids a separate 'mouseover' event listener
+        // that fires on every element boundary crossing in the DOM
+        let lastHoverTarget: EventTarget | null = null;
+        const checkHover = (e: MouseEvent) => {
+            // Skip if target hasn't changed (most common case during mouse movement)
+            if (e.target === lastHoverTarget) return;
+            lastHoverTarget = e.target;
+            const target = e.target as HTMLElement;
+            // Check for links, buttons, or inputs
+            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                target.closest('a') || target.closest('button')) {
+                setIsHoveringLink(true);
+            } else {
+                setIsHoveringLink(false);
+            }
+        };
+
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
+            checkHover(e);
             const now = performance.now();
             lastMoveTime.current = now;
 
@@ -114,17 +136,6 @@ export default function SketchbookCursor() {
             wakeLoop();
         };
 
-        const checkHover = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check for links, buttons, or inputs
-            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
-                target.closest('a') || target.closest('button')) {
-                setIsHoveringLink(true);
-            } else {
-                setIsHoveringLink(false);
-            }
-        };
-
         const handleMouseLeave = () => setIsVisible(false);
         const handleMouseEnter = () => setIsVisible(true);
 
@@ -150,7 +161,6 @@ export default function SketchbookCursor() {
         };
 
         window.addEventListener('mousemove', moveCursor, { passive: true });
-        window.addEventListener('mouseover', checkHover, { passive: true });
         // Use single listener on document (captures mouseleave from window too)
         document.addEventListener('mouseleave', handleMouseLeave);
         document.addEventListener('mouseenter', handleMouseEnter);
@@ -247,7 +257,6 @@ export default function SketchbookCursor() {
 
         return () => {
             window.removeEventListener('mousemove', moveCursor);
-            window.removeEventListener('mouseover', checkHover);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
@@ -283,7 +292,7 @@ export default function SketchbookCursor() {
                 }}
                 className="absolute top-0 left-0"
             >
-                <div className="w-8 h-8 md:w-10 md:h-10" style={{ transform: resolvedTheme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
+                <div className="w-8 h-8 md:w-10 md:h-10" style={resolvedTheme === 'dark' ? CURSOR_TRANSFORM_DARK : CURSOR_TRANSFORM_LIGHT}>
                     {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">

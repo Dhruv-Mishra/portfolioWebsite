@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { m } from "framer-motion";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, Sun, Moon, MessageSquare } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const SOCIALS = [
@@ -89,6 +89,24 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
 // Pre-computed mobile social list (CP History replaced by feedback button)
 const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
 
+const MobileThemeButton = React.memo(function MobileThemeButton() {
+    const { setTheme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => { setMounted(true); }, []);
+    if (!mounted) return <div className="w-10 h-10" />;
+    const isDark = resolvedTheme === 'dark';
+    return (
+        <button
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+            title="Toggle theme"
+            aria-label="Toggle theme"
+        >
+            {isDark ? <Sun size={16} strokeWidth={2.5} /> : <Moon size={16} strokeWidth={2.5} />}
+        </button>
+    );
+});
+
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     return (
         <>
@@ -133,36 +151,3 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
     );
 }
 
-
-// Mobile-only theme toggle button
-function MobileThemeButton() {
-    const { setTheme, resolvedTheme } = useTheme();
-    const [mounted, setMounted] = React.useState(false);
-
-    React.useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    const toggleTheme = () => {
-        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-    };
-
-    if (!mounted) return <div className="w-10 h-10" />;
-
-    const isDark = resolvedTheme === 'dark';
-
-    return (
-        <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-yellow-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
-            title="Toggle theme"
-            aria-label="Toggle theme"
-        >
-            {isDark ? (
-                <Sun size={16} strokeWidth={2.5} />
-            ) : (
-                <Moon size={16} strokeWidth={2.5} />
-            )}
-        </button>
-    );
-}

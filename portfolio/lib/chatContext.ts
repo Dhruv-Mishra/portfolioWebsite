@@ -1,4 +1,5 @@
 // lib/chatContext.ts — Client-safe chat constants (NO system prompt — that's in chatContext.server.ts)
+import { LLM_CLIENT_TIMEOUT_MS } from '@/lib/llmConfig';
 
 export const WELCOME_MESSAGE = "Hey :) Ask me about my work at Microsoft, my projects, tech opinions, hobbies, or anything really ~";
 
@@ -77,12 +78,12 @@ export function getContextualFallback(userPrompt: string): string {
 }
 
 export const CHAT_CONFIG = {
-  maxTokens: 256,       // Tight sticky-note responses — matches terse persona
+  maxTokens: 2048,      // Allow longer responses when needed
   temperature: 0.6,     // Slightly lower for more reliable action-tag compliance
   topP: 0.9,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
-  responseTimeoutMs: 30_000, // Client-side timeout: abort fetch after 30s of no completion
+  responseTimeoutMs: LLM_CLIENT_TIMEOUT_MS, // Client-side timeout: abort fetch after this duration
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
   miniChatDismissedKey: 'dhruv-minichat-dismissed',

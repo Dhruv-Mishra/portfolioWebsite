@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { LLM_PROVIDER_TIMEOUT_MS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +38,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
   return { primary, fallback };
 }
 
-/** Timeout (ms) per provider before aborting. Buffered (non-streaming) needs more time. */
-const PROVIDER_TIMEOUT_MS = 25_000;
+
 
 // Server-side rate limiting (per-IP, simple in-memory)
 const ipRequests = new Map<string, number[]>();
@@ -163,7 +163,7 @@ async function callProvider(
   messages: { role: string; content: string }[],
 ): Promise<{ reply: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), LLM_PROVIDER_TIMEOUT_MS);
 
   try {
     const llmResponse = await fetch(`${provider.baseURL}/chat/completions`, {
@@ -192,8 +192,13 @@ async function callProvider(
 
     const data = await llmResponse.json();
     const reply = data.choices?.[0]?.message?.content || '';
+    const cleanReply = stripThinkTags(reply);
 
-    return { reply };
+    if (isRawLogEnabled()) {
+      console.log('[LLM RAW]', { model: provider.model, raw: reply, clean: cleanReply });
+    }
+
+    return { reply: cleanReply };
   } catch (err) {
     clearTimeout(timeout);
     throw err;

@@ -11,6 +11,9 @@ import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
 import { TAPE_STYLE } from '@/lib/constants';
 
+/** Delay (ms) before executing page navigation after action confirmation */
+const NAVIGATION_DELAY_MS = 800;
+
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
 // Uses a cancelled ref + single interval to avoid leaked interval races.
@@ -21,95 +24,135 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = 1
   const textNodeRef = useRef<HTMLSpanElement>(null);
   const prevTextRef = useRef(skip ? text : '');
   const cancelRef = useRef(0);
+  const pendingTextRef = useRef<{ text: string; isFiller: boolean } | null>(null);
   const eraseSpeed = Math.max(speed * 0.6, 8);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const phaseRef = useRef<TypewriterPhase>('idle');
 
   const isTyping = phase === 'typing' || phase === 'erasing';
 
   useEffect(() => {
-    const token = ++cancelRef.current;
-    const cancelled = () => cancelRef.current !== token;
     const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
 
     if (skip) {
       setDOM(text);
       setPhase('idle');
+      phaseRef.current = 'idle';
       prevTextRef.current = text;
+      pendingTextRef.current = null;
       return;
     }
 
     if (text === '' && !prevTextRef.current) {
       setPhase('idle');
+      phaseRef.current = 'idle';
       return;
     }
 
     if (text === prevTextRef.current) return;
 
+    // If currently erasing, queue the new text instead of restarting
+    if (phaseRef.current === 'erasing') {
+      pendingTextRef.current = { text, isFiller };
+      return; // Let the ongoing erase finish — it will pick up the queued text
+    }
+
+    const token = ++cancelRef.current;
+    const cancelled = () => cancelRef.current !== token;
+
     const prevText = prevTextRef.current;
     const newText = text;
 
-    const startTyping = () => {
+    const startTyping = (targetText: string, targetIsFiller: boolean) => {
       setPhase('typing');
+      phaseRef.current = 'typing';
       let i = 0;
       const id = setInterval(() => {
         if (cancelled()) { clearInterval(id); return; }
         i++;
-        if (i >= newText.length) {
-          setDOM(newText);
-          prevTextRef.current = newText;
+        if (i >= targetText.length) {
+          setDOM(targetText);
+          prevTextRef.current = targetText;
           setPhase('idle');
+          phaseRef.current = 'idle';
           clearInterval(id);
-          if (!isFiller) onCompleteRef.current?.();
+          if (!targetIsFiller) onCompleteRef.current?.();
+          // Check queue after typing completes
+          const pending = pendingTextRef.current;
+          if (pending && pending.text !== targetText) {
+            pendingTextRef.current = null;
+            // Need a new erase→type cycle for the queued text
+            const nextToken = ++cancelRef.current;
+            const nextCancelled = () => cancelRef.current !== nextToken;
+            startErase(targetText, pending.text, pending.isFiller, nextCancelled);
+          }
         } else {
-          setDOM(newText.slice(0, i));
+          setDOM(targetText.slice(0, i));
         }
       }, speed);
     };
 
+    const startErase = (fromText: string, toText: string, toIsFiller: boolean, isCancelled: () => boolean) => {
+      setPhase('erasing');
+      phaseRef.current = 'erasing';
+      let eraseLen = fromText.length;
+      const eraseId = setInterval(() => {
+        if (isCancelled()) { clearInterval(eraseId); return; }
+        eraseLen--;
+        if (eraseLen <= 0) {
+          setDOM('');
+          prevTextRef.current = '';
+          clearInterval(eraseId);
+          if (isCancelled()) return;
+          // Check if a newer text was queued during erase
+          const pending = pendingTextRef.current;
+          if (pending) {
+            pendingTextRef.current = null;
+            startTyping(pending.text, pending.isFiller);
+          } else {
+            startTyping(toText, toIsFiller);
+          }
+        } else {
+          setDOM(fromText.slice(0, eraseLen));
+        }
+      }, eraseSpeed);
+    };
+
     if (!prevText) {
-      startTyping();
+      startTyping(newText, isFiller);
       return;
     }
 
-    setPhase('erasing');
-    let eraseLen = prevText.length;
-    const eraseId = setInterval(() => {
-      if (cancelled()) { clearInterval(eraseId); return; }
-      eraseLen--;
-      if (eraseLen <= 0) {
-        setDOM('');
-        clearInterval(eraseId);
-        if (!cancelled()) startTyping();
-      } else {
-        setDOM(prevText.slice(0, eraseLen));
-      }
-    }, eraseSpeed);
+    startErase(prevText, newText, isFiller, cancelled);
 
     return () => { cancelRef.current++; };
-  }, [text, skip, speed, eraseSpeed]);
+  }, [text, skip, speed, eraseSpeed, isFiller]);
 
   return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
 }
 
 // ─── Typing Ellipsis — bouncing dots with staggered scale wave ───
+// Hoisted animation configs — avoids 6 object allocations per render (2 per dot × 3 dots)
+const ELLIPSIS_ANIMATE = {
+  y: [0, -7, 0, 0],
+  scale: [1, 1.35, 1, 1],
+  opacity: [0.35, 1, 0.35, 0.35],
+};
+const ELLIPSIS_TRANSITIONS = [
+  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0 },
+  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0.16 },
+  { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const, delay: 0.32 },
+];
+
 const TypingEllipsis = () => (
   <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline">
     {[0, 1, 2].map(i => (
       <m.span
         key={i}
         className="inline-block w-[5px] h-[5px] rounded-full bg-current"
-        animate={{
-          y: [0, -7, 0, 0],
-          scale: [1, 1.35, 1, 1],
-          opacity: [0.35, 1, 0.35, 0.35],
-        }}
-        transition={{
-          duration: 1.2,
-          repeat: Infinity,
-          ease: 'easeInOut',
-          delay: i * 0.16,
-        }}
+        animate={ELLIPSIS_ANIMATE}
+        transition={ELLIPSIS_TRANSITIONS[i]}
       />
     ))}
   </span>
@@ -139,6 +182,15 @@ const WavyUnderline = ({ className }: { className?: string }) => (
 // Hoisted animation constants — avoids allocation per StickyNote render
 const NOTE_SPRING = { type: 'spring' as const, stiffness: 300, damping: 20, duration: 0.4 };
 
+// Hoisted inline style objects for StickyNote — avoids per-note allocation
+const FOLD_STYLE_USER = {
+  background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
+} as const;
+const FOLD_STYLE_AI = {
+  background: 'linear-gradient(225deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
+} as const;
+const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
+
 // ─── Suggested Question Strip ───
 // Static rotation styles hoisted to module scope to avoid re-creating objects per render
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
@@ -154,12 +206,17 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: {
     whileTap={{ scale: 0.95 }}
     onClick={onClick}
     className={cn(
-      "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity",
+      "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity flex flex-col items-start",
       isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
     )}
     style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
   >
-    {isAction && <Zap size={12} className="inline mr-1 -mt-0.5 text-amber-500" />}
+    {isAction && (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider mb-0.5">
+        <Zap size={10} className="text-amber-500" />
+        action
+      </span>
+    )}
     {text}
   </m.button>
 );
@@ -223,11 +280,7 @@ const StickyNote = memo(function StickyNote({
           "absolute pointer-events-none w-[20px] h-[20px]",
           isUser ? "bottom-0 right-0" : "bottom-0 left-0",
         )}
-        style={{
-          background: isUser
-            ? 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)'
-            : 'linear-gradient(225deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-        }}
+        style={isUser ? FOLD_STYLE_USER : FOLD_STYLE_AI}
       />
 
       {/* Message content — rendered inline so the note grows naturally with typewritten text */}
@@ -238,7 +291,7 @@ const StickyNote = memo(function StickyNote({
           !isUser && isDisplayingFiller && "italic opacity-50",
         )}
         // Prevent note from collapsing to 0 height during erase→type transition
-        style={{ minHeight: '1.5em' }}
+        style={MIN_HEIGHT_STYLE}
         >
           {isUser ? (
             message.content
@@ -420,6 +473,38 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Track if user is scrolled to bottom — controls "Ask me anything" floating subheader
+  // The subheader auto-hides after a timeout, reappears only on real user scroll (not layout reflow)
+  const [showSubheader, setShowSubheader] = useState(true);
+  const subheaderTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const lastScrollTopRef = useRef<number>(0);
+  const SUBHEADER_AUTO_HIDE_MS = 4000;
+  const SCROLL_THRESHOLD = 10; // px — ignore tiny layout-induced scrolls
+
+  // Auto-hide after initial timeout
+  useEffect(() => {
+    subheaderTimerRef.current = setTimeout(() => setShowSubheader(false), SUBHEADER_AUTO_HIDE_MS);
+    return () => { if (subheaderTimerRef.current) clearTimeout(subheaderTimerRef.current); };
+  }, []);
+
+  // Re-show on real user scroll (ignore layout-induced micro-scrolls)
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    lastScrollTopRef.current = el.scrollTop;
+    const handleScroll = () => {
+      const delta = Math.abs(el.scrollTop - lastScrollTopRef.current);
+      lastScrollTopRef.current = el.scrollTop;
+      // Only react to intentional user scrolls, not layout reflow
+      if (delta < SCROLL_THRESHOLD) return;
+      setShowSubheader(true);
+      if (subheaderTimerRef.current) clearTimeout(subheaderTimerRef.current);
+      subheaderTimerRef.current = setTimeout(() => setShowSubheader(false), SUBHEADER_AUTO_HIDE_MS);
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
@@ -547,7 +632,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // Page navigation — slight delay so the user can read the confirmation
     if (action.navigateTo) {
       const dest = action.navigateTo;
-      setTimeout(() => router.push(dest), 600);
+      setTimeout(() => router.push(dest), NAVIGATION_DELAY_MS);
     }
   }, [router, setTheme, resolvedTheme, markOpenUrlsFailed]);
   useEffect(() => {
@@ -619,14 +704,21 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Pass me a note
           </m.h1>
           <WavyUnderline />
-          <m.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2"
-          >
-            Ask me anything ~
-          </m.p>
+          <div className="h-8 md:h-9 overflow-hidden">
+            <AnimatePresence>
+              {showSubheader && (
+                <m.p
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 0.6, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="font-hand text-lg md:text-xl text-[var(--c-ink)] mt-2"
+                >
+                  Ask me anything ~
+                </m.p>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       ) : (
         <div className="shrink-0 pt-2 px-3">

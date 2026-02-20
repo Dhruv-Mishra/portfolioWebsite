@@ -27,6 +27,15 @@ const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; color
 const MAX_MESSAGE_LENGTH = 1000;
 const FEEDBACK_DRAFT_KEY = 'dhruv-feedback-draft';
 
+/** Hoisted textarea style — lined notebook effect. Avoids re-allocation per render. */
+const TEXTAREA_LINED_STYLE = {
+  backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, var(--c-grid) 23px, var(--c-grid) 24px)',
+  backgroundAttachment: 'local',
+  backgroundPosition: '0 26px',
+  lineHeight: '24px',
+  paddingTop: '26px',
+} as const;
+
 // ─── Tape Strip (reused from StickyNoteChat) ────────────────────────────
 const TapeStrip = ({ className }: { className?: string }) => (
   <div
@@ -362,13 +371,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                         "resize-none transition-colors",
                         "disabled:opacity-50",
                       )}
-                      style={{
-                        backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, var(--c-grid) 23px, var(--c-grid) 24px)',
-                        backgroundAttachment: 'local',
-                        backgroundPosition: '0 26px',
-                        lineHeight: '24px',
-                        paddingTop: '26px',
-                      }}
+                      style={TEXTAREA_LINED_STYLE}
                     />
                     {/* Character count */}
                     <span className="absolute bottom-2 right-3 text-xs text-[var(--c-ink)] opacity-30 font-code">

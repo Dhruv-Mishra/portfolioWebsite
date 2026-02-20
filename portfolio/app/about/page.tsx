@@ -1,10 +1,77 @@
 "use client";
 import { m } from 'framer-motion';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 
+const ABOUT_CTA_TEXTS = [
+    "Curious about my work? Ask me anything",
+    "Want to know more? Let's chat",
+    "Got questions? Pass me a note",
+    "Wanna hear about my projects?",
+    "Ask me about my tech stack",
+    "Curious about Microsoft? Chat with me",
+];
+
+const CTA_TYPE_SPEED = 40;
+const CTA_ERASE_SPEED = 25;
+const CTA_PAUSE_MS = 2000;
+
 export default function About() {
+    const [ctaText, setCtaText] = useState('');
+    const ctaIndexRef = useRef(0);
+
+    const cycle = useCallback(() => {
+        let cancelled = false;
+        let timeout: ReturnType<typeof setTimeout>;
+        const fullText = ABOUT_CTA_TEXTS[ctaIndexRef.current % ABOUT_CTA_TEXTS.length];
+        let charIdx = 0;
+
+        const typeNext = () => {
+            if (cancelled) return;
+            charIdx++;
+            setCtaText(fullText.slice(0, charIdx));
+            if (charIdx < fullText.length) {
+                timeout = setTimeout(typeNext, CTA_TYPE_SPEED);
+            } else {
+                timeout = setTimeout(eraseNext, CTA_PAUSE_MS);
+            }
+        };
+
+        const eraseNext = () => {
+            if (cancelled) return;
+            charIdx--;
+            setCtaText(fullText.slice(0, charIdx));
+            if (charIdx > 0) {
+                timeout = setTimeout(eraseNext, CTA_ERASE_SPEED);
+            } else {
+                ctaIndexRef.current++;
+                timeout = setTimeout(() => { if (!cancelled) cycle(); }, 300);
+            }
+        };
+
+        typeNext();
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timeout);
+        };
+    }, []);
+
+    useEffect(() => {
+        let cleanupCycle: (() => void) | undefined;
+        const timeout = setTimeout(() => {
+            cleanupCycle = cycle();
+        }, 1000);
+
+        return () => {
+            clearTimeout(timeout);
+            cleanupCycle?.();
+        };
+    }, [cycle]);
+
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
             <div className="relative transform -rotate-1">
@@ -96,6 +163,40 @@ export default function About() {
                             <p className="text-base md:text-lg text-gray-600 mt-2 italic">
                                 📄 For more details, check out my <a href="/resume" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-[background-color,transform] inline-block hover:-rotate-2">resume</a>.
                             </p>
+                        </div>
+
+                        {/* Typewriter CTA to chat */}
+                        <div className="mt-8 pt-4 border-t-2 border-gray-400/20">
+                            <Link href="/chat" className="group block">
+                                <div className="flex items-start gap-3">
+                                    {/* Doodle chat icon */}
+                                    <div className="shrink-0 mt-1 text-gray-400 group-hover:text-indigo-600 transition-colors">
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                            <path d="M8 10h.01" opacity="0.6" />
+                                            <path d="M12 10h.01" opacity="0.6" />
+                                            <path d="M16 10h.01" opacity="0.6" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p className="font-hand text-lg md:text-xl text-gray-500 group-hover:text-indigo-700 transition-colors">
+                                            <span>{ctaText}</span>
+                                            <span className="inline-block w-[2px] h-[1.1em] bg-gray-400 group-hover:bg-indigo-600 ml-0.5 align-middle animate-pulse" />
+                                        </p>
+                                        <p className="font-hand text-sm text-gray-400 group-hover:text-indigo-500 transition-colors mt-1">
+                                            Chat with me — I&apos;ll pass you a note back ✏️
+                                        </p>
+                                    </div>
+                                </div>
+                            </Link>
+
+                            {/* Quick link pills — sketchbook style */}
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                <Link href="/projects" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">📂 Projects</Link>
+                                <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">🐙 GitHub</a>
+                                <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">💼 LinkedIn</a>
+                                <a href="https://codeforces.com/profile/DhruvMishra" target="_blank" rel="noreferrer" className="font-hand text-xs text-[var(--c-ink)] bg-[var(--c-paper)] px-2.5 py-1 rounded-full border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 shadow-[1px_2px_4px_rgba(0,0,0,0.1)] hover:shadow-[1px_2px_6px_rgba(0,0,0,0.2)] hover:-rotate-1 transition-all inline-block">🏆 Codeforces</a>
+                            </div>
                         </div>
                     </div>
                 </m.div>

@@ -5,9 +5,12 @@ import { m, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import StickyNoteChat from './StickyNoteChat';
-import { CHAT_CONFIG } from '@/lib/chatContext';
+import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
+import { CHAT_CONFIG } from '@/lib/chatContext';
+
+// Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
+const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
 
 // Sketchbook-themed sticky note + pencil doodle icon
 const StickyNoteDoodle = () => (

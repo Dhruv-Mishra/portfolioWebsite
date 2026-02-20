@@ -10,8 +10,7 @@ export default function NotFound() {
     <div className="min-h-full flex items-center justify-center p-4">
       <m.div
         initial={{ opacity: 0, scale: 0.95, rotate: -2 }}
-        whileInView={{ opacity: 1, scale: 1, rotate: -2 }}
-        viewport={{ once: true }}
+        animate={{ opacity: 1, scale: 1, rotate: -2 }}
         transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
         whileHover={{
           scale: 1.02,

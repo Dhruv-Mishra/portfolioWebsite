@@ -5,6 +5,13 @@ import { m } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 
+// Hoisted animation configs — avoid allocation per render
+const ALERT_SHAKE_ANIMATE = {
+  rotate: [0, 10, -10, 10, 0],
+  scale: [1, 1.1, 1, 1.1, 1],
+};
+const ALERT_SHAKE_TRANSITION = { duration: 2, repeat: 1, ease: 'easeInOut' as const };
+
 export default function Error({
   error,
   reset,
@@ -30,11 +37,8 @@ export default function Error({
         
         <div className="text-center relative z-10">
           <m.div
-            animate={{ 
-              rotate: [0, 10, -10, 10, 0],
-              scale: [1, 1.1, 1, 1.1, 1]
-            }}
-            transition={{ duration: 2, repeat: 1, ease: "easeInOut" }}
+            animate={ALERT_SHAKE_ANIMATE}
+            transition={ALERT_SHAKE_TRANSITION}
             className="inline-block mb-6"
           >
             <AlertTriangle size={100} className="text-amber-600 mx-auto" strokeWidth={2} />

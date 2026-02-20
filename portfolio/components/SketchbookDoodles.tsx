@@ -108,7 +108,7 @@ export const SaturnDoodle = React.memo(function SaturnDoodle() {
     );
 });
 
-export const HandDrawnArrow = ({ className }: { className?: string }) => (
+export const HandDrawnArrow = React.memo(function HandDrawnArrow({ className }: { className?: string }) { return (
     <svg className={className} viewBox="0 0 200 100" fill="none" xmlns="http://www.w3.org/2000/svg">
         {/* Shaft - Convex Swoop (Bowl shape) */}
         <path
@@ -127,4 +127,4 @@ export const HandDrawnArrow = ({ className }: { className?: string }) => (
             strokeLinejoin="round"
         />
     </svg>
-);
+); });

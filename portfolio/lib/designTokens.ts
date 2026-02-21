@@ -135,7 +135,6 @@ export const TIMING_TOKENS = {
 /** Layout & dimension tokens used in JS logic */
 export const LAYOUT_TOKENS = {
   mobileBreakpoint: 768,
-  spiralHoles: 12,
   feedbackSpiralHoles: 15,
   maxOutputLines: 100,
   maxHistory: 200,

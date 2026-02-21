@@ -130,9 +130,9 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
-            {/* Mobile: Floating circular buttons at bottom — offset by half the spiral width to center within the content area */}
+            {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-spiral-w)/2)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
+                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
                 role="complementary"
                 aria-label="Social media links"
             >

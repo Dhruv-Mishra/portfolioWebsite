@@ -4,10 +4,9 @@
   --color-paper: var(--c-paper);
   --color-ink: var(--c-ink);
   --color-grid: var(--c-grid);
-  --color-spiral-bg: var(--c-spiral-bg);
-  --color-spiral-border: var(--c-spiral-border);
-  --color-spiral-ring: var(--c-spiral-ring);
-  --color-spiral-hole: var(--c-spiral-hole);
+  --color-binding-bg: var(--c-binding-bg);
+  --color-binding-border: var(--c-binding-border);
+  --color-binding-stitch: var(--c-binding-stitch);
 }
 
 @layer base {
@@ -15,10 +14,9 @@
     --c-paper: #fdfbf7;
     --c-ink: #2d2a2e;
     --c-grid: #9ca3af;
-    --c-spiral-bg: #f0f0f0;
-    --c-spiral-border: #d1d5db;
-    --c-spiral-ring: #d1d5db;
-    --c-spiral-hole: rgba(31, 41, 55, 0.8);
+    --c-binding-bg: #f0ece4;
+    --c-binding-border: #d1c9b8;
+    --c-binding-stitch: #b8a892;
     --c-heading: #000000;
     --c-highlight: #000000;
 
@@ -48,12 +46,10 @@
     --c-nav-tab-px-md: 1.25rem;
     --c-nav-tab-pt: 3rem;
     --c-nav-tab-pt-md: 4rem;
-    --c-spiral-w: 2rem;
-    --c-spiral-w-md: 3rem;
-    --c-crease-w: calc(var(--c-spiral-w) * 0.75);
-    --c-crease-w-md: calc(var(--c-spiral-w-md) * 0.65);
-    --c-ring-size: 1.5rem;
-    --c-hole-size: 0.625rem;
+    --c-binding-w: 0.75rem;
+    --c-binding-w-md: 1rem;
+    --c-crease-w: calc(var(--c-binding-w) * 2);
+    --c-crease-w-md: calc(var(--c-binding-w-md) * 2);
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 380px;
     --c-chat-h: 70vh;
@@ -103,10 +99,9 @@
     --c-paper: #1a1a1a;
     --c-ink: #e5e5e5;
     --c-grid: #404040;
-    --c-spiral-bg: #262626;
-    --c-spiral-border: #404040;
-    --c-spiral-ring: #525252;
-    --c-spiral-hole: rgba(229, 231, 235, 0.8);
+    --c-binding-bg: #252220;
+    --c-binding-border: #3d3a36;
+    --c-binding-stitch: #5a554e;
     --c-heading: #ffffff;
     --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;
@@ -164,10 +159,8 @@
     --c-nav-tab-px-md: 0.625rem;
     --c-nav-tab-pt: 2.25rem;
     --c-nav-tab-pt-md: 2.75rem;
-    --c-spiral-w: 1.75rem;
-    --c-spiral-w-md: 2.5rem;
-    --c-ring-size: 1.25rem;
-    --c-hole-size: 0.5rem;
+    --c-binding-w: 0.625rem;
+    --c-binding-w-md: 0.75rem;
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 340px;
     --c-chat-h: 60vh;
@@ -210,10 +203,8 @@
     --c-nav-tab-px-md: 1.75rem;
     --c-nav-tab-pt: 4rem;
     --c-nav-tab-pt-md: 5rem;
-    --c-spiral-w: 2.5rem;
-    --c-spiral-w-md: 4rem;
-    --c-ring-size: 2rem;
-    --c-hole-size: 0.75rem;
+    --c-binding-w: 1rem;
+    --c-binding-w-md: 1.25rem;
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 440px;
     --c-chat-h: 75vh;

@@ -6,18 +6,30 @@ import {
     CloudDoodle, SmileyDoodle, LightningDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
-import { LAYOUT_TOKENS, GRID_PATTERN } from '@/lib/designTokens';
+import { GRID_PATTERN } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
-const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.spiralHoles }, (_, i) => i);
-
 /** Hoisted paper noise overlay style — avoids re-allocation per render */
 const PAPER_NOISE_STYLE = {
     backgroundImage: PAPER_NOISE_SVG,
     contain: 'strict',
+} as const;
+
+/** Stitched binding — repeating dash pattern that looks like hand-sewn thread */
+const BINDING_STITCH_STYLE = {
+    backgroundImage: `repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 14px,
+        var(--c-binding-stitch) 14px,
+        var(--c-binding-stitch) 20px
+    )`,
+    backgroundPosition: 'center',
+    backgroundSize: '2px 100%',
+    backgroundRepeat: 'repeat-y',
 } as const;
 
 /** Hoisted grid pattern background style — avoids re-allocation per render */
@@ -51,16 +63,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 Skip to main content
             </a>
 
-            {/* Spiral Binding - Fixed to Left */}
-            <div className="w-[var(--c-spiral-w)] md:w-[var(--c-spiral-w-md)] h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
-                {/* Holes and Rings */}
-                {SPIRAL_HOLES.map((i) => (
-                    <div key={i} className="relative w-full flex justify-center">
-                        <div className="w-[var(--c-ring-size)] h-[var(--c-ring-size)] rounded-full bg-spiral-ring absolute -left-3 md:-left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
-                        <div className="w-[var(--c-hole-size)] h-[var(--c-hole-size)] rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
-                    </div>
-                ))}
-            </div>
+            {/* Stitched Binding — thin journal spine with CSS stitch pattern */}
+            <div
+                className="w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 z-30 relative transition-colors duration-500"
+                style={BINDING_STITCH_STYLE}
+                aria-hidden="true"
+            />
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">

@@ -11,7 +11,7 @@ import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
-import { ANIMATION_TOKENS, TIMING_TOKENS, ELLIPSIS_CONFIG, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { resolveAction, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
 
 /** Delay (ms) before executing page navigation after action confirmation */
@@ -149,11 +149,17 @@ const PLACEHOLDER_TYPE_SPEED = TIMING_TOKENS.placeholderTypeSpeed;
 const PLACEHOLDER_ERASE_SPEED = TIMING_TOKENS.placeholderEraseSpeed;
 const PLACEHOLDER_PAUSE_MS = TIMING_TOKENS.pauseExtra;
 
-function usePlaceholderTypewriter() {
+function usePlaceholderTypewriter(isActive: boolean) {
   const ref = useRef<HTMLSpanElement>(null);
   const idxRef = useRef(0);
 
   useEffect(() => {
+    if (!isActive) {
+      // Show "Thinking..." when inactive (loading)
+      if (ref.current) ref.current.textContent = 'Thinking...';
+      return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let interval: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
@@ -197,34 +203,32 @@ function usePlaceholderTypewriter() {
       if (timer) clearTimeout(timer);
       if (interval) clearInterval(interval);
     };
-  }, []);
+  }, [isActive]);
 
   return ref;
-}// Hoisted animation configs — avoids 6 object allocations per render (2 per dot × 3 dots)
-const ELLIPSIS_ANIMATE = {
-  y: [...ELLIPSIS_CONFIG.animate.y],
-  scale: [...ELLIPSIS_CONFIG.animate.scale],
-  opacity: [...ELLIPSIS_CONFIG.animate.opacity],
-};
-const ELLIPSIS_TRANSITIONS = ELLIPSIS_CONFIG.delays.map(delay => ({
-  duration: ELLIPSIS_CONFIG.duration,
-  repeat: Infinity,
-  ease: 'easeInOut' as const,
-  delay,
-}));
+}
 
-const TypingEllipsis = () => (
-  <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline">
-    {[0, 1, 2].map(i => (
-      <m.span
-        key={i}
-        className="inline-block w-[5px] h-[5px] rounded-full bg-current"
-        animate={ELLIPSIS_ANIMATE}
-        transition={ELLIPSIS_TRANSITIONS[i]}
-      />
-    ))}
-  </span>
-);
+const TYPING_DOT_ANIMATE = {
+  y: [0, -7, 0, 0],
+  scale: [1, 1.35, 1, 1],
+  opacity: [0.35, 1, 0.35, 0.35],
+};
+const TYPING_DOT_TRANSITION_BASE = { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const };
+
+const TypingEllipsis = memo(function TypingEllipsis() {
+  return (
+    <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
+      {[0, 1, 2].map(i => (
+        <m.span
+          key={i}
+          className="inline-block w-[5px] h-[5px] rounded-full bg-current"
+          animate={TYPING_DOT_ANIMATE}
+          transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
+        />
+      ))}
+    </span>
+  );
+});
 
 // Hoisted animation constants — avoids allocation per StickyNote render
 const NOTE_SPRING = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.default, duration: 0.4 };
@@ -239,7 +243,7 @@ const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
 const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
 
-const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: { text: string; isAction?: boolean; onClick: () => void; index?: number; skipEntrance?: boolean }) => (
+const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onClick, index = 0, skipEntrance }: { text: string; isAction?: boolean; onClick: () => void; index?: number; skipEntrance?: boolean }) { return (
   <m.button
     initial={skipEntrance ? false : { opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
@@ -263,7 +267,7 @@ const SuggestionStrip = ({ text, isAction, onClick, index = 0, skipEntrance }: {
     </span>
     {text}
   </m.button>
-);
+); });
 
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
@@ -393,16 +397,18 @@ const StickyNote = memo(function StickyNote({
 // WelcomeNote removed — welcome message is now a permanent first assistant message in the chat
 
 // ─── Rate Limit Note ───
-const RateLimitNote = ({ seconds }: { seconds: number }) => (
-  <m.div
-    initial={{ opacity: 0, scale: 0.9 }}
-    animate={{ opacity: 1, scale: 1, rotate: 2 }}
-    className="relative max-w-sm mx-auto p-4 bg-[#ffccbc] dark:bg-[#3e2723] text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
-  >
-    <TapeStrip />
-    Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
-  </m.div>
-);
+const RateLimitNote = memo(function RateLimitNote({ seconds }: { seconds: number }) {
+  return (
+    <m.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1, rotate: 2 }}
+      className="relative max-w-sm mx-auto p-4 bg-[#ffccbc] dark:bg-[#3e2723] text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
+    >
+      <TapeStrip />
+      Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
+    </m.div>
+  );
+});
 
 // ═════════════════════════════════════════════════
 // ─── Main StickyNoteChat Component ───
@@ -613,7 +619,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
-  const placeholderRef = usePlaceholderTypewriter();
+  const placeholderRef = usePlaceholderTypewriter(!isLoading);
 
   return (
     <div className={cn(

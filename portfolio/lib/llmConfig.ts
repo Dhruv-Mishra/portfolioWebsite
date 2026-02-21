@@ -32,6 +32,25 @@ export const FILLER_DELAYS = {
   tier4: Math.round(LLM_CLIENT_TIMEOUT_MS * 0.667),  // ~20 000ms at 30s
 } as const;
 
+// ── Rate limit configuration (shared between client & server) ─────────
+export const RATE_LIMIT_CONFIG = {
+  chat: { maxRequests: 20, windowMs: 300_000 },
+  suggestions: { maxRequests: 10, windowMs: 300_000 },
+  feedback: { maxRequests: 3, windowMs: 3_600_000 },
+  jokeApi: { maxRequests: 5, windowMs: 60_000 },
+} as const;
+
+// ── LLM suggestion parameters ────────────────────────────────────────
+export const LLM_SUGGESTIONS_PARAMS = {
+  temperature: 0.9,
+  topP: 0.95,
+  maxTokens: 80,
+} as const;
+
+// ── External API config ──────────────────────────────────────────────
+export const GITHUB_API_VERSION = '2022-11-28';
+export const GITHUB_API_TIMEOUT_MS = 10_000;
+
 /**
  * Whether to log raw LLM responses to the server console.
  * Reads LOG_RAW env var. Always disabled in production.

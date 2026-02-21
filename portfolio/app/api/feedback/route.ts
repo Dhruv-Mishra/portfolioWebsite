@@ -1,10 +1,11 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
 import { NextRequest } from 'next/server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 
 export const runtime = 'nodejs';
 
-const feedbackRateLimiter = createServerRateLimiter({ maxRequests: 3, windowMs: 3_600_000, maxTrackedIPs: 200, cleanupInterval: 30 });
+const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
 
 // ─── Validation ─────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
@@ -99,21 +100,36 @@ export async function POST(request: NextRequest) {
       '_Submitted via portfolio website feedback form_',
     ].join('\n');
 
-    // Create GitHub issue
-    const ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title,
-        body: issueBody,
-        labels: [LABEL_MAP[body.category], 'website-feedback'],
-      }),
-    });
+    // Create GitHub issue (with timeout to prevent hanging if GitHub API is slow)
+    const ghController = new AbortController();
+    const ghTimeout = setTimeout(() => ghController.abort(), GITHUB_API_TIMEOUT_MS);
+
+    let ghResponse: Response;
+    try {
+      ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GITHUB_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          body: issueBody,
+          labels: [LABEL_MAP[body.category], 'website-feedback'],
+        }),
+        signal: ghController.signal,
+      });
+    } catch (err) {
+      clearTimeout(ghTimeout);
+      console.error('GitHub API timeout/network error:', err);
+      return Response.json(
+        { error: 'Feedback service timed out. Please try again later.' },
+        { status: 504 },
+      );
+    }
+    clearTimeout(ghTimeout);
 
     if (!ghResponse.ok) {
       const errText = await ghResponse.text().catch(() => 'Unknown error');

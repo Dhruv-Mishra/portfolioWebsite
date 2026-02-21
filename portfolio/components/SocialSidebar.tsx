@@ -4,7 +4,7 @@ import * as React from "react";
 import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { SOCIAL_COLORS, SOCIAL_INTERACTION, ANIMATION_TOKENS } from '@/lib/designTokens';
+import { SOCIAL_COLORS, SOCIAL_INTERACTION } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 
 const SOCIALS = [
@@ -48,7 +48,7 @@ const SOCIALS = [
 
 // Hoisted per-index whileHover rotate values — avoids object allocation per render
 const HOVER_ROTATIONS = SOCIAL_INTERACTION.hoverRotations;
-const DESKTOP_SPRING = { type: "spring" as const, ...ANIMATION_TOKENS.spring.bouncy };
+const DESKTOP_SPRING = { type: "spring" as const, stiffness: 400, damping: 15 };
 
 const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {

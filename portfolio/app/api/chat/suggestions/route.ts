@@ -1,8 +1,11 @@
 // app/api/chat/suggestions/route.ts — Generate contextual follow-up suggestions via LLM
 import { NextRequest } from 'next/server';
-import { LLM_SUGGESTIONS_TIMEOUT_MS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 
 export const runtime = 'nodejs';
+
+const suggestionsRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.suggestions, maxTrackedIPs: 500, cleanupInterval: 50 });
 
 const SUGGESTIONS_SYSTEM_PROMPT = `You generate 2 short follow-up suggestions that a VISITOR (the user) might click next in a conversation with Dhruv Mishra's portfolio chatbot. The chatbot answers as Dhruv — a Software Engineer at Microsoft working on Fluent UI Android.
 
@@ -40,6 +43,12 @@ Rules:
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIP(request);
+    const { limited, retryAfter } = suggestionsRateLimiter.check(ip);
+    if (limited) {
+      return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
+    }
+
     const body = await request.json();
     const messages: { role: string; content: string }[] = body.messages || [];
 
@@ -74,9 +83,9 @@ export async function POST(request: NextRequest) {
             ...context,
             { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
           ],
-          temperature: 0.9,
-          top_p: 0.95,
-          max_tokens: 80,
+          temperature: LLM_SUGGESTIONS_PARAMS.temperature,
+          top_p: LLM_SUGGESTIONS_PARAMS.topP,
+          max_tokens: LLM_SUGGESTIONS_PARAMS.maxTokens,
           stream: false,
         }),
         signal: controller.signal,

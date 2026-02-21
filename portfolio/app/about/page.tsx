@@ -2,7 +2,7 @@
 import { m } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { TIMING_TOKENS, ANIMATION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
@@ -22,57 +22,53 @@ const CTA_ERASE_SPEED = TIMING_TOKENS.ctaEraseSpeed;
 const CTA_PAUSE_MS = TIMING_TOKENS.pauseLong;
 
 export default function About() {
-    const [ctaText, setCtaText] = useState('');
+    const ctaRef = useRef<HTMLSpanElement>(null);
     const ctaIndexRef = useRef(0);
 
-    const cycle = useCallback(() => {
+    useEffect(() => {
         let cancelled = false;
         let timeout: ReturnType<typeof setTimeout>;
-        const fullText = ABOUT_CTA_TEXTS[ctaIndexRef.current % ABOUT_CTA_TEXTS.length];
-        let charIdx = 0;
 
-        const typeNext = () => {
+        const setDOM = (s: string) => { if (ctaRef.current) ctaRef.current.textContent = s; };
+
+        const cycle = () => {
             if (cancelled) return;
-            charIdx++;
-            setCtaText(fullText.slice(0, charIdx));
-            if (charIdx < fullText.length) {
-                timeout = setTimeout(typeNext, CTA_TYPE_SPEED);
-            } else {
-                timeout = setTimeout(eraseNext, CTA_PAUSE_MS);
-            }
+            const fullText = ABOUT_CTA_TEXTS[ctaIndexRef.current % ABOUT_CTA_TEXTS.length];
+            let charIdx = 0;
+
+            const typeNext = () => {
+                if (cancelled) return;
+                charIdx++;
+                setDOM(fullText.slice(0, charIdx));
+                if (charIdx < fullText.length) {
+                    timeout = setTimeout(typeNext, CTA_TYPE_SPEED);
+                } else {
+                    timeout = setTimeout(eraseNext, CTA_PAUSE_MS);
+                }
+            };
+
+            const eraseNext = () => {
+                if (cancelled) return;
+                charIdx--;
+                setDOM(fullText.slice(0, charIdx));
+                if (charIdx > 0) {
+                    timeout = setTimeout(eraseNext, CTA_ERASE_SPEED);
+                } else {
+                    ctaIndexRef.current++;
+                    timeout = setTimeout(cycle, TIMING_TOKENS.pauseShort);
+                }
+            };
+
+            typeNext();
         };
 
-        const eraseNext = () => {
-            if (cancelled) return;
-            charIdx--;
-            setCtaText(fullText.slice(0, charIdx));
-            if (charIdx > 0) {
-                timeout = setTimeout(eraseNext, CTA_ERASE_SPEED);
-            } else {
-                ctaIndexRef.current++;
-                timeout = setTimeout(() => { if (!cancelled) cycle(); }, TIMING_TOKENS.pauseShort);
-            }
-        };
-
-        typeNext();
+        timeout = setTimeout(cycle, TIMING_TOKENS.ctaInitialDelay);
 
         return () => {
             cancelled = true;
             clearTimeout(timeout);
         };
     }, []);
-
-    useEffect(() => {
-        let cleanupCycle: (() => void) | undefined;
-        const timeout = setTimeout(() => {
-            cleanupCycle = cycle();
-        }, TIMING_TOKENS.ctaInitialDelay);
-
-        return () => {
-            clearTimeout(timeout);
-            cleanupCycle?.();
-        };
-    }, [cycle]);
 
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
@@ -181,7 +177,7 @@ export default function About() {
                                     </div>
                                     <div>
                                         <p className="font-hand text-sm md:text-lg text-gray-500 group-hover:text-indigo-700 transition-colors">
-                                            <span>{ctaText}</span>
+                                            <span ref={ctaRef} />
                                             <span className="inline-block w-[2px] h-[1.1em] bg-gray-400 group-hover:bg-indigo-600 ml-0.5 align-middle animate-pulse" />
                                         </p>
                                         <p className="font-hand text-xs md:text-sm text-gray-400 group-hover:text-indigo-500 transition-colors mt-1">

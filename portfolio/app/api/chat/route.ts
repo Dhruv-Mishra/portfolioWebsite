@@ -2,7 +2,7 @@
 import { NextRequest } from 'next/server';
 import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
-import { LLM_PROVIDER_TIMEOUT_MS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 
 export const runtime = 'nodejs';
@@ -40,7 +40,7 @@ function getProviders(): { primary: LLMProvider | null; fallback: LLMProvider | 
 }
 
 
-const chatRateLimiter = createServerRateLimiter({ maxRequests: 20, windowMs: 300_000, maxTrackedIPs: 500, cleanupInterval: 50 });
+const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 
 export async function POST(request: NextRequest) {
   try {

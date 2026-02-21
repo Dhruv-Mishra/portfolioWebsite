@@ -104,18 +104,23 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const [state, setState] = useState<FeedbackState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const { resolvedTheme } = useTheme();
 
-  // Load draft from localStorage on mount
+  // Load draft from localStorage on mount (validated)
   useEffect(() => {
     try {
       const draft = localStorage.getItem(FEEDBACK_DRAFT_KEY);
       if (draft) {
         const parsed = JSON.parse(draft);
-        if (parsed.message) setMessage(parsed.message);
-        if (parsed.category) setCategory(parsed.category);
-        if (parsed.contact) setContact(parsed.contact);
+        if (typeof parsed.message === 'string') setMessage(parsed.message);
+        if (parsed.category && CATEGORIES.some(c => c.id === parsed.category)) {
+          setCategory(parsed.category);
+        }
+        if (typeof parsed.contact === 'string') setContact(parsed.contact);
       }
     } catch { /* ignore */ }
   }, []);
@@ -156,17 +161,67 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     }
   }, [isOpen]);
 
+  // Prevent dismissal during submission
+  const handleClose = useCallback(() => {
+    if (state === 'submitting') return;
+    onClose();
+  }, [state, onClose]);
+
   // Close on Escape — only attach listener when modal is open
   useEffect(() => {
     if (!isOpen) return;
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, [isOpen]);
+
+  // Focus trap within modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const modal = modalRef.current;
+    if (!modal) return;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(
+        modal.querySelectorAll<HTMLElement>(focusableSelector)
+      ).filter(el => !el.hasAttribute('disabled'));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
+  }, [isOpen]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+    };
+  }, []);
 
   const handleSubmit = useCallback(async () => {
+    if (state === 'submitting') return;
+
     const trimmed = message.trim();
     if (!trimmed || trimmed.length < 5) {
       setErrorMsg('Please write at least 5 characters.');
@@ -193,12 +248,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
           contact: contact.trim() || undefined,
           page: pathname,
           theme: resolvedTheme || 'unknown',
-          viewport: typeof window !== 'undefined'
-            ? `${window.innerWidth}x${window.innerHeight}`
-            : 'unknown',
-          userAgent: typeof navigator !== 'undefined'
-            ? navigator.userAgent.slice(0, 200)
-            : 'unknown',
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+          userAgent: navigator.userAgent.slice(0, 200),
         }),
       });
 
@@ -208,22 +259,18 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       }
 
       setState('success');
-      // Clear draft on successful send
-      try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch { /* ignore */ }
+      clearDraft();
       // Auto-close after success
-      setTimeout(() => {
-        setMessage('');
-        setContact('');
-        setCategory('bug');
+      successTimeoutRef.current = setTimeout(() => {
         onClose();
         // Reset state after close animation
-        setTimeout(() => setState('idle'), TIMING_TOKENS.closeResetDelay);
+        resetTimeoutRef.current = setTimeout(() => setState('idle'), TIMING_TOKENS.closeResetDelay);
       }, TIMING_TOKENS.successAutoClose);
     } catch (err) {
       setState('error');
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
     }
-  }, [message, category, contact, pathname, resolvedTheme, onClose]);
+  }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -241,17 +288,19 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 bg-black/20 dark:bg-black/40 z-[60]"
+            aria-hidden="true"
           />
 
           {/* Scrollable wrapper — allows the entire modal to scroll within the viewport */}
           <div
             className="fixed inset-0 z-[61] overflow-y-auto overscroll-contain"
-            onClick={onClose}
+            onClick={handleClose}
           >
             {/* Modal */}
             <m.div
+              ref={modalRef}
               initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
               animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
               exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
@@ -265,7 +314,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
               )}
               role="dialog"
               aria-modal="true"
-              aria-label="Feedback form"
+              aria-labelledby="feedback-heading"
               onClick={(e) => e.stopPropagation()}
             >
             {/* Tape strip */}
@@ -273,8 +322,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
             {/* Close button */}
             <button
-              onClick={onClose}
-              className="absolute top-3 right-3 z-30 p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
+              onClick={handleClose}
+              className="absolute top-1 right-1 z-30 p-3 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
               aria-label="Close feedback"
             >
               <X size={18} />
@@ -288,6 +337,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-8 relative"
+                  role="status"
+                  aria-live="assertive"
                 >
                   <PaperAirplaneSuccess />
                   <CheckCircle size={40} className="mx-auto text-green-600 dark:text-green-400 mb-3" />
@@ -297,23 +348,25 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
               ) : (
                 <>
                   {/* Heading */}
-                  <h2 className="text-2xl md:text-3xl font-bold text-[var(--c-heading)] text-center mb-1">
+                  <h2 id="feedback-heading" className="text-2xl md:text-3xl font-bold text-[var(--c-heading)] text-center mb-1">
                     Scribble me some feedback
                   </h2>
                   <WavyUnderline />
 
                   {/* Category tabs */}
-                  <div className="flex justify-center gap-2 mt-3 mb-3">
+                  <div className="flex justify-center gap-2 mt-3 mb-3" role="tablist" aria-label="Feedback category">
                     {CATEGORIES.map((cat) => {
                       const active = category === cat.id;
                       return (
                         <m.button
                           key={cat.id}
+                          role="tab"
+                          aria-selected={active}
                           onClick={() => setCategory(cat.id)}
                           animate={{ scale: active ? 1.08 : 1 }}
                           transition={CATEGORY_TAB_SPRING}
                           className={cn(
-                            "px-4 py-1.5 rounded-full border-2 font-hand font-bold text-sm",
+                            "px-4 py-2 rounded-full border-2 font-hand font-bold text-sm min-h-[44px]",
                             cat.classes,
                             active
                               ? "shadow-md opacity-100 border-[var(--c-grid)]/50"
@@ -348,6 +401,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       placeholder={CATEGORIES.find(c => c.id === category)?.placeholder ?? "What's on your mind?"}
                       rows={12}
                       disabled={state === 'submitting'}
+                      aria-label="Feedback message"
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
                         "px-3 pb-3 font-hand text-sm md:text-base text-[var(--c-ink)]",
@@ -359,7 +413,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       style={TEXTAREA_LINED_STYLE}
                     />
                     {/* Character count */}
-                    <span className="absolute bottom-2 right-3 text-xs text-[var(--c-ink)] opacity-30 font-code">
+                    <span className="absolute bottom-2 right-3 text-xs text-[var(--c-ink)] opacity-30 font-code" role="status" aria-live="polite">
                       {message.length}/{MAX_MESSAGE_LENGTH}
                     </span>
                   </div>
@@ -372,6 +426,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       onChange={(e) => setContact(e.target.value.slice(0, LAYOUT_TOKENS.contactMaxLength))}
                       placeholder="Name / email / socials (optional)"
                       disabled={state === 'submitting'}
+                      aria-label="Contact information (optional)"
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
                         "px-3 py-2 font-hand text-sm text-[var(--c-ink)]",
@@ -433,6 +488,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                     <m.p
                       initial={{ opacity: 0, y: -5 }}
                       animate={{ opacity: 1, y: 0 }}
+                      role="alert"
                       className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400 mt-1"
                     >
                       <AlertTriangle size={14} />

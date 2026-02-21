@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { m, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { cn, pickRandom } from '@/lib/utils';
@@ -217,16 +217,18 @@ const TYPING_DOT_TRANSITION_BASE = { duration: 1.2, repeat: Infinity, ease: 'eas
 
 const TypingEllipsis = memo(function TypingEllipsis() {
   return (
-    <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
-      {[0, 1, 2].map(i => (
-        <m.span
-          key={i}
-          className="inline-block w-[5px] h-[5px] rounded-full bg-current"
-          animate={TYPING_DOT_ANIMATE}
-          transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
-        />
-      ))}
-    </span>
+    <MotionConfig reducedMotion="never">
+      <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
+        {[0, 1, 2].map(i => (
+          <m.span
+            key={i}
+            className="inline-block w-[5px] h-[5px] rounded-full bg-current"
+            animate={TYPING_DOT_ANIMATE}
+            transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
+          />
+        ))}
+      </span>
+    </MotionConfig>
   );
 });
 
@@ -472,10 +474,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   return (
     <div className={cn(
       "absolute bottom-0 inset-x-0 pointer-events-none",
-      "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-transparent before:to-transparent",
+      "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
     )}>
       <div className={cn(
-        "pointer-events-auto bg-transparent px-2 md:px-6 pb-22 md:pb-4 pt-2",
+        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
         compact && "px-2 pb-2 pt-1",
       )}>
         {/* Clear desk button */}
@@ -511,6 +513,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 onKeyDown={handleKeyDown}
                 rows={1}
                 disabled={isLoading}
+                aria-label="Chat message"
                 className={cn(
                   "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
                   compact ? "text-sm leading-snug" : "text-base md:text-lg",
@@ -777,9 +780,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Pass me a note
           </m.h1>
           <WavyUnderline />
-          <p className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2">
+          <m.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: ANIMATION_TOKENS.delay.medium }}
+            className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2"
+          >
             Ask me anything ~
-          </p>
+          </m.p>
         </div>
       ) : (
         <div className="shrink-0 pt-2 px-3">

@@ -83,6 +83,7 @@ const NavTab = React.memo(function NavTab({
                     backgroundColor: color.bg,
                     transform: `translateY(${y}px)`,
                 }}
+                {...(active ? { 'aria-current': 'page' as const } : {})}
             >
                 {item.name}
             </div>

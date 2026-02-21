@@ -177,7 +177,8 @@ function saveMessages(messages: ChatMessage[]) {
     // Strip isOld/isFiller flags and welcome message before saving; keep action metadata for display
     const toSave = messages
       .filter(m => m.id !== 'welcome')
-      .map(({ isOld: _, isFiller: _f, ...m }) => m)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to omit from saved data
+      .map(({ isOld: _isOld, isFiller: _isFiller, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
   } catch {

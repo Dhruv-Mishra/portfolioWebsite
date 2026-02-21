@@ -245,25 +245,29 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             className="fixed inset-0 bg-black/20 dark:bg-black/40 z-[60]"
           />
 
-          {/* Modal */}
-          <m.div
-            initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
-            animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
-            exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
-            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-            className={cn(
-              "fixed z-[61] inset-x-3 md:inset-x-auto",
-              "md:left-1/2 md:-translate-x-1/2",
-              "top-[var(--c-modal-top)] md:top-[var(--c-modal-top-md)]",
-              "w-auto md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
-              "mt-4",  // Room for tape strip above
-              "bg-[var(--note-user)] shadow-xl",
-              "font-hand",
-            )}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Feedback form"
+          {/* Scrollable wrapper — allows the entire modal to scroll within the viewport */}
+          <div
+            className="fixed inset-0 z-[61] overflow-y-auto overscroll-contain"
+            onClick={onClose}
           >
+            {/* Modal */}
+            <m.div
+              initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
+              animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
+              exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
+              transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
+              className={cn(
+                "relative mx-3 md:mx-auto",
+                "md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
+                "my-[var(--c-modal-top)] md:my-[var(--c-modal-top-md)]",
+                "bg-[var(--note-user)] shadow-xl",
+                "font-hand",
+              )}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Feedback form"
+              onClick={(e) => e.stopPropagation()}
+            >
             {/* Tape strip */}
             <TapeStrip size="md" />
 
@@ -447,6 +451,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
               }}
             />
           </m.div>
+          </div>
         </>
       )}
     </AnimatePresence>

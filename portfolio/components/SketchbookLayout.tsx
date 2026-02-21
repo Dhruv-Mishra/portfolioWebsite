@@ -56,7 +56,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Holes and Rings */}
                 {SPIRAL_HOLES.map((i) => (
                     <div key={i} className="relative w-full flex justify-center">
-                        <div className="w-[var(--c-ring-size)] h-[var(--c-ring-size)] rounded-full bg-spiral-ring absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
+                        <div className="w-[var(--c-ring-size)] h-[var(--c-ring-size)] rounded-full bg-spiral-ring absolute -left-3 md:-left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
                         <div className="w-[var(--c-hole-size)] h-[var(--c-hole-size)] rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
                     </div>
                 ))}
@@ -99,8 +99,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     </div>
                 )}
 
-                {/* Crease Shadow near spiral */}
-                <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
+                {/* Crease Shadow near spiral — width derived from --c-spiral-w */}
+                <div className="absolute left-0 top-0 bottom-0 w-[var(--c-crease-w)] md:w-[var(--c-crease-w-md)] bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
 
                 {/* Main Content Container */}
                 <main

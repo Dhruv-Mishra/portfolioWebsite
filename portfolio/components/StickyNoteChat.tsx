@@ -264,7 +264,7 @@ const SUGGESTION_ITEM_INITIAL = { opacity: 0, y: 10 } as const;
 const SUGGESTION_ITEM_ANIMATE = { opacity: 1, y: 0 } as const;
 const SUGGESTION_ITEM_EXIT = { opacity: 0, scale: 0.9 } as const;
 const SUGGESTION_ITEM_SKIP_TRANSITION = { duration: 0 } as const;
-const SUGGESTION_HOVER = { scale: 1.05, rotate: -1 } as const;
+const SUGGESTION_HOVER = { scale: 1.05, rotate: -1, transition: { type: "spring" as const, stiffness: 400, damping: 25 } } as const;
 const SUGGESTION_TAP = { scale: 0.95 } as const;
 
 // Input area animation constants

@@ -14,6 +14,21 @@ import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
 const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.spiralHoles }, (_, i) => i);
 
+/** Hoisted paper noise overlay style — avoids re-allocation per render */
+const PAPER_NOISE_STYLE = {
+    backgroundImage: PAPER_NOISE_SVG,
+    contain: 'strict',
+} as const;
+
+/** Hoisted grid pattern background style — avoids re-allocation per render */
+const GRID_PATTERN_STYLE = {
+    backgroundSize: GRID_PATTERN.backgroundSize,
+    backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
+                      linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
+    contain: 'strict',
+    willChange: 'auto',
+} as const;
+
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
     const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -56,21 +71,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* Paper Texture Noise Overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1]"
-                    style={{
-                        backgroundImage: PAPER_NOISE_SVG,
-                        contain: 'strict'
-                    }}
+                    style={PAPER_NOISE_STYLE}
                 />
 
                 {/* Background Grid Pattern - Thicker and Larger */}
                 <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
-                    style={{
-                        backgroundSize: GRID_PATTERN.backgroundSize,
-                        backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
-                                      linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
-                        contain: 'strict',
-                        willChange: 'auto',
-                    }}
+                    style={GRID_PATTERN_STYLE}
                 />
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}

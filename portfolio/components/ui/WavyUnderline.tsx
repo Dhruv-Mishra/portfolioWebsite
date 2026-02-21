@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface WavyUnderlineProps {
@@ -5,7 +6,7 @@ interface WavyUnderlineProps {
 }
 
 /** Decorative wavy underline SVG */
-export function WavyUnderline({ className }: WavyUnderlineProps) {
+export const WavyUnderline = memo(function WavyUnderline({ className }: WavyUnderlineProps) {
   return (
     <svg className={cn("w-full h-3 mt-1", className)} viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
@@ -17,4 +18,4 @@ export function WavyUnderline({ className }: WavyUnderlineProps) {
       />
     </svg>
   );
-}
+});

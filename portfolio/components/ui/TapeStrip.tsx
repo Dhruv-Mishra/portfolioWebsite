@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { TAPE_STYLE } from '@/lib/constants';
 
@@ -8,7 +9,7 @@ interface TapeStripProps {
 }
 
 /** Realistic torn-edge tape strip used to attach sticky notes */
-export function TapeStrip({ size = 'sm', className }: TapeStripProps) {
+export const TapeStrip = memo(function TapeStrip({ size = 'sm', className }: TapeStripProps) {
   return (
     <div
       className={cn(
@@ -21,4 +22,4 @@ export function TapeStrip({ size = 'sm', className }: TapeStripProps) {
       style={TAPE_STYLE}
     />
   );
-}
+});

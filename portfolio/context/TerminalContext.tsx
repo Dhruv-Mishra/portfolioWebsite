@@ -65,7 +65,10 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
 
     const addToHistory = useCallback((command: string) => {
         if (command.trim()) {
-            setCommandHistory(prev => [...prev, command]);
+            setCommandHistory(prev => {
+                const next = [...prev, command];
+                return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+            });
         }
     }, []);
 

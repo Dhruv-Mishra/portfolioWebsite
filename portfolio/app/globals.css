@@ -21,7 +21,6 @@
     --c-spiral-hole: rgba(31, 41, 55, 0.8);
     --c-heading: #000000;
     --c-highlight: #000000;
-    --mobile-breakpoint: 768px;
 
     /* ── Size Scale Tokens (medium = default) ── */
     /* Typography */
@@ -38,18 +37,6 @@
     --t-label: 0.625rem;
     --t-nav: 0.875rem;
     --t-nav-md: 1.25rem;
-    /* Spacing */
-    --s-page-px: 1rem;
-    --s-page-px-md: 2rem;
-    --s-page-py: 1.25rem;
-    --s-section-gap: 2rem;
-    --s-card-p: 1.5rem;
-    --s-card-p-md: 2rem;
-    --s-element-gap: 1rem;
-    --s-tight-gap: 0.5rem;
-    --s-content-gap: 0.5rem;
-    --s-msg-gap: 1.5rem;
-    --s-msg-gap-md: 1.75rem;
     /* Component Sizes */
     --c-terminal-h: 50vh;
     --c-terminal-h-md: 400px;
@@ -72,80 +59,23 @@
     --c-chat-max-w: 380px;
     --c-fab-size: 3rem;
     --c-fab-size-md: 3.5rem;
-    --c-icon-sm: 14px;
-    --c-icon-md: 18px;
-    --c-icon-lg: 22px;
-    --c-icon-xl: 24px;
-    --c-btn-px: 0.75rem;
-    --c-btn-py: 0.5rem;
-    --c-btn-px-lg: 1.5rem;
-    --c-btn-py-lg: 0.75rem;
-    --c-card-min-h: auto;
-    --c-card-min-h-md: 450px;
-    --c-note-max-w: 85%;
-    --c-note-max-w-md: 70%;
-    --c-tape-w: 4rem;
-    --c-tape-w-md: 6rem;
-    --c-tape-h: 1.25rem;
-    --c-tape-h-md: 1.5rem;
     --c-corner-fold: 30px;
     --c-corner-fold-md: 60px;
-    --c-photo-size: 6rem;
-    --c-photo-size-md: 12rem;
     --c-feedback-w: 500px;
-    --c-social-icon: 24px;
-    --c-social-icon-md: 28px;
     --c-cursor-size: 2rem;
     --c-cursor-size-md: 2.5rem;
-    --c-scrollbar-w: 5px;
     --c-pill-w: 5px;
     --c-modal-top: 8vh;
     --c-modal-top-md: 12vh;
-    --c-thumb-size: 24px;
-    /* Borders */
-    --b-width: 2px;
-    --b-width-thick: 3px;
-    --b-radius-sm: 0.25rem;
-    --b-radius-md: 0.5rem;
-    --b-radius-lg: 1rem;
-    --b-radius-pill: 9999px;
-    /* Z-Index Scale */
-    --z-base: 0;
-    --z-doodles: 0;
-    --z-grid: 0;
-    --z-noise: 1;
-    --z-content: 10;
-    --z-crease: 20;
-    --z-tape: 20;
-    --z-nav: 50;
-    --z-spiral: 30;
-    --z-social: 40;
-    --z-fab: 50;
-    --z-theme-toggle: 50;
-    --z-modal-backdrop: 60;
-    --z-modal: 61;
-    --z-cursor: 9999;
-    --z-skip-link: 100;
-    /* Layout */
-    --l-max-w-content: 42rem;
-    --l-max-w-terminal: 48rem;
-    --l-max-w-card: 72rem;
-    --l-max-w-modal: 500px;
-    --l-grid-cell: 40;
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
     --d-slate: rgba(15, 23, 42, 0.3);
-    --d-gray: rgba(17, 24, 39, 0.3);
-    --d-indigo: rgba(49, 46, 129, 0.3);
     --d-emerald: rgba(6, 78, 59, 0.3);
     --d-red: rgba(127, 29, 29, 0.3);
     --d-yellow: rgba(133, 77, 14, 0.3);
-    --d-stone: rgba(28, 25, 23, 0.3);
-    --d-pink: rgba(131, 24, 67, 0.3);
     --d-blue: rgba(30, 58, 138, 0.3);
     --d-purple: rgba(88, 28, 135, 0.3);
-    --d-rose: rgba(136, 19, 55, 0.3);
     --d-stroke-width: 1.2px;
 
     /* Note Colors (Light Mode - Uniform Sticky Yellow) */
@@ -161,8 +91,6 @@
     --note-user-ink: #5d4037;
     --note-ai: #e3f2fd;
     --note-ai-ink: #0d47a1;
-    --note-system: #e3f2fd;
-    --note-system-ink: #0d47a1;
     --tape-color: rgba(194, 163, 120, 0.6);
 
     /* Simple grid pattern for graph paper effect */
@@ -184,16 +112,11 @@
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
     --d-amber: rgba(254, 249, 195, 0.4);
     --d-slate: rgba(226, 232, 240, 0.4);
-    --d-gray: rgba(229, 231, 235, 0.4);
-    --d-indigo: rgba(199, 210, 254, 0.4);
     --d-emerald: rgba(209, 250, 229, 0.4);
     --d-red: rgba(254, 202, 202, 0.4);
     --d-yellow: rgba(254, 249, 195, 0.4);
-    --d-stone: rgba(214, 211, 209, 0.4);
-    --d-pink: rgba(251, 207, 232, 0.3);
     --d-blue: rgba(191, 219, 254, 0.3);
     --d-purple: rgba(233, 213, 255, 0.3);
-    --d-rose: rgba(254, 205, 211, 0.3);
 
     /* Note Colors (Dark Mode - Matte Black #222222) */
     --note-yellow: #222222;
@@ -208,8 +131,6 @@
     --note-user-ink: #fde68a;
     --note-ai: #1a2030;
     --note-ai-ink: #93c5fd;
-    --note-system: #1a2030;
-    --note-system-ink: #93c5fd;
     --tape-color: rgba(255, 255, 255, 0.3);
 
     /* Darker grid pattern for blackboard/slate effect */
@@ -231,17 +152,6 @@
     --t-label: 0.625rem;
     --t-nav: 0.75rem;
     --t-nav-md: 0.875rem;
-    --s-page-px: 0.5rem;
-    --s-page-px-md: 1.5rem;
-    --s-page-py: 1rem;
-    --s-section-gap: 1.5rem;
-    --s-card-p: 1rem;
-    --s-card-p-md: 1.5rem;
-    --s-element-gap: 0.75rem;
-    --s-tight-gap: 0.25rem;
-    --s-content-gap: 0.375rem;
-    --s-msg-gap: 0.875rem;
-    --s-msg-gap-md: 1rem;
     --c-terminal-h: 40vh;
     --c-terminal-h-md: 300px;
     --c-terminal-min-h: 200px;
@@ -263,45 +173,14 @@
     --c-chat-max-w: 340px;
     --c-fab-size: 2.5rem;
     --c-fab-size-md: 2.75rem;
-    --c-icon-sm: 14px;
-    --c-icon-md: 18px;
-    --c-icon-lg: 22px;
-    --c-icon-xl: 24px;
-    --c-btn-px: 0.5rem;
-    --c-btn-py: 0.375rem;
-    --c-btn-px-lg: 1rem;
-    --c-btn-py-lg: 0.5rem;
-    --c-card-min-h: 350px;
-    --c-card-min-h-md: 380px;
-    --c-note-max-w: 80%;
-    --c-note-max-w-md: 65%;
-    --c-tape-w: 3.5rem;
-    --c-tape-w-md: 5rem;
-    --c-tape-h: 1rem;
-    --c-tape-h-md: 1.25rem;
     --c-corner-fold: 20px;
     --c-corner-fold-md: 40px;
-    --c-photo-size: 5rem;
-    --c-photo-size-md: 10rem;
     --c-feedback-w: 420px;
-    --c-social-icon: 20px;
-    --c-social-icon-md: 22px;
     --c-cursor-size: 1.75rem;
     --c-cursor-size-md: 2.25rem;
-    --c-scrollbar-w: 4px;
     --c-pill-w: 4px;
     --c-modal-top: 10vh;
     --c-modal-top-md: 14vh;
-    --c-thumb-size: 24px;
-    --b-width: 1.5px;
-    --b-width-thick: 2px;
-    --b-radius-sm: 0.25rem;
-    --b-radius-md: 0.5rem;
-    --b-radius-lg: 0.75rem;
-    --l-max-w-content: 42rem;
-    --l-max-w-terminal: 48rem;
-    --l-max-w-card: 72rem;
-    --l-max-w-modal: 500px;
   }
 
   /* ── Size Scale: Large ── */
@@ -319,17 +198,6 @@
     --t-label: 0.75rem;
     --t-nav: 1rem;
     --t-nav-md: 1.5rem;
-    --s-page-px: 1.5rem;
-    --s-page-px-md: 3rem;
-    --s-page-py: 2rem;
-    --s-section-gap: 3rem;
-    --s-card-p: 2rem;
-    --s-card-p-md: 3rem;
-    --s-element-gap: 1.5rem;
-    --s-tight-gap: 0.75rem;
-    --s-content-gap: 0.75rem;
-    --s-msg-gap: 2rem;
-    --s-msg-gap-md: 2.5rem;
     --c-terminal-h: 55vh;
     --c-terminal-h-md: 500px;
     --c-terminal-min-h: 350px;
@@ -351,45 +219,14 @@
     --c-chat-max-w: 440px;
     --c-fab-size: 3.5rem;
     --c-fab-size-md: 4rem;
-    --c-icon-sm: 16px;
-    --c-icon-md: 20px;
-    --c-icon-lg: 26px;
-    --c-icon-xl: 28px;
-    --c-btn-px: 1rem;
-    --c-btn-py: 0.625rem;
-    --c-btn-px-lg: 2rem;
-    --c-btn-py-lg: 1rem;
-    --c-card-min-h: auto;
-    --c-card-min-h-md: 550px;
-    --c-note-max-w: 90%;
-    --c-note-max-w-md: 75%;
-    --c-tape-w: 5rem;
-    --c-tape-w-md: 8rem;
-    --c-tape-h: 1.5rem;
-    --c-tape-h-md: 2rem;
     --c-corner-fold: 40px;
     --c-corner-fold-md: 80px;
-    --c-photo-size: 8rem;
-    --c-photo-size-md: 16rem;
     --c-feedback-w: 580px;
-    --c-social-icon: 28px;
-    --c-social-icon-md: 32px;
     --c-cursor-size: 2.5rem;
     --c-cursor-size-md: 3rem;
-    --c-scrollbar-w: 6px;
     --c-pill-w: 6px;
     --c-modal-top: 6vh;
     --c-modal-top-md: 10vh;
-    --c-thumb-size: 28px;
-    --b-width: 2.5px;
-    --b-width-thick: 4px;
-    --b-radius-sm: 0.375rem;
-    --b-radius-md: 0.75rem;
-    --b-radius-lg: 1.25rem;
-    --l-max-w-content: 48rem;
-    --l-max-w-terminal: 56rem;
-    --l-max-w-card: 80rem;
-    --l-max-w-modal: 580px;
   }
 }
 
@@ -463,12 +300,6 @@ body {
 
   .bg-note-gray {
     background-color: var(--note-gray);
-  }
-
-  /* Performance: defer rendering of below-fold content */
-  .content-deferred {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 500px;
   }
 
   /* Hero animations - CSS instead of framer-motion for faster LCP */
@@ -605,14 +436,4 @@ body {
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
-}
-
-/* Animated link hover effect */
-.link-hover {
-  transition: transform 0.15s ease-out, color 0.15s ease-out;
-  display: inline-block;
-}
-
-.link-hover:hover {
-  transform: scale(1.05) rotate(-1deg);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -39,17 +39,24 @@ const TEXTAREA_LINED_STYLE = {
 } as const;
 
 // ─── Paper Airplane fly-away animation ──────────────────────────────────
+const AIRPLANE_INITIAL = { opacity: 0, scale: 0.5, y: 0, x: 0, rotate: 0 };
+const AIRPLANE_ANIMATE = {
+  opacity: [0, 1, 1, 0],
+  scale: [0.5, 1.2, 1, 0.8],
+  y: [0, -10, -60, -120],
+  x: [0, 5, 30, 80],
+  rotate: [0, -10, -20, -45],
+};
+const AIRPLANE_TRANSITION = { duration: 1.2, ease: 'easeOut' as const };
+
+/** Hoisted spring for category tab buttons */
+const CATEGORY_TAB_SPRING = { type: 'spring' as const, stiffness: 400, damping: 25 };
+
 const PaperAirplaneSuccess = () => (
   <m.div
-    initial={{ opacity: 0, scale: 0.5, y: 0, x: 0, rotate: 0 }}
-    animate={{
-      opacity: [0, 1, 1, 0],
-      scale: [0.5, 1.2, 1, 0.8],
-      y: [0, -10, -60, -120],
-      x: [0, 5, 30, 80],
-      rotate: [0, -10, -20, -45],
-    }}
-    transition={{ duration: 1.2, ease: 'easeOut' }}
+    initial={AIRPLANE_INITIAL}
+    animate={AIRPLANE_ANIMATE}
+    transition={AIRPLANE_TRANSITION}
     className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl pointer-events-none z-30"
   >
     ✈️
@@ -59,7 +66,7 @@ const PaperAirplaneSuccess = () => (
 // ═════════════════════════════════════════════════
 // ─── Floating Feedback Icon (right side, minimal) ──────────
 // ═════════════════════════════════════════════════
-export function FeedbackTab({ onClick }: { onClick: () => void }) {
+export const FeedbackTab = memo(function FeedbackTab({ onClick }: { onClick: () => void }) {
   return (
     <m.button
       whileHover={{ scale: 1.15, rotate: -8, transition: { duration: 0.15 } }}
@@ -80,7 +87,7 @@ export function FeedbackTab({ onClick }: { onClick: () => void }) {
       <MessageSquare size={18} className="md:w-5 md:h-5" />
     </m.button>
   );
-}
+});
 
 // ═════════════════════════════════════════════════
 // ─── Main Feedback Modal ────────────────────────
@@ -300,7 +307,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           key={cat.id}
                           onClick={() => setCategory(cat.id)}
                           animate={{ scale: active ? 1.08 : 1 }}
-                          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                          transition={CATEGORY_TAB_SPRING}
                           className={cn(
                             "px-4 py-1.5 rounded-full border-2 font-hand font-bold text-sm",
                             cat.classes,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -13,22 +13,30 @@ import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 // Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
 const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
 
+// Hoisted style and animation constants — avoids re-allocation per render
+const CHAT_PANEL_STYLE = { transform: 'rotate(-0.5deg)' } as const;
+const FAB_BUTTON_STYLE = { transform: 'rotate(3deg)' } as const;
+const GENTLE_SPRING_TRANSITION = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.gentle };
+const FAB_ANIMATE = { opacity: 1, scale: 1, transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy } };
+
 // Sketchbook-themed sticky note + pencil doodle icon
-const StickyNoteDoodle = () => (
-  <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Sticky note */}
-    <rect x="3" y="5" width="20" height="20" rx="1" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    {/* Folded corner */}
-    <path d="M17 25 L23 25 L23 19 Z" fill="var(--c-paper, white)" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    {/* Pencil */}
-    <line x1="18" y1="27" x2="30" y2="5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <line x1="29" y1="7" x2="27" y2="5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    {/* Lines on note */}
-    <line x1="6" y1="11" x2="17" y2="11" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-    <line x1="6" y1="15" x2="15" y2="15" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-    <line x1="6" y1="19" x2="12" y2="19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-  </svg>
-);
+const StickyNoteDoodle = memo(function StickyNoteDoodle() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Sticky note */}
+      <rect x="3" y="5" width="20" height="20" rx="1" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      {/* Folded corner */}
+      <path d="M17 25 L23 25 L23 19 Z" fill="var(--c-paper, white)" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      {/* Pencil */}
+      <line x1="18" y1="27" x2="30" y2="5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="29" y1="7" x2="27" y2="5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      {/* Lines on note */}
+      <line x1="6" y1="11" x2="17" y2="11" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+      <line x1="6" y1="15" x2="15" y2="15" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+      <line x1="6" y1="19" x2="12" y2="19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+    </svg>
+  );
+});
 
 export default function MiniChat() {
   const pathname = usePathname();
@@ -54,23 +62,23 @@ export default function MiniChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to pathname changes, not isOpen
   }, [pathname]);
 
-  // Don't show on /chat page
-  if (pathname === '/chat') return null;
-  if (!hasMounted) return null;
-
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     setIsOpen(false);
     setIsDismissed(true);
     sessionStorage.setItem(CHAT_CONFIG.miniChatDismissedKey, 'true');
-  };
+  }, []);
 
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     if (isDismissed) {
       setIsDismissed(false);
       sessionStorage.removeItem(CHAT_CONFIG.miniChatDismissedKey);
     }
-    setIsOpen(!isOpen);
-  };
+    setIsOpen(prev => !prev);
+  }, [isDismissed]);
+
+  // Don't show on /chat page
+  if (pathname === '/chat') return null;
+  if (!hasMounted) return null;
 
   return (
     <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20 z-50">
@@ -80,14 +88,14 @@ export default function MiniChat() {
             initial={INTERACTION_TOKENS.entrance.popIn.initial}
             animate={INTERACTION_TOKENS.entrance.popIn.animate}
             exit={INTERACTION_TOKENS.exit.popOut}
-            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
+            transition={GENTLE_SPRING_TRANSITION}
             className={cn(
               "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-2xl overflow-hidden",
               // Mobile: full screen overlay
               "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
               "max-w-[var(--c-chat-max-w)]",
             )}
-            style={{ transform: 'rotate(-0.5deg)' }}
+            style={CHAT_PANEL_STYLE}
           >
             {/* Chat content — full height, controls are inside StickyNoteChat */}
             <div className="h-full relative">
@@ -121,7 +129,7 @@ export default function MiniChat() {
           whileHover={INTERACTION_TOKENS.hover.scaleUp}
           whileTap={INTERACTION_TOKENS.tap.press}
           initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1, transition: { type: 'spring', ...ANIMATION_TOKENS.spring.bouncy } }}
+          animate={FAB_ANIMATE}
           className={cn(
             "relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
             isOpen
@@ -130,7 +138,7 @@ export default function MiniChat() {
           )}
           title="Ask Dhruv"
           aria-label="Open quick chat"
-          style={{ transform: 'rotate(3deg)' }}
+          style={FAB_BUTTON_STYLE}
         >
           {isOpen ? (
             <X size={22} />

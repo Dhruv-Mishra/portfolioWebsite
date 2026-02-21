@@ -201,11 +201,12 @@ export function useStickyChat(): UseStickyChat {
   const isLoadingRef = useRef(isLoading);
   isLoadingRef.current = isLoading;
 
-  // Abort in-flight requests on unmount
+  // Abort in-flight requests and cancel filler timers on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort('unmount');
       suggestionsAbortRef.current?.abort('unmount');
+      fillerCleanupRef.current?.();
     };
   }, []);
 

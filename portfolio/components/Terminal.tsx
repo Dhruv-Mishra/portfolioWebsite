@@ -19,6 +19,42 @@ import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
 
+// Hoisted style objects to avoid re-creating on every render
+const shadowStyle = { borderRadius: SKETCH_RADIUS.terminal } as const;
+const containerStyle = {
+    borderRadius: SKETCH_RADIUS.terminal,
+    boxShadow: SHADOW_TOKENS.terminal,
+    backgroundColor: TERMINAL_COLORS.bg,
+} as const;
+const headerStyle = { backgroundColor: TERMINAL_COLORS.headerBg } as const;
+const noiseStyle = { backgroundImage: HEADER_NOISE_SVG } as const;
+
+// Memoised output area — only re-renders when outputLines changes, not on every keystroke
+interface TerminalOutputProps {
+    outputLines: { id: number; command: string; output: React.ReactNode }[];
+}
+
+const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: TerminalOutputProps) {
+    return (
+        <>
+            {outputLines.map((item) => (
+                <div key={item.id} className="mb-4">
+                    <div className="flex gap-3 opacity-90">
+                        <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
+                        <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
+                        <span className={TERMINAL_COLORS.command}>{item.command}</span>
+                    </div>
+                    {item.output && (
+                        <div className={`ml-7 mt-2 ${TERMINAL_COLORS.output} tracking-wide leading-relaxed border-l-2 ${TERMINAL_COLORS.border} pl-3`}>
+                            {item.output}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </>
+    );
+});
+
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
     const router = useRouter(); // Correctly using hook inside component
@@ -155,25 +191,21 @@ export default function Terminal() {
             {/* Rough Shadow */}
             <div
                 className="absolute inset-0 bg-black/8 rounded-lg transform translate-x-2 translate-y-3 rotate-2 pointer-events-none"
-                style={{ borderRadius: SKETCH_RADIUS.terminal }}
+                style={shadowStyle}
             />
 
             {/* Terminal Container - Charcoal Block */}
             <div
                 className={`relative ${TERMINAL_COLORS.text} overflow-hidden border-[3px] ${TERMINAL_COLORS.border} shadow-inner`}
-                style={{
-                    borderRadius: SKETCH_RADIUS.terminal,
-                    boxShadow: SHADOW_TOKENS.terminal,
-                    backgroundColor: TERMINAL_COLORS.bg,
-                }}
+                style={containerStyle}
             >
                 {/* Sketchy Header */}
                 <div
                     className={`p-3 flex items-center justify-between border-b-2 ${TERMINAL_COLORS.headerBorder} relative overflow-hidden`}
-                    style={{ backgroundColor: TERMINAL_COLORS.headerBg }}
+                    style={headerStyle}
                 >
                     {/* Scribble Noise Texture for Header */}
-                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: HEADER_NOISE_SVG }} />
+                    <div className="absolute inset-0 opacity-10 pointer-events-none" style={noiseStyle} />
 
                     {/* Sketchy Window Controls */}
                     <WindowControls />
@@ -197,20 +229,7 @@ export default function Terminal() {
                         }
                     }}
                 >
-                    {outputLines.map((item) => (
-                        <div key={item.id} className="mb-4">
-                            <div className="flex gap-3 opacity-90">
-                                <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
-                                <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
-                                <span className={TERMINAL_COLORS.command}>{item.command}</span>
-                            </div>
-                            {item.output && (
-                                <div className={`ml-7 mt-2 ${TERMINAL_COLORS.output} tracking-wide leading-relaxed border-l-2 ${TERMINAL_COLORS.border} pl-3`}>
-                                    {item.output}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                    <TerminalOutput outputLines={outputLines} />
 
                     <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
                         <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>

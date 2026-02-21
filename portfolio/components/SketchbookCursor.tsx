@@ -17,11 +17,9 @@ const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
 export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isHoveringLink, setIsHoveringLink] = useState(false);
+    const isHoveringLinkRef = useRef(false);
     const { resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
-
-    const [isVisible, setIsVisible] = useState(true);
 
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
@@ -35,9 +33,12 @@ export default function SketchbookCursor() {
         themeRef.current = resolvedTheme;
     }, [resolvedTheme]);
 
-    // Mouse position state
+    // Motion values for cursor — zero re-renders, proper Framer Motion composition
     const mouseX = useMotionValue(-100);
     const mouseY = useMotionValue(-100);
+    const cursorRotate = useMotionValue(0);
+    const cursorOpacity = useMotionValue(1);
+    const cursorScale = useMotionValue(1);
 
     // Ring buffer for trail points — fixed-size, no allocations during render
     const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
@@ -47,11 +48,6 @@ export default function SketchbookCursor() {
     const isVisibleRef = useRef(true);
     const rafIdRef = useRef<number>(0);   // 0 = stopped
     const dprRef = useRef(1);             // cached devicePixelRatio
-
-    // Keep isVisibleRef in sync without restarting the effect
-    useEffect(() => {
-        isVisibleRef.current = isVisible;
-    }, [isVisible]);
 
     useEffect(() => {
         lastMoveTime.current = Date.now(); // Initialize on mount
@@ -79,11 +75,12 @@ export default function SketchbookCursor() {
             lastHoverTarget = e.target;
             const target = e.target as HTMLElement;
             // Check for links, buttons, or inputs
-            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
-                target.closest('a') || target.closest('button')) {
-                setIsHoveringLink(true);
-            } else {
-                setIsHoveringLink(false);
+            const hovering = !!(target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                target.closest('a') || target.closest('button'));
+            if (hovering !== isHoveringLinkRef.current) {
+                isHoveringLinkRef.current = hovering;
+                // Motion value — no React re-render, no CSS transition conflict
+                cursorRotate.set(hovering ? -20 : 0);
             }
         };
 
@@ -135,12 +132,18 @@ export default function SketchbookCursor() {
             wakeLoop();
         };
 
-        const handleMouseLeave = () => setIsVisible(false);
-        const handleMouseEnter = () => setIsVisible(true);
+        // Motion values for visibility — no React state / re-render
+        const setCursorVisible = (visible: boolean) => {
+            isVisibleRef.current = visible;
+            cursorOpacity.set(visible ? 1 : 0);
+            cursorScale.set(visible ? 1 : 0.8);
+        };
+        const handleMouseLeave = () => setCursorVisible(false);
+        const handleMouseEnter = () => setCursorVisible(true);
 
         // Custom events for explicit control (e.g., from Resume page to hide cursor over interactive PDF)
-        const handleHideCursor = () => setIsVisible(false);
-        const handleShowCursor = () => setIsVisible(true);
+        const handleHideCursor = () => setCursorVisible(false);
+        const handleShowCursor = () => setCursorVisible(true);
 
         let resizeTimer: ReturnType<typeof setTimeout>;
         const handleResize = () => {
@@ -279,15 +282,12 @@ export default function SketchbookCursor() {
             {/* Cursor Item (Pencil or Chalk) */}
             <m.div
                 ref={cursorRef}
-                initial={{ opacity: 0 }}
-                animate={{
-                    opacity: isVisible ? 1 : 0,
-                    scale: isVisible ? 1 : 0.8
-                }}
                 style={{
-                    x: mouseX, // Direct mapping
-                    y: mouseY, // Direct mapping
-                    rotate: isHoveringLink ? -20 : 0,
+                    x: mouseX,
+                    y: mouseY,
+                    rotate: cursorRotate,
+                    opacity: cursorOpacity,
+                    scale: cursorScale,
                 }}
                 className="absolute top-0 left-0"
             >

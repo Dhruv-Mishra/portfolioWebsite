@@ -5,6 +5,11 @@ import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/
 
 export const runtime = 'nodejs';
 
+/** Escape markdown-injection characters by backslash-prefixing them. */
+function sanitizeMarkdown(str: string): string {
+  return str.replace(/[\[\]()@`|#*_!<>]/g, (ch) => `\\${ch}`);
+}
+
 const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
 
 // ─── Validation ─────────────────────────────────────────────────────────
@@ -69,17 +74,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Build GitHub issue
-    const title = `[${TITLE_PREFIX[body.category]}] ${message.slice(0, 60)}${message.length > 60 ? '...' : ''}`;
+    const sanitizedMessage = sanitizeMarkdown(message);
+    const title = `[${TITLE_PREFIX[body.category]}] ${sanitizedMessage.slice(0, 60)}${sanitizedMessage.length > 60 ? '...' : ''}`;
 
-    const contact = String(body.contact || '').trim().slice(0, 120);
+    const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
+    const page = sanitizeMarkdown(String(body.page || 'Unknown'));
+    const theme = sanitizeMarkdown(String(body.theme || 'Unknown'));
+    const viewport = sanitizeMarkdown(String(body.viewport || 'Unknown'));
+    const userAgent = sanitizeMarkdown(String(body.userAgent || 'Unknown'));
 
     const metadataLines = [
       `**Category:** ${TITLE_PREFIX[body.category]}`,
       ...(contact ? [`**Contact:** ${contact}`] : []),
-      `**Page:** ${body.page || 'Unknown'}`,
-      `**Theme:** ${body.theme || 'Unknown'}`,
-      `**Viewport:** ${body.viewport || 'Unknown'}`,
-      `**User Agent:** ${body.userAgent || 'Unknown'}`,
+      `**Page:** ${page}`,
+      `**Theme:** ${theme}`,
+      `**Viewport:** ${viewport}`,
+      `**User Agent:** ${userAgent}`,
       `**Submitted:** ${new Date().toISOString()}`,
       `**IP (hashed):** ${hashIP(ip)}`,
     ];
@@ -87,7 +97,7 @@ export async function POST(request: NextRequest) {
     const issueBody = [
       '## Description',
       '',
-      message,
+      sanitizedMessage,
       '',
       '---',
       '',

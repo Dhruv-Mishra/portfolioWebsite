@@ -243,15 +243,46 @@ const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
 const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
 
-const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onClick, index = 0, skipEntrance }: { text: string; isAction?: boolean; onClick: () => void; index?: number; skipEntrance?: boolean }) { return (
+// RateLimitNote animation constants
+const RATE_LIMIT_INITIAL = { opacity: 0, scale: 0.9 } as const;
+const RATE_LIMIT_ANIMATE = { opacity: 1, scale: 1, rotate: 2 } as const;
+
+// Chat heading animation constants
+const HEADING_INITIAL = { opacity: 0, rotate: -3 } as const;
+const HEADING_ANIMATE = { opacity: 1, rotate: -2 } as const;
+
+// Suggestions container animation constants
+const SUGGESTIONS_CONTAINER_INITIAL = { opacity: 0, y: 8 } as const;
+const SUGGESTIONS_CONTAINER_ANIMATE = { opacity: 1, y: 0 } as const;
+const SUGGESTIONS_CONTAINER_EXIT = { opacity: 0, y: -4 } as const;
+const SUGGESTIONS_CONTAINER_TRANSITION = { duration: 0.2 } as const;
+
+// Suggestion item animation constants
+const SUGGESTION_ITEM_INITIAL = { opacity: 0, y: 10 } as const;
+const SUGGESTION_ITEM_ANIMATE = { opacity: 1, y: 0 } as const;
+const SUGGESTION_ITEM_EXIT = { opacity: 0, scale: 0.9 } as const;
+const SUGGESTION_ITEM_SKIP_TRANSITION = { duration: 0 } as const;
+const SUGGESTION_HOVER = { scale: 1.05, rotate: -1 } as const;
+const SUGGESTION_TAP = { scale: 0.95 } as const;
+
+// Input area animation constants
+const INPUT_NOTE_STYLE = { transform: 'rotate(0.5deg)' } as const;
+const INPUT_NOTE_INITIAL = { opacity: 0, y: 20 } as const;
+const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
+const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
+const SEND_BUTTON_TAP = { scale: 0.9 } as const;
+
+const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
+  const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
+  return (
   <m.button
-    initial={skipEntrance ? false : { opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, scale: 0.9 }}
-    transition={skipEntrance ? { duration: 0 } : { delay: index * 0.07, duration: 0.2 }}
-    whileHover={{ scale: 1.05, rotate: -1 }}
-    whileTap={{ scale: 0.95 }}
-    onClick={onClick}
+    initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
+    animate={SUGGESTION_ITEM_ANIMATE}
+    exit={SUGGESTION_ITEM_EXIT}
+    transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { delay: index * 0.07, duration: 0.2 }}
+    whileHover={SUGGESTION_HOVER}
+    whileTap={SUGGESTION_TAP}
+    onClick={handleClick}
     className={cn(
       "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity flex flex-col items-start",
       isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
@@ -400,13 +431,125 @@ const StickyNote = memo(function StickyNote({
 const RateLimitNote = memo(function RateLimitNote({ seconds }: { seconds: number }) {
   return (
     <m.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1, rotate: 2 }}
+      initial={RATE_LIMIT_INITIAL}
+      animate={RATE_LIMIT_ANIMATE}
       className="relative max-w-sm mx-auto p-4 bg-[#ffccbc] dark:bg-[#3e2723] text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
     >
       <TapeStrip />
       Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
     </m.div>
+  );
+});
+
+// ─── Chat Input Area (isolated to prevent keystroke re-renders of message list) ───
+interface ChatInputAreaProps {
+  onSend: (text: string) => void;
+  isLoading: boolean;
+  compact: boolean;
+  hasMessages: boolean;
+  onClear: () => void;
+}
+
+const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear }: ChatInputAreaProps) {
+  const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const placeholderRef = usePlaceholderTypewriter(!isLoading);
+
+  const handleSend = useCallback(() => {
+    if (!input.trim() || isLoading) return;
+    onSend(input.trim());
+    setInput('');
+    setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
+  }, [input, isLoading, onSend]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }, [handleSend]);
+
+  return (
+    <div className={cn(
+      "absolute bottom-0 inset-x-0 pointer-events-none",
+      "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-transparent before:to-transparent",
+    )}>
+      <div className={cn(
+        "pointer-events-auto bg-transparent px-2 md:px-6 pb-22 md:pb-4 pt-2",
+        compact && "px-2 pb-2 pt-1",
+      )}>
+        {/* Clear desk button */}
+        {hasMessages && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={onClear}
+              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
+              title="Clear desk"
+            >
+              <Eraser size={14} />
+              Clear desk
+            </button>
+          </div>
+        )}
+
+        {/* The input "sticky note" */}
+        <m.div
+          initial={INPUT_NOTE_INITIAL}
+          animate={INPUT_NOTE_ANIMATE}
+          className={cn(
+            "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
+            compact ? "p-2" : "p-2 md:p-4",
+          )}
+          style={INPUT_NOTE_STYLE}
+        >
+          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
+            <div className="relative flex-1">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                disabled={isLoading}
+                className={cn(
+                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
+                  compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                )}
+              />
+              {/* Typewriter placeholder overlay — hidden when user has typed */}
+              {!input && (
+                <span
+                  ref={placeholderRef}
+                  aria-hidden
+                  className={cn(
+                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden",
+                    compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                  )}
+                />
+              )}
+            </div>
+
+            {/* Paperclip send button */}
+            <m.button
+              whileHover={SEND_BUTTON_HOVER}
+              whileTap={SEND_BUTTON_TAP}
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className={cn(
+                "p-2 rounded-full transition-colors shrink-0",
+                input.trim() && !isLoading
+                  ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
+                  : "text-gray-400 dark:text-gray-600",
+              )}
+              title="Send note"
+              aria-label="Send message"
+            >
+              <Send size={compact ? 18 : 22} />
+            </m.button>
+          </div>
+        </m.div>
+      </div>
+    </div>
   );
 });
 
@@ -417,7 +560,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
-  const [input, setInput] = useState('');
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
@@ -429,7 +571,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const followupActions = useMemo(() => getFollowupActions(resolvedTheme), [resolvedTheme]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handledActionsRef = useRef<Set<string>>(new Set());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
@@ -584,21 +725,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [suggestionsReady, isLoading]);
 
-  const handleSend = useCallback(() => {
-    if (!input.trim() || isLoading) return;
+  const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
-    sendMessage(input.trim());
-    setInput('');
-    // Re-focus input
-    setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
-  }, [input, isLoading, sendMessage]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }, [handleSend]);
+    sendMessage(text);
+  }, [sendMessage]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
@@ -617,9 +747,19 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [addLocalExchange, sendMessage]);
 
+  const handleClearDesk = useCallback(() => {
+    clearMessages();
+    setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
+    setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
+    setSuggestionsReady(true);
+    hasFetchedSuggestionsRef.current = null;
+    hasInitializedSuggestionsRef.current = false;
+    pendingActionRef.current = null;
+    handledActionsRef.current.clear();
+  }, [clearMessages]);
+
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
-  const placeholderRef = usePlaceholderTypewriter(!isLoading);
 
   return (
     <div className={cn(
@@ -630,8 +770,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       {!compact ? (
         <div className="text-center pt-12 pb-0 md:pt-10 md:pb-1 shrink-0">
           <m.h1
-            initial={{ opacity: 0, rotate: -3 }}
-            animate={{ opacity: 1, rotate: -2 }}
+            initial={HEADING_INITIAL}
+            animate={HEADING_ANIMATE}
             className="text-4xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
           >
             Pass me a note
@@ -689,10 +829,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           {!isLoading && suggestionsReady && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
               <m.div
                 key="suggestions-container"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
+                initial={SUGGESTIONS_CONTAINER_INITIAL}
+                animate={SUGGESTIONS_CONTAINER_ANIMATE}
+                exit={SUGGESTIONS_CONTAINER_EXIT}
+                transition={SUGGESTIONS_CONTAINER_TRANSITION}
                 className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
               >
                 {baseSuggestions.map((q, i) => (
@@ -700,7 +840,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     key={q}
                     text={q}
                     isAction={!!resolveAction(q)}
-                    onClick={() => handleSuggestion(q)}
+                    onSelect={handleSuggestion}
                     index={i}
                     skipEntrance={!hasHadInteractionRef.current}
                   />
@@ -711,7 +851,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                       key={q}
                       text={q}
                       isAction={!!resolveAction(q)}
-                      onClick={() => handleSuggestion(q)}
+                      onSelect={handleSuggestion}
                       index={i}
                       skipEntrance={!hasHadInteractionRef.current}
                     />
@@ -729,101 +869,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ─── Input Area (floating overlay with gradient fade) ─── */}
-      <div className={cn(
-        "absolute bottom-0 inset-x-0 pointer-events-none",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-transparent before:to-transparent",
-      )}>
-      <div className={cn(
-        "pointer-events-auto bg-transparent px-2 md:px-6 pb-22 md:pb-4 pt-2",
-        compact && "px-2 pb-2 pt-1",
-      )}>
-        {/* Clear desk button */}
-        {hasMessages && (
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={() => {
-                clearMessages();
-                setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
-                setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
-                setSuggestionsReady(true);
-                hasFetchedSuggestionsRef.current = null;
-                hasInitializedSuggestionsRef.current = false;
-                pendingActionRef.current = null;
-                handledActionsRef.current.clear();
-              }}
-              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
-              title="Clear desk"
-            >
-              <Eraser size={14} />
-              Clear desk
-            </button>
-          </div>
-        )}
-
-        {/* The input "sticky note" */}
-        <m.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 0.92, y: 0 }}
-          className={cn(
-            "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
-            compact ? "p-2" : "p-2 md:p-4",
-          )}
-          style={{
-            transform: 'rotate(0.5deg)',
-          }}
-        >
-
-          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- delegates to textarea focus for mobile UX */}
-          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
-            <div className="relative flex-1">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
-                onKeyDown={handleKeyDown}
-                placeholder=""
-                rows={1}
-                disabled={isLoading}
-                className={cn(
-                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
-                  compact ? "text-sm leading-snug" : "text-base md:text-lg",
-                )}
-              />
-              {/* Typewriter placeholder overlay — hidden when user has typed */}
-              {!input && (
-                <span
-                  ref={placeholderRef}
-                  aria-hidden
-                  className={cn(
-                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden",
-                    compact ? "text-sm leading-snug" : "text-base md:text-lg",
-                  )}
-                />
-              )}
-            </div>
-
-            {/* Paperclip send button */}
-            <m.button
-              whileHover={{ scale: 1.15, rotate: 10 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className={cn(
-                "p-2 rounded-full transition-colors shrink-0",
-                input.trim() && !isLoading
-                  ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
-                  : "text-gray-400 dark:text-gray-600",
-              )}
-              title="Send note"
-              aria-label="Send message"
-            >
-              <Send size={compact ? 18 : 22} />
-            </m.button>
-          </div>
-        </m.div>
-      </div>
-      </div>
+      {/* ─── Input Area (isolated component to prevent keystroke re-renders) ─── */}
+      <ChatInputArea
+        onSend={handleSendFromInput}
+        isLoading={isLoading}
+        compact={compact}
+        hasMessages={hasMessages}
+        onClear={handleClearDesk}
+      />
       </div>
 
     </div>

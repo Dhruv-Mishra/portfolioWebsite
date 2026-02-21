@@ -134,7 +134,7 @@ const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
 const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
 const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
-const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { duration: ANIMATION_TOKENS.duration.fast } } as const;
+const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
 
 export default function Projects() {
     return (
@@ -265,7 +265,7 @@ export default function Projects() {
                                 {/* Stack Tags */}
                                 <div className="pl-6 mb-6 flex flex-wrap gap-2 relative z-10">
                                     {proj.stack.map((tech) => (
-                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm scale-95 hover:scale-105 transition-transform cursor-default">
+                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm scale-95 hover:scale-105 transition-transform duration-300 ease-[cubic-bezier(0.22,1.8,0.50,1)] cursor-default">
                                             #{tech}
                                         </span>
                                     ))}

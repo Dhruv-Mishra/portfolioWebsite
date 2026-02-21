@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +44,10 @@ Rules:
 
 export async function POST(request: NextRequest) {
   try {
+    // Block cross-origin requests
+    const originError = validateOrigin(request);
+    if (originError) return originError;
+
     const ip = getClientIP(request);
     const { limited, retryAfter } = suggestionsRateLimiter.check(ip);
     if (limited) {

@@ -2,6 +2,7 @@
 
 import { m } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 
 // Pages that should fade in without horizontal slide
 const FADE_ONLY_ROUTES = ['/chat'];
@@ -10,10 +11,10 @@ const FADE_ONLY_ROUTES = ['/chat'];
 const FULL_BLEED_ROUTES = ['/chat'];
 
 // Hoisted animation objects — avoids allocation per navigation
-const INITIAL_FADE_SLIDE = { opacity: 0, x: 20 } as const;
+const INITIAL_FADE_SLIDE = INTERACTION_TOKENS.entrance.fadeSlide.initial;
 const INITIAL_FADE_ONLY = { opacity: 0, x: 0 } as const;
-const ANIMATE_TARGET = { opacity: 1, x: 0 } as const;
-const TRANSITION = { ease: "easeOut" as const, duration: 0.3 };
+const ANIMATE_TARGET = INTERACTION_TOKENS.entrance.fadeSlide.animate;
+const TRANSITION = { ease: ANIMATION_TOKENS.easing.easeOut, duration: ANIMATION_TOKENS.duration.moderate };
 
 export default function Template({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();

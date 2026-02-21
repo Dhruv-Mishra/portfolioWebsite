@@ -1,7 +1,11 @@
 // app/api/chat/suggestions/route.ts — Generate contextual follow-up suggestions via LLM
 import { NextRequest } from 'next/server';
+import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 
 export const runtime = 'nodejs';
+
+const suggestionsRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.suggestions, maxTrackedIPs: 500, cleanupInterval: 50 });
 
 const SUGGESTIONS_SYSTEM_PROMPT = `You generate 2 short follow-up suggestions that a VISITOR (the user) might click next in a conversation with Dhruv Mishra's portfolio chatbot. The chatbot answers as Dhruv — a Software Engineer at Microsoft working on Fluent UI Android.
 
@@ -35,10 +39,16 @@ Rules:
 5. The two suggestions must explore DIFFERENT aspects or offer DIFFERENT actions.
 6. Always write from the user's voice — "you/your" refers to Dhruv.`;
 
-const PROVIDER_TIMEOUT_MS = 8_000;
+
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIP(request);
+    const { limited, retryAfter } = suggestionsRateLimiter.check(ip);
+    if (limited) {
+      return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
+    }
+
     const body = await request.json();
     const messages: { role: string; content: string }[] = body.messages || [];
 
@@ -50,14 +60,14 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.LLM_API_KEY;
     const baseURL = process.env.LLM_BASE_URL;
-    const model = process.env.LLM_MODEL;
+    const model = process.env.LLM_SUGGESTIONS_MODEL || process.env.LLM_MODEL;
 
     if (!apiKey || !baseURL || !model) {
       return Response.json({ suggestions: [] });
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), LLM_SUGGESTIONS_TIMEOUT_MS);
 
     try {
       const llmResponse = await fetch(`${baseURL}/chat/completions`, {
@@ -73,9 +83,9 @@ export async function POST(request: NextRequest) {
             ...context,
             { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
           ],
-          temperature: 0.9,
-          top_p: 0.95,
-          max_tokens: 80,
+          temperature: LLM_SUGGESTIONS_PARAMS.temperature,
+          top_p: LLM_SUGGESTIONS_PARAMS.topP,
+          max_tokens: LLM_SUGGESTIONS_PARAMS.maxTokens,
           stream: false,
         }),
         signal: controller.signal,
@@ -88,7 +98,13 @@ export async function POST(request: NextRequest) {
       }
 
       const data = await llmResponse.json();
-      const raw = data.choices?.[0]?.message?.content || '';
+      const rawContent = data.choices?.[0]?.message?.content || '';
+      const raw = stripThinkTags(rawContent);
+
+      if (isRawLogEnabled()) {
+        const thinking = rawContent !== raw ? rawContent.match(/<think>([\s\S]*?)<\/think>/i)?.[1]?.trim() : undefined;
+        console.log('[SUGGESTIONS RAW]', { model, raw: rawContent, clean: raw, ...(thinking ? { thinking } : {}) });
+      }
 
       // Parse: expect 2 lines, one suggestion each
       const suggestions = raw

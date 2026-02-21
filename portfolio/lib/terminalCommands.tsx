@@ -2,6 +2,12 @@ import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
 import { APP_VERSION } from "@/lib/constants";
+import { TIMING_TOKENS } from '@/lib/designTokens';
+import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { PERSONAL_LINKS } from '@/lib/links';
+
+/** Delay (ms) before executing page navigation from terminal commands */
+const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
 
 export interface CommandResult {
     output: React.ReactNode;
@@ -45,7 +51,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const timeoutId = setTimeout(() => controller.abort(), EXTERNAL_API_TIMEOUT_MS);
 
             const res = await fetch('https://v2.jokeapi.dev/joke/Programming?safe-mode', {
                 signal: controller.signal
@@ -90,22 +96,22 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p>Ways to reach me:</p>
                 <p className="pl-4">
                     <span className="text-gray-400 w-16 inline-block">Email:</span>
-                    <a href="mailto:dhruvmishra.id@gmail.com" className="text-blue-400 hover:underline">dhruvmishra.id@gmail.com</a>
+                    <a href={PERSONAL_LINKS.email} className="text-blue-400 hover:underline">dhruvmishra.id@gmail.com</a>
                 </p>
                 <p className="pl-4">
                     <span className="text-gray-400 w-16 inline-block">GitHub:</span>
-                    <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a>
+                    <a href={PERSONAL_LINKS.github} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a>
                 </p>
                 <p className="pl-4">
                     <span className="text-gray-400 w-16 inline-block">Phone:</span>
-                    <a href="tel:+919599377944" className="text-blue-400 hover:underline">(+91) 9599377944</a>
+                    <a href={PERSONAL_LINKS.phone} className="text-blue-400 hover:underline">(+91) 9599377944</a>
                 </p>
             </div>
         )
     }),
     projects: () => ({
         output: "Navigating to projects...",
-        action: () => router.push("/projects")
+        action: () => { setTimeout(() => router.push("/projects"), NAVIGATION_DELAY_MS); }
     }),
     init: () => {
         const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;
@@ -121,33 +127,33 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     resume: () => ({
         output: "Navigating to resume page...",
-        action: () => router.push("/resume")
+        action: () => { setTimeout(() => router.push("/resume"), NAVIGATION_DELAY_MS); }
     }),
     cv: () => ({
         output: "Navigating to resume page...",
-        action: () => router.push("/resume")
+        action: () => { setTimeout(() => router.push("/resume"), NAVIGATION_DELAY_MS); }
     }),
     chat: () => ({
         output: "Navigating to chat...",
-        action: () => router.push("/chat")
+        action: () => { setTimeout(() => router.push("/chat"), NAVIGATION_DELAY_MS); }
     }),
     socials: () => ({
         output: (
             <div className="space-y-1">
                 <p>Connect with me:</p>
-                <p className="pl-4"><span className="text-gray-400">GitHub:</span> <a href="https://github.com/Dhruv-Mishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a></p>
-                <p className="pl-4"><span className="text-gray-400">LinkedIn:</span> <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@dhruv-mishra-id</a></p>
-                <p className="pl-4"><span className="text-gray-400">Codeforces:</span> <a href="https://codeforces.com/profile/DhruvMishra" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@DhruvMishra</a></p>
+                <p className="pl-4"><span className="text-gray-400">GitHub:</span> <a href={PERSONAL_LINKS.github} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@Dhruv-Mishra</a></p>
+                <p className="pl-4"><span className="text-gray-400">LinkedIn:</span> <a href={PERSONAL_LINKS.linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@dhruv-mishra-id</a></p>
+                <p className="pl-4"><span className="text-gray-400">Codeforces:</span> <a href={PERSONAL_LINKS.codeforces} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">@DhruvMishra</a></p>
             </div>
         )
     }),
     github: () => ({
         output: "Opening GitHub profile...",
-        action: () => window.open('https://github.com/Dhruv-Mishra', '_blank', 'noopener,noreferrer')
+        action: () => window.open(PERSONAL_LINKS.github, '_blank', 'noopener,noreferrer')
     }),
     linkedin: () => ({
         output: "Opening LinkedIn profile...",
-        action: () => window.open('https://www.linkedin.com/in/dhruv-mishra-id/', '_blank', 'noopener,noreferrer')
+        action: () => window.open(PERSONAL_LINKS.linkedin, '_blank', 'noopener,noreferrer')
     }),
     skills: () => ({
         output: (
@@ -214,8 +220,12 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     open: (args: string[]) => {
         const file = args[0];
         if (!file) return { output: "Usage: open [filename]" };
-        if (file === "resume.pdf") return { output: "Opening resume...", action: () => router.push("/resume") };
-        if (file === "projects.json") return { output: "Opening projects...", action: () => router.push("/projects") };
+        const openable: Record<string, { output: string; route: string }> = {
+            "resume.pdf": { output: "Opening resume...", route: "/resume" },
+            "projects.json": { output: "Opening projects...", route: "/projects" },
+        };
+        const entry = openable[file];
+        if (entry) return { output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),

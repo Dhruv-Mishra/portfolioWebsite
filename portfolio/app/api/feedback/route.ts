@@ -1,44 +1,16 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
 import { NextRequest } from 'next/server';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 
 export const runtime = 'nodejs';
 
-// ─── Server-side rate limiting (per-IP, in-memory) ─────────────────────
-const ipRequests = new Map<string, number[]>();
-const RATE_LIMIT = { maxRequests: 3, windowMs: 3_600_000 }; // 3 per hour
-const MAX_TRACKED_IPS = 200;
-let requestsSinceCleanup = 0;
-
-function evictStaleEntries() {
-  const cutoff = Date.now() - RATE_LIMIT.windowMs;
-  for (const [ip, times] of ipRequests) {
-    const valid = times.filter(t => t > cutoff);
-    if (valid.length === 0) ipRequests.delete(ip);
-    else ipRequests.set(ip, valid);
-  }
+/** Escape markdown-injection characters by backslash-prefixing them. */
+function sanitizeMarkdown(str: string): string {
+  return str.replace(/[\[\]()@`|#*_!<>]/g, (ch) => `\\${ch}`);
 }
 
-function isRateLimited(ip: string): { limited: boolean; retryAfter: number } {
-  requestsSinceCleanup++;
-  if (requestsSinceCleanup >= 30 || ipRequests.size > MAX_TRACKED_IPS) {
-    requestsSinceCleanup = 0;
-    evictStaleEntries();
-  }
-
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT.windowMs;
-  let times = ipRequests.get(ip) || [];
-  times = times.filter(t => t > windowStart);
-
-  if (times.length >= RATE_LIMIT.maxRequests) {
-    const retryAfter = Math.ceil((times[0] + RATE_LIMIT.windowMs - now) / 1000);
-    return { limited: true, retryAfter };
-  }
-
-  times.push(now);
-  ipRequests.set(ip, times);
-  return { limited: false, retryAfter: 0 };
-}
+const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
 
 // ─── Validation ─────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
@@ -70,11 +42,9 @@ interface FeedbackBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+    const ip = getClientIP(request);
 
-    const { limited, retryAfter } = isRateLimited(ip);
+    const { limited, retryAfter } = feedbackRateLimiter.check(ip);
     if (limited) {
       return Response.json(
         { error: `Too many feedback submissions. Try again in ${Math.ceil(retryAfter / 60)} minutes.` },
@@ -104,17 +74,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Build GitHub issue
-    const title = `[${TITLE_PREFIX[body.category]}] ${message.slice(0, 60)}${message.length > 60 ? '...' : ''}`;
+    const sanitizedMessage = sanitizeMarkdown(message);
+    const title = `[${TITLE_PREFIX[body.category]}] ${sanitizedMessage.slice(0, 60)}${sanitizedMessage.length > 60 ? '...' : ''}`;
 
-    const contact = String(body.contact || '').trim().slice(0, 120);
+    const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
+    const page = sanitizeMarkdown(String(body.page || 'Unknown'));
+    const theme = sanitizeMarkdown(String(body.theme || 'Unknown'));
+    const viewport = sanitizeMarkdown(String(body.viewport || 'Unknown'));
+    const userAgent = sanitizeMarkdown(String(body.userAgent || 'Unknown'));
 
     const metadataLines = [
       `**Category:** ${TITLE_PREFIX[body.category]}`,
       ...(contact ? [`**Contact:** ${contact}`] : []),
-      `**Page:** ${body.page || 'Unknown'}`,
-      `**Theme:** ${body.theme || 'Unknown'}`,
-      `**Viewport:** ${body.viewport || 'Unknown'}`,
-      `**User Agent:** ${body.userAgent || 'Unknown'}`,
+      `**Page:** ${page}`,
+      `**Theme:** ${theme}`,
+      `**Viewport:** ${viewport}`,
+      `**User Agent:** ${userAgent}`,
       `**Submitted:** ${new Date().toISOString()}`,
       `**IP (hashed):** ${hashIP(ip)}`,
     ];
@@ -122,7 +97,7 @@ export async function POST(request: NextRequest) {
     const issueBody = [
       '## Description',
       '',
-      message,
+      sanitizedMessage,
       '',
       '---',
       '',
@@ -135,21 +110,36 @@ export async function POST(request: NextRequest) {
       '_Submitted via portfolio website feedback form_',
     ].join('\n');
 
-    // Create GitHub issue
-    const ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title,
-        body: issueBody,
-        labels: [LABEL_MAP[body.category], 'website-feedback'],
-      }),
-    });
+    // Create GitHub issue (with timeout to prevent hanging if GitHub API is slow)
+    const ghController = new AbortController();
+    const ghTimeout = setTimeout(() => ghController.abort(), GITHUB_API_TIMEOUT_MS);
+
+    let ghResponse: Response;
+    try {
+      ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GITHUB_API_VERSION,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          body: issueBody,
+          labels: [LABEL_MAP[body.category], 'website-feedback'],
+        }),
+        signal: ghController.signal,
+      });
+    } catch (err) {
+      clearTimeout(ghTimeout);
+      console.error('GitHub API timeout/network error:', err);
+      return Response.json(
+        { error: 'Feedback service timed out. Please try again later.' },
+        { status: 504 },
+      );
+    }
+    clearTimeout(ghTimeout);
 
     if (!ghResponse.ok) {
       const errText = await ghResponse.text().catch(() => 'Unknown error');

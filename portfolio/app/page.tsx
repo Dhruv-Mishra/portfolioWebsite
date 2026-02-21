@@ -7,7 +7,7 @@ import { APP_VERSION } from "@/lib/constants";
 // Lazy load Terminal to reduce initial bundle size
 const Terminal = dynamic(() => import("@/components/Terminal"), {
   loading: () => (
-    <div className="h-[400px] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />
+    <div className="h-[var(--c-terminal-h-md)] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />
   ),
   ssr: false,
 });
@@ -27,7 +27,7 @@ export default function Home() {
 
         {/* Hero title - CSS animation instead of framer-motion for faster LCP */}
         <h1
-          className="animate-hero-title text-6xl md:text-8xl lg:text-9xl font-hand font-extrabold tracking-tighter text-indigo-900 p-4"
+          className="animate-hero-title text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] leading-none font-hand font-extrabold tracking-tighter text-indigo-900 p-4"
         >
           Hello World!
         </h1>

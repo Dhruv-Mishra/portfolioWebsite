@@ -1,4 +1,6 @@
 // lib/rateLimit.ts - Simple client-side rate limiting
+import { RATE_LIMIT_CONFIG } from '@/lib/llmConfig';
+
 interface RateLimitConfig {
   maxRequests: number;
   windowMs: number;
@@ -39,30 +41,13 @@ class RateLimiter {
     
     return Math.ceil(remaining / 1000); // Convert to seconds
   }
-
-  clear(key: string): void {
-    this.requests.delete(key);
-  }
 }
 
 export const rateLimiter = new RateLimiter();
 
-// Predefined rate limit configurations
+// Predefined rate limit configurations — single source of truth in llmConfig.ts
 export const RATE_LIMITS = {
-  JOKE_API: {
-    maxRequests: 5,
-    windowMs: 60000, // 5 requests per minute
-  },
-  EXTERNAL_LINKS: {
-    maxRequests: 10,
-    windowMs: 10000, // 10 requests per 10 seconds
-  },
-  CHAT_API: {
-    maxRequests: 20,
-    windowMs: 300000, // 20 messages per 5 minutes
-  },
-  FEEDBACK: {
-    maxRequests: 3,
-    windowMs: 3600000, // 3 submissions per hour
-  },
+  JOKE_API: RATE_LIMIT_CONFIG.jokeApi,
+  CHAT_API: RATE_LIMIT_CONFIG.chat,
+  FEEDBACK: RATE_LIMIT_CONFIG.feedback,
 } as const;

@@ -1,29 +1,29 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 import { m, useMotionValue } from 'framer-motion';
-import { MOBILE_BREAKPOINT } from '@/lib/constants';
-
+import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS } from '@/lib/designTokens';
 import { useTheme } from 'next-themes';
 
 // Trail point with timestamp for time-based aging (framerate-independent)
 interface TrailPoint { x: number; y: number; t: number }
 
 // Pre-allocated ring buffer for trail points — zero GC pressure
-const MAX_POINTS = 128;
+const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
+
+// Hoisted cursor inner-div transform styles — avoids object allocation per render
+const CURSOR_TRANSFORM_DARK = { transform: 'translate(-2px, -9px)' } as const;
+const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
 
 export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isHoveringLink, setIsHoveringLink] = useState(false);
+    const isHoveringLinkRef = useRef(false);
     const { resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
-
-    const [isVisible, setIsVisible] = useState(true);
 
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Valid hydration pattern for Next.js
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -32,9 +32,12 @@ export default function SketchbookCursor() {
         themeRef.current = resolvedTheme;
     }, [resolvedTheme]);
 
-    // Mouse position state
+    // Motion values for cursor — zero re-renders, proper Framer Motion composition
     const mouseX = useMotionValue(-100);
     const mouseY = useMotionValue(-100);
+    const cursorRotate = useMotionValue(0);
+    const cursorOpacity = useMotionValue(1);
+    const cursorScale = useMotionValue(1);
 
     // Ring buffer for trail points — fixed-size, no allocations during render
     const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
@@ -45,17 +48,12 @@ export default function SketchbookCursor() {
     const rafIdRef = useRef<number>(0);   // 0 = stopped
     const dprRef = useRef(1);             // cached devicePixelRatio
 
-    // Keep isVisibleRef in sync without restarting the effect
-    useEffect(() => {
-        isVisibleRef.current = isVisible;
-    }, [isVisible]);
-
     useEffect(() => {
         lastMoveTime.current = Date.now(); // Initialize on mount
         if (!mounted) return;
 
         // Don't run on mobile
-        if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
+        if (window.matchMedia(`(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`).matches) return;
 
         const ring = ringRef.current;
         dprRef.current = window.devicePixelRatio || 1;
@@ -67,9 +65,28 @@ export default function SketchbookCursor() {
             }
         };
 
+        // checkHover merged into mousemove — avoids a separate 'mouseover' event listener
+        // that fires on every element boundary crossing in the DOM
+        let lastHoverTarget: EventTarget | null = null;
+        const checkHover = (e: MouseEvent) => {
+            // Skip if target hasn't changed (most common case during mouse movement)
+            if (e.target === lastHoverTarget) return;
+            lastHoverTarget = e.target;
+            const target = e.target as HTMLElement;
+            // Check for links, buttons, or inputs
+            const hovering = !!(target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                target.closest('a') || target.closest('button'));
+            if (hovering !== isHoveringLinkRef.current) {
+                isHoveringLinkRef.current = hovering;
+                // Motion value — no React re-render, no CSS transition conflict
+                cursorRotate.set(hovering ? -20 : 0);
+            }
+        };
+
         const moveCursor = (e: MouseEvent) => {
             mouseX.set(e.clientX);
             mouseY.set(e.clientY);
+            checkHover(e);
             const now = performance.now();
             lastMoveTime.current = now;
 
@@ -81,7 +98,7 @@ export default function SketchbookCursor() {
             const dist2 = dx * dx + dy * dy; // avoid sqrt
 
             // Min 5px (25 sq), Max 80px (6400 sq)
-            if (dist2 > 25 && dist2 < 6400) {
+            if (dist2 > LAYOUT_TOKENS.cursorMinDist2 && dist2 < LAYOUT_TOKENS.cursorMaxDist2) {
                 const idx = headRef.current;
                 // Reuse or create point object in ring slot
                 if (ring[idx]) {
@@ -96,7 +113,7 @@ export default function SketchbookCursor() {
                 if (headRef.current === tailRef.current) {
                     tailRef.current = (tailRef.current + 1) % MAX_POINTS;
                 }
-            } else if (dist2 >= 6400) {
+            } else if (dist2 >= LAYOUT_TOKENS.cursorMaxDist2) {
                 // Large jump — clear trail, start fresh
                 tailRef.current = headRef.current;
                 const idx = headRef.current;
@@ -114,23 +131,18 @@ export default function SketchbookCursor() {
             wakeLoop();
         };
 
-        const checkHover = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            // Check for links, buttons, or inputs
-            if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
-                target.closest('a') || target.closest('button')) {
-                setIsHoveringLink(true);
-            } else {
-                setIsHoveringLink(false);
-            }
+        // Motion values for visibility — no React state / re-render
+        const setCursorVisible = (visible: boolean) => {
+            isVisibleRef.current = visible;
+            cursorOpacity.set(visible ? 1 : 0);
+            cursorScale.set(visible ? 1 : 0.8);
         };
-
-        const handleMouseLeave = () => setIsVisible(false);
-        const handleMouseEnter = () => setIsVisible(true);
+        const handleMouseLeave = () => setCursorVisible(false);
+        const handleMouseEnter = () => setCursorVisible(true);
 
         // Custom events for explicit control (e.g., from Resume page to hide cursor over interactive PDF)
-        const handleHideCursor = () => setIsVisible(false);
-        const handleShowCursor = () => setIsVisible(true);
+        const handleHideCursor = () => setCursorVisible(false);
+        const handleShowCursor = () => setCursorVisible(true);
 
         let resizeTimer: ReturnType<typeof setTimeout>;
         const handleResize = () => {
@@ -146,11 +158,10 @@ export default function SketchbookCursor() {
                     const ctx = canvasRef.current.getContext('2d');
                     ctx?.scale(dpr, dpr);
                 }
-            }, 100);
+            }, TIMING_TOKENS.resizeDebounce);
         };
 
         window.addEventListener('mousemove', moveCursor, { passive: true });
-        window.addEventListener('mouseover', checkHover, { passive: true });
         // Use single listener on document (captures mouseleave from window too)
         document.addEventListener('mouseleave', handleMouseLeave);
         document.addEventListener('mouseenter', handleMouseEnter);
@@ -166,8 +177,8 @@ export default function SketchbookCursor() {
         const ctx = canvas?.getContext('2d', { alpha: true });
 
         // Trail lifetime in ms — time-based so it's framerate-independent
-        const TRAIL_LIFE_DARK = 60;    // chalk: very short trail
-        const TRAIL_LIFE_LIGHT = 80;   // pencil: short trail
+        const TRAIL_LIFE_DARK = TIMING_TOKENS.trailLifeDark;    // chalk: very short trail
+        const TRAIL_LIFE_LIGHT = TIMING_TOKENS.trailLifeLight;   // pencil: short trail
 
         const renderTrail = () => {
             rafIdRef.current = 0; // mark as not-scheduled until we re-schedule below
@@ -203,11 +214,11 @@ export default function SketchbookCursor() {
                 ctx.lineJoin = 'round';
 
                 if (isDark) {
-                    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = CURSOR_TRAIL.dark.color;
+                    ctx.lineWidth = CURSOR_TRAIL.dark.lineWidth;
                 } else {
-                    ctx.strokeStyle = 'rgba(60,60,60,0.12)';
-                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = CURSOR_TRAIL.light.color;
+                    ctx.lineWidth = CURSOR_TRAIL.light.lineWidth;
                 }
 
                 // Start from oldest live point
@@ -234,7 +245,7 @@ export default function SketchbookCursor() {
             // Self-stop: if trail is empty and cursor idle, let the loop sleep.
             // The next mousemove will call wakeLoop() to restart it.
             const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
-            if (activePoints === 0 && now - lastMoveTime.current > 200) {
+            if (activePoints === 0 && now - lastMoveTime.current > TIMING_TOKENS.cursorIdleThreshold) {
                 // Loop stops — zero CPU while idle
                 return;
             }
@@ -247,7 +258,6 @@ export default function SketchbookCursor() {
 
         return () => {
             window.removeEventListener('mousemove', moveCursor);
-            window.removeEventListener('mouseover', checkHover);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
@@ -271,19 +281,16 @@ export default function SketchbookCursor() {
             {/* Cursor Item (Pencil or Chalk) */}
             <m.div
                 ref={cursorRef}
-                initial={{ opacity: 0 }}
-                animate={{
-                    opacity: isVisible ? 1 : 0,
-                    scale: isVisible ? 1 : 0.8
-                }}
                 style={{
-                    x: mouseX, // Direct mapping
-                    y: mouseY, // Direct mapping
-                    rotate: isHoveringLink ? -20 : 0,
+                    x: mouseX,
+                    y: mouseY,
+                    rotate: cursorRotate,
+                    opacity: cursorOpacity,
+                    scale: cursorScale,
                 }}
                 className="absolute top-0 left-0"
             >
-                <div className="w-8 h-8 md:w-10 md:h-10" style={{ transform: resolvedTheme === 'dark' ? 'translate(-2px, -9px)' : 'translate(0, 0)' }}>
+                <div className="w-[var(--c-cursor-size)] md:w-[var(--c-cursor-size-md)] h-[var(--c-cursor-size)] md:h-[var(--c-cursor-size-md)]" style={resolvedTheme === 'dark' ? CURSOR_TRANSFORM_DARK : CURSOR_TRANSFORM_LIGHT}>
                     {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">

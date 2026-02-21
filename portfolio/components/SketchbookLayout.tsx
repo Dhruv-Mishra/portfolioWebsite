@@ -6,12 +6,40 @@ import {
     CloudDoodle, SmileyDoodle, LightningDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
+import { GRID_PATTERN } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import FeedbackNote, { FeedbackTab } from './FeedbackNote';
 
-const SPIRAL_HOLES = Array.from({ length: 12 }, (_, i) => i);
+/** Hoisted paper noise overlay style — avoids re-allocation per render */
+const PAPER_NOISE_STYLE = {
+    backgroundImage: PAPER_NOISE_SVG,
+    contain: 'strict',
+} as const;
+
+/** Stitched binding — repeating dash pattern that looks like hand-sewn thread */
+const BINDING_STITCH_STYLE = {
+    backgroundImage: `repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 14px,
+        var(--c-binding-stitch) 14px,
+        var(--c-binding-stitch) 20px
+    )`,
+    backgroundPosition: 'center',
+    backgroundSize: '2px 100%',
+    backgroundRepeat: 'repeat-y',
+} as const;
+
+/** Hoisted grid pattern background style — avoids re-allocation per render */
+const GRID_PATTERN_STYLE = {
+    backgroundSize: GRID_PATTERN.backgroundSize,
+    backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
+                      linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
+    contain: 'strict',
+    willChange: 'auto',
+} as const;
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const isMobile = useIsMobile();
@@ -35,16 +63,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 Skip to main content
             </a>
 
-            {/* Spiral Binding - Fixed to Left */}
-            <div className="w-12 md:w-16 h-full bg-spiral-bg border-r border-spiral-border flex flex-col justify-evenly items-center shadow-[inset_-5px_0_15px_rgba(0,0,0,0.1)] z-30 relative shrink-0 transition-colors duration-500">
-                {/* Holes and Rings */}
-                {SPIRAL_HOLES.map((i) => (
-                    <div key={i} className="relative w-full flex justify-center">
-                        <div className="w-8 h-8 rounded-full bg-spiral-ring absolute -left-4 top-1/2 -translate-y-1/2 md:shadow-sm transition-colors duration-500" /> {/* Ring */}
-                        <div className="w-3 h-3 rounded-full bg-spiral-hole shadow-inner transition-colors duration-500" /> {/* Hole */}
-                    </div>
-                ))}
-            </div>
+            {/* Stitched Binding — thin journal spine with CSS stitch pattern */}
+            <div
+                className="w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 z-30 relative transition-colors duration-500"
+                style={BINDING_STITCH_STYLE}
+                aria-hidden="true"
+            />
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">
@@ -55,21 +79,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 {/* Paper Texture Noise Overlay */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1]"
-                    style={{
-                        backgroundImage: PAPER_NOISE_SVG,
-                        contain: 'strict'
-                    }}
+                    style={PAPER_NOISE_STYLE}
                 />
 
                 {/* Background Grid Pattern - Thicker and Larger */}
                 <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
-                    style={{
-                        backgroundSize: '100px 100px',
-                        backgroundImage: `linear-gradient(to right, #9ca3af 1px, transparent 1px),
-                                      linear-gradient(to bottom, #9ca3af 1px, transparent 1px)`,
-                        contain: 'strict',
-                        willChange: 'auto',
-                    }}
+                    style={GRID_PATTERN_STYLE}
                 />
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
@@ -92,8 +107,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     </div>
                 )}
 
-                {/* Crease Shadow near spiral */}
-                <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
+                {/* Crease Shadow near spiral — width derived from --c-spiral-w */}
+                <div className="absolute left-0 top-0 bottom-0 w-[var(--c-crease-w)] md:w-[var(--c-crease-w-md)] bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
 
                 {/* Main Content Container */}
                 <main

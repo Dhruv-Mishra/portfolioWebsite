@@ -4,10 +4,9 @@
   --color-paper: var(--c-paper);
   --color-ink: var(--c-ink);
   --color-grid: var(--c-grid);
-  --color-spiral-bg: var(--c-spiral-bg);
-  --color-spiral-border: var(--c-spiral-border);
-  --color-spiral-ring: var(--c-spiral-ring);
-  --color-spiral-hole: var(--c-spiral-hole);
+  --color-binding-bg: var(--c-binding-bg);
+  --color-binding-border: var(--c-binding-border);
+  --color-binding-stitch: var(--c-binding-stitch);
 }
 
 @layer base {
@@ -15,27 +14,66 @@
     --c-paper: #fdfbf7;
     --c-ink: #2d2a2e;
     --c-grid: #9ca3af;
-    --c-spiral-bg: #f0f0f0;
-    --c-spiral-border: #d1d5db;
-    --c-spiral-ring: #d1d5db;
-    --c-spiral-hole: rgba(31, 41, 55, 0.8);
+    --c-binding-bg: #f0ece4;
+    --c-binding-border: #d1c9b8;
+    --c-binding-stitch: #b8a892;
     --c-heading: #000000;
     --c-highlight: #000000;
-    --mobile-breakpoint: 768px;
+
+    /* ── Size Scale Tokens (medium = default) ── */
+    /* Typography */
+    --t-hero: 3.75rem;
+    --t-hero-md: 6rem;
+    --t-hero-lg: 8rem;
+    --t-h1: 2.25rem;
+    --t-h1-md: 3rem;
+    --t-h2: 1.5rem;
+    --t-h2-md: 1.875rem;
+    --t-body: 0.875rem;
+    --t-body-md: 1rem;
+    --t-small: 0.75rem;
+    --t-label: 0.625rem;
+    --t-nav: 0.875rem;
+    --t-nav-md: 1.25rem;
+    /* Component Sizes */
+    --c-terminal-h: 50vh;
+    --c-terminal-h-md: 400px;
+    --c-terminal-min-h: 300px;
+    --c-terminal-max-w: 48rem;
+    --c-nav-tab-py: 0.75rem;
+    --c-nav-tab-py-md: 1rem;
+    --c-nav-tab-px: 0.75rem;
+    --c-nav-tab-px-md: 1.25rem;
+    --c-nav-tab-pt: 3rem;
+    --c-nav-tab-pt-md: 4rem;
+    --c-binding-w: 0.75rem;
+    --c-binding-w-md: 1rem;
+    --c-crease-w: calc(var(--c-binding-w) * 2);
+    --c-crease-w-md: calc(var(--c-binding-w-md) * 2);
+    --c-chat-w: calc(100vw - 2rem);
+    --c-chat-w-md: 380px;
+    --c-chat-h: 70vh;
+    --c-chat-h-md: 480px;
+    --c-chat-max-w: 380px;
+    --c-fab-size: 3rem;
+    --c-fab-size-md: 3.5rem;
+    --c-corner-fold: 30px;
+    --c-corner-fold-md: 60px;
+    --c-feedback-w: 500px;
+    --c-cursor-size: 2rem;
+    --c-cursor-size-md: 2.5rem;
+    --c-pill-w: 5px;
+    --c-modal-top: 8vh;
+    --c-modal-top-md: 12vh;
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
     --d-slate: rgba(15, 23, 42, 0.3);
-    --d-gray: rgba(17, 24, 39, 0.3);
-    --d-indigo: rgba(49, 46, 129, 0.3);
     --d-emerald: rgba(6, 78, 59, 0.3);
     --d-red: rgba(127, 29, 29, 0.3);
     --d-yellow: rgba(133, 77, 14, 0.3);
-    --d-stone: rgba(28, 25, 23, 0.3);
-    --d-pink: rgba(131, 24, 67, 0.3);
     --d-blue: rgba(30, 58, 138, 0.3);
     --d-purple: rgba(88, 28, 135, 0.3);
-    --d-rose: rgba(136, 19, 55, 0.3);
     --d-stroke-width: 1.2px;
 
     /* Note Colors (Light Mode - Uniform Sticky Yellow) */
@@ -51,8 +89,6 @@
     --note-user-ink: #5d4037;
     --note-ai: #e3f2fd;
     --note-ai-ink: #0d47a1;
-    --note-system: #e3f2fd;
-    --note-system-ink: #0d47a1;
     --tape-color: rgba(194, 163, 120, 0.6);
 
     /* Simple grid pattern for graph paper effect */
@@ -63,10 +99,9 @@
     --c-paper: #1a1a1a;
     --c-ink: #e5e5e5;
     --c-grid: #404040;
-    --c-spiral-bg: #262626;
-    --c-spiral-border: #404040;
-    --c-spiral-ring: #525252;
-    --c-spiral-hole: rgba(229, 231, 235, 0.8);
+    --c-binding-bg: #252220;
+    --c-binding-border: #3d3a36;
+    --c-binding-stitch: #5a554e;
     --c-heading: #ffffff;
     --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;
@@ -74,16 +109,11 @@
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
     --d-amber: rgba(254, 249, 195, 0.4);
     --d-slate: rgba(226, 232, 240, 0.4);
-    --d-gray: rgba(229, 231, 235, 0.4);
-    --d-indigo: rgba(199, 210, 254, 0.4);
     --d-emerald: rgba(209, 250, 229, 0.4);
     --d-red: rgba(254, 202, 202, 0.4);
     --d-yellow: rgba(254, 249, 195, 0.4);
-    --d-stone: rgba(214, 211, 209, 0.4);
-    --d-pink: rgba(251, 207, 232, 0.3);
     --d-blue: rgba(191, 219, 254, 0.3);
     --d-purple: rgba(233, 213, 255, 0.3);
-    --d-rose: rgba(254, 205, 211, 0.3);
 
     /* Note Colors (Dark Mode - Matte Black #222222) */
     --note-yellow: #222222;
@@ -98,12 +128,98 @@
     --note-user-ink: #fde68a;
     --note-ai: #1a2030;
     --note-ai-ink: #93c5fd;
-    --note-system: #1a2030;
-    --note-system-ink: #93c5fd;
     --tape-color: rgba(255, 255, 255, 0.3);
 
     /* Darker grid pattern for blackboard/slate effect */
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* ── Size Scale: Small ── */
+  [data-size="small"] {
+    --t-hero: 3rem;
+    --t-hero-md: 4.5rem;
+    --t-hero-lg: 4.5rem;
+    --t-h1: 1.5rem;
+    --t-h1-md: 1.875rem;
+    --t-h2: 1.25rem;
+    --t-h2-md: 1.5rem;
+    --t-body: 0.8125rem;
+    --t-body-md: 0.875rem;
+    --t-small: 0.6875rem;
+    --t-label: 0.625rem;
+    --t-nav: 0.75rem;
+    --t-nav-md: 0.875rem;
+    --c-terminal-h: 40vh;
+    --c-terminal-h-md: 300px;
+    --c-terminal-min-h: 200px;
+    --c-terminal-max-w: 36rem;
+    --c-nav-tab-py: 0.5rem;
+    --c-nav-tab-py-md: 0.625rem;
+    --c-nav-tab-px: 0.375rem;
+    --c-nav-tab-px-md: 0.625rem;
+    --c-nav-tab-pt: 2.25rem;
+    --c-nav-tab-pt-md: 2.75rem;
+    --c-binding-w: 0.625rem;
+    --c-binding-w-md: 0.75rem;
+    --c-chat-w: calc(100vw - 2rem);
+    --c-chat-w-md: 340px;
+    --c-chat-h: 60vh;
+    --c-chat-h-md: 420px;
+    --c-chat-max-w: 340px;
+    --c-fab-size: 2.5rem;
+    --c-fab-size-md: 2.75rem;
+    --c-corner-fold: 20px;
+    --c-corner-fold-md: 40px;
+    --c-feedback-w: 420px;
+    --c-cursor-size: 1.75rem;
+    --c-cursor-size-md: 2.25rem;
+    --c-pill-w: 4px;
+    --c-modal-top: 10vh;
+    --c-modal-top-md: 14vh;
+  }
+
+  /* ── Size Scale: Large ── */
+  [data-size="large"] {
+    --t-hero: 4.5rem;
+    --t-hero-md: 8rem;
+    --t-hero-lg: 10rem;
+    --t-h1: 3rem;
+    --t-h1-md: 3.75rem;
+    --t-h2: 1.875rem;
+    --t-h2-md: 2.25rem;
+    --t-body: 1rem;
+    --t-body-md: 1.125rem;
+    --t-small: 0.875rem;
+    --t-label: 0.75rem;
+    --t-nav: 1rem;
+    --t-nav-md: 1.5rem;
+    --c-terminal-h: 55vh;
+    --c-terminal-h-md: 500px;
+    --c-terminal-min-h: 350px;
+    --c-terminal-max-w: 56rem;
+    --c-nav-tab-py: 1rem;
+    --c-nav-tab-py-md: 1.25rem;
+    --c-nav-tab-px: 1rem;
+    --c-nav-tab-px-md: 1.75rem;
+    --c-nav-tab-pt: 4rem;
+    --c-nav-tab-pt-md: 5rem;
+    --c-binding-w: 1rem;
+    --c-binding-w-md: 1.25rem;
+    --c-chat-w: calc(100vw - 2rem);
+    --c-chat-w-md: 440px;
+    --c-chat-h: 75vh;
+    --c-chat-h-md: 560px;
+    --c-chat-max-w: 440px;
+    --c-fab-size: 3.5rem;
+    --c-fab-size-md: 4rem;
+    --c-corner-fold: 40px;
+    --c-corner-fold-md: 80px;
+    --c-feedback-w: 580px;
+    --c-cursor-size: 2.5rem;
+    --c-cursor-size-md: 3rem;
+    --c-pill-w: 6px;
+    --c-modal-top: 6vh;
+    --c-modal-top-md: 10vh;
   }
 }
 
@@ -179,12 +295,6 @@ body {
     background-color: var(--note-gray);
   }
 
-  /* Performance: defer rendering of below-fold content */
-  .content-deferred {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 500px;
-  }
-
   /* Hero animations - CSS instead of framer-motion for faster LCP */
   .animate-hero-title {
     animation: heroTitleIn 0.2s ease-out forwards;
@@ -235,10 +345,10 @@ body {
     }
   }
 
-  /* Navigation tab slide-in animation - CSS instead of framer-motion for faster LCP */
-  /* Note: We use 'none' fill mode so framer-motion can take over after animation ends */
+  /* Navigation tab slide-in animation - CSS instead of JS for faster LCP */
+  /* backwards fill: apply from-keyframe during animation-delay so tabs start hidden */
   .animate-nav-tab {
-    animation: navTabIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) none;
+    animation: navTabIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   }
 
   .animate-nav-tab-1 {
@@ -319,14 +429,4 @@ body {
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
-}
-
-/* Animated link hover effect */
-.link-hover {
-  transition: transform 0.15s ease-out, color 0.15s ease-out;
-  display: inline-block;
-}
-
-.link-hover:hover {
-  transform: scale(1.05) rotate(-1deg);
 }

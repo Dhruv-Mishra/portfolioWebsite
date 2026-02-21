@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(npm run test)",
+      "Bash(npm run test:run)",
+      "Bash(npm run test:coverage)",
+      "Bash(npx vitest)",
+      "Bash(npx vitest run)",
+      "Bash(npx eslint)",
+      "Bash(npm install *)",
+      "Bash(npm audit)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cat *)"
+    ],
+    "deny": []
+  }
+}

@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['framer-motion', 'lucide-react', 'next-themes'],
     optimizeCss: true,
   },
+  // Allow LAN devices (e.g. mobile on same WiFi) to access dev server
+  allowedDevOrigins: ['http://192.168.1.38:3000'],
   // Production optimizations
   reactStrictMode: true,
   poweredByHeader: false,

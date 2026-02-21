@@ -4,6 +4,7 @@ import { m } from 'framer-motion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { SHADOW_TOKENS, ANIMATION_TOKENS } from '@/lib/designTokens';
 
 export default function ResumePage() {
     const isMobile = useIsMobile();
@@ -16,12 +17,12 @@ export default function ResumePage() {
                 initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
+                transition={{ duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut }}
                 className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
                     height: '92vh',
                     transform: 'rotate(-1deg)',
-                    boxShadow: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)'
+                    boxShadow: SHADOW_TOKENS.resume
                 }}
             >
                 {/* Tape - Top Left */}

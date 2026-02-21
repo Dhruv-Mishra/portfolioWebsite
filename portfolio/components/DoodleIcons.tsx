@@ -1,7 +1,8 @@
-
+import React from 'react';
 
 // Sketchy Window Control Scribbles (Red, Yellow, Green)
-export const WindowControls = () => (
+export const WindowControls = React.memo(function WindowControls() {
+  return (
     <div className="flex gap-3 relative z-10 pl-2">
         {/* Red Scribble */}
         <div className="w-4 h-4 text-red-400/80 hover:text-red-400 transition-colors cursor-pointer">
@@ -16,7 +17,8 @@ export const WindowControls = () => (
             <svg viewBox="0 0 100 100" fill="currentColor"><path d="M55 5 Q85 15 90 45 Q85 80 55 90 Q25 85 15 55 Q10 25 40 10 Q55 5 55 5 Z" /></svg>
         </div>
     </div>
-);
+  );
+});
 
 // Realistic Thumbpin SVG
 export const Thumbpin = ({ className }: { className?: string }) => (

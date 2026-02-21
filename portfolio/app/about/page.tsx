@@ -128,8 +128,11 @@ export default function About() {
                                             src="/resources/aboutPhoto.webp"
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
+                                            unoptimized
                                             sizes="(max-width: 768px) 96px, 192px"
                                             loading="eager"
+                                            placeholder="blur"
+                                            blurDataURL="data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACQAQCdASoIAAgABUB8JZQAApt4/8AA/tAqOjucrquuceXgAAA="
                                             className="object-cover sepia-[.3]"
                                         />
                                     </div>

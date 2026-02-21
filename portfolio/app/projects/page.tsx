@@ -16,7 +16,19 @@ interface Project {
     label: string;
     imageClassName?: string;
     stack: string[];
+    blurDataURL: string;
 }
+
+// Tiny 8×8 blur placeholders — generated via Sharp, inlined for zero-cost LCP
+const BLUR = {
+    fluentUI: 'data:image/webp;base64,UklGRmoAAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4IBwAAABQAQCdASoIAAgABUB8JZQABDOAAP7uN/bvFwAA',
+    courseEval: 'data:image/webp;base64,UklGRm4AAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4ICAAAAAwAQCdASoIAAgABUB8JZwAA3AA/u7J1N6Mc7LOBAAAAA==',
+    ivc: 'data:image/webp;base64,UklGRmoAAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4IBwAAAAwAQCdASoIAAgABwB8JZwAA3AA/u6WCQLPOBAA',
+    portfolio: 'data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAACQAQCdASoIAAgABUB8JZwAAudZPNwA/t6YoJcA0BAAAA==',
+    recommender: 'data:image/webp;base64,UklGRm4AAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4ICAAAAAwAQCdASoIAAgABUB8JZQAA3AA/uxjjE3P2PxDd6EAAA==',
+    atomVault: 'data:image/webp;base64,UklGRmwAAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4IB4AAAAwAQCdASoIAAgABUB8JZwAA3AA/u4CK3YKb4UQgAA=',
+    bloom: 'data:image/webp;base64,UklGRm4AAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4ICAAAACQAQCdASoIAAgABUB8JZQAAp1HJ1wA/udBgwKu8XAAAA==',
+} as const;
 
 // Static project data — defined outside component to avoid re-creation on every render
 const PROJECTS: Project[] = [
@@ -31,6 +43,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/microsoft/fluentui-android",
             colorClass: "bg-note-yellow",
             image: "/resources/FluentUI.webp",
+            blurDataURL: BLUR.fluentUI,
             icon: Smartphone,
             label: "Android Lib",
             stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"]
@@ -46,6 +59,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator",
             colorClass: "bg-note-orange",
             image: "/resources/CourseEvaluator.webp",
+            blurDataURL: BLUR.courseEval,
             icon: Search,
             label: "Overlap Detector",
             stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"]
@@ -61,6 +75,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC",
             colorClass: "bg-note-green",
             image: "/resources/InstantVitalCheckup.webp",
+            blurDataURL: BLUR.ivc,
             icon: Activity,
             label: "Vitals Scan",
             stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"]
@@ -76,6 +91,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/Dhruv-Mishra/portfolio-website",
             colorClass: "bg-note-blue",
             image: "/resources/PersonalPorfolio.webp",
+            blurDataURL: BLUR.portfolio,
             icon: Globe,
             label: "This Website",
             stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"]
@@ -91,6 +107,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System",
             colorClass: "bg-note-purple",
             image: "/resources/HybridRecommender.webp",
+            blurDataURL: BLUR.recommender,
             icon: Film,
             label: "Movie Night",
             stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"]
@@ -106,6 +123,7 @@ const PROJECTS: Project[] = [
             link: "https://github.com/Dhruv-Mishra/AtomVault",
             colorClass: "bg-note-blue",
             image: "/resources/AtomVault.webp",
+            blurDataURL: BLUR.atomVault,
             icon: Database,
             label: "Bank Vault",
             stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"]
@@ -121,6 +139,7 @@ const PROJECTS: Project[] = [
             link: "https://repository.iiitd.edu.in/jspui/handle/123456789/1613",
             colorClass: "bg-note-gray",
             image: "/resources/BloomFilter.webp",
+            blurDataURL: BLUR.bloom,
             icon: ScrollText,
             label: "Research Paper",
             stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"]
@@ -231,9 +250,12 @@ export default function Projects() {
                                                 src={proj.image}
                                                 alt={`${proj.name} project screenshot`}
                                                 fill
+                                                unoptimized
                                                 sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                loading={i === 0 ? "eager" : "lazy"}
-                                                priority={i === 0}
+                                                loading={i < 3 ? "eager" : "lazy"}
+                                                priority={i < 3}
+                                                placeholder="blur"
+                                                blurDataURL={proj.blurDataURL}
                                                 className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
                                             />
                                         ) : (

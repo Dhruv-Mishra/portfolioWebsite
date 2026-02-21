@@ -4,6 +4,7 @@ import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +45,10 @@ const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, max
 
 export async function POST(request: NextRequest) {
   try {
+    // Block cross-origin requests (prevents LLM credit abuse from other sites)
+    const originError = validateOrigin(request);
+    if (originError) return originError;
+
     // Get client IP for rate limiting
     const ip = getClientIP(request);
 

@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +43,10 @@ interface FeedbackBody {
 
 export async function POST(request: NextRequest) {
   try {
+    // Block cross-origin requests
+    const originError = validateOrigin(request);
+    if (originError) return originError;
+
     const ip = getClientIP(request);
 
     const { limited, retryAfter } = feedbackRateLimiter.check(ip);

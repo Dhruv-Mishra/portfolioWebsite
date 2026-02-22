@@ -277,6 +277,7 @@ const SEND_BUTTON_TAP = { scale: 0.9 } as const;
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
   return (
+  <MotionConfig reducedMotion="never">
   <m.button
     initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
     animate={SUGGESTION_ITEM_ANIMATE}
@@ -300,6 +301,7 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     </span>
     {text}
   </m.button>
+  </MotionConfig>
 ); });
 
 // ─── Single Sticky Note ───

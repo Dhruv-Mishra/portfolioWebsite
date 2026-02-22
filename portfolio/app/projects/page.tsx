@@ -1,5 +1,5 @@
 "use client";
-import { m } from 'framer-motion';
+import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -162,6 +162,7 @@ export default function Projects() {
                 My Projects
             </h1>
 
+            <MotionConfig reducedMotion="never">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
                     const rotate = ROTATIONS[i % 6];
@@ -310,6 +311,7 @@ export default function Projects() {
                     );
                 })}
             </div>
+            </MotionConfig>
         </div>
     );
 }

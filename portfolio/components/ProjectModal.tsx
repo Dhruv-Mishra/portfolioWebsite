@@ -1,6 +1,6 @@
 "use client";
-import { X, ExternalLink, Calendar, Clock, User, Sparkles } from 'lucide-react';
-import { useEffect, useRef, useCallback } from 'react';
+import { X, ExternalLink, Calendar, Clock, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -64,8 +64,18 @@ const FOLD_COLOR_MODAL_STYLE = {
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [isMuted, setIsMuted] = useState(true);
 
     const videoSrc = project ? project.image.replace(/\.webp$/, '.mp4') : '';
+
+    // Toggle mute/unmute — syncs state to the video element directly
+    const toggleMute = useCallback(() => {
+        setIsMuted(prev => {
+            const next = !prev;
+            if (videoRef.current) videoRef.current.muted = next;
+            return next;
+        });
+    }, []);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     // This avoids the race condition where useEffect runs before Modal's
@@ -73,14 +83,16 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
         videoRef.current = node;
         if (node) {
+            node.muted = true; // always start muted for autoplay compliance
             node.play().catch(() => {
                 // Browser may block autoplay — user can interact to play
             });
         }
     }, []);
 
-    // Cleanup: pause + release decode buffer when project changes or modal unmounts
+    // Reset mute state + cleanup decode buffer when project changes or modal unmounts
     useEffect(() => {
+        setIsMuted(true); // reset to muted for each new project
         return () => {
             const video = videoRef.current;
             if (video) {
@@ -142,6 +154,15 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                     preload="none"
                                     className="w-full h-full object-cover"
                                 />
+                                {/* Mute/Unmute toggle */}
+                                <button
+                                    onClick={toggleMute}
+                                    aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                                    data-clickable
+                                    className="absolute bottom-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
+                                >
+                                    {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                                </button>
                             </div>
                         </div>
 

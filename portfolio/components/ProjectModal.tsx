@@ -217,13 +217,13 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         )}
 
                         {/* Tech Stack */}
-                        <div className="mb-6 flex flex-wrap gap-2 relative z-10">
+                        <div className="mb-6 flex flex-wrap gap-1.5 relative z-10">
                             {project.stack.map((tech) => (
                                 <span
                                     key={tech}
-                                    className="px-2.5 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-sm font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm"
+                                    className="px-2.5 py-1 text-xs font-code font-medium text-[var(--c-ink)]/70 border border-[var(--c-ink)]/15 rounded-full"
                                 >
-                                    #{tech}
+                                    {tech}
                                 </span>
                             ))}
                         </div>

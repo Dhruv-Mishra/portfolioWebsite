@@ -110,7 +110,6 @@ const PROJECTS: Project[] = [
             duration: "4 months",
             highlights: [
                 "Contactless measurement of height, weight, BMI, and pulse via single camera",
-                "Designed kiosk for automated patient triage in hospital settings",
                 "Real-time computer vision pipeline using OpenCV and MediaPipe",
             ]
         },
@@ -163,30 +162,6 @@ const PROJECTS: Project[] = [
             ]
         },
         {
-            name: "AtomVault",
-            desc: (
-                <>
-                    A secure, <strong className="text-blue-700 dark:text-blue-400">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">role-based security</span> through a <span className="underline decoration-dotted decoration-gray-400">Java Swing interface</span>.
-                </>
-            ),
-            lang: "Java / MySQL",
-            link: "https://github.com/Dhruv-Mishra/AtomVault",
-            colorClass: "bg-note-blue",
-            image: "/resources/AtomVault.webp",
-            blurDataURL: BLUR.atomVault,
-            icon: Database,
-            label: "Bank Vault",
-            stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"],
-            role: "Full-Stack Developer",
-            year: "2022",
-            duration: "2 months",
-            highlights: [
-                "Full ACID compliance with transaction rollback and recovery",
-                "Role-based access control with admin, teller, and customer roles",
-                "Java Swing GUI with real-time transaction logging",
-            ]
-        },
-        {
             name: "Bloom Filter Research",
             desc: (
                 <>
@@ -208,6 +183,29 @@ const PROJECTS: Project[] = [
                 "Published at IIIT Delhi's DCLL research lab",
                 "300% throughput improvement via relaxed synchronization",
                 "Benchmarked against state-of-the-art concurrent filter implementations",
+            ]
+        },
+        {
+            name: "AtomVault",
+            desc: (
+                <>
+                    A secure, <strong className="text-blue-700 dark:text-blue-400">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">role-based security</span>.
+                </>
+            ),
+            lang: "Java / MySQL",
+            link: "https://github.com/Dhruv-Mishra/AtomVault",
+            colorClass: "bg-note-blue",
+            image: "/resources/AtomVault.webp",
+            blurDataURL: BLUR.atomVault,
+            icon: Database,
+            label: "Bank Vault",
+            stack: ["Java", "MySQL", "JDBC", "OOP", "ACID Compliance"],
+            role: "Full-Stack Developer",
+            year: "2022",
+            duration: "2 months",
+            highlights: [
+                "Full ACID compliance with transaction rollback and recovery",
+                "Role-based access control with admin, teller, and customer roles",
             ]
         },
     ];
@@ -380,8 +378,20 @@ export default function Projects() {
                                 </div>
 
                                 {/* Description */}
-                                <div className="text-lg leading-relaxed flex-1 mb-6 font-medium opacity-90 pl-6 relative z-10">
+                                <div className="text-lg leading-relaxed flex-1 mb-4 font-medium opacity-90 pl-6 relative z-10">
                                     {proj.desc}
+                                </div>
+
+                                {/* Tech Stack Pills */}
+                                <div className="mb-4 flex flex-wrap gap-1.5 pl-6 relative z-10">
+                                    {proj.stack.map((tech) => (
+                                        <span
+                                            key={tech}
+                                            className="px-2.5 py-1 text-xs font-code font-medium text-[var(--c-ink)]/70 border border-[var(--c-ink)]/15 rounded-full"
+                                        >
+                                            {tech}
+                                        </span>
+                                    ))}
                                 </div>
 
                                 {/* Expand hint + Link */}

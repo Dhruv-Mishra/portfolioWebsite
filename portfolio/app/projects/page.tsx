@@ -57,7 +57,7 @@ const PROJECTS: Project[] = [
             icon: Smartphone,
             label: "Android Lib",
             stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"],
-            role: "Software Engineer Intern",
+            role: "Android",
             year: "2024",
             duration: "6 months",
             highlights: [
@@ -81,7 +81,7 @@ const PROJECTS: Project[] = [
             icon: Search,
             label: "Overlap Detector",
             stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"],
-            role: "Solo Developer",
+            role: "Algorithms and Machine Learning",
             year: "2023",
             duration: "2 months",
             highlights: [
@@ -105,7 +105,7 @@ const PROJECTS: Project[] = [
             icon: Activity,
             label: "Vitals Scan",
             stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"],
-            role: "Lead Developer",
+            role: "Computer Vision",
             year: "2023",
             duration: "4 months",
             highlights: [
@@ -128,7 +128,7 @@ const PROJECTS: Project[] = [
             icon: Globe,
             label: "This Website",
             stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"],
-            role: "Designer & Developer",
+            role: "Full Stack",
             year: "2025",
             duration: "Ongoing",
             highlights: [
@@ -152,7 +152,7 @@ const PROJECTS: Project[] = [
             icon: Film,
             label: "Movie Night",
             stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"],
-            role: "ML Engineer",
+            role: "Machine Learning",
             year: "2023",
             duration: "3 months",
             highlights: [
@@ -176,7 +176,7 @@ const PROJECTS: Project[] = [
             icon: ScrollText,
             label: "Research Paper",
             stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"],
-            role: "Research Assistant",
+            role: "Algorithms and Systems",
             year: "2024",
             duration: "8 months",
             highlights: [
@@ -200,7 +200,7 @@ const PROJECTS: Project[] = [
             icon: Database,
             label: "Bank Vault",
             stack: ["Java", "MySQL", "JDBC", "OOP", "ACID Compliance"],
-            role: "Full-Stack Developer",
+            role: "Full Stack",
             year: "2022",
             duration: "2 months",
             highlights: [

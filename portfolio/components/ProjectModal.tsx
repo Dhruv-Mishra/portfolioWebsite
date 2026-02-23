@@ -1,5 +1,5 @@
 "use client";
-import { X, ExternalLink, Calendar, Clock, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { X, ExternalLink, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -171,16 +171,10 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                             </div>
                         </div>
 
-                        {/* ── Meta badges row (role, year, duration) ─────────────── */}
+                        {/* ── Meta badge (project type) ─────────────── */}
                         <div className="flex flex-wrap gap-3 mb-5 relative z-10">
                             <div className="inline-flex items-center gap-1.5 text-sm font-bold opacity-75 bg-white/40 dark:bg-black/20 px-2.5 py-1 rounded-sm">
                                 <User size={14} className="opacity-60" /> {project.role}
-                            </div>
-                            <div className="inline-flex items-center gap-1.5 text-sm font-bold opacity-75 bg-white/40 dark:bg-black/20 px-2.5 py-1 rounded-sm">
-                                <Calendar size={14} className="opacity-60" /> {project.year}
-                            </div>
-                            <div className="inline-flex items-center gap-1.5 text-sm font-bold opacity-75 bg-white/40 dark:bg-black/20 px-2.5 py-1 rounded-sm">
-                                <Clock size={14} className="opacity-60" /> {project.duration}
                             </div>
                         </div>
 

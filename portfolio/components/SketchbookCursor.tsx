@@ -11,7 +11,7 @@ interface TrailPoint { x: number; y: number; t: number }
 const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
 
 // Hoisted cursor inner-div transform styles — avoids object allocation per render
-const CURSOR_TRANSFORM_DARK = { transform: 'translate(-2px, -9px)' } as const;
+const CURSOR_TRANSFORM_DARK = { transform: 'translate(0, 0)' } as const;
 const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
 
 export default function SketchbookCursor() {
@@ -82,8 +82,7 @@ export default function SketchbookCursor() {
             if (hovering !== isHoveringLinkRef.current) {
                 isHoveringLinkRef.current = hovering;
                 // Motion values — no React re-render, no CSS transition conflict
-                cursorRotate.set(hovering ? -20 : 0);
-                cursorHoverRaw.set(hovering ? 1.5 : 1);
+                cursorHoverRaw.set(hovering ? 1.3 : 1);
             }
         };
 
@@ -301,19 +300,16 @@ export default function SketchbookCursor() {
                     {resolvedTheme === 'dark' ? (
                         /* Chalk Stick SVG */
                         <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            {/* Chalk Stick Body */}
-                            <path d="M2.5 9.5 L9.5 2.5 L24.5 17.5 L17.5 24.5 Z" fill="#e5e7eb" />
-                            {/* Chalk Shadings/Texture */}
-                            <path d="M5 8 L8 5 L10 7 L7 10 Z" fill="#d1d5db" />
-                            <path d="M12 15 L15 12 L20 17 L17 20 Z" fill="#f3f4f6" opacity="0.5" />
-
-                            {/* Tip (Jagged/Worn) */}
-                            <path d="M0 7 L3 10 L2.5 9.5 L0 7Z" fill="#e5e7eb" />
-                            <path d="M0 7 L2.5 9.5 L3.5 8.5 L0 7Z" fill="#d1d5db" />
-
+                            {/* Chalk Tip (Worn/Jagged) */}
+                            <path d="M0 0 L2.5 7.5 L7.5 2.5 Z" fill="#d1d5db" />
+                            {/* Main Chalk Body */}
+                            <path d="M2.5 7.5 L7.5 2.5 L28.5 23.5 L23.5 28.5 Z" fill="#e5e7eb" />
+                            {/* Chalk Dust Texture */}
+                            <path d="M5 7 L7 5 L9 7 L7 9 Z" fill="#d1d5db" />
+                            <path d="M10 10 L11 9 L25 23 L24 24 Z" fill="white" fillOpacity="0.4" />
                             {/* Back End */}
-                            <path d="M24.5 17.5 L17.5 24.5 L19.5 26.5 L26.5 19.5 Z" fill="#9ca3af" />
-                            <path d="M19.5 26.5 L26.5 19.5 L26 19 L19 26 Z" fill="#6b7280" />
+                            <path d="M23.5 28.5 L28.5 23.5 L31 26 L26 31 Z" fill="#9ca3af" />
+                            <path d="M26 31 L31 26 L30.5 25.5 L25.5 30.5 Z" fill="#6b7280" />
                         </svg>
                     ) : (
                         /* Pencil SVG */

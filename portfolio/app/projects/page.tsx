@@ -391,12 +391,12 @@ export default function Projects() {
                                         target="_blank"
                                         rel="noreferrer"
                                         aria-label={`View source for ${proj.name}`}
-                                        className="inline-flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
+                                        className="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >
-                                        Source <ExternalLink size={14} />
+                                        Source <ExternalLink size={16} />
                                     </a>
-                                    <div className="flex items-center gap-1 text-xs font-bold text-[var(--c-ink)] opacity-30 group-hover/card:opacity-60 transition-opacity pr-6">
-                                        <Maximize2 size={12} /> Tap to expand
+                                    <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-30 group-hover/card:opacity-60 transition-opacity pr-6">
+                                        <Maximize2 size={14} /> Tap to expand
                                     </div>
                                 </div>
                             </div>

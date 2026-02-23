@@ -1,6 +1,6 @@
 "use client";
 import { X, ExternalLink, Calendar, Clock, User, Sparkles } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -51,15 +51,22 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
     const videoSrc = project ? project.image.replace(/\.webp$/, '.mp4') : '';
 
-    // Auto-play video when a project is selected; pause + release buffer on close
-    useEffect(() => {
-        const video = videoRef.current;
-        if (project && video) {
-            video.play().catch(() => {
-                // Browser may block autoplay — user can click play manually
+    // Callback ref — fires when the <video> DOM node mounts inside the portal.
+    // This avoids the race condition where useEffect runs before Modal's
+    // deferred shouldRender/mounted states have committed the portal to the DOM.
+    const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+        videoRef.current = node;
+        if (node) {
+            node.play().catch(() => {
+                // Browser may block autoplay — user can interact to play
             });
         }
+    }, []);
+
+    // Cleanup: pause + release decode buffer when project changes or modal unmounts
+    useEffect(() => {
         return () => {
+            const video = videoRef.current;
             if (video) {
                 video.pause();
                 video.removeAttribute('src');
@@ -113,7 +120,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
                                 <video
-                                    ref={videoRef}
+                                    ref={setVideoRef}
                                     src={videoSrc}
                                     poster={project.image}
                                     muted

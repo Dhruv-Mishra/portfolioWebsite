@@ -1,9 +1,11 @@
 "use client";
+import { useState, useCallback } from 'react';
 import { m, MotionConfig } from 'framer-motion';
-import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
+import { ExternalLink, Play, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import ProjectModal from '@/components/ProjectModal';
 
 interface Project {
     name: string;
@@ -17,6 +19,10 @@ interface Project {
     imageClassName?: string;
     stack: string[];
     blurDataURL: string;
+    role: string;
+    year: string;
+    duration: string;
+    highlights: string[];
 }
 
 // Tiny 8×8 blur placeholders — generated via Sharp, inlined for zero-cost LCP
@@ -46,7 +52,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.fluentUI,
             icon: Smartphone,
             label: "Android Lib",
-            stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"]
+            stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"],
+            role: "Software Engineer Intern",
+            year: "2024",
+            duration: "6 months",
+            highlights: [
+                "Contributed to the official Microsoft Fluent UI Android library used by 100M+ users",
+                "Implemented custom Fluent design tokens and typography system",
+                "Worked closely with designers on the Microsoft 365 design system",
+            ]
         },
         {
             name: "Course Evaluator",
@@ -62,7 +76,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.courseEval,
             icon: Search,
             label: "Overlap Detector",
-            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"]
+            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"],
+            role: "Solo Developer",
+            year: "2023",
+            duration: "2 months",
+            highlights: [
+                "Built fuzzy matching pipeline to compare course syllabi across universities",
+                "Identifies redundant modules with configurable similarity thresholds",
+                "Helps students avoid retaking equivalent coursework",
+            ]
         },
         {
             name: "IVC - Vital Checkup",
@@ -78,7 +100,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.ivc,
             icon: Activity,
             label: "Vitals Scan",
-            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"]
+            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"],
+            role: "Lead Developer",
+            year: "2023",
+            duration: "4 months",
+            highlights: [
+                "Contactless measurement of height, weight, BMI, and pulse via single camera",
+                "Designed kiosk for automated patient triage in hospital settings",
+                "Real-time computer vision pipeline using OpenCV and MediaPipe",
+            ]
         },
         {
             name: "Personal Portfolio",
@@ -94,7 +124,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.portfolio,
             icon: Globe,
             label: "This Website",
-            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"]
+            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"],
+            role: "Designer & Developer",
+            year: "2025",
+            duration: "Ongoing",
+            highlights: [
+                "Hand-drawn sketchbook aesthetic with custom pencil/chalk cursor",
+                "AI-powered chat and interactive terminal built from scratch",
+                "Georedundant deployment across Oracle Cloud, GCP, and Azure",
+            ]
         },
         {
             name: "Hybrid Recommender",
@@ -110,7 +148,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.recommender,
             icon: Film,
             label: "Movie Night",
-            stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"]
+            stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"],
+            role: "ML Engineer",
+            year: "2023",
+            duration: "3 months",
+            highlights: [
+                "Hybrid engine combining collaborative and content-based filtering",
+                "Age-appropriateness scoring for family-safe recommendations",
+                "Group preference balancing algorithm for multi-user sessions",
+            ]
         },
         {
             name: "AtomVault",
@@ -126,7 +172,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.atomVault,
             icon: Database,
             label: "Bank Vault",
-            stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"]
+            stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"],
+            role: "Full-Stack Developer",
+            year: "2022",
+            duration: "2 months",
+            highlights: [
+                "Full ACID compliance with transaction rollback and recovery",
+                "Role-based access control with admin, teller, and customer roles",
+                "Java Swing GUI with real-time transaction logging",
+            ]
         },
         {
             name: "Bloom Filter Research",
@@ -142,7 +196,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.bloom,
             icon: ScrollText,
             label: "Research Paper",
-            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"]
+            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"],
+            role: "Research Assistant",
+            year: "2024",
+            duration: "8 months",
+            highlights: [
+                "Published at IIIT Delhi's DCLL research lab",
+                "300% throughput improvement via relaxed synchronization",
+                "Benchmarked against state-of-the-art concurrent filter implementations",
+            ]
         },
     ];
 
@@ -154,8 +216,22 @@ const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
 const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
+const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
 
 export default function Projects() {
+    const [selectedProject, setSelectedProject] = useState<number | null>(null);
+
+    const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
+        // Don't open modal if clicking the external link
+        const target = e.target as HTMLElement;
+        if (target.closest('a')) return;
+        setSelectedProject(index);
+    }, []);
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedProject(null);
+    }, []);
+
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
@@ -172,6 +248,8 @@ export default function Projects() {
                     return (
                         <m.div
                             key={proj.name}
+                            data-clickable
+                            onClick={(e) => handleCardClick(e, i)}
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
@@ -184,7 +262,8 @@ export default function Projects() {
                                 ...CARD_SPRING,
                             }}
                             whileHover={CARD_HOVER}
-                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
+                            whileTap={CARD_TAP}
+                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
                             style={CARD_SHADOW}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
@@ -247,18 +326,26 @@ export default function Projects() {
 
                                     <div className="relative w-full h-full overflow-hidden bg-gray-100">
                                         {proj.image ? (
-                                            <Image
-                                                src={proj.image}
-                                                alt={`${proj.name} project screenshot`}
-                                                fill
-                                                unoptimized
-                                                sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                loading={i < 3 ? "eager" : "lazy"}
-                                                priority={i < 3}
-                                                placeholder="blur"
-                                                blurDataURL={proj.blurDataURL}
-                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
-                                            />
+                                            <>
+                                                <Image
+                                                    src={proj.image}
+                                                    alt={`${proj.name} project screenshot`}
+                                                    fill
+                                                    unoptimized
+                                                    sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
+                                                    loading={i < 3 ? "eager" : "lazy"}
+                                                    priority={i < 3}
+                                                    placeholder="blur"
+                                                    blurDataURL={proj.blurDataURL}
+                                                    className={`object-cover sepia-[.2] group-hover/card:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
+                                                />
+                                                {/* Play overlay — signals tap/hover to expand */}
+                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-all duration-300">
+                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/70 dark:bg-white/60 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-all duration-300 shadow-lg backdrop-blur-sm">
+                                                        <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
+                                                    </div>
+                                                </div>
+                                            </>
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300">
                                                 <span className="font-hand font-bold text-lg text-gray-400 opacity-50 uppercase tracking-widest">[ {proj.name} ]</span>
@@ -312,6 +399,12 @@ export default function Projects() {
                 })}
             </div>
             </MotionConfig>
+
+            {/* Project Detail Modal with Video */}
+            <ProjectModal
+                project={selectedProject !== null ? PROJECTS[selectedProject] : null}
+                onClose={handleCloseModal}
+            />
         </div>
     );
 }

@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
-import { m, AnimatePresence } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
+import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
-import { ANIMATION_TOKENS, INTERACTION_TOKENS, TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS, Z_INDEX } from '@/lib/designTokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
@@ -72,8 +73,9 @@ export const FeedbackTab = memo(function FeedbackTab({ onClick }: { onClick: () 
       whileHover={{ scale: 1.15, rotate: -8, transition: { duration: 0.15 } }}
       whileTap={{ scale: 0.9, transition: { duration: 0.1 } }}
       onClick={onClick}
+      style={{ zIndex: Z_INDEX.sidebar }}
       className={cn(
-        "hidden md:flex fixed bottom-20 right-4 md:right-8 z-40",
+        "hidden md:flex fixed bottom-20 right-4 md:right-8",
         "w-10 h-10 md:w-11 md:h-11 rounded-full",
         "bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50",
         "shadow-md hover:shadow-lg",
@@ -104,7 +106,6 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const [state, setState] = useState<FeedbackState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
@@ -167,49 +168,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     onClose();
   }, [state, onClose]);
 
-  // Close on Escape — only attach listener when modal is open
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, handleClose]);
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (!isOpen) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
-  }, [isOpen]);
-
-  // Focus trap within modal
-  useEffect(() => {
-    if (!isOpen) return;
-    const modal = modalRef.current;
-    if (!modal) return;
-    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-    const handleTab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const focusable = Array.from(
-        modal.querySelectorAll<HTMLElement>(focusableSelector)
-      ).filter(el => !el.hasAttribute('disabled'));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', handleTab);
-    return () => document.removeEventListener('keydown', handleTab);
-  }, [isOpen]);
+  // Note: Escape key, body scroll lock, and focus trap are handled by the shared Modal shell.
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -280,43 +239,17 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   }, [handleSubmit]);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <m.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black/20 dark:bg-black/40 z-[60]"
-            aria-hidden="true"
-          />
-
-          {/* Scrollable wrapper — allows the entire modal to scroll within the viewport */}
-          <div
-            className="fixed inset-0 z-[61] overflow-y-auto overscroll-contain"
-            onClick={handleClose}
-          >
-            {/* Modal */}
-            <m.div
-              ref={modalRef}
-              initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
-              animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
-              exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
-              transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-              className={cn(
-                "relative mx-3 md:mx-auto",
-                "md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
-                "my-[var(--c-modal-top)] md:my-[var(--c-modal-top-md)]",
-                "bg-[var(--note-user)] shadow-xl",
-                "font-hand",
-              )}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="feedback-heading"
-              onClick={(e) => e.stopPropagation()}
-            >
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      className={cn(
+        "md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
+        "my-[var(--c-modal-top)] md:my-[var(--c-modal-top-md)]",
+        "bg-[var(--note-user)] shadow-xl",
+        "font-hand",
+      )}
+      ariaLabelledBy="feedback-heading"
+    >
             {/* Tape strip */}
             <TapeStrip size="md" />
 
@@ -506,10 +439,6 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                 background: GRADIENT_TOKENS.foldCorner,
               }}
             />
-          </m.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 }

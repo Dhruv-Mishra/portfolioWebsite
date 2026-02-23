@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
-import { m, useMotionValue } from 'framer-motion';
-import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS } from '@/lib/designTokens';
+import { m, useMotionValue, useSpring } from 'framer-motion';
+import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { useTheme } from 'next-themes';
 
 // Trail point with timestamp for time-based aging (framerate-independent)
@@ -39,6 +39,10 @@ export default function SketchbookCursor() {
     const cursorOpacity = useMotionValue(1);
     const cursorScale = useMotionValue(1);
 
+    // Ring indicator for clickable elements — spring-animated for smooth reveal
+    const cursorRingRaw = useMotionValue(0);
+    const cursorRingScale = useSpring(cursorRingRaw, { stiffness: 400, damping: 25 });
+
     // Ring buffer for trail points — fixed-size, no allocations during render
     const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
     const headRef = useRef(0);  // next write index
@@ -73,13 +77,14 @@ export default function SketchbookCursor() {
             if (e.target === lastHoverTarget) return;
             lastHoverTarget = e.target;
             const target = e.target as HTMLElement;
-            // Check for links, buttons, or inputs
+            // Check for links, buttons, inputs, or elements with data-clickable
             const hovering = !!(target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
-                target.closest('a') || target.closest('button'));
+                target.closest('a') || target.closest('button') || target.closest('[data-clickable]'));
             if (hovering !== isHoveringLinkRef.current) {
                 isHoveringLinkRef.current = hovering;
-                // Motion value — no React re-render, no CSS transition conflict
+                // Motion values — no React re-render, no CSS transition conflict
                 cursorRotate.set(hovering ? -20 : 0);
+                cursorRingRaw.set(hovering ? 1 : 0);
             }
         };
 
@@ -136,6 +141,7 @@ export default function SketchbookCursor() {
             isVisibleRef.current = visible;
             cursorOpacity.set(visible ? 1 : 0);
             cursorScale.set(visible ? 1 : 0.8);
+            if (!visible) cursorRingRaw.set(0);
         };
         const handleMouseLeave = () => setCursorVisible(false);
         const handleMouseEnter = () => setCursorVisible(true);
@@ -271,7 +277,7 @@ export default function SketchbookCursor() {
     if (!mounted) return null;
 
     return (
-        <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden hidden md:block">
+        <div className="pointer-events-none fixed inset-0 overflow-hidden hidden md:block" style={{ zIndex: Z_INDEX.cursor }}>
             {/* Trail Canvas */}
             <canvas
                 ref={canvasRef}
@@ -325,6 +331,30 @@ export default function SketchbookCursor() {
                             <path d="M24 29 L29 24 L33 28 L28 33 Z" fill="#f87171" stroke="#dc2626" strokeWidth="0.5" />
                         </svg>
                     )}
+                </div>
+            </m.div>
+
+            {/* Clickable indicator ring — hand-drawn dashed circle around cursor tip */}
+            <m.div
+                style={{
+                    x: mouseX,
+                    y: mouseY,
+                    scale: cursorRingScale,
+                    opacity: cursorRingScale,
+                }}
+                className="absolute top-0 left-0 pointer-events-none"
+            >
+                <div className="-translate-x-5 -translate-y-5">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle
+                            cx="20" cy="20" r="15"
+                            stroke="var(--c-ink)"
+                            strokeWidth="1.8"
+                            strokeDasharray="4 2 8 3 6 2"
+                            strokeLinecap="round"
+                            opacity="0.45"
+                        />
+                    </svg>
                 </div>
             </m.div>
         </div>

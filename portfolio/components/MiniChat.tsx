@@ -8,7 +8,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
-import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
+import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 
 // Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
 const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
@@ -81,7 +81,7 @@ export default function MiniChat() {
   if (!hasMounted) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20 z-50">
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.nav }}>
       <AnimatePresence>
         {isOpen && !isDismissed && (
           <m.div

@@ -407,6 +407,11 @@ body {
   }
 }
 
+/* Clickable element indicators — suppress native tap highlight on mobile */
+[data-clickable] {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Respect prefers-reduced-motion for accessibility and performance */
 @media (prefers-reduced-motion: reduce) {
   *,

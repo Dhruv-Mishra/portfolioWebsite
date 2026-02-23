@@ -6,7 +6,7 @@ import {
     CloudDoodle, SmileyDoodle, LightningDoodle
 } from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
-import { GRID_PATTERN } from '@/lib/designTokens';
+import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -58,33 +58,34 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             {/* Skip to main content for accessibility */}
             <a
                 href="#main-content"
-                className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded-md"
+                className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded-md"
+                style={{ zIndex: Z_INDEX.skipNav }}
             >
                 Skip to main content
             </a>
 
             {/* Stitched Binding — thin journal spine with CSS stitch pattern */}
             <div
-                className="w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 z-30 relative transition-colors duration-500"
-                style={BINDING_STITCH_STYLE}
+                className="w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 relative transition-colors duration-500"
+                style={{ ...BINDING_STITCH_STYLE, zIndex: Z_INDEX.binding }}
                 aria-hidden="true"
             />
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">
                 {/* Theme Toggle - Bottom Left (Desktop only, mobile uses social bar) */}
-                <div className="hidden md:block absolute bottom-6 left-6 z-50">
+                <div className="hidden md:block absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
                     <ThemeToggle />
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-[1]"
-                    style={PAPER_NOISE_STYLE}
+                <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                    style={{ ...PAPER_NOISE_STYLE, zIndex: Z_INDEX.texture }}
                 />
 
                 {/* Background Grid Pattern - Thicker and Larger */}
-                <div className="absolute inset-0 pointer-events-none opacity-20 z-0"
-                    style={GRID_PATTERN_STYLE}
+                <div className="absolute inset-0 pointer-events-none opacity-20"
+                    style={{ ...GRID_PATTERN_STYLE, zIndex: Z_INDEX.base }}
                 />
 
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
@@ -92,7 +93,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Global Doodles (static — parallax removed for performance) */}
                 {!isMobile && (
                     <div
-                        className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+                        className="absolute inset-0 pointer-events-none overflow-hidden"
+                        style={{ zIndex: Z_INDEX.base }}
                         aria-hidden="true"
                     >
                         <LightbulbDoodle />
@@ -108,13 +110,14 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 )}
 
                 {/* Crease Shadow near spiral — width derived from --c-spiral-w */}
-                <div className="absolute left-0 top-0 bottom-0 w-[var(--c-crease-w)] md:w-[var(--c-crease-w-md)] bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none z-20" />
+                <div className="absolute left-0 top-0 bottom-0 w-[var(--c-crease-w)] md:w-[var(--c-crease-w-md)] bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none" style={{ zIndex: Z_INDEX.crease }} />
 
                 {/* Main Content Container */}
                 <main
                     id="main-content"
                     role="main"
-                    className="relative z-10 w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden ruler-scrollbar"
+                    className="relative w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden ruler-scrollbar"
+                    style={{ zIndex: Z_INDEX.content }}
                     tabIndex={-1}
                 >
                     {children}

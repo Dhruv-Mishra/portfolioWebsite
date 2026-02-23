@@ -20,8 +20,8 @@ export const WindowControls = React.memo(function WindowControls() {
   );
 });
 
-// Realistic Thumbpin SVG
-export const Thumbpin = ({ className }: { className?: string }) => (
+// Realistic Thumbpin SVG — memoized to prevent re-renders when parent updates
+export const Thumbpin = React.memo(function Thumbpin({ className }: { className?: string }) { return (
     <div className={`pointer-events-none ${className}`}>
         <svg width="60" height="60" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* Paper Indent/Shadow */}
@@ -48,4 +48,20 @@ export const Thumbpin = ({ className }: { className?: string }) => (
             </defs>
         </svg>
     </div>
-);
+); });
+
+/** Sketchy paper clip — lightweight inline SVG, mirrored via className scale-x.
+ *  Hoisted as a memo component to prevent re-renders on parent updates. */
+export const PaperClip = React.memo(function PaperClip({ className, style }: { className?: string; style?: React.CSSProperties }) {
+    return (
+        <svg className={className} style={style} width="24" height="44" viewBox="0 0 20 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+                d="M10 1 C4 1 2 4 2 8 L2 28 C2 32 5 35 10 35 C15 35 18 32 18 28 L18 10 C18 7 16 5 13 5 C10 5 8 7 8 10 L8 26"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+});

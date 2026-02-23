@@ -3,7 +3,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
-import SketchbookCursor from "@/components/SketchbookCursor";
+import SketchbookCursorLoader from "@/components/SketchbookCursorLoader";
 import { TerminalProvider } from "@/context/TerminalContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import MiniChat from "@/components/MiniChat";
@@ -138,7 +138,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <TerminalProvider>
-              <SketchbookCursor />
+              <SketchbookCursorLoader />
               <SketchbookLayout>
                 <Navigation />
                 {children}

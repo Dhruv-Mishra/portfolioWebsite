@@ -4,7 +4,7 @@ import * as React from "react";
 import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { SOCIAL_COLORS, SOCIAL_INTERACTION } from '@/lib/designTokens';
+import { SOCIAL_COLORS, SOCIAL_INTERACTION, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 
 const SOCIALS = [
@@ -120,9 +120,10 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
         <>
             {/* Desktop: Vertical sidebar on right */}
             <div
-                className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-40 flex-col gap-6"
+                className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 flex-col gap-6"
                 role="complementary"
                 aria-label="Social media links"
+                style={{ zIndex: Z_INDEX.sidebar }}
             >
                 {SOCIALS.map((social, i) => (
                     <SocialLink key={social.name} social={social} index={i} />
@@ -132,9 +133,10 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
 
             {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 z-40 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
+                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
                 role="complementary"
                 aria-label="Social media links"
+                style={{ zIndex: Z_INDEX.sidebar }}
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton />

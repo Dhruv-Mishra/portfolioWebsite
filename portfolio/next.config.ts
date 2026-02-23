@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
+  // Disable Next.js compression — nginx/Cloudflare handles gzip/brotli upstream,
+  // avoiding double-compression CPU overhead on resource-constrained VMs.
+  compress: false,
   images: {
     // Enable Next.js image optimization (sharp) for responsive srcset, AVIF, lazy placeholders
     // Removed `unoptimized: true` — build-time optimization is viable even on 1-vCPU

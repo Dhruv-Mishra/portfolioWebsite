@@ -1,9 +1,15 @@
 "use client";
+import { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
-import { ExternalLink, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
+import { ExternalLink, Play, Maximize2, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PaperClip } from '@/components/DoodleIcons';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+
+// Dynamic import — ProjectModal (240 LOC, video playback) only renders on user click.
+const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
 
 interface Project {
     name: string;
@@ -17,6 +23,10 @@ interface Project {
     imageClassName?: string;
     stack: string[];
     blurDataURL: string;
+    role: string;
+    year: string;
+    duration: string;
+    highlights: string[];
 }
 
 // Tiny 8×8 blur placeholders — generated via Sharp, inlined for zero-cost LCP
@@ -46,7 +56,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.fluentUI,
             icon: Smartphone,
             label: "Android Lib",
-            stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"]
+            stack: ["Kotlin", "Java", "Android SDK", "Design Systems", "Clean Architecture", "API Design"],
+            role: "Android",
+            year: "2024",
+            duration: "6 months",
+            highlights: [
+                "Contributed to the official Microsoft Fluent UI Android library used by 100M+ users",
+                "Implemented custom Fluent design tokens and typography system",
+                "Worked closely with designers on the Microsoft 365 design system",
+            ]
         },
         {
             name: "Course Evaluator",
@@ -62,7 +80,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.courseEval,
             icon: Search,
             label: "Overlap Detector",
-            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"]
+            stack: ["Python", "Fuzzy Logic", "NLP", "Data Analysis", "Algorithm Design"],
+            role: "Algorithms and Machine Learning",
+            year: "2023",
+            duration: "2 months",
+            highlights: [
+                "Built fuzzy matching pipeline to compare course syllabi across universities",
+                "Identifies redundant modules with configurable similarity thresholds",
+                "Helps students avoid retaking equivalent coursework",
+            ]
         },
         {
             name: "IVC - Vital Checkup",
@@ -78,7 +104,14 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.ivc,
             icon: Activity,
             label: "Vitals Scan",
-            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"]
+            stack: ["Python", "OpenCV", "Computer Vision", "HealthTech", "Real-time Processing"],
+            role: "Computer Vision",
+            year: "2023",
+            duration: "4 months",
+            highlights: [
+                "Contactless measurement of height, weight, BMI, and pulse via single camera",
+                "Real-time computer vision pipeline using OpenCV and MediaPipe",
+            ]
         },
         {
             name: "Personal Portfolio",
@@ -94,7 +127,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.portfolio,
             icon: Globe,
             label: "This Website",
-            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"]
+            stack: ["Next.js", "TypeScript", "TailwindCSS", "Framer Motion", "Performance Optimization"],
+            role: "Full Stack",
+            year: "2025",
+            duration: "Ongoing",
+            highlights: [
+                "Hand-drawn sketchbook aesthetic with custom pencil/chalk cursor",
+                "AI-powered chat and interactive terminal built from scratch",
+                "Georedundant deployment across Oracle Cloud, GCP, and Azure",
+            ]
         },
         {
             name: "Hybrid Recommender",
@@ -110,23 +151,15 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.recommender,
             icon: Film,
             label: "Movie Night",
-            stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"]
-        },
-        {
-            name: "AtomVault",
-            desc: (
-                <>
-                    A secure, <strong className="text-blue-700 dark:text-blue-400">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">role-based security</span> through a <span className="underline decoration-dotted decoration-gray-400">Java Swing interface</span>.
-                </>
-            ),
-            lang: "Java / MySQL",
-            link: "https://github.com/Dhruv-Mishra/AtomVault",
-            colorClass: "bg-note-blue",
-            image: "/resources/AtomVault.webp",
-            blurDataURL: BLUR.atomVault,
-            icon: Database,
-            label: "Bank Vault",
-            stack: ["Java", "MySQL", "JDBC", "Swing", "OOP", "ACID Compliance"]
+            stack: ["Python", "Scikit-Learn", "Collaborative Filtering", "ML System Design"],
+            role: "Machine Learning",
+            year: "2023",
+            duration: "3 months",
+            highlights: [
+                "Hybrid engine combining collaborative and content-based filtering",
+                "Age-appropriateness scoring for family-safe recommendations",
+                "Group preference balancing algorithm for multi-user sessions",
+            ]
         },
         {
             name: "Bloom Filter Research",
@@ -142,7 +175,38 @@ const PROJECTS: Project[] = [
             blurDataURL: BLUR.bloom,
             icon: ScrollText,
             label: "Research Paper",
-            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"]
+            stack: ["C++", "Bloom Filters", "Concurrency", "Optimization", "Data Structures"],
+            role: "Algorithms and Systems",
+            year: "2024",
+            duration: "8 months",
+            highlights: [
+                "Published at IIIT Delhi's DCLL research lab",
+                "300% throughput improvement via relaxed synchronization",
+                "Benchmarked against state-of-the-art concurrent filter implementations",
+            ]
+        },
+        {
+            name: "AtomVault",
+            desc: (
+                <>
+                    A secure, <strong className="text-blue-700 dark:text-blue-400">ACID-compliant</strong> banking database built for <span className="underline decoration-wavy decoration-green-400">high-reliability transactions</span>. Features <span className="italic">multi-user architecture</span> with strict <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">role-based security</span>.
+                </>
+            ),
+            lang: "Java / MySQL",
+            link: "https://github.com/Dhruv-Mishra/AtomVault",
+            colorClass: "bg-note-blue",
+            image: "/resources/AtomVault.webp",
+            blurDataURL: BLUR.atomVault,
+            icon: Database,
+            label: "Bank Vault",
+            stack: ["Java", "MySQL", "JDBC", "OOP", "ACID Compliance"],
+            role: "Full Stack",
+            year: "2022",
+            duration: "2 months",
+            highlights: [
+                "Full ACID compliance with transaction rollback and recovery",
+                "Role-based access control with admin, teller, and customer roles",
+            ]
         },
     ];
 
@@ -154,24 +218,66 @@ const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
 const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
+const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
+
+/** Hoisted — avoids re-allocation per render for all 7 cards */
+const CARD_CLIP_STYLE = {
+    clipPath: `polygon(
+        0% 0%,
+        100% 0%,
+        100% calc(100% - ${FOLD_SIZE}px),
+        calc(100% - ${FOLD_SIZE}px) 100%,
+        0% 100%
+    )`,
+} as const;
+
+/** Fold corner styles hoisted — shared across all cards, avoids per-card allocation */
+const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: GRADIENT_TOKENS.foldCorner } as const;
+const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, opacity: 0.85, clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
+
+/** Pre-computed per-card styles — deterministic (index-based), avoids ~28 object allocations per render */
+const CLIP_ROTATIONS = [-8, -15, -5, -18, -10, -13, -7];
+const CLIP_OFFSETS = [1, 3, 0, 4, 2, 5, 1];
+const CARD_STYLES = PROJECTS.map((_, i) => {
+    const photoRotate = PHOTO_ROTATIONS[i % 6];
+    const tapX = TAPE_POSITIONS[i % 6];
+    return {
+        tape: { left: `${tapX}%`, transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`, ...TAPE_STYLE_DECOR } as const,
+        photo: { transform: `rotate(${photoRotate}deg)` } as const,
+        clipClass: `absolute -top-4 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm` as const,
+        clipStyle: { left: `${CLIP_OFFSETS[i % 7]}px`, transform: `rotate(${CLIP_ROTATIONS[i % 7]}deg)` } as const,
+    };
+});
 
 export default function Projects() {
+    const [selectedProject, setSelectedProject] = useState<number | null>(null);
+
+    const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
+        // Don't open modal if clicking the external link
+        const target = e.target as HTMLElement;
+        if (target.closest('a')) return;
+        setSelectedProject(index);
+    }, []);
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedProject(null);
+    }, []);
+
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
             <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
                 My Projects
             </h1>
 
-            <MotionConfig reducedMotion="never">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
                     const rotate = ROTATIONS[i % 6];
-                    const photoRotate = PHOTO_ROTATIONS[i % 6];
-                    const tapX = TAPE_POSITIONS[i % 6];
+                    const styles = CARD_STYLES[i];
 
                     return (
                         <m.div
                             key={proj.name}
+                            className="pt-5"
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
@@ -183,82 +289,73 @@ export default function Projects() {
                                 delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
                                 ...CARD_SPRING,
                             }}
+                        >
+                        {/* Inner hover/tap layer — always animates regardless of reduced-motion */}
+                        <MotionConfig reducedMotion="never">
+                        <m.div
+                            data-clickable
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => handleCardClick(e, i)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProject(i); } }}
+                            aria-label={`View details for ${proj.name}`}
                             whileHover={CARD_HOVER}
-                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand"
+                            whileTap={CARD_TAP}
+                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
                             style={CARD_SHADOW}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
                                 className="absolute -top-4 w-32 h-10 shadow-sm z-20"
-                                style={{
-                                    left: `${tapX}%`,
-                                    transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`,
-                                    ...TAPE_STYLE_DECOR,
-                                }}
+                                style={styles.tape}
                             />
 
                             {/* The Fold Triangle (Outside Clipped Area) */}
                             <div
                                 className="absolute bottom-0 right-0 pointer-events-none z-10"
-                                style={{
-                                    width: FOLD_SIZE,
-                                    height: FOLD_SIZE,
-                                    background: GRADIENT_TOKENS.foldCorner,
-                                }}
+                                style={FOLD_GRADIENT_STYLE}
                             />
                             <div
                                 className={`absolute bottom-0 right-0 pointer-events-none z-10 ${proj.colorClass}`}
-                                style={{
-                                    width: FOLD_SIZE,
-                                    height: FOLD_SIZE,
-                                    opacity: 0.85,
-                                    clipPath: 'polygon(0 0, 0 100%, 100% 0)'
-                                }}
+                                style={FOLD_COLOR_STYLE}
                             />
 
                             {/* Inner Clipped Container */}
                             <div
-                                className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
-                                style={{
-                                    clipPath: `polygon(
-                                    0% 0%,
-                                    100% 0%,
-                                    100% calc(100% - ${FOLD_SIZE}px),
-                                    calc(100% - ${FOLD_SIZE}px) 100%,
-                                    0% 100%
-                                )`
-                                }}
+                                className={`content-defer p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
+                                style={CARD_CLIP_STYLE}
                             >
 
 
                                 {/* Polaroid Style Photo */}
                                 <div
                                     className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-sm border border-gray-200 dark:border-gray-300 mb-6 relative group z-10 mx-auto max-w-[95%]"
-                                    style={{ transform: `rotate(${photoRotate}deg)` }}
+                                    style={styles.photo}
                                 >
-                                    {/* Photo Tape */}
-                                    <div
-                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
-                                        style={{
-                                            transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`,
-                                            ...TAPE_STYLE_DECOR,
-                                        }}
-                                    />
+                                    {/* Paper clip on left corner */}
+                                    <PaperClip className={styles.clipClass} style={styles.clipStyle} />
 
                                     <div className="relative w-full h-full overflow-hidden bg-gray-100">
                                         {proj.image ? (
-                                            <Image
-                                                src={proj.image}
-                                                alt={`${proj.name} project screenshot`}
-                                                fill
-                                                unoptimized
-                                                sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                loading={i < 3 ? "eager" : "lazy"}
-                                                priority={i < 3}
-                                                placeholder="blur"
-                                                blurDataURL={proj.blurDataURL}
-                                                className={`object-cover sepia-[.2] group-hover:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
-                                            />
+                                            <>
+                                                <Image
+                                                    src={proj.image}
+                                                    alt={`${proj.name} project screenshot`}
+                                                    fill
+                                                    sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
+                                                    loading={i < 3 ? "eager" : "lazy"}
+                                                    priority={i < 3}
+                                                    placeholder="blur"
+                                                    blurDataURL={proj.blurDataURL}
+                                                    className={`object-cover sepia-[.2] group-hover/card:sepia-0 ${proj.imageClassName || ''}`}
+                                                />
+                                                {/* Play overlay — signals tap/hover to expand */}
+                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-[background-color] duration-300">
+                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-lg">
+                                                        <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
+                                                    </div>
+                                                </div>
+                                            </>
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300">
                                                 <span className="font-hand font-bold text-lg text-gray-400 opacity-50 uppercase tracking-widest">[ {proj.name} ]</span>
@@ -281,37 +378,50 @@ export default function Projects() {
                                 </div>
 
                                 {/* Description */}
-                                <div className="text-lg leading-relaxed flex-1 mb-6 font-medium opacity-90 pl-6 relative z-10">
+                                <div className="text-lg leading-relaxed flex-1 mb-4 font-medium opacity-90 pl-6 relative z-10">
                                     {proj.desc}
                                 </div>
 
-                                {/* Stack Tags */}
-                                <div className="pl-6 mb-6 flex flex-wrap gap-2 relative z-10">
+                                {/* Tech Stack Pills */}
+                                <div className="mb-4 flex flex-wrap gap-1.5 pl-6 relative z-10">
                                     {proj.stack.map((tech) => (
-                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm scale-95 hover:scale-105 transition-transform duration-300 ease-[cubic-bezier(0.22,1.8,0.50,1)] cursor-default">
-                                            #{tech}
+                                        <span
+                                            key={tech}
+                                            className="px-2.5 py-1 text-xs font-code font-medium text-[var(--c-ink)]/70 border border-[var(--c-ink)]/15 rounded-full"
+                                        >
+                                            {tech}
                                         </span>
                                     ))}
                                 </div>
 
-                                {/* Link - Handwritten Button */}
-                                <div className="pl-6 pb-2 relative z-10">
+                                {/* Expand hint + Link */}
+                                <div className="pl-6 pb-2 flex items-center justify-between relative z-10">
                                     <a
                                         href={proj.link}
                                         target="_blank"
                                         rel="noreferrer"
-                                        aria-label={`View details for ${proj.name}`}
-                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors hover:-rotate-2 shadow-sm font-bold bg-white/30 dark:bg-black/20"
+                                        aria-label={`View source for ${proj.name}`}
+                                        className="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >
-                                        Check it out! <ExternalLink size={18} />
+                                        Source <ExternalLink size={16} />
                                     </a>
+                                    <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-30 group-hover/card:opacity-60 transition-opacity pr-6">
+                                        <Maximize2 size={14} /> Tap to expand
+                                    </div>
                                 </div>
                             </div>
+                        </m.div>
+                        </MotionConfig>
                         </m.div>
                     );
                 })}
             </div>
-            </MotionConfig>
+
+            {/* Project Detail Modal with Video */}
+            <ProjectModal
+                project={selectedProject !== null ? PROJECTS[selectedProject] : null}
+                onClose={handleCloseModal}
+            />
         </div>
     );
 }

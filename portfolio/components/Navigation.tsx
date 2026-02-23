@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { NAV_TAB_COLORS, NAV_POSITIONS } from '@/lib/designTokens';
+import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
 const LINKS = [
     { name: 'Home', href: '/' },
@@ -27,8 +27,9 @@ export default function Navigation() {
 
     return (
         <nav
-            className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 z-50 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
+            className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
             aria-label="Main navigation"
+            style={{ zIndex: Z_INDEX.nav }}
         >
             {LINKS.map((item, i) => (
                 <NavTab

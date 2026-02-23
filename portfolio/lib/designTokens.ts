@@ -48,7 +48,7 @@ export const ANIMATION_TOKENS = {
   spring: {
     snappy: { stiffness: 400, damping: 25 },
     default: { stiffness: 300, damping: 20 },
-    gentle: { stiffness: 300, damping: 25 },
+    gentle: { stiffness: 300, damping: 30 },
     bouncy: { stiffness: 400, damping: 15 },
   },
   easing: {
@@ -201,6 +201,50 @@ export const SOCIAL_COLORS = {
 export const CURSOR_TRAIL = {
   dark: { color: 'rgba(255,255,255,0.6)', lineWidth: 4 },
   light: { color: 'rgba(60,60,60,0.12)', lineWidth: 2 },
+} as const;
+
+/**
+ * Z-Index Layer Stack — single source of truth for all global z-index values.
+ *
+ * Only global/fixed-position elements are tracked here. Local z-indexes
+ * within a component's stacking context (e.g., z-10 between siblings inside
+ * a card) use regular Tailwind classes and are NOT centralized.
+ *
+ * Layer hierarchy (lowest → highest):
+ * ┌─────────────────────────────────────────────────┐
+ * │  cursor        9999   Custom pencil/chalk        │
+ * │  skipNav        200   Skip-to-content (focused)  │
+ * │  modal          100   Full-screen modals (portal) │
+ * │  nav             50   Navigation, MiniChat, Theme │
+ * │  sidebar         40   SocialSidebar, FeedbackTab  │
+ * │  binding         30   Stitched binding spine       │
+ * │  crease          20   Crease / fold shadows        │
+ * │  content         10   Main scrollable content      │
+ * │  texture          1   Paper noise overlay          │
+ * │  base             0   Grid pattern, doodles        │
+ * └─────────────────────────────────────────────────┘
+ */
+export const Z_INDEX = {
+  /** Background grid pattern and doodle illustrations */
+  base: 0,
+  /** Paper noise texture overlay */
+  texture: 1,
+  /** Main scrollable content area */
+  content: 10,
+  /** Crease shadow near the binding spine */
+  crease: 20,
+  /** Stitched binding sidebar spine */
+  binding: 30,
+  /** Social sidebar links, Feedback trigger button */
+  sidebar: 40,
+  /** Navigation header, MiniChat FAB, Theme toggle */
+  nav: 50,
+  /** Full-screen modals — portaled to document.body (project detail, feedback, etc.) */
+  modal: 100,
+  /** Skip-to-main-content link when focused */
+  skipNav: 200,
+  /** Custom cursor — always topmost */
+  cursor: 9999,
 } as const;
 
 /** Shadow tokens */

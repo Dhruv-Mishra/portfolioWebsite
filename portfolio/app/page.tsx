@@ -1,7 +1,8 @@
 "use client";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
-import { Coffee } from "lucide-react";
+import { Coffee, MessageCircle } from "lucide-react";
 import { APP_VERSION } from "@/lib/constants";
 
 // Lazy load Terminal to reduce initial bundle size
@@ -69,6 +70,45 @@ export default function Home() {
       <div className="mt-8 text-sm font-mono text-gray-400">
         Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">projects</span> to view my work...
       </div>
+
+      {/* Passed Note — Chat CTA */}
+      <Link
+        href="/chat"
+        className="group mt-6 relative inline-block animate-hero-subtitle"
+        aria-label="Chat with AI Dhruv"
+      >
+        {/* Folded note body */}
+        <div className="relative bg-[#fff9c4] dark:bg-[#fef9c3]/90 px-5 py-3 shadow-md rotate-2 group-hover:rotate-0 transition-transform duration-300 border border-yellow-300/40">
+          {/* Tape strip on top */}
+          <div
+            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10"
+            style={{
+              background: 'linear-gradient(135deg, rgba(200,200,180,0.5), rgba(220,220,200,0.35))',
+              backdropFilter: 'blur(1px)',
+              border: '1px solid rgba(180,180,160,0.2)',
+            }}
+          />
+          {/* Ruled lines (decorative) */}
+          <div className="absolute inset-x-4 top-[52%] h-px bg-blue-300/20 pointer-events-none" />
+          <div className="absolute inset-x-4 top-[76%] h-px bg-blue-300/20 pointer-events-none" />
+          {/* Content */}
+          <div className="flex items-center gap-2.5">
+            <MessageCircle className="w-5 h-5 text-indigo-500/70 group-hover:text-indigo-600 transition-colors shrink-0" strokeWidth={1.8} />
+            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-800 group-hover:text-indigo-700 transition-colors">
+              Pass me a note
+            </span>
+            <span className="text-indigo-400 group-hover:translate-x-1 transition-transform duration-200">→</span>
+          </div>
+          {/* Dog-ear fold */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
+            style={{
+              background: 'linear-gradient(135deg, #fff9c4 45%, #e5e1a8 50%, #d4d09a 100%)',
+              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
+            }}
+          />
+        </div>
+      </Link>
     </div>
   );
 }

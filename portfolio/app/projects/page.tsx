@@ -275,7 +275,7 @@ export default function Projects() {
                     return (
                         <m.div
                             key={proj.name}
-                            className="content-defer"
+                            className="pt-5"
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
@@ -320,7 +320,7 @@ export default function Projects() {
 
                             {/* Inner Clipped Container */}
                             <div
-                                className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
+                                className={`content-defer p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
                                 style={CARD_CLIP_STYLE}
                             >
 

@@ -107,34 +107,34 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         <Modal
             isOpen={project !== null}
             onClose={onClose}
-            className={cn(
-                "w-[95vw] max-w-3xl my-6 md:my-12",
-                project?.colorClass,
-                "shadow-lg font-hand",
-            )}
-            style={FOLD_CARD_STYLE}
+            className="w-[95vw] max-w-3xl my-6 md:my-12 font-hand"
             ariaLabel={project ? `${project.name} project details` : undefined}
             backdropClassName="bg-black/60"
         >
             {project && (
-                <>
-                    {/* Close Button */}
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/40 hover:bg-white/90 dark:hover:bg-black/60 transition-colors shadow-md"
-                        aria-label="Close project details"
-                        data-clickable
-                    >
-                        <X size={20} />
-                    </button>
-
-                    {/* Tape decoration */}
+                <div className="relative pt-5">
+                    {/* Tape decoration — lives in the top padding, outside the clip path */}
                     <div
-                        className="absolute -top-4 left-1/2 -translate-x-1/2 w-32 h-10 shadow-sm z-20"
+                        className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-10 shadow-sm z-20"
                         style={TAPE_STYLE_DECOR}
                     />
 
-                    <div className="p-6 md:p-8 pt-10">
+                    {/* Clipped card with background color + fold corner */}
+                    <div
+                        className={cn("relative shadow-lg", project.colorClass)}
+                        style={FOLD_CARD_STYLE}
+                    >
+                        {/* Close Button */}
+                        <button
+                            onClick={onClose}
+                            className="absolute top-4 right-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/40 hover:bg-white/90 dark:hover:bg-black/60 transition-colors shadow-md"
+                            aria-label="Close project details"
+                            data-clickable
+                        >
+                            <X size={20} />
+                        </button>
+
+                    <div className="p-6 md:p-8 pt-8">
                         {/* ── Video Player ───────────────────────────────────────── */}
                         <div className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-md border border-gray-200 dark:border-gray-300 mb-6 relative">
                             {/* Photo tape on video frame */}
@@ -257,7 +257,8 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         className={`absolute bottom-0 right-0 pointer-events-none z-10 ${project.colorClass}`}
                         style={FOLD_COLOR_MODAL_STYLE}
                     />
-                </>
+                    </div>
+                </div>
             )}
         </Modal>
     );

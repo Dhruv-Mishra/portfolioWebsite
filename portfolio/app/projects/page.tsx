@@ -2,7 +2,7 @@
 import { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
-import { ExternalLink, Play, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
+import { ExternalLink, Play, Maximize2, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
@@ -384,26 +384,20 @@ export default function Projects() {
                                     {proj.desc}
                                 </div>
 
-                                {/* Stack Tags */}
-                                <div className="pl-6 mb-6 flex flex-wrap gap-2 relative z-10">
-                                    {proj.stack.map((tech) => (
-                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm cursor-default">
-                                            #{tech}
-                                        </span>
-                                    ))}
-                                </div>
-
-                                {/* Link - Handwritten Button */}
-                                <div className="pl-6 pb-2 relative z-10">
+                                {/* Expand hint + Link */}
+                                <div className="pl-6 pb-2 flex items-center justify-between relative z-10">
                                     <a
                                         href={proj.link}
                                         target="_blank"
                                         rel="noreferrer"
-                                        aria-label={`View details for ${proj.name}`}
-                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors hover:-rotate-2 shadow-sm font-bold bg-white/30 dark:bg-black/20"
+                                        aria-label={`View source for ${proj.name}`}
+                                        className="inline-flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >
-                                        Check it out! <ExternalLink size={18} />
+                                        Source <ExternalLink size={14} />
                                     </a>
+                                    <div className="flex items-center gap-1 text-xs font-bold text-[var(--c-ink)] opacity-30 group-hover/card:opacity-60 transition-opacity pr-6">
+                                        <Maximize2 size={12} /> Tap to expand
+                                    </div>
                                 </div>
                             </div>
                         </m.div>

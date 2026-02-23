@@ -41,6 +41,9 @@ const FOLD_CLIP_PATH = `polygon(
     0% 100%
 )` as const;
 
+/** Hoisted — avoids object re-allocation per render */
+const FOLD_CARD_STYLE = { clipPath: FOLD_CLIP_PATH } as const;
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
@@ -48,13 +51,21 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
     const videoSrc = project ? project.image.replace(/\.webp$/, '.mp4') : '';
 
-    // Auto-play video when a project is selected
+    // Auto-play video when a project is selected; pause + release buffer on close
     useEffect(() => {
-        if (project) {
-            videoRef.current?.play().catch(() => {
+        const video = videoRef.current;
+        if (project && video) {
+            video.play().catch(() => {
                 // Browser may block autoplay — user can click play manually
             });
         }
+        return () => {
+            if (video) {
+                video.pause();
+                video.removeAttribute('src');
+                video.load(); // release decode buffer
+            }
+        };
     }, [project]);
 
     return (
@@ -64,11 +75,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             className={cn(
                 "w-[95vw] max-w-3xl my-6 md:my-12",
                 project?.colorClass,
-                "shadow-2xl font-hand",
+                "shadow-lg font-hand",
             )}
-            style={{ clipPath: FOLD_CLIP_PATH }}
+            style={FOLD_CARD_STYLE}
             ariaLabel={project ? `${project.name} project details` : undefined}
-            backdropClassName="bg-black/60 backdrop-blur-sm"
+            backdropClassName="bg-black/60"
         >
             {project && (
                 <>
@@ -93,7 +104,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         <div className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-md border border-gray-200 dark:border-gray-300 mb-6 relative">
                             {/* Photo tape on video frame */}
                             <div
-                                className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
+                                className="absolute -top-3 left-1/2 w-20 h-6 shadow-sm z-20"
                                 style={{
                                     transform: 'translateX(-50%)',
                                     ...TAPE_STYLE_DECOR,
@@ -105,12 +116,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                     ref={videoRef}
                                     src={videoSrc}
                                     poster={project.image}
-                                    autoPlay
                                     muted
                                     loop
                                     playsInline
                                     controls
-                                    preload="auto"
+                                    preload="none"
                                     className="w-full h-full object-cover"
                                 />
                             </div>

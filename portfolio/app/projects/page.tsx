@@ -238,7 +238,6 @@ export default function Projects() {
                 My Projects
             </h1>
 
-            <MotionConfig reducedMotion="never">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
                     const rotate = ROTATIONS[i % 6];
@@ -248,8 +247,6 @@ export default function Projects() {
                     return (
                         <m.div
                             key={proj.name}
-                            data-clickable
-                            onClick={(e) => handleCardClick(e, i)}
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
@@ -261,6 +258,12 @@ export default function Projects() {
                                 delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
                                 ...CARD_SPRING,
                             }}
+                        >
+                        {/* Inner hover/tap layer — always animates regardless of reduced-motion */}
+                        <MotionConfig reducedMotion="never">
+                        <m.div
+                            data-clickable
+                            onClick={(e) => handleCardClick(e, i)}
                             whileHover={CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
@@ -337,11 +340,11 @@ export default function Projects() {
                                                     priority={i < 3}
                                                     placeholder="blur"
                                                     blurDataURL={proj.blurDataURL}
-                                                    className={`object-cover sepia-[.2] group-hover/card:sepia-0 transition-[filter] duration-300 ${proj.imageClassName || ''}`}
+                                                    className={`object-cover sepia-[.2] group-hover/card:sepia-0 ${proj.imageClassName || ''}`}
                                                 />
                                                 {/* Play overlay — signals tap/hover to expand */}
-                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-all duration-300">
-                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/70 dark:bg-white/60 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-all duration-300 shadow-lg backdrop-blur-sm">
+                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-[background-color] duration-300">
+                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-lg">
                                                         <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
                                                     </div>
                                                 </div>
@@ -395,10 +398,11 @@ export default function Projects() {
                                 </div>
                             </div>
                         </m.div>
+                        </MotionConfig>
+                        </m.div>
                     );
                 })}
             </div>
-            </MotionConfig>
 
             {/* Project Detail Modal with Video */}
             <ProjectModal

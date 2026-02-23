@@ -48,7 +48,7 @@ export const ANIMATION_TOKENS = {
   spring: {
     snappy: { stiffness: 400, damping: 25 },
     default: { stiffness: 300, damping: 20 },
-    gentle: { stiffness: 300, damping: 25 },
+    gentle: { stiffness: 300, damping: 30 },
     bouncy: { stiffness: 400, damping: 15 },
   },
   easing: {

@@ -56,9 +56,20 @@ export function Modal({
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  // Track whether the portal should remain in the DOM (stays true during exit animation)
+  const [shouldRender, setShouldRender] = useState(false);
 
   // ── Client-only gate (createPortal needs a DOM target) ──────────────
   useEffect(() => { setMounted(true); }, []);
+
+  // ── Keep portal alive until exit animation completes ────────────────
+  useEffect(() => {
+    if (isOpen) setShouldRender(true);
+  }, [isOpen]);
+
+  const handleExitComplete = useCallback(() => {
+    if (!isOpen) setShouldRender(false);
+  }, [isOpen]);
 
   // ── Body scroll lock ────────────────────────────────────────────────
   useEffect(() => {
@@ -111,10 +122,10 @@ export function Modal({
   }, [isOpen]);
 
   // ── Render ──────────────────────────────────────────────────────────
-  if (!mounted) return null;
+  if (!mounted || !shouldRender) return null;
 
   return createPortal(
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={handleExitComplete}>
       {isOpen && (
         <>
           {/* Backdrop */}
@@ -136,7 +147,7 @@ export function Modal({
             onClick={onClose}
             style={{ zIndex: Z_INDEX.modal }}
           >
-            {/* Animated card */}
+            {/* Animated card — will-change-transform promotes to GPU layer */}
             <m.div
               ref={modalRef}
               key="modal-card"
@@ -144,7 +155,7 @@ export function Modal({
               animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
               exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
               transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-              className={cn("relative mx-3 md:mx-auto", className)}
+              className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
               style={style}
               role="dialog"
               aria-modal="true"

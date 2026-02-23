@@ -28,6 +28,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
   const prevTextRef = useRef(skip ? text : '');
   const cancelRef = useRef(0);
   const pendingTextRef = useRef<{ text: string; isFiller: boolean } | null>(null);
+  const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -72,7 +73,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
       phaseRef.current = 'typing';
       let i = 0;
       const id = setInterval(() => {
-        if (cancelled()) { clearInterval(id); return; }
+        if (cancelled()) { clearInterval(id); activeIntervalRef.current = null; return; }
         i++;
         if (i >= targetText.length) {
           setDOM(targetText);
@@ -80,6 +81,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
           setPhase('idle');
           phaseRef.current = 'idle';
           clearInterval(id);
+          activeIntervalRef.current = null;
           if (!targetIsFiller) onCompleteRef.current?.();
           // Check queue after typing completes
           const pending = pendingTextRef.current;
@@ -94,6 +96,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
           setDOM(targetText.slice(0, i));
         }
       }, speed);
+      activeIntervalRef.current = id;
     };
 
     const startErase = (fromText: string, toText: string, toIsFiller: boolean, isCancelled: () => boolean) => {
@@ -101,12 +104,13 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
       phaseRef.current = 'erasing';
       let eraseLen = fromText.length;
       const eraseId = setInterval(() => {
-        if (isCancelled()) { clearInterval(eraseId); return; }
+        if (isCancelled()) { clearInterval(eraseId); activeIntervalRef.current = null; return; }
         eraseLen--;
         if (eraseLen <= 0) {
           setDOM('');
           prevTextRef.current = '';
           clearInterval(eraseId);
+          activeIntervalRef.current = null;
           if (isCancelled()) return;
           // Check if a newer text was queued during erase
           const pending = pendingTextRef.current;
@@ -120,6 +124,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
           setDOM(fromText.slice(0, eraseLen));
         }
       }, eraseSpeed);
+      activeIntervalRef.current = eraseId;
     };
 
     if (!prevText) {
@@ -129,7 +134,14 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
 
     startErase(prevText, newText, isFiller, cancelled);
 
-    return () => { cancelRef.current++; };
+    return () => {
+      cancelRef.current++;
+      // Immediately clear the active interval to prevent a 1-tick leak after unmount/re-run
+      if (activeIntervalRef.current !== null) {
+        clearInterval(activeIntervalRef.current);
+        activeIntervalRef.current = null;
+      }
+    };
   }, [text, skip, speed, eraseSpeed, isFiller]);
 
   return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
@@ -713,7 +725,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [isLoading]);
 
-  // Auto-scroll to newest note (on message count change, streaming end, or suggestions appearing)
+  // Auto-scroll to newest note — consolidated single effect handles all scroll triggers:
+  // new message arrives, streaming ends, or suggestions appear. Replaces two separate effects.
   const prevMessageCountRef = useRef(messages.length);
   useEffect(() => {
     const countChanged = messages.length !== prevMessageCountRef.current;
@@ -721,14 +734,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if ((countChanged || !isLoading) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, isLoading]);
-
-  // Scroll down when suggestions first appear (e.g. on page load) so they're not hidden behind input
-  useEffect(() => {
-    if (suggestionsReady && !isLoading && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [suggestionsReady, isLoading]);
+  }, [messages.length, isLoading, suggestionsReady]);
 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;

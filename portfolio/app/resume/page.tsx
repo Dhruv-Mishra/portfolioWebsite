@@ -11,7 +11,7 @@ export default function ResumePage() {
     const [isInteractive, setIsInteractive] = useState(false);
 
     return (
-        <main className="min-h-screen pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+        <main className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <m.div
                 initial={{ opacity: 0, y: 10 }}
@@ -20,7 +20,7 @@ export default function ResumePage() {
                 transition={{ duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut }}
                 className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
-                    height: '92vh',
+                    height: '92dvh',
                     transform: 'rotate(-1deg)',
                     boxShadow: SHADOW_TOKENS.resume
                 }}

@@ -20,8 +20,8 @@ export const WindowControls = React.memo(function WindowControls() {
   );
 });
 
-// Realistic Thumbpin SVG
-export const Thumbpin = ({ className }: { className?: string }) => (
+// Realistic Thumbpin SVG — memoized to prevent re-renders when parent updates
+export const Thumbpin = React.memo(function Thumbpin({ className }: { className?: string }) { return (
     <div className={`pointer-events-none ${className}`}>
         <svg width="60" height="60" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
             {/* Paper Indent/Shadow */}
@@ -48,4 +48,4 @@ export const Thumbpin = ({ className }: { className?: string }) => (
             </defs>
         </svg>
     </div>
-);
+); });

@@ -5,16 +5,23 @@ import { LAYOUT_TOKENS } from '@/lib/designTokens';
 
 const MOBILE_QUERY = `(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`;
 
-/** Module-scoped subscribe — avoids re-subscription on every render. */
+// Cache the MediaQueryList at module scope — avoids creating a new MQL object
+// on every getSnapshot/subscribe call (window.matchMedia returns a new object each time).
+let _mql: MediaQueryList | null = null;
+function getMql(): MediaQueryList {
+    return (_mql ??= window.matchMedia(MOBILE_QUERY));
+}
+
+/** Module-scoped subscribe — uses cached MQL, avoids re-subscription waste. */
 function subscribe(callback: () => void): () => void {
-    const mql = window.matchMedia(MOBILE_QUERY);
+    const mql = getMql();
     mql.addEventListener('change', callback);
     return () => mql.removeEventListener('change', callback);
 }
 
-/** Module-scoped snapshot — stable reference prevents unnecessary re-renders. */
+/** Module-scoped snapshot — uses cached MQL, avoids redundant matchMedia calls. */
 function getSnapshot(): boolean {
-    return window.matchMedia(MOBILE_QUERY).matches;
+    return getMql().matches;
 }
 
 /** Server snapshot — always false until hydrated. */

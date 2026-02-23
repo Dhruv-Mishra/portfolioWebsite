@@ -128,7 +128,6 @@ export default function About() {
                                             src="/resources/aboutPhoto.webp"
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
-                                            unoptimized
                                             sizes="(max-width: 768px) 96px, 192px"
                                             loading="eager"
                                             placeholder="blur"

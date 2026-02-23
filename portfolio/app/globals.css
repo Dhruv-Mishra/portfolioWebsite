@@ -407,6 +407,27 @@ body {
   }
 }
 
+/* Touch devices: suppress decorative hover transforms that persist after tap.
+   On mobile browsers, :hover "sticks" after touchend until the user taps elsewhere,
+   causing jarring visual states (e.g., rotated links, scaled buttons).
+   This resets transform-based hover effects for interactive elements on touch-only devices.
+   Background color hover effects are preserved — they serve as useful tap feedback. */
+@media (hover: none) and (pointer: coarse) {
+  a:hover,
+  button:hover,
+  [role="button"]:hover,
+  [data-clickable]:hover {
+    rotate: unset !important;
+    scale: unset !important;
+  }
+  /* Suppress group-hover decorative transforms on touch */
+  .group:hover [class*="group-hover"],
+  [class*="group/"]:hover [class*="group-hover/"] {
+    rotate: unset !important;
+    scale: unset !important;
+  }
+}
+
 /* Clickable element indicators — suppress native tap highlight on mobile */
 [data-clickable] {
   -webkit-tap-highlight-color: transparent;
@@ -429,6 +450,19 @@ body {
     animation: none !important;
     opacity: 1 !important;
   }
+}
+
+/* GPU compositing hints — promote frequently-animated layers for smoother rendering.
+   Uses will-change sparingly to avoid excessive GPU memory consumption on low-end devices.
+   When GPU is unavailable, these gracefully fall back to CPU compositing. */
+
+/* Defer rendering of off-screen content — the browser skips paint for elements outside
+   the viewport and paints them just-in-time as they scroll into view.
+   contain-intrinsic-size provides a placeholder height to prevent layout shift.
+   Pairs well with IntersectionObserver-based entrance animations (framer-motion whileInView). */
+.content-defer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
 }
 
 ::selection {

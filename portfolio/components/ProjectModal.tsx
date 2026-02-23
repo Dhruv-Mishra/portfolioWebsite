@@ -44,6 +44,22 @@ const FOLD_CLIP_PATH = `polygon(
 /** Hoisted — avoids object re-allocation per render */
 const FOLD_CARD_STYLE = { clipPath: FOLD_CLIP_PATH } as const;
 
+/** Hoisted tape positioning style */
+const TAPE_VIDEO_STYLE = { transform: 'translateX(-50%)', ...TAPE_STYLE_DECOR } as const;
+
+/** Hoisted fold corner styles — avoids per-render allocation */
+const FOLD_GRADIENT_MODAL_STYLE = {
+    width: FOLD_SIZE,
+    height: FOLD_SIZE,
+    background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
+} as const;
+const FOLD_COLOR_MODAL_STYLE = {
+    width: FOLD_SIZE,
+    height: FOLD_SIZE,
+    opacity: 0.85,
+    clipPath: 'polygon(0 0, 0 100%, 100% 0)',
+} as const;
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
@@ -112,10 +128,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                             {/* Photo tape on video frame */}
                             <div
                                 className="absolute -top-3 left-1/2 w-20 h-6 shadow-sm z-20"
-                                style={{
-                                    transform: 'translateX(-50%)',
-                                    ...TAPE_STYLE_DECOR,
-                                }}
+                                style={TAPE_VIDEO_STYLE}
                             />
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
@@ -217,20 +230,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                     {/* Fold corner decoration */}
                     <div
                         className="absolute bottom-0 right-0 pointer-events-none z-10"
-                        style={{
-                            width: FOLD_SIZE,
-                            height: FOLD_SIZE,
-                            background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-                        }}
+                        style={FOLD_GRADIENT_MODAL_STYLE}
                     />
                     <div
                         className={`absolute bottom-0 right-0 pointer-events-none z-10 ${project.colorClass}`}
-                        style={{
-                            width: FOLD_SIZE,
-                            height: FOLD_SIZE,
-                            opacity: 0.85,
-                            clipPath: 'polygon(0 0, 0 100%, 100% 0)',
-                        }}
+                        style={FOLD_COLOR_MODAL_STYLE}
                     />
                 </>
             )}

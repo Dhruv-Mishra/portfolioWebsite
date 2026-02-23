@@ -294,10 +294,15 @@ export function useStickyChat(): UseStickyChat {
   const sendMessage = useCallback(async (content: string) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isLoadingRef.current) return;
+    // Immediately guard against double-fire — blocks concurrent sends before React
+    // re-renders and syncs the ref from state. Without this, rapid double-clicks
+    // could bypass the guard since setIsLoading(true) only updates the ref on next render.
+    isLoadingRef.current = true;
 
     // Rate limit check
     const allowed = rateLimiter.check('chat', RATE_LIMITS.CHAT_API);
     if (!allowed) {
+      isLoadingRef.current = false; // Reset guard — rate limit rejection is not a loading state
       const remaining = rateLimiter.getRemainingTime('chat', RATE_LIMITS.CHAT_API);
       setRateLimitRemaining(remaining);
       setError(`Whoa, slow down! Even sticky notes need a breather. Try again in ${remaining} seconds.`);

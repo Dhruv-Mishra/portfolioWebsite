@@ -1,11 +1,14 @@
 "use client";
 import { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
-import ProjectModal from '@/components/ProjectModal';
+
+// Dynamic import — ProjectModal (240 LOC, video playback) only renders on user click.
+const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
 
 interface Project {
     name: string;
@@ -229,6 +232,21 @@ const CARD_CLIP_STYLE = {
     )`,
 } as const;
 
+/** Fold corner styles hoisted — shared across all cards, avoids per-card allocation */
+const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: GRADIENT_TOKENS.foldCorner } as const;
+const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, opacity: 0.85, clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
+
+/** Pre-computed per-card styles — deterministic (index-based), avoids ~28 object allocations per render */
+const CARD_STYLES = PROJECTS.map((_, i) => {
+    const photoRotate = PHOTO_ROTATIONS[i % 6];
+    const tapX = TAPE_POSITIONS[i % 6];
+    return {
+        tape: { left: `${tapX}%`, transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`, ...TAPE_STYLE_DECOR } as const,
+        photo: { transform: `rotate(${photoRotate}deg)` } as const,
+        photoTape: { transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`, ...TAPE_STYLE_DECOR } as const,
+    };
+});
+
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
 
@@ -252,12 +270,12 @@ export default function Projects() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
                     const rotate = ROTATIONS[i % 6];
-                    const photoRotate = PHOTO_ROTATIONS[i % 6];
-                    const tapX = TAPE_POSITIONS[i % 6];
+                    const styles = CARD_STYLES[i];
 
                     return (
                         <m.div
                             key={proj.name}
+                            className="content-defer"
                             initial={{ opacity: 0, y: 20, rotate: rotate }}
                             whileInView={{
                                 opacity: 1,
@@ -274,7 +292,11 @@ export default function Projects() {
                         <MotionConfig reducedMotion="never">
                         <m.div
                             data-clickable
+                            role="button"
+                            tabIndex={0}
                             onClick={(e) => handleCardClick(e, i)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProject(i); } }}
+                            aria-label={`View details for ${proj.name}`}
                             whileHover={CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
@@ -283,30 +305,17 @@ export default function Projects() {
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
                                 className="absolute -top-4 w-32 h-10 shadow-sm z-20"
-                                style={{
-                                    left: `${tapX}%`,
-                                    transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`,
-                                    ...TAPE_STYLE_DECOR,
-                                }}
+                                style={styles.tape}
                             />
 
                             {/* The Fold Triangle (Outside Clipped Area) */}
                             <div
                                 className="absolute bottom-0 right-0 pointer-events-none z-10"
-                                style={{
-                                    width: FOLD_SIZE,
-                                    height: FOLD_SIZE,
-                                    background: GRADIENT_TOKENS.foldCorner,
-                                }}
+                                style={FOLD_GRADIENT_STYLE}
                             />
                             <div
                                 className={`absolute bottom-0 right-0 pointer-events-none z-10 ${proj.colorClass}`}
-                                style={{
-                                    width: FOLD_SIZE,
-                                    height: FOLD_SIZE,
-                                    opacity: 0.85,
-                                    clipPath: 'polygon(0 0, 0 100%, 100% 0)'
-                                }}
+                                style={FOLD_COLOR_STYLE}
                             />
 
                             {/* Inner Clipped Container */}
@@ -319,15 +328,12 @@ export default function Projects() {
                                 {/* Polaroid Style Photo */}
                                 <div
                                     className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-sm border border-gray-200 dark:border-gray-300 mb-6 relative group z-10 mx-auto max-w-[95%]"
-                                    style={{ transform: `rotate(${photoRotate}deg)` }}
+                                    style={styles.photo}
                                 >
                                     {/* Photo Tape */}
                                     <div
                                         className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
-                                        style={{
-                                            transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`,
-                                            ...TAPE_STYLE_DECOR,
-                                        }}
+                                        style={styles.photoTape}
                                     />
 
                                     <div className="relative w-full h-full overflow-hidden bg-gray-100">
@@ -337,7 +343,6 @@ export default function Projects() {
                                                     src={proj.image}
                                                     alt={`${proj.name} project screenshot`}
                                                     fill
-                                                    unoptimized
                                                     sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
                                                     loading={i < 3 ? "eager" : "lazy"}
                                                     priority={i < 3}

@@ -162,7 +162,9 @@ export default function SketchbookCursor() {
                     canvasRef.current.style.width = window.innerWidth + 'px';
                     canvasRef.current.style.height = window.innerHeight + 'px';
                     const ctx = canvasRef.current.getContext('2d');
-                    ctx?.scale(dpr, dpr);
+                    // setTransform resets the matrix before applying scale — prevents
+                    // compounding on repeated resize calls (ctx.scale would compound).
+                    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
                 }
             }, TIMING_TOKENS.resizeDebounce);
         };
@@ -281,6 +283,7 @@ export default function SketchbookCursor() {
             {/* Trail Canvas */}
             <canvas
                 ref={canvasRef}
+                aria-hidden="true"
                 className="absolute inset-0 pointer-events-none"
             />
 

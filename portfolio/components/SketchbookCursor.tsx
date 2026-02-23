@@ -37,11 +37,10 @@ export default function SketchbookCursor() {
     const mouseY = useMotionValue(-100);
     const cursorRotate = useMotionValue(0);
     const cursorOpacity = useMotionValue(1);
-    const cursorScale = useMotionValue(1);
 
-    // Ring indicator for clickable elements — spring-animated for smooth reveal
-    const cursorRingRaw = useMotionValue(0);
-    const cursorRingScale = useSpring(cursorRingRaw, { stiffness: 400, damping: 25 });
+    // Clickable-element scale — spring-animated for smooth bounce
+    const cursorHoverRaw = useMotionValue(1);
+    const cursorHoverScale = useSpring(cursorHoverRaw, { stiffness: 500, damping: 20 });
 
     // Ring buffer for trail points — fixed-size, no allocations during render
     const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
@@ -84,7 +83,7 @@ export default function SketchbookCursor() {
                 isHoveringLinkRef.current = hovering;
                 // Motion values — no React re-render, no CSS transition conflict
                 cursorRotate.set(hovering ? -20 : 0);
-                cursorRingRaw.set(hovering ? 1 : 0);
+                cursorHoverRaw.set(hovering ? 1.5 : 1);
             }
         };
 
@@ -140,8 +139,7 @@ export default function SketchbookCursor() {
         const setCursorVisible = (visible: boolean) => {
             isVisibleRef.current = visible;
             cursorOpacity.set(visible ? 1 : 0);
-            cursorScale.set(visible ? 1 : 0.8);
-            if (!visible) cursorRingRaw.set(0);
+            if (!visible) cursorHoverRaw.set(1);
         };
         const handleMouseLeave = () => setCursorVisible(false);
         const handleMouseEnter = () => setCursorVisible(true);
@@ -295,7 +293,7 @@ export default function SketchbookCursor() {
                     y: mouseY,
                     rotate: cursorRotate,
                     opacity: cursorOpacity,
-                    scale: cursorScale,
+                    scale: cursorHoverScale,
                 }}
                 className="absolute top-0 left-0"
             >
@@ -334,30 +332,6 @@ export default function SketchbookCursor() {
                             <path d="M24 29 L29 24 L33 28 L28 33 Z" fill="#f87171" stroke="#dc2626" strokeWidth="0.5" />
                         </svg>
                     )}
-                </div>
-            </m.div>
-
-            {/* Clickable indicator ring — hand-drawn dashed circle around cursor tip */}
-            <m.div
-                style={{
-                    x: mouseX,
-                    y: mouseY,
-                    scale: cursorRingScale,
-                    opacity: cursorRingScale,
-                }}
-                className="absolute top-0 left-0 pointer-events-none"
-            >
-                <div className="-translate-x-5 -translate-y-5">
-                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle
-                            cx="20" cy="20" r="15"
-                            stroke="var(--c-ink)"
-                            strokeWidth="1.8"
-                            strokeDasharray="4 2 8 3 6 2"
-                            strokeLinecap="round"
-                            opacity="0.45"
-                        />
-                    </svg>
                 </div>
             </m.div>
         </div>

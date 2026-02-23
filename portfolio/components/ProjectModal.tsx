@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PaperClip } from '@/components/DoodleIcons';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -43,9 +44,6 @@ const FOLD_CLIP_PATH = `polygon(
 
 /** Hoisted — avoids object re-allocation per render */
 const FOLD_CARD_STYLE = { clipPath: FOLD_CLIP_PATH } as const;
-
-/** Hoisted tape positioning style */
-const TAPE_VIDEO_STYLE = { transform: 'translateX(-50%)', ...TAPE_STYLE_DECOR } as const;
 
 /** Hoisted fold corner styles — avoids per-render allocation */
 const FOLD_GRADIENT_MODAL_STYLE = {
@@ -137,11 +135,8 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                     <div className="p-6 md:p-8 pt-8">
                         {/* ── Video Player ───────────────────────────────────────── */}
                         <div className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-md border border-gray-200 dark:border-gray-300 mb-6 relative">
-                            {/* Photo tape on video frame */}
-                            <div
-                                className="absolute -top-3 left-1/2 w-20 h-6 shadow-sm z-20"
-                                style={TAPE_VIDEO_STYLE}
-                            />
+                            {/* Paper clip on left corner */}
+                            <PaperClip className="absolute -top-4 left-1 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm -rotate-12" />
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
                                 <video

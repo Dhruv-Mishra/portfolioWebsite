@@ -5,6 +5,7 @@ import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PaperClip } from '@/components/DoodleIcons';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 // Dynamic import — ProjectModal (240 LOC, video playback) only renders on user click.
@@ -237,13 +238,16 @@ const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: G
 const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, opacity: 0.85, clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
 
 /** Pre-computed per-card styles — deterministic (index-based), avoids ~28 object allocations per render */
+const CLIP_ROTATIONS = [-8, -15, -5, -18, -10, -13, -7];
+const CLIP_OFFSETS = [1, 3, 0, 4, 2, 5, 1];
 const CARD_STYLES = PROJECTS.map((_, i) => {
     const photoRotate = PHOTO_ROTATIONS[i % 6];
     const tapX = TAPE_POSITIONS[i % 6];
     return {
         tape: { left: `${tapX}%`, transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`, ...TAPE_STYLE_DECOR } as const,
         photo: { transform: `rotate(${photoRotate}deg)` } as const,
-        photoTape: { transform: `translateX(-50%) rotate(${photoRotate * -2}deg)`, ...TAPE_STYLE_DECOR } as const,
+        clipClass: `absolute -top-4 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm` as const,
+        clipStyle: { left: `${CLIP_OFFSETS[i % 7]}px`, transform: `rotate(${CLIP_ROTATIONS[i % 7]}deg)` } as const,
     };
 });
 
@@ -330,11 +334,8 @@ export default function Projects() {
                                     className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-sm border border-gray-200 dark:border-gray-300 mb-6 relative group z-10 mx-auto max-w-[95%]"
                                     style={styles.photo}
                                 >
-                                    {/* Photo Tape */}
-                                    <div
-                                        className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 shadow-sm z-20"
-                                        style={styles.photoTape}
-                                    />
+                                    {/* Paper clip on left corner */}
+                                    <PaperClip className={styles.clipClass} style={styles.clipStyle} />
 
                                     <div className="relative w-full h-full overflow-hidden bg-gray-100">
                                         {proj.image ? (

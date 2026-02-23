@@ -119,7 +119,6 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                     muted
                                     loop
                                     playsInline
-                                    controls
                                     preload="none"
                                     className="w-full h-full object-cover"
                                 />

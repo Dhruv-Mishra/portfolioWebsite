@@ -218,6 +218,17 @@ const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMAT
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
 const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
 
+/** Hoisted — avoids re-allocation per render for all 7 cards */
+const CARD_CLIP_STYLE = {
+    clipPath: `polygon(
+        0% 0%,
+        100% 0%,
+        100% calc(100% - ${FOLD_SIZE}px),
+        calc(100% - ${FOLD_SIZE}px) 100%,
+        0% 100%
+    )`,
+} as const;
+
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
 
@@ -301,15 +312,7 @@ export default function Projects() {
                             {/* Inner Clipped Container */}
                             <div
                                 className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
-                                style={{
-                                    clipPath: `polygon(
-                                    0% 0%,
-                                    100% 0%,
-                                    100% calc(100% - ${FOLD_SIZE}px),
-                                    calc(100% - ${FOLD_SIZE}px) 100%,
-                                    0% 100%
-                                )`
-                                }}
+                                style={CARD_CLIP_STYLE}
                             >
 
 
@@ -378,7 +381,7 @@ export default function Projects() {
                                 {/* Stack Tags */}
                                 <div className="pl-6 mb-6 flex flex-wrap gap-2 relative z-10">
                                     {proj.stack.map((tech) => (
-                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm scale-95 hover:scale-105 transition-transform duration-300 ease-[cubic-bezier(0.22,1.8,0.50,1)] cursor-default">
+                                        <span key={tech} className="px-2 py-1 bg-[var(--c-paper)]/80 text-[var(--c-ink)] text-xs font-code font-bold rounded-sm border border-[var(--c-ink)]/20 shadow-sm cursor-default">
                                             #{tech}
                                         </span>
                                     ))}

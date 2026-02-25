@@ -1,7 +1,7 @@
 # Dhruv's Sketchbook — [whoisdhruv.com](https://whoisdhruv.com)
 
 A creative portfolio website with a hand-drawn sketchbook aesthetic, featuring an interactive terminal, AI chat, and project showcase.
-
+<img width="1600" height="793" alt="Image" src="https://github.com/user-attachments/assets/c9af02b4-147f-4066-b56c-ee98e093b642" />
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router) + React 19

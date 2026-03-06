@@ -18,6 +18,7 @@ import {
 import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
+import { createInitialTerminalLine, TerminalLine } from "@/context/TerminalContext";
 
 // Hoisted style objects to avoid re-creating on every render
 const shadowStyle = { borderRadius: SKETCH_RADIUS.terminal } as const;
@@ -56,7 +57,7 @@ const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: Termi
 });
 
 export default function Terminal() {
-    const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
+    const { outputLines, commandHistory, sessionCommands, isHydrated, addCommand, addToHistory, clearOutput, restoreOutput } = useTerminal();
     const router = useRouter(); // Correctly using hook inside component
 
     const [input, setInput] = useState("");
@@ -66,11 +67,75 @@ export default function Terminal() {
     const bottomRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
+    const hasRestoredSessionRef = useRef(false);
 
     // Command Registry defined outside
     const COMMAND_REGISTRY = React.useMemo(() => createCommandRegistry(router), [router]);
+    const REPLAY_REGISTRY = React.useMemo(() => createCommandRegistry(router, { disableActions: true, replayMode: true }), [router]);
 
     const AVAILABLE_COMMANDS = React.useMemo(() => Object.keys(COMMAND_REGISTRY), [COMMAND_REGISTRY]);
+
+    useEffect(() => {
+        if (!isHydrated || outputLines.length > 0 || hasRestoredSessionRef.current) {
+            return;
+        }
+
+        hasRestoredSessionRef.current = true;
+        let cancelled = false;
+
+        const replaySession = async () => {
+            let replayedLines: TerminalLine[] = [createInitialTerminalLine()];
+
+            for (const rawCommand of sessionCommands) {
+                const trimmedInput = rawCommand.trim();
+                if (!trimmedInput) continue;
+
+                const [cmd, ...args] = trimmedInput.split(/\s+/);
+                const lowerCmd = cmd.toLowerCase();
+
+                if (lowerCmd === 'clear') {
+                    replayedLines = [];
+                    continue;
+                }
+
+                const commandDef = REPLAY_REGISTRY[lowerCmd];
+                let output: React.ReactNode;
+
+                if (commandDef) {
+                    try {
+                        const result = await commandDef(args);
+                        output = result.output;
+                    } catch {
+                        output = <span className={TERMINAL_COLORS.error}>Error executing command.</span>;
+                    }
+                } else {
+                    output = (
+                        <div>
+                            <span className={TERMINAL_COLORS.error}>Command not found: {lowerCmd}</span>
+                            <br />
+                            <span className="text-gray-400">Type <span className={TERMINAL_COLORS.prompt}>&apos;help&apos;</span> for available commands.</span>
+                        </div>
+                    );
+                }
+
+                replayedLines = [...replayedLines, {
+                    id: replayedLines.length + 1,
+                    command: trimmedInput,
+                    output,
+                }];
+            }
+
+            if (!cancelled) {
+                restoreOutput(replayedLines);
+            }
+        };
+
+        void replaySession();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isHydrated, outputLines.length, sessionCommands, REPLAY_REGISTRY, restoreOutput]);
 
     useEffect(() => {
         if (isInitialMount.current) {

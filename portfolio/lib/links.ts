@@ -14,6 +14,7 @@ export const PERSONAL_LINKS = {
 /** Project repository links */
 export const PROJECT_LINKS = {
   fluentui: 'https://github.com/microsoft/fluentui-android',
+  cropio: 'https://github.com/Dhruv-Mishra/Cropio-ImageEditor',
   courseEvaluator: 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
   ivc: 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
   portfolio: 'https://github.com/Dhruv-Mishra/portfolio-website',
@@ -42,6 +43,7 @@ export const OPEN_LINK_KEYS: Record<string, string> = {
   phone: PERSONAL_LINKS.phone,
   resume: PERSONAL_LINKS.resume,
   'project-fluentui': PROJECT_LINKS.fluentui,
+  'project-cropio': PROJECT_LINKS.cropio,
   'project-courseevaluator': PROJECT_LINKS.courseEvaluator,
   'project-ivc': PROJECT_LINKS.ivc,
   'project-portfolio': PROJECT_LINKS.portfolio,

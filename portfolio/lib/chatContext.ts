@@ -16,7 +16,7 @@ const GENERIC_FALLBACKS = [
 // Contextual fallback pools — matched against user prompt keywords via regex.
 // Keywords are auto-compiled to regex. Each message leads with a "caught off guard"
 // feel, gives a real nugget, then redirects.
-// All facts sourced from DHRUV_SYSTEM_PROMPT in chatContext.server.ts.
+// All facts sourced from the server-side fact bank and prompt builder.
 interface ContextualFallback {
   keywords: string[];
   messages: string[];
@@ -26,7 +26,7 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['project', 'portfolio', 'work', 'built', 'shipped', 'microsoft'],
     messages: [
-      "Got a bit scrambled there — I've worked on Fluent UI Android (ships in Outlook/Teams), did Bloom Filter research with a 300% throughput gain, and built this site. Projects page has the full list!",
+      "Got a bit scrambled there — I've worked on Fluent UI Android (ships in Outlook/Teams), built Cropio as an AI portrait cropper, did Bloom Filter research with a 300% throughput gain, and built this site. Projects page has the full list!",
       "Sorry, lost my thread for a sec. I've built an NLP course evaluator, a contactless vital-checkup system with OpenCV, a hybrid movie recommender, and more — check the projects page ~",
       "My notes got mixed up. At Microsoft I shipped Fluent UI Android and M365 Shell encryption at 7B+ hits/day — the projects page has everything!",
     ],
@@ -42,7 +42,7 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['tech', 'stack', 'react', 'nextjs', 'typescript', 'rust', 'programming', 'coding', 'language', 'framework'],
     messages: [
-      "Got a bit turned around — I use C++ and C# at Microsoft, Python/TypeScript on the side, and did a lot of Kotlin/Android (Compose, Hilt) before. This site runs Next.js 16 + Tailwind v4. Ask me again!",
+      "Got a bit turned around — I use C++ and C# at Microsoft, Python/TypeScript on the side, and did a lot of Kotlin/Android (Compose, Hilt) before. Cropio uses Next.js plus FastAPI, and this site runs Next.js 16 + Tailwind v4. Ask me again!",
       "Head's in a muddle. C++ is my favorite — also fluent in C#, TypeScript, Python, Java, and Kotlin. Comfortable with Azure, MySQL, and distributed systems. Try again in a sec!",
       "Lost the thread there. My stack is C++/C# at work, Next.js + TypeScript for web, Python for ML, and previously a lot of Kotlin for Android. Give it another shot ~",
     ],

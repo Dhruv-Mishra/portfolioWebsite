@@ -1,85 +1,15 @@
-"use client";
-import { m } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { TIMING_TOKENS, ANIMATION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 
-const ABOUT_CTA_TEXTS = [
-    "Curious about my work? Ask me anything",
-    "Want to know more? Let's chat",
-    "Got questions? Pass me a note",
-    "Wanna hear about my projects?",
-    "Ask me about my tech stack",
-    "Curious about Microsoft? Chat with me",
-];
-
-const CTA_TYPE_SPEED = TIMING_TOKENS.ctaTypeSpeed;
-const CTA_ERASE_SPEED = TIMING_TOKENS.ctaEraseSpeed;
-const CTA_PAUSE_MS = TIMING_TOKENS.pauseLong;
-
 export default function About() {
-    const ctaRef = useRef<HTMLSpanElement>(null);
-    const ctaIndexRef = useRef(0);
-
-    useEffect(() => {
-        let cancelled = false;
-        let timeout: ReturnType<typeof setTimeout>;
-
-        const setDOM = (s: string) => { if (ctaRef.current) ctaRef.current.textContent = s; };
-
-        const cycle = () => {
-            if (cancelled) return;
-            const fullText = ABOUT_CTA_TEXTS[ctaIndexRef.current % ABOUT_CTA_TEXTS.length];
-            let charIdx = 0;
-
-            const typeNext = () => {
-                if (cancelled) return;
-                charIdx++;
-                setDOM(fullText.slice(0, charIdx));
-                if (charIdx < fullText.length) {
-                    timeout = setTimeout(typeNext, CTA_TYPE_SPEED);
-                } else {
-                    timeout = setTimeout(eraseNext, CTA_PAUSE_MS);
-                }
-            };
-
-            const eraseNext = () => {
-                if (cancelled) return;
-                charIdx--;
-                setDOM(fullText.slice(0, charIdx));
-                if (charIdx > 0) {
-                    timeout = setTimeout(eraseNext, CTA_ERASE_SPEED);
-                } else {
-                    ctaIndexRef.current++;
-                    timeout = setTimeout(cycle, TIMING_TOKENS.pauseShort);
-                }
-            };
-
-            typeNext();
-        };
-
-        timeout = setTimeout(cycle, TIMING_TOKENS.ctaInitialDelay);
-
-        return () => {
-            cancelled = true;
-            clearTimeout(timeout);
-        };
-    }, []);
-
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
             <div className="relative transform -rotate-1">
-                <m.div
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut }}
-                    className="relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]"
-                >
+                <div className="animate-page-sheet relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
                         className="absolute -top-1 -left-6 w-24 md:w-32 h-10 shadow-sm z-20 -rotate-[8deg]"
@@ -179,8 +109,7 @@ export default function About() {
                                     </div>
                                     <div>
                                         <p className="font-hand text-sm md:text-lg text-gray-500 group-hover:text-indigo-700 transition-colors">
-                                            <span ref={ctaRef} />
-                                            <span className="inline-block w-[2px] h-[1.1em] bg-gray-400 group-hover:bg-indigo-600 ml-0.5 align-middle animate-pulse" />
+                                            Curious about my work? Ask me anything.
                                         </p>
                                         <p className="font-hand text-xs md:text-sm text-gray-400 group-hover:text-indigo-500 transition-colors mt-1">
                                             Click here to chat with me
@@ -190,7 +119,7 @@ export default function About() {
                             </Link>
                         </div>
                     </div>
-                </m.div>
+                </div>
             </div>
         </div>
     );

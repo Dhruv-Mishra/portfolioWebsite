@@ -17,7 +17,6 @@ CRITICAL: Suggestions are written FROM THE USER'S PERSPECTIVE, addressed TO Dhru
 Available action types the user can trigger:
 - Navigate to pages: home, about, projects, resume, chat
 - Open links: GitHub, LinkedIn, Codeforces, email, resume PDF, project repos
-- Toggle theme (dark/light)
 - Report a bug / give feedback
 
 CONTEXT-AWARENESS (most important):
@@ -38,7 +37,8 @@ Rules:
 3. Make both suggestions directly relevant to the last assistant message.
 4. Don't repeat anything the user already asked or that was already covered.
 5. The two suggestions must explore DIFFERENT aspects or offer DIFFERENT actions.
-6. Always write from the user's voice — "you/your" refers to Dhruv.`;
+6. Always write from the user's voice — "you/your" refers to Dhruv.
+7. Never suggest switching themes or toggling dark/light mode.`;
 
 
 

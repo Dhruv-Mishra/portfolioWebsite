@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
-import SketchbookCursorLoader from "@/components/SketchbookCursorLoader";
-import { TerminalProvider } from "@/context/TerminalContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import MiniChat from "@/components/MiniChat";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
+import { TerminalProvider } from "@/context/TerminalContext";
 import "./globals.css";
+
+const DeferredEnhancements = dynamic(() => import("@/components/DeferredEnhancements"));
 
 const patrickHand = Patrick_Hand({
   weight: "400",
@@ -136,16 +137,15 @@ export default function RootLayout({
       >
         <Analytics />
         <ErrorBoundary>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <TerminalProvider>
-              <SketchbookCursorLoader />
+          <TerminalProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
               <SketchbookLayout>
                 <Navigation />
                 {children}
               </SketchbookLayout>
-              <MiniChat />
-            </TerminalProvider>
-          </ThemeProvider>
+              <DeferredEnhancements />
+            </ThemeProvider>
+          </TerminalProvider>
         </ErrorBoundary>
       </body>
     </html>

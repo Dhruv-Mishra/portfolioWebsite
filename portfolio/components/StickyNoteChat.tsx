@@ -35,6 +35,9 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
   const phaseRef = useRef<TypewriterPhase>('idle');
 
   const isTyping = phase === 'typing' || phase === 'erasing';
+  const cancelActiveRun = useCallback(() => {
+    cancelRef.current += 1;
+  }, []);
 
   useEffect(() => {
     const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
@@ -135,14 +138,14 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
     startErase(prevText, newText, isFiller, cancelled);
 
     return () => {
-      cancelRef.current++;
+      cancelActiveRun();
       // Immediately clear the active interval to prevent a 1-tick leak after unmount/re-run
       if (activeIntervalRef.current !== null) {
         clearInterval(activeIntervalRef.current);
         activeIntervalRef.current = null;
       }
     };
-  }, [text, skip, speed, eraseSpeed, isFiller]);
+  }, [text, skip, speed, eraseSpeed, isFiller, cancelActiveRun]);
 
   return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
 }
@@ -583,9 +586,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [suggestionsReady, setSuggestionsReady] = useState(false);
 
-  // Compute theme-aware action pool (avoids showing "Switch to dark" when already dark)
-  // Memoized — only recomputes when theme actually changes
-  const followupActions = useMemo(() => getFollowupActions(resolvedTheme), [resolvedTheme]);
+  const followupActions = useMemo(() => getFollowupActions(), []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 

@@ -359,6 +359,38 @@ body {
     animation-delay: 50ms;
   }
 
+  .animate-social-link {
+    animation: socialLinkIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .animate-page-sheet {
+    animation: pageSheetIn 0.35s ease-out both;
+  }
+
+  @keyframes socialLinkIn {
+    from {
+      opacity: 0;
+      transform: translateX(28px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes pageSheetIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .animate-nav-tab-3 {
     animation-delay: 100ms;
   }

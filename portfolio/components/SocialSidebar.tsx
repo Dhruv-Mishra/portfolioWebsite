@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { m } from "framer-motion";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { SOCIAL_COLORS, SOCIAL_INTERACTION, Z_INDEX } from '@/lib/designTokens';
+import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 
 const SOCIALS = [
@@ -46,16 +45,6 @@ const SOCIALS = [
     }
 ];
 
-// Hoisted per-index whileHover rotate values — avoids object allocation per render
-const HOVER_ROTATIONS = SOCIAL_INTERACTION.hoverRotations;
-const DESKTOP_SPRING = { type: "spring" as const, stiffness: 400, damping: 15 };
-const SOCIAL_LINK_INITIAL = { x: 50, opacity: 0 } as const;
-const SOCIAL_LINK_ANIMATES = Array.from({ length: 6 }, (_, i) => ({
-    x: 0,
-    opacity: 1,
-    transition: { delay: 0.5 + i * 0.1, type: "spring" as const },
-}));
-
 const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
     if (isMobile) {
         return (
@@ -73,24 +62,21 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
     }
 
     return (
-        <m.a
+        <a
             href={social.url}
             target="_blank"
             rel="noopener noreferrer"
-            initial={SOCIAL_LINK_INITIAL}
-            animate={SOCIAL_LINK_ANIMATES[(index || 0) % 6]}
-            whileHover={{ scale: 1.2, rotate: HOVER_ROTATIONS[(index || 0) % 6] }}
-            transition={DESKTOP_SPRING}
-            className={`text-gray-400 transition-colors duration-300 ${social.color} relative group`}
+            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group hover:scale-110`}
             title={social.name}
             aria-label={social.name}
+            style={{ animationDelay: `${0.5 + ((index || 0) * 0.1)}s` }}
         >
             <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10" />
             <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
             <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded shadow-sm">
                 {social.name}
             </span>
-        </m.a>
+        </a>
     );
 });
 

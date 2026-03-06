@@ -1,6 +1,6 @@
 // app/api/chat/route.ts — Server-side proxy for LLM API (keeps API key secret)
 import { NextRequest } from 'next/server';
-import { DHRUV_SYSTEM_PROMPT } from '@/lib/chatContext.server';
+import { buildDhruvSystemPrompt } from '@/lib/chatContext.server';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // Build full message array with system prompt (server-side only!)
     const apiMessages = [
-      { role: 'system', content: DHRUV_SYSTEM_PROMPT },
+      { role: 'system', content: buildDhruvSystemPrompt(sanitized) },
       ...sanitized,
     ];
 

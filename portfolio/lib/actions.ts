@@ -19,8 +19,6 @@ export interface ActionDef {
   openUrls?: string[];
   /** Open feedback modal */
   feedbackAction?: boolean;
-  /** Only show as followup when theme matches (omit = always show) */
-  showWhen?: 'dark' | 'light';
 }
 
 /**
@@ -35,14 +33,12 @@ export const ACTION_REGISTRY: ActionDef[] = [
     keywords: ['dark\\s*mode'],
     response: 'Switching to dark mode for you ~',
     themeAction: 'dark',
-    showWhen: 'light',
   },
   {
     label: 'Switch to light mode',
     verbs: ['switch', 'change', 'enable'],
     keywords: ['light\\s*mode'],
     response: 'Switching to light mode for you ~',
-    showWhen: 'dark',
     themeAction: 'light',
   },
   {
@@ -51,7 +47,6 @@ export const ACTION_REGISTRY: ActionDef[] = [
     keywords: ['theme'],
     response: 'Toggling the theme ~',
     themeAction: 'toggle',
-    showWhen: 'light',
   },
   {
     label: 'Take me to the projects page',
@@ -59,6 +54,13 @@ export const ACTION_REGISTRY: ActionDef[] = [
     keywords: ['projects?\\s*page'],
     response: 'Here are my projects!',
     navigateTo: '/projects',
+  },
+  {
+    label: 'Open the Cropio repo',
+    verbs: ['open', 'show', 'view', 'see'],
+    keywords: ['cropio', 'ai\\s*cropper', 'portrait\\s*cropper'],
+    response: 'Opening the Cropio repo ~',
+    openUrls: [PROJECT_LINKS.cropio],
   },
   {
     label: 'Open your GitHub profile',
@@ -137,18 +139,19 @@ export function resolveAction(text: string): ActionDef | null {
 }
 
 /**
- * Get followup action labels filtered by current theme.
- * Omits theme-switching actions that don't apply to the current theme.
+ * Get followup action labels for suggestion chips.
+ * Theme actions are intentionally excluded to keep suggestions stable.
  */
-export function getFollowupActions(currentTheme: string | undefined): string[] {
+export function getFollowupActions(): string[] {
   return ACTION_REGISTRY
-    .filter(a => !a.showWhen || a.showWhen === currentTheme)
+    .filter(a => !a.themeAction)
     .map(a => a.label);
 }
 
 /** Conversational followup suggestions (not actions — sent to LLM) */
 export const FOLLOWUP_CONVERSATIONAL = [
   "What projects have you worked on?",
+  "How does Cropio work?",
   "Tell me about your time at IIIT Delhi",
   "What's your favorite language?",
   "How did you get into competitive programming?",
@@ -163,6 +166,6 @@ export const FOLLOWUP_CONVERSATIONAL = [
 export const INITIAL_SUGGESTIONS = [
   "What do you work on at Microsoft?",
   "What's your tech stack?",
-  "Toggle the theme",
+  "Tell me about Cropio",
   "Report a bug",
 ] as const;

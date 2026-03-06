@@ -1,24 +1,12 @@
-"use client";
-
-import { m } from 'framer-motion';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import { useState } from 'react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { SHADOW_TOKENS, ANIMATION_TOKENS } from '@/lib/designTokens';
+import { SHADOW_TOKENS } from '@/lib/designTokens';
 
 export default function ResumePage() {
-    const isMobile = useIsMobile();
-    const [isInteractive, setIsInteractive] = useState(false);
-
     return (
         <main className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
-            <m.div
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut }}
-                className="relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+            <div
+                className="animate-page-sheet relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
                 style={{
                     height: '92dvh',
                     transform: 'rotate(-1deg)',
@@ -35,35 +23,10 @@ export default function ResumePage() {
                 <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 <div className="w-full h-full bg-white relative z-10 overflow-hidden">
-                    {/* 
-                         #toolbar=0 hides the toolbar
-                         #navpanes=0 hides the side navigation
-                         #scrollbar=1 ensures scrollbars work if needed
-                         #view=FitV fits the whole page vertically
-                     */}
-                    <div
-                        className="w-full h-full relative"
-                        onMouseEnter={() => {
-                            if (isInteractive || isMobile) {
-                                window.dispatchEvent(new CustomEvent('sketchbook:hideCursor'));
-                            }
-                        }}
-                        onMouseLeave={() => {
-                            window.dispatchEvent(new CustomEvent('sketchbook:showCursor'));
-                        }}
-                    >
-                        {/* Static Overlay - Desktop Only, prevents scrollbars from stealing cursor unless enabled */}
-                        {!isInteractive && !isMobile && (
-                            <div
-                                className="absolute inset-0 z-20 cursor-none"
-                                onClick={() => setIsInteractive(true)}
-                                role="button"
-                                tabIndex={0}
-                                aria-label="Click to enable PDF interaction"
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsInteractive(true); }}
-                                title="Click to enable PDF interaction"
-                            />
-                        )}
+                    <div className="w-full h-full relative">
+                        <div className="hidden md:flex absolute left-4 bottom-4 z-20 pointer-events-none rounded-lg border border-yellow-200/70 bg-yellow-50/90 px-4 py-2 text-sm font-hand text-gray-700 shadow-md backdrop-blur-sm">
+                            Scroll to browse the embedded PDF, or open it in a new tab for the smoothest reading experience.
+                        </div>
 
                         <object
                             data="/resources/resume.pdf#toolbar=0&navpanes=0&view=FitV"
@@ -106,7 +69,7 @@ export default function ResumePage() {
                         </div>
                     </a>
                 </div>
-            </m.div>
+            </div>
         </main>
     );
 }

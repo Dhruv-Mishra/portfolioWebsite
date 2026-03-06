@@ -271,7 +271,7 @@ export default function SketchbookCursor() {
             clearTimeout(resizeTimer);
             if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
         };
-    }, [mouseX, mouseY, mounted]); // isVisible tracked via ref to avoid effect restart
+    }, [cursorHoverRaw, cursorOpacity, mouseX, mouseY, mounted]); // isVisible tracked via ref to avoid effect restart
 
     if (!mounted) return null;
 

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import {
     LightbulbDoodle, PencilDoodle, StarDoodle,
     BugDoodle, PaperPlaneDoodle, SaturnDoodle,
@@ -10,7 +11,9 @@ import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import FeedbackNote, { FeedbackTab } from './FeedbackNote';
+import FeedbackTabButton from './FeedbackTabButton';
+
+const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
 
 /** Hoisted paper noise overlay style — avoids re-allocation per render */
 const PAPER_NOISE_STYLE = {
@@ -126,8 +129,8 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <SocialSidebar onFeedbackClick={openFeedback} />
 
                 {/* Feedback icon (floating bottom-right) + modal */}
-                <FeedbackTab onClick={openFeedback} />
-                <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} />
+                <FeedbackTabButton onClick={openFeedback} />
+                {feedbackOpen ? <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} /> : null}
             </div>
         </div>
     );

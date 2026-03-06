@@ -16,22 +16,6 @@ export interface CommandResult {
 
 export type CommandHandler = (args: string[]) => CommandResult | Promise<CommandResult>;
 
-interface CommandRegistryOptions {
-    disableActions?: boolean;
-    replayMode?: boolean;
-}
-
-function withOptionalAction(result: CommandResult, options?: CommandRegistryOptions): CommandResult {
-    if (!options?.disableActions || !result.action) {
-        return result;
-    }
-
-    return {
-        ...result,
-        action: undefined,
-    };
-}
-
 export function createInitialTerminalOutput(): React.ReactNode {
     return (
         <div className="text-gray-400 text-sm font-mono leading-relaxed">
@@ -44,7 +28,7 @@ export function createInitialTerminalOutput(): React.ReactNode {
     );
 }
 
-export const createCommandRegistry = (router: AppRouterInstance, options?: CommandRegistryOptions): Record<string, CommandHandler> => ({
+export const createCommandRegistry = (router: AppRouterInstance): Record<string, CommandHandler> => ({
     help: () => ({
         output: (
             <div className="space-y-1">
@@ -66,12 +50,6 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
         )
     }),
     joke: async () => {
-        if (options?.replayMode) {
-            return {
-                output: <span className="text-gray-400">Joke command ran in a previous session. Run it again for a fresh one.</span>
-            };
-        }
-
         if (!rateLimiter.check('joke-api', RATE_LIMITS.JOKE_API)) {
             const remainingTime = rateLimiter.getRemainingTime('joke-api', RATE_LIMITS.JOKE_API);
             return {
@@ -143,10 +121,10 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
             </div>
         )
     }),
-    projects: () => withOptionalAction({
+    projects: () => ({
         output: "Navigating to projects...",
         action: () => { setTimeout(() => router.push("/projects"), NAVIGATION_DELAY_MS); }
-    }, options),
+    }),
     init: () => {
         const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;
         return {
@@ -159,18 +137,18 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
             )
         };
     },
-    resume: () => withOptionalAction({
+    resume: () => ({
         output: "Navigating to resume page...",
         action: () => { setTimeout(() => router.push("/resume"), NAVIGATION_DELAY_MS); }
-    }, options),
-    cv: () => withOptionalAction({
+    }),
+    cv: () => ({
         output: "Navigating to resume page...",
         action: () => { setTimeout(() => router.push("/resume"), NAVIGATION_DELAY_MS); }
-    }, options),
-    chat: () => withOptionalAction({
+    }),
+    chat: () => ({
         output: "Navigating to chat...",
         action: () => { setTimeout(() => router.push("/chat"), NAVIGATION_DELAY_MS); }
-    }, options),
+    }),
     socials: () => ({
         output: (
             <div className="space-y-1">
@@ -181,14 +159,14 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
             </div>
         )
     }),
-    github: () => withOptionalAction({
+    github: () => ({
         output: "Opening GitHub profile...",
         action: () => window.open(PERSONAL_LINKS.github, '_blank', 'noopener,noreferrer')
-    }, options),
-    linkedin: () => withOptionalAction({
+    }),
+    linkedin: () => ({
         output: "Opening LinkedIn profile...",
         action: () => window.open(PERSONAL_LINKS.linkedin, '_blank', 'noopener,noreferrer')
-    }, options),
+    }),
     skills: () => ({
         output: (
             <div className="space-y-4">
@@ -262,13 +240,13 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
             "cropio.md": { output: "Opening projects...", route: "/projects" },
         };
         const entry = openable[file];
-        if (entry) return withOptionalAction({ output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } }, options);
+        if (entry) return { output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
     date: () => ({ output: new Date().toString() }),
     sudo: () => ({ output: <span className="text-red-500 font-bold">Permission denied: You are not authorized.</span> }),
-    feedback: () => withOptionalAction({
+    feedback: () => ({
         output: (
             <span className="text-emerald-300">Opening feedback form... ✏️</span>
         ),
@@ -277,6 +255,6 @@ export const createCommandRegistry = (router: AppRouterInstance, options?: Comma
                 window.dispatchEvent(new CustomEvent('open-feedback'));
             }
         }
-    }, options),
+    }),
     clear: () => ({ output: "" })
 });

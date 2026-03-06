@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
@@ -20,6 +21,7 @@ const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)'
 
 export default function Navigation() {
     const pathname = usePathname();
+    const { lightTap } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
@@ -40,6 +42,7 @@ export default function Navigation() {
                     hovered={hoveredTab === item.name}
                     onHoverStart={onHoverStart}
                     onHoverEnd={onHoverEnd}
+                    onPress={lightTap}
                 />
             ))}
         </nav>
@@ -54,6 +57,7 @@ const NavTab = React.memo(function NavTab({
     hovered,
     onHoverStart,
     onHoverEnd,
+    onPress,
 }: {
     item: { name: string; href: string };
     index: number;
@@ -61,13 +65,14 @@ const NavTab = React.memo(function NavTab({
     hovered: boolean;
     onHoverStart: (name: string) => void;
     onHoverEnd: () => void;
+    onPress: () => void;
 }) {
     const colorKey = COLOR_ORDER[index % COLOR_ORDER.length];
     const color = NAV_TAB_COLORS[colorKey];
     const y = active ? NAV_POSITIONS.active : hovered ? NAV_POSITIONS.hovered : NAV_POSITIONS.default;
 
     return (
-        <Link href={item.href} legacyBehavior={false} passHref>
+        <Link href={item.href} legacyBehavior={false} passHref onClick={onPress}>
             <div
                 onMouseEnter={() => onHoverStart(item.name)}
                 onMouseLeave={onHoverEnd}

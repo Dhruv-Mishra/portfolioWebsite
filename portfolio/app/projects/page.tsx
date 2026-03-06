@@ -2,13 +2,14 @@
 import { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
-import { ExternalLink, Play, Maximize2, Smartphone, Database, Activity, Film, Search, ScrollText, Globe } from 'lucide-react';
+import { ExternalLink, Play, Maximize2, Smartphone, Database, Activity, Film, Search, ScrollText, Globe, Scissors } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
+import { useAppHaptics } from '@/lib/haptics';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
-// Dynamic import — ProjectModal (240 LOC, video playback) only renders on user click.
+// Dynamic import — ProjectModal only renders on user click.
 const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
 
 interface Project {
@@ -23,6 +24,7 @@ interface Project {
     imageClassName?: string;
     stack: string[];
     blurDataURL: string;
+    video?: string | null;
     role: string;
     year: string;
     duration: string;
@@ -38,6 +40,7 @@ const BLUR = {
     recommender: 'data:image/webp;base64,UklGRm4AAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4ICAAAAAwAQCdASoIAAgABUB8JZQAA3AA/uxjjE3P2PxDd6EAAA==',
     atomVault: 'data:image/webp;base64,UklGRmwAAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4IB4AAAAwAQCdASoIAAgABUB8JZwAA3AA/u4CK3YKb4UQgAA=',
     bloom: 'data:image/webp;base64,UklGRm4AAABXRUJQVlA4WAoAAAAQAAAABwAABwAAQUxQSCgAAAABJ6AgbQPGv+V2x0ZERAOHQbaRXmEKU5jC+Vu9Q0T/s0oV4B6A6rYBVlA4ICAAAACQAQCdASoIAAgABUB8JZQAAp1HJ1wA/udBgwKu8XAAAA==',
+    cropio: 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoIAAgAAiBcJ6QAAueL+W5AAP14/5IM77pOBXw46E0Q80/owcgkyaUCAAA=',
 } as const;
 
 // Static project data — defined outside component to avoid re-creation on every render
@@ -138,6 +141,31 @@ const PROJECTS: Project[] = [
             ]
         },
         {
+            name: "Cropio",
+            desc: (
+                <>
+                    A <strong>privacy-conscious AI portrait cropper</strong> built to turn raw photos into polished headshots. It blends <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">YOLO11 pose estimation</span>, a precise <em>interactive crop editor</em>, and <span className="underline decoration-wavy decoration-sky-400">semantic archive search</span> so users can upload, refine, and export professional crops with <span className="font-semibold">full-resolution rendering in the browser</span>.
+                </>
+            ),
+            lang: "Next.js / FastAPI",
+            link: "https://github.com/Dhruv-Mishra/Cropio-ImageEditor",
+            colorClass: "bg-note-green",
+            image: "/resources/Cropio.webp",
+            blurDataURL: BLUR.cropio,
+            video: "/resources/Cropio.mp4",
+            icon: Scissors,
+            label: "AI Cropper",
+            stack: ["Next.js", "TypeScript", "FastAPI", "YOLO11 Pose", "IndexedDB", "NVIDIA APIs"],
+            role: "Full Stack + AI",
+            year: "2026",
+            duration: "Ongoing",
+            highlights: [
+                "Generates multiple portrait crop suggestions with pose detection and deterministic fallbacks",
+                "Supports drag-resize editing, aspect ratio presets, and full-resolution browser exports",
+                "Adds AI descriptions and semantic search over saved sessions via local IndexedDB embeddings",
+            ]
+        },
+        {
             name: "Hybrid Recommender",
             desc: (
                 <>
@@ -220,7 +248,7 @@ const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMAT
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
 const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
 
-/** Hoisted — avoids re-allocation per render for all 7 cards */
+/** Hoisted — avoids re-allocation per render for every card */
 const CARD_CLIP_STYLE = {
     clipPath: `polygon(
         0% 0%,
@@ -251,17 +279,24 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
+    const { lightTap, tap } = useAppHaptics();
+
+    const openProject = useCallback((index: number) => {
+        tap();
+        setSelectedProject(index);
+    }, [tap]);
 
     const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
         // Don't open modal if clicking the external link
         const target = e.target as HTMLElement;
         if (target.closest('a')) return;
-        setSelectedProject(index);
-    }, []);
+        openProject(index);
+    }, [openProject]);
 
     const handleCloseModal = useCallback(() => {
+        lightTap();
         setSelectedProject(null);
-    }, []);
+    }, [lightTap]);
 
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
@@ -273,6 +308,7 @@ export default function Projects() {
                 {PROJECTS.map((proj, i) => {
                     const rotate = ROTATIONS[i % 6];
                     const styles = CARD_STYLES[i];
+                    const hasVideo = proj.video !== null;
 
                     return (
                         <m.div
@@ -297,7 +333,12 @@ export default function Projects() {
                             role="button"
                             tabIndex={0}
                             onClick={(e) => handleCardClick(e, i)}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProject(i); } }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    openProject(i);
+                                }
+                            }}
                             aria-label={`View details for ${proj.name}`}
                             whileHover={CARD_HOVER}
                             whileTap={CARD_TAP}
@@ -352,7 +393,11 @@ export default function Projects() {
                                                 {/* Play overlay — signals tap/hover to expand */}
                                                 <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-[background-color] duration-300">
                                                     <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-lg">
-                                                        <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
+                                                        {hasVideo ? (
+                                                            <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
+                                                        ) : (
+                                                            <Maximize2 size={18} className="text-gray-800" />
+                                                        )}
                                                     </div>
                                                 </div>
                                             </>

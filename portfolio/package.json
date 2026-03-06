@@ -17,7 +17,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "server-only": "^0.0.1",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "web-haptics": "^0.0.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

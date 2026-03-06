@@ -1,6 +1,7 @@
 "use client";
 import { X, ExternalLink, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -17,11 +18,13 @@ interface ProjectModalData {
     image: string;
     icon: React.ComponentType<{ className?: string }>;
     label: string;
+    blurDataURL: string;
     stack: string[];
     role: string;
     year: string;
     duration: string;
     highlights: string[];
+    video?: string | null;
 }
 
 interface ProjectModalProps {
@@ -64,7 +67,12 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(true);
 
-    const videoSrc = project ? project.image.replace(/\.webp$/, '.mp4') : '';
+    const hasVideo = project ? project.video !== null : false;
+    const videoSrc = !project
+        ? ''
+        : project.video === undefined
+            ? project.image.replace(/\.webp$/, '.mp4')
+            : (project.video ?? '');
 
     // Toggle mute/unmute — syncs state to the video element directly
     const toggleMute = useCallback(() => {
@@ -92,6 +100,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     useEffect(() => {
         setIsMuted(true); // reset to muted for each new project
         return () => {
+            if (!hasVideo) return;
             const video = videoRef.current;
             if (video) {
                 video.pause();
@@ -99,7 +108,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 video.load(); // release decode buffer
             }
         };
-    }, [project]);
+    }, [hasVideo, project]);
 
     return (
         <Modal
@@ -133,31 +142,44 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         </button>
 
                     <div className="p-6 md:p-8 pt-8">
-                        {/* ── Video Player ───────────────────────────────────────── */}
+                        {/* ── Project Preview ─────────────────────────────────────── */}
                         <div className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-md border border-gray-200 dark:border-gray-300 mb-6 relative">
                             {/* Paper clip on left corner */}
                             <PaperClip className="absolute -top-4 left-1 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm -rotate-12" />
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
-                                <video
-                                    ref={setVideoRef}
-                                    src={videoSrc}
-                                    poster={project.image}
-                                    muted
-                                    loop
-                                    playsInline
-                                    preload="none"
-                                    className="w-full h-full object-cover"
-                                />
-                                {/* Mute/Unmute toggle */}
-                                <button
-                                    onClick={toggleMute}
-                                    aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-                                    data-clickable
-                                    className="absolute bottom-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
-                                >
-                                    {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                                </button>
+                                {hasVideo ? (
+                                    <>
+                                        <video
+                                            ref={setVideoRef}
+                                            src={videoSrc}
+                                            poster={project.image}
+                                            muted
+                                            loop
+                                            playsInline
+                                            preload="none"
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <button
+                                            onClick={toggleMute}
+                                            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                                            data-clickable
+                                            className="absolute bottom-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
+                                        >
+                                            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                                        </button>
+                                    </>
+                                ) : (
+                                    <Image
+                                        src={project.image}
+                                        alt={`${project.name} project preview`}
+                                        fill
+                                        sizes="(max-width: 768px) 90vw, 720px"
+                                        placeholder="blur"
+                                        blurDataURL={project.blurDataURL}
+                                        className="object-cover"
+                                    />
+                                )}
                             </div>
                         </div>
 

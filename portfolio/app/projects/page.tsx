@@ -6,6 +6,7 @@ import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
@@ -19,6 +20,7 @@ const PHOTO_ROTATIONS = PROJECT_TOKENS.photoRotations;
 const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
 const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
+const CARD_SHADOW_MOBILE = { boxShadow: '2px 4px 10px rgba(0,0,0,0.08)' } as const;
 const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
 const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
@@ -54,6 +56,7 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
+    const isMobile = useIsMobile();
     const { lightTap, tap } = useAppHaptics();
 
     const openProject = useCallback((index: number) => {
@@ -89,14 +92,15 @@ export default function Projects() {
                         <m.div
                             key={proj.name}
                             className="pt-5"
-                            initial={{ opacity: 0, y: 20, rotate: rotate }}
-                            whileInView={{
+                            initial={isMobile ? { opacity: 1, y: 0, rotate: rotate } : { opacity: 0, y: 20, rotate: rotate }}
+                            animate={isMobile ? { opacity: 1, y: 0, rotate: rotate } : undefined}
+                            whileInView={isMobile ? undefined : {
                                 opacity: 1,
                                 y: 0,
                                 rotate: rotate,
                             }}
-                            viewport={{ once: true, margin: PROJECT_TOKENS.viewportMargin }}
-                            transition={{
+                            viewport={isMobile ? undefined : { once: true, margin: PROJECT_TOKENS.viewportMargin }}
+                            transition={isMobile ? { duration: 0 } : {
                                 delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
                                 ...CARD_SPRING,
                             }}
@@ -115,10 +119,10 @@ export default function Projects() {
                                 }
                             }}
                             aria-label={`View details for ${proj.name}`}
-                            whileHover={CARD_HOVER}
+                            whileHover={isMobile ? undefined : CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
-                            style={CARD_SHADOW}
+                            style={isMobile ? CARD_SHADOW_MOBILE : CARD_SHADOW}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
@@ -163,11 +167,11 @@ export default function Projects() {
                                                     priority={i < 3}
                                                     placeholder="blur"
                                                     blurDataURL={proj.blurDataURL}
-                                                    className={`object-cover sepia-[.2] group-hover/card:sepia-0 ${proj.imageClassName || ''}`}
+                                                    className={`object-cover sepia-[.2] md:group-hover/card:sepia-0 ${proj.imageClassName || ''}`}
                                                 />
                                                 {/* Play overlay — signals tap/hover to expand */}
-                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 group-hover/card:bg-black/15 transition-[background-color] duration-300">
-                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 group-hover/card:opacity-100 scale-90 md:scale-75 group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-lg">
+                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 md:group-hover/card:bg-black/15 transition-[background-color] duration-300">
+                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 md:group-hover/card:opacity-100 scale-90 md:scale-75 md:group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-md md:shadow-lg">
                                                         {hasVideo ? (
                                                             <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
                                                         ) : (
@@ -225,7 +229,7 @@ export default function Projects() {
                                     >
                                         Source <ExternalLink size={16} />
                                     </a>
-                                    <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-30 group-hover/card:opacity-60 transition-opacity pr-6">
+                                    <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-30 md:group-hover/card:opacity-60 transition-opacity pr-6">
                                         <Maximize2 size={14} /> Tap to expand
                                     </div>
                                 </div>

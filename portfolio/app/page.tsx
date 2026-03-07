@@ -46,7 +46,7 @@ export default function Home() {
       </p>
 
       {/* The Terminal */}
-      <div className="w-full max-w-2xl mt-8 transform rotate-1 hover:rotate-0 transition-transform duration-300 z-20 relative">
+      <div className="w-full max-w-2xl mt-8 transform rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative">
         <HomeTerminalIsland />
 
         {/* Interaction Hint (Desktop Only) */}
@@ -69,26 +69,21 @@ export default function Home() {
         aria-label="Chat with AI Dhruv"
       >
         {/* Folded note body */}
-        <div className="relative bg-[#fff9c4] dark:bg-[#fef9c3]/90 px-5 py-3 shadow-md rotate-2 group-hover:rotate-0 transition-transform duration-300 border border-yellow-300/40">
+        <div className="relative bg-[#fff9c4] dark:bg-[#fef9c3]/90 px-5 py-3 shadow-sm md:shadow-md rotate-2 md:group-hover:rotate-0 transition-transform duration-300 border border-yellow-300/40">
           {/* Tape strip on top */}
           <div
-            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10"
-            style={{
-              background: 'linear-gradient(135deg, rgba(200,200,180,0.5), rgba(220,220,200,0.35))',
-              backdropFilter: 'blur(1px)',
-              border: '1px solid rgba(180,180,160,0.2)',
-            }}
+            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]"
           />
           {/* Ruled lines (decorative) */}
           <div className="absolute inset-x-4 top-[52%] h-px bg-blue-300/20 pointer-events-none" />
           <div className="absolute inset-x-4 top-[76%] h-px bg-blue-300/20 pointer-events-none" />
           {/* Content */}
           <div className="flex items-center gap-2.5">
-            <MessageCircle className="w-5 h-5 text-indigo-500/70 group-hover:text-indigo-600 transition-colors shrink-0" strokeWidth={1.8} />
-            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-800 group-hover:text-indigo-700 transition-colors">
+            <MessageCircle className="w-5 h-5 text-indigo-500/70 md:group-hover:text-indigo-600 transition-colors shrink-0" strokeWidth={1.8} />
+            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-800 md:group-hover:text-indigo-700 transition-colors">
               Pass me a note
             </span>
-            <span className="text-indigo-400 group-hover:translate-x-1 transition-transform duration-200">→</span>
+            <span className="text-indigo-400 md:group-hover:translate-x-1 transition-transform duration-200">→</span>
           </div>
           {/* Dog-ear fold */}
           <div

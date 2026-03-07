@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { m } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
@@ -24,6 +25,11 @@ const shadowStyle = { borderRadius: SKETCH_RADIUS.terminal } as const;
 const containerStyle = {
     borderRadius: SKETCH_RADIUS.terminal,
     boxShadow: SHADOW_TOKENS.terminal,
+    backgroundColor: TERMINAL_COLORS.bg,
+} as const;
+const containerStyleMobile = {
+    borderRadius: SKETCH_RADIUS.terminal,
+    boxShadow: 'inset 0 0 18px rgba(0,0,0,0.32)',
     backgroundColor: TERMINAL_COLORS.bg,
 } as const;
 const headerStyle = { backgroundColor: TERMINAL_COLORS.headerBg } as const;
@@ -57,6 +63,7 @@ const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: Termi
 
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
+    const isMobile = useIsMobile();
     const router = useRouter(); // Correctly using hook inside component
 
     const [input, setInput] = useState("");
@@ -190,14 +197,14 @@ export default function Terminal() {
         >
             {/* Rough Shadow */}
             <div
-                className="absolute inset-0 bg-black/8 rounded-lg transform translate-x-2 translate-y-3 rotate-2 pointer-events-none"
+                className="absolute inset-0 bg-black/8 rounded-lg transform translate-x-1 translate-y-2 md:translate-x-2 md:translate-y-3 rotate-2 pointer-events-none"
                 style={shadowStyle}
             />
 
             {/* Terminal Container - Charcoal Block */}
             <div
                 className={`relative ${TERMINAL_COLORS.text} overflow-hidden border-[3px] ${TERMINAL_COLORS.border} shadow-inner`}
-                style={containerStyle}
+                style={isMobile ? containerStyleMobile : containerStyle}
             >
                 {/* Sketchy Header */}
                 <div

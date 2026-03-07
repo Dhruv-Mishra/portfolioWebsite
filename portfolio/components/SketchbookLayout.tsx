@@ -80,12 +80,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                <div className="absolute inset-0 pointer-events-none opacity-[0.015] md:opacity-[0.03]"
                     style={{ ...PAPER_NOISE_STYLE, zIndex: Z_INDEX.texture }}
                 />
 
                 {/* Background Grid Pattern - Thicker and Larger */}
-                <div className="absolute inset-0 pointer-events-none opacity-20"
+                <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-20"
                     style={{ ...GRID_PATTERN_STYLE, zIndex: Z_INDEX.base }}
                 />
 
@@ -115,7 +115,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <main
                     id="main-content"
                     role="main"
-                    className="relative w-full h-full perspective-[2000px] overflow-y-auto overflow-x-hidden ruler-scrollbar"
+                    className="relative w-full h-full overflow-y-auto overflow-x-hidden ruler-scrollbar md:perspective-[2000px]"
                     style={{ zIndex: Z_INDEX.content }}
                     tabIndex={-1}
                 >

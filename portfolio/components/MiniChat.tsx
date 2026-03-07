@@ -93,7 +93,7 @@ export default function MiniChat() {
               exit={INTERACTION_TOKENS.exit.popOut}
               transition={GENTLE_SPRING_TRANSITION}
               className={cn(
-                "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-2xl overflow-hidden",
+                "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-lg md:shadow-2xl overflow-hidden",
                 // Mobile: full screen overlay
                 "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
                 "max-w-[var(--c-chat-max-w)]",
@@ -102,7 +102,7 @@ export default function MiniChat() {
             >
               {/* Chat content — full height, controls are inside StickyNoteChat */}
               <div className="h-full relative">
-                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/55 px-4 pt-3 pb-2 backdrop-blur-[1px]">
+                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]">
                   <div className="pr-16">
                     <div className="font-hand text-xl font-bold leading-none text-[var(--c-heading)]">
                       Quick chat

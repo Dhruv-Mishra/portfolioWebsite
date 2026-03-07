@@ -126,42 +126,59 @@ function parseActions(text: string): ParsedActions {
 // (stripActionTags removed — no longer needed without streaming)
 
 // Tiered filler messages — each tier shown at its corresponding delay.
-// Written as short, first-person "thinking out loud" lines that fit a sticky-note chat
-// from a software engineer. No question-specific context needed.
+// Written to sound like Dhruv: casual, thoughtful, a little nerdy, and still in-theme.
 const FILLER_5S = [
-  "Hmm, let me think about this...",
-  "Give me a sec, putting my thoughts together...",
-  "One moment — organizing my notes...",
-  "Let me dig into this for you...",
-  "Working on it, hang tight...",
-  "Hold on — juggling a few conversations here...",
+  "Let me think for a sec, I want to answer this properly...",
+  "One sec, flipping through the mental sketchbook...",
+  "Working on it. I have thoughts, just lining them up...",
+  "Hang on, I am piecing this together...",
+  "Give me a moment, I do not want to hand-wave this one...",
+  "Scribbling out a real answer, not just vibes...",
 ];
 
 const FILLER_10S = [
-  "Still on it — this needs a bit more thought...",
-  "Pulling up some details, almost there...",
-  "Taking a bit longer than I expected — bear with me!",
-  "Writing you a proper answer, one sec...",
-  "Almost done — just connecting a few dots...",
-  "Talking to a lot of people today — you're next in line!",
+  "Still with me. This needs a slightly less lazy answer...",
+  "Pulling a few details together so I do not butcher it...",
+  "Almost there, just connecting the useful dots...",
+  "This is the kind of question I would usually answer with a whiteboard...",
+  "Trying to keep this crisp instead of dumping raw brain-noise on you...",
+  "One more minute, I am tightening the answer up...",
 ];
 
 const FILLER_15S = [
-  "Okay, this one's taking some real brainpower...",
-  "Deep in thought — haven't forgotten about you!",
-  "Still here! Just making sure I get this right.",
-  "This turned out to be a bigger topic than I thought...",
-  "Running through my mental notes, almost there...",
-  "I've gotten really popular lately — hard to keep up!",
+  "Okay, this one is taking actual brainpower now...",
+  "Still here. I am making sure the answer is worth the wait...",
+  "This got bigger than a quick sticky note, but I am on it...",
+  "Running through the mental notes and trimming the nonsense...",
+  "I could answer faster, but it would be worse. So, doing it properly...",
+  "This is somewhere between a reply and a mini design review now...",
 ];
 
 const FILLER_20S = [
-  "Is this an NP-hard problem? Please stand by...",
-  "My brain's running O(n!) on this one — hang in there...",
-  "Pretty sure this needs a whiteboard and three cups of coffee...",
-  "Brute-forcing every possible answer at this point...",
-  "Segfault in my brain. Restarting thought process...",
-  "Managing this many conversations is basically distributed systems at this point...",
+  "At this point I have promoted the problem from sticky note to full notebook page...",
+  "Pretty sure this answer wants coffee, a whiteboard, and maybe a compiler...",
+  "My brain is doing the software-engineer thing where it checks edge cases before speaking...",
+  "Still cooking. Trying to make this useful, not just impressive-looking...",
+  "If this were an interview, this is the part where I ask for a marker...",
+  "This is taking long enough that it now feels performance-sensitive...",
+];
+
+const FILLER_30S = [
+  "Still on it. I am deep enough in the weeds that I should at least come back with something solid...",
+  "This answer has officially crossed from quick reply into proper thought...",
+  "I am still here, just making sure I do not give you a polished-sounding wrong answer...",
+  "Somewhere between system design mode and overthinking mode right now...",
+  "This is one of those answers where the last 20 percent takes most of the time...",
+  "I promise I did not wander off, I am just debugging the wording in my head...",
+];
+
+const FILLER_40S = [
+  "Okay, this is taking long enough that I owe you a good answer now...",
+  "Still writing. At this point the response has gone from sticky note to mini essay...",
+  "Hanging in there. Trying to return something thoughtful instead of AI-flavored wallpaper...",
+  "I am in the final stretch, just pressure-testing the answer before I hand it over...",
+  "This turned into the conversational equivalent of a long compile, but it is still running...",
+  "If I had a real notepad here, this would be page two already...",
 ];
 
 const FILLER_TIERS = [
@@ -169,6 +186,8 @@ const FILLER_TIERS = [
   { delay: FILLER_DELAYS.tier2, pool: FILLER_10S },
   { delay: FILLER_DELAYS.tier3, pool: FILLER_15S },
   { delay: FILLER_DELAYS.tier4, pool: FILLER_20S },
+  { delay: FILLER_DELAYS.tier5, pool: FILLER_30S },
+  { delay: FILLER_DELAYS.tier6, pool: FILLER_40S },
 ];
 
 function loadMessages(): ChatMessage[] {

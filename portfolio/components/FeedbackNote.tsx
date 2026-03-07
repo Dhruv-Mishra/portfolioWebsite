@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { m } from 'framer-motion';
-import { Bug, Lightbulb, Heart, MessageSquare, Send, Eraser, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
+import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -256,10 +256,10 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             {/* Close button */}
             <button
               onClick={handleClose}
-              className="absolute top-1 right-1 z-30 p-3 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
+              className="absolute top-1 right-1 z-30 rounded-full p-3 text-rose-600/70 hover:bg-rose-50/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200 hover:scale-110 hover:rotate-6"
               aria-label="Close feedback note"
             >
-              <Eraser size={18} />
+              <X size={18} strokeWidth={2.4} />
             </button>
 
             {/* Content */}

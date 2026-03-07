@@ -1,5 +1,5 @@
 "use client";
-import { Eraser, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { X, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -132,11 +132,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         {/* Close Button */}
                         <button
                             onClick={onClose}
-                            className="absolute top-4 right-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/40 hover:bg-white/90 dark:hover:bg-black/60 transition-colors shadow-md"
+                            className="absolute top-4 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-white/60 text-rose-600/80 shadow-md hover:scale-110 hover:rotate-6 hover:bg-rose-50/90 hover:text-rose-700 dark:bg-black/40 dark:text-rose-400/85 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200"
                             aria-label="Close project note"
                             data-clickable
                         >
-                            <Eraser size={20} />
+                            <X size={20} strokeWidth={2.4} />
                         </button>
 
                     <div className="p-6 md:p-8 pt-8">

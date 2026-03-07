@@ -8,6 +8,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
+import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 
 // Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
@@ -114,6 +115,18 @@ export default function MiniChat() {
             >
               {/* Chat content — full height, controls are inside StickyNoteChat */}
               <div className="h-full relative">
+                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/55 px-4 pt-3 pb-2 backdrop-blur-[1px]">
+                  <div className="pr-16">
+                    <div className="font-hand text-xl font-bold leading-none text-[var(--c-heading)]">
+                      Quick chat
+                    </div>
+                    <div className="mt-1 font-hand text-sm text-[var(--c-ink)]/60">
+                      Pass me a note without leaving the page.
+                    </div>
+                    <WavyUnderline className="!mt-1.5 opacity-45" />
+                  </div>
+                </div>
+
                 {/* Expand + dismiss buttons overlaid top-right */}
                 <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
                   <Link
@@ -132,7 +145,9 @@ export default function MiniChat() {
                     <Trash2 size={14} />
                   </button>
                 </div>
-                <StickyNoteChat compact />
+                <div className="h-full pt-16">
+                  <StickyNoteChat compact />
+                </div>
               </div>
             </m.div>
           </>
@@ -148,7 +163,7 @@ export default function MiniChat() {
           initial={{ opacity: 0, scale: 0 }}
           animate={FAB_ANIMATE}
           className={cn(
-            "relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
+            "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
             isOpen
               ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
               : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",
@@ -158,7 +173,7 @@ export default function MiniChat() {
           style={FAB_BUTTON_STYLE}
         >
           {isOpen ? (
-            <X size={22} />
+            <X size={22} className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.4} />
           ) : (
             <>
               <StickyNoteDoodle />

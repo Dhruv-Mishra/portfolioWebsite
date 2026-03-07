@@ -68,6 +68,17 @@ const PROJECT_REPO_TARGETS: Partial<Record<ProjectSlug, string>> = {
   'atomvault': PROJECT_LINKS.atomvault,
 };
 
+const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
+  { slug: 'fluent-ui-android', aliases: ['fluent ui android', 'fluent ui', 'microsoft 365'] },
+  { slug: 'course-evaluator', aliases: ['course evaluator', 'course similarity evaluator'] },
+  { slug: 'ivc-vital-checkup', aliases: ['ivc', 'instant vital checkup', 'vital checkup'] },
+  { slug: 'personal-portfolio', aliases: ['portfolio project', 'website project', 'this site', 'portfolio'] },
+  { slug: 'cropio', aliases: ['cropio', 'ai cropper', 'portrait cropper'] },
+  { slug: 'hybrid-recommender', aliases: ['hybrid recommender', 'movie recommender'] },
+  { slug: 'bloom-filter-research', aliases: ['bloom filter research', 'bloom filter'] },
+  { slug: 'atomvault', aliases: ['atomvault', 'atom vault'] },
+];
+
 const EXACT_ACTION_LABELS = new Map(
   ACTION_REGISTRY.map(action => [normalizeInput(action.label), action])
 );
@@ -89,12 +100,82 @@ function isExplanationRequest(input: string): boolean {
   return EXPLANATION_PATTERNS.some(pattern => pattern.test(input));
 }
 
+function collapseToken(input: string): string {
+  return input.replace(/[^a-z0-9]/g, '');
+}
+
+function stripRoutingWords(input: string): string {
+  return input
+    .replace(/\b(show|open|view|pull up|bring up|take me to|go to|navigate to|visit|tell me about|what does|what is|how does|how do|compare|explain|details on|more about|overview of|the|me|your|please)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getEditDistance(left: string, right: string): number {
+  if (left === right) {
+    return 0;
+  }
+
+  if (!left.length) {
+    return right.length;
+  }
+
+  if (!right.length) {
+    return left.length;
+  }
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = new Array<number>(right.length + 1).fill(0);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
+    current[0] = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      current[rightIndex] = Math.min(
+        previous[rightIndex] + 1,
+        current[rightIndex - 1] + 1,
+        previous[rightIndex - 1] + substitutionCost,
+      );
+    }
+
+    for (let column = 0; column < current.length; column++) {
+      previous[column] = current[column];
+    }
+  }
+
+  return previous[right.length];
+}
+
 function findProjectMention(input: string): ProjectSlug | null {
   const matches = PROJECT_ACTIONS.filter(project =>
     project.keywords.some(keyword => new RegExp(keyword, 'i').test(input)),
   );
 
   if (matches.length !== 1) {
+    const candidate = collapseToken(stripRoutingWords(input));
+    if (!candidate) {
+      return null;
+    }
+
+    const fuzzyMatches = PROJECT_ALIAS_TOKENS
+      .map(project => ({
+        slug: project.slug,
+        bestDistance: Math.min(
+          ...project.aliases.map(alias => getEditDistance(candidate, collapseToken(alias))),
+        ),
+      }))
+      .filter(project => project.bestDistance <= 2)
+      .sort((left, right) => left.bestDistance - right.bestDistance);
+
+    if (fuzzyMatches.length === 1) {
+      return fuzzyMatches[0].slug;
+    }
+
+    if (fuzzyMatches.length > 1 && fuzzyMatches[0].bestDistance < fuzzyMatches[1].bestDistance) {
+      return fuzzyMatches[0].slug;
+    }
+
     return null;
   }
 

@@ -1,0 +1,10 @@
+{
+  "name": "dhruvwebsite-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix portfolio run dev",
+    "build": "npm --prefix portfolio run build",
+    "start": "npm --prefix portfolio run start",
+    "lint": "npm --prefix portfolio run lint"
+  }
+}

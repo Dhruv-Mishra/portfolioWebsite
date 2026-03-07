@@ -419,7 +419,7 @@ export function useStickyChat(): UseStickyChat {
       setError(getDisplayErrorMessage(err));
 
       setMessages(prev =>
-        prev.filter(m => m.id !== assistantId || m.content)
+        prev.filter(m => m.id !== assistantId)
       );
     } finally {
       setIsLoading(false);

@@ -1,4 +1,5 @@
 import 'server-only';
+import type { ProjectSlug } from '@/lib/projectCatalog';
 
 interface FactEntry {
   id: string;
@@ -85,6 +86,15 @@ const PROJECT_FACTS: FactEntry[] = [
   },
 ];
 
+const PROJECT_FACT_TEXT_BY_SLUG: Partial<Record<ProjectSlug, string>> = {
+  'cropio': 'Cropio is a privacy-conscious AI portrait cropper built with Next.js and FastAPI. It uses YOLO11 pose estimation, an interactive crop editor, full-resolution browser exports, and semantic session search over local IndexedDB embeddings.',
+  'course-evaluator': 'Course Similarity Evaluator compares courses using NLP and fuzzy matching with Python and scikit-learn.',
+  'ivc-vital-checkup': 'Instant Vital Checkup is a contactless computer-vision health screening project using Python and OpenCV to estimate height, weight, BMI, and pulse from a single camera.',
+  'hybrid-recommender': 'Hybrid Entertainment Recommender is an age-aware, context-sensitive movie recommendation system built with Python and scikit-learn.',
+  'atomvault': 'AtomVault is an ACID-compliant banking database project built with Java and MySQL and designed with role-based security.',
+  'bloom-filter-research': 'My Bloom filter research at IIIT Delhi focused on counting Bloom filters in C++ and improved throughput by 300 percent through relaxed synchronization.',
+};
+
 const PERSONAL_FACTS: FactEntry[] = [
   {
     id: 'hobbies',
@@ -134,7 +144,7 @@ const FACT_BANK: FactEntry[] = [
   ...SITE_FACTS,
 ];
 
-const ALWAYS_INCLUDE_IDS = ['work-shell', 'work-fluentui', 'stack', 'site'];
+const ALWAYS_INCLUDE_IDS = ['work-shell', 'stack', 'site'];
 
 function getMatchScore(fact: FactEntry, query: string): number {
   let score = fact.priority ?? 0;
@@ -151,7 +161,8 @@ function getMatchScore(fact: FactEntry, query: string): number {
 
 export function getRelevantDhruvFacts(messages: { role: string; content: string }[], limit = 8): string {
   const query = messages
-    .slice(-6)
+    .filter((message) => message.role === 'user')
+    .slice(-4)
     .map((message) => message.content.toLowerCase())
     .join(' ')
     .trim();
@@ -167,4 +178,8 @@ export function getRelevantDhruvFacts(messages: { role: string; content: string 
 
   const facts = [...alwaysIncluded, ...ranked].slice(0, limit);
   return facts.map((fact) => `- ${fact.text}`).join('\n');
+}
+
+export function getProjectFactText(slug: ProjectSlug): string | null {
+  return PROJECT_FACT_TEXT_BY_SLUG[slug] ?? null;
 }

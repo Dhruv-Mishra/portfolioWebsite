@@ -3,9 +3,10 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
+import { hasActionExecution, type ActionExecution } from '@/lib/actions';
+import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
-import { OPEN_LINK_KEYS } from '@/lib/links';
-import { isProjectSlug, type ProjectSlug } from '@/lib/projectCatalog';
+import type { ProjectSlug } from '@/lib/projectCatalog';
 import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { FILLER_DELAYS } from '@/lib/llmConfig';
@@ -17,12 +18,13 @@ export interface ChatMessage {
   timestamp: number;
   isOld?: boolean; // Messages loaded from localStorage
   isFiller?: boolean; // True when showing thinking/filler text (not final response)
-  navigateTo?: string; // Page path to navigate to (parsed from [[NAVIGATE:/path]])
+  navigateTo?: string; // Page path to navigate to
   themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
-  openUrls?: string[]; // External URLs to open in new tabs (parsed from [[OPEN:key]])
+  openUrls?: string[]; // External URLs to open in new tabs
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
-  feedbackAction?: boolean; // True when [[FEEDBACK]] tag is parsed
+  feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
+  signature?: string; // Server signature for trusted assistant history replay
 }
 
 interface UseStickyChat {
@@ -39,88 +41,16 @@ interface UseStickyChat {
   isSuggestionsLoading: boolean;
 }
 
+function getDisplayErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return 'Chat service is unavailable right now. Try again in a sec.';
+}
+
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-// Parse and strip action tags from message content
-const NAVIGATE_RE = /\[\[NAVIGATE:(\/[a-z-]*)\]\]/i;
-const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
-const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/gi;  // global: find ALL OPEN tags
-const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
-const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
-const PROJECT_RE = /\[\[PROJECT:([a-z0-9-]+)\]\]/i;
-
-// Map OPEN: keys to actual URLs
-const OPEN_LINKS = OPEN_LINK_KEYS;
-
-interface ParsedActions {
-  content: string;
-  navigateTo?: string;
-  themeAction?: 'dark' | 'light' | 'toggle';
-  openUrls?: string[];
-  feedbackAction?: boolean;
-  projectSlug?: ProjectSlug;
-}
-
-function parseActions(text: string): ParsedActions {
-  let content = text;
-  let navigateTo: string | undefined;
-  let themeAction: ('dark' | 'light' | 'toggle') | undefined;
-  const openUrls: string[] = [];
-  let projectSlug: ProjectSlug | undefined;
-
-  // Parse [[NAVIGATE:/path]]
-  const navMatch = content.match(NAVIGATE_RE);
-  if (navMatch) {
-    const path = navMatch[1];
-    const validPaths = ['/', '/about', '/projects', '/resume', '/chat'];
-    if (validPaths.includes(path)) {
-      navigateTo = path;
-    }
-    content = content.replace(NAVIGATE_RE, '').trim();
-  }
-
-  // Parse [[THEME:dark|light|toggle]]
-  const themeMatch = content.match(THEME_RE);
-  if (themeMatch) {
-    themeAction = themeMatch[1].toLowerCase() as 'dark' | 'light' | 'toggle';
-    content = content.replace(THEME_RE, '').trim();
-  }
-
-  // Parse ALL [[OPEN:key]] tags (supports multiple)
-  const openMatches = [...text.matchAll(OPEN_RE)];
-  for (const match of openMatches) {
-    const key = match[1].toLowerCase();
-    if (OPEN_LINKS[key]) {
-      openUrls.push(OPEN_LINKS[key]);
-    }
-  }
-  content = content.replace(OPEN_SINGLE_RE, '').trim();
-
-  // Parse [[FEEDBACK]]
-  let feedbackAction: boolean | undefined;
-  const feedbackMatch = content.match(FEEDBACK_RE);
-  if (feedbackMatch) {
-    feedbackAction = true;
-    content = content.replace(FEEDBACK_RE, '').trim();
-  }
-
-  const projectMatch = content.match(PROJECT_RE);
-  const projectCandidate = projectMatch?.[1]?.toLowerCase();
-  if (projectCandidate && isProjectSlug(projectCandidate)) {
-    projectSlug = projectCandidate;
-    content = content.replace(PROJECT_RE, '').trim();
-  }
-
-  return {
-    content,
-    navigateTo,
-    themeAction,
-    openUrls: openUrls.length > 0 ? openUrls : undefined,
-    feedbackAction,
-    projectSlug,
-  };
 }
 
 // (stripActionTags removed — no longer needed without streaming)
@@ -385,7 +315,22 @@ export function useStickyChat(): UseStickyChat {
       const recentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
       const contextWindow = recentMessages.slice(-10);
       const conversationMessages = [
-        ...contextWindow.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        ...contextWindow.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          ...(m.role === 'assistant'
+            ? {
+                signature: m.signature,
+                action: {
+                  navigateTo: m.navigateTo,
+                  themeAction: m.themeAction,
+                  openUrls: m.openUrls,
+                  feedbackAction: m.feedbackAction,
+                  projectSlug: m.projectSlug,
+                },
+              }
+            : {}),
+        })),
         { role: 'user' as const, content: trimmed },
       ];
 
@@ -411,17 +356,29 @@ export function useStickyChat(): UseStickyChat {
 
       const data = await response.json();
       const rawReply: string = data.reply || '';
+      const safeReply = sanitizeAssistantReplyText(rawReply);
+      const serverAction = hasActionExecution(data.action as ActionExecution | null | undefined)
+        ? data.action as ActionExecution
+        : null;
 
-      if (rawReply) {
-        // Parse action tags from the complete response
-        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction, projectSlug } = parseActions(rawReply);
-        const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction || projectSlug);
-        const displayContent = finalContent || (hasAction ? 'On it ~' : rawReply);
+      if (safeReply || serverAction) {
+        const hasAction = hasActionExecution(serverAction);
+        const displayContent = safeReply || (hasAction ? 'On it ~' : getContextualFallback(trimmed));
 
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, isFiller: false, navigateTo, themeAction, openUrls, feedbackAction, projectSlug }
+              ? {
+                  ...m,
+                  content: displayContent,
+                  isFiller: false,
+                  navigateTo: serverAction?.navigateTo,
+                  themeAction: serverAction?.themeAction,
+                  openUrls: serverAction?.openUrls,
+                  feedbackAction: serverAction?.feedbackAction,
+                  projectSlug: serverAction?.projectSlug,
+                  signature: typeof data.signature === 'string' ? data.signature : undefined,
+                }
               : m
           )
         );
@@ -459,12 +416,10 @@ export function useStickyChat(): UseStickyChat {
         return;
       }
 
+      setError(getDisplayErrorMessage(err));
+
       setMessages(prev =>
-        prev.map(m =>
-          m.id === assistantId
-            ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-            : m
-        )
+        prev.filter(m => m.id !== assistantId || m.content)
       );
     } finally {
       setIsLoading(false);
@@ -472,7 +427,6 @@ export function useStickyChat(): UseStickyChat {
     }
   }, []); // Stable: reads all mutable state via refs
 
-  // Add a user message + pre-built assistant response without calling the LLM.
   const addLocalExchange = useCallback((userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => {
     const userMsg: ChatMessage = {
       id: generateId(),

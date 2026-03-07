@@ -22,9 +22,9 @@ export const PROJECT_ACTIONS = [
   },
   {
     slug: 'personal-portfolio',
-    label: 'Show me your portfolio project',
+    label: 'Show me the portfolio project',
     verbs: ['show', 'open', 'view', 'tell'],
-    keywords: ['portfolio', 'website', 'sketchbook'],
+    keywords: ['portfolio\s*project', 'website\s*project', 'sketchbook\s*site', 'this\s*site'],
     response: 'Opening the portfolio project right here ~',
   },
   {

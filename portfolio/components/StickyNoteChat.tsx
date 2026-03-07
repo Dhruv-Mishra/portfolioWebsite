@@ -14,7 +14,7 @@ import PillScrollbar from '@/components/PillScrollbar';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
-import { resolveAction, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
+import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -23,135 +23,132 @@ const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
-// Uses a cancelled ref + single interval to avoid leaked interval races.
+// State-driven rendering keeps the displayed note text in sync even when a new
+// response lands mid-animation.
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
 function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = TIMING_TOKENS.typeSpeed, onComplete?: () => void) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
-  const textNodeRef = useRef<HTMLSpanElement>(null);
-  const prevTextRef = useRef(skip ? text : '');
-  const cancelRef = useRef(0);
-  const pendingTextRef = useRef<{ text: string; isFiller: boolean } | null>(null);
-  const activeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [displayedText, setDisplayedText] = useState(skip ? text : '');
+  const displayedTextRef = useRef(skip ? text : '');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runIdRef = useRef(0);
   const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const phaseRef = useRef<TypewriterPhase>('idle');
 
   const isTyping = phase === 'typing' || phase === 'erasing';
-  const cancelActiveRun = useCallback(() => {
-    cancelRef.current += 1;
+  const clearActiveTimer = useCallback(() => {
+    runIdRef.current += 1;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
-    const setDOM = (s: string) => { if (textNodeRef.current) textNodeRef.current.textContent = s; };
+    const activeRunId = ++runIdRef.current;
 
-    if (skip) {
-      setDOM(text);
+    const schedule = (callback: () => void, delay: number) => {
+      timerRef.current = setTimeout(() => {
+        if (runIdRef.current !== activeRunId) return;
+        callback();
+      }, delay);
+    };
+
+    const updateDisplayedText = (nextText: string) => {
+      displayedTextRef.current = nextText;
+      setDisplayedText(nextText);
+    };
+
+    const finish = (finalText: string, finalIsFiller: boolean) => {
+      updateDisplayedText(finalText);
       setPhase('idle');
       phaseRef.current = 'idle';
-      prevTextRef.current = text;
-      pendingTextRef.current = null;
-      return;
-    }
+      timerRef.current = null;
+      if (!finalIsFiller) onCompleteRef.current?.();
+    };
 
-    if (text === '' && !prevTextRef.current) {
-      setPhase('idle');
-      phaseRef.current = 'idle';
-      return;
-    }
-
-    if (text === prevTextRef.current) return;
-
-    // If currently erasing, queue the new text instead of restarting
-    if (phaseRef.current === 'erasing') {
-      pendingTextRef.current = { text, isFiller };
-      return; // Let the ongoing erase finish — it will pick up the queued text
-    }
-
-    const token = ++cancelRef.current;
-    const cancelled = () => cancelRef.current !== token;
-
-    const prevText = prevTextRef.current;
-    const newText = text;
-
-    const startTyping = (targetText: string, targetIsFiller: boolean) => {
+    const startTyping = (targetText: string, targetIsFiller: boolean, startIndex = 0) => {
       setPhase('typing');
       phaseRef.current = 'typing';
-      let i = 0;
-      const id = setInterval(() => {
-        if (cancelled()) { clearInterval(id); activeIntervalRef.current = null; return; }
-        i++;
-        if (i >= targetText.length) {
-          setDOM(targetText);
-          prevTextRef.current = targetText;
-          setPhase('idle');
-          phaseRef.current = 'idle';
-          clearInterval(id);
-          activeIntervalRef.current = null;
-          if (!targetIsFiller) onCompleteRef.current?.();
-          // Check queue after typing completes
-          const pending = pendingTextRef.current;
-          if (pending && pending.text !== targetText) {
-            pendingTextRef.current = null;
-            // Need a new erase→type cycle for the queued text
-            const nextToken = ++cancelRef.current;
-            const nextCancelled = () => cancelRef.current !== nextToken;
-            startErase(targetText, pending.text, pending.isFiller, nextCancelled);
-          }
-        } else {
-          setDOM(targetText.slice(0, i));
+
+      const tick = (index: number) => {
+        if (runIdRef.current !== activeRunId) return;
+
+        const nextIndex = index + 1;
+        updateDisplayedText(targetText.slice(0, nextIndex));
+
+        if (nextIndex >= targetText.length) {
+          finish(targetText, targetIsFiller);
+          return;
         }
-      }, speed);
-      activeIntervalRef.current = id;
+
+        schedule(() => tick(nextIndex), speed);
+      };
+
+      if (startIndex >= targetText.length) {
+        finish(targetText, targetIsFiller);
+        return;
+      }
+
+      schedule(() => tick(startIndex), speed);
     };
 
-    const startErase = (fromText: string, toText: string, toIsFiller: boolean, isCancelled: () => boolean) => {
+    const startErasing = (fromText: string, toText: string, toIsFiller: boolean) => {
       setPhase('erasing');
       phaseRef.current = 'erasing';
-      let eraseLen = fromText.length;
-      const eraseId = setInterval(() => {
-        if (isCancelled()) { clearInterval(eraseId); activeIntervalRef.current = null; return; }
-        eraseLen--;
-        if (eraseLen <= 0) {
-          setDOM('');
-          prevTextRef.current = '';
-          clearInterval(eraseId);
-          activeIntervalRef.current = null;
-          if (isCancelled()) return;
-          // Check if a newer text was queued during erase
-          const pending = pendingTextRef.current;
-          if (pending) {
-            pendingTextRef.current = null;
-            startTyping(pending.text, pending.isFiller);
-          } else {
-            startTyping(toText, toIsFiller);
-          }
-        } else {
-          setDOM(fromText.slice(0, eraseLen));
+
+      const tick = (remainingLength: number) => {
+        if (runIdRef.current !== activeRunId) return;
+
+        const nextLength = remainingLength - 1;
+        updateDisplayedText(fromText.slice(0, Math.max(0, nextLength)));
+
+        if (nextLength <= 0) {
+          startTyping(toText, toIsFiller);
+          return;
         }
-      }, eraseSpeed);
-      activeIntervalRef.current = eraseId;
+
+        schedule(() => tick(nextLength), eraseSpeed);
+      };
+
+      schedule(() => tick(fromText.length), eraseSpeed);
     };
 
-    if (!prevText) {
-      startTyping(newText, isFiller);
+    if (skip) {
+      updateDisplayedText(text);
+      setPhase('idle');
+      phaseRef.current = 'idle';
       return;
     }
 
-    startErase(prevText, newText, isFiller, cancelled);
+    const currentText = displayedTextRef.current;
+
+    if (text === '' && !currentText) {
+      setPhase('idle');
+      phaseRef.current = 'idle';
+      return;
+    }
+
+    if (text === currentText && phaseRef.current === 'idle') {
+      return;
+    }
+
+    if (!currentText) {
+      startTyping(text, isFiller);
+      return;
+    }
+
+    startErasing(currentText, text, isFiller);
 
     return () => {
-      cancelActiveRun();
-      // Immediately clear the active interval to prevent a 1-tick leak after unmount/re-run
-      if (activeIntervalRef.current !== null) {
-        clearInterval(activeIntervalRef.current);
-        activeIntervalRef.current = null;
-      }
+      clearActiveTimer();
     };
-  }, [text, skip, speed, eraseSpeed, isFiller, cancelActiveRun]);
+  }, [text, skip, speed, eraseSpeed, isFiller, clearActiveTimer]);
 
-  return { textNodeRef, isTyping, isFiller: phase === 'erasing' || isFiller };
+  return { displayedText, isTyping, isFiller: phase === 'erasing' || isFiller };
 }
 
 // ─── Typing Ellipsis — bouncing dots with staggered scale wave ───
@@ -346,11 +343,11 @@ const StickyNote = memo(function StickyNote({
   onTypewriterDone?: () => void;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
+  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug);
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
-  const { textNodeRef, isFiller: isDisplayingFiller } = useTypewriter(
+  const { displayedText, isFiller: isDisplayingFiller } = useTypewriter(
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
@@ -406,7 +403,7 @@ const StickyNote = memo(function StickyNote({
           {isUser ? (
             message.content
           ) : (
-            <span ref={textNodeRef}>{message.isOld ? message.content : ''}</span>
+            <span>{message.isOld ? message.content : displayedText}</span>
           )}
         </div>
       </div>
@@ -468,6 +465,19 @@ const RateLimitNote = memo(function RateLimitNote({ seconds }: { seconds: number
     >
       <TapeStrip />
       Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
+    </m.div>
+  );
+});
+
+const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: string }) {
+  return (
+    <m.div
+      initial={RATE_LIMIT_INITIAL}
+      animate={{ opacity: 1, scale: 1, rotate: -1 }}
+      className="relative max-w-sm mx-auto p-4 bg-[#ffd7d1] dark:bg-[#4a1f1a] text-rose-900 dark:text-rose-100 shadow-md font-hand text-sm md:text-base"
+    >
+      <TapeStrip />
+      {message}
     </m.div>
   );
 });
@@ -589,7 +599,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, addLocalExchange, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
@@ -600,30 +610,35 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
+  const actionSuggestionSet = useMemo(() => new Set(ACTION_REGISTRY.map(action => action.label)), []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handledActionsRef = useRef<Set<string>>(new Set());
+  const pendingActionsRef = useRef<Map<string, ChatMessage>>(new Map());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
   const hasInitializedSuggestionsRef = useRef(false);
 
-  // Handle LLM-triggered actions (navigation, theme switch, open URL)
-  // Actions are executed when the typewriter finishes typing the response,
-  // so the user reads the full note before any side-effect fires.
-  // We store a ref of pending actions — the typewriter callback drains it.
-  const pendingActionRef = useRef<ChatMessage | null>(null);
   useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (!lastMsg || lastMsg.isOld || isLoading || lastMsg.role !== 'assistant') return;
-    if (handledActionsRef.current.has(lastMsg.id)) return;
+    for (const message of messages) {
+      if (message.isOld || message.role !== 'assistant') continue;
+      if (handledActionsRef.current.has(message.id)) continue;
 
-    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || (lastMsg.openUrls && lastMsg.openUrls.length > 0) || lastMsg.feedbackAction || lastMsg.projectSlug;
-    if (!hasAction) return;
+      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug;
+      if (!hasAction) continue;
 
-    handledActionsRef.current.add(lastMsg.id);
-    pendingActionRef.current = lastMsg;
-  }, [messages, isLoading]);
+      handledActionsRef.current.add(message.id);
+      pendingActionsRef.current.set(message.id, message);
+    }
+  }, [messages]);
+
+  useEffect(() => () => {
+    if (navigationTimeoutRef.current !== null) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+  }, []);
 
   // One-time suggestion initialization after hydration — prevents flash on page return
   useEffect(() => {
@@ -693,13 +708,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   // Gate suggestion visibility: hide during loading, show when typewriter signals completion.
   // Also executes any pending actions (navigation, theme, URLs) once the note is fully typed.
-  const onLastTypewriterDone = useCallback(() => {
-    setSuggestionsReady(true);
+  const executeAction = useCallback((action: ChatMessage) => {
+    if (navigationTimeoutRef.current !== null) {
+      clearTimeout(navigationTimeoutRef.current);
+      navigationTimeoutRef.current = null;
+    }
 
-    // Drain pending action
-    const action = pendingActionRef.current;
-    if (!action) return;
-    pendingActionRef.current = null;
+    setSuggestionsReady(true);
 
     // Theme switching
     if (action.themeAction) {
@@ -734,9 +749,22 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // Page navigation — slight delay so the user can read the confirmation
     if (action.navigateTo) {
       const dest = action.navigateTo;
-      setTimeout(() => router.push(dest), NAVIGATION_DELAY_MS);
+      navigationTimeoutRef.current = setTimeout(() => {
+        navigationTimeoutRef.current = null;
+        router.push(dest);
+      }, NAVIGATION_DELAY_MS);
     }
   }, [router, setTheme, resolvedTheme, markOpenUrlsFailed]);
+
+  const handleTypewriterDone = useCallback((messageId: string) => {
+    setSuggestionsReady(true);
+
+    const action = pendingActionsRef.current.get(messageId);
+    if (!action) return;
+
+    pendingActionsRef.current.delete(messageId);
+    executeAction(action);
+  }, [executeAction]);
   useEffect(() => {
     if (isLoading) {
       setSuggestionsReady(false);
@@ -761,30 +789,21 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
-    // Resolve to a known action (exact or fuzzy match) — bypasses LLM, executes directly
-    const action = resolveAction(text);
-    if (action) {
-      addLocalExchange(text, {
-        content: action.response,
-        navigateTo: action.navigateTo,
-        themeAction: action.themeAction,
-        openUrls: action.openUrls,
-        feedbackAction: action.feedbackAction,
-        projectSlug: action.projectSlug,
-      });
-    } else {
-      sendMessage(text);
-    }
-  }, [addLocalExchange, sendMessage]);
+    sendMessage(text);
+  }, [sendMessage]);
 
   const handleClearDesk = useCallback(() => {
+    if (navigationTimeoutRef.current !== null) {
+      clearTimeout(navigationTimeoutRef.current);
+      navigationTimeoutRef.current = null;
+    }
     clearMessages();
     setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
     setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
     setSuggestionsReady(true);
     hasFetchedSuggestionsRef.current = null;
     hasInitializedSuggestionsRef.current = false;
-    pendingActionRef.current = null;
+    pendingActionsRef.current.clear();
     handledActionsRef.current.clear();
     setSelectedProjectSlug(null);
   }, [clearMessages]);
@@ -857,7 +876,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               <StickyNote
                 message={msg}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
-                onTypewriterDone={idx === messages.length - 1 && msg.role === 'assistant' ? onLastTypewriterDone : undefined}
+                onTypewriterDone={msg.role === 'assistant' && !msg.isOld ? () => handleTypewriterDone(msg.id) : undefined}
               />
             </div>
           );
@@ -880,7 +899,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   <SuggestionStrip
                     key={q}
                     text={q}
-                    isAction={!!resolveAction(q)}
+                    isAction={actionSuggestionSet.has(q)}
                     onSelect={handleSuggestion}
                     index={i}
                     skipEntrance={!hasHadInteractionRef.current}
@@ -891,7 +910,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     <SuggestionStrip
                       key={q}
                       text={q}
-                      isAction={!!resolveAction(q)}
+                      isAction={actionSuggestionSet.has(q)}
                       onSelect={handleSuggestion}
                       index={i}
                       skipEntrance={!hasHadInteractionRef.current}
@@ -905,6 +924,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {/* Rate limit note */}
         {error && rateLimitRemaining && (
           <RateLimitNote seconds={rateLimitRemaining} />
+        )}
+
+        {error && !rateLimitRemaining && (
+          <ServiceErrorNote message={error} />
         )}
 
         <div ref={messagesEndRef} />

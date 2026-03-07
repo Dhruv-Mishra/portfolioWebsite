@@ -1,12 +1,16 @@
 // app/api/chat/suggestions/route.ts — Generate contextual follow-up suggestions via LLM
+import OpenAI from 'openai';
 import { NextRequest } from 'next/server';
+import { parseSuggestionResponse } from '@/lib/chatSanitization';
 import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { createProviderClient, getSuggestionsProviders, type LLMProvider } from '@/lib/llmProviders.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
 
 const suggestionsRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.suggestions, maxTrackedIPs: 500, cleanupInterval: 50 });
+const MAX_SUGGESTIONS_BODY_BYTES = 8_000;
 
 const SUGGESTIONS_SYSTEM_PROMPT = `You generate 2 short follow-up suggestions that a VISITOR (the user) might click next in a conversation with Dhruv Mishra's portfolio chatbot. The chatbot answers as Dhruv — a Software Engineer at Microsoft working on Fluent UI Android.
 
@@ -40,8 +44,6 @@ Rules:
 6. Always write from the user's voice — "you/your" refers to Dhruv.
 7. Never suggest switching themes or toggling dark/light mode.`;
 
-
-
 export async function POST(request: NextRequest) {
   try {
     // Block cross-origin requests
@@ -54,6 +56,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
     }
 
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && Number(contentLength) > MAX_SUGGESTIONS_BODY_BYTES) {
+      return Response.json({ suggestions: [] }, { status: 413 });
+    }
+
     const body = await request.json();
     const messages: { role: string; content: string }[] = body.messages || [];
 
@@ -63,69 +70,77 @@ export async function POST(request: NextRequest) {
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
       .slice(-4);
 
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL;
-    const model = process.env.LLM_SUGGESTIONS_MODEL || process.env.LLM_MODEL;
+    const recentUserMessage = [...context].reverse().find(message => message.role === 'user')?.content;
+    const recentAssistantMessage = [...context].reverse().find(message => message.role === 'assistant')?.content;
 
-    if (!apiKey || !baseURL || !model) {
+    const { primary, fallback } = getSuggestionsProviders();
+
+    if (!primary) {
       return Response.json({ suggestions: [] });
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), LLM_SUGGESTIONS_TIMEOUT_MS);
+    const suggestions = await callSuggestionsProvider(primary, context, recentUserMessage, recentAssistantMessage)
+      .catch(async () => {
+        if (!fallback) {
+          return [];
+        }
 
-    try {
-      const llmResponse = await fetch(`${baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
-            ...context,
-            { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
-          ],
-          temperature: LLM_SUGGESTIONS_PARAMS.temperature,
-          top_p: LLM_SUGGESTIONS_PARAMS.topP,
-          max_tokens: LLM_SUGGESTIONS_PARAMS.maxTokens,
-          stream: false,
-        }),
-        signal: controller.signal,
+        return callSuggestionsProvider(fallback, context, recentUserMessage, recentAssistantMessage).catch(() => []);
       });
 
-      clearTimeout(timeout);
-
-      if (!llmResponse.ok) {
-        return Response.json({ suggestions: [] });
-      }
-
-      const data = await llmResponse.json();
-      const rawContent = data.choices?.[0]?.message?.content || '';
-      const raw = stripThinkTags(rawContent);
-
-      if (isRawLogEnabled()) {
-        const thinking = rawContent !== raw ? rawContent.match(/<think>([\s\S]*?)<\/think>/i)?.[1]?.trim() : undefined;
-        console.log('[SUGGESTIONS RAW]', { model, raw: rawContent, clean: raw, ...(thinking ? { thinking } : {}) });
-      }
-
-      // Parse: expect 2 lines, one suggestion each
-      const suggestions = raw
-        .split('\n')
-        .map((s: string) => s.replace(/^\[ACTION\]\s*/i, '').replace(/^[\d.\-*)\s]+/, '').replace(/^["']|["']$/g, '').trim())
-        .filter((s: string) => s.length >= 3 && s.length <= 60)
-        .slice(0, 2);
-
-      return Response.json({ suggestions }, {
-        headers: { 'Cache-Control': 'no-store' },
-      });
-    } catch {
-      clearTimeout(timeout);
-      return Response.json({ suggestions: [] });
-    }
+    return Response.json({ suggestions }, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch {
     return Response.json({ suggestions: [] });
+  }
+}
+
+async function callSuggestionsProvider(
+  provider: LLMProvider,
+  context: Array<{ role: string; content: string }>,
+  recentUserMessage?: string,
+  recentAssistantMessage?: string,
+): Promise<string[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LLM_SUGGESTIONS_TIMEOUT_MS);
+
+  try {
+    const client = createProviderClient(provider);
+    const completion = await client.chat.completions.create({
+      model: provider.model,
+      messages: [
+        { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+        ...context,
+        { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
+      ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+      temperature: LLM_SUGGESTIONS_PARAMS.temperature,
+      top_p: LLM_SUGGESTIONS_PARAMS.topP,
+      max_tokens: LLM_SUGGESTIONS_PARAMS.maxTokens,
+      stream: false,
+    }, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    const rawContent = completion.choices?.[0]?.message?.content || '';
+    const raw = stripThinkTags(typeof rawContent === 'string' ? rawContent : '');
+
+    if (isRawLogEnabled()) {
+      const thinking = typeof rawContent === 'string' && rawContent !== raw ? rawContent.match(/<think>([\s\S]*?)<\/think>/i)?.[1]?.trim() : undefined;
+      console.log('[SUGGESTIONS RAW]', { model: provider.model, raw: rawContent, clean: raw, ...(thinking ? { thinking } : {}) });
+    }
+
+    const suggestions = parseSuggestionResponse(raw, { recentUserMessage, recentAssistantMessage });
+
+    if (suggestions.length !== 2) {
+      throw new Error('Suggestions provider returned invalid output');
+    }
+
+    return suggestions;
+  } catch {
+    clearTimeout(timeout);
+    throw new Error('Suggestions provider failed');
   }
 }

@@ -8,7 +8,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
-import { TerminalProvider } from "@/context/TerminalContext";
 import "./globals.css";
 
 const DeferredEnhancements = dynamic(() => import("@/components/DeferredEnhancements"));
@@ -137,15 +136,13 @@ export default function RootLayout({
       >
         <Analytics />
         <ErrorBoundary>
-          <TerminalProvider>
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              <SketchbookLayout>
-                <Navigation />
-                {children}
-              </SketchbookLayout>
-              <DeferredEnhancements />
-            </ThemeProvider>
-          </TerminalProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <SketchbookLayout>
+              <Navigation />
+              {children}
+            </SketchbookLayout>
+            <DeferredEnhancements />
+          </ThemeProvider>
         </ErrorBoundary>
       </body>
     </html>

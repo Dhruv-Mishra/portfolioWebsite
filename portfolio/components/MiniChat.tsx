@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, memo } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { X, ExternalLink } from 'lucide-react';
+import { Trash2, X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -68,6 +68,10 @@ export default function MiniChat() {
     sessionStorage.setItem(CHAT_CONFIG.miniChatDismissedKey, 'true');
   }, []);
 
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
   const handleToggle = useCallback(() => {
     if (isDismissed) {
       setIsDismissed(false);
@@ -84,46 +88,59 @@ export default function MiniChat() {
     <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.nav }}>
       <AnimatePresence>
         {isOpen && !isDismissed && (
-          <m.div
-            initial={INTERACTION_TOKENS.entrance.popIn.initial}
-            animate={INTERACTION_TOKENS.entrance.popIn.animate}
-            exit={INTERACTION_TOKENS.exit.popOut}
-            transition={GENTLE_SPRING_TRANSITION}
-            className={cn(
-              "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-2xl overflow-hidden",
-              // Mobile: full screen overlay
-              "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
-              "max-w-[var(--c-chat-max-w)]",
-            )}
-            style={CHAT_PANEL_STYLE}
-          >
-            {/* Chat content — full height, controls are inside StickyNoteChat */}
-            <div className="h-full relative">
-              {/* Expand + close buttons overlaid top-right */}
-              <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
-                <Link
-                  href="/chat"
-                  className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
-                  title="Open full chat"
-                >
-                  <ExternalLink size={14} />
-                </Link>
-                <button
-                  onClick={handleDismiss}
-                  className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
-                  title="Close chat"
-                >
-                  <X size={14} />
-                </button>
+          <>
+            <m.button
+              type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: ANIMATION_TOKENS.duration.fast }}
+              className="fixed inset-0 -z-10 cursor-default bg-transparent"
+              aria-label="Close quick chat"
+              onClick={handleClose}
+            />
+            <m.div
+              initial={INTERACTION_TOKENS.entrance.popIn.initial}
+              animate={INTERACTION_TOKENS.entrance.popIn.animate}
+              exit={INTERACTION_TOKENS.exit.popOut}
+              transition={GENTLE_SPRING_TRANSITION}
+              className={cn(
+                "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-2xl overflow-hidden",
+                // Mobile: full screen overlay
+                "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
+                "max-w-[var(--c-chat-max-w)]",
+              )}
+              style={CHAT_PANEL_STYLE}
+            >
+              {/* Chat content — full height, controls are inside StickyNoteChat */}
+              <div className="h-full relative">
+                {/* Expand + dismiss buttons overlaid top-right */}
+                <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
+                  <Link
+                    href="/chat"
+                    className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
+                    title="Open full chat"
+                  >
+                    <ExternalLink size={14} />
+                  </Link>
+                  <button
+                    onClick={handleDismiss}
+                    className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
+                    title="Delete quick chat for this session"
+                    aria-label="Delete quick chat for this session"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <StickyNoteChat compact />
               </div>
-              <StickyNoteChat compact />
-            </div>
-          </m.div>
+            </m.div>
+          </>
         )}
       </AnimatePresence>
 
       {/* Floating sticky note button */}
-      {!isDismissed || !isOpen ? (
+      {!isDismissed ? (
         <m.button
           onClick={handleToggle}
           whileHover={INTERACTION_TOKENS.hover.scaleUp}

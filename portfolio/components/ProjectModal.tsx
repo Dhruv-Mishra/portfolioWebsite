@@ -1,35 +1,16 @@
 "use client";
-import { X, ExternalLink, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Eraser, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-interface ProjectModalData {
-    name: string;
-    desc: React.ReactNode;
-    lang: string;
-    link: string;
-    colorClass: string;
-    image: string;
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    blurDataURL: string;
-    stack: string[];
-    role: string;
-    year: string;
-    duration: string;
-    highlights: string[];
-    video?: string | null;
-}
+import type { ProjectRecord } from '@/lib/projects';
 
 interface ProjectModalProps {
     /** Pass null when no project is selected — the modal will be hidden */
-    project: ProjectModalData | null;
+    project: ProjectRecord | null;
     onClose: () => void;
 }
 
@@ -66,6 +47,7 @@ const FOLD_COLOR_MODAL_STYLE = {
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(true);
+    const [showPlayButton, setShowPlayButton] = useState(false);
 
     const hasVideo = project ? project.video !== null : false;
     const videoSrc = !project
@@ -83,6 +65,18 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         });
     }, []);
 
+    const playVideo = useCallback(async () => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        try {
+            await video.play();
+            setShowPlayButton(false);
+        } catch {
+            setShowPlayButton(true);
+        }
+    }, []);
+
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     // This avoids the race condition where useEffect runs before Modal's
     // deferred shouldRender/mounted states have committed the portal to the DOM.
@@ -90,15 +84,19 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         videoRef.current = node;
         if (node) {
             node.muted = true; // always start muted for autoplay compliance
-            node.play().catch(() => {
-                // Browser may block autoplay — user can interact to play
-            });
+            void node.play()
+                .then(() => setShowPlayButton(false))
+                .catch(() => {
+                    // Browser may block autoplay — show a manual play affordance.
+                    setShowPlayButton(true);
+                });
         }
     }, []);
 
     // Reset mute state + cleanup decode buffer when project changes or modal unmounts
     useEffect(() => {
         setIsMuted(true); // reset to muted for each new project
+        setShowPlayButton(false);
         return () => {
             if (!hasVideo) return;
             const video = videoRef.current;
@@ -135,10 +133,10 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         <button
                             onClick={onClose}
                             className="absolute top-4 right-4 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-white/60 dark:bg-black/40 hover:bg-white/90 dark:hover:bg-black/60 transition-colors shadow-md"
-                            aria-label="Close project details"
+                            aria-label="Close project note"
                             data-clickable
                         >
-                            <X size={20} />
+                            <Eraser size={20} />
                         </button>
 
                     <div className="p-6 md:p-8 pt-8">
@@ -160,6 +158,19 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                             preload="none"
                                             className="w-full h-full object-cover"
                                         />
+                                        {showPlayButton ? (
+                                            <button
+                                                onClick={playVideo}
+                                                aria-label={`Play ${project.name} preview video`}
+                                                data-clickable
+                                                className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 text-white transition-colors hover:bg-black/35"
+                                            >
+                                                <span className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 shadow-lg">
+                                                    <Play size={18} fill="currentColor" />
+                                                    Play preview
+                                                </span>
+                                            </button>
+                                        ) : null}
                                         <button
                                             onClick={toggleMute}
                                             aria-label={isMuted ? 'Unmute video' : 'Mute video'}

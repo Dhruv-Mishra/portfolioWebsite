@@ -1,11 +1,13 @@
 ﻿"use client";
 
+import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
+import type { ProjectSlug } from '@/lib/projectCatalog';
 import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
@@ -13,6 +15,8 @@ import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { resolveAction, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
+
+const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
 /** Delay (ms) before executing page navigation after action confirmation */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
@@ -289,6 +293,18 @@ const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
 const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
 const SEND_BUTTON_TAP = { scale: 0.9 } as const;
 
+function getNoteRotation(messageId: string, isUser: boolean): number {
+  let hash = 0;
+
+  for (let index = 0; index < messageId.length; index++) {
+    hash = (hash * 31 + messageId.charCodeAt(index)) >>> 0;
+  }
+
+  const normalized = (hash % 1000) / 1000;
+  const rotation = NOTE_ROTATION.minDeg + normalized * NOTE_ROTATION.rangeDeg;
+  return isUser ? rotation : -rotation;
+}
+
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
   return (
@@ -331,11 +347,7 @@ const StickyNote = memo(function StickyNote({
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction);
-  const rotation = useRef(
-    isUser
-      ? (Math.random() * NOTE_ROTATION.rangeDeg + NOTE_ROTATION.minDeg)
-      : -(Math.random() * NOTE_ROTATION.rangeDeg + NOTE_ROTATION.minDeg)
-  ).current;
+  const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
   const { textNodeRef, isFiller: isDisplayingFiller } = useTypewriter(
@@ -585,6 +597,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [suggestionsReady, setSuggestionsReady] = useState(false);
+  const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -605,7 +618,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastMsg || lastMsg.isOld || isLoading || lastMsg.role !== 'assistant') return;
     if (handledActionsRef.current.has(lastMsg.id)) return;
 
-    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || (lastMsg.openUrls && lastMsg.openUrls.length > 0) || lastMsg.feedbackAction;
+    const hasAction = lastMsg.navigateTo || lastMsg.themeAction || (lastMsg.openUrls && lastMsg.openUrls.length > 0) || lastMsg.feedbackAction || lastMsg.projectSlug;
     if (!hasAction) return;
 
     handledActionsRef.current.add(lastMsg.id);
@@ -702,6 +715,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       window.dispatchEvent(new CustomEvent('open-feedback'));
     }
 
+    if (action.projectSlug) {
+      setSelectedProjectSlug(action.projectSlug);
+    }
+
     // Open URLs in new tabs — handle popup blockers
     if (action.openUrls && action.openUrls.length > 0) {
       let anyBlocked = false;
@@ -753,6 +770,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         themeAction: action.themeAction,
         openUrls: action.openUrls,
         feedbackAction: action.feedbackAction,
+        projectSlug: action.projectSlug,
       });
     } else {
       sendMessage(text);
@@ -768,7 +786,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     hasInitializedSuggestionsRef.current = false;
     pendingActionRef.current = null;
     handledActionsRef.current.clear();
+    setSelectedProjectSlug(null);
   }, [clearMessages]);
+
+  const handleCloseProjectModal = useCallback(() => {
+    setSelectedProjectSlug(null);
+  }, []);
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
@@ -778,6 +801,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       "flex flex-col h-full",
       compact ? "max-h-full" : ""
     )}>
+      {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       {/* ─── Header ─── */}
       {!compact ? (
         <div className="text-center pt-12 pb-0 md:pt-10 md:pb-1 shrink-0">

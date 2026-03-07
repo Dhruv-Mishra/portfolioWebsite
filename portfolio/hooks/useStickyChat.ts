@@ -5,6 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { OPEN_LINK_KEYS } from '@/lib/links';
+import { isProjectSlug, type ProjectSlug } from '@/lib/projectCatalog';
 import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { FILLER_DELAYS } from '@/lib/llmConfig';
@@ -21,6 +22,7 @@ export interface ChatMessage {
   openUrls?: string[]; // External URLs to open in new tabs (parsed from [[OPEN:key]])
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when [[FEEDBACK]] tag is parsed
+  projectSlug?: ProjectSlug; // Open a specific project modal on the current page
 }
 
 interface UseStickyChat {
@@ -47,6 +49,7 @@ const THEME_RE = /\[\[THEME:(dark|light|toggle)\]\]/i;
 const OPEN_RE = /\[\[OPEN:([a-z0-9-]+)\]\]/gi;  // global: find ALL OPEN tags
 const OPEN_SINGLE_RE = /\[\[OPEN:[a-z0-9-]+\]\]/gi; // for stripping
 const FEEDBACK_RE = /\[\[FEEDBACK\]\]/i;
+const PROJECT_RE = /\[\[PROJECT:([a-z0-9-]+)\]\]/i;
 
 // Map OPEN: keys to actual URLs
 const OPEN_LINKS = OPEN_LINK_KEYS;
@@ -57,6 +60,7 @@ interface ParsedActions {
   themeAction?: 'dark' | 'light' | 'toggle';
   openUrls?: string[];
   feedbackAction?: boolean;
+  projectSlug?: ProjectSlug;
 }
 
 function parseActions(text: string): ParsedActions {
@@ -64,6 +68,7 @@ function parseActions(text: string): ParsedActions {
   let navigateTo: string | undefined;
   let themeAction: ('dark' | 'light' | 'toggle') | undefined;
   const openUrls: string[] = [];
+  let projectSlug: ProjectSlug | undefined;
 
   // Parse [[NAVIGATE:/path]]
   const navMatch = content.match(NAVIGATE_RE);
@@ -101,12 +106,20 @@ function parseActions(text: string): ParsedActions {
     content = content.replace(FEEDBACK_RE, '').trim();
   }
 
+  const projectMatch = content.match(PROJECT_RE);
+  const projectCandidate = projectMatch?.[1]?.toLowerCase();
+  if (projectCandidate && isProjectSlug(projectCandidate)) {
+    projectSlug = projectCandidate;
+    content = content.replace(PROJECT_RE, '').trim();
+  }
+
   return {
     content,
     navigateTo,
     themeAction,
     openUrls: openUrls.length > 0 ? openUrls : undefined,
     feedbackAction,
+    projectSlug,
   };
 }
 
@@ -382,14 +395,14 @@ export function useStickyChat(): UseStickyChat {
 
       if (rawReply) {
         // Parse action tags from the complete response
-        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction } = parseActions(rawReply);
-        const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction);
+        const { content: finalContent, navigateTo, themeAction, openUrls, feedbackAction, projectSlug } = parseActions(rawReply);
+        const hasAction = !!(navigateTo || themeAction || (openUrls && openUrls.length > 0) || feedbackAction || projectSlug);
         const displayContent = finalContent || (hasAction ? 'On it ~' : rawReply);
 
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
-              ? { ...m, content: displayContent, isFiller: false, navigateTo, themeAction, openUrls, feedbackAction }
+              ? { ...m, content: displayContent, isFiller: false, navigateTo, themeAction, openUrls, feedbackAction, projectSlug }
               : m
           )
         );

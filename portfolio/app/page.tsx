@@ -1,17 +1,8 @@
-"use client";
-import dynamic from "next/dynamic";
 import Link from "next/link";
+import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle } from "lucide-react";
 import { APP_VERSION } from "@/lib/constants";
-
-// Lazy load Terminal to reduce initial bundle size
-const Terminal = dynamic(() => import("@/components/Terminal"), {
-  loading: () => (
-    <div className="h-[var(--c-terminal-h-md)] animate-pulse bg-gray-800/10 rounded-lg border-2 border-dashed border-gray-300" />
-  ),
-  ssr: false,
-});
 
 export default function Home() {
 
@@ -56,7 +47,7 @@ export default function Home() {
 
       {/* The Terminal */}
       <div className="w-full max-w-2xl mt-8 transform rotate-1 hover:rotate-0 transition-transform duration-300 z-20 relative">
-        <Terminal />
+        <HomeTerminalIsland />
 
         {/* Interaction Hint (Desktop Only) */}
         <div className="hidden xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none">

@@ -9,15 +9,22 @@ interface RateLimitConfig {
 class RateLimiter {
   private requests: Map<string, number[]> = new Map();
 
+  private pruneRequests(key: string, windowMs: number): number[] {
+    const windowStart = Date.now() - windowMs;
+    const requestTimes = (this.requests.get(key) || []).filter(time => time > windowStart);
+
+    if (requestTimes.length === 0) {
+      this.requests.delete(key);
+      return [];
+    }
+
+    this.requests.set(key, requestTimes);
+    return requestTimes;
+  }
+
   check(key: string, config: RateLimitConfig): boolean {
     const now = Date.now();
-    const windowStart = now - config.windowMs;
-    
-    // Get existing requests for this key
-    let requestTimes = this.requests.get(key) || [];
-    
-    // Filter out old requests outside the time window
-    requestTimes = requestTimes.filter(time => time > windowStart);
+    const requestTimes = this.pruneRequests(key, config.windowMs);
     
     // Check if we're at the limit
     if (requestTimes.length >= config.maxRequests) {
@@ -32,7 +39,7 @@ class RateLimiter {
   }
 
   getRemainingTime(key: string, config: RateLimitConfig): number {
-    const requestTimes = this.requests.get(key) || [];
+    const requestTimes = this.pruneRequests(key, config.windowMs);
     if (requestTimes.length === 0) return 0;
     
     const oldestRequest = requestTimes[0];

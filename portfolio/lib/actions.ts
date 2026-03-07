@@ -1,5 +1,6 @@
 // lib/actions.ts — Unified action registry for chat suggestions
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
 /** Action metadata for pre-built responses that bypass the LLM  */
 export interface ActionDef {
@@ -19,7 +20,17 @@ export interface ActionDef {
   openUrls?: string[];
   /** Open feedback modal */
   feedbackAction?: boolean;
+  /** Open a project modal on the current page */
+  projectSlug?: ProjectSlug;
 }
+
+const PROJECT_MODAL_ACTIONS: ActionDef[] = PROJECT_ACTIONS.map(project => ({
+  label: project.label,
+  verbs: [...project.verbs],
+  keywords: [...project.keywords],
+  response: project.response,
+  projectSlug: project.slug,
+}));
 
 /**
  * Central action registry — single source of truth for all chat actions.
@@ -27,6 +38,7 @@ export interface ActionDef {
  * and theme-conditional visibility.
  */
 export const ACTION_REGISTRY: ActionDef[] = [
+  ...PROJECT_MODAL_ACTIONS,
   {
     label: 'Switch to dark mode',
     verbs: ['switch', 'change', 'enable'],
@@ -58,7 +70,7 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Open the Cropio repo',
     verbs: ['open', 'show', 'view', 'see'],
-    keywords: ['cropio', 'ai\\s*cropper', 'portrait\\s*cropper'],
+    keywords: ['cropio\\s*(repo|github)', 'ai\\s*cropper\\s*(repo|github)', 'portrait\\s*cropper\\s*(repo|github)'],
     response: 'Opening the Cropio repo ~',
     openUrls: [PROJECT_LINKS.cropio],
   },
@@ -79,7 +91,7 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Open the Fluent UI repo',
     verbs: ['open', 'show', 'view', 'see'],
-    keywords: ['fluent\\s*ui'],
+    keywords: ['fluent\\s*ui\\s*(repo|github)', 'fluent\\s*ui\\s*android\\s*(repo|github)'],
     response: 'Opening the Fluent UI Android repo ~',
     openUrls: [PROJECT_LINKS.fluentui],
   },

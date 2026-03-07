@@ -10,7 +10,6 @@ import { PAPER_NOISE_SVG } from '@/lib/assets';
 import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import FeedbackTabButton from './FeedbackTabButton';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
@@ -45,7 +44,6 @@ const GRID_PATTERN_STYLE = {
 } as const;
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
-    const isMobile = useIsMobile();
     const [feedbackOpen, setFeedbackOpen] = useState(false);
 
     // Listen for 'open-feedback' custom event (from terminal command)
@@ -94,23 +92,21 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* School Notebook Margin Line (Red) - [REMOVED] */}
 
                 {/* Global Doodles (static — parallax removed for performance) */}
-                {!isMobile && (
-                    <div
-                        className="absolute inset-0 pointer-events-none overflow-hidden"
-                        style={{ zIndex: Z_INDEX.base }}
-                        aria-hidden="true"
-                    >
-                        <LightbulbDoodle />
-                        <CloudDoodle />
-                        <PencilDoodle />
-                        <StarDoodle />
-                        <BugDoodle />
-                        <SmileyDoodle />
-                        <LightningDoodle />
-                        <PaperPlaneDoodle />
-                        <SaturnDoodle />
-                    </div>
-                )}
+                <div
+                    className="hidden md:block absolute inset-0 pointer-events-none overflow-hidden"
+                    style={{ zIndex: Z_INDEX.base }}
+                    aria-hidden="true"
+                >
+                    <LightbulbDoodle />
+                    <CloudDoodle />
+                    <PencilDoodle />
+                    <StarDoodle />
+                    <BugDoodle />
+                    <SmileyDoodle />
+                    <LightningDoodle />
+                    <PaperPlaneDoodle />
+                    <SaturnDoodle />
+                </div>
 
                 {/* Crease Shadow near spiral — width derived from --c-spiral-w */}
                 <div className="absolute left-0 top-0 bottom-0 w-[var(--c-crease-w)] md:w-[var(--c-crease-w-md)] bg-gradient-to-r from-gray-500/10 to-transparent pointer-events-none" style={{ zIndex: Z_INDEX.crease }} />

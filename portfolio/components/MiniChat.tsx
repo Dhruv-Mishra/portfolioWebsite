@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
-import { CHAT_CONFIG } from '@/lib/chatContext';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 
@@ -42,17 +41,11 @@ const StickyNoteDoodle = memo(function StickyNoteDoodle() {
 export default function MiniChat() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
   // Hydration-safe mount
   useEffect(() => {
     setHasMounted(true);
-    // Check if user dismissed mini-chat this session
-    const dismissed = sessionStorage.getItem(CHAT_CONFIG.miniChatDismissedKey);
-    if (dismissed === 'true') {
-      setIsDismissed(true);
-    }
   }, []);
 
   // Close the mini-chat when the user navigates to a different page
@@ -65,8 +58,6 @@ export default function MiniChat() {
 
   const handleDismiss = useCallback(() => {
     setIsOpen(false);
-    setIsDismissed(true);
-    sessionStorage.setItem(CHAT_CONFIG.miniChatDismissedKey, 'true');
   }, []);
 
   const handleClose = useCallback(() => {
@@ -74,12 +65,8 @@ export default function MiniChat() {
   }, []);
 
   const handleToggle = useCallback(() => {
-    if (isDismissed) {
-      setIsDismissed(false);
-      sessionStorage.removeItem(CHAT_CONFIG.miniChatDismissedKey);
-    }
     setIsOpen(prev => !prev);
-  }, [isDismissed]);
+  }, []);
 
   // Don't show on /chat page
   if (pathname === '/chat') return null;
@@ -88,7 +75,7 @@ export default function MiniChat() {
   return (
     <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.nav }}>
       <AnimatePresence>
-        {isOpen && !isDismissed && (
+        {isOpen && (
           <>
             <m.button
               type="button"
@@ -139,8 +126,8 @@ export default function MiniChat() {
                   <button
                     onClick={handleDismiss}
                     className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
-                    title="Delete quick chat for this session"
-                    aria-label="Delete quick chat for this session"
+                    title="Close quick chat"
+                    aria-label="Close quick chat"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -155,34 +142,32 @@ export default function MiniChat() {
       </AnimatePresence>
 
       {/* Floating sticky note button */}
-      {!isDismissed ? (
-        <m.button
-          onClick={handleToggle}
-          whileHover={INTERACTION_TOKENS.hover.scaleUp}
-          whileTap={INTERACTION_TOKENS.tap.press}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={FAB_ANIMATE}
-          className={cn(
-            "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
-            isOpen
-              ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
-              : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",
-          )}
-          title="Ask Dhruv"
-          aria-label="Open quick chat"
-          style={FAB_BUTTON_STYLE}
-        >
-          {isOpen ? (
-            <X size={22} className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.4} />
-          ) : (
-            <>
-              <StickyNoteDoodle />
-              {/* Pulsing dot */}
-              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
-            </>
-          )}
-        </m.button>
-      ) : null}
+      <m.button
+        onClick={handleToggle}
+        whileHover={INTERACTION_TOKENS.hover.scaleUp}
+        whileTap={INTERACTION_TOKENS.tap.press}
+        initial={{ opacity: 0, scale: 0 }}
+        animate={FAB_ANIMATE}
+        className={cn(
+          "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
+          isOpen
+            ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
+            : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",
+        )}
+        title="Ask Dhruv"
+        aria-label="Open quick chat"
+        style={FAB_BUTTON_STYLE}
+      >
+        {isOpen ? (
+          <X size={22} className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.4} />
+        ) : (
+          <>
+            <StickyNoteDoodle />
+            {/* Pulsing dot */}
+            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
+          </>
+        )}
+      </m.button>
     </div>
   );
 }

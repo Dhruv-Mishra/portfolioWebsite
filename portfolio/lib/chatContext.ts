@@ -93,5 +93,4 @@ export const CHAT_CONFIG = {
   responseTimeoutMs: LLM_CLIENT_TIMEOUT_MS, // Client-side timeout: abort fetch after this duration
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
-  miniChatDismissedKey: 'dhruv-minichat-dismissed',
 } as const;

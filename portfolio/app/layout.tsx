@@ -5,6 +5,7 @@ import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TerminalProvider } from "@/context/TerminalContext";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
@@ -137,11 +138,13 @@ export default function RootLayout({
         <Analytics />
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <SketchbookLayout>
-              <Navigation />
-              {children}
-            </SketchbookLayout>
-            <DeferredEnhancements />
+            <TerminalProvider>
+              <SketchbookLayout>
+                <Navigation />
+                {children}
+              </SketchbookLayout>
+              <DeferredEnhancements />
+            </TerminalProvider>
           </ThemeProvider>
         </ErrorBoundary>
       </body>

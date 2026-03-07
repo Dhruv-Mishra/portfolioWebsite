@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { TerminalProvider } from "@/context/TerminalContext";
 
 const Terminal = dynamic(() => import("@/components/Terminal"), {
   loading: () => (
@@ -11,9 +10,5 @@ const Terminal = dynamic(() => import("@/components/Terminal"), {
 });
 
 export default function HomeTerminalIsland() {
-  return (
-    <TerminalProvider>
-      <Terminal />
-    </TerminalProvider>
-  );
+  return <Terminal />;
 }

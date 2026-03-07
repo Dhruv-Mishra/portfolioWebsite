@@ -9,6 +9,10 @@ export interface LLMProvider {
   label: string;
 }
 
+function isFallbackModelEnabled(): boolean {
+  return process.env.LLM_ENABLE_FALLBACK_MODEL === 'true';
+}
+
 export function getChatProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null } {
   const primary = (process.env.LLM_API_KEY && process.env.LLM_BASE_URL && process.env.LLM_MODEL)
     ? {
@@ -19,7 +23,7 @@ export function getChatProviders(): { primary: LLMProvider | null; fallback: LLM
       }
     : null;
 
-  const fallback = (process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_MODEL)
+  const fallback = (isFallbackModelEnabled() && process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_MODEL)
     ? {
         apiKey: process.env.LLM_FALLBACK_API_KEY,
         baseURL: process.env.LLM_FALLBACK_BASE_URL,
@@ -44,7 +48,7 @@ export function getSuggestionsProviders(): { primary: LLMProvider | null; fallba
       }
     : null;
 
-  const fallback = (process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && fallbackModel)
+  const fallback = (isFallbackModelEnabled() && process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && fallbackModel)
     ? {
         apiKey: process.env.LLM_FALLBACK_API_KEY,
         baseURL: process.env.LLM_FALLBACK_BASE_URL,

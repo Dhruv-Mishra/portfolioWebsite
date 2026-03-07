@@ -57,12 +57,12 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
     const isMobile = useIsMobile();
-    const { lightTap, tap } = useAppHaptics();
+    const { closePanel, openPanel } = useAppHaptics();
 
     const openProject = useCallback((index: number) => {
-        tap();
+        openPanel();
         setSelectedProject(index);
-    }, [tap]);
+    }, [openPanel]);
 
     const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
         // Don't open modal if clicking the external link
@@ -72,9 +72,9 @@ export default function Projects() {
     }, [openProject]);
 
     const handleCloseModal = useCallback(() => {
-        lightTap();
+        closePanel();
         setSelectedProject(null);
-    }, [lightTap]);
+    }, [closePanel]);
 
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">

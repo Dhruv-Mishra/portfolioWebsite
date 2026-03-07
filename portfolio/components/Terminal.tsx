@@ -5,6 +5,7 @@ import { m } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useAppHaptics } from "@/lib/haptics";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
@@ -64,6 +65,7 @@ const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: Termi
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
     const isMobile = useIsMobile();
+    const { clear: clearHaptic, error: errorHaptic, submit, warning } = useAppHaptics();
     const router = useRouter(); // Correctly using hook inside component
 
     const [input, setInput] = useState("");
@@ -105,8 +107,13 @@ export default function Terminal() {
         if (lowerCmd === 'clear') {
             addToHistory("clear");
             clearOutput();
+            clearHaptic();
             setInput("");
             return;
+        }
+
+        if (COMMAND_REGISTRY[lowerCmd]) {
+            submit();
         }
 
         const commandDef = COMMAND_REGISTRY[lowerCmd];
@@ -123,9 +130,11 @@ export default function Terminal() {
                 }
             } catch (error) {
                 console.error('Command execution error:', error);
+                errorHaptic();
                 output = <span className={TERMINAL_COLORS.error}>Error executing command.</span>;
             }
         } else {
+            warning();
             output = (
                 <div>
                     <span className={TERMINAL_COLORS.error}>Command not found: {lowerCmd}</span>
@@ -139,7 +148,7 @@ export default function Terminal() {
         addCommand(trimmedInput, output);
         setInput("");
         setHistoryIndex(-1); // Reset history pointer
-    }, [input, addCommand, addToHistory, clearOutput, COMMAND_REGISTRY]);
+    }, [input, addCommand, addToHistory, clearHaptic, clearOutput, COMMAND_REGISTRY, errorHaptic, submit, warning]);
 
     // Better History Logic Implementation
     const navigateHistory = React.useCallback((direction: 'up' | 'down') => {

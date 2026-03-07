@@ -5,6 +5,7 @@ import { m } from 'framer-motion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { Modal } from '@/components/ui/Modal';
@@ -100,6 +101,7 @@ interface FeedbackNoteProps {
 }
 
 export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
+  const { clear, closePanel, error: errorHaptic, selection, submit, success, warning } = useAppHaptics();
   const [category, setCategory] = useState<FeedbackCategory>('bug');
   const [message, setMessage] = useState('');
   const [contact, setContact] = useState('');
@@ -165,8 +167,9 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   // Prevent dismissal during submission
   const handleClose = useCallback(() => {
     if (state === 'submitting') return;
+    closePanel();
     onClose();
-  }, [state, onClose]);
+  }, [closePanel, state, onClose]);
 
   // Note: Escape key, body scroll lock, and focus trap are handled by the shared Modal shell.
 
@@ -183,6 +186,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
     const trimmed = message.trim();
     if (!trimmed || trimmed.length < 5) {
+      warning();
       setErrorMsg('Please write at least 5 characters.');
       return;
     }
@@ -190,10 +194,12 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     // Client-side rate limit
     if (!rateLimiter.check('feedback', RATE_LIMITS.FEEDBACK)) {
       const remaining = rateLimiter.getRemainingTime('feedback', RATE_LIMITS.FEEDBACK);
+      warning();
       setErrorMsg(`Too many submissions. Try again in ${remaining} seconds.`);
       return;
     }
 
+    submit();
     setState('submitting');
     setErrorMsg('');
 
@@ -218,6 +224,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       }
 
       setState('success');
+  success();
       clearDraft();
       // Auto-close after success
       successTimeoutRef.current = setTimeout(() => {
@@ -227,9 +234,20 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       }, TIMING_TOKENS.successAutoClose);
     } catch (err) {
       setState('error');
+      errorHaptic();
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
     }
-  }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft]);
+  }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft, errorHaptic, submit, success, warning]);
+
+  const handleCategorySelect = useCallback((nextCategory: FeedbackCategory) => {
+    selection();
+    setCategory(nextCategory);
+  }, [selection]);
+
+  const handleClearDraft = useCallback(() => {
+    clear();
+    clearDraft();
+  }, [clear, clearDraft]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -295,7 +313,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           key={cat.id}
                           role="tab"
                           aria-selected={active}
-                          onClick={() => setCategory(cat.id)}
+                          onClick={() => handleCategorySelect(cat.id)}
                           animate={{ scale: active ? 1.08 : 1 }}
                           transition={CATEGORY_TAB_SPRING}
                           className={cn(
@@ -383,7 +401,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           animate={{ opacity: 1, scale: 1 }}
                           whileHover={{ scale: 1.08 }}
                           whileTap={{ scale: 0.92 }}
-                          onClick={clearDraft}
+                          onClick={handleClearDraft}
                           className={cn(
                             "flex items-center gap-1 px-2.5 py-1.5 rounded-md",
                             "border-2 border-dashed border-[var(--c-grid)]/40",

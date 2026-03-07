@@ -21,7 +21,7 @@ const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)'
 
 export default function Navigation() {
     const pathname = usePathname();
-    const { lightTap } = useAppHaptics();
+    const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
@@ -42,7 +42,7 @@ export default function Navigation() {
                     hovered={hoveredTab === item.name}
                     onHoverStart={onHoverStart}
                     onHoverEnd={onHoverEnd}
-                    onPress={lightTap}
+                    onPress={navigate}
                 />
             ))}
         </nav>

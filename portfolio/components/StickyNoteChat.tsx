@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { m, AnimatePresence, MotionConfig } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
+import { useAppHaptics } from '@/lib/haptics';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
@@ -602,6 +603,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const { messages, isLoading, error, sendMessage, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
+  const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
@@ -620,6 +622,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
   const hasInitializedSuggestionsRef = useRef(false);
+  const completedAssistantHapticRef = useRef<string | null>(null);
+  const lastErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
     for (const message of messages) {
@@ -718,6 +722,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     // Theme switching
     if (action.themeAction) {
+      selection();
       if (action.themeAction === 'toggle') {
         setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
       } else {
@@ -727,15 +732,18 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     // Open feedback modal
     if (action.feedbackAction) {
+      openPanel();
       window.dispatchEvent(new CustomEvent('open-feedback'));
     }
 
     if (action.projectSlug) {
+      openPanel();
       setSelectedProjectSlug(action.projectSlug);
     }
 
     // Open URLs in new tabs — handle popup blockers
     if (action.openUrls && action.openUrls.length > 0) {
+      externalLink();
       let anyBlocked = false;
       for (const url of action.openUrls) {
         const popup = window.open(url, '_blank', 'noopener,noreferrer');
@@ -748,13 +756,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     // Page navigation — slight delay so the user can read the confirmation
     if (action.navigateTo) {
+      navigate();
       const dest = action.navigateTo;
       navigationTimeoutRef.current = setTimeout(() => {
         navigationTimeoutRef.current = null;
         router.push(dest);
       }, NAVIGATION_DELAY_MS);
     }
-  }, [router, setTheme, resolvedTheme, markOpenUrlsFailed]);
+  }, [externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
 
   const handleTypewriterDone = useCallback((messageId: string) => {
     setSuggestionsReady(true);
@@ -771,6 +780,39 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [isLoading]);
 
+  useEffect(() => {
+    const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
+    if (!lastAssistant || lastAssistant.isOld || isLoading) {
+      return;
+    }
+
+    if (completedAssistantHapticRef.current === lastAssistant.id) {
+      return;
+    }
+
+    completedAssistantHapticRef.current = lastAssistant.id;
+    success();
+  }, [isLoading, messages, success]);
+
+  useEffect(() => {
+    if (!error) {
+      lastErrorRef.current = null;
+      return;
+    }
+
+    if (lastErrorRef.current === error) {
+      return;
+    }
+
+    lastErrorRef.current = error;
+    if (rateLimitRemaining) {
+      warning();
+      return;
+    }
+
+    errorHaptic();
+  }, [error, errorHaptic, rateLimitRemaining, warning]);
+
   // Auto-scroll to newest note — consolidated single effect handles all scroll triggers:
   // new message arrives, streaming ends, or suggestions appear. Replaces two separate effects.
   const prevMessageCountRef = useRef(messages.length);
@@ -784,19 +826,22 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
+    submit();
     sendMessage(text);
-  }, [sendMessage]);
+  }, [sendMessage, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
+    selection();
     sendMessage(text);
-  }, [sendMessage]);
+  }, [selection, sendMessage]);
 
   const handleClearDesk = useCallback(() => {
     if (navigationTimeoutRef.current !== null) {
       clearTimeout(navigationTimeoutRef.current);
       navigationTimeoutRef.current = null;
     }
+    clear();
     clearMessages();
     setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
     setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
@@ -806,11 +851,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     pendingActionsRef.current.clear();
     handledActionsRef.current.clear();
     setSelectedProjectSlug(null);
-  }, [clearMessages]);
+  }, [clear, clearMessages]);
 
   const handleCloseProjectModal = useCallback(() => {
+    closePanel();
     setSelectedProjectSlug(null);
-  }, []);
+  }, [closePanel]);
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');

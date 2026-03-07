@@ -6,6 +6,7 @@ import { Trash2, X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
@@ -40,6 +41,7 @@ const StickyNoteDoodle = memo(function StickyNoteDoodle() {
 
 export default function MiniChat() {
   const pathname = usePathname();
+  const { closePanel, navigate, openPanel } = useAppHaptics();
   const [isOpen, setIsOpen] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -57,16 +59,25 @@ export default function MiniChat() {
   }, [pathname]);
 
   const handleDismiss = useCallback(() => {
+    closePanel();
     setIsOpen(false);
-  }, []);
+  }, [closePanel]);
 
   const handleClose = useCallback(() => {
+    closePanel();
     setIsOpen(false);
-  }, []);
+  }, [closePanel]);
 
   const handleToggle = useCallback(() => {
-    setIsOpen(prev => !prev);
-  }, []);
+    setIsOpen(prev => {
+      if (prev) {
+        closePanel();
+      } else {
+        openPanel();
+      }
+      return !prev;
+    });
+  }, [closePanel, openPanel]);
 
   // Don't show on /chat page
   if (pathname === '/chat') return null;
@@ -118,6 +129,7 @@ export default function MiniChat() {
                 <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
                   <Link
                     href="/chat"
+                    onClick={navigate}
                     className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
                     title="Open full chat"
                   >

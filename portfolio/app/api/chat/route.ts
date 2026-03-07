@@ -6,10 +6,10 @@ import { resolveChatIntent } from '@/lib/chatActionRouter';
 import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPrompt } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
-import { CHAT_CONFIG } from '@/lib/chatContext';
+import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
 import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
-import { createProviderClient, getChatProviders } from '@/lib/llmProviders.server';
+import { createProviderClient, getChatProviders, type LLMProvider } from '@/lib/llmProviders.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
@@ -71,6 +71,37 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
   }
 
   return sanitized;
+}
+
+function getOrderedProviders(primary: LLMProvider | null, fallback: LLMProvider | null): LLMProvider[] {
+  const seen = new Set<string>();
+
+  return [primary, fallback]
+    .filter((provider): provider is LLMProvider => provider !== null)
+    .filter((provider) => {
+      const key = `${provider.baseURL}::${provider.model}::${provider.apiKey}`;
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+}
+
+function createFallbackResponse(latestUserMessage: string) {
+  const reply = getContextualFallback(latestUserMessage);
+  return Response.json({
+    reply,
+    action: null,
+    degraded: true,
+    signature: signAssistantMessage(reply, null),
+  }, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'X-Chat-Fallback': 'local',
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -154,20 +185,31 @@ export async function POST(request: NextRequest) {
     ];
 
     const { primary, fallback } = getChatProviders();
-    if (!primary) {
-      console.error('Missing LLM environment variables (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)');
-      return Response.json({ error: 'Chat service is not configured' }, { status: 500 });
+    const providers = getOrderedProviders(primary, fallback);
+
+    if (providers.length === 0) {
+      console.error('No LLM providers are configured; returning local fallback reply.');
+      return createFallbackResponse(latestUserMessage);
     }
 
-    // Try primary provider, fall back if it errors or takes too long
-    const result = await callProvider(primary, apiMessages)
-      .catch(async (err) => {
-        if (fallback) {
-          console.warn(`Primary LLM failed (${err?.message}), trying fallback...`);
-          return callProvider(fallback, apiMessages);
-        }
-        throw err;
-      });
+    let result: ProviderCallResult | null = null;
+    const providerErrors: string[] = [];
+
+    for (const provider of providers) {
+      try {
+        result = await callProvider(provider, apiMessages);
+        break;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown provider failure';
+        providerErrors.push(`${provider.label}: ${message}`);
+        console.warn(`LLM provider failed (${provider.label}): ${message}`);
+      }
+    }
+
+    if (!result) {
+      console.error('All LLM providers failed; returning local fallback reply.', providerErrors);
+      return createFallbackResponse(latestUserMessage);
+    }
 
     return Response.json({
       reply: result.reply,

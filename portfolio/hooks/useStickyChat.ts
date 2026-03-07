@@ -49,6 +49,22 @@ function getDisplayErrorMessage(error: unknown): string {
   return 'Chat service is unavailable right now. Try again in a sec.';
 }
 
+function isRecoverableServerFailure(status: number): boolean {
+  return status >= 500;
+}
+
+function isRecoverableClientFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return true;
+  }
+
+  if (error.name === 'AbortError') {
+    return false;
+  }
+
+  return !/rate limited|conversation is too long|context is too large|messages are required|required/i.test(error.message);
+}
+
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -120,6 +136,103 @@ const FILLER_TIERS = [
   { delay: FILLER_DELAYS.tier6, pool: FILLER_40S },
 ];
 
+const PENDING_CHAT_STORAGE_KEY = `${CHAT_CONFIG.storageKey}:pending`;
+const PENDING_CHAT_TTL_MS = 120_000;
+
+interface PendingChatRecovery {
+  assistantId: string;
+  prompt: string;
+  timestamp: number;
+  userId: string;
+}
+
+function loadPendingChatRecovery(): PendingChatRecovery | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const stored = sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as Partial<PendingChatRecovery>;
+    if (
+      typeof parsed.prompt !== 'string' ||
+      typeof parsed.userId !== 'string' ||
+      typeof parsed.assistantId !== 'string' ||
+      typeof parsed.timestamp !== 'number'
+    ) {
+      sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > PENDING_CHAT_TTL_MS) {
+      sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+      return null;
+    }
+
+    return parsed as PendingChatRecovery;
+  } catch {
+    sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+    return null;
+  }
+}
+
+function savePendingChatRecovery(recovery: PendingChatRecovery) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    sessionStorage.setItem(PENDING_CHAT_STORAGE_KEY, JSON.stringify(recovery));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearPendingChatRecovery() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function recoverMessagesWithPendingFallback(messages: ChatMessage[]): ChatMessage[] {
+  const pending = loadPendingChatRecovery();
+  if (!pending) {
+    return messages;
+  }
+
+  const fallbackContent = getContextualFallback(pending.prompt);
+  let recovered = false;
+
+  const nextMessages = messages.map((message) => {
+    if (message.id !== pending.assistantId) {
+      return message;
+    }
+
+    recovered = true;
+    return {
+      ...message,
+      content: message.content || fallbackContent,
+      isOld: true,
+      isFiller: false,
+    };
+  });
+
+  if (!recovered) {
+    nextMessages.push({
+      id: pending.assistantId,
+      role: 'assistant',
+      content: fallbackContent,
+      timestamp: pending.timestamp + 1,
+      isOld: true,
+    });
+  }
+
+  clearPendingChatRecovery();
+  return nextMessages;
+}
+
 function loadMessages(): ChatMessage[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -186,7 +299,7 @@ export function useStickyChat(): UseStickyChat {
         isOld: true,
       };
       const filtered = stored.filter(m => m.id !== 'welcome');
-      setMessages([welcomeMsg, ...filtered]);
+      setMessages(recoverMessagesWithPendingFallback([welcomeMsg, ...filtered]));
 
       // Restore cached LLM suggestions
       try {
@@ -283,12 +396,21 @@ export function useStickyChat(): UseStickyChat {
 
     // Add assistant placeholder (empty content — typewriter will reveal it)
     const assistantId = generateId();
-    setMessages(prev => [...prev, userMsg, {
+    const pendingAssistant: ChatMessage = {
       id: assistantId,
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
-    }]);
+    };
+    const optimisticMessages = [...messagesRef.current, userMsg, pendingAssistant];
+    setMessages(optimisticMessages);
+    saveMessages(optimisticMessages);
+    savePendingChatRecovery({
+      assistantId,
+      prompt: trimmed,
+      timestamp: pendingAssistant.timestamp,
+      userId: userMsg.id,
+    });
     setIsLoading(true);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -351,10 +473,24 @@ export function useStickyChat(): UseStickyChat {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        if (isRecoverableServerFailure(response.status)) {
+          setError(null);
+          clearPendingChatRecovery();
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantId
+                ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
+                : m
+            )
+          );
+          return;
+        }
+
         throw new Error(errorData.error || `Error (${response.status})`);
       }
 
       const data = await response.json();
+      clearPendingChatRecovery();
       const rawReply: string = data.reply || '';
       const safeReply = sanitizeAssistantReplyText(rawReply);
       const serverAction = hasActionExecution(data.action as ActionExecution | null | undefined)
@@ -398,10 +534,12 @@ export function useStickyChat(): UseStickyChat {
       if (err instanceof Error && err.name === 'AbortError') {
         const reason = abortControllerRef.current?.signal.reason;
         if (reason === 'clear') {
+          clearPendingChatRecovery();
           // clearMessages already wiped state — nothing to do
           return;
         }
         if (reason === 'timeout') {
+          clearPendingChatRecovery();
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantId
@@ -413,6 +551,19 @@ export function useStickyChat(): UseStickyChat {
           // Manual/navigation abort — drop empty placeholder
           setMessages(prev => prev.filter(m => m.id !== assistantId || m.content));
         }
+        return;
+      }
+
+      if (isRecoverableClientFailure(err)) {
+        setError(null);
+        clearPendingChatRecovery();
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
+              : m
+          )
+        );
         return;
       }
 
@@ -449,6 +600,7 @@ export function useStickyChat(): UseStickyChat {
     abortControllerRef.current = null;
     suggestionsAbortRef.current?.abort('clear');
     suggestionsAbortRef.current = null;
+    clearPendingChatRecovery();
     // Cancel any pending filler timers
     fillerCleanupRef.current?.();
     // Reset all state

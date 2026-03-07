@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useAppHaptics } from '@/lib/haptics';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 
@@ -45,13 +46,14 @@ const SOCIALS = [
     }
 ];
 
-const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number }) {
+const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onPress }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number, onPress: () => void }) {
     if (isMobile) {
         return (
             <a
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={onPress}
                 className={`flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
                 title={social.name}
                 aria-label={social.name}
@@ -66,6 +68,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
             href={social.url}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={onPress}
             className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group hover:scale-110`}
             title={social.name}
             aria-label={social.name}
@@ -83,7 +86,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index }: {
 // Pre-computed mobile social list (CP History replaced by feedback button)
 const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
 
-const MobileThemeButton = React.memo(function MobileThemeButton() {
+const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
@@ -91,7 +94,10 @@ const MobileThemeButton = React.memo(function MobileThemeButton() {
     const isDark = resolvedTheme === 'dark';
     return (
         <button
-            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            onClick={() => {
+                onPress();
+                setTheme(isDark ? 'light' : 'dark');
+            }}
             className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
             title="Toggle theme"
             aria-label="Toggle theme"
@@ -102,6 +108,8 @@ const MobileThemeButton = React.memo(function MobileThemeButton() {
 });
 
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
+    const { externalLink, openPanel, toggle } = useAppHaptics();
+
     return (
         <>
             {/* Desktop: Vertical sidebar on right */}
@@ -112,7 +120,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 style={{ zIndex: Z_INDEX.sidebar }}
             >
                 {SOCIALS.map((social, i) => (
-                    <SocialLink key={social.name} social={social} index={i} />
+                    <SocialLink key={social.name} social={social} index={i} onPress={externalLink} />
                 ))}
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
@@ -125,16 +133,19 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 style={{ zIndex: Z_INDEX.sidebar }}
             >
                 {/* Theme Toggle */}
-                <MobileThemeButton />
+                <MobileThemeButton onPress={toggle} />
 
                 {MOBILE_SOCIALS.map((social) => (
-                    <SocialLink key={social.name} social={social} isMobile />
+                    <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
                 ))}
 
                 {/* Feedback button (replaces CP History on mobile) */}
                 {onFeedbackClick && (
                     <button
-                        onClick={onFeedbackClick}
+                        onClick={() => {
+                            openPanel();
+                            onFeedbackClick();
+                        }}
                         className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
                         title="Send feedback"
                         aria-label="Open feedback form"

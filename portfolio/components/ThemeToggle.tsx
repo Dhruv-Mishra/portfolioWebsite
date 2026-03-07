@@ -6,7 +6,7 @@ import { useAppHaptics } from "@/lib/haptics";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
-    const { selection } = useAppHaptics();
+    const { toggle } = useAppHaptics();
     const [mounted, setMounted] = React.useState(false);
 
     // useEffect only runs on the client, so now we can safely show the UI
@@ -19,7 +19,7 @@ export function ThemeToggle() {
     }
 
     const toggleTheme = () => {
-        selection();
+        toggle();
         setTheme(resolvedTheme === "dark" ? "light" : "dark");
     };
 

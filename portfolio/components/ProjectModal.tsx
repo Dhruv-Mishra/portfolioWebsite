@@ -2,6 +2,7 @@
 import { X, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -46,6 +47,7 @@ const FOLD_COLOR_MODAL_STYLE = {
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const { closePanel, externalLink, selection, tap } = useAppHaptics();
     const [isMuted, setIsMuted] = useState(true);
     const [showPlayButton, setShowPlayButton] = useState(false);
 
@@ -58,16 +60,19 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
     // Toggle mute/unmute — syncs state to the video element directly
     const toggleMute = useCallback(() => {
+        selection();
         setIsMuted(prev => {
             const next = !prev;
             if (videoRef.current) videoRef.current.muted = next;
             return next;
         });
-    }, []);
+    }, [selection]);
 
     const playVideo = useCallback(async () => {
         const video = videoRef.current;
         if (!video) return;
+
+        tap();
 
         try {
             await video.play();
@@ -75,7 +80,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         } catch {
             setShowPlayButton(true);
         }
-    }, []);
+    }, [tap]);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     // This avoids the race condition where useEffect runs before Modal's
@@ -131,7 +136,10 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                     >
                         {/* Close Button */}
                         <button
-                            onClick={onClose}
+                            onClick={() => {
+                                closePanel();
+                                onClose();
+                            }}
                             className="absolute top-4 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-white/60 text-rose-600/80 shadow-md hover:scale-110 hover:rotate-6 hover:bg-rose-50/90 hover:text-rose-700 dark:bg-black/40 dark:text-rose-400/85 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200"
                             aria-label="Close project note"
                             data-clickable
@@ -261,6 +269,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                 href={project.link}
                                 target="_blank"
                                 rel="noreferrer"
+                                onClick={externalLink}
                                 aria-label={`View source for ${project.name}`}
                                 className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors shadow-sm font-bold bg-white/30 dark:bg-black/20"
                                 data-clickable

@@ -121,7 +121,7 @@ jobs:
             fi
 
             # Build deploy command with options
-            DEPLOY="sudo ${{ env.DEPLOY_CMD }}"
+            DEPLOY="sudo NEXT_BUILD_ID=${{ github.sha }} ${{ env.DEPLOY_CMD }}"
 
             if [ "${{ inputs.skip_git }}" = "true" ]; then
               DEPLOY="$DEPLOY --skip-git"

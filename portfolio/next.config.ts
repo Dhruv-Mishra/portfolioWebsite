@@ -1,8 +1,37 @@
+import { execSync } from "node:child_process";
+
 import type { NextConfig } from "next";
+
+function resolveBuildId(): string {
+  const explicitBuildId =
+    process.env.NEXT_BUILD_ID ??
+    process.env.GITHUB_SHA ??
+    process.env.VERCEL_GIT_COMMIT_SHA ??
+    process.env.CF_PAGES_COMMIT_SHA;
+
+  if (explicitBuildId) {
+    return explicitBuildId.trim();
+  }
+
+  try {
+    return execSync("git rev-parse HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "local-build";
+  }
+}
+
+const BUILD_ID = resolveBuildId();
 
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
+  // Multi-origin deployments behind Cloudflare must emit the same build ID on every VM.
+  // Otherwise HTML from one origin can reference runtime artifacts that do not exist on another.
+  generateBuildId: async () => BUILD_ID,
   // Disable Next.js compression — nginx/Cloudflare handles gzip/brotli upstream,
   // avoiding double-compression CPU overhead on resource-constrained VMs.
   compress: false,

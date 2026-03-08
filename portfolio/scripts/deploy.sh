@@ -36,60 +36,86 @@
 
 set -euo pipefail
 
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly DEFAULT_DEPLOY_CONFIG="/etc/portfolio/deploy.conf"
+readonly REPO_DEPLOY_CONFIG="${SCRIPT_DIR}/deploy.local.conf"
+
+load_machine_config() {
+    local config_path=""
+
+    if [[ -n "${DEPLOY_CONFIG:-}" ]] && [[ -f "${DEPLOY_CONFIG}" ]]; then
+        config_path="${DEPLOY_CONFIG}"
+    elif [[ -f "${DEFAULT_DEPLOY_CONFIG}" ]]; then
+        config_path="${DEFAULT_DEPLOY_CONFIG}"
+    elif [[ -f "${REPO_DEPLOY_CONFIG}" ]]; then
+        config_path="${REPO_DEPLOY_CONFIG}"
+    fi
+
+    if [[ -n "${config_path}" ]]; then
+        # shellcheck source=/dev/null
+        source "${config_path}"
+    fi
+}
+
+load_machine_config
+
 #===============================================================================
 # VM-SPECIFIC CONFIGURATION
-# Edit these variables to match your server environment.
+# Override these via DEPLOY_CONFIG, /etc/portfolio/deploy.conf,
+# or scripts/deploy.local.conf to keep the script itself shared across machines.
 #===============================================================================
 
 # Domain
-readonly DOMAIN="whoisdhruv.com"
+readonly DOMAIN="${DOMAIN:-whoisdhruv.com}"
 
 # Repository & project paths
-readonly GIT_ROOT="/home/portfolioWebsite/portfolio"
-readonly PROJECT_ROOT="${GIT_ROOT}/portfolio"
+readonly GIT_ROOT="${GIT_ROOT:-/home/portfolioWebsite/portfolio}"
+readonly PROJECT_ROOT="${PROJECT_ROOT:-${GIT_ROOT}/portfolio}"
 
 # Git
-readonly GIT_BRANCH="master"
-readonly GIT_REMOTE="origin"
+readonly GIT_BRANCH="${GIT_BRANCH:-master}"
+readonly GIT_REMOTE="${GIT_REMOTE:-origin}"
 
 # Next.js server
-readonly NEXTJS_PORT=3000
+readonly NEXTJS_PORT="${NEXTJS_PORT:-3000}"
 
 # systemd service
-readonly SERVICE_NAME="portfolio"
-readonly SERVICE_USER="ubuntu"              # Non-root user that owns the project
+readonly SERVICE_NAME="${SERVICE_NAME:-portfolio}"
+readonly SERVICE_USER="${SERVICE_USER:-ubuntu}"              # Non-root user that owns the project
 
 # Process priority (nice: -20=highest, 19=lowest; ionice: 1=realtime, 2=best-effort, 3=idle)
-readonly SERVICE_NICE=5                     # Slightly below default for the live server
-readonly BUILD_NICE=15                      # Low priority so builds don't starve the server
-readonly BUILD_IONICE_CLASS=3               # Idle I/O class — only runs when disk is free
+readonly SERVICE_NICE="${SERVICE_NICE:-5}"                     # Slightly below default for the live server
+readonly BUILD_NICE="${BUILD_NICE:-15}"                      # Low priority so builds don't starve the server
+readonly BUILD_IONICE_CLASS="${BUILD_IONICE_CLASS:-3}"               # Idle I/O class — only runs when disk is free
 
 # SSL (Cloudflare Origin Certificate)
-readonly SSL_CERT="/etc/ssl/cloudflare/${DOMAIN}.pem"
-readonly SSL_KEY="/etc/ssl/cloudflare/${DOMAIN}.key"
+readonly SSL_CERT="${SSL_CERT:-/etc/ssl/cloudflare/${DOMAIN}.pem}"
+readonly SSL_KEY="${SSL_KEY:-/etc/ssl/cloudflare/${DOMAIN}.key}"
 
 # Nginx
-readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
-readonly NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
+readonly NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
+readonly NGINX_SITES_ENABLED="${NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}"
+readonly NGINX_CONF_NAME="${NGINX_CONF_NAME:-${SERVICE_NAME}}"
+readonly SOURCE_NGINX_CONF="${SOURCE_NGINX_CONF:-${PROJECT_ROOT}/nginx-cloudflare.conf}"
 
 # Backups & logs
-readonly BACKUP_DIR="/var/backups/${SERVICE_NAME}"
-readonly LOG_DIR="/var/log/${SERVICE_NAME}-deploy"
-readonly BACKUP_RETENTION_DAYS=7            # Keep nginx backups for 1 week
-readonly MAX_LOG_FILES=10                   # Keep only last 10 deploy logs
-readonly MAX_LOG_SIZE_MB=5                  # Truncate individual logs beyond 5MB
+readonly BACKUP_DIR="${BACKUP_DIR:-/var/backups/${SERVICE_NAME}}"
+readonly LOG_DIR="${LOG_DIR:-/var/log/${SERVICE_NAME}-deploy}"
+readonly BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"            # Keep nginx backups for 1 week
+readonly MAX_LOG_FILES="${MAX_LOG_FILES:-10}"                   # Keep only last 10 deploy logs
+readonly MAX_LOG_SIZE_MB="${MAX_LOG_SIZE_MB:-5}"                  # Truncate individual logs beyond 5MB
 
 # Journal log caps for the Next.js service
-readonly JOURNAL_RATE_INTERVAL=30           # seconds
-readonly JOURNAL_RATE_BURST=100             # max log entries per interval
-readonly JOURNAL_MAX_SIZE="50M"             # max total journal size for this unit
+readonly JOURNAL_RATE_INTERVAL="${JOURNAL_RATE_INTERVAL:-30}"           # seconds
+readonly JOURNAL_RATE_BURST="${JOURNAL_RATE_BURST:-100}"             # max log entries per interval
+readonly JOURNAL_MAX_SIZE="${JOURNAL_MAX_SIZE:-50M}"             # max total journal size for this unit
 
 # Build
-readonly NPM_BUILD_TIMEOUT=600              # seconds
+readonly NPM_BUILD_TIMEOUT="${NPM_BUILD_TIMEOUT:-600}"              # seconds
 
 # Health check
-readonly HEALTH_CHECK_RETRIES=30            # seconds to wait for Next.js
-readonly MIN_DISK_MB=500                    # minimum free disk space
+readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-30}"            # seconds to wait for Next.js
+readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"                    # minimum free disk space
 
 # Required env vars in .env.local (chat API won't work without these)
 readonly REQUIRED_ENV_VARS=("LLM_API_KEY" "LLM_BASE_URL" "LLM_MODEL")
@@ -98,13 +124,20 @@ readonly REQUIRED_ENV_VARS=("LLM_API_KEY" "LLM_BASE_URL" "LLM_MODEL")
 # DERIVED CONSTANTS — Do not edit below this line
 #===============================================================================
 
-readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/nginx-cloudflare.conf"
 readonly NEXTJS_BUILD_DIR="${PROJECT_ROOT}/.next"
 readonly ENV_FILE="${PROJECT_ROOT}/.env.local"
 readonly SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
-readonly NGINX_CONF_NAME="${SERVICE_NAME}"
 readonly NGINX_ACTIVE_CONF="${NGINX_SITES_AVAILABLE}/${NGINX_CONF_NAME}"
 readonly LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d-%H%M%S).log"
+
+resolve_build_id() {
+    if [[ -n "${NEXT_BUILD_ID:-}" ]]; then
+        printf '%s\n' "${NEXT_BUILD_ID}"
+        return 0
+    fi
+
+    git -C "${GIT_ROOT}" rev-parse HEAD 2>/dev/null || printf '%s\n' "local-build"
+}
 
 #===============================================================================
 # COLOR CODES
@@ -597,6 +630,9 @@ build_project() {
     cd "${PROJECT_ROOT}"
 
     export NODE_ENV="production"
+    export NEXT_BUILD_ID
+    NEXT_BUILD_ID="$(resolve_build_id)"
+    log INFO "Using NEXT_BUILD_ID=${NEXT_BUILD_ID}"
 
     if ! timeout "${NPM_BUILD_TIMEOUT}" \
             nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
@@ -764,6 +800,7 @@ deploy_nginx() {
     validate_nginx_source
 
     log STEP "Updating nginx configuration..."
+    log INFO "Applying ${SOURCE_NGINX_CONF} -> ${NGINX_ACTIVE_CONF}"
     cp "${SOURCE_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"
     chmod 644 "${NGINX_ACTIVE_CONF}"
 

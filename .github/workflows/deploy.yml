@@ -46,7 +46,7 @@ on:
       - 'ResumeBuilder/**'
 
 concurrency:
-  group: production-deployment
+  group: deploy-${{ inputs.site || 'portfolio' }}
   cancel-in-progress: false
 
 env:
@@ -229,7 +229,8 @@ jobs:
           echo "## ❌ ${{ matrix.server.name }}: Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
-          echo "1. SSH in and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Service status: \`sudo systemctl status portfolio\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Recent logs: \`sudo journalctl -u portfolio --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
-          echo "4. Run manually: \`sudo deployWebsite\`" >> $GITHUB_STEP_SUMMARY
+          SITE="${{ inputs.site || 'portfolio' }}"
+          echo "1. SSH in and check: \`/var/log/${SITE}-deploy/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Service status: \`sudo systemctl status ${SITE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Recent logs: \`sudo journalctl -u ${SITE} --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Run manually: \`sudo deployWebsite --site ${SITE}\`" >> $GITHUB_STEP_SUMMARY

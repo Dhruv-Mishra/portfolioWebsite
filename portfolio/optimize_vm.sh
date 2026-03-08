@@ -103,10 +103,12 @@ echo "  ✓ Oracle OS Management Agent removed"
 
 # Oracle crash / diagnostics / telemetry
 sudo apt-get purge -y oci-utilities oci-compute-utils 2>/dev/null || true
-for pkg in $(dpkg -l 2>/dev/null | grep -iE 'oracle|oci-' | awk '{print $2}' | grep -v 'iptables'); do
+# Remove remaining Oracle/OCI packages, but NEVER touch kernel, linux, grub, or iptables
+for pkg in $(dpkg -l 2>/dev/null | grep -iE 'oracle|oci-' | awk '{print $2}' \
+    | grep -vE 'linux|kernel|grub|iptables|netfilter|modules'); do
     sudo apt-get purge -y "$pkg" 2>/dev/null || true
 done
-echo "  ✓ Remaining Oracle packages cleaned"
+echo "  ✓ Remaining Oracle packages cleaned (kernel preserved)"
 
 # ── Snap — massive memory/CPU hog on low-RAM VMs ────────────────────────
 if command -v snap &>/dev/null; then

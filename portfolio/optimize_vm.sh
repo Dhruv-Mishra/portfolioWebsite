@@ -55,7 +55,7 @@ echo "  ✓ System fully updated"
 
 # Essential hosting & debugging tools
 sudo apt-get install -y \
-    git curl wget htop jq lsof tmux \
+    git curl wget htop jq lsof tmux nano \
     ca-certificates gnupg apt-transport-https \
     net-tools dnsutils \
     unzip tar gzip \
@@ -666,8 +666,9 @@ echo " 3. Create .env.local in your project directory:"
 echo "      nano /home/ubuntu/portfolioWebsite/portfolio/.env.local"
 echo "    Required: LLM_API_KEY, LLM_BASE_URL, LLM_MODEL"
 echo ""
-echo " 4. Create the deploy command symlink:"
-echo "      sudo ln -sf /path/to/portfolio/scripts/deploy.sh /usr/local/bin/deployWebsite"
+echo " 4. Make deploy script executable & create symlink:"
+echo "      chmod +x /home/ubuntu/portfolioWebsite/portfolio/scripts/deploy.sh"
+echo "      sudo ln -sf /home/ubuntu/portfolioWebsite/portfolio/scripts/deploy.sh /usr/local/bin/deployWebsite"
 echo ""
 echo " 5. Run the deployment:"
 echo "      sudo deployWebsite"

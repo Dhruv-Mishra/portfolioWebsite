@@ -103,8 +103,10 @@ echo "  ✓ Oracle OS Management Agent removed"
 
 # Oracle crash / diagnostics / telemetry
 sudo apt-get purge -y oci-utilities oci-compute-utils 2>/dev/null || true
-# Remove remaining Oracle/OCI packages, but NEVER touch kernel, linux, grub, or iptables
-for pkg in $(dpkg -l 2>/dev/null | grep -iE 'oracle|oci-' | awk '{print $2}' \
+# Remove remaining Oracle/OCI packages, but NEVER touch kernel, linux, grub, or iptables.
+# Use dpkg-query to search package NAMES only (not descriptions, which could false-match).
+for pkg in $(dpkg-query -W -f '${Package}\n' 2>/dev/null \
+    | grep -iE '^oracle|^oci-' \
     | grep -vE 'linux|kernel|grub|iptables|netfilter|modules'); do
     sudo apt-get purge -y "$pkg" 2>/dev/null || true
 done
@@ -154,7 +156,7 @@ for svc in ModemManager bluetooth avahi-daemon cups cups-browsed \
            accounts-daemon packagekit packagekit-offline-update \
            power-profiles-daemon switcheroo-control thermald udisks2 \
            apport.service whoopsie.service kerneloops.service \
-           polkit.service colord.service; do
+           colord.service; do
     sudo systemctl stop "$svc" 2>/dev/null || true
     sudo systemctl disable "$svc" 2>/dev/null || true
 done
@@ -169,7 +171,6 @@ sudo apt-get purge -y \
     whoopsie \
     command-not-found command-not-found-data \
     friendly-recovery \
-    plymouth plymouth-theme-ubuntu-text \
     motd-news-config \
     2>/dev/null || true
 echo "  ✓ Desktop/bloat packages purged"
@@ -180,7 +181,7 @@ sudo systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || tr
 echo "  ✓ apt daily timers disabled"
 
 # ── Misc timers ────────────────────────────────────────────────────────
-for timer in man-db.timer motd-news.timer e2scrub_all.timer fstrim.timer; do
+for timer in man-db.timer motd-news.timer e2scrub_all.timer; do
     sudo systemctl stop "$timer" 2>/dev/null || true
     sudo systemctl disable "$timer" 2>/dev/null || true
 done
@@ -223,8 +224,9 @@ RESOLV
     echo "  ✓ systemd-resolved → static DNS (~30 MB saved)"
 fi
 
-# ── systemd-timesyncd — low value on a VM ──────────────────────────────
-sudo systemctl stop systemd-timesyncd 2>/dev/null || true
+# ── systemd-timesyncd — keep running for accurate TLS/log timestamps ───
+# Time drift on a VM breaks Cloudflare TLS, LLM API calls, and fail2ban.
+# Do NOT disable.
 
 # ── Disable Ubuntu MOTD spam ──────────────────────────────────────────
 sudo chmod -x /etc/update-motd.d/* 2>/dev/null || true
@@ -499,7 +501,7 @@ if ! grep -q "# Hardened by optimize_vm.sh" /etc/ssh/sshd_config.d/99-hardened.c
 PasswordAuthentication ${PASS_AUTH}
 PermitRootLogin no
 MaxAuthTries 3
-MaxSessions 3
+MaxSessions 10
 KbdInteractiveAuthentication no
 KerberosAuthentication no
 GSSAPIAuthentication no

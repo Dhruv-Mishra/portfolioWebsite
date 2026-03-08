@@ -1,0 +1,57 @@
+# /etc/deploy/sites/portfolio.conf — Site-specific deployment configuration
+# One file per website hosted on this VM.
+#
+# Install:
+#   sudo mkdir -p /etc/deploy/sites
+#   sudo cp portfolio.conf.example /etc/deploy/sites/portfolio.conf
+#   sudo chmod 600 /etc/deploy/sites/portfolio.conf
+#   # Then edit domain, paths, and ports for your setup.
+#
+# To add a SECOND website on the same VM:
+#   1. Copy this file:  sudo cp portfolio.conf.example /etc/deploy/sites/mysite.conf
+#   2. Change SERVICE_NAME, NEXTJS_PORT (e.g. 3001), DOMAIN, paths, SSL certs
+#   3. Update /etc/deploy/machine.conf resource limits (lower per-site allocations)
+#   4. From the new repo: sudo deploy.sh --site mysite
+
+# ── Identity ─────────────────────────────────────────────────────────────────
+DOMAIN="whoisdhruv.com"
+SERVICE_NAME="portfolio"
+NEXTJS_PORT=3000
+
+# ── Repository Paths ─────────────────────────────────────────────────────────
+# GIT_ROOT:     Root of the cloned git repository
+# PROJECT_ROOT: The Next.js project directory (may be nested in the repo)
+GIT_ROOT="/home/ubuntu/dhruvwebsite"
+PROJECT_ROOT="/home/ubuntu/dhruvwebsite/portfolio"
+
+# ── Git ──────────────────────────────────────────────────────────────────────
+GIT_BRANCH="master"
+GIT_REMOTE="origin"
+
+# ── SSL (Cloudflare Origin Certificate) ──────────────────────────────────────
+SSL_CERT="/etc/ssl/cloudflare/whoisdhruv.com.pem"
+SSL_KEY="/etc/ssl/cloudflare/whoisdhruv.com.key"
+
+# ── Nginx ────────────────────────────────────────────────────────────────────
+# Template file in the repo (relative to PROJECT_ROOT)
+NGINX_CONF_TEMPLATE="nginx-cloudflare.conf"
+
+# ── Required Environment Variables ───────────────────────────────────────────
+# Comma-separated. Deploy script validates these exist in .env.local.
+REQUIRED_ENV_VARS="LLM_API_KEY,LLM_BASE_URL,LLM_MODEL"
+
+# ── Backups & Logs ───────────────────────────────────────────────────────────
+BACKUP_RETENTION_DAYS=7
+MAX_LOG_FILES=10
+
+# ── Variables inherited from /etc/deploy/machine.conf ────────────────────────
+# These are set once per machine and shared across all sites:
+#   MACHINE_USER          - System user (default: ubuntu)
+#   NODE_HEAP_MB          - V8 heap limit per site (default: 350)
+#   MEMORY_HIGH_MB        - systemd soft memory limit (default: 400)
+#   MEMORY_MAX_MB         - systemd hard memory limit (default: 500)
+#   CPU_QUOTA_PERCENT     - CPU quota per site (default: 180)
+#   BUILD_NICE            - Build process nice value (default: 15)
+#   BUILD_IONICE_CLASS    - Build I/O scheduling class (default: 3)
+#   BUILD_HEAP_MB         - V8 heap during build (default: 512)
+#   SERVICE_NICE          - Service nice value (default: 5)

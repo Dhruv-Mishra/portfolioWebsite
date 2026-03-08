@@ -1,0 +1,42 @@
+# /etc/deploy/machine.conf — Machine-level deployment configuration
+# Shared across ALL sites hosted on this VM. Created once per machine.
+#
+# Install:
+#   sudo mkdir -p /etc/deploy/sites
+#   sudo cp machine.conf.example /etc/deploy/machine.conf
+#   sudo chmod 600 /etc/deploy/machine.conf
+#   # Then edit values for your VM.
+
+# ── System User ──────────────────────────────────────────────────────────────
+# Non-root user that owns project files and runs services.
+MACHINE_USER="ubuntu"
+
+# ── Node.js Runtime (per site) ───────────────────────────────────────────────
+# V8 heap limit in MB. Tune based on available RAM and number of sites.
+#   1 GB RAM, 1 site  → 350
+#   1 GB RAM, 2 sites → 200 each
+#   1 GB RAM, 3 sites → 150 each
+NODE_HEAP_MB=350
+
+# ── systemd Resource Limits (per site) ───────────────────────────────────────
+# MemoryHigh: soft limit — kernel throttles allocation above this
+# MemoryMax: hard limit — OOM kill above this
+MEMORY_HIGH_MB=400
+MEMORY_MAX_MB=500
+
+# CPU quota as % of ALL CPUs. 2 vCPU = 200% total.
+#   1 site:  180%
+#   2 sites: 90% each
+CPU_QUOTA_PERCENT=180
+
+# ── Build Priority ───────────────────────────────────────────────────────────
+# nice: 0–19 (higher = lower priority). 15 = low priority, won't starve live site.
+BUILD_NICE=15
+# ionice class: 1=realtime, 2=best-effort, 3=idle. Use 3 so builds only use idle I/O.
+BUILD_IONICE_CLASS=3
+# Max V8 heap during build (MB). 512 is safe for most Next.js projects on 1 GB RAM.
+BUILD_HEAP_MB=512
+
+# ── Service Priority ────────────────────────────────────────────────────────
+# nice value for the running service process (0–19).
+SERVICE_NICE=5

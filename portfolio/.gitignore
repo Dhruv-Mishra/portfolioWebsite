@@ -40,8 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Deployment artifacts kept out of git
-optimize_vm.sh
+# Machine-specific deploy config (not tracked — lives in /etc/deploy/ on each VM)
+scripts/deploy.local.conf
 
 #other
 *.md

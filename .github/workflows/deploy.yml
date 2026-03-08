@@ -1,9 +1,13 @@
 name: Deploy Portfolio
 
 on:
-  # Trigger manually from GitHub Actions tab
   workflow_dispatch:
     inputs:
+      site:
+        description: 'Site config name (matches /etc/deploy/sites/<name>.conf)'
+        required: false
+        default: portfolio
+        type: string
       skip_git:
         description: 'Skip git pull (use code already on server)'
         required: false
@@ -30,24 +34,23 @@ on:
         default: false
         type: boolean
 
-  # Trigger automatically on push to master
   push:
     branches:
       - master
     paths-ignore:
       - '**.md'
       - '.github/dependabot.yml'
+      - '.github/agents/**'
+      - '.github/instructions/**'
       - 'LICENSE'
+      - 'ResumeBuilder/**'
 
-# Ensure only one deployment runs at a time
 concurrency:
   group: production-deployment
   cancel-in-progress: false
 
 env:
   DOMAIN: whoisdhruv.com
-  # Each machine creates this symlink/alias pointing to its own deploy.sh.
-  # Setup: sudo ln -sf /path/to/your/deploy.sh /usr/local/bin/deployWebsite
   DEPLOY_CMD: deployWebsite
 
 jobs:
@@ -57,21 +60,24 @@ jobs:
     timeout-minutes: 15
 
     strategy:
-      # Don't cancel other servers if one fails
       fail-fast: false
       matrix:
         server:
-          - name: production
-            host_secret: SERVER_HOST
-            user_secret: SERVER_USERNAME
-            key_secret: SERVER_SSH_KEY
-            port_secret: SERVER_PORT
-          # To add more machines, duplicate the block above:
-          # - name: staging
-          #   host_secret: STAGING_HOST
-          #   user_secret: STAGING_USERNAME
-          #   key_secret: STAGING_SSH_KEY
-          #   port_secret: STAGING_PORT
+          - name: production-1
+            host_secret: SERVER_HOST_1
+            user_secret: SERVER_USERNAME_1
+            key_secret: SERVER_SSH_KEY_1
+            port_secret: SERVER_PORT_1
+          - name: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+          - name: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
 
     environment:
       name: ${{ matrix.server.name }}
@@ -80,7 +86,7 @@ jobs:
     steps:
       - name: Deployment Started (${{ matrix.server.name }})
         run: |
-          echo "## 🚀 Deployment Started — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Deployment — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -88,13 +94,17 @@ jobs:
           echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Skip Git | ${{ inputs.skip_git || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Skip Deps | ${{ inputs.skip_deps || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Skip Build | ${{ inputs.skip_build || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Skip Nginx | ${{ inputs.skip_nginx || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Force | ${{ inputs.force || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site | ${{ inputs.site || 'portfolio' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check server secrets exist
+        run: |
+          if [ -z "${{ secrets[matrix.server.host_secret] }}" ]; then
+            echo "::warning::Secret ${{ matrix.server.host_secret }} not configured — skipping ${{ matrix.server.name }}"
+            echo "SKIP_SERVER=true" >> $GITHUB_ENV
+          fi
 
       - name: Deploy to ${{ matrix.server.name }}
+        if: env.SKIP_SERVER != 'true'
         id: deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -108,58 +118,41 @@ jobs:
             echo "🚀 Deploying to ${{ matrix.server.name }}..."
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            # Verify the deployWebsite command exists on this machine
             if ! command -v ${{ env.DEPLOY_CMD }} &>/dev/null; then
-              echo "❌ '${{ env.DEPLOY_CMD }}' command not found on this machine."
+              echo "❌ '${{ env.DEPLOY_CMD }}' not found."
               echo ""
-              echo "Setup required (run once per machine):"
-              echo "  sudo ln -sf /path/to/your/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
-              echo ""
-              echo "Example:"
-              echo "  sudo ln -sf /home/ubuntu/portfolio/portfolio/scripts/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
+              echo "Setup (run once per machine):"
+              echo "  sudo ln -sf /path/to/portfolio/scripts/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
               exit 1
             fi
 
-            # Build deploy command with options
             DEPLOY="sudo NEXT_BUILD_ID=${{ github.sha }} ${{ env.DEPLOY_CMD }}"
+            DEPLOY="$DEPLOY --site ${{ inputs.site || 'portfolio' }}"
 
             if [ "${{ inputs.skip_git }}" = "true" ]; then
               DEPLOY="$DEPLOY --skip-git"
-              echo "ℹ️  Skipping git pull"
             fi
-
             if [ "${{ inputs.skip_deps }}" = "true" ]; then
               DEPLOY="$DEPLOY --skip-deps"
-              echo "ℹ️  Skipping npm ci"
             fi
-
             if [ "${{ inputs.skip_build }}" = "true" ]; then
               DEPLOY="$DEPLOY --skip-build"
-              echo "ℹ️  Skipping build"
             fi
-
             if [ "${{ inputs.skip_nginx }}" = "true" ]; then
               DEPLOY="$DEPLOY --skip-nginx"
-              echo "ℹ️  Skipping nginx update"
             fi
-
             if [ "${{ inputs.force }}" = "true" ]; then
               DEPLOY="$DEPLOY --force"
-              echo "ℹ️  Force mode enabled"
             fi
 
             echo "Command: $DEPLOY"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-            # Execute deployment
             $DEPLOY
-
             echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "✅ ${{ matrix.server.name }}: Deployment completed successfully!"
+            echo "✅ ${{ matrix.server.name }}: Deployment completed!"
 
       - name: Verify Deployment (${{ matrix.server.name }})
-        if: success()
+        if: success() && env.SKIP_SERVER != 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
@@ -168,21 +161,32 @@ jobs:
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 2m
           script: |
-            echo "🔍 Post-deploy verification (${{ matrix.server.name }})..."
+            echo "🔍 Post-deploy verification..."
+
+            SITE="${{ inputs.site || 'portfolio' }}"
+            SITE_CONF="/etc/deploy/sites/${SITE}.conf"
+
+            # Read service name and port from config
+            SVC_NAME="portfolio"
+            SVC_PORT="3000"
+            if [ -f "$SITE_CONF" ]; then
+              SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "portfolio")
+              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "3000")
+            fi
 
             # Check systemd service
-            if sudo systemctl is-active --quiet portfolio; then
-              echo "✅ portfolio.service is running"
+            if sudo systemctl is-active --quiet "$SVC_NAME"; then
+              echo "✅ ${SVC_NAME}.service is running"
             else
-              echo "❌ portfolio.service is NOT running"
-              sudo journalctl -u portfolio --no-pager -n 10
+              echo "❌ ${SVC_NAME}.service is NOT running"
+              sudo journalctl -u "$SVC_NAME" --no-pager -n 10
               exit 1
             fi
 
             # Check Next.js responds
-            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:3000/ 2>/dev/null || echo "000")
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Next.js responding (HTTP $HTTP_CODE)"
+              echo "✅ Next.js responding (HTTP $HTTP_CODE on port $SVC_PORT)"
             else
               echo "⚠️  Next.js returned HTTP $HTTP_CODE"
             fi
@@ -200,25 +204,32 @@ jobs:
             echo "📊 Disk usage:"
             df -h / | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
 
+            # Memory usage
+            echo "📊 Memory:"
+            free -h | awk '/Mem:/{print "   RAM: "$3" used / "$2" total"}'
+            free -h | awk '/Swap:/{print "   Swap: "$3" used / "$2" total"}'
+
       - name: Deployment Success (${{ matrix.server.name }})
-        if: success()
+        if: success() && env.SKIP_SERVER != 'true'
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ✅ ${{ matrix.server.name }}: Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ ${{ matrix.server.name }}: Success" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 [https://${{ env.DOMAIN }}](https://${{ env.DOMAIN }})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Server Skipped (${{ matrix.server.name }})
+        if: env.SKIP_SERVER == 'true'
+        run: |
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 **Website:** [https://${{ env.DOMAIN }}](https://${{ env.DOMAIN }})" >> $GITHUB_STEP_SUMMARY
+          echo "## ⏭️ ${{ matrix.server.name }}: Skipped (secrets not configured)" >> $GITHUB_STEP_SUMMARY
 
       - name: Deployment Failed (${{ matrix.server.name }})
         if: failure()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ❌ ${{ matrix.server.name }}: Deployment Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the logs above for error details." >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ ${{ matrix.server.name }}: Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
-          echo "1. SSH into the server and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Check service status: \`sudo systemctl status portfolio\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. View recent logs: \`sudo journalctl -u portfolio --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
+          echo "1. SSH in and check: \`/var/log/portfolio-deploy/\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Service status: \`sudo systemctl status portfolio\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Recent logs: \`sudo journalctl -u portfolio --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
           echo "4. Run manually: \`sudo deployWebsite\`" >> $GITHUB_STEP_SUMMARY
-

@@ -40,9 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Per-machine deployment (each VM has its own version)
-scripts/deploy.sh
-nginx-cloudflare.conf
+# Deployment artifacts kept out of git
 optimize_vm.sh
 
 #other

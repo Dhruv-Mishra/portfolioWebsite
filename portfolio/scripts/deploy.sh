@@ -676,15 +676,19 @@ prepare_standalone() {
 
     log STEP "Preparing standalone bundle..."
 
-    # Copy static assets into standalone (Next.js doesn't include them)
+    # Copy static assets into standalone (Next.js doesn't include them).
+    # IMPORTANT: Remove target first — if the directory already exists,
+    # cp -r creates a nested subdirectory instead of merging contents.
     if [[ -d "${NEXTJS_BUILD_DIR}/static" ]]; then
         mkdir -p "${STANDALONE_DIR}/.next"
+        rm -rf "${STANDALONE_DIR}/.next/static"
         cp -r "${NEXTJS_BUILD_DIR}/static" "${STANDALONE_DIR}/.next/static"
         log DEBUG "Copied .next/static → standalone"
     fi
 
     # Copy public assets into standalone
     if [[ -d "${PROJECT_ROOT}/public" ]]; then
+        rm -rf "${STANDALONE_DIR}/public"
         cp -r "${PROJECT_ROOT}/public" "${STANDALONE_DIR}/public"
         log DEBUG "Copied public/ → standalone"
     fi

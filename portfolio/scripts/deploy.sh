@@ -257,7 +257,12 @@ EOF
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --site)       shift; shift 2>/dev/null || true ;;   # Already parsed above
+            --site)
+                shift
+                if [[ $# -gt 0 ]] && [[ "$1" != --* ]]; then
+                    shift   # Site name already captured in early parsing
+                fi
+                ;;
             --skip-git)   SKIP_GIT=true;   shift ;;
             --skip-deps)  SKIP_DEPS=true;  shift ;;
             --skip-build) SKIP_BUILD=true; shift ;;
@@ -728,7 +733,7 @@ User=${SERVICE_USER}
 WorkingDirectory=${STANDALONE_DIR}
 
 # Environment
-EnvironmentFile=-${ENV_FILE}
+EnvironmentFile=-${STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
 Environment=HOSTNAME=0.0.0.0

@@ -698,6 +698,23 @@ prepare_standalone() {
     # Fix ownership: build runs as root, service runs as SERVICE_USER
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "${NEXTJS_BUILD_DIR}"
 
+    # Ensure nginx (www-data) can traverse the path to serve static files.
+    # Ubuntu cloud images set /home/<user> to 700 by default, which blocks
+    # nginx from reading /_next/static/ and /public/ via alias directives.
+    local dir="${STANDALONE_DIR}"
+    while [[ "${dir}" != "/" ]]; do
+        chmod o+x "${dir}" 2>/dev/null || true
+        dir="$(dirname "${dir}")"
+    done
+    log DEBUG "Directory traversal permissions set for nginx"
+
+    # Ensure static assets are world-readable (they're public, no secrets)
+    chmod -R o+r "${STANDALONE_DIR}/.next/static" 2>/dev/null || true
+    chmod -R o+r "${STANDALONE_DIR}/public" 2>/dev/null || true
+    # Directories need +x for listing
+    find "${STANDALONE_DIR}/.next/static" -type d -exec chmod o+x {} \; 2>/dev/null || true
+    find "${STANDALONE_DIR}/public" -type d -exec chmod o+x {} \; 2>/dev/null || true
+
     local file_count
     file_count=$(find "${STANDALONE_DIR}" -type f | wc -l)
     log SUCCESS "Standalone bundle ready (${file_count} files)"

@@ -21,8 +21,8 @@ NEXTJS_PORT=3000
 # ── Repository Paths ─────────────────────────────────────────────────────────
 # GIT_ROOT:     Root of the cloned git repository
 # PROJECT_ROOT: The Next.js project directory (may be nested in the repo)
-GIT_ROOT="/home/ubuntu/dhruvwebsite"
-PROJECT_ROOT="/home/ubuntu/dhruvwebsite/portfolio"
+GIT_ROOT="/home/ubuntu/portfolioWebsite"
+PROJECT_ROOT="/home/ubuntu/portfolioWebsite/portfolio"
 
 # ── Git ──────────────────────────────────────────────────────────────────────
 GIT_BRANCH="master"

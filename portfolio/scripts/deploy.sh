@@ -142,7 +142,8 @@ readonly MAX_LOG_FILES="${MAX_LOG_FILES:-10}"
 readonly NPM_BUILD_TIMEOUT="${NPM_BUILD_TIMEOUT:-600}"
 
 # Health check
-readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-30}"
+# 60s is safe for 1 OCPU ARM VMs where Node.js startup can take 15-25s
+readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-60}"
 readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
 
 # Required env vars
@@ -737,12 +738,12 @@ EnvironmentFile=-${STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
 Environment=HOSTNAME=0.0.0.0
-Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB} --max-semi-space-size=8 --optimize-for-size"
+Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}"
 
 ExecStart=${node_bin} server.js
 Restart=on-failure
 RestartSec=5
-TimeoutStartSec=30
+TimeoutStartSec=60
 TimeoutStopSec=15
 
 # ── Resource Limits ──

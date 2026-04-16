@@ -28,10 +28,13 @@ export function createServerRateLimiter(config: RateLimitConfig) {
   function evictStaleEntries(): void {
     const cutoff = Date.now() - windowMs;
     for (const [ip, times] of ipRequests) {
-      const valid = times.filter(t => t > cutoff);
+      const valid: number[] = [];
+      for (const t of times) {
+        if (t > cutoff) valid.push(t);
+      }
       if (valid.length === 0) {
         ipRequests.delete(ip);
-      } else {
+      } else if (valid.length < times.length) {
         ipRequests.set(ip, valid);
       }
     }
@@ -42,6 +45,15 @@ export function createServerRateLimiter(config: RateLimitConfig) {
     if (requestsSinceCleanup >= cleanupInterval || ipRequests.size > maxTrackedIPs) {
       requestsSinceCleanup = 0;
       evictStaleEntries();
+      if (ipRequests.size > maxTrackedIPs) {
+        const overflow = ipRequests.size - maxTrackedIPs;
+        let removed = 0;
+        for (const key of ipRequests.keys()) {
+          if (removed >= overflow) break;
+          ipRequests.delete(key);
+          removed++;
+        }
+      }
     }
 
     const now = Date.now();
@@ -50,7 +62,7 @@ export function createServerRateLimiter(config: RateLimitConfig) {
     times = times.filter(t => t > windowStart);
 
     if (times.length >= maxRequests) {
-      const retryAfter = Math.ceil((times[0] + windowMs - now) / 1000);
+      const retryAfter = Math.max(0, Math.ceil((times[0] + windowMs - now) / 1000));
       return { limited: true, retryAfter };
     }
 

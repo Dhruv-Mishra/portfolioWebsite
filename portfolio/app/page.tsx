@@ -19,14 +19,14 @@ export default function Home() {
 
         {/* Hero title - CSS animation instead of framer-motion for faster LCP */}
         <h1
-          className="animate-hero-title text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] leading-none font-hand font-extrabold tracking-tighter text-indigo-900 p-4"
+          className="animate-hero-title text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] leading-none font-hand font-extrabold tracking-tighter text-indigo-900 p-4 max-[360px]:text-5xl"
         >
           Hello World!
         </h1>
 
         {/* Version Sticker - CSS animation */}
         <div
-          className="animate-hero-badge absolute -bottom-4 right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
+          className="animate-hero-badge absolute -bottom-4 right-2 md:right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
         >
           {APP_VERSION}
         </div>
@@ -46,11 +46,11 @@ export default function Home() {
       </p>
 
       {/* The Terminal */}
-      <div className="w-full max-w-2xl mt-8 transform rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative">
+      <div className="w-full max-w-2xl mt-8 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative">
         <HomeTerminalIsland />
 
         {/* Interaction Hint (Desktop Only) */}
-        <div className="hidden xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none">
+        <div className="hidden 2xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none">
           <div className="font-hand text-4xl text-[var(--d-blue)] mb-2 text-center font-bold tracking-wide">
             Psst... type something!
           </div>

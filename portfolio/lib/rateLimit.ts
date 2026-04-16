@@ -7,6 +7,7 @@ interface RateLimitConfig {
 }
 
 class RateLimiter {
+  private static MAX_KEYS = 50;
   private requests: Map<string, number[]> = new Map();
 
   private pruneRequests(key: string, windowMs: number): number[] {
@@ -25,16 +26,22 @@ class RateLimiter {
   check(key: string, config: RateLimitConfig): boolean {
     const now = Date.now();
     const requestTimes = this.pruneRequests(key, config.windowMs);
-    
+
     // Check if we're at the limit
     if (requestTimes.length >= config.maxRequests) {
       return false;
     }
-    
+
+    // Defensive LRU eviction — cap Map size to prevent unbounded growth
+    if (this.requests.size > RateLimiter.MAX_KEYS && !this.requests.has(key)) {
+      const oldest = this.requests.keys().next().value;
+      if (oldest) this.requests.delete(oldest);
+    }
+
     // Add current request
     requestTimes.push(now);
     this.requests.set(key, requestTimes);
-    
+
     return true;
   }
 

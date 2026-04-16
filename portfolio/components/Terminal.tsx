@@ -70,6 +70,7 @@ export default function Terminal() {
 
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
+    const [hasInteracted, setHasInteracted] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
@@ -177,6 +178,19 @@ export default function Terminal() {
         }
     }, [commandHistory, historyIndex]);
 
+    // On mobile the virtual keyboard can cover the input. Wait for the keyboard
+    // animation (~250ms on iOS) and then scroll the input back into the visible
+    // viewport. Works for both iOS Safari and Android Chrome since scrollIntoView
+    // walks all scrollable ancestors.
+    const handleInputFocus = React.useCallback(() => {
+        if (!hasInteracted) setHasInteracted(true);
+        if (typeof window === 'undefined') return;
+        if (window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) return;
+        window.setTimeout(() => {
+            inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 320);
+    }, [hasInteracted]);
+
     const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "ArrowUp") {
             e.preventDefault();
@@ -247,6 +261,16 @@ export default function Terminal() {
                 >
                     <TerminalOutput outputLines={outputLines} />
 
+                    {/* Mobile-only interactability cue — sits above the prompt and fades out
+                        once the user taps the input. Matches the terminal's own aesthetic
+                        (monospace, emerald glow) so it doesn't clash with the sketchbook. */}
+                    {!hasInteracted && (
+                        <div className="md:hidden flex items-center gap-2 mt-3 mb-1 text-xs font-mono text-emerald-300/70 italic animate-pulse select-none">
+                            <span aria-hidden="true">↓</span>
+                            <span>tap below to type a command</span>
+                        </div>
+                    )}
+
                     <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
                         <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
                         <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
@@ -256,6 +280,7 @@ export default function Terminal() {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDownReal}
+                            onFocus={handleInputFocus}
                             className={`bg-transparent border-none outline-none text-white flex-1 ${TERMINAL_COLORS.caret} ${TERMINAL_COLORS.placeholder}`}
                             autoComplete="off"
                             aria-label="Terminal Command Input"

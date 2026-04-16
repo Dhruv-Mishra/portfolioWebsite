@@ -19,11 +19,13 @@ export type CommandHandler = (args: string[]) => CommandResult | Promise<Command
 export function createInitialTerminalOutput(): React.ReactNode {
     return (
         <div className="text-gray-400 text-sm font-mono leading-relaxed">
-            <p className="text-emerald-400 mb-2">Initializing Portfolio {APP_VERSION}...</p>
-            <p className="mb-1">[✓] Loading Graphics Engine....... <span className="text-emerald-500">Done</span></p>
-            <p className="mb-1">[✓] Connecting to Creativity DB... <span className="text-emerald-500">Done</span></p>
-            <p className="mb-1">[✓] Fetching Coffee............... <span className="text-emerald-500">Done</span></p>
-            <p className="mt-4 text-white">System Ready. <span className="text-gray-500">Type <span className="text-emerald-400 font-bold">&apos;help&apos;</span> to see available commands.</span></p>
+            <p>
+                <span className="text-emerald-400">[✓]</span>{' '}
+                <span className="text-white">Portfolio {APP_VERSION} ready.</span>{' '}
+                <span className="text-gray-500">Type</span>{' '}
+                <span className="text-emerald-400 font-bold">&apos;help&apos;</span>{' '}
+                <span className="text-gray-500">to explore.</span>
+            </p>
         </div>
     );
 }

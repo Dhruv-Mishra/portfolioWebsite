@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { m, AnimatePresence, MotionConfig } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { useAppHaptics } from '@/lib/haptics';
@@ -166,6 +166,8 @@ const PLACEHOLDER_TYPE_SPEED = TIMING_TOKENS.placeholderTypeSpeed;
 const PLACEHOLDER_ERASE_SPEED = TIMING_TOKENS.placeholderEraseSpeed;
 const PLACEHOLDER_PAUSE_MS = TIMING_TOKENS.pauseExtra;
 
+const ACTION_SUGGESTION_SET = new Set(ACTION_REGISTRY.map(action => action.label));
+
 function usePlaceholderTypewriter(isActive: boolean) {
   const ref = useRef<HTMLSpanElement>(null);
   const idxRef = useRef(0);
@@ -234,18 +236,16 @@ const TYPING_DOT_TRANSITION_BASE = { duration: 1.2, repeat: Infinity, ease: 'eas
 
 const TypingEllipsis = memo(function TypingEllipsis() {
   return (
-    <MotionConfig reducedMotion="never">
-      <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
-        {[0, 1, 2].map(i => (
-          <m.span
-            key={i}
-            className="inline-block w-[5px] h-[5px] rounded-full bg-current"
-            animate={TYPING_DOT_ANIMATE}
-            transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
-          />
-        ))}
-      </span>
-    </MotionConfig>
+    <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
+      {[0, 1, 2].map(i => (
+        <m.span
+          key={`dot-${i}`}
+          className="inline-block w-[5px] h-[5px] rounded-full bg-current"
+          animate={TYPING_DOT_ANIMATE}
+          transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
+        />
+      ))}
+    </span>
   );
 });
 
@@ -306,7 +306,6 @@ function getNoteRotation(messageId: string, isUser: boolean): number {
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
   return (
-  <MotionConfig reducedMotion="never">
   <m.button
     initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
     animate={SUGGESTION_ITEM_ANIMATE}
@@ -330,7 +329,6 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     </span>
     {text}
   </m.button>
-  </MotionConfig>
 ); });
 
 // ─── Single Sticky Note ───
@@ -366,7 +364,7 @@ const StickyNote = memo(function StickyNote({
       animate={{ opacity: message.isOld ? NOTE_ENTRANCE.oldNoteOpacity : 1, y: 0, x: 0, rotate: rotation }}
       transition={NOTE_SPRING}
       className={cn(
-        "relative max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
+        "relative max-w-[90%] sm:max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
         isUser
           ? "bg-[var(--note-user)] text-[var(--note-user-ink)]"
           : "bg-[var(--note-ai)] text-[var(--note-ai-ink)]",
@@ -439,7 +437,7 @@ const StickyNote = memo(function StickyNote({
         <div className="mt-2 flex flex-col gap-1">
           {message.openUrls.map((url, i) => (
             <a
-              key={i}
+              key={url}
               href={url}
               target="_blank"
               rel="noopener noreferrer"
@@ -556,7 +554,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 aria-label="Chat message"
                 className={cn(
                   "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
-                  compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                  compact ? "text-sm leading-snug max-[767px]:text-base" : "text-base md:text-lg",
                 )}
               />
               {/* Typewriter placeholder overlay — hidden when user has typed */}
@@ -612,7 +610,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
-  const actionSuggestionSet = useMemo(() => new Set(ACTION_REGISTRY.map(action => action.label)), []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -945,7 +942,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   <SuggestionStrip
                     key={q}
                     text={q}
-                    isAction={actionSuggestionSet.has(q)}
+                    isAction={ACTION_SUGGESTION_SET.has(q)}
                     onSelect={handleSuggestion}
                     index={i}
                     skipEntrance={!hasHadInteractionRef.current}
@@ -956,7 +953,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     <SuggestionStrip
                       key={q}
                       text={q}
-                      isAction={actionSuggestionSet.has(q)}
+                      isAction={ACTION_SUGGESTION_SET.has(q)}
                       onSelect={handleSuggestion}
                       index={i}
                       skipEntrance={!hasHadInteractionRef.current}

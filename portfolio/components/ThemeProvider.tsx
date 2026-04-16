@@ -4,9 +4,6 @@ import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { LazyMotion, MotionConfig, domAnimation } from "framer-motion";
 
-const FORCE_MOTION =
-    process.env.NEXT_PUBLIC_OVERRIDE_REDUCED_MOTION === "true";
-
 export function ThemeProvider({
     children,
     ...props
@@ -14,9 +11,7 @@ export function ThemeProvider({
     return (
         <NextThemesProvider {...props}>
             <LazyMotion features={domAnimation} strict>
-                <MotionConfig
-                    reducedMotion={FORCE_MOTION ? "never" : "user"}
-                >
+                <MotionConfig reducedMotion="never">
                     {children}
                 </MotionConfig>
             </LazyMotion>

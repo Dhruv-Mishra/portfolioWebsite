@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
     // Enable Next.js image optimization (sharp) for responsive srcset, AVIF, lazy placeholders
     // Removed `unoptimized: true` — build-time optimization is viable even on 1-vCPU
     formats: ['image/avif', 'image/webp'],
-    deviceSizes: [640, 828, 1200],
+    deviceSizes: [640, 828, 1024, 1200],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
   },
   // Optimize bundle
@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
   },
   // Enable experimental features for better performance
   experimental: {
-    optimizePackageImports: ['framer-motion', 'lucide-react', 'next-themes'],
+    optimizePackageImports: ['framer-motion', 'lucide-react', 'next-themes', 'clsx', 'tailwind-merge'],
     optimizeCss: true,
   },
   // Allow LAN devices (e.g. mobile on same WiFi) to access dev server

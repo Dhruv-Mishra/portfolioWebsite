@@ -17,7 +17,7 @@ const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
 /** Hoisted paper noise overlay style — avoids re-allocation per render */
 const PAPER_NOISE_STYLE = {
     backgroundImage: PAPER_NOISE_SVG,
-    contain: 'strict',
+    contain: 'layout style paint',
 } as const;
 
 /** Stitched binding — repeating dash pattern that looks like hand-sewn thread */
@@ -40,7 +40,6 @@ const GRID_PATTERN_STYLE = {
     backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
                       linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
     contain: 'strict',
-    willChange: 'auto',
 } as const;
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {

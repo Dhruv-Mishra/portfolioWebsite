@@ -4,9 +4,13 @@ import { useCallback, useEffect, useRef } from "react";
 import type { HapticInput } from "web-haptics";
 import { useWebHaptics } from "web-haptics/react";
 
+// showSwitch: true keeps the <label>/<input switch> pair actually rendered
+// (rather than display:none). iOS Safari only fires Taptic Engine haptics when
+// a *rendered* switch is toggled — display:none kills that path. We hide the
+// rendered element off-screen via CSS in globals.css.
 const HAPTICS_OPTIONS = {
     debug: false,
-    showSwitch: false,
+    showSwitch: true,
 } as const;
 
 const DEFAULT_MIN_INTERVAL_MS = 45;
@@ -70,8 +74,12 @@ export function useAppHaptics() {
         installInteractionTracking();
     }, []);
 
+    // NOTE: we deliberately do NOT gate on `isSupported`. `isSupported` only reports
+    // the Vibration API (Android); on iOS it returns false, but web-haptics internally
+    // falls through to a <label><input switch></label> click which triggers the
+    // Taptic Engine. Gating on `isSupported` would block that iOS path entirely.
     const fire = useCallback((input: HapticInput = "medium", minIntervalMs = DEFAULT_MIN_INTERVAL_MS, channel = typeof input === "string" ? input : "custom") => {
-        if (!isSupported || !canUseRuntimeHaptics()) {
+        if (!canUseRuntimeHaptics()) {
             return;
         }
 
@@ -83,7 +91,7 @@ export function useAppHaptics() {
 
         lastTriggerTimesRef.current[channel] = now;
         void trigger(input);
-    }, [isSupported, trigger]);
+    }, [trigger]);
 
     const subtle = useCallback(() => {
         fire("light", 30, "subtle");

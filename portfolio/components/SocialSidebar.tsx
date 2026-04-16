@@ -54,7 +54,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={onPress}
-                className={`flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
+                className={`flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
                 title={social.name}
                 aria-label={social.name}
             >
@@ -90,7 +90,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
-    if (!mounted) return <div className="w-10 h-10" />;
+    if (!mounted) return <div className="w-11 h-11" />;
     const isDark = resolvedTheme === 'dark';
     return (
         <button
@@ -98,7 +98,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
                 onPress();
                 setTheme(isDark ? 'light' : 'dark');
             }}
-            className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+            className="flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
             title="Toggle theme"
             aria-label="Toggle theme"
         >
@@ -146,7 +146,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                             openPanel();
                             onFeedbackClick();
                         }}
-                        className="flex items-center justify-center w-10 h-10 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+                        className="flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
                         title="Send feedback"
                         aria-label="Open feedback form"
                     >

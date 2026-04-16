@@ -5,6 +5,8 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 
+export const revalidate = 3600;
+
 export default function About() {
     return (
         <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">

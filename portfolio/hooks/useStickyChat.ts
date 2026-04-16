@@ -414,6 +414,8 @@ export function useStickyChat(): UseStickyChat {
     setIsLoading(true);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    // Cancel any filler timers from a still-in-flight previous message
+    fillerCleanupRef.current?.();
     // Tiered filler timers — each one updates the placeholder with a progressively funnier message
     const fillerTimerIds: ReturnType<typeof setTimeout>[] = [];
     for (const tier of FILLER_TIERS) {

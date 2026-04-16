@@ -36,7 +36,7 @@
     --t-nav: 0.875rem;
     --t-nav-md: 1.25rem;
     /* Component Sizes */
-    --c-terminal-h: 50vh;
+    --c-terminal-h: 50dvh;
     --c-terminal-h-md: 400px;
     --c-terminal-min-h: 300px;
     --c-terminal-max-w: 48rem;
@@ -52,7 +52,7 @@
     --c-crease-w-md: calc(var(--c-binding-w-md) * 2);
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 380px;
-    --c-chat-h: 70vh;
+    --c-chat-h: 70dvh;
     --c-chat-h-md: 480px;
     --c-chat-max-w: 380px;
     --c-fab-size: 3rem;
@@ -149,7 +149,7 @@
     --t-label: 0.625rem;
     --t-nav: 0.75rem;
     --t-nav-md: 0.875rem;
-    --c-terminal-h: 40vh;
+    --c-terminal-h: 40dvh;
     --c-terminal-h-md: 300px;
     --c-terminal-min-h: 200px;
     --c-terminal-max-w: 36rem;
@@ -163,7 +163,7 @@
     --c-binding-w-md: 0.75rem;
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 340px;
-    --c-chat-h: 60vh;
+    --c-chat-h: 60dvh;
     --c-chat-h-md: 420px;
     --c-chat-max-w: 340px;
     --c-fab-size: 2.5rem;
@@ -193,7 +193,7 @@
     --t-label: 0.75rem;
     --t-nav: 1rem;
     --t-nav-md: 1.5rem;
-    --c-terminal-h: 55vh;
+    --c-terminal-h: 55dvh;
     --c-terminal-h-md: 500px;
     --c-terminal-min-h: 350px;
     --c-terminal-max-w: 56rem;
@@ -207,7 +207,7 @@
     --c-binding-w-md: 1.25rem;
     --c-chat-w: calc(100vw - 2rem);
     --c-chat-w-md: 440px;
-    --c-chat-h: 75vh;
+    --c-chat-h: 75dvh;
     --c-chat-h-md: 560px;
     --c-chat-max-w: 440px;
     --c-fab-size: 3.5rem;
@@ -228,7 +228,35 @@ body {
   background-image: var(--paper-pattern);
   color: var(--c-ink);
   font-family: var(--font-hand), cursive;
-  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* iOS Safari auto-zooms on input focus when computed font-size < 16px.
+   Force 16px on mobile form controls to suppress the zoom without touching desktop sizing. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* web-haptics switch/label — must be rendered (not display:none) for the iOS
+   Taptic Engine trick to fire, so we push it off-screen instead of hiding it. */
+label[for^="web-haptics-"] {
+  position: fixed !important;
+  top: -1000px !important;
+  left: -1000px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+}
+label[for^="web-haptics-"] input[type="checkbox"] {
+  position: absolute !important;
+  opacity: 0 !important;
 }
 
 /* Note Utility Classes - Moved to utilities layer for correct precedence */
@@ -463,25 +491,6 @@ body {
 /* Clickable element indicators — suppress native tap highlight on mobile */
 [data-clickable] {
   -webkit-tap-highlight-color: transparent;
-}
-
-/* Respect prefers-reduced-motion for accessibility and performance */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-  }
-
-  .animate-hero-title,
-  .animate-hero-subtitle,
-  .animate-hero-badge,
-  .animate-nav-tab {
-    animation: none !important;
-    opacity: 1 !important;
-  }
 }
 
 /* GPU compositing hints — promote frequently-animated layers for smoother rendering.

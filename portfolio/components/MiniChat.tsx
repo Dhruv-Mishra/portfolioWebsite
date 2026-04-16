@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Trash2, X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -21,7 +21,7 @@ const GENTLE_SPRING_TRANSITION = { type: 'spring' as const, ...ANIMATION_TOKENS.
 const FAB_ANIMATE = { opacity: 1, scale: 1, transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy } };
 
 // Sketchbook-themed sticky note + pencil doodle icon
-const StickyNoteDoodle = memo(function StickyNoteDoodle() {
+function StickyNoteDoodle() {
   return (
     <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Sticky note */}
@@ -37,7 +37,7 @@ const StickyNoteDoodle = memo(function StickyNoteDoodle() {
       <line x1="6" y1="19" x2="12" y2="19" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
     </svg>
   );
-});
+}
 
 export default function MiniChat() {
   const pathname = usePathname();
@@ -57,11 +57,6 @@ export default function MiniChat() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to pathname changes, not isOpen
   }, [pathname]);
-
-  const handleDismiss = useCallback(() => {
-    closePanel();
-    setIsOpen(false);
-  }, [closePanel]);
 
   const handleClose = useCallback(() => {
     closePanel();
@@ -84,7 +79,7 @@ export default function MiniChat() {
   if (!hasMounted) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.nav }}>
+    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.sidebar }}>
       <AnimatePresence>
         {isOpen && (
           <>
@@ -113,7 +108,7 @@ export default function MiniChat() {
             >
               {/* Chat content — full height, controls are inside StickyNoteChat */}
               <div className="h-full relative">
-                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]">
+                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]" style={{ willChange: 'backdrop-filter' }}>
                   <div className="pr-16">
                     <div className="font-hand text-xl font-bold leading-none text-[var(--c-heading)]">
                       Quick chat
@@ -136,7 +131,7 @@ export default function MiniChat() {
                     <ExternalLink size={14} />
                   </Link>
                   <button
-                    onClick={handleDismiss}
+                    onClick={handleClose}
                     className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
                     title="Close quick chat"
                     aria-label="Close quick chat"

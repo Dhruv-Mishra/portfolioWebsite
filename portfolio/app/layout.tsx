@@ -27,6 +27,29 @@ const firaCode = Fira_Code({
   display: "optional", // Fira Code is secondary (monospace only) — don't block render
 });
 
+const STRUCTURED_DATA_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE.url}/#website`,
+      "url": SITE.url,
+      "name": "Dhruv Mishra Portfolio",
+      "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+      "publisher": { "@id": "https://whoisdhruv.com/#person" }
+    },
+    {
+      "@type": "Person",
+      "@id": `${SITE.url}/#person`,
+      "name": SITE.name,
+      "url": SITE.url,
+      "jobTitle": "Software Engineer",
+      "worksFor": { "@type": "Organization", "name": "Microsoft" },
+      "sameAs": [PERSONAL_LINKS.linkedin, PERSONAL_LINKS.github]
+    }
+  ]
+});
+
 export const metadata: Metadata = {
   title: "Dhruv Mishra | Software Engineer",
   description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems. Expert in performance optimization, competitive programming, and building production-ready solutions.",
@@ -100,36 +123,7 @@ export default function RootLayout({
         {/* Structured Data (JSON-LD) for SEO */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@graph": [
-                {
-                  "@type": "WebSite",
-                  "@id": `${SITE.url}/#website`,
-                  "url": SITE.url,
-                  "name": "Dhruv Mishra Portfolio",
-                  "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
-                  "publisher": { "@id": "https://whoisdhruv.com/#person" }
-                },
-                {
-                  "@type": "Person",
-                  "@id": `${SITE.url}/#person`,
-                  "name": SITE.name,
-                  "url": SITE.url,
-                  "jobTitle": "Software Engineer",
-                  "worksFor": {
-                    "@type": "Organization",
-                    "name": "Microsoft"
-                  },
-                  "sameAs": [
-                    PERSONAL_LINKS.linkedin,
-                    PERSONAL_LINKS.github,
-                  ]
-                }
-              ]
-            })
-          }}
+          dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA_LD }}
         />
       </head>
       <body

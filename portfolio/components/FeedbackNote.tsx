@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { m } from 'framer-motion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -11,7 +11,7 @@ import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
-import { TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
@@ -64,33 +64,6 @@ const PaperAirplaneSuccess = () => (
     ✈️
   </m.div>
 );
-
-// ═════════════════════════════════════════════════
-// ─── Floating Feedback Icon (right side, minimal) ──────────
-// ═════════════════════════════════════════════════
-export const FeedbackTab = memo(function FeedbackTab({ onClick }: { onClick: () => void }) {
-  return (
-    <m.button
-      whileHover={{ scale: 1.15, rotate: -8, transition: { duration: 0.15 } }}
-      whileTap={{ scale: 0.9, transition: { duration: 0.1 } }}
-      onClick={onClick}
-      style={{ zIndex: Z_INDEX.sidebar }}
-      className={cn(
-        "hidden md:flex fixed bottom-20 right-4 md:right-8",
-        "w-10 h-10 md:w-11 md:h-11 rounded-full",
-        "bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50",
-        "shadow-md hover:shadow-lg",
-        "items-center justify-center",
-        "text-[var(--c-ink)] opacity-50 hover:opacity-100",
-        "transition-[opacity,box-shadow] duration-150",
-      )}
-      title="Send feedback"
-      aria-label="Open feedback form"
-    >
-      <MessageSquare size={18} className="md:w-5 md:h-5" />
-    </m.button>
-  );
-});
 
 // ═════════════════════════════════════════════════
 // ─── Main Feedback Modal ────────────────────────

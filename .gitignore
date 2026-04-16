@@ -1,2 +1,9 @@
 /ResumeBuilder
 .TEMP/
+
+# Workspace-root lockfile should never exist — the root package.json declares
+# no dependencies (it's just a scripts wrapper). A stray lockfile here tricks
+# Next.js's workspace-root auto-detection into emitting .next/standalone/ to
+# the wrong tree and breaks the VPS deploy. The only real lockfile lives at
+# portfolio/package-lock.json.
+/package-lock.json

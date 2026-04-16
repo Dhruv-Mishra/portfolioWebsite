@@ -264,15 +264,13 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
     date: () => ({ output: new Date().toString() }),
-    // Cheatsheet is privileged. Calling it directly reveals the escalation hint;
-    // `sudo cheatsheet` actually renders it.
+    // Cheatsheet is privileged. The bare command only reveals that privileges
+    // are required — the user has to figure out how to escalate on their own.
     cheatsheet: () => ({
         output: (
             <div>
                 <span className="text-red-400 font-bold">cheatsheet:</span>{' '}
-                <span className="text-red-400">insufficient privilege.</span>{' '}
-                <span className="text-gray-400">try escalating: </span>
-                <span className="text-emerald-400 font-bold">sudo cheatsheet</span>
+                <span className="text-red-400">insufficient privileges.</span>
             </div>
         )
     }),

@@ -184,8 +184,14 @@ function getSnapshot(): StickerState {
   return store.state;
 }
 
+// Cache the server snapshot at module load. React's useSyncExternalStore calls
+// getServerSnapshot repeatedly and uses Object.is to detect identity changes;
+// returning a fresh `defaultState()` each call would trip the "result of
+// getServerSnapshot should be cached to avoid an infinite loop" warning.
+const SERVER_STATE: StickerState = defaultState();
+
 function getServerSnapshot(): StickerState {
-  return defaultState();
+  return SERVER_STATE;
 }
 
 function getToastSnapshot(): StickerId | null {

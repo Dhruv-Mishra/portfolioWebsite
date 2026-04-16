@@ -17,18 +17,18 @@ import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/desi
 
 // ─── Roster ─────────────────────────────────────────────────────────────
 export const STICKER_ROSTER = [
-  { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: "there's a terminal somewhere...",    family: 'sunshine' },
-  { id: 'help-wanted',      label: 'Help Wanted',           description: 'You asked for help — points for humility.',   hint: 'when in doubt...',                   family: 'sunshine' },
-  { id: 'stand-up-comic',   label: 'Stand-Up',              description: 'Pulled a joke from the wire.',                hint: 'laughter is the best... terminal',   family: 'rose' },
-  { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'day and night...',                   family: 'lavender' },
-  { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'sometimes you just want to write.',  family: 'mint' },
-  { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'every corner, every page...',        family: 'denim' },
-  { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'a quick word on the way out...',     family: 'mint' },
-  { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'due diligence rewards patience...',  family: 'denim' },
-  { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'some conversations need more space.',family: 'mint' },
-  { id: 'konami',           label: 'The Code',              description: '↑ ↑ ↓ ↓ ← → ← → B A',                         hint: 'old-school cheat code...',           family: 'lavender' },
-  { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'when the stars come out...',         family: 'lavender' },
-  { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'leave your mark...',                  family: 'mint' },
+  { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: 'the terminal is lonely — give it any command.',  family: 'sunshine' },
+  { id: 'help-wanted',      label: 'Help Wanted',           description: 'You asked for help — points for humility.',   hint: 'stuck? the terminal has a command for that.',    family: 'sunshine' },
+  { id: 'stand-up-comic',   label: 'Stand-Up',              description: 'Pulled a joke from the wire.',                hint: 'ask the terminal to tell you a joke.',           family: 'rose' },
+  { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'toggle the theme — look for a sun or moon.',     family: 'lavender' },
+  { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'send some real feedback — the floating icon.',   family: 'mint' },
+  { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'visit every page on the site — all of them.',    family: 'denim' },
+  { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',          family: 'mint' },
+  { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'sit with the resume page for a minute.',         family: 'denim' },
+  { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',    family: 'mint' },
+  { id: 'konami',           label: 'The Code',              description: '↑ ↑ ↓ ↓ ← → ← → B A',                         hint: 'an old-school arcade sequence...',               family: 'lavender' },
+  { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'show up after the clock strikes midnight.',      family: 'lavender' },
+  { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -119,25 +119,241 @@ const ThemeFlipperSvg = memo(function ThemeFlipperSvg({ size }: IllustratedSvgPr
 });
 
 /**
- * Page Turner — a stack of pages being turned, on denim blue.
- * Signals completion of the full site tour.
+ * Page Turner — a globe with a plane orbiting around it, on denim blue.
+ * Represents touring every page on the site.
  */
 const PageTurnerSvg = memo(function PageTurnerSvg({ size }: IllustratedSvgProps) {
   const family = STICKER_FAMILIES.denim;
   return (
     <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Back page */}
-      <rect x="18" y="18" width="20" height="26" rx="1" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.6" strokeLinejoin="round" />
-      <line x1="22" y1="24" x2="34" y2="24" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-      <line x1="22" y1="28" x2="32" y2="28" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-      <line x1="22" y1="32" x2="30" y2="32" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-      {/* Turning page */}
-      <path d="M38 18 Q46 28 42 44 L38 44 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M38 18 Q46 28 42 44" fill="none" stroke={family.ink} strokeWidth="1.6" strokeLinecap="round" />
-      {/* Motion lines */}
-      <path d="M44 22 L48 20" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
-      <path d="M46 28 L50 27" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+      {/* Globe */}
+      <circle cx="26" cy="32" r="12" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" />
+      {/* Meridian + equator */}
+      <line x1="26" y1="20" x2="26" y2="44" stroke={family.ink} strokeWidth="1.1" opacity="0.45" />
+      <ellipse cx="26" cy="32" rx="12" ry="4.5" fill="none" stroke={family.ink} strokeWidth="1.1" opacity="0.45" />
+      <ellipse cx="26" cy="32" rx="5.5" ry="12" fill="none" stroke={family.ink} strokeWidth="1.1" opacity="0.45" />
+      {/* Continent blobs */}
+      <path d="M20 27 Q23 24 27 26 Q28 30 24 32 Q20 31 20 27" fill={family.ink} opacity="0.55" />
+      <path d="M29 36 Q32 35 34 38 Q33 40 30 39 Z" fill={family.ink} opacity="0.55" />
+      {/* Plane flying in upper-right */}
+      <path d="M41 16 L48 13 L46 18 L50 18 L46 22 L40 22 Z" fill={family.ink} strokeLinejoin="round" />
+      {/* Curved orbit trail */}
+      <path d="M40 20 Q50 22 48 32" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="2 2" opacity="0.55" />
+    </svg>
+  );
+});
+
+/**
+ * Help Wanted — speech bubble with a bold question mark on sunshine yellow.
+ */
+const HelpWantedSvg = memo(function HelpWantedSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.sunshine;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Speech bubble */}
+      <path d="M14 22 Q14 16 20 16 L40 16 Q46 16 46 22 L46 34 Q46 40 40 40 L28 40 L22 45 L23 40 L20 40 Q14 40 14 34 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* ? curve */}
+      <path d="M25 24 Q25 20 30 20 Q35 20 35 24 Q35 27 31 29 L31 33" fill="none" stroke={family.ink} strokeWidth="2.2" strokeLinecap="round" />
+      {/* ? dot */}
+      <circle cx="31" cy="37" r="1.6" fill={family.ink} />
+    </svg>
+  );
+});
+
+/**
+ * Stand-Up Comic — a microphone on its stand with sound waves, on rose.
+ */
+const StandUpComicSvg = memo(function StandUpComicSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.rose;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Mic head */}
+      <rect x="24" y="14" width="12" height="20" rx="6" ry="6" fill={family.ink} strokeLinejoin="round" />
+      {/* Mic grille lines */}
+      <line x1="26" y1="20" x2="34" y2="20" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
+      <line x1="26" y1="24" x2="34" y2="24" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
+      <line x1="26" y1="28" x2="34" y2="28" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
+      {/* Cradle */}
+      <path d="M20 30 Q20 40 30 40 Q40 40 40 30" fill="none" stroke={family.ink} strokeWidth="1.8" strokeLinecap="round" />
+      {/* Stand */}
+      <line x1="30" y1="40" x2="30" y2="46" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      <line x1="24" y1="46" x2="36" y2="46" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      {/* Sound waves */}
+      <path d="M15 22 Q12 26 15 30" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+      <path d="M45 22 Q48 26 45 30" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+    </svg>
+  );
+});
+
+/**
+ * Note Sender — a paper airplane in flight, on mint green.
+ */
+const NoteSenderSvg = memo(function NoteSenderSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Airplane body (flattened triangle with fold) */}
+      <path d="M13 30 L48 14 L40 44 L30 34 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Inner fold line */}
+      <path d="M13 30 L30 34 L48 14" fill="none" stroke={family.ink} strokeWidth="1.3" strokeLinecap="round" opacity="0.75" />
+      {/* Trail dashes */}
+      <path d="M12 36 Q18 37 24 37" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="1.5 2.5" opacity="0.55" />
+      <path d="M14 42 Q20 42 26 42" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="1.5 2.5" opacity="0.4" />
+    </svg>
+  );
+});
+
+/**
+ * Note Passer — a folded sticky note with a pencil laid across, on mint.
+ */
+const NotePasserSvg = memo(function NotePasserSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Sticky note */}
+      <rect x="14" y="20" width="26" height="26" rx="1" fill="#fff9c4" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Folded corner */}
+      <path d="M34 40 L40 40 L40 46 Z" fill="#e7d77a" stroke={family.ink} strokeWidth="1.2" strokeLinejoin="round" />
+      {/* Ruled lines */}
+      <line x1="18" y1="28" x2="34" y2="28" stroke={family.ink} strokeWidth="1" opacity="0.4" />
+      <line x1="18" y1="33" x2="32" y2="33" stroke={family.ink} strokeWidth="1" opacity="0.4" />
+      <line x1="18" y1="38" x2="30" y2="38" stroke={family.ink} strokeWidth="1" opacity="0.4" />
+      {/* Pencil laid diagonally */}
+      <line x1="36" y1="14" x2="48" y2="26" stroke="#f59e0b" strokeWidth="3.6" strokeLinecap="round" />
+      <line x1="35" y1="13" x2="38" y2="16" stroke={family.ink} strokeWidth="3" strokeLinecap="round" />
+      <line x1="47" y1="25" x2="49" y2="27" stroke="#fb7185" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+});
+
+/**
+ * Long Read — reading glasses laid across an open page, on denim blue.
+ */
+const LongReadSvg = memo(function LongReadSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.denim;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Page */}
+      <rect x="14" y="14" width="32" height="32" rx="1" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Text lines (top half) */}
+      <line x1="18" y1="20" x2="42" y2="20" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
+      <line x1="18" y1="24" x2="40" y2="24" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
+      <line x1="18" y1="28" x2="42" y2="28" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
+      {/* Reading glasses over lower text */}
+      <circle cx="22" cy="38" r="5.5" fill="none" stroke={family.ink} strokeWidth="2" />
+      <circle cx="38" cy="38" r="5.5" fill="none" stroke={family.ink} strokeWidth="2" />
+      <line x1="27.5" y1="38" x2="32.5" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      <line x1="16.5" y1="38" x2="14" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      <line x1="43.5" y1="38" x2="46" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+});
+
+/**
+ * Full Chat — two overlapping speech bubbles mid-conversation, on mint.
+ */
+const FullChatSvg = memo(function FullChatSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Back bubble */}
+      <path d="M12 18 Q12 14 16 14 L34 14 Q38 14 38 18 L38 26 Q38 30 34 30 L22 30 L17 34 L18 30 Q12 30 12 26 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Front bubble (bigger, right) */}
+      <path d="M24 32 Q24 28 28 28 L46 28 Q50 28 50 32 L50 40 Q50 44 46 44 L40 44 L44 48 L37 44 Q24 44 24 40 Z" fill={family.ink} strokeLinejoin="round" />
+      {/* Typing dots in front bubble */}
+      <circle cx="32" cy="36" r="1.6" fill={family.bg} />
+      <circle cx="37" cy="36" r="1.6" fill={family.bg} />
+      <circle cx="42" cy="36" r="1.6" fill={family.bg} />
+    </svg>
+  );
+});
+
+/**
+ * Konami — a retro gamepad with D-pad and two face buttons, on lavender.
+ */
+const KonamiSvg = memo(function KonamiSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.lavender;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Controller body */}
+      <rect x="10" y="22" width="40" height="18" rx="4" fill={family.ink} strokeLinejoin="round" />
+      {/* Side grips */}
+      <circle cx="13" cy="40" r="4" fill={family.ink} />
+      <circle cx="47" cy="40" r="4" fill={family.ink} />
+      {/* D-pad cross (left) */}
+      <rect x="15" y="29" width="10" height="4" rx="0.5" fill={family.bg} />
+      <rect x="18" y="26" width="4" height="10" rx="0.5" fill={family.bg} />
+      {/* A button (yellow) */}
+      <circle cx="39" cy="28" r="2.8" fill="#fde047" stroke={family.bg} strokeWidth="0.8" />
+      {/* B button (pink) */}
+      <circle cx="44" cy="33" r="2.8" fill="#fb7185" stroke={family.bg} strokeWidth="0.8" />
+      {/* Select / Start bars */}
+      <line x1="27" y1="37" x2="30" y2="37" stroke={family.bg} strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="32" y1="37" x2="35" y2="37" stroke={family.bg} strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+});
+
+/**
+ * Night Owl — an owl with a crescent moon, on lavender.
+ */
+const NightOwlSvg = memo(function NightOwlSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.lavender;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Crescent moon */}
+      <path d="M44 14 A5 5 0 1 0 48 19 A3.5 3.5 0 0 1 44 14 Z" fill="#fde047" stroke={family.ink} strokeWidth="1.2" strokeLinejoin="round" />
+      {/* Owl body */}
+      <ellipse cx="27" cy="34" rx="12" ry="13" fill="#a78bfa" stroke={family.ink} strokeWidth="1.8" />
+      {/* Ear tufts */}
+      <path d="M20 23 L18 16 L24 21 Z" fill="#a78bfa" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M34 23 L36 16 L30 21 Z" fill="#a78bfa" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
+      {/* Belly lighter patch */}
+      <ellipse cx="27" cy="38" rx="6" ry="6" fill="#e9d5ff" opacity="0.7" />
+      {/* Eyes */}
+      <circle cx="22" cy="30" r="3.4" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.2" />
+      <circle cx="32" cy="30" r="3.4" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.2" />
+      <circle cx="22" cy="30" r="1.4" fill={family.ink} />
+      <circle cx="32" cy="30" r="1.4" fill={family.ink} />
+      {/* Beak */}
+      <path d="M25 33 L29 33 L27 36 Z" fill="#fb923c" stroke={family.ink} strokeWidth="1" strokeLinejoin="round" />
+      {/* Wing hint */}
+      <path d="M18 36 Q17 42 22 45" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  );
+});
+
+/**
+ * Signed Guestbook — a quill signing a paper with a scrawled line, on mint.
+ */
+const SignedGuestbookSvg = memo(function SignedGuestbookSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Paper */}
+      <rect x="10" y="22" width="32" height="22" rx="1" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Signature squiggle */}
+      <path d="M14 32 Q18 28 22 32 T30 34 L36 34" fill="none" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      {/* Signature line beneath */}
+      <line x1="14" y1="40" x2="38" y2="40" stroke={family.ink} strokeWidth="1" opacity="0.4" />
+      {/* Quill (feather + nib) */}
+      <path d="M44 12 Q52 14 50 22 Q44 26 38 26 L36 24 Q38 18 44 12 Z" fill="#e9d5ff" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
+      {/* Feather barbs */}
+      <path d="M44 14 L41 17" stroke={family.ink} strokeWidth="0.8" opacity="0.55" />
+      <path d="M46 17 L42 20" stroke={family.ink} strokeWidth="0.8" opacity="0.55" />
+      <path d="M48 20 L44 23" stroke={family.ink} strokeWidth="0.8" opacity="0.55" />
+      {/* Nib */}
+      <line x1="36" y1="24" x2="32" y2="28" stroke={family.ink} strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 });
@@ -219,7 +435,36 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     case 'page-turner':
       inner = <PageTurnerSvg size={size} />;
       break;
+    case 'help-wanted':
+      inner = <HelpWantedSvg size={size} />;
+      break;
+    case 'stand-up-comic':
+      inner = <StandUpComicSvg size={size} />;
+      break;
+    case 'note-sender':
+      inner = <NoteSenderSvg size={size} />;
+      break;
+    case 'note-passer':
+      inner = <NotePasserSvg size={size} />;
+      break;
+    case 'long-read':
+      inner = <LongReadSvg size={size} />;
+      break;
+    case 'full-chat':
+      inner = <FullChatSvg size={size} />;
+      break;
+    case 'konami':
+      inner = <KonamiSvg size={size} />;
+      break;
+    case 'night-owl':
+      inner = <NightOwlSvg size={size} />;
+      break;
+    case 'signed-guestbook':
+      inner = <SignedGuestbookSvg size={size} />;
+      break;
     default: {
+      // Fallback placeholder — only reached if a new sticker is added to the
+      // roster without a matching case above. Keeps the build safe.
       const entry = getSticker(id);
       const initial = pickInitial(entry.label);
       inner = <PlaceholderSvg size={size} family={entry.family} initial={initial} />;

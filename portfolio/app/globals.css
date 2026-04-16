@@ -528,3 +528,61 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 }
 
 .animate-wall-note-in { animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Sticker album — pure-CSS idle float + entrance.
+   Replaces the 12 framer-motion `repeat: Infinity` animations that were
+   keeping rAF awake forever. Uses transform-only keyframes so the work is
+   done on the compositor (no layout / paint per frame).
+   ─────────────────────────────────────────────────────────────────────── */
+
+@keyframes sticker-float {
+  0%, 100% { transform: translateY(0) rotate(var(--card-rotate, 0deg)); }
+  50%      { transform: translateY(-1.5px) rotate(var(--card-rotate, 0deg)); }
+}
+
+@keyframes sticker-card-in {
+  from { opacity: 0; transform: translateY(12px) rotate(var(--card-rotate, 0deg)); }
+  to   { opacity: 1; transform: translateY(0)    rotate(var(--card-rotate, 0deg)); }
+}
+
+@keyframes sticker-wobble {
+  0%, 100% { transform: rotate(var(--card-rotate, 0deg)); }
+  25%      { transform: rotate(calc(var(--card-rotate, 0deg) + 6deg)); }
+  75%      { transform: rotate(calc(var(--card-rotate, 0deg) - 6deg)); }
+}
+
+/* Base card — holds the static rotation token + entrance.
+   Unlocked variant adds the infinite idle float on top. */
+.sticker-card {
+  transform: rotate(var(--card-rotate, 0deg));
+  animation: sticker-card-in 0.3s ease-out both;
+  animation-delay: var(--card-entrance-delay, 0s);
+}
+
+.sticker-card--unlocked {
+  animation:
+    sticker-card-in 0.3s ease-out both,
+    sticker-float var(--card-float-dur, 3.4s) ease-in-out infinite;
+  animation-delay: var(--card-entrance-delay, 0s), var(--card-float-delay, 0s);
+  /* fill-mode per animation: entrance keeps final frame, float runs normally. */
+  animation-fill-mode: both, none;
+}
+
+/* Hover — unlocked card straightens + scales (matches old framer spring target).
+   Only promote to its own compositor layer on hover so we don't burn 12 GPU
+   layers while idle. Idle float already animates transform which implicitly
+   composites during its run; this keeps the steady-state layer count low. */
+@media (hover: hover) {
+  .sticker-card--unlocked:hover {
+    transform: rotate(0deg) scale(1.04);
+    animation-play-state: paused, paused;
+    transition: transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+    will-change: transform;
+  }
+  .sticker-card--locked:hover {
+    animation: sticker-card-in 0.3s ease-out both, sticker-wobble 400ms ease-in-out;
+    animation-delay: var(--card-entrance-delay, 0s), 0s;
+    will-change: transform;
+  }
+}

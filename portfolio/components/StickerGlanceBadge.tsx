@@ -10,14 +10,18 @@
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useStickers } from '@/hooks/useStickers';
+import { useStickerProgress } from '@/hooks/useStickers';
 import { useAppHaptics } from '@/lib/haptics';
 import { StickerStackGlyph } from '@/lib/stickers';
 import { Z_INDEX } from '@/lib/designTokens';
 
 export default function StickerGlanceBadge(): React.ReactElement | null {
   const pathname = usePathname();
-  const { unlocked, total, hasUnseenSticker } = useStickers();
+  // Narrow subscription: re-renders only when { unlocked count, total,
+  // hasUnseenSticker } changes. Toast queue churn, visitedRoute mutations,
+  // and unlockedAt timestamp updates are all filtered by the store's cached
+  // progress reference. A toast dequeue does not re-render this badge.
+  const { unlocked, total, hasUnseenSticker } = useStickerProgress();
   const { navigate } = useAppHaptics();
 
   // Hide ON the album page itself to keep the route focused.
@@ -27,14 +31,14 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
     <Link
       href="/stickers"
       onClick={navigate}
-      aria-label={`Sticker drawer — ${unlocked.length} of ${total} pinned`}
-      title={`${unlocked.length}/${total} pinned`}
-      className="fixed bottom-20 md:bottom-auto md:top-4 left-[calc(var(--c-binding-w)+0.75rem)] md:left-[calc(var(--c-binding-w-md)+1rem)] -rotate-2 bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50 rounded shadow-md pl-2 pr-3 py-1.5 flex items-center gap-1.5 font-hand text-sm font-bold text-[var(--c-ink)] transition-transform duration-200 hover:scale-105 hover:-rotate-1 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40"
+      aria-label={`Sticker drawer — ${unlocked} of ${total} pinned`}
+      title={`${unlocked}/${total} pinned`}
+      className="fixed bottom-40 md:bottom-auto md:top-4 left-[calc(var(--c-binding-w)+0.75rem)] md:left-[calc(var(--c-binding-w-md)+1rem)] -rotate-2 bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50 rounded shadow-md pl-2 pr-3 py-1.5 flex items-center gap-1.5 font-hand text-sm font-bold text-[var(--c-ink)] transition-transform duration-200 hover:scale-105 hover:-rotate-1 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40"
       style={{ zIndex: Z_INDEX.sidebar }}
     >
       <StickerStackGlyph size={18} />
       <span aria-hidden="true">
-        {unlocked.length}/{total}
+        {unlocked}/{total}
       </span>
       {hasUnseenSticker && (
         <span

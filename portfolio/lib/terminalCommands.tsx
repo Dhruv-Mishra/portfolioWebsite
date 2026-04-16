@@ -5,6 +5,7 @@ import { APP_VERSION } from "@/lib/constants";
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
+import CheatsheetOutput from '@/components/CheatsheetOutput';
 
 /** Delay (ms) before executing page navigation from terminal commands */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
@@ -51,6 +52,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">guestbook  - Sign the wall</p>
                 <p className="pl-4 text-emerald-400">sign       - Alias for guestbook</p>
                 <p className="pl-4 text-emerald-400">stickers   - Open the sticker drawer</p>
+                <p className="pl-4 text-emerald-400">cheatsheet - Browse all stickers</p>
             </div>
         )
     }),
@@ -262,7 +264,37 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
     date: () => ({ output: new Date().toString() }),
-    sudo: () => ({ output: <span className="text-red-500 font-bold">Permission denied: You are not authorized.</span> }),
+    // Cheatsheet is privileged. Calling it directly reveals the escalation hint;
+    // `sudo cheatsheet` actually renders it.
+    cheatsheet: () => ({
+        output: (
+            <div>
+                <span className="text-red-400 font-bold">cheatsheet:</span>{' '}
+                <span className="text-red-400">insufficient privilege.</span>{' '}
+                <span className="text-gray-400">try escalating: </span>
+                <span className="text-emerald-400 font-bold">sudo cheatsheet</span>
+            </div>
+        )
+    }),
+    sudo: (args: string[]) => {
+        const sub = args[0]?.toLowerCase();
+        if (sub === 'cheatsheet') {
+            return {
+                output: (
+                    <div>
+                        <span className="text-gray-500">[sudo] password for visitor:</span>{' '}
+                        <span className="text-emerald-400">access granted ✓</span>
+                        <div className="mt-2">
+                            <CheatsheetOutput />
+                        </div>
+                    </div>
+                )
+            };
+        }
+        return {
+            output: <span className="text-red-500 font-bold">Permission denied: You are not authorized.</span>
+        };
+    },
     feedback: () => ({
         output: (
             <span className="text-emerald-300">Opening feedback form... ✏️</span>

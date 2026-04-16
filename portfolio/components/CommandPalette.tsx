@@ -49,11 +49,6 @@ const CARD_STYLE_MOBILE = {
 const INPUT_STRIP_STYLE = { backgroundColor: TERMINAL_COLORS.bg } as const;
 const FOOTER_STRIP_STYLE = { backgroundColor: TERMINAL_COLORS.bg } as const;
 
-const LIST_BG_STYLE = {
-  backgroundImage:
-    'repeating-linear-gradient(transparent, transparent 35px, var(--c-grid) 35px, var(--c-grid) 36px)',
-} as const;
-
 const PALETTE_DROP_TRANSITION = {
   type: 'spring' as const,
   ...ANIMATION_TOKENS.spring.snappy,
@@ -95,6 +90,7 @@ const Row = memo(function Row({ entry, selected, id, onSelect, onHover }: RowPro
       data-clickable
       className={cn(
         'relative h-11 flex items-center gap-3 px-5 cursor-pointer',
+        'border-b border-dashed border-[var(--c-grid)]/25',
         'transition-[background-color,transform] duration-150',
         selected && 'bg-[var(--c-ink)]/5 dark:bg-[var(--c-ink)]/10 translate-x-0.5',
       )}
@@ -418,14 +414,14 @@ function CommandPalette({
         />
       </div>
 
-      {/* Result list */}
+      {/* Result list — dashed per-row separators (no ruled-line background) so
+          labels always sit on the visual rhythm of the rows themselves. */}
       <ul
         ref={listRef}
         id={listboxId}
         role="listbox"
         aria-label="Command palette results"
-        className="flex-1 min-h-0 overflow-y-auto ruler-scrollbar"
-        style={LIST_BG_STYLE}
+        className="flex-1 min-h-0 overflow-y-auto ruler-scrollbar bg-[var(--c-paper)]"
       >
         {flat.length === 0 ? (
           <EmptyState query={query || '""'} />

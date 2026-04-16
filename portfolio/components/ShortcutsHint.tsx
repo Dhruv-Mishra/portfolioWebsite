@@ -88,8 +88,7 @@ export default function ShortcutsHint() {
           <button
             type="button"
             onClick={dismiss}
-            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--c-paper)]/85 backdrop-blur-sm border-2 border-dashed border-[var(--c-grid)]/50 shadow-md font-hand text-xs text-[var(--c-ink)]/75 hover:text-[var(--c-ink)] hover:opacity-100 transition-opacity"
-            aria-label="Keyboard shortcuts hint — click to dismiss"
+            className="pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--c-paper)]/85 backdrop-blur-sm border-2 border-dashed border-[var(--c-grid)]/50 shadow-md font-hand text-xs text-[var(--c-ink)]/75 hover:text-[var(--c-ink)] hover:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40"
           >
             <span>press</span>
             <Kbd>⌘</Kbd>
@@ -98,6 +97,7 @@ export default function ShortcutsHint() {
             <span className="opacity-40">·</span>
             <Kbd>?</Kbd>
             <span>shortcuts</span>
+            <span className="sr-only">(click to dismiss)</span>
           </button>
         </m.div>
       )}

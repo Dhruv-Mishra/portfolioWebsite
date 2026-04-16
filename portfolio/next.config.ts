@@ -1,13 +1,27 @@
 import { execSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 import type { NextConfig } from "next";
 
-// Absolute path to this config file's directory. `__dirname` is available when
-// Next.js compiles next.config.ts as CJS; fall back to process.cwd() otherwise.
-// The build command runs from the portfolio/ directory so both resolve equivalently.
-const CONFIG_DIR: string =
-  typeof __dirname === "string" ? __dirname : path.resolve(process.cwd());
+// Absolute path to this config file's directory. This pins the Next.js workspace
+// root so a stray parent lockfile can never flip auto-detection and emit the
+// standalone build to the wrong tree. See:
+// https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory
+const CONFIG_DIR: string = (() => {
+  if (typeof __dirname === "string") return __dirname;
+  // `__dirname` is always provided by Next's config loader in practice. This
+  // fallback only runs in edge runtimes we don't use; assert loudly rather
+  // than silently resolving to the wrong cwd (which would defeat the whole
+  // purpose of pinning `turbopack.root`).
+  const cwd = process.cwd();
+  if (fs.existsSync(path.join(cwd, "next.config.ts"))) return cwd;
+  const candidate = path.join(cwd, "portfolio");
+  if (fs.existsSync(path.join(candidate, "next.config.ts"))) return candidate;
+  throw new Error(
+    "[next.config.ts] Cannot resolve CONFIG_DIR: __dirname is unavailable and neither cwd nor cwd/portfolio contains next.config.ts. Run the build from the portfolio/ directory.",
+  );
+})();
 
 function resolveBuildId(): string {
   const explicitBuildId =

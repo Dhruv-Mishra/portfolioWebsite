@@ -14,6 +14,7 @@ export function GuestbookEmptyState() {
   return (
     <div
       className="relative flex flex-col items-center justify-center min-h-[40vh] mt-10 md:mt-14 pb-6"
+      role="status"
       aria-label="No guestbook entries yet"
     >
       {/* Handwritten arrow pointing up to the form */}

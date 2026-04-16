@@ -10,9 +10,12 @@
  *   - Grid: 2/3/4/5 columns across breakpoints, each cell a <StickerCard>.
  *
  * On mount: markAlbumSeen() dismisses the badge pulse.
+ *
+ * Perf note: Cards use pure CSS animations (`sticker-card`, `sticker-card--unlocked`,
+ * `sticker-card--locked`) defined in app/globals.css. No framer-motion on this page —
+ * 12 infinite rAF loops + per-frame filter repaints were the source of reported lag.
  */
-import { memo, useEffect, useMemo } from 'react';
-import { m } from 'framer-motion';
+import { memo, useEffect, useMemo, type CSSProperties } from 'react';
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, type StickerId, type StickerEntry } from '@/lib/stickers';
 import { useStickers } from '@/hooks/useStickers';
 import { TapeStrip } from '@/components/ui/TapeStrip';
@@ -21,22 +24,24 @@ import { cn } from '@/lib/utils';
 import { STICKER_TOKENS } from '@/lib/designTokens';
 
 export default function StickerDrawerPage() {
-  const { unlocked, total, unlockedAt, isUnlocked, markAlbumSeen } = useStickers();
+  const { unlocked, total, unlockedAt, markAlbumSeen } = useStickers();
 
   // Mark album seen on mount so the glance badge stops pulsing.
   useEffect(() => {
     markAlbumSeen();
   }, [markAlbumSeen]);
 
+  // Build the unlocked-id lookup set once per change — O(1) membership per card.
+  const unlockedSet = useMemo(() => new Set<StickerId>(unlocked), [unlocked]);
+
   // Sort: unlocked first (by when earned), locked after (roster order).
   const ordered = useMemo(() => {
-    const unlockedSet = new Set(unlocked);
     const unlockedEntries = STICKER_ROSTER.filter((s) => unlockedSet.has(s.id)).sort(
       (a, b) => (unlockedAt[a.id] ?? 0) - (unlockedAt[b.id] ?? 0),
     );
     const lockedEntries = STICKER_ROSTER.filter((s) => !unlockedSet.has(s.id));
     return [...unlockedEntries, ...lockedEntries];
-  }, [unlocked, unlockedAt]);
+  }, [unlockedSet, unlockedAt]);
 
   const unlockedCount = unlocked.length;
 
@@ -83,7 +88,7 @@ export default function StickerDrawerPage() {
             <StickerCard
               key={sticker.id}
               sticker={sticker}
-              unlocked={isUnlocked(sticker.id)}
+              unlocked={unlockedSet.has(sticker.id)}
               index={index}
             />
           ))}
@@ -128,33 +133,45 @@ interface StickerCardProps {
   index: number;
 }
 
-const STICKER_CARD_SPRING = { type: 'spring' as const, stiffness: 300, damping: 22 };
+/**
+ * Stagger cap: identical in shape to the previous framer delay progression
+ * (index * ~30ms, capped so the 12th card doesn't wait half a second).
+ */
+const ENTRANCE_STAGGER_MS = 30;
+const ENTRANCE_STAGGER_CAP_MS = 300;
 
-const StickerCard = memo(function StickerCard({ sticker, unlocked }: StickerCardProps) {
-  const rotate = rotationForId(sticker.id);
-  const hash = hashStickerId(sticker.id);
-  // Hash-staggered idle float params — gives each sticker its own tempo.
-  const floatDuration = 2.8 + (hash % 120) / 100; // 2.8s..4.0s
-  const floatDelay = (hash % 100) / 100; // 0..1s
+function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
+  const hash = useMemo(() => hashStickerId(sticker.id), [sticker.id]);
+  const rotate = useMemo(() => rotationForId(sticker.id), [sticker.id]);
+
+  // Hash-staggered idle-float tempo. Matches the old framer values byte-for-byte:
+  //   floatDuration = 2.8..4.0s  (2.8 + (hash % 120)/100)
+  //   floatDelay    = 0..1s      ((hash % 100)/100)
+  const floatDuration = useMemo(() => `${(2.8 + (hash % 120) / 100).toFixed(2)}s`, [hash]);
+  const floatDelay = useMemo(() => `${((hash % 100) / 100).toFixed(2)}s`, [hash]);
+  const entranceDelay = useMemo(
+    () => `${Math.min(index * ENTRANCE_STAGGER_MS, ENTRANCE_STAGGER_CAP_MS)}ms`,
+    [index],
+  );
+
+  const cardStyle = useMemo<CSSProperties>(
+    () => ({
+      '--card-rotate': `${rotate}deg`,
+      '--card-float-dur': floatDuration,
+      '--card-float-delay': floatDelay,
+      '--card-entrance-delay': entranceDelay,
+    } as CSSProperties),
+    [rotate, floatDuration, floatDelay, entranceDelay],
+  );
 
   return (
-    <m.article
+    <article
       className={cn(
         'group relative bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand',
+        'sticker-card',
+        unlocked ? 'sticker-card--unlocked' : 'sticker-card--locked',
       )}
-      style={{ transform: `rotate(${rotate}deg)` }}
-      initial={{ opacity: 0, y: 12 }}
-      animate={unlocked ? { opacity: 1, y: [0, -1.5, 0] } : { opacity: 1, y: 0 }}
-      transition={
-        unlocked
-          ? { y: { repeat: Infinity, duration: floatDuration, delay: floatDelay, ease: 'easeInOut' }, opacity: { duration: 0.3 } }
-          : { duration: 0.3 }
-      }
-      whileHover={
-        unlocked
-          ? { scale: 1.04, rotate: 0, transition: STICKER_CARD_SPRING }
-          : { rotate: [rotate, rotate + 6, rotate - 6, rotate], transition: { duration: 0.4 } }
-      }
+      style={cardStyle}
       aria-label={unlocked ? sticker.label : 'Locked sticker — keep exploring'}
     >
       <TapeStrip size="sm" />
@@ -202,6 +219,16 @@ const StickerCard = memo(function StickerCard({ sticker, unlocked }: StickerCard
       >
         {unlocked ? sticker.description : sticker.hint}
       </p>
-    </m.article>
+    </article>
   );
-});
+}
+
+/**
+ * Custom comparator — store updates re-render the parent but we only want the
+ * card to re-render when its own identity, lock state, or index changes.
+ */
+const StickerCard = memo(StickerCardImpl, (prev, next) =>
+  prev.unlocked === next.unlocked &&
+  prev.sticker.id === next.sticker.id &&
+  prev.index === next.index,
+);

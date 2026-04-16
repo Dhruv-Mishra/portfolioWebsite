@@ -8,12 +8,16 @@
  *
  * Mounted once by EagerEnhancements so the bus listener is always live.
  */
-import { useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { stickerBus } from '@/lib/stickerBus';
 import { getSticker, StickerSvg } from '@/lib/stickers';
-import { useStickers, unlockSticker } from '@/hooks/useStickers';
+import {
+  useActiveStickerToast,
+  unlockSticker,
+  dismissActiveToast,
+} from '@/hooks/useStickers';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
 import { Z_INDEX, STICKER_TOKENS } from '@/lib/designTokens';
@@ -24,7 +28,10 @@ const TOAST_EXIT = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
 const TOAST_SPRING = { type: 'spring' as const, stiffness: 400, damping: 15 };
 
 export default function StickerToastListener(): React.ReactElement | null {
-  const { activeToast, dismissToast } = useStickers();
+  // Narrow subscription: only re-renders when the active toast slot itself
+  // changes. Sticker unlocks, album-seen marks, and visitedRoute mutations
+  // do NOT trigger a re-render of this component.
+  const activeToast = useActiveStickerToast();
   const { success, navigate } = useAppHaptics();
 
   // Bridge bus -> store. Do this once on mount.
@@ -44,8 +51,8 @@ export default function StickerToastListener(): React.ReactElement | null {
 
   const handleTap = useCallback(() => {
     navigate();
-    dismissToast();
-  }, [dismissToast, navigate]);
+    dismissActiveToast();
+  }, [navigate]);
 
   return (
     <div
@@ -66,7 +73,7 @@ interface ToastCardProps {
   onTap: () => void;
 }
 
-function ToastCard({ id, onTap }: ToastCardProps) {
+const ToastCard = memo(function ToastCard({ id, onTap }: ToastCardProps) {
   const sticker = getSticker(id);
   return (
     <m.div
@@ -92,4 +99,4 @@ function ToastCard({ id, onTap }: ToastCardProps) {
       </Link>
     </m.div>
   );
-}
+});

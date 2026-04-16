@@ -199,8 +199,14 @@ interface StickerSvgProps {
   className?: string;
 }
 
-const DROP_SHADOW_STYLE = { filter: 'drop-shadow(1px 2px 0 rgba(0,0,0,0.12))' } as const;
-
+/**
+ * Perf note: the previous implementation wrapped the SVG in a span with
+ *   `filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.12))`.
+ * On the sticker album page each card also runs a transform animation, which
+ * combined with `filter` forces a full repaint per frame. The card container
+ * already carries a Tailwind `shadow-md`, so the die-cut lift is preserved
+ * via box-shadow on a non-transforming ancestor — no filter cost.
+ */
 export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.size.card, className }: StickerSvgProps) {
   let inner: React.ReactNode;
   switch (id) {
@@ -221,11 +227,7 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     }
   }
   return (
-    <span
-      className={className}
-      style={DROP_SHADOW_STYLE}
-      aria-hidden="true"
-    >
+    <span className={className} aria-hidden="true">
       {inner}
     </span>
   );

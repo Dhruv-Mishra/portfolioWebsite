@@ -305,7 +305,7 @@ export default function Terminal() {
                                 <span
                                     ref={placeholderRef}
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute left-0 top-0 text-gray-500 font-code whitespace-nowrap overflow-hidden"
+                                    className="pointer-events-none absolute left-0 top-0 right-0 text-gray-500 font-code text-sm md:text-base leading-[inherit] whitespace-nowrap overflow-hidden"
                                 />
                             )}
                         </div>

@@ -210,11 +210,12 @@ function ShortcutsOverlay({ isOpen, onClose }: ShortcutsOverlayProps) {
               onClick={(e) => e.stopPropagation()}
               style={CARD_STYLE}
               className={cn(
-                'relative w-[calc(100vw-1.5rem)] h-fit',
+                'relative w-[calc(100vw-1.5rem)]',
                 'my-[var(--c-modal-top)] md:my-[var(--c-modal-top-md)]',
                 'bg-[var(--c-paper)]',
                 'border-2 border-[var(--c-ink)]/20 rounded-md',
                 'shadow-xl font-hand',
+                'flex flex-col overflow-hidden',
                 'will-change-transform outline-none',
               )}
             >
@@ -258,8 +259,10 @@ function ShortcutsOverlay({ isOpen, onClose }: ShortcutsOverlayProps) {
                 <X size={16} strokeWidth={2.4} aria-hidden="true" />
               </button>
 
-              {/* Content */}
-              <div className="pt-10 pb-5 px-5 md:px-6 overflow-y-auto ruler-scrollbar">
+              {/* Content — flex-1 + min-h-0 so it honors the card's max-h and scrolls
+                  when the roster outgrows the available height (the spiral-binding
+                  strip above plus footer padding previously let content spill). */}
+              <div className="flex-1 min-h-0 pt-10 pb-5 px-5 md:px-6 overflow-y-auto ruler-scrollbar">
                 <div className="text-center">
                   <h2
                     id="shortcuts-heading"

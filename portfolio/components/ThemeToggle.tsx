@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from "@/lib/haptics";
+import { stickerBus } from "@/lib/stickerBus";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
@@ -21,6 +22,7 @@ export function ThemeToggle() {
     const toggleTheme = () => {
         toggle();
         setTheme(resolvedTheme === "dark" ? "light" : "dark");
+        stickerBus.emit('theme-flipper');
     };
 
     return (

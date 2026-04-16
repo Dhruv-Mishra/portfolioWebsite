@@ -6,6 +6,7 @@ import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriang
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useAppHaptics } from '@/lib/haptics';
+import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { Modal } from '@/components/ui/Modal';
@@ -198,6 +199,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
       setState('success');
   success();
+      stickerBus.emit('note-sender');
       clearDraft();
       // Auto-close after success
       successTimeoutRef.current = setTimeout(() => {

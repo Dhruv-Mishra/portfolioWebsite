@@ -510,3 +510,21 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   background-color: var(--c-ink);
   color: var(--c-paper);
 }
+
+/* ─── Guestbook wall note entrance animation ─── */
+@keyframes wall-note-in {
+  from { opacity: 0; transform: translateY(12px) rotate(var(--note-rotate-start, 0deg)); }
+  to   { opacity: 1; transform: translateY(0) rotate(var(--note-rotate-end, 0deg)); }
+}
+
+/* Sticker lavender family (others borrowed from existing tokens) */
+:root {
+  --sticker-lavender-bg: #e9d5ff;
+  --sticker-lavender-ink: #581c87;
+}
+.dark {
+  --sticker-lavender-bg: #3b2357;
+  --sticker-lavender-ink: #d8b4fe;
+}
+
+.animate-wall-note-in { animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both; }

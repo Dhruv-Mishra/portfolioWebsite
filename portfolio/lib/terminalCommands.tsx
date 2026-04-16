@@ -48,6 +48,9 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">resume     - View Resume</p>
                 <p className="pl-4 text-emerald-400">chat       - Talk to AI-me</p>
                 <p className="pl-4 text-emerald-400">feedback   - Report a bug / send feedback</p>
+                <p className="pl-4 text-emerald-400">guestbook  - Sign the wall</p>
+                <p className="pl-4 text-emerald-400">sign       - Alias for guestbook</p>
+                <p className="pl-4 text-emerald-400">stickers   - Open the sticker drawer</p>
             </div>
         )
     }),
@@ -126,6 +129,18 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     projects: () => ({
         output: "Navigating to projects...",
         action: () => { setTimeout(() => router.push("/projects"), NAVIGATION_DELAY_MS); }
+    }),
+    guestbook: () => ({
+        output: "Navigating to the wall...",
+        action: () => { setTimeout(() => router.push("/guestbook"), NAVIGATION_DELAY_MS); }
+    }),
+    sign: () => ({
+        output: "Navigating to the wall...",
+        action: () => { setTimeout(() => router.push("/guestbook"), NAVIGATION_DELAY_MS); }
+    }),
+    stickers: () => ({
+        output: "Opening sticker drawer...",
+        action: () => { setTimeout(() => router.push("/stickers"), NAVIGATION_DELAY_MS); }
     }),
     init: () => {
         const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;

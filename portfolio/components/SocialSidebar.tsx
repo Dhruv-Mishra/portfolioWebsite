@@ -4,6 +4,7 @@ import * as React from "react";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from '@/lib/haptics';
+import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 
@@ -97,6 +98,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
             onClick={() => {
                 onPress();
                 setTheme(isDark ? 'light' : 'dark');
+                stickerBus.emit('theme-flipper');
             }}
             className="flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
             title="Toggle theme"

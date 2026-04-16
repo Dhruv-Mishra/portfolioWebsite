@@ -1,7 +1,7 @@
 import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
-import { Coffee, MessageCircle } from "lucide-react";
+import { Coffee, MessageCircle, PenLine } from "lucide-react";
 import { APP_VERSION } from "@/lib/constants";
 
 export default function Home() {
@@ -90,6 +90,40 @@ export default function Home() {
             className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
             style={{
               background: 'linear-gradient(135deg, #fff9c4 45%, #e5e1a8 50%, #d4d09a 100%)',
+              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
+            }}
+          />
+        </div>
+      </Link>
+
+      {/* Guestbook CTA — coral sibling of the chat CTA */}
+      <Link
+        href="/guestbook"
+        className="group mt-4 relative inline-block animate-hero-subtitle"
+        aria-label="Sign Dhruv's sketchbook guestbook"
+      >
+        {/* Folded note body */}
+        <div className="relative bg-[#ffccbc] dark:bg-[#3e2723] px-5 py-3 shadow-sm md:shadow-md rotate-2 md:group-hover:rotate-0 transition-transform duration-300 border border-orange-300/40">
+          {/* Tape strip on top */}
+          <div
+            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]"
+          />
+          {/* Ruled lines (decorative) */}
+          <div className="absolute inset-x-4 top-[52%] h-px bg-rose-300/25 pointer-events-none" />
+          <div className="absolute inset-x-4 top-[76%] h-px bg-rose-300/25 pointer-events-none" />
+          {/* Content */}
+          <div className="flex items-center gap-2.5">
+            <PenLine size={20} className="text-rose-500/70 md:group-hover:text-rose-600 transition-colors shrink-0" strokeWidth={1.8} />
+            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-200 md:group-hover:text-rose-700 dark:md:group-hover:text-rose-300 transition-colors">
+              Sign my sketchbook ✎
+            </span>
+            <span className="text-rose-400 md:group-hover:translate-x-1 transition-transform duration-200">→</span>
+          </div>
+          {/* Dog-ear fold */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
+            style={{
+              background: 'linear-gradient(135deg, #ffccbc 45%, #e6a895 50%, #cc8a77 100%)',
               clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
             }}
           />

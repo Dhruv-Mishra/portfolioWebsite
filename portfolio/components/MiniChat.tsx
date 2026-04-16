@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAppHaptics } from '@/lib/haptics';
+import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
@@ -69,6 +70,7 @@ export default function MiniChat() {
         closePanel();
       } else {
         openPanel();
+        stickerBus.emit('note-passer');
       }
       return !prev;
     });

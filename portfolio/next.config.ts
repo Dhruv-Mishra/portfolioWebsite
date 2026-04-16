@@ -1,6 +1,13 @@
 import { execSync } from "node:child_process";
+import path from "node:path";
 
 import type { NextConfig } from "next";
+
+// Absolute path to this config file's directory. `__dirname` is available when
+// Next.js compiles next.config.ts as CJS; fall back to process.cwd() otherwise.
+// The build command runs from the portfolio/ directory so both resolve equivalently.
+const CONFIG_DIR: string =
+  typeof __dirname === "string" ? __dirname : path.resolve(process.cwd());
 
 function resolveBuildId(): string {
   const explicitBuildId =
@@ -29,6 +36,12 @@ const BUILD_ID = resolveBuildId();
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
+  // Pin workspace root so Next.js never auto-detects from a stray parent lockfile.
+  // Without this, a lockfile one dir up can flip the resolved root and emit
+  // standalone output in the wrong tree — breaking VPS deploys.
+  turbopack: {
+    root: CONFIG_DIR,
+  },
   // Multi-origin deployments behind Cloudflare must emit the same build ID on every VM.
   // Otherwise HTML from one origin can reference runtime artifacts that do not exist on another.
   generateBuildId: async () => BUILD_ID,

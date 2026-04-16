@@ -37,5 +37,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.6,
     },
+    {
+      url: `${baseUrl}/guestbook`,
+      lastModified: currentDate,
+      changeFrequency: 'daily',
+      priority: 0.5,
+    },
+    {
+      url: `${baseUrl}/stickers`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly',
+      priority: 0.3,
+    },
   ]
 }

@@ -95,13 +95,38 @@ export const INTERACTION_TOKENS = {
       initial: { x: 50, opacity: 0 },
       animate: { x: 0, opacity: 1 },
     },
+    /** Command Palette entrance — subtle drop from above */
+    paletteDrop: {
+      initial: { opacity: 0, scale: 0.96, y: -12 },
+      animate: { opacity: 1, scale: 1, y: 0 },
+    },
+    /** Shortcuts Overlay entrance — notebook page pinning down */
+    paperPin: {
+      initial: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
+      animate: { opacity: 1, scale: 1, y: 0, rotate: -0.8 },
+    },
   },
   exit: {
     fadeDown: { opacity: 0, y: -4 },
     fadeScale: { opacity: 0, scale: 0.9 },
     fadeScaleRotate: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
     popOut: { opacity: 0, scale: 0.8, y: 20 },
+    /** Command Palette exit — reverse of paletteDrop */
+    paletteLift: { opacity: 0, scale: 0.96, y: -12 },
+    /** Shortcuts Overlay exit — page unpin */
+    paperUnpin: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
   },
+} as const;
+
+/** Overlay tokens — shared between Command Palette and Shortcuts Overlay */
+export const OVERLAY_TOKENS = {
+  backdrop: { strong: 'bg-black/35 dark:bg-black/55 backdrop-blur-sm' },
+  maxWidth: { palette: '560px', shortcuts: '440px' },
+  maxHeight: { palette: 'min(60vh, 520px)', shortcuts: 'min(70vh, 600px)' },
+  selectionAccent: 'emerald-500/70',
+  rowHeight: { desktop: 44, mobile: 40 },
+  kbdRadius: '6px 7px 5px 6px',
+  kbdShadow: '1px 1px 0 0 var(--c-ink)',
 } as const;
 
 /** Timing tokens for setTimeout / setInterval (milliseconds) */
@@ -327,6 +352,61 @@ export const NAV_POSITIONS = {
   active: -5,
   hovered: -10,
   default: -25,
+} as const;
+
+/** Guestbook wall note rotation range (wider than chat notes) */
+export const WALL_NOTE_ROTATION = { minDeg: -5, rangeDeg: 10 } as const;
+
+/** Guestbook note CSS custom-property color cycle (hash-indexed) */
+export const GUESTBOOK_NOTE_COLORS = [
+  '--note-yellow', '--note-blue', '--note-green', '--note-purple', '--note-orange',
+] as const;
+
+/** Guestbook note dark-mode accent border classes (hash-indexed, parallel to GUESTBOOK_NOTE_COLORS) */
+export const GUESTBOOK_NOTE_BORDERS = [
+  'border-yellow-400/30', 'border-blue-400/30', 'border-green-400/30', 'border-purple-400/30', 'border-orange-400/30',
+] as const;
+
+/** Guestbook limits and pagination tokens */
+export const GUESTBOOK_LIMITS = {
+  maxMessageLength: 300,
+  maxNameLength: 40,
+  notesPerPage: 40,
+  entranceStaggerMs: 40,
+  entranceStaggerCapMs: 480,
+} as const;
+
+/** Guestbook animation tokens */
+export const GUESTBOOK_ANIMATION = {
+  flyToWall: { y: -200, rotate: 8, scale: 0.85, opacity: 0, duration: 0.7 },
+  toastAutoDismissMs: 3500,
+} as const;
+
+/** Sticker color families — background + ink pairs for the 6 palettes */
+export const STICKER_FAMILIES = {
+  sunshine: { bg: '#fff9c4', ink: '#5d4037' },
+  denim:    { bg: '#b3e5fc', ink: '#0c4a6e' },
+  mint:     { bg: '#c5e1a5', ink: '#14532d' },
+  coral:    { bg: '#ffccbc', ink: '#7c2d12' },
+  rose:     { bg: '#f8bbd0', ink: '#831843' },
+  lavender: { bg: '#e9d5ff', ink: '#581c87' },
+} as const;
+
+export type StickerFamily = keyof typeof STICKER_FAMILIES;
+
+/** Sticker sizing + stroke tokens for SVG rendering */
+export const STICKER_TOKENS = {
+  size: { toast: 48, card: 60, hover: 80 },
+  strokeWidth: 2.5,
+  rotation: { min: -4, max: 4 },
+} as const;
+
+/** Sticker timing tokens — toast queue + resume read threshold */
+export const STICKER_TIMING = {
+  toastDuration: 3000,
+  toastGap: 500,
+  toastMaxInQueue: 4,
+  resumeReadThresholdMs: 10000,
 } as const;
 
 /**

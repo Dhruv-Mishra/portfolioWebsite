@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
@@ -8,10 +7,16 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TerminalProvider } from "@/context/TerminalContext";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
+import DeferredEnhancements from "@/components/DeferredEnhancements";
+import EagerEnhancements from "@/components/EagerEnhancements";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
 import "./globals.css";
 
-const DeferredEnhancements = dynamic(() => import("@/components/DeferredEnhancements"));
+// Both DeferredEnhancements and EagerEnhancements are client components
+// ("use client" at the top). Direct import from this server layout is fine —
+// Next.js 16 disallows `dynamic(ssr:false)` from server components, but direct
+// "use client" imports hydrate normally. Any nested lazy imports happen inside
+// each client component.
 
 const patrickHand = Patrick_Hand({
   weight: "400",
@@ -137,6 +142,7 @@ export default function RootLayout({
                 <Navigation />
                 {children}
               </SketchbookLayout>
+              <EagerEnhancements />
               <DeferredEnhancements />
             </TerminalProvider>
           </ThemeProvider>

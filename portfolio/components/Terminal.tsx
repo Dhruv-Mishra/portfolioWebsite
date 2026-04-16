@@ -7,6 +7,7 @@ import { useTerminal } from "@/context/TerminalContext";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppHaptics } from "@/lib/haptics";
 import { trackTerminalCommand } from "@/lib/analytics";
+import { stickerBus } from "@/lib/stickerBus";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
 import {
@@ -20,6 +21,7 @@ import {
 import { createCommandRegistry } from "@/lib/terminalCommands";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
+import { useTerminalPlaceholder } from "@/hooks/useTerminalPlaceholder";
 
 // Hoisted style objects to avoid re-creating on every render
 const shadowStyle = { borderRadius: SKETCH_RADIUS.terminal } as const;
@@ -77,6 +79,10 @@ export default function Terminal() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
 
+    // Typewritten placeholder — cycles command hints while the input is empty.
+    // Stops automatically the moment the user types anything (overlay unmounts).
+    const placeholderRef = useTerminalPlaceholder(!input);
+
     // Command Registry defined outside
     const COMMAND_REGISTRY = React.useMemo(() => createCommandRegistry(router), [router]);
 
@@ -103,6 +109,14 @@ export default function Terminal() {
 
         // Track command usage
         trackTerminalCommand(lowerCmd);
+
+        // Sticker emits (idempotent — hook deduplicates by id)
+        stickerBus.emit('first-word');
+        if (lowerCmd === 'help') {
+            stickerBus.emit('help-wanted');
+        } else if (lowerCmd === 'joke') {
+            stickerBus.emit('stand-up-comic');
+        }
 
         // Special handling for 'clear'
         if (lowerCmd === 'clear') {
@@ -274,18 +288,27 @@ export default function Terminal() {
                     <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
                         <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
                         <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDownReal}
-                            onFocus={handleInputFocus}
-                            className={`bg-transparent border-none outline-none text-white flex-1 ${TERMINAL_COLORS.caret} ${TERMINAL_COLORS.placeholder}`}
-                            autoComplete="off"
-                            aria-label="Terminal Command Input"
-                            placeholder="Type a command..."
-                        />
+                        <div className="relative flex-1">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKeyDownReal}
+                                onFocus={handleInputFocus}
+                                className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
+                                autoComplete="off"
+                                aria-label="Terminal Command Input"
+                                placeholder=""
+                            />
+                            {!input && (
+                                <span
+                                    ref={placeholderRef}
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute left-0 top-0 text-gray-500 font-code whitespace-nowrap overflow-hidden"
+                                />
+                            )}
+                        </div>
                     </form>
                     <div ref={bottomRef} />
                 </div>

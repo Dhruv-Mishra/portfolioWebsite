@@ -1,0 +1,26 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ls -la index.html about.html projects.html contact.html chat.html)",
+      "Bash(ls *.html)",
+      "Bash(ls -la contact.html chat.html)",
+      "Bash(ls js/)",
+      "Bash(npm install:*)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(PORT=3001 node server.js)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\" http://localhost:3001/about.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\" http://localhost:3001/projects.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\" http://localhost:3001/contact.html)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}b\" http://localhost:3001/chat.html)",
+      "Bash(PORT=3458 node server.js)",
+      "mcp__plugin_playwright_playwright__browser_evaluate"
+    ]
+  }
+}

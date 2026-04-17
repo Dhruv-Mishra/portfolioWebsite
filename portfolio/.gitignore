@@ -45,3 +45,5 @@ scripts/deploy.local.conf
 
 #other
 *.md
+# …except the RAG fact corpus — these power the build-time embeddings pipeline.
+!content/facts/**/*.md

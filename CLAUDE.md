@@ -114,9 +114,11 @@ portfolio/
 ## Available Scripts
 
 - `npm run dev` — Start development server (Turbopack)
-- `npm run build` — Production build
+- `npm run build` — Production build (automatically runs `prebuild` → `build:embeddings`)
 - `npm run start` — Start production server
 - `npm run lint` — Run ESLint
+- `npm test` — Run the vitest suite
+- `npm run build:embeddings` — Regenerate `lib/facts.embeddings.json` from `content/facts/**`. Runs automatically as a `prebuild` hook on `npm run build`.
 
 ---
 
@@ -135,3 +137,17 @@ Server-only (secrets):
 - `LLM_FALLBACK_API_KEY` — Fallback LLM API key
 - `LLM_FALLBACK_BASE_URL` — Fallback LLM base URL
 - `LLM_FALLBACK_MODEL` — Fallback LLM model
+- `EMBEDDINGS_API_KEY` — Optional: API key for the embeddings endpoint. Falls back to `LLM_API_KEY`. Required at build time unless `SKIP_EMBEDDINGS_BUILD=1` or `EMBEDDINGS_MODE=local` is set.
+- `EMBEDDINGS_BASE_URL` — Optional: embeddings endpoint base URL. Falls back to `LLM_BASE_URL`; if neither resolves to an OpenAI-compatible embeddings provider, leave both unset so the script points at standard OpenAI.
+- `EMBEDDINGS_MODEL` — Optional embeddings model id. Defaults to `text-embedding-3-small`.
+- `EMBEDDINGS_MODE` — Set to `local` to generate deterministic hashed-n-gram embeddings offline (dev/CI only; lexical rather than semantic). Omit for real API embeddings.
+- `SKIP_EMBEDDINGS_BUILD` — Set to `1` in CI to skip the prebuild embeddings step and reuse the committed `lib/facts.embeddings.json`.
+
+## RAG / Chat Context
+
+The chat system uses a hybrid retrieval pipeline:
+
+1. **Fact corpus** lives in `portfolio/content/facts/**/*.md`. Each file has YAML frontmatter (`id`, `tags`, `priority`, `anchor`, optional `category` and `slug`) followed by a markdown body.
+2. **Build-time embeddings** — `scripts/build-embeddings.ts` walks the corpus, calls the embeddings API, and writes `lib/facts.embeddings.json`. The file is committed and imported statically so Next.js bundles it.
+3. **Runtime retrieval** — `lib/factRetrieval.server.ts` embeds the user query at request time, computes cosine similarity in memory, and returns anchor facts plus the top-K non-anchor facts. Gracefully degrades to priority-ordered anchors if the embeddings API fails or the bundle is missing.
+4. **Conditional prompt assembly** — `lib/chatContext.server.ts` splits the system prompt into blocks (identity, style, grounding) plus conditional blocks (off-topic, UI action, terminal rules) emitted only when the latest user message warrants them.

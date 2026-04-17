@@ -179,8 +179,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Build full message array with system prompt (server-side only!)
+    // System prompt is async so it can include build-time-embedded RAG facts.
+    const systemPrompt = await buildDhruvSystemPrompt(sanitized);
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: buildDhruvSystemPrompt(sanitized) },
+      { role: 'system', content: systemPrompt },
       ...sanitized,
     ];
 

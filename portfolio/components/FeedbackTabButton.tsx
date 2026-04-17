@@ -26,6 +26,7 @@ export default function FeedbackTabButton({ onClick }: { onClick: () => void }) 
             )}
             title="Send feedback"
             aria-label="Open feedback form"
+            data-disco-bounce="2"
         >
             <MessageSquare size={18} className="md:w-5 md:h-5" />
         </button>

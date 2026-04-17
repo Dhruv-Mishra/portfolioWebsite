@@ -64,6 +64,22 @@ const StickerGlanceBadge = dynamic(
   { ssr: false, loading: () => null },
 );
 
+// DiscoFlagController is the TINY, eager disco entry point. It only owns the
+// data-disco attribute sync + the matrix-event listener. The heavy media tree
+// (sparkle canvas, spotlights, audio engine, mute button) lives in a
+// completely separate module (`DiscoMediaLayer`) that is fetched via dynamic
+// import() ONLY when the user first activates disco. Users who never unlock
+// disco never ship the media chunk.
+//
+// Kept as a dynamic(ssr:false) import so the component's internal useState +
+// useEffect don't execute during SSR — but the chunk for the flag controller
+// itself is tiny (~sub-kilobyte) and is always needed on the client, so
+// Next.js will still include it in the initial bundle.
+const DiscoFlagController = dynamic(
+  () => import('@/components/DiscoFlagController'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -72,6 +88,7 @@ export default function EagerEnhancements() {
       <KonamiListenerMount />
       <StickerToastListener />
       <StickerGlanceBadge />
+      <DiscoFlagController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

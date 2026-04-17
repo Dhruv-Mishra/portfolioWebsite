@@ -8,42 +8,58 @@
  *   - Progress card: tiny tilted taped index card showing `{unlocked}/{total} pinned`.
  *   - Empty / first-sticker caption above the grid.
  *   - Grid: 2/3/4/5 columns across breakpoints, each cell a <StickerCard>.
+ *     The hidden superuser tile is appended to the grid ONLY after it has been
+ *     earned — before then it stays absent from the album entirely.
  *
- * On mount: markAlbumSeen() dismisses the badge pulse.
+ * On mount:
+ *   - markAlbumSeen() dismisses the badge pulse.
+ *   - stickerBus.emit('drawer-dweller') unlocks the "visited the album" sticker.
  *
  * Perf note: Cards use pure CSS animations (`sticker-card`, `sticker-card--unlocked`,
- * `sticker-card--locked`) defined in app/globals.css. No framer-motion on this page —
- * 12 infinite rAF loops + per-frame filter repaints were the source of reported lag.
+ * `sticker-card--locked`, `sticker-card--superuser`) defined in app/globals.css.
+ * No framer-motion on this page — 12 infinite rAF loops + per-frame filter
+ * repaints were the source of reported lag.
  */
-import { memo, useEffect, useMemo, type CSSProperties } from 'react';
-import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, type StickerId, type StickerEntry } from '@/lib/stickers';
+import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
 import { useStickers } from '@/hooks/useStickers';
+import { stickerBus } from '@/lib/stickerBus';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { cn } from '@/lib/utils';
 import { STICKER_TOKENS } from '@/lib/designTokens';
 
 export default function StickerDrawerPage() {
-  const { unlocked, total, unlockedAt, markAlbumSeen } = useStickers();
+  const { unlocked, total, unlockedAt, markAlbumSeen, hasSuperuser } = useStickers();
+  const announcedSuperuserRef = useRef(false);
 
   // Mark album seen on mount so the glance badge stops pulsing.
+  // Also unlock the "visited the album" sticker — cheap, idempotent.
   useEffect(() => {
     markAlbumSeen();
+    stickerBus.emit('drawer-dweller');
   }, [markAlbumSeen]);
 
   // Build the unlocked-id lookup set once per change — O(1) membership per card.
   const unlockedSet = useMemo(() => new Set<StickerId>(unlocked), [unlocked]);
 
-  // Sort: unlocked first (by when earned), locked after (roster order).
-  const ordered = useMemo(() => {
+  // Sort: unlocked regular stickers first (by when earned), then locked
+  // regulars (roster order). The hidden Superuser tile is appended at the very
+  // end ONLY when earned. Before earning, it's absent from the roster.
+  const ordered = useMemo<ReadonlyArray<StickerEntry>>(() => {
     const unlockedEntries = STICKER_ROSTER.filter((s) => unlockedSet.has(s.id)).sort(
       (a, b) => (unlockedAt[a.id] ?? 0) - (unlockedAt[b.id] ?? 0),
     );
     const lockedEntries = STICKER_ROSTER.filter((s) => !unlockedSet.has(s.id));
-    return [...unlockedEntries, ...lockedEntries];
-  }, [unlockedSet, unlockedAt]);
+    const base: StickerEntry[] = [...unlockedEntries, ...lockedEntries];
+    if (hasSuperuser) {
+      base.push(SUPERUSER_STICKER);
+    }
+    return base;
+  }, [unlockedSet, unlockedAt, hasSuperuser]);
 
-  const unlockedCount = unlocked.length;
+  // Regular-only unlocked count (hidden superuser excluded from the ratio).
+  const unlockedCount = unlocked.filter((id) => id !== SUPERUSER_STICKER.id).length;
 
   // Caption copy — shifts based on progress.
   let caption: string;
@@ -56,6 +72,13 @@ export default function StickerDrawerPage() {
   } else {
     caption = `${total - unlockedCount} still waiting to be found ~`;
   }
+
+  // Announce superuser to screen readers the first time it appears.
+  useEffect(() => {
+    if (hasSuperuser && !announcedSuperuserRef.current) {
+      announcedSuperuserRef.current = true;
+    }
+  }, [hasSuperuser]);
 
   return (
     <main className="min-h-[100dvh] pt-12 md:pt-16 pb-16 px-4 md:px-8 relative z-10">
@@ -78,6 +101,11 @@ export default function StickerDrawerPage() {
         <p className="mt-6 md:mt-8 text-center font-hand italic text-lg md:text-xl text-[var(--c-ink)] opacity-50">
           {caption}
         </p>
+
+        {/* Superuser live-region announcement — once, polite. */}
+        <div role="status" aria-live="polite" className="sr-only">
+          {hasSuperuser ? 'You earned the Superuser sticker. Sudo terminal access unlocked.' : ''}
+        </div>
 
         {/* ─── Grid ─── */}
         <section
@@ -164,12 +192,15 @@ function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
     [rotate, floatDuration, floatDelay, entranceDelay],
   );
 
+  const isSuperuser = sticker.id === 'superuser';
   return (
     <article
       className={cn(
-        'group relative bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand',
+        'group relative border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand',
         'sticker-card',
         unlocked ? 'sticker-card--unlocked' : 'sticker-card--locked',
+        isSuperuser && unlocked && 'sticker-card--superuser',
+        !isSuperuser && 'bg-[var(--c-paper)]',
       )}
       style={cardStyle}
       aria-label={unlocked ? sticker.label : 'Locked sticker — keep exploring'}

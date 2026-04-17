@@ -6,6 +6,14 @@ import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
 import CheatsheetOutput from '@/components/CheatsheetOutput';
+import { isSuperuserEarnedSync } from '@/hooks/useStickers';
+import {
+    parseSudoInvocation,
+    dispatchSudo,
+    SUDO_DENIED_NODE,
+} from '@/lib/sudoCommands';
+import { stickerBus } from '@/lib/stickerBus';
+import { STICKER_ROSTER } from '@/lib/stickers';
 
 /** Delay (ms) before executing page navigation from terminal commands */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
@@ -180,11 +188,19 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     }),
     github: () => ({
         output: "Opening GitHub profile...",
-        action: () => window.open(PERSONAL_LINKS.github, '_blank', 'noopener,noreferrer')
+        action: () => {
+            window.open(PERSONAL_LINKS.github, '_blank', 'noopener,noreferrer');
+            // Terminal-originated opens go to GitHub or elsewhere — count as
+            // social-butterfly since a link was actually followed.
+            stickerBus.emit('social-butterfly');
+        },
     }),
     linkedin: () => ({
         output: "Opening LinkedIn profile...",
-        action: () => window.open(PERSONAL_LINKS.linkedin, '_blank', 'noopener,noreferrer')
+        action: () => {
+            window.open(PERSONAL_LINKS.linkedin, '_blank', 'noopener,noreferrer');
+            stickerBus.emit('social-butterfly');
+        },
     }),
     skills: () => ({
         output: (
@@ -266,32 +282,28 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     date: () => ({ output: new Date().toString() }),
     // Cheatsheet is privileged. The bare command only reveals that privileges
     // are required — the user has to figure out how to escalate on their own.
+    // We still award the `cheat-codes` sticker for *trying* the command so it
+    // remains reachable before Superuser (which gates the full sudo path).
     cheatsheet: () => ({
         output: (
             <div>
                 <span className="text-red-400 font-bold">cheatsheet:</span>{' '}
-                <span className="text-red-400">insufficient privileges.</span>
+                <span className="text-red-400">insufficient privileges.</span>{' '}
+                <span className="text-gray-500">hint: try with escalated permissions.</span>
             </div>
-        )
+        ),
+        action: () => { stickerBus.emit('cheat-codes'); },
     }),
     sudo: (args: string[]) => {
-        const sub = args[0]?.toLowerCase();
-        if (sub === 'cheatsheet') {
-            return {
-                output: (
-                    <div>
-                        <span className="text-gray-500">[sudo] password for visitor:</span>{' '}
-                        <span className="text-emerald-400">access granted ✓</span>
-                        <div className="mt-2">
-                            <CheatsheetOutput />
-                        </div>
-                    </div>
-                )
-            };
+        const invocation = parseSudoInvocation(args);
+        // Gate: before Superuser has been earned, every sudo is denied.
+        if (!isSuperuserEarnedSync()) {
+            return { output: SUDO_DENIED_NODE };
         }
-        return {
-            output: <span className="text-red-500 font-bold">Permission denied: You are not authorized.</span>
-        };
+        return dispatchSudo(invocation, {
+            router,
+            renderCheatsheet: () => <CheatsheetOutput />,
+        });
     },
     feedback: () => ({
         output: (
@@ -302,6 +314,28 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 window.dispatchEvent(new CustomEvent('open-feedback'));
             }
         }
+    }),
+    // Hidden debug command — not listed in `help`. Emits every regular sticker
+    // so the auto-award path for Superuser can be exercised without grinding
+    // the roster by hand. Intentionally omits the `superuser` id; the store
+    // awards that atomically once all regulars are unlocked.
+    unlockstickers: () => ({
+        output: (
+            <div className="space-y-1 font-mono text-sm">
+                <p>
+                    <span className="text-yellow-400">[debug]</span>{' '}
+                    <span className="text-gray-200">
+                        Unlocking all {STICKER_ROSTER.length} regular stickers. Superuser should auto-award.
+                    </span>
+                </p>
+                <p className="text-gray-500">Open /stickers to see the full roster.</p>
+            </div>
+        ),
+        action: () => {
+            for (const sticker of STICKER_ROSTER) {
+                stickerBus.emit(sticker.id);
+            }
+        },
     }),
     clear: () => ({ output: "" })
 });

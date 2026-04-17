@@ -5,8 +5,7 @@ import { cn } from '@/lib/utils';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import {
   WALL_NOTE_ROTATION,
-  GUESTBOOK_NOTE_COLORS,
-  GUESTBOOK_NOTE_BORDERS,
+  GUESTBOOK_NOTE_BORDER,
   GUESTBOOK_LIMITS,
   GRADIENT_TOKENS,
 } from '@/lib/designTokens';
@@ -18,9 +17,9 @@ interface GuestbookNoteProps {
   index: number;
 }
 
-/** 32-bit unsigned hash of a numeric id → deterministic rotation/color bucket. */
+/** 32-bit unsigned hash of a numeric id → deterministic rotation bucket. */
 function hashId(id: number): number {
-  // Integer hash (splitmix32-ish) — sufficient for 3 small buckets.
+  // Integer hash (splitmix32-ish) — sufficient for small buckets.
   let h = (id ^ 0x9e3779b9) >>> 0;
   h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0;
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
@@ -35,6 +34,17 @@ const FOLD_CORNER_RIGHT_STYLE = { background: GRADIENT_TOKENS.foldCorner } as co
 /** Corner-variant tape override: used on desktop for every 4th note for visual variety. */
 const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden md:block';
 
+/**
+ * GuestbookNote — renders a single pinned note on the wall.
+ *
+ * Structural note on tape clipping:
+ *   The note body needs `overflow-hidden` to enforce the 260px max-height on
+ *   long messages. The tape strip is positioned with a negative top offset to
+ *   extend above the card edge — if it lives inside the overflow-hidden body,
+ *   that negative offset gets clipped. Fix: wrap the note in an `overflow-visible`
+ *   wrapper and keep the tape as a sibling of (not a child of) the clipped body,
+ *   so it escapes the clip while the message text remains truncated.
+ */
 export const GuestbookNote = memo(function GuestbookNote({ entry, index }: GuestbookNoteProps) {
   const hash = useMemo(() => hashId(entry.id), [entry.id]);
 
@@ -43,10 +53,6 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
     const normalized = (hash % 1000) / 1000;
     return WALL_NOTE_ROTATION.minDeg + normalized * WALL_NOTE_ROTATION.rangeDeg;
   }, [hash]);
-
-  // Hash-indexed color + dark-mode border.
-  const colorToken = GUESTBOOK_NOTE_COLORS[hash % GUESTBOOK_NOTE_COLORS.length];
-  const borderClass = GUESTBOOK_NOTE_BORDERS[hash % GUESTBOOK_NOTE_BORDERS.length];
 
   // Left/right fold corner alternates by hash parity.
   const foldLeft = hash % 2 === 0;
@@ -62,61 +68,79 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
 
   const signatureId = `note-${entry.id}-sig`;
 
-  const noteStyle = useMemo<React.CSSProperties>(() => ({
-    backgroundColor: `var(${colorToken})`,
+  const wrapperStyle = useMemo<React.CSSProperties>(() => ({
     transform: `rotate(${rotation}deg)`,
     // Custom props read by the @keyframes wall-note-in rule.
     ['--note-rotate-start' as string]: `${rotation + 2}deg`,
     ['--note-rotate-end' as string]: `${rotation}deg`,
     animationDelay,
-  }), [colorToken, rotation, animationDelay]);
+  }), [rotation, animationDelay]);
+
+  const bodyStyle = useMemo<React.CSSProperties>(() => ({
+    backgroundColor: 'var(--note-paper)',
+  }), []);
 
   return (
+    // OUTER wrapper: owns rotation + entrance animation; overflow is VISIBLE so
+    // the tape strip (which lives below as a sibling of the clipped body) isn't
+    // clipped. Note: `content-visibility: auto` from `content-defer` is applied
+    // here too so off-screen notes still defer paint.
     <article
       aria-labelledby={signatureId}
-      style={noteStyle}
+      style={wrapperStyle}
       className={cn(
         'relative content-defer animate-wall-note-in',
-        'min-h-[140px] max-h-[260px] overflow-hidden',
-        'p-5 pb-7 md:p-6 md:pb-9',
         'shadow-md font-hand text-base text-[var(--c-ink)] border',
-        borderClass,
+        GUESTBOOK_NOTE_BORDER,
       )}
     >
+      {/* Tape — sibling of the clipped body, escapes the clip completely. */}
       <TapeStrip size="sm" className={useCornerTape ? CORNER_TAPE_CLASS : undefined} />
 
-      {/* Message body */}
-      <p className="whitespace-pre-wrap break-words leading-relaxed pr-2">
-        {entry.message}
-      </p>
-
-      {/* Folded corner — alternates side by hash parity */}
+      {/* INNER body: this is the element that clips long messages to 260px.
+          It keeps the background color, min/max height, and padding that were
+          previously on <article>. overflow: hidden only applies here. */}
       <div
-        aria-hidden="true"
+        style={bodyStyle}
         className={cn(
-          'absolute pointer-events-none w-[18px] h-[18px] bottom-0',
-          foldLeft ? 'left-0' : 'right-0',
+          'relative overflow-hidden',
+          'min-h-[140px] max-h-[260px]',
+          'p-5 pb-7 md:p-6 md:pb-9',
         )}
-        style={foldLeft ? FOLD_CORNER_LEFT_STYLE : FOLD_CORNER_RIGHT_STYLE}
-      />
-
-      {/* Posted date (bottom-left) */}
-      <time
-        dateTime={entry.createdAt}
-        className="absolute bottom-2 left-4 font-hand text-[10px] opacity-35"
-        suppressHydrationWarning
       >
-        <span className="sr-only">Posted </span>
-        {formattedDate}
-      </time>
+        {/* Message body */}
+        <p className="whitespace-pre-wrap break-words leading-relaxed pr-2">
+          {entry.message}
+        </p>
 
-      {/* Signature (bottom-right) */}
-      <span
-        id={signatureId}
-        className="absolute bottom-2 right-4 font-hand italic text-xs opacity-50"
-      >
-        — {entry.name || 'Anonymous'}
-      </span>
+        {/* Folded corner — alternates side by hash parity */}
+        <div
+          aria-hidden="true"
+          className={cn(
+            'absolute pointer-events-none w-[18px] h-[18px] bottom-0',
+            foldLeft ? 'left-0' : 'right-0',
+          )}
+          style={foldLeft ? FOLD_CORNER_LEFT_STYLE : FOLD_CORNER_RIGHT_STYLE}
+        />
+
+        {/* Posted date (bottom-left) */}
+        <time
+          dateTime={entry.createdAt}
+          className="absolute bottom-2 left-4 font-hand text-[10px] opacity-35"
+          suppressHydrationWarning
+        >
+          <span className="sr-only">Posted </span>
+          {formattedDate}
+        </time>
+
+        {/* Signature (bottom-right) */}
+        <span
+          id={signatureId}
+          className="absolute bottom-2 right-4 font-hand italic text-xs opacity-50"
+        >
+          — {entry.name || 'Anonymous'}
+        </span>
+      </div>
     </article>
   );
 });

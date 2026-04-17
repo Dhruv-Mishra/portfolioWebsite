@@ -357,15 +357,13 @@ export const NAV_POSITIONS = {
 /** Guestbook wall note rotation range (wider than chat notes) */
 export const WALL_NOTE_ROTATION = { minDeg: -5, rangeDeg: 10 } as const;
 
-/** Guestbook note CSS custom-property color cycle (hash-indexed) */
-export const GUESTBOOK_NOTE_COLORS = [
-  '--note-yellow', '--note-blue', '--note-green', '--note-purple', '--note-orange',
-] as const;
-
-/** Guestbook note dark-mode accent border classes (hash-indexed, parallel to GUESTBOOK_NOTE_COLORS) */
-export const GUESTBOOK_NOTE_BORDERS = [
-  'border-yellow-400/30', 'border-blue-400/30', 'border-green-400/30', 'border-purple-400/30', 'border-orange-400/30',
-] as const;
+/**
+ * Guestbook note accent border — single shared class. The previous hash-indexed
+ * palette cycled through yellow/blue/green/purple/orange borders paired with
+ * matching --note-* CSS variables that all resolved to the same hex, so the
+ * "color rotation" produced zero visible variety. Collapsed to one token.
+ */
+export const GUESTBOOK_NOTE_BORDER = 'border-yellow-400/30' as const;
 
 /** Guestbook limits and pagination tokens */
 export const GUESTBOOK_LIMITS = {

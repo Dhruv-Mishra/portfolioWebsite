@@ -1,0 +1,10 @@
+---
+id: site-terminal
+tags: [terminal, commands, help, about, projects, contact, socials, ls, cat, open, clear, joke, skills, resume, chat, feedback, guestbook, sign, stickers, cheatsheet, sudo, init, whoami, date, github, linkedin, cv, disco, matrix, rainbow, fortune, reset, superuser]
+priority: 7
+category: site
+---
+
+The home page terminal supports these commands: help, about, projects, contact, socials, ls, cat [file], open [file], clear, joke, skills, resume, cv, chat, feedback, guestbook, sign, stickers, cheatsheet, sudo [cmd], init, whoami, date, github, linkedin. Running `ls` lists fake files (about.md, projects.json, cropio.md, resume.pdf, contact.txt, secrets.env). `cat` prints readable ones; `open resume.pdf` navigates to the resume page; `joke` pulls a programming joke from the JokeAPI. Every terminal command is real and typeable on the homepage.
+
+The `sudo` prefix is privileged. Before the visitor has earned every sticker, any `sudo <cmd>` invocation is politely denied. Once root access has been unlocked, `sudo help` lists the hidden subcommands and `sudo cheatsheet` reveals the full sticker progress matrix. The hidden set also includes playful extras like `sudo disco` (engages the full-blown disco experience — a rainbow-cycling background, six drifting colored spotlights on genuinely different paths, raining hand-drawn sparkles and confetti, a heading shimmer, and a procedurally-generated four-on-the-floor audio loop with a small mute button in the bottom-right; nearly every component on the page also dances along with the beat in its own style — bouncing, wiggling, shimmying, or breathing — so the whole sketchbook feels alive; disable with `sudo disco off` or the theme toggle, which shows a disco ball while the mode is active), `sudo matrix` (a short matrix-rain overlay), `sudo rainbow` (rainbow-underlines every link for the session), `sudo fortune`, `sudo whoami`, and a destructive `sudo reset yes` that wipes all sticker progress. The trigger for unlocking sudo is intentionally not spelled out — collect stickers and see what happens.

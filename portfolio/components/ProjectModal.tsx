@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
+import { stickerBus } from '@/lib/stickerBus';
 import type { ProjectRecord } from '@/lib/projects';
 
 interface ProjectModalProps {
@@ -269,7 +270,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                 href={project.link}
                                 target="_blank"
                                 rel="noreferrer"
-                                onClick={externalLink}
+                                onClick={() => { externalLink(); stickerBus.emit('repo-hunter'); }}
                                 aria-label={`View source for ${project.name}`}
                                 className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors shadow-sm font-bold bg-white/30 dark:bg-black/20"
                                 data-clickable

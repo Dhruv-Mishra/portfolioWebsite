@@ -10,6 +10,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { stickerBus } from '@/lib/stickerBus';
+import { recordOpenedProjectImperative } from '@/hooks/useStickers';
 
 // Dynamic import — ProjectModal only renders on user click.
 const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
@@ -62,6 +64,16 @@ export default function Projects() {
     const openProject = useCallback((index: number) => {
         openPanel();
         setSelectedProject(index);
+        // Track opened projects — unlock `project-explorer` once every project
+        // modal has been opened at least once. PROJECTS is the canonical list,
+        // so comparing distinct-count to PROJECTS.length is the correct gate.
+        const proj = PROJECTS[index];
+        if (proj) {
+            const distinct = recordOpenedProjectImperative(proj.slug);
+            if (distinct >= PROJECTS.length) {
+                stickerBus.emit('project-explorer');
+            }
+        }
     }, [openPanel]);
 
     const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
@@ -224,6 +236,7 @@ export default function Projects() {
                                         href={proj.link}
                                         target="_blank"
                                         rel="noreferrer"
+                                        onClick={() => { stickerBus.emit('repo-hunter'); }}
                                         aria-label={`View source for ${proj.name}`}
                                         className="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >

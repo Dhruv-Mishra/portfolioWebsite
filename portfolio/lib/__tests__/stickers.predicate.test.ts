@@ -1,0 +1,81 @@
+/**
+ * Predicate + metadata tests for the sticker roster. Covers the "all regular
+ * stickers earned → superuser awarded" logic at the pure-function level so
+ * regressions that change the roster size but forget the store are caught.
+ */
+import { describe, it, expect } from 'vitest';
+import {
+  STICKER_ROSTER,
+  SUPERUSER_STICKER,
+  REGULAR_STICKER_IDS,
+  hasEarnedAllRegularStickers,
+  getSticker,
+  STICKER_TOTAL,
+} from '@/lib/stickers';
+
+describe('sticker roster metadata', () => {
+  it('rosterIds are unique', () => {
+    const ids = STICKER_ROSTER.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('every roster entry has label, description, hint, family', () => {
+    for (const sticker of STICKER_ROSTER) {
+      expect(sticker.id.length).toBeGreaterThan(0);
+      expect(sticker.label.length).toBeGreaterThan(0);
+      expect(sticker.description.length).toBeGreaterThan(0);
+      expect(sticker.hint.length).toBeGreaterThan(0);
+      expect(sticker.family.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('superuser is NOT in the visible roster', () => {
+    expect(STICKER_ROSTER.some((s) => (s.id as string) === SUPERUSER_STICKER.id)).toBe(false);
+  });
+
+  it('superuser is retrievable via getSticker', () => {
+    expect(getSticker('superuser').id).toBe('superuser');
+  });
+
+  it('REGULAR_STICKER_IDS has the same size as STICKER_TOTAL', () => {
+    expect(REGULAR_STICKER_IDS.size).toBe(STICKER_TOTAL);
+  });
+
+  it('STICKER_TOTAL is in the target 18-22 range', () => {
+    expect(STICKER_TOTAL).toBeGreaterThanOrEqual(18);
+    expect(STICKER_TOTAL).toBeLessThanOrEqual(22);
+  });
+});
+
+describe('hasEarnedAllRegularStickers', () => {
+  it('returns false for empty list', () => {
+    expect(hasEarnedAllRegularStickers([])).toBe(false);
+  });
+
+  it('returns false if even one regular sticker is missing', () => {
+    const missingOne = STICKER_ROSTER.slice(0, -1).map((s) => s.id);
+    expect(hasEarnedAllRegularStickers(missingOne)).toBe(false);
+  });
+
+  it('returns true when every regular sticker is unlocked (order-independent)', () => {
+    const all = STICKER_ROSTER.map((s) => s.id);
+    expect(hasEarnedAllRegularStickers(all)).toBe(true);
+    // Reversed order
+    expect(hasEarnedAllRegularStickers([...all].reverse())).toBe(true);
+  });
+
+  it('returns true if all regulars are unlocked even alongside the superuser itself', () => {
+    const all = STICKER_ROSTER.map((s) => s.id);
+    expect(hasEarnedAllRegularStickers([...all, 'superuser'])).toBe(true);
+  });
+
+  it('ignores duplicate entries (defensive — store prevents this but predicate is pure)', () => {
+    const all = STICKER_ROSTER.map((s) => s.id);
+    const withDupes = [...all, all[0], all[1]];
+    expect(hasEarnedAllRegularStickers(withDupes)).toBe(true);
+  });
+
+  it('does not award if the only thing in the list is the superuser id alone', () => {
+    expect(hasEarnedAllRegularStickers(['superuser'])).toBe(false);
+  });
+});

@@ -31,13 +31,28 @@ const EXPLANATION_PATTERNS = [
   /\boverview of\b/i,
 ];
 
-const NEGATION_PATTERNS = [/\bdon't\b/i, /\bdo not\b/i, /\bnot now\b/i, /\bdont\b/i] as const;
+const NEGATION_PATTERNS = [
+  /\bdont\b/i,
+  /\bdo not\b/i,
+  /\bnot now\b/i,
+  /\brather not\b/i,
+  /\bcant\b/i,
+  /\bcannot\b/i,
+  /\bcouldnt\b/i,
+  /\bcould not\b/i,
+  /\bwont\b/i,
+  /\bwould not\b/i,
+  /\bwouldnt\b/i,
+  /\bshouldnt\b/i,
+  /\bshould not\b/i,
+  /\bnever\b/i,
+] as const;
 const ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up|take me to|go to|navigate to|visit|switch|toggle|set|turn on|turn it|make it|report|send|leave)\b/i;
 const PROJECT_ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up)\b/i;
 const NAVIGATION_VERB_PATTERN = /\b(go to|take me to|navigate to|bring me to|open)\b/i;
-const LINK_VERB_PATTERN = /\b(open|visit|show|take me to|go to|pull up)\b/i;
-const THEME_VERB_PATTERN = /\b(switch|toggle|set|make it|turn on|change)\b/i;
-const FEEDBACK_VERB_PATTERN = /\b(report|give|send|leave|open)\b/i;
+const HOME_SHORTCUT_PATTERN = /\b(take me home|go home|head home|bring me home|back home|back to home)\b/i;
+const LINK_REQUEST_PATTERN = /\b(open|visit|show|take me to|go to|pull up|bring up|see|find|can i see|whats\s+your|what\s+is\s+your|wheres\s+your|where\s+is\s+your)\b/i;
+const FEEDBACK_PHRASE_PATTERN = /\b(report|file|submit|send|leave|give|log)\s+(?:a|an|the|some|me\s+a|in\s+a)?\s*(bug|issue|feedback|problem|error|complaint)\b/i;
 
 const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; pattern: RegExp }> = [
   { path: '/', pattern: /\b(home|homepage|main page|start page|landing page)\b/i },
@@ -251,12 +266,29 @@ function resolveProjectInfo(input: string, projectSlug: ProjectSlug): ProjectInf
 }
 
 function resolveNavigation(input: string): ActionResolution | null {
-  if (!NAVIGATION_VERB_PATTERN.test(input) || isExplanationRequest(input)) {
+  if (isExplanationRequest(input)) {
     return null;
+  }
+
+  if (HOME_SHORTCUT_PATTERN.test(input)) {
+    const action: ActionExecution = { navigateTo: '/' };
+    return {
+      kind: 'action',
+      action,
+      reply: getActionFallbackReply(action) ?? 'Taking you home ~',
+    };
   }
 
   const matches = ROUTE_ALIASES.filter(route => route.pattern.test(input));
   if (matches.length !== 1) {
+    return null;
+  }
+
+  const hasNavVerb = NAVIGATION_VERB_PATTERN.test(input);
+  const tokenCount = input.split(/\s+/).filter(Boolean).length;
+  const isShortPageRequest = tokenCount <= 4 && /\bpage\b/i.test(input);
+
+  if (!hasNavVerb && !isShortPageRequest) {
     return null;
   }
 
@@ -269,34 +301,28 @@ function resolveNavigation(input: string): ActionResolution | null {
 }
 
 function resolveTheme(input: string): ActionResolution | null {
-  if (!THEME_VERB_PATTERN.test(input)) {
-    return null;
+  if (/\btoggle\b/i.test(input) && /\btheme\b/i.test(input)) {
+    const action: ActionExecution = { themeAction: 'toggle' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Toggling the theme ~' };
   }
 
-  if (/\bdark(?: mode)?\b/i.test(input)) {
+  const isDarkRequest = /\bdark\s+(?:mode|theme)\b/i.test(input) || /\bgo(?:ing)?\s+dark\b/i.test(input);
+  if (isDarkRequest) {
     const action: ActionExecution = { themeAction: 'dark' };
     return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Switching to dark mode ~' };
   }
 
-  if (/\blight(?: mode)?\b/i.test(input)) {
+  const isLightRequest = /\blight\s+(?:mode|theme)\b/i.test(input) || /\bgo(?:ing)?\s+light\b/i.test(input);
+  if (isLightRequest) {
     const action: ActionExecution = { themeAction: 'light' };
     return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Switching to light mode ~' };
-  }
-
-  if (/\btheme\b/i.test(input) && /\btoggle\b/i.test(input)) {
-    const action: ActionExecution = { themeAction: 'toggle' };
-    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Toggling the theme ~' };
   }
 
   return null;
 }
 
 function resolveFeedback(input: string): ActionResolution | null {
-  if (!FEEDBACK_VERB_PATTERN.test(input)) {
-    return null;
-  }
-
-  if (!/\b(feedback|bug|issue|report)\b/i.test(input)) {
+  if (!FEEDBACK_PHRASE_PATTERN.test(input)) {
     return null;
   }
 
@@ -309,7 +335,7 @@ function resolveFeedback(input: string): ActionResolution | null {
 }
 
 function resolveKnownLink(input: string): ActionResolution | null {
-  if (!LINK_VERB_PATTERN.test(input) || isExplanationRequest(input)) {
+  if (!LINK_REQUEST_PATTERN.test(input)) {
     return null;
   }
 

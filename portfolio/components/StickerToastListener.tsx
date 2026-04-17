@@ -81,6 +81,7 @@ const ToastCard = memo(function ToastCard({ id, onTap }: ToastCardProps) {
       animate={TOAST_ANIMATE}
       exit={TOAST_EXIT}
       transition={TOAST_SPRING}
+      data-sticker-toast
       className="pointer-events-auto relative w-[280px] bg-[var(--note-user)] text-[var(--note-user-ink)] shadow-lg rounded-sm font-hand"
     >
       <TapeStrip size="sm" />

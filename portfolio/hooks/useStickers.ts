@@ -5,8 +5,9 @@
  *
  * Architecture:
  *   - A module-level singleton holds the canonical state (unlocked set,
- *     lastEarnedAt, lastSeenAlbumAt, visitedRoutes). LocalStorage is the
- *     persistence layer, with version gating for future migrations.
+ *     lastEarnedAt, lastSeenAlbumAt, visitedRoutes, sudo mode, disco toggle,
+ *     terminalCommands set, openedProjects set). LocalStorage is the
+ *     persistence layer with explicit version gating + migration.
  *   - A toast queue runs serially with a 500ms gap between toasts.
  *   - React consumers subscribe via useSyncExternalStore for tearing-free reads.
  *
@@ -15,8 +16,11 @@
  * instead use one of the narrow selector hooks:
  *   - useStickerUnlocked()      — the unlocked-id array identity
  *   - useIsStickerUnlocked(id)  — boolean for a single sticker
- *   - useStickerProgress()      — { unlocked, total, hasUnseenSticker }
+ *   - useStickerProgress()      — { unlocked, total, hasUnseenSticker,
+ *                                    hasSuperuser }
  *   - useActiveStickerToast()   — current toast id or null
+ *   - useSuperuserUnlocked()    — boolean — has earned superuser
+ *   - useDiscoActive()          — boolean — disco theme active
  *
  * These subscribe to narrow slices so they skip re-renders when unrelated
  * store fields change. React's default Object.is comparator on the snapshot
@@ -26,11 +30,20 @@
  * Also exposes `unlockSticker(id)` (imperative) used from the bus listener.
  */
 import { useCallback, useSyncExternalStore } from 'react';
-import { STICKER_ROSTER, STICKER_TOTAL, type StickerId } from '@/lib/stickers';
+import {
+  STICKER_ROSTER,
+  STICKER_TOTAL,
+  SUPERUSER_STICKER,
+  hasEarnedAllRegularStickers,
+  type StickerId,
+  type RegularStickerId,
+  type SuperuserId,
+} from '@/lib/stickers';
 import { STICKER_TIMING } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-stickers';
-const STORAGE_VERSION = 1 as const;
+/** v2 adds superuser tracking, unique terminal command set, opened-project set, sudo/disco flags. */
+export const STORAGE_VERSION = 2 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -40,10 +53,21 @@ export interface StickerState {
   lastEarnedAt: number;
   lastSeenAlbumAt: number;
   visitedRoutes: string[];
+  /** Distinct terminal commands run — unlocks `terminal-addict` at size ≥5 */
+  terminalCommands: string[];
+  /** Distinct project slugs whose modal has been opened — unlocks `project-explorer` at size 8 */
+  openedProjects: string[];
+  /** Persisted disco theme flag — null/false when off. Only meaningful post-superuser. */
+  discoActive: boolean;
+  /** Persisted disco music mute preference. Sticky across sessions. */
+  discoMuted: boolean;
 }
 
-// Valid sticker ID set for incoming emits (guards against typos / stale events)
-const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set(STICKER_ROSTER.map((s) => s.id));
+// Valid sticker ID set — regulars + superuser.
+const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set<StickerId>([
+  ...STICKER_ROSTER.map((s) => s.id),
+  SUPERUSER_STICKER.id,
+]);
 
 function defaultState(): StickerState {
   return {
@@ -53,37 +77,112 @@ function defaultState(): StickerState {
     lastEarnedAt: 0,
     lastSeenAlbumAt: 0,
     visitedRoutes: [],
+    terminalCommands: [],
+    openedProjects: [],
+    discoActive: false,
+    discoMuted: false,
+  };
+}
+
+/**
+ * Migrate a v1 persisted state to v2 without losing earned stickers or
+ * visited-routes progress. Older clients only tracked `{unlocked, unlockedAt,
+ * lastEarnedAt, lastSeenAlbumAt, visitedRoutes}`; we keep those, seed the new
+ * set-based fields as empty, and never touch localStorage for users who
+ * haven't upgraded yet (we rewrite on first mutation).
+ */
+function migrateV1ToV2(parsed: Record<string, unknown>): StickerState {
+  const unlocked = Array.isArray(parsed.unlocked)
+    ? parsed.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId))
+    : [];
+  const unlockedAt =
+    parsed.unlockedAt && typeof parsed.unlockedAt === 'object'
+      ? (parsed.unlockedAt as Record<string, number>)
+      : {};
+  const visitedRoutes = Array.isArray(parsed.visitedRoutes)
+    ? (parsed.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
+    : [];
+
+  return {
+    version: STORAGE_VERSION,
+    unlocked,
+    unlockedAt,
+    lastEarnedAt: typeof parsed.lastEarnedAt === 'number' ? parsed.lastEarnedAt : 0,
+    lastSeenAlbumAt: typeof parsed.lastSeenAlbumAt === 'number' ? parsed.lastSeenAlbumAt : 0,
+    visitedRoutes,
+    terminalCommands: [],
+    openedProjects: [],
+    discoActive: false,
+    discoMuted: false,
+  };
+}
+
+/**
+ * Parse + sanitize a persisted state blob. Exposed for unit tests so we can
+ * verify migration behaviour without touching localStorage directly.
+ */
+export function parseStoredState(raw: string | null): StickerState {
+  if (!raw) return defaultState();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return defaultState();
+  }
+  if (!parsed || typeof parsed !== 'object') return defaultState();
+  const obj = parsed as Record<string, unknown>;
+
+  const version = obj.version;
+  // v1 → v2 migration
+  if (version === 1) {
+    return migrateV1ToV2(obj);
+  }
+  if (version !== STORAGE_VERSION) {
+    // Unknown/future version — rather than wipe, take what we can safely keep
+    // (just the unlocked list, if valid). This is still safer than blowing
+    // away years of progress on a bad deploy.
+    if (Array.isArray(obj.unlocked)) {
+      return migrateV1ToV2(obj);
+    }
+    return defaultState();
+  }
+
+  // Current version — sanitize every array field.
+  const unlocked = Array.isArray(obj.unlocked)
+    ? obj.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId))
+    : [];
+  const unlockedAt =
+    obj.unlockedAt && typeof obj.unlockedAt === 'object'
+      ? (obj.unlockedAt as Record<string, number>)
+      : {};
+  const visitedRoutes = Array.isArray(obj.visitedRoutes)
+    ? (obj.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
+    : [];
+  const terminalCommands = Array.isArray(obj.terminalCommands)
+    ? (obj.terminalCommands as unknown[]).filter((c): c is string => typeof c === 'string')
+    : [];
+  const openedProjects = Array.isArray(obj.openedProjects)
+    ? (obj.openedProjects as unknown[]).filter((p): p is string => typeof p === 'string')
+    : [];
+
+  return {
+    version: STORAGE_VERSION,
+    unlocked,
+    unlockedAt,
+    lastEarnedAt: typeof obj.lastEarnedAt === 'number' ? obj.lastEarnedAt : 0,
+    lastSeenAlbumAt: typeof obj.lastSeenAlbumAt === 'number' ? obj.lastSeenAlbumAt : 0,
+    visitedRoutes,
+    terminalCommands,
+    openedProjects,
+    discoActive: obj.discoActive === true,
+    discoMuted: obj.discoMuted === true,
   };
 }
 
 function readFromStorage(): StickerState {
   if (typeof window === 'undefined') return defaultState();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw) as Partial<StickerState> | null;
-    if (!parsed || typeof parsed !== 'object' || parsed.version !== STORAGE_VERSION) {
-      return defaultState();
-    }
-    // Sanitize unlocked list against the current roster
-    const unlocked = Array.isArray(parsed.unlocked)
-      ? (parsed.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId)))
-      : [];
-    const unlockedAt =
-      parsed.unlockedAt && typeof parsed.unlockedAt === 'object'
-        ? (parsed.unlockedAt as Record<string, number>)
-        : {};
-    const visitedRoutes = Array.isArray(parsed.visitedRoutes)
-      ? parsed.visitedRoutes.filter((r): r is string => typeof r === 'string')
-      : [];
-    return {
-      version: STORAGE_VERSION,
-      unlocked,
-      unlockedAt,
-      lastEarnedAt: typeof parsed.lastEarnedAt === 'number' ? parsed.lastEarnedAt : 0,
-      lastSeenAlbumAt: typeof parsed.lastSeenAlbumAt === 'number' ? parsed.lastSeenAlbumAt : 0,
-      visitedRoutes,
-    };
+    return parseStoredState(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return defaultState();
   }
@@ -99,17 +198,12 @@ function writeToStorage(state: StickerState): void {
 }
 
 // ─── Store (module-level singleton) ─────────────────────────────────────
-/**
- * Progress slice — { unlocked, total, hasUnseenSticker }. Cached on the store
- * so consumers get a stable reference across reads until one of the inputs
- * (unlocked array identity, lastEarnedAt, lastSeenAlbumAt) changes. Without
- * the cache, `useSyncExternalStore` would allocate a fresh object per read and
- * every subscriber would re-render on every store emit.
- */
 export interface StickerProgress {
   readonly unlocked: number;
   readonly total: number;
   readonly hasUnseenSticker: boolean;
+  /** Whether the hidden superuser sticker has been awarded. */
+  readonly hasSuperuser: boolean;
 }
 
 interface StoreShape {
@@ -125,9 +219,10 @@ interface StoreShape {
 
 function computeProgress(state: StickerState): StickerProgress {
   return Object.freeze({
-    unlocked: state.unlocked.length,
+    unlocked: state.unlocked.filter((id) => id !== SUPERUSER_STICKER.id).length,
     total: STICKER_TOTAL,
     hasUnseenSticker: state.lastEarnedAt > state.lastSeenAlbumAt,
+    hasSuperuser: state.unlocked.includes(SUPERUSER_STICKER.id),
   });
 }
 
@@ -141,19 +236,14 @@ const store: StoreShape = {
   progress: computeProgress(defaultState()),
 };
 
-/**
- * Recompute the cached progress slice. Call after any mutation that could
- * affect {unlocked length, lastEarnedAt, lastSeenAlbumAt}. Keeps the previous
- * reference if all three fields produce an equal value (avoids spurious
- * re-renders when, say, a visitedRoute mutation doesn't touch progress).
- */
 function recomputeProgress(): void {
   const next = computeProgress(store.state);
   const prev = store.progress;
   if (
     prev.unlocked === next.unlocked &&
     prev.total === next.total &&
-    prev.hasUnseenSticker === next.hasUnseenSticker
+    prev.hasUnseenSticker === next.hasUnseenSticker &&
+    prev.hasSuperuser === next.hasSuperuser
   ) {
     return;
   }
@@ -163,6 +253,21 @@ function recomputeProgress(): void {
 function initializeStoreOnce(): void {
   if (store.initialized || typeof window === 'undefined') return;
   store.state = readFromStorage();
+  // If the persisted blob was a v1 schema (or otherwise mutated by migration),
+  // proactively rewrite once at initialization so subsequent reads are fast
+  // and version-stable. Only do this if we actually have data to write —
+  // avoid polluting storage for fresh visitors.
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.version !== STORAGE_VERSION) {
+        writeToStorage(store.state);
+      }
+    }
+  } catch {
+    /* ignore — write-on-migrate is best-effort */
+  }
   store.progress = computeProgress(store.state);
   store.initialized = true;
 }
@@ -184,10 +289,7 @@ function getSnapshot(): StickerState {
   return store.state;
 }
 
-// Cache the server snapshot at module load. React's useSyncExternalStore calls
-// getServerSnapshot repeatedly and uses Object.is to detect identity changes;
-// returning a fresh `defaultState()` each call would trip the "result of
-// getServerSnapshot should be cached to avoid an infinite loop" warning.
+// Cache server snapshot to keep useSyncExternalStore happy.
 const SERVER_STATE: StickerState = defaultState();
 
 function getServerSnapshot(): StickerState {
@@ -209,7 +311,6 @@ function scheduleNextToast(): void {
   if (!next) return;
   store.activeToast = next;
   emitChange();
-  // Auto-dismiss after toastDuration
   store.toastTimerId = setTimeout(() => {
     dismissToastInternal();
   }, STICKER_TIMING.toastDuration);
@@ -222,12 +323,10 @@ function dismissToastInternal(): void {
   }
   store.activeToast = null;
   emitChange();
-  // Schedule the next one after the configured gap
   setTimeout(scheduleNextToast, STICKER_TIMING.toastGap);
 }
 
 function enqueueToast(id: StickerId): void {
-  // Cap the queue to avoid runaway rapid-fire unlocks
   if (store.toastQueue.length >= STICKER_TIMING.toastMaxInQueue) return;
   store.toastQueue.push(id);
   if (store.activeToast === null) {
@@ -236,34 +335,63 @@ function enqueueToast(id: StickerId): void {
 }
 
 // ─── Imperative mutations ───────────────────────────────────────────────
+
+/**
+ * Unlock a sticker. Idempotent — returns early if already unlocked.
+ *
+ * Atomic side effect: when the unlocked list covers every regular sticker,
+ * the Superuser sticker is automatically unlocked in the same tick (before
+ * listeners fire), keeping the "earn the last regular → superuser appears"
+ * transition tear-free.
+ */
 export function unlockSticker(id: StickerId): void {
   initializeStoreOnce();
   if (!VALID_STICKER_IDS.has(id)) return;
   const current = store.state;
-  // Idempotency guard: if already unlocked, bail BEFORE any state swap or
-  // notify. Rapid-fire emits from the bus (e.g. repeated terminal commands)
-  // cannot trigger a site-wide re-render cascade.
   if (current.unlocked.includes(id)) return;
+
   const now = Date.now();
-  const next: StickerState = {
+  let next: StickerState = {
     ...current,
     unlocked: [...current.unlocked, id],
     unlockedAt: { ...current.unlockedAt, [id]: now },
     lastEarnedAt: now,
   };
+
+  // Auto-award superuser the moment every regular sticker is collected.
+  // Skip if the id being unlocked IS the superuser (would double-award).
+  if (
+    id !== SUPERUSER_STICKER.id &&
+    !next.unlocked.includes(SUPERUSER_STICKER.id) &&
+    hasEarnedAllRegularStickers(next.unlocked)
+  ) {
+    next = {
+      ...next,
+      unlocked: [...next.unlocked, SUPERUSER_STICKER.id],
+      unlockedAt: { ...next.unlockedAt, [SUPERUSER_STICKER.id]: now + 1 },
+      lastEarnedAt: now + 1,
+    };
+  }
+
   store.state = next;
   recomputeProgress();
   writeToStorage(next);
   emitChange();
   enqueueToast(id);
+  // Also enqueue the superuser toast so the user sees both pops.
+  if (
+    id !== SUPERUSER_STICKER.id &&
+    next.unlocked.includes(SUPERUSER_STICKER.id) &&
+    !current.unlocked.includes(SUPERUSER_STICKER.id)
+  ) {
+    enqueueToast(SUPERUSER_STICKER.id);
+  }
 }
 
 export function markAlbumSeenImperative(): void {
   initializeStoreOnce();
   const current = store.state;
   const nextSeen = Date.now();
-  // No-op if the new timestamp wouldn't change the derived hasUnseenSticker
-  // flag (cheap guard against accidental double-calls).
   if (current.lastSeenAlbumAt >= nextSeen) return;
   const next: StickerState = { ...current, lastSeenAlbumAt: nextSeen };
   store.state = next;
@@ -282,9 +410,87 @@ export function addVisitedRouteImperative(route: string): void {
     visitedRoutes: [...current.visitedRoutes, route],
   };
   store.state = next;
-  // visitedRoutes can't affect progress; skip recomputeProgress() to preserve
-  // the cached reference and avoid the redundant equality check.
   writeToStorage(next);
+  emitChange();
+}
+
+/**
+ * Record a distinct terminal command invocation. Returns the new distinct
+ * count so the caller can decide whether to emit terminal-addict.
+ */
+export function recordTerminalCommandImperative(cmd: string): number {
+  initializeStoreOnce();
+  if (!cmd || typeof cmd !== 'string') return store.state.terminalCommands.length;
+  const normalized = cmd.trim().toLowerCase();
+  if (!normalized) return store.state.terminalCommands.length;
+  const current = store.state;
+  if (current.terminalCommands.includes(normalized)) return current.terminalCommands.length;
+  const next: StickerState = {
+    ...current,
+    terminalCommands: [...current.terminalCommands, normalized],
+  };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+  return next.terminalCommands.length;
+}
+
+/**
+ * Record that a project modal has been opened. Returns the new distinct
+ * count so the caller can decide whether to emit project-explorer.
+ */
+export function recordOpenedProjectImperative(slug: string): number {
+  initializeStoreOnce();
+  if (!slug || typeof slug !== 'string') return store.state.openedProjects.length;
+  const current = store.state;
+  if (current.openedProjects.includes(slug)) return current.openedProjects.length;
+  const next: StickerState = {
+    ...current,
+    openedProjects: [...current.openedProjects, slug],
+  };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+  return next.openedProjects.length;
+}
+
+/** Explicit setter for the disco flag — used by sudo commands. */
+export function setDiscoActiveImperative(active: boolean): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.discoActive === active) return;
+  const next: StickerState = { ...current, discoActive: active };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
+/** Persist the user's mute preference for disco music. */
+export function setDiscoMutedImperative(muted: boolean): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.discoMuted === muted) return;
+  const next: StickerState = { ...current, discoMuted: muted };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
+/**
+ * Nuke all sticker progress. Invoked by `sudo reset` after confirmation.
+ * Preserves the toast queue view so no orphan toasts flicker through.
+ */
+export function resetStickerProgressImperative(): void {
+  initializeStoreOnce();
+  store.state = defaultState();
+  store.toastQueue = [];
+  if (store.toastTimerId !== null) {
+    clearTimeout(store.toastTimerId);
+    store.toastTimerId = null;
+  }
+  store.activeToast = null;
+  recomputeProgress();
+  writeToStorage(store.state);
   emitChange();
 }
 
@@ -293,10 +499,6 @@ export function dismissActiveToast(): void {
 }
 
 // ─── Narrow selector snapshots ──────────────────────────────────────────
-// Each selector below returns an identity-stable slice so that React's default
-// Object.is comparator inside useSyncExternalStore can skip re-renders when
-// unrelated store fields mutate. The full store-change subscription is shared
-// (single listener set), but the *snapshot* comparison is what gates re-render.
 
 function getUnlockedSnapshot(): readonly StickerId[] {
   initializeStoreOnce();
@@ -314,6 +516,7 @@ const SERVER_PROGRESS: StickerProgress = Object.freeze({
   unlocked: 0,
   total: STICKER_TOTAL,
   hasUnseenSticker: false,
+  hasSuperuser: false,
 });
 
 function getUnlockedServerSnapshot(): readonly StickerId[] {
@@ -325,20 +528,11 @@ function getProgressServerSnapshot(): StickerProgress {
 }
 
 // ─── Narrow public hooks ────────────────────────────────────────────────
-/**
- * Subscribe to the unlocked-id array identity. Re-renders only when the array
- * reference changes — i.e. when a new sticker is unlocked. Album-seen marks,
- * toast state changes, and visitedRoute mutations do NOT trigger a re-render.
- */
+
 export function useStickerUnlocked(): readonly StickerId[] {
   return useSyncExternalStore(subscribe, getUnlockedSnapshot, getUnlockedServerSnapshot);
 }
 
-/**
- * Subscribe to whether a single sticker is unlocked. Re-renders only when the
- * boolean flips. Ideal for per-card usage on the /stickers grid — twelve cards
- * each subscribe to their own slice instead of all sharing the wide API.
- */
 export function useIsStickerUnlocked(id: StickerId): boolean {
   const getIsUnlocked = useCallback((): boolean => {
     initializeStoreOnce();
@@ -348,23 +542,63 @@ export function useIsStickerUnlocked(id: StickerId): boolean {
   return useSyncExternalStore(subscribe, getIsUnlocked, getServerIsUnlocked);
 }
 
-/**
- * Subscribe to the progress triple { unlocked, total, hasUnseenSticker }. The
- * returned reference is cached on the store and only replaced when one of the
- * three values actually changes. Toast queue churn, visitedRoute mutations,
- * and unlockedAt updates that don't affect progress are all filtered out.
- */
 export function useStickerProgress(): StickerProgress {
   return useSyncExternalStore(subscribe, getProgressSnapshot, getProgressServerSnapshot);
 }
 
-/**
- * Subscribe to the currently-active toast id (or null). Re-renders only when
- * the toast slot changes — sticker unlocks themselves push onto the queue but
- * don't change `activeToast` until `scheduleNextToast` promotes an item.
- */
 export function useActiveStickerToast(): StickerId | null {
   return useSyncExternalStore(subscribeToast, getToastSnapshot, () => null);
+}
+
+function getSuperuserSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.unlocked.includes(SUPERUSER_STICKER.id);
+}
+
+function getSuperuserServerSnapshot(): boolean {
+  return false;
+}
+
+/** True when the hidden superuser sticker has been earned. */
+export function useSuperuserUnlocked(): boolean {
+  return useSyncExternalStore(subscribe, getSuperuserSnapshot, getSuperuserServerSnapshot);
+}
+
+function getDiscoSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.discoActive;
+}
+
+function getDiscoServerSnapshot(): boolean {
+  return false;
+}
+
+export function useDiscoActive(): boolean {
+  return useSyncExternalStore(subscribe, getDiscoSnapshot, getDiscoServerSnapshot);
+}
+
+function getDiscoMutedSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.discoMuted;
+}
+
+function getDiscoMutedServerSnapshot(): boolean {
+  return false;
+}
+
+export function useDiscoMuted(): boolean {
+  return useSyncExternalStore(subscribe, getDiscoMutedSnapshot, getDiscoMutedServerSnapshot);
+}
+
+// ─── Non-reactive accessor (for imperative call sites) ──────────────────
+/**
+ * Synchronous read of whether the user has earned superuser. Intended for use
+ * inside terminal command handlers — they are one-shot and don't need a
+ * subscription. Never call this during render.
+ */
+export function isSuperuserEarnedSync(): boolean {
+  initializeStoreOnce();
+  return store.state.unlocked.includes(SUPERUSER_STICKER.id);
 }
 
 // ─── Public hook ────────────────────────────────────────────────────────
@@ -374,6 +608,7 @@ export interface UseStickersReturn {
   total: number;
   isUnlocked: (id: StickerId) => boolean;
   hasUnseenSticker: boolean;
+  hasSuperuser: boolean;
   markAlbumSeen: () => void;
   visitedRoutes: readonly string[];
   addVisitedRoute: (route: string) => void;
@@ -400,6 +635,7 @@ export function useStickers(): UseStickersReturn {
   }, []);
 
   const hasUnseenSticker = state.lastEarnedAt > state.lastSeenAlbumAt;
+  const hasSuperuser = state.unlocked.includes(SUPERUSER_STICKER.id);
 
   return {
     unlocked: state.unlocked,
@@ -407,6 +643,7 @@ export function useStickers(): UseStickersReturn {
     total: STICKER_TOTAL,
     isUnlocked,
     hasUnseenSticker,
+    hasSuperuser,
     markAlbumSeen,
     visitedRoutes: state.visitedRoutes,
     addVisitedRoute,
@@ -414,3 +651,20 @@ export function useStickers(): UseStickersReturn {
     dismissToast,
   };
 }
+
+// ─── Test hook — reset the module singleton in tests. Never call in app. ──
+/** @internal — do not use outside test environments. */
+export function __resetStoreForTest(): void {
+  store.state = defaultState();
+  store.toastQueue = [];
+  store.activeToast = null;
+  store.listeners.clear();
+  if (store.toastTimerId !== null) {
+    clearTimeout(store.toastTimerId);
+    store.toastTimerId = null;
+  }
+  store.initialized = false;
+  store.progress = computeProgress(store.state);
+}
+
+export type { RegularStickerId, SuperuserId };

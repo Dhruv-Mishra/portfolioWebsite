@@ -48,13 +48,18 @@ const SOCIALS = [
 ];
 
 const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onPress }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number, onPress: () => void }) {
+    const handleClick = () => {
+        onPress();
+        // Social link click → social-butterfly. Idempotent via store dedupe.
+        stickerBus.emit('social-butterfly');
+    };
     if (isMobile) {
         return (
             <a
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={onPress}
+                onClick={handleClick}
                 className={`flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
                 title={social.name}
                 aria-label={social.name}
@@ -69,7 +74,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
             href={social.url}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={onPress}
+            onClick={handleClick}
             className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group hover:scale-110`}
             title={social.name}
             aria-label={social.name}

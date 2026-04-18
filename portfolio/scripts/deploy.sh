@@ -887,11 +887,16 @@ validate_staged_nginx() {
     # nullglob so empty directories don't leave the raw pattern as a "filename"
     shopt -s nullglob
 
-    # Mirror http-level snippets (shared rate-limit zones, log_format, gzip
-    # defaults, etc.) so our sandbox sees the same context the real nginx sees.
+    # Mirror http-level snippets. Strip `limit_req_zone` lines — we hoist
+    # those into the sandbox nginx.conf explicitly below to guarantee the
+    # staged site config's `limit_req zone=...` references resolve, regardless
+    # of whether the real VM declares the zones in nginx.conf (which we don't
+    # mirror) or in conf.d (which we do). Stripping here avoids "duplicate
+    # zone" errors when re-declaring in nginx.conf.
     local f
     for f in /etc/nginx/conf.d/*.conf; do
-        cp "${f}" "${sandbox}/conf.d/"
+        grep -vE '^[[:space:]]*limit_req_zone[[:space:]]' "${f}" \
+            > "${sandbox}/conf.d/$(basename "${f}")"
     done
 
     # Mirror dynamically-loaded modules (brotli, headers-more, etc.) — these are
@@ -909,20 +914,31 @@ validate_staged_nginx() {
     # Stage the candidate site config
     cp "${STAGED_NGINX_CONF}" "${sandbox}/sites-enabled/${SERVICE_NAME}"
 
-    # Minimal parent config that mirrors the real server's http-context includes.
-    # load_module MUST appear at main context (before events/http blocks).
-    cat > "${sandbox}/nginx.conf" <<SANDBOX
-${load_module_lines}
+    # Build the sandbox's nginx.conf. Using printf + a quoted heredoc so that
+    # `$binary_remote_addr` in the rate-limit zone declarations stays literal
+    # (bash would otherwise try to expand it and produce a broken directive).
+    {
+        printf '%s\n' "${load_module_lines}"
+        cat <<'SANDBOX_HEAD'
 events {
     worker_connections 1024;
 }
 http {
     default_type application/octet-stream;
     include /etc/nginx/mime.types;
-    include ${sandbox}/conf.d/*.conf;
-    include ${sandbox}/sites-enabled/*;
-}
-SANDBOX
+
+    # Rate-limit zones required by the site template. Declared here so the
+    # sandbox validates against a known-good definition regardless of where
+    # the real VM declares them (nginx.conf vs conf.d). Duplicates in
+    # conf.d/ are stripped above to prevent collisions.
+    limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+    limit_req_zone $binary_remote_addr zone=general:10m rate=120r/m;
+
+SANDBOX_HEAD
+        printf '    include %s/conf.d/*.conf;\n' "${sandbox}"
+        printf '    include %s/sites-enabled/*;\n' "${sandbox}"
+        printf '}\n'
+    } > "${sandbox}/nginx.conf"
 
     local test_out
     if ! test_out=$(nginx -t -c "${sandbox}/nginx.conf" -p "${sandbox}/" 2>&1); then
@@ -930,6 +946,7 @@ SANDBOX
         echo "${test_out}" | head -30 | while IFS= read -r line; do
             log ERROR "  ${line}"
         done
+        rm -rf "${sandbox}"
         exit 1
     fi
 

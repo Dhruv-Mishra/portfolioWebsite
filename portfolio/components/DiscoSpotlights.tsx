@@ -96,6 +96,14 @@ function DiscoSpotlights(): React.ReactElement {
         // Screen blend on desktop for the maximum "club" additive-light feel;
         // normal compositing on mobile to spare the fill-rate (see header).
         mixBlendMode: isMobile ? 'normal' : 'screen',
+        // Safari desktop fix — same as DiscoSparkleCanvas. Without `isolation:
+        // isolate` + an explicit compositor-layer promotion, Safari drops the
+        // `mix-blend-mode: screen` pass and the spotlight beams render
+        // invisibly against the body gradient.
+        isolation: 'isolate',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+        WebkitBackfaceVisibility: 'hidden',
       }}
     >
       <Spot variant="magenta" />

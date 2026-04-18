@@ -147,6 +147,48 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         {/* theme-color meta tags are emitted by the `viewport` export above. */}
 
+        {/*
+          Audio prefetch — warm the HTTP cache with critical sound samples at
+          parse time so the soundManager's first-gesture fetch hits the browser
+          cache (instant) instead of the network (50–300 ms). Without this
+          hint, the "first button click makes no sound" bug is visible on
+          cold-loaded Safari tabs where the fetch of `page-flip.mp3` starts
+          AFTER the gesture and the procedural fallback covers the first tap
+          only if the AudioContext has had time to unlock.
+
+          Using `rel="preload"` vs `rel="prefetch"` is deliberate: preload
+          triggers the warmup immediately at HTML parse; prefetch would defer
+          until the next idle tick (too late for a user who clicks quickly
+          on mobile).
+
+          React 19 hoists these `<link rel="preload">` tags and dedupes them
+          against its own resource-streaming pipeline, so we don't need to
+          manually worry about double-downloads. See:
+          https://react.dev/reference/react-dom/components/link
+
+          We do NOT preload `disco-loop.mp3` / `disco-start.mp3` / `matrix.mp3`
+          — those remain superuser-gated and download only after the user
+          earns superuser.
+        */}
+        <link
+          rel="preload"
+          as="audio"
+          href="/sounds/page-flip.mp3"
+          type="audio/mpeg"
+        />
+        <link
+          rel="preload"
+          as="audio"
+          href="/sounds/theme-dark.mp3"
+          type="audio/mpeg"
+        />
+        <link
+          rel="preload"
+          as="audio"
+          href="/sounds/theme-light.mp3"
+          type="audio/mpeg"
+        />
+
         {/* Structured Data (JSON-LD) for SEO */}
         <script
           type="application/ld+json"

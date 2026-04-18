@@ -197,6 +197,18 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
         // as "sparkles on top of the disco scene" — just additive-light rather
         // than pure screen-blend.
         mixBlendMode: isMobile ? 'normal' : 'screen',
+        // Safari desktop fix: `mix-blend-mode` on a position:fixed element only
+        // blends correctly when its stacking context has `isolation: isolate`
+        // AND the element is explicitly promoted to its own compositor layer.
+        // Without these, Safari's GPU compositor silently drops the blend pass
+        // and the sparkles render against transparent pixels (i.e. invisible
+        // on many gradient stops). Chrome/Firefox handle this without the
+        // hints, but Safari requires them. See:
+        // https://webkit.org/blog/3908/mix-blend-mode/
+        isolation: 'isolate',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+        WebkitBackfaceVisibility: 'hidden',
       }}
     />
   );

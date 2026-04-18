@@ -228,6 +228,19 @@ function buildNoiseBuffer(ctx: AudioContext): AudioBuffer {
  * Autoplay policies: the first call typically lands during a user gesture,
  * which lets the context resume successfully. If we're not yet in a gesture
  * the context may stay 'suspended' and no sound plays — this is desired.
+ *
+ * iOS Safari unlock contract: on iOS, `new AudioContext()` returns a context
+ * in the `suspended` state that can only transition to `running` when (a)
+ * `resume()` is called AND (b) the call stack is inside an active user
+ * gesture. We call `resume()` here unconditionally — if we're NOT in a
+ * gesture, the returned promise resolves later when we are; if we ARE in a
+ * gesture, the transition happens synchronously (well, async but queued on
+ * the same gesture's task). Additionally, we play a single-sample silent
+ * buffer right after context creation — this is the canonical "warm start"
+ * pattern that iOS Safari requires to fully release the audio rail. Without
+ * the silent warm start, some iOS Safari builds keep the context in a
+ * half-unlocked state where `state === 'running'` reports truthfully but
+ * the next BufferSource fails to produce sound.
  */
 function ensure(): ManagerState | null {
   if (state) return state;
@@ -242,6 +255,28 @@ function ensure(): ManagerState | null {
     noise: buildNoiseBuffer(ctx),
   };
   state = newState;
+  // iOS Safari unlock — resume synchronously inside the caller's gesture tick
+  // AND play a silent 1-sample buffer so the audio rail is fully released.
+  // Both calls are best-effort; the promises resolve later on non-gesture
+  // entry paths (e.g. `warmupSuperuserSounds` called pre-gesture).
+  try {
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {
+        /* best-effort — if we're not in a gesture, the next play() retries */
+      });
+    }
+    // Single-sample silent buffer — zero-cost, starts + ends on the same
+    // sample. Playing this inside the gesture is the documented iOS Safari
+    // workaround for "AudioContext says running but no audio comes out" bugs.
+    const silent = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = silent;
+    src.connect(ctx.destination);
+    src.start(0);
+    src.stop(ctx.currentTime + 0.001);
+  } catch {
+    /* ignore — any failure here is non-fatal; playback will still attempt */
+  }
   // Background-warm the CRITICAL wave first (page-flip, theme-*, chat-*,
   // button-click, modal-*). These are the cues a user will hear during
   // normal navigation, so we want them decoded before the second tap. The
@@ -1314,14 +1349,24 @@ export const soundManager: SoundManager = {
     const s = ensure();
     if (!s) return false;
     // If the context was created suspended (pre-gesture), try to resume.
+    // On iOS Safari this call MUST happen synchronously inside the gesture
+    // tick — otherwise the resume promise queues for the next tick (which
+    // may be after the gesture ends) and never actually unlocks.
     if (s.ctx.state === 'suspended') {
-      s.ctx.resume().catch(() => {
-        /* best-effort — if it fails we'll just play silence this round */
+      void s.ctx.resume().catch(() => {
+        /* best-effort */
       });
     }
-    // Guard: if still not running (no user gesture yet), bail. The next
-    // gesture-triggered play will work.
-    if (s.ctx.state !== 'running') return false;
+    // Guard: if the context is in `closed` state we have nothing to schedule.
+    // The `suspended` state is NOT a bail condition anymore — Web Audio
+    // source nodes scheduled on a suspended context play back when the
+    // context resumes, which is typically later in the same gesture tick.
+    // Bailing on suspended used to cause "first click makes no sound" on
+    // iOS Safari because the resume is async and by the time it resolves
+    // the play() returned false already. Now we let the schedule proceed;
+    // if the resume never completes (no gesture), the source is GC'd
+    // silently with no audible artifact.
+    if (s.ctx.state === 'closed') return false;
 
     const t = s.ctx.currentTime;
     const spec = SOUND_SPECS[id];
@@ -1359,14 +1404,19 @@ export const soundManager: SoundManager = {
     if (loopRegistry.has(id)) return true;
     const s = ensure();
     if (!s) return false;
+    // Same iOS Safari dance as play(): resume inside the gesture if
+    // suspended, then schedule regardless. A BufferSource started on a
+    // suspended context plays when the context resumes; on all modern
+    // browsers the resume completes synchronously when the call is nested
+    // inside a user gesture, and we are — startLoop is only invoked from
+    // within the disco/matrix activation click path.
     if (s.ctx.state === 'suspended') {
-      s.ctx.resume().catch(() => {
+      void s.ctx.resume().catch(() => {
         /* best-effort */
       });
     }
-    if (s.ctx.state !== 'running') {
-      // Context not yet unlocked (no user gesture). Cannot start a loop —
-      // the caller (disco bridge) must retry on a later gesture.
+    if (s.ctx.state === 'closed') {
+      // Nothing we can do — the context has been torn down.
       return false;
     }
     const spec = SOUND_SPECS[id];
@@ -1509,9 +1559,23 @@ export const soundManager: SoundManager = {
 
   primeOnGesture(): void {
     if (typeof window === 'undefined') return;
-    // Idempotent — if the state already exists we've already primed.
-    if (state) return;
-    ensure();
+    // First-time call: create the context + do the iOS Safari unlock dance
+    // inside the caller's gesture tick.
+    if (!state) {
+      ensure();
+      return;
+    }
+    // Subsequent calls: if the context has since drifted to `suspended`
+    // (iOS Safari aggressively suspends after tab backgrounding, screen-off,
+    // or routing audio away to another app), re-resume inside the fresh
+    // gesture so the very next `play()` can dispatch. Cheap no-op when
+    // already running.
+    const ctx = state.ctx;
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {
+        /* best-effort */
+      });
+    }
   },
 
   get __debug(): SoundManagerDiagnostics {

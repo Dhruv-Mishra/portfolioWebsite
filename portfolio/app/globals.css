@@ -866,6 +866,13 @@ html[data-disco="on"] body {
     );
   background-size: 300% 300%;
   animation: disco-paper 12s linear infinite;
+  /* Safari fix: the ::before and ::after pseudo-elements below use
+     `mix-blend-mode: screen`, which Safari's compositor silently drops unless
+     the parent participates in a dedicated stacking context with `isolation:
+     isolate`. Without this, the body gradient renders but the moving overlay
+     + floor sweep vanish on macOS / iPadOS Safari. Chromium/Firefox don't
+     require the hint — they flush the blend unconditionally. */
+  isolation: isolate;
 }
 
 /* Dark disco: deeper jewel tones so it reads as "club" rather than pastel. */
@@ -1117,11 +1124,23 @@ html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(5) > div {
 
 /* Scale-only bounce — the CSS `scale` property is separate from `transform`
    on modern engines, so this composes additively over the nav tab's inline
-   translateY. Kept small so active-tab scale-110 styling remains dominant. */
+   translateY. Kept small so active-tab scale-110 styling remains dominant.
+   Safari note: standalone `scale:` shipped in Safari 14.4 (March 2021). Older
+   iOS / macOS Safari builds ignore the property entirely; the `@supports`
+   fallback below kicks in and uses the older `transform: scale()` form so the
+   tabs still bounce. On modern Safari both paths are safe because the
+   `@supports` branch only matches when the standalone property is unsupported. */
 @keyframes disco-nav-bounce {
   0%, 100% { scale: 1; }
   18%      { scale: 1.035; }
   35%      { scale: 1; }
+}
+@supports not (scale: 1) {
+  @keyframes disco-nav-bounce {
+    0%, 100% { transform: scale(1); }
+    18%      { transform: scale(1.035); }
+    35%      { transform: scale(1); }
+  }
 }
 
 /* Sticker toast — bounces with the beat. */
@@ -1250,6 +1269,17 @@ html[data-disco="on"] .sticker-card--locked {
 @keyframes disco-card-scale {
   0%, 100% { scale: 1; }
   50%      { scale: 1.025; }
+}
+/* Safari ≤14.3 fallback — standalone `scale:` unsupported, so use the older
+   `transform: scale()` form. The card's idle float animation already owns
+   `transform`, so on the fallback path the beat-scale overwrites that for the
+   18→35% window (negligible — the float's amplitude is 1–2px so the overwrite
+   is not visually detectable). */
+@supports not (scale: 1) {
+  @keyframes disco-card-scale {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.025); }
+  }
 }
 
 /* Terminal shell — bottom-to-top breath pulse. The outer m.div is the

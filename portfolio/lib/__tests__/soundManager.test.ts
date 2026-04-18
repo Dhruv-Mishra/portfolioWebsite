@@ -219,7 +219,17 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain any pending timers queued by warmup waves. Several tests exercise
+  // `play()` / `warmupSuperuserSounds()` but don't await the resulting
+  // `setTimeout(0)` chain (critical wave → deadline → second wave, and the
+  // superuser wave's scheduleIdle fallback). Those timers fire on the next
+  // event-loop turn; if we don't drain before the next test's `installFetchSpy()`
+  // replaces `globalThis.fetch`, the stale callbacks push `/sounds/matrix.mp3`
+  // into the new test's `fetched` array — which causes the "deduplicates
+  // concurrent warmup" test to observe 2 matrix fetches instead of 1, flakily,
+  // depending on runner CPU scheduling (seen on GH Actions Linux, not Windows).
+  await new Promise<void>((r) => setTimeout(r, 50));
   vi.resetModules();
 });
 

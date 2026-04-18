@@ -21,19 +21,35 @@
  * framer-motion for its one-shot reveal animation and CSS keyframes for the
  * persistent shimmer (see `.superuser-banner__card::after`).
  */
-import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
-import { useStickers } from '@/hooks/useStickers';
+import { useMatrixEscaped, useMatrixEscapedAt, useStickers } from '@/hooks/useStickers';
 import { stickerBus } from '@/lib/stickerBus';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { cn } from '@/lib/utils';
 import { STICKER_TOKENS } from '@/lib/designTokens';
 import SuperuserBanner from '@/components/SuperuserBanner';
+import EscapeBanner from '@/components/matrix/EscapeBanner';
 
 export default function StickerDrawerPage() {
   const { unlocked, total, unlockedAt, markAlbumSeen, hasSuperuser } = useStickers();
+  const hasEscaped = useMatrixEscaped();
+  const escapedAt = useMatrixEscapedAt();
   const announcedSuperuserRef = useRef(false);
+  // Fresh-reveal glow: show the pulsing ring once when the user lands on the
+  // /stickers page while the escape flag is still "fresh" (no prior album
+  // visit since the escape). Once the album is marked seen (the effect
+  // below), the glow doesn't retrigger on subsequent mounts.
+  const [escapeGlow, setEscapeGlow] = useState<boolean>(false);
+  useEffect(() => {
+    if (!hasEscaped) return;
+    // The `markAlbumSeen()` in the mount effect below will flush; fire the
+    // glow only on the first mount after hasEscaped becomes true.
+    setEscapeGlow(true);
+    const t = window.setTimeout(() => setEscapeGlow(false), 2600);
+    return () => window.clearTimeout(t);
+  }, [hasEscaped]);
 
   // Mark album seen on mount so the glance badge stops pulsing.
   // Also unlock the "visited the album" sticker — cheap, idempotent.
@@ -92,6 +108,13 @@ export default function StickerDrawerPage() {
             Collect them by poking around ~
           </p>
         </header>
+
+        {/* ─── Escape-the-Matrix banner — rarest achievement, top placement ─── */}
+        {hasEscaped ? (
+          <div className="mt-6 md:mt-8">
+            <EscapeBanner escapedAt={escapedAt || undefined} showGlow={escapeGlow} />
+          </div>
+        ) : null}
 
         {/* ─── Superuser banner — shown only once every regular sticker is collected ─── */}
         {hasSuperuser ? (

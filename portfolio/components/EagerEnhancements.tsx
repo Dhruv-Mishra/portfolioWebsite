@@ -101,6 +101,14 @@ const SuperuserToastController = dynamic(
   { ssr: false, loading: () => null },
 );
 
+// MatrixNotesEntryButton — site-wide affordance that takes unlocked users
+// directly to /matrix-notes without re-escaping. Component itself gates on
+// `matrixEscaped` so locked users render nothing from the module.
+const MatrixNotesEntryButton = dynamic(
+  () => import('@/components/matrix/MatrixNotesEntryButton'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -112,6 +120,7 @@ export default function EagerEnhancements() {
       <SoundRouteListener />
       <ClickSoundListener />
       <SuperuserToastController />
+      <MatrixNotesEntryButton />
       <AssetPrefetchController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}

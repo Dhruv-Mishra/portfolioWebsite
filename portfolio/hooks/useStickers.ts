@@ -43,6 +43,13 @@ import { STICKER_TIMING } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v7 — added persisted `matrixEscaped` boolean — flipped to true the first
+ *      time a user clicks ESCAPE THE MATRIX inside the matrix overlay and
+ *      completes the transition to `/matrix-notes`. Sticky across reloads
+ *      so the `/matrix-notes` page remains unlocked forever after the first
+ *      escape, and the "open matrix notes" entry-point button stays visible
+ *      in the main UI. Before the flag is true, `/matrix-notes` renders the
+ *      site's normal 404 page — the route is a secret until earned.
  * v6 — added persisted `matrixActive` boolean. UNLIKE `discoActive` (which
  *      resets on every reload — session-only UX), the matrix effect is a
  *      "Morpheus trap": it persists across navigation AND reloads, so the
@@ -67,7 +74,7 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 6 as const;
+export const STORAGE_VERSION = 7 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -111,6 +118,23 @@ export interface StickerState {
    * are ignored. Existing v1–v5 migrations default this to `false`.
    */
   matrixActive: boolean;
+  /**
+   * Persisted "escaped the matrix" flag. v7+. True forever after the user
+   * clicks the ESCAPE THE MATRIX button inside the matrix overlay (which
+   * appears 20s after the overlay mounts, separate from the WAKE UP
+   * button). Controls:
+   *   - `/matrix-notes` route access (locked users see the normal 404).
+   *   - The "Escape the Matrix" badge on /stickers.
+   *   - The "open matrix notes" entry-point button in the main UI.
+   * Once true, stays true — clearing only via `sudo reset`.
+   */
+  matrixEscaped: boolean;
+  /**
+   * Timestamp (ms since epoch) of the first successful matrix escape. v7+.
+   * Zero if the user has never escaped. Used for the "escaped on ___"
+   * date label on the EscapeBanner.
+   */
+  matrixEscapedAt: number;
 }
 
 // Valid sticker ID set — regulars + superuser.
@@ -142,6 +166,8 @@ function defaultState(): StickerState {
     soundsMuted: false,
     superuserRevealedAt: 0,
     matrixActive: false,
+    matrixEscaped: false,
+    matrixEscapedAt: 0,
   };
 }
 
@@ -220,6 +246,12 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     superuserRevealedAt: typeof parsed.superuserRevealedAt === 'number' ? parsed.superuserRevealedAt : 0,
     /** v6 — persisted matrix overlay state. Defaults to false for v1–v5 blobs. */
     matrixActive: parsed.matrixActive === true,
+    /** v7 — once-only "escaped the matrix" flag. Defaults to false for v1–v6 blobs. */
+    matrixEscaped: parsed.matrixEscaped === true,
+    /** v7 — timestamp of first escape. Defaults to 0 for v1–v6 blobs and for
+     *  users who've never escaped. */
+    matrixEscapedAt:
+      typeof parsed.matrixEscapedAt === 'number' ? parsed.matrixEscapedAt : 0,
   };
 }
 
@@ -254,6 +286,7 @@ export function parseStoredState(raw: string | null): StickerState {
     version === 3 ||
     version === 4 ||
     version === 5 ||
+    version === 6 ||
     version === STORAGE_VERSION
   ) {
     return migrateToCurrent(obj);
@@ -597,6 +630,37 @@ export function setMatrixActiveImperative(active: boolean): void {
   emitChange();
 }
 
+/**
+ * One-way setter for the "escaped the matrix" flag. v7+. Flipped to true the
+ * first time a user clicks ESCAPE THE MATRIX inside the matrix overlay.
+ * Persisted across reloads — once true, stays true (except via sudo reset).
+ * Idempotent: calling when already true is a no-op.
+ *
+ * When flipping `false → true`, also records the current Date.now() into
+ * `matrixEscapedAt` so the EscapeBanner can render an "escaped on <date>"
+ * line. Once set, the timestamp is preserved on subsequent true-writes
+ * (so manual re-sets from debug commands don't overwrite the real escape
+ * date).
+ */
+export function setMatrixEscapedImperative(escaped: boolean): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.matrixEscaped === escaped) return;
+  const next: StickerState = {
+    ...current,
+    matrixEscaped: escaped,
+    matrixEscapedAt:
+      escaped && current.matrixEscapedAt === 0
+        ? Date.now()
+        : escaped
+          ? current.matrixEscapedAt
+          : 0,
+  };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
 /** Persist the user's mute preference for sitewide sound effects (v4+). */
 export function setSoundsMutedImperative(muted: boolean): void {
   initializeStoreOnce();
@@ -745,6 +809,58 @@ export function useMatrixActive(): boolean {
 export function getMatrixActiveSync(): boolean {
   initializeStoreOnce();
   return store.state.matrixActive;
+}
+
+function getMatrixEscapedSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.matrixEscaped;
+}
+
+function getMatrixEscapedServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * Subscribe to the persisted "escaped the matrix" flag (v7+). Returns true
+ * once the user has completed their first matrix escape. Used to:
+ *   - Gate the `/matrix-notes` route client-side (locked users see 404).
+ *   - Show the "Escape the Matrix" badge on /stickers.
+ *   - Reveal the "open matrix notes" entry-point button.
+ */
+export function useMatrixEscaped(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    getMatrixEscapedSnapshot,
+    getMatrixEscapedServerSnapshot,
+  );
+}
+
+/**
+ * Synchronous read of the persisted matrix-escaped flag. Returns false
+ * during SSR so locked and unlocked users alike get the server-rendered
+ * 404 shell; the hook above upgrades to the real content on hydrate.
+ */
+export function getMatrixEscapedSync(): boolean {
+  initializeStoreOnce();
+  return store.state.matrixEscaped;
+}
+
+function getMatrixEscapedAtSnapshot(): number {
+  initializeStoreOnce();
+  return store.state.matrixEscapedAt;
+}
+
+function getMatrixEscapedAtServerSnapshot(): number {
+  return 0;
+}
+
+/** Subscribe to the timestamp of the user's first matrix escape (v7+). */
+export function useMatrixEscapedAt(): number {
+  return useSyncExternalStore(
+    subscribe,
+    getMatrixEscapedAtSnapshot,
+    getMatrixEscapedAtServerSnapshot,
+  );
 }
 
 function getSoundsMutedSnapshot(): boolean {

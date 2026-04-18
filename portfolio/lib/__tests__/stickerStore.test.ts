@@ -191,7 +191,6 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v3);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(6);
     expect(state.unlocked).toContain('superuser');
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
     // New v4 defaults carried into v5/v6.
@@ -226,7 +225,6 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v4);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(6);
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
     // v6 new field defaults to false even when migrating from older versions.
@@ -259,7 +257,7 @@ describe('parseStoredState migration', () => {
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
   });
 
-  it('migrates a v5 blob to v6, defaulting matrixActive to false', async () => {
+  it('migrates a v5 blob to current, defaulting matrixActive to false', async () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v5 = JSON.stringify({
       version: 5,
@@ -275,12 +273,62 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v5);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(6);
     // Existing preferences preserved.
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
     // v6 new field defaults.
     expect(state.matrixActive).toBe(false);
+    // v7 new fields default for v5 blobs.
+    expect(state.matrixEscaped).toBe(false);
+    expect(state.matrixEscapedAt).toBe(0);
+  });
+
+  it('migrates a v6 blob to v7, defaulting matrixEscaped fields to false/0', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v6 = JSON.stringify({
+      version: 6,
+      unlocked: ['superuser'],
+      unlockedAt: { superuser: 6000 },
+      lastEarnedAt: 6000,
+      lastSeenAlbumAt: 5000,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      soundsMuted: false,
+      superuserRevealedAt: 6000,
+      matrixActive: true,
+    });
+    const state = parseStoredState(v6);
+    expect(state.version).toBe(STORAGE_VERSION);
+    // v6 fields preserved.
+    expect(state.matrixActive).toBe(true);
+    expect(state.superuserRevealedAt).toBe(6000);
+    // v7 new fields default to false/0 for v6 blobs.
+    expect(state.matrixEscaped).toBe(false);
+    expect(state.matrixEscapedAt).toBe(0);
+  });
+
+  it('preserves matrixEscaped + matrixEscapedAt when already v7', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v7 = JSON.stringify({
+      version: STORAGE_VERSION,
+      unlocked: ['superuser'],
+      unlockedAt: { superuser: 7000 },
+      lastEarnedAt: 7000,
+      lastSeenAlbumAt: 6000,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      soundsMuted: false,
+      superuserRevealedAt: 7000,
+      matrixActive: false,
+      matrixEscaped: true,
+      matrixEscapedAt: 7777,
+    });
+    const state = parseStoredState(v7);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.matrixEscaped).toBe(true);
+    expect(state.matrixEscapedAt).toBe(7777);
   });
 
   it('drops dead sticker ids (konami) on migration without losing other progress', async () => {
@@ -344,6 +392,75 @@ describe('parseStoredState migration', () => {
     const raw = memoryStorage.getItem('dhruv-stickers') as string;
     const reloaded = parseStoredState(raw);
     expect(reloaded.matrixActive).toBe(false);
+  });
+
+  it('setMatrixEscapedImperative(true) persists the flag AND records a timestamp', async () => {
+    const {
+      setMatrixEscapedImperative,
+      parseStoredState,
+      getMatrixEscapedSync,
+      __resetStoreForTest,
+    } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.clear();
+
+    const before = Date.now();
+    setMatrixEscapedImperative(true);
+    const after = Date.now();
+
+    expect(getMatrixEscapedSync()).toBe(true);
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    expect(raw).not.toBeNull();
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.matrixEscaped).toBe(true);
+    // Timestamp recorded and falls inside the call window.
+    expect(reloaded.matrixEscapedAt).toBeGreaterThanOrEqual(before);
+    expect(reloaded.matrixEscapedAt).toBeLessThanOrEqual(after);
+  });
+
+  it('setMatrixEscapedImperative is idempotent — repeat sets do not clobber the timestamp', async () => {
+    const {
+      setMatrixEscapedImperative,
+      parseStoredState,
+      __resetStoreForTest,
+    } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.clear();
+
+    setMatrixEscapedImperative(true);
+    const firstRaw = memoryStorage.getItem('dhruv-stickers') as string;
+    const firstParsed = parseStoredState(firstRaw);
+    const firstTs = firstParsed.matrixEscapedAt;
+    expect(firstTs).toBeGreaterThan(0);
+
+    // Wait a tick, then call again — the timestamp must not advance.
+    await new Promise((r) => setTimeout(r, 8));
+    setMatrixEscapedImperative(true);
+    const secondRaw = memoryStorage.getItem('dhruv-stickers') as string;
+    const secondParsed = parseStoredState(secondRaw);
+    expect(secondParsed.matrixEscapedAt).toBe(firstTs);
+  });
+
+  it('resetStickerProgressImperative clears matrixEscaped + matrixEscapedAt', async () => {
+    const {
+      setMatrixEscapedImperative,
+      resetStickerProgressImperative,
+      getMatrixEscapedSync,
+      parseStoredState,
+      __resetStoreForTest,
+    } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.clear();
+
+    setMatrixEscapedImperative(true);
+    expect(getMatrixEscapedSync()).toBe(true);
+
+    resetStickerProgressImperative();
+    expect(getMatrixEscapedSync()).toBe(false);
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.matrixEscaped).toBe(false);
+    expect(reloaded.matrixEscapedAt).toBe(0);
   });
 
   it('any persisted write strips a lingering discoMuted even when other state mutates', async () => {

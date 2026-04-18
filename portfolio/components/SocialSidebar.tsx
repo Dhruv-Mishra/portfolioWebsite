@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon, Volume2, VolumeX } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
+import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
+import { soundManager } from '@/lib/soundManager';
 
 const SOCIALS = [
     {
@@ -60,11 +62,17 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
-                className={`flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand`}
+                // Responsive sizing: 36px on narrow phones (iPhone SE 320px, iPhone 12 mini 375px)
+                // where horizontal space is tight; grows to 44px from `sm:` (≥640px) to meet
+                // Apple HIG's recommended touch target. A 36px tap target on a 320px viewport
+                // still respects the WCAG 2.2 24×24 minimum and leaves the row inside the
+                // content column minus the binding spine. Focus ring added for keyboard users
+                // navigating via external keyboard on iPad Safari.
+                className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
                 title={social.name}
                 aria-label={social.name}
             >
-                <social.icon size={16} strokeWidth={2.5} />
+                <social.icon size={15} strokeWidth={2.5} />
             </a>
         );
     }
@@ -96,20 +104,49 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
     const { setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
-    if (!mounted) return <div className="w-11 h-11" />;
+    // Match the sibling social icons (9 on narrow, 11 from sm:) so the row doesn't
+    // get a lopsided bump from a larger neighbor — and the placeholder shares the
+    // same responsive footprint so mount-shift is zero.
+    if (!mounted) return <div className="w-9 h-9 sm:w-11 sm:h-11" />;
     const isDark = resolvedTheme === 'dark';
     return (
         <button
             onClick={() => {
                 onPress();
-                setTheme(isDark ? 'light' : 'dark');
+                const goingDark = !isDark;
+                setTheme(goingDark ? 'dark' : 'light');
                 stickerBus.emit('theme-flipper');
+                soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
             }}
-            className="flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+            className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             title="Toggle theme"
             aria-label="Toggle theme"
         >
-            {isDark ? <Sun size={16} strokeWidth={2.5} /> : <Moon size={16} strokeWidth={2.5} />}
+            {isDark ? <Sun size={15} strokeWidth={2.5} /> : <Moon size={15} strokeWidth={2.5} />}
+        </button>
+    );
+});
+
+const MobileSoundButton = React.memo(function MobileSoundButton({ onPress }: { onPress: () => void }) {
+    const muted = useSoundsMuted();
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => { setMounted(true); }, []);
+    if (!mounted) return <div className="w-9 h-9 sm:w-11 sm:h-11" />;
+    return (
+        <button
+            onClick={() => {
+                onPress();
+                const next = !muted;
+                setSoundsMutedImperative(next);
+                soundManager.setMuted(next);
+                if (!next) soundManager.play('button-click');
+            }}
+            aria-pressed={muted}
+            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+            className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-emerald-600 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            title={muted ? 'Unmute sounds' : 'Mute sounds'}
+        >
+            {muted ? <VolumeX size={15} strokeWidth={2.5} /> : <Volume2 size={15} strokeWidth={2.5} />}
         </button>
     );
 });
@@ -132,15 +169,20 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
-            {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area */}
+            {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area.
+                max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
+                inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             <div
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1.5 bg-[var(--c-paper)] px-3 py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50"
+                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 bg-[var(--c-paper)] px-2 sm:px-3 py-1.5 sm:py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50 max-w-[calc(100vw-var(--c-binding-w)-1rem)]"
                 role="complementary"
                 aria-label="Social media links"
                 style={{ zIndex: Z_INDEX.sidebar }}
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />
+
+                {/* Sound mute toggle — sitewide */}
+                <MobileSoundButton onPress={toggle} />
 
                 {MOBILE_SOCIALS.map((social) => (
                     <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
@@ -153,11 +195,11 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                             openPanel();
                             onFeedbackClick();
                         }}
-                        className="flex items-center justify-center w-11 h-11 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand"
+                        className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
                         title="Send feedback"
                         aria-label="Open feedback form"
                     >
-                        <MessageSquare size={16} strokeWidth={2.5} />
+                        <MessageSquare size={15} strokeWidth={2.5} />
                     </button>
                 )}
             </div>

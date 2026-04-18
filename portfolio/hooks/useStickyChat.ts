@@ -334,6 +334,13 @@ export function useStickyChat(): UseStickyChat {
     const controller = new AbortController();
     suggestionsAbortRef.current = controller;
 
+    // Bounded timeout — suggestions are decorative, so cap the wait well under the
+    // main chat timeout. Without this, a stuck connection would leave the loading
+    // spinner spinning forever.
+    const timeoutId = setTimeout(() => {
+      controller.abort('timeout');
+    }, CHAT_CONFIG.suggestionsTimeoutMs);
+
     setSuggestions([]);
     setIsSuggestionsLoading(true);
     const contextMessages = currentMessages
@@ -362,6 +369,7 @@ export function useStickyChat(): UseStickyChat {
         if (err?.name !== 'AbortError') setSuggestions([]);
       })
       .finally(() => {
+        clearTimeout(timeoutId);
         if (!controller.signal.aborted) setIsSuggestionsLoading(false);
       });
   }, []);

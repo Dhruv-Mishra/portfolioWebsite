@@ -27,9 +27,17 @@
  *   - lime: inward spiral (linear timing — feels mechanical / precise)
  *   - coral: horizontal zigzag hugging left + right edges, verifying the
  *     now-disco-fied binding spine gets light too.
+ *
+ * Mobile perf: `mix-blend-mode: screen` on the full-viewport wrapper is one
+ * of the top paint cost offenders on throttled mobile CPUs — it forces the
+ * entire painted viewport to be re-composited through a blending pass every
+ * frame. On mobile we render the beams with normal compositing (they still
+ * contribute color via their peak opacity stops) and cut the spot count from
+ * 6 → 3, which keeps the composition pleasing without breaking the budget.
  */
 
 import { memo } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface SpotProps {
   /** Unique token used to tune the per-spot keyframe. */
@@ -75,18 +83,35 @@ const Spot = memo(function Spot({ variant }: SpotProps) {
 });
 
 function DiscoSpotlights(): React.ReactElement {
+  const isMobile = useIsMobile();
   return (
     <div
       aria-hidden="true"
       className="disco-spotlights"
-      style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2, mixBlendMode: 'screen' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 2,
+        // Screen blend on desktop for the maximum "club" additive-light feel;
+        // normal compositing on mobile to spare the fill-rate (see header).
+        mixBlendMode: isMobile ? 'normal' : 'screen',
+      }}
     >
       <Spot variant="magenta" />
       <Spot variant="cyan" />
       <Spot variant="gold" />
-      <Spot variant="violet" />
-      <Spot variant="lime" />
-      <Spot variant="coral" />
+      {/* Extras — retained on desktop for the full layered-light scene,
+          dropped on mobile to save three large compositor layers. The three
+          primary spots cover enough of the viewport that the scene still
+          reads as lit from multiple sources. */}
+      {!isMobile && (
+        <>
+          <Spot variant="violet" />
+          <Spot variant="lime" />
+          <Spot variant="coral" />
+        </>
+      )}
     </div>
   );
 }

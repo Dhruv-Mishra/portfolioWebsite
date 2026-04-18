@@ -5,20 +5,21 @@
  *
  * Structure:
  *   - Header: hand-lettered title + WavyUnderline + subtitle.
+ *   - SuperuserBanner (only when earned): premium gold-foil hero card at
+ *     the top, taller/wider than a grid cell. The inline superuser tile
+ *     is NOT appended to the grid anymore — the banner owns the celebration.
  *   - Progress card: tiny tilted taped index card showing `{unlocked}/{total} pinned`.
  *   - Empty / first-sticker caption above the grid.
  *   - Grid: 2/3/4/5 columns across breakpoints, each cell a <StickerCard>.
- *     The hidden superuser tile is appended to the grid ONLY after it has been
- *     earned — before then it stays absent from the album entirely.
  *
  * On mount:
  *   - markAlbumSeen() dismisses the badge pulse.
  *   - stickerBus.emit('drawer-dweller') unlocks the "visited the album" sticker.
  *
  * Perf note: Cards use pure CSS animations (`sticker-card`, `sticker-card--unlocked`,
- * `sticker-card--locked`, `sticker-card--superuser`) defined in app/globals.css.
- * No framer-motion on this page — 12 infinite rAF loops + per-frame filter
- * repaints were the source of reported lag.
+ * `sticker-card--locked`) defined in app/globals.css. The banner uses
+ * framer-motion for its one-shot reveal animation and CSS keyframes for the
+ * persistent shimmer (see `.superuser-banner__card::after`).
  */
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
@@ -28,6 +29,7 @@ import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { cn } from '@/lib/utils';
 import { STICKER_TOKENS } from '@/lib/designTokens';
+import SuperuserBanner from '@/components/SuperuserBanner';
 
 export default function StickerDrawerPage() {
   const { unlocked, total, unlockedAt, markAlbumSeen, hasSuperuser } = useStickers();
@@ -44,19 +46,16 @@ export default function StickerDrawerPage() {
   const unlockedSet = useMemo(() => new Set<StickerId>(unlocked), [unlocked]);
 
   // Sort: unlocked regular stickers first (by when earned), then locked
-  // regulars (roster order). The hidden Superuser tile is appended at the very
-  // end ONLY when earned. Before earning, it's absent from the roster.
+  // regulars (roster order). The Superuser sticker is promoted to
+  // `SuperuserBanner` above the grid — no inline tile here to avoid
+  // duplicating the celebration.
   const ordered = useMemo<ReadonlyArray<StickerEntry>>(() => {
     const unlockedEntries = STICKER_ROSTER.filter((s) => unlockedSet.has(s.id)).sort(
       (a, b) => (unlockedAt[a.id] ?? 0) - (unlockedAt[b.id] ?? 0),
     );
     const lockedEntries = STICKER_ROSTER.filter((s) => !unlockedSet.has(s.id));
-    const base: StickerEntry[] = [...unlockedEntries, ...lockedEntries];
-    if (hasSuperuser) {
-      base.push(SUPERUSER_STICKER);
-    }
-    return base;
-  }, [unlockedSet, unlockedAt, hasSuperuser]);
+    return [...unlockedEntries, ...lockedEntries];
+  }, [unlockedSet, unlockedAt]);
 
   // Regular-only unlocked count (hidden superuser excluded from the ratio).
   const unlockedCount = unlocked.filter((id) => id !== SUPERUSER_STICKER.id).length;
@@ -93,6 +92,13 @@ export default function StickerDrawerPage() {
             Collect them by poking around ~
           </p>
         </header>
+
+        {/* ─── Superuser banner — shown only once every regular sticker is collected ─── */}
+        {hasSuperuser ? (
+          <div className="mt-6 md:mt-8">
+            <SuperuserBanner earnedAt={unlockedAt[SUPERUSER_STICKER.id]} />
+          </div>
+        ) : null}
 
         {/* ─── Progress pill ─── */}
         <ProgressCard unlockedCount={unlockedCount} total={total} />

@@ -91,6 +91,13 @@ export const CHAT_CONFIG = {
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message
   responseTimeoutMs: LLM_CLIENT_TIMEOUT_MS, // Client-side timeout: abort fetch after this duration
+  /**
+   * Timeout for the follow-up suggestions fetch. Shorter than the main chat
+   * timeout because suggestions are decorative — if they don't arrive in 8s the
+   * user has almost certainly moved on, and a hanging request would otherwise
+   * keep the loading spinner alive indefinitely on poor connections.
+   */
+  suggestionsTimeoutMs: 8000,
   storageKey: 'dhruv-chat-history',
   suggestionsStorageKey: 'dhruv-chat-suggestions',
 } as const;

@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-paper">
+        <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-paper">
           <div
             className="max-w-md w-full bg-note-yellow p-8 rounded-lg shadow-xl transform -rotate-1 animate-[fadeIn_0.4s_ease-out]"
           >
@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <button
                 type="button"
                 onClick={() => window.location.href = '/'}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
               >
                 Go Back Home
               </button>

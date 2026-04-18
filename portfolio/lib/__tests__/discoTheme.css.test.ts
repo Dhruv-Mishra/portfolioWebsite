@@ -119,7 +119,93 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/@keyframes\s+disco-heading-shimmer/);
   });
 
+  it('hero heading legibility: no `color: transparent` + `background-clip: text` pattern', () => {
+    // Regression guard for the "disco hero text disappears" bug. The fragile
+    // pattern of painting text transparent and relying on background-clip: text
+    // can render invisibly when nested inline children (<strong>, <span>, <a>)
+    // break the cascade OR when the box sits on the translucent disco paper
+    // gradient. Ensure the disco heading rule doesn't reintroduce it.
+    const headingBlock = CSS.match(
+      /html\[data-disco="on"\]\s+h1,\s*\n?\s*html\[data-disco="on"\]\s+h2,\s*\n?\s*html\[data-disco="on"\]\s+h3\s*\{[\s\S]*?\}/,
+    );
+    expect(headingBlock).toBeTruthy();
+    const block = headingBlock?.[0] ?? '';
+    // The rule block itself must not set text-fill-color or color to transparent.
+    expect(block).not.toMatch(/-webkit-text-fill-color\s*:\s*transparent/);
+    expect(block).not.toMatch(/(?<!background-)color\s*:\s*transparent/);
+    // And it must not apply background-clip: text.
+    expect(block).not.toMatch(/background-clip\s*:\s*text/);
+  });
+
+  it('disco headings cycle an opaque color so nested inline content stays legible', () => {
+    // The replacement rule uses an animated color cycle. Verify the animation
+    // name is bound in the block and the keyframe is defined.
+    expect(CSS).toMatch(/@keyframes\s+disco-heading-color/);
+    const headingBlock = CSS.match(
+      /html\[data-disco="on"\]\s+h1,\s*\n?\s*html\[data-disco="on"\]\s+h2,\s*\n?\s*html\[data-disco="on"\]\s+h3\s*\{[\s\S]*?\}/,
+    );
+    expect(headingBlock?.[0]).toMatch(/animation:\s*disco-heading-color/);
+  });
+
+  it('disco headings force nested strong/span/em to inherit the disco color', () => {
+    // Without this rule, `<strong class="text-gray-900">` inside a disco h1
+    // would paint gray over the vibrant disco color, defeating the effect and
+    // can look like the heading is "broken" at certain frames. Guardrail.
+    expect(CSS).toMatch(/html\[data-disco="on"\]\s+h1\s*>\s*:where\(strong, em, span, b, i\)/);
+  });
+
   it('ships the mute button baseline class', () => {
     expect(CSS).toMatch(/\.disco-mute-btn/);
+  });
+
+  it('bumps muted-gray body text to a legible color under dark disco', () => {
+    // Accessibility guardrail: `text-gray-400` on the dark-disco jewel-tone
+    // gradient can drop below WCAG AA contrast on some stops. The CSS must
+    // explicitly override those utility classes under dark disco to keep body
+    // text readable.
+    expect(CSS).toMatch(/html\[data-disco="on"\]\.dark\s+\.text-gray-400/);
+  });
+
+  it('rescues .animate-hero-subtitle opacity under disco (p/li animation cancel bug)', () => {
+    // Regression guard for the "hero subtitle invisible in disco" bug. The
+    // `.animate-hero-subtitle` utility rule has baseline `opacity: 0` +
+    // `animation: heroSubtitleIn ... forwards`. The disco theme's broad
+    // `html[data-disco="on"] p, li { animation: none !important }` rule
+    // cancels the animation, which clears the `forwards` fill, reverting
+    // opacity to 0 and making the text invisible.
+    //
+    // The fix is an explicit rescue rule that pins opacity back to 1 whenever
+    // disco is on, regardless of element type (<p> or <a>).
+    const rescueBlock = CSS.match(
+      /html\[data-disco="on"\]\s+\.animate-hero-subtitle\s*\{[\s\S]*?\}/,
+    );
+    expect(rescueBlock).toBeTruthy();
+    expect(rescueBlock?.[0]).toMatch(/opacity\s*:\s*1/);
+  });
+
+  it('disco floor sweep is desktop-only (skipped on mobile for perf)', () => {
+    // The `body::after` floor sweep layers a 22vh `mix-blend-mode: screen`
+    // pseudo-element that re-composites the entire viewport every frame. On
+    // mobile this was a top paint-cost offender; the sweep is now wrapped in
+    // a `(hover: hover) and (pointer: fine)` media query so touch devices
+    // skip it entirely.
+    expect(CSS).toMatch(
+      /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)\s*\{[\s\S]*?html\[data-disco="on"\]\s+body::after/,
+    );
+  });
+
+  it('disco note-card hue animation is desktop-only (skipped on mobile for perf)', () => {
+    // `filter: hue-rotate` animations force a per-frame repaint of the
+    // element and its descendants. On /projects with 8 dancing note cards
+    // this was the single biggest mobile FPS hit. The CSS now scopes the
+    // card-hue animation to `(hover: hover) and (pointer: fine)`, so coarse-
+    // pointer devices skip the cascade entirely. The keyframe itself must
+    // remain defined (other rules may still reference it). Body gradient +
+    // spotlights still provide color variety on mobile.
+    expect(CSS).toMatch(
+      /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)\s*\{[\s\S]*?\.bg-note-paper[\s\S]*?animation:\s*disco-card-hue/,
+    );
+    // The keyframe is still defined (unchanged).
+    expect(CSS).toMatch(/@keyframes\s+disco-card-hue\s*\{/);
   });
 });

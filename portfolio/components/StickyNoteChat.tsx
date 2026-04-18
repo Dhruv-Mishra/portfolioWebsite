@@ -8,6 +8,7 @@ import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
@@ -808,6 +809,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     completedAssistantHapticRef.current = lastAssistant.id;
     success();
+    // Audible "reply arrived" cue paired with the success haptic. The sound
+    // is a gentle descending chirp so it doesn't compete with the upward
+    // chat-send cue.
+    soundManager.play('chat-receive');
   }, [isLoading, messages, success]);
 
   useEffect(() => {
@@ -843,12 +848,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     submit();
+    soundManager.play('chat-send');
     sendMessage(text);
   }, [sendMessage, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     selection();
+    soundManager.play('chat-send');
     sendMessage(text);
   }, [selection, sendMessage]);
 

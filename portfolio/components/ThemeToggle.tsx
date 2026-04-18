@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useAppHaptics } from "@/lib/haptics";
 import { stickerBus } from "@/lib/stickerBus";
 import { useDiscoActive, setDiscoActiveImperative } from "@/hooks/useStickers";
+import { soundManager } from "@/lib/soundManager";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
@@ -29,8 +30,11 @@ export function ThemeToggle() {
             setDiscoActiveImperative(false);
             return;
         }
-        setTheme(resolvedTheme === "dark" ? "light" : "dark");
+        const goingDark = resolvedTheme !== "dark"; // we're flipping
+        setTheme(goingDark ? "dark" : "light");
         stickerBus.emit('theme-flipper');
+        // Cricket chirps for dark, rooster crow for light.
+        soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
     };
 
     const ariaLabel = discoActive ? "Exit disco mode" : "Toggle Theme";

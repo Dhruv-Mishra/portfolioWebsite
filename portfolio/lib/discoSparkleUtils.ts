@@ -82,6 +82,19 @@ export function stepParticle(p: Particle, dt: number, width: number, height: num
 /**
  * Determine the per-viewport particle count. Exposed so tests verify the
  * mobile/desktop density split matches the spec.
+ *
+ * Density budget: each particle costs roughly one `.fillRect` or `.arc` +
+ * transform per frame. Canvas fill is fast, but the SUM over N particles scales
+ * linearly — at 90+ particles on a throttled mobile CPU, we're spending the
+ * bulk of a frame just on particle draws, on top of the CSS animations layered
+ * above/below the canvas. Keeping mobile tight lets the rest of the scene
+ * breathe.
+ *
+ * Desktop cap 64: down from 92. The perceived difference on a 1440x900 canvas
+ * is negligible — 64 particles is still visibly "snowing rainbow confetti" —
+ * and the savings free the GPU to handle the 6 spotlights + note hue filters.
+ * Mobile cap 20: down from 34. Combined with the dpr=1 backing store this keeps
+ * per-frame sparkle cost bounded on low-end phones.
  */
 export function particleCountForViewport(
   width: number,
@@ -89,6 +102,6 @@ export function particleCountForViewport(
   isMobile: boolean,
 ): number {
   return isMobile
-    ? Math.min(34, Math.floor(width / 22))
-    : Math.min(92, Math.floor((width * height) / 16000));
+    ? Math.min(20, Math.floor(width / 26))
+    : Math.min(64, Math.floor((width * height) / 22000));
 }

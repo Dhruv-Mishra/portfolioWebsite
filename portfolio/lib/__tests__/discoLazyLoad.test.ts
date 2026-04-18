@@ -201,4 +201,36 @@ describe('disco render-count hygiene — source guards', () => {
     expect(src).toMatch(/'lime'/);
     expect(src).toMatch(/'coral'/);
   });
+
+  it('DiscoSpotlights drops mix-blend-mode and extras on mobile (perf)', () => {
+    // `mix-blend-mode: screen` on the full-viewport wrapper forces the entire
+    // painted viewport to re-composite every frame. On mobile this was the
+    // single largest paint hit; the wrapper must switch to 'normal' on
+    // `isMobile`. The extras (violet/lime/coral) must also be conditionally
+    // rendered so mobile sees only 3 of the 6 spots.
+    const src = readSrc('DiscoSpotlights.tsx');
+    // Mixed blend mode is toggled via isMobile ternary.
+    expect(src).toMatch(/mixBlendMode:\s*isMobile\s*\?\s*['"]normal['"]\s*:\s*['"]screen['"]/);
+    // Extras are rendered only when !isMobile.
+    expect(src).toMatch(/!isMobile\s*&&/);
+    // The useIsMobile hook is imported.
+    expect(src).toMatch(/from\s+['"]@\/hooks\/useIsMobile['"]/);
+  });
+
+  it('DiscoSparkleCanvas caps dpr at 1 on mobile (reduces per-frame fill)', () => {
+    // Retina mobile viewports (dpr=3) at full-viewport = ~3M-pixel backing
+    // store. Clearing + redrawing that every frame costs meaningful CPU on
+    // throttled devices. Capping dpr at 1 on mobile cuts the fill by 9x on a
+    // typical phone.
+    const src = readSrc('DiscoSparkleCanvas.tsx');
+    expect(src).toMatch(/const\s+dpr\s*=\s*isMobile\s*\?\s*1\s*:/);
+  });
+
+  it('DiscoSparkleCanvas drops mix-blend-mode: screen on mobile', () => {
+    // Same story as the spotlight wrapper — screen blending a full-viewport
+    // canvas forces a per-frame composite pass. On mobile we switch to normal
+    // compositing; per-particle alpha is still correct via globalAlpha.
+    const src = readSrc('DiscoSparkleCanvas.tsx');
+    expect(src).toMatch(/mixBlendMode:\s*isMobile\s*\?\s*['"]normal['"]\s*:\s*['"]screen['"]/);
+  });
 });

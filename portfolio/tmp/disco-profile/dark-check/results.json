@@ -1,0 +1,62 @@
+[
+  {
+    "tag": "desktop-light-disco",
+    "theme": {
+      "discoAttr": "on",
+      "darkClass": false
+    },
+    "subtitle": {
+      "found": true,
+      "opacity": "1",
+      "color": "lab(35.6337 -1.58697 -10.8425)",
+      "animationName": "none",
+      "textContent": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble"
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\dark-check\\desktop-light-disco.png"
+  },
+  {
+    "tag": "desktop-dark-disco",
+    "theme": {
+      "discoAttr": "on",
+      "darkClass": true
+    },
+    "subtitle": {
+      "found": true,
+      "opacity": "1",
+      "color": "rgb(241, 245, 249)",
+      "animationName": "none",
+      "textContent": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble"
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\dark-check\\desktop-dark-disco.png"
+  },
+  {
+    "tag": "mobile-light-disco",
+    "theme": {
+      "discoAttr": "on",
+      "darkClass": false
+    },
+    "subtitle": {
+      "found": true,
+      "opacity": "1",
+      "color": "lab(35.6337 -1.58697 -10.8425)",
+      "animationName": "none",
+      "textContent": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble"
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\dark-check\\mobile-light-disco.png"
+  },
+  {
+    "tag": "mobile-dark-disco",
+    "theme": {
+      "discoAttr": "on",
+      "darkClass": true
+    },
+    "subtitle": {
+      "found": true,
+      "opacity": "1",
+      "color": "rgb(241, 245, 249)",
+      "animationName": "none",
+      "textContent": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble"
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\dark-check\\mobile-dark-disco.png"
+  }
+]

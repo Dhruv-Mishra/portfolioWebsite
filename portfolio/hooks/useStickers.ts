@@ -42,8 +42,20 @@ import {
 import { STICKER_TIMING } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-stickers';
-/** v2 adds superuser tracking, unique terminal command set, opened-project set, sudo/disco flags. */
-export const STORAGE_VERSION = 2 as const;
+/**
+ * v4 — added sitewide sound preferences (`soundsMuted`) and a
+ *      `superuserRevealedAt` timestamp used by SuperuserBanner to gate the
+ *      one-shot fanfare/confetti reveal. Both fields are sticky preferences
+ *      that survive reloads.
+ * v3 — `discoActive` is no longer persisted. Each page load begins with disco
+ *      OFF regardless of what the previous session ended in; users must opt
+ *      back in via `sudo disco` (which still requires superuser, which DOES
+ *      persist via the `unlocked` array). `discoMuted` remains sticky because
+ *      it's a preference, not a runtime state.
+ * v2 — added superuser tracking, unique terminal command set, opened-project
+ *      set, sudo/disco flags.
+ */
+export const STORAGE_VERSION = 4 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -57,10 +69,26 @@ export interface StickerState {
   terminalCommands: string[];
   /** Distinct project slugs whose modal has been opened — unlocks `project-explorer` at size 8 */
   openedProjects: string[];
-  /** Persisted disco theme flag — null/false when off. Only meaningful post-superuser. */
+  /**
+   * Runtime-only disco flag. NOT persisted — every page load begins with disco
+   * OFF. The field lives on the in-memory state so selectors can subscribe to
+   * it, but `writeToStorage` strips it before serialization and
+   * `parseStoredState` forces it to `false` on read. Superuser access itself is
+   * preserved through the `unlocked` array, so `sudo disco` still works.
+   */
   discoActive: boolean;
   /** Persisted disco music mute preference. Sticky across sessions. */
   discoMuted: boolean;
+  /** Persisted global sound-effects mute preference. Sticky. v4+. */
+  soundsMuted: boolean;
+  /**
+   * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
+   * When `unlockedAt.superuser > superuserRevealedAt`, the banner will play
+   * the fanfare + confetti on mount and then write back the current
+   * `unlockedAt.superuser`. Guarantees the full celebration fires once,
+   * future album visits show the quieter persistent banner. v4+.
+   */
+  superuserRevealedAt: number;
 }
 
 // Valid sticker ID set — regulars + superuser.
@@ -81,17 +109,24 @@ function defaultState(): StickerState {
     openedProjects: [],
     discoActive: false,
     discoMuted: false,
+    soundsMuted: false,
+    superuserRevealedAt: 0,
   };
 }
 
 /**
- * Migrate a v1 persisted state to v2 without losing earned stickers or
- * visited-routes progress. Older clients only tracked `{unlocked, unlockedAt,
- * lastEarnedAt, lastSeenAlbumAt, visitedRoutes}`; we keep those, seed the new
- * set-based fields as empty, and never touch localStorage for users who
- * haven't upgraded yet (we rewrite on first mutation).
+ * Sanitize an arbitrary parsed blob into a clean current-version StickerState.
+ * Used for both v1 and v2 → v3 migrations and for "best-effort keep unlocked"
+ * when the persisted version is unknown/future.
+ *
+ * Invariants:
+ *   - Every array is filtered to only contain strings (or valid StickerIds for
+ *     `unlocked`). Corrupt entries are silently dropped rather than crashing.
+ *   - `discoActive` is ALWAYS forced to `false`. Disco never survives a page
+ *     reload — it's a session-only flag.
+ *   - `discoMuted` is preserved across versions because it's a preference.
  */
-function migrateV1ToV2(parsed: Record<string, unknown>): StickerState {
+function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
   const unlocked = Array.isArray(parsed.unlocked)
     ? parsed.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId))
     : [];
@@ -102,6 +137,12 @@ function migrateV1ToV2(parsed: Record<string, unknown>): StickerState {
   const visitedRoutes = Array.isArray(parsed.visitedRoutes)
     ? (parsed.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
     : [];
+  const terminalCommands = Array.isArray(parsed.terminalCommands)
+    ? (parsed.terminalCommands as unknown[]).filter((c): c is string => typeof c === 'string')
+    : [];
+  const openedProjects = Array.isArray(parsed.openedProjects)
+    ? (parsed.openedProjects as unknown[]).filter((p): p is string => typeof p === 'string')
+    : [];
 
   return {
     version: STORAGE_VERSION,
@@ -110,10 +151,16 @@ function migrateV1ToV2(parsed: Record<string, unknown>): StickerState {
     lastEarnedAt: typeof parsed.lastEarnedAt === 'number' ? parsed.lastEarnedAt : 0,
     lastSeenAlbumAt: typeof parsed.lastSeenAlbumAt === 'number' ? parsed.lastSeenAlbumAt : 0,
     visitedRoutes,
-    terminalCommands: [],
-    openedProjects: [],
+    terminalCommands,
+    openedProjects,
+    /** Always false on load — discoActive is session-only, never persisted. */
     discoActive: false,
-    discoMuted: false,
+    /** Preference carries across. */
+    discoMuted: parsed.discoMuted === true,
+    /** v4 preference — default OFF (sounds enabled). */
+    soundsMuted: parsed.soundsMuted === true,
+    /** v4 ─ last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
+    superuserRevealedAt: typeof parsed.superuserRevealedAt === 'number' ? parsed.superuserRevealedAt : 0,
   };
 }
 
@@ -132,51 +179,24 @@ export function parseStoredState(raw: string | null): StickerState {
   if (!parsed || typeof parsed !== 'object') return defaultState();
   const obj = parsed as Record<string, unknown>;
 
+  // All version branches route through migrateToCurrent, which guarantees:
+  //   - discoActive is ALWAYS false on load (disco never survives a reload).
+  //   - The latest schema shape is produced (version === STORAGE_VERSION).
+  //   - Unknown/future versions still preserve the unlocked array (defensive),
+  //     so progress survives a bad deploy.
+  //
+  // Even if the persisted blob is already at the current version, we re-run
+  // sanitization to strip any stale discoActive that was written by older code
+  // paths (pre-v3 builds set discoActive:true under some conditions).
   const version = obj.version;
-  // v1 → v2 migration
-  if (version === 1) {
-    return migrateV1ToV2(obj);
+  if (version === 1 || version === 2 || version === 3 || version === STORAGE_VERSION) {
+    return migrateToCurrent(obj);
   }
-  if (version !== STORAGE_VERSION) {
-    // Unknown/future version — rather than wipe, take what we can safely keep
-    // (just the unlocked list, if valid). This is still safer than blowing
-    // away years of progress on a bad deploy.
-    if (Array.isArray(obj.unlocked)) {
-      return migrateV1ToV2(obj);
-    }
-    return defaultState();
+  // Unknown/future — preserve unlocked if shape looks salvageable, else wipe.
+  if (Array.isArray(obj.unlocked)) {
+    return migrateToCurrent(obj);
   }
-
-  // Current version — sanitize every array field.
-  const unlocked = Array.isArray(obj.unlocked)
-    ? obj.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId))
-    : [];
-  const unlockedAt =
-    obj.unlockedAt && typeof obj.unlockedAt === 'object'
-      ? (obj.unlockedAt as Record<string, number>)
-      : {};
-  const visitedRoutes = Array.isArray(obj.visitedRoutes)
-    ? (obj.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
-    : [];
-  const terminalCommands = Array.isArray(obj.terminalCommands)
-    ? (obj.terminalCommands as unknown[]).filter((c): c is string => typeof c === 'string')
-    : [];
-  const openedProjects = Array.isArray(obj.openedProjects)
-    ? (obj.openedProjects as unknown[]).filter((p): p is string => typeof p === 'string')
-    : [];
-
-  return {
-    version: STORAGE_VERSION,
-    unlocked,
-    unlockedAt,
-    lastEarnedAt: typeof obj.lastEarnedAt === 'number' ? obj.lastEarnedAt : 0,
-    lastSeenAlbumAt: typeof obj.lastSeenAlbumAt === 'number' ? obj.lastSeenAlbumAt : 0,
-    visitedRoutes,
-    terminalCommands,
-    openedProjects,
-    discoActive: obj.discoActive === true,
-    discoMuted: obj.discoMuted === true,
-  };
+  return defaultState();
 }
 
 function readFromStorage(): StickerState {
@@ -191,7 +211,13 @@ function readFromStorage(): StickerState {
 function writeToStorage(state: StickerState): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Strip `discoActive` from the persisted shape. This is belt-and-suspenders
+    // alongside the forced `discoActive: false` in parseStoredState: even if a
+    // stale build previously wrote `discoActive: true`, it won't come back on
+    // reload, and we never write it forward either.
+    const { discoActive: _unused, ...persistable } = state;
+    void _unused;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
   } catch {
     /* quota exceeded or disabled — silently ignore */
   }
@@ -253,15 +279,18 @@ function recomputeProgress(): void {
 function initializeStoreOnce(): void {
   if (store.initialized || typeof window === 'undefined') return;
   store.state = readFromStorage();
-  // If the persisted blob was a v1 schema (or otherwise mutated by migration),
+  // If the persisted blob was a v1/v2 schema (or otherwise mutated by
+  // migration) OR contains a stale `discoActive: true` from pre-v3 builds,
   // proactively rewrite once at initialization so subsequent reads are fast
-  // and version-stable. Only do this if we actually have data to write —
-  // avoid polluting storage for fresh visitors.
+  // and version-stable AND the stale flag is gone. Only do this if we actually
+  // have data to write — avoid polluting storage for fresh visitors.
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (!parsed || parsed.version !== STORAGE_VERSION) {
+      const isOutdatedVersion = !parsed || parsed.version !== STORAGE_VERSION;
+      const hasStaleDiscoFlag = parsed && parsed.discoActive !== undefined;
+      if (isOutdatedVersion || hasStaleDiscoFlag) {
         writeToStorage(store.state);
       }
     }
@@ -476,6 +505,32 @@ export function setDiscoMutedImperative(muted: boolean): void {
   emitChange();
 }
 
+/** Persist the user's mute preference for sitewide sound effects (v4+). */
+export function setSoundsMutedImperative(muted: boolean): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.soundsMuted === muted) return;
+  const next: StickerState = { ...current, soundsMuted: muted };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
+/**
+ * Record that the superuser banner has played its reveal fanfare. Caller
+ * passes the current `unlockedAt.superuser` value so subsequent mounts can
+ * compare timestamps and avoid replaying the fanfare.
+ */
+export function setSuperuserRevealedAtImperative(revealedAt: number): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.superuserRevealedAt >= revealedAt) return;
+  const next: StickerState = { ...current, superuserRevealedAt: revealedAt };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
 /**
  * Nuke all sticker progress. Invoked by `sudo reset` after confirmation.
  * Preserves the toast queue view so no orphan toasts flicker through.
@@ -590,6 +645,38 @@ export function useDiscoMuted(): boolean {
   return useSyncExternalStore(subscribe, getDiscoMutedSnapshot, getDiscoMutedServerSnapshot);
 }
 
+function getSoundsMutedSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.soundsMuted;
+}
+
+function getSoundsMutedServerSnapshot(): boolean {
+  return false;
+}
+
+/** Subscribe to the sitewide sound-effects mute preference (v4+). */
+export function useSoundsMuted(): boolean {
+  return useSyncExternalStore(subscribe, getSoundsMutedSnapshot, getSoundsMutedServerSnapshot);
+}
+
+function getSuperuserRevealedAtSnapshot(): number {
+  initializeStoreOnce();
+  return store.state.superuserRevealedAt;
+}
+
+function getSuperuserRevealedAtServerSnapshot(): number {
+  return 0;
+}
+
+/** Subscribe to the SuperuserBanner reveal timestamp (v4+). */
+export function useSuperuserRevealedAt(): number {
+  return useSyncExternalStore(
+    subscribe,
+    getSuperuserRevealedAtSnapshot,
+    getSuperuserRevealedAtServerSnapshot,
+  );
+}
+
 // ─── Non-reactive accessor (for imperative call sites) ──────────────────
 /**
  * Synchronous read of whether the user has earned superuser. Intended for use
@@ -599,6 +686,37 @@ export function useDiscoMuted(): boolean {
 export function isSuperuserEarnedSync(): boolean {
   initializeStoreOnce();
   return store.state.unlocked.includes(SUPERUSER_STICKER.id);
+}
+
+/**
+ * Synchronous read of the sounds-muted preference. Used by the visibility
+ * listener in `hooks/useSounds.ts` to restore the manager's mute state when
+ * the tab becomes visible again (no React subscription available there).
+ */
+export function getSoundsMutedSync(): boolean {
+  initializeStoreOnce();
+  return store.state.soundsMuted;
+}
+
+/**
+ * Synchronous read of the superuser reveal timestamp. Used by banner effects
+ * that need to compare against `unlockedAt.superuser` outside a render.
+ */
+export function getSuperuserRevealedAtSync(): number {
+  initializeStoreOnce();
+  return store.state.superuserRevealedAt;
+}
+
+/**
+ * Synchronous read of the `unlockedAt.superuser` timestamp. Returns 0 if
+ * the superuser sticker has not been earned. Used by the sitewide reveal
+ * toast controller to compare against `superuserRevealedAt` without having
+ * to subscribe to the full state snapshot.
+ */
+export function getSuperuserEarnedAtSync(): number {
+  initializeStoreOnce();
+  const ts = store.state.unlockedAt[SUPERUSER_STICKER.id];
+  return typeof ts === 'number' ? ts : 0;
 }
 
 // ─── Public hook ────────────────────────────────────────────────────────

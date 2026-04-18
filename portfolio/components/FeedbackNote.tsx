@@ -6,6 +6,7 @@ import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriang
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
 import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
@@ -199,6 +200,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
       setState('success');
   success();
+      soundManager.play('feedback-sent');
       stickerBus.emit('note-sender');
       clearDraft();
       // Auto-close after success

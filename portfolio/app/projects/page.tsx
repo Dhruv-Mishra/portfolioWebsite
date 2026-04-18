@@ -90,7 +90,11 @@ export default function Projects() {
 
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">
-            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 decoration-wavy underline decoration-indigo-400 decoration-2">
+            {/* h1 needs its own padding because the outer div is full-bleed and the
+                grid below already pads itself with px-6. Keeping px-6 on the h1
+                only matches the grid's left edge on mobile, with a small ml-6 on
+                desktop for visual rhythm against the binding spine. */}
+            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 px-6 md:px-0 md:ml-6 decoration-wavy underline decoration-indigo-400 decoration-2">
                 My Projects
             </h1>
 

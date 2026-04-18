@@ -80,6 +80,28 @@ const DiscoFlagController = dynamic(
   { ssr: false, loading: () => null },
 );
 
+// SoundRouteListener — plays the page-flip sound on route transitions.
+// Kept eager so the first navigation after boot already fires a sound.
+const SoundRouteListener = dynamic(
+  () => import('@/components/SoundRouteListener'),
+  { ssr: false, loading: () => null },
+);
+
+// ClickSoundListener — single delegated listener for `data-clickable` ticks.
+const ClickSoundListener = dynamic(
+  () => import('@/components/ClickSoundListener'),
+  { ssr: false, loading: () => null },
+);
+
+// SuperuserToastController — sitewide reveal toast mounted globally. The
+// controller itself is tiny (reads hasSuperuser + earnedAt + revealedAt via
+// narrow hooks) and only dynamically imports the heavy toast body when the
+// user actually earns superuser. Users who never unlock pay ~nothing.
+const SuperuserToastController = dynamic(
+  () => import('@/components/superuser/SuperuserToastController'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -89,6 +111,9 @@ export default function EagerEnhancements() {
       <StickerToastListener />
       <StickerGlanceBadge />
       <DiscoFlagController />
+      <SoundRouteListener />
+      <ClickSoundListener />
+      <SuperuserToastController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

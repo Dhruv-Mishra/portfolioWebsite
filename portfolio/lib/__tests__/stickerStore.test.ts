@@ -79,7 +79,7 @@ describe('parseStoredState migration', () => {
     expect(state.unlocked).toEqual([]);
   });
 
-  it('migrates a v1 blob to v2 preserving unlocked + visitedRoutes', async () => {
+  it('migrates a v1 blob to current preserving unlocked + visitedRoutes', async () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v1 = JSON.stringify({
       version: 1,
@@ -94,10 +94,58 @@ describe('parseStoredState migration', () => {
     expect(state.unlocked).toContain('first-word');
     expect(state.unlocked).toContain('theme-flipper');
     expect(state.visitedRoutes).toEqual(['/', '/projects']);
-    // New v2-only fields default to empty.
+    // Post-v1 fields default to empty.
     expect(state.terminalCommands).toEqual([]);
     expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
+  });
+
+  it('migrates a v2 blob to v3, preserving progress but forcing discoActive=false', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    // Pre-v3 clients could persist `discoActive: true`. v3 must strip it so
+    // every page load begins with disco off — while KEEPING the superuser
+    // sticker (which lives in `unlocked`) so `sudo disco` still works.
+    const v2 = JSON.stringify({
+      version: 2,
+      unlocked: ['first-word', 'superuser'],
+      unlockedAt: { 'first-word': 1, superuser: 2 },
+      lastEarnedAt: 2,
+      lastSeenAlbumAt: 1,
+      visitedRoutes: ['/'],
+      terminalCommands: ['help', 'about'],
+      openedProjects: ['cropio'],
+      discoActive: true, // <-- this MUST become false after parse
+      discoMuted: true, // <-- this MUST stay true (preference)
+    });
+    const state = parseStoredState(v2);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.unlocked).toContain('superuser');
+    expect(state.discoActive).toBe(false);
+    expect(state.discoMuted).toBe(true);
+    expect(state.terminalCommands).toEqual(['help', 'about']);
+    expect(state.openedProjects).toEqual(['cropio']);
+  });
+
+  it('forces discoActive=false even for current-version blobs (stale flag cleanup)', async () => {
+    // Defensive: even if a bad deploy at the current version somehow wrote
+    // discoActive:true (e.g., a developer running a pre-fix build locally),
+    // parseStoredState must scrub it on read.
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const blob = JSON.stringify({
+      version: STORAGE_VERSION,
+      unlocked: ['first-word'],
+      unlockedAt: { 'first-word': 1 },
+      lastEarnedAt: 1,
+      lastSeenAlbumAt: 0,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      discoActive: true, // stale — must be wiped
+      discoMuted: false,
+    });
+    const state = parseStoredState(blob);
+    expect(state.discoActive).toBe(false);
+    expect(state.unlocked).toContain('first-word'); // progress retained
   });
 
   it('rejects unknown sticker ids during migration (defensive)', async () => {
@@ -113,6 +161,58 @@ describe('parseStoredState migration', () => {
     const state = parseStoredState(v1);
     expect(state.unlocked).toContain('first-word');
     expect(state.unlocked).not.toContain('made-up-sticker');
+  });
+
+  it('migrates a v3 blob to v4, initializing new sound + banner fields to defaults', async () => {
+    // v3 did not have `soundsMuted` or `superuserRevealedAt`. Users coming
+    // from a pre-v4 install MUST land on defaults: soundsMuted=false (audio
+    // on by default) and superuserRevealedAt=0 (so if they ALREADY earned
+    // the superuser sticker before v4 shipped, the banner will play its
+    // fanfare on first post-upgrade load — which is the intended UX).
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v3 = JSON.stringify({
+      version: 3,
+      unlocked: ['first-word', 'superuser'],
+      unlockedAt: { 'first-word': 1000, superuser: 2000 },
+      lastEarnedAt: 2000,
+      lastSeenAlbumAt: 1500,
+      visitedRoutes: ['/'],
+      terminalCommands: ['help'],
+      openedProjects: [],
+      discoMuted: true,
+    });
+    const state = parseStoredState(v3);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.version).toBe(4);
+    expect(state.unlocked).toContain('superuser');
+    expect(state.discoMuted).toBe(true); // preserved
+    // New v4 defaults.
+    expect(state.soundsMuted).toBe(false);
+    expect(state.superuserRevealedAt).toBe(0);
+    // Earned timestamp preserved — banner reveal trigger fires because
+    // unlockedAt.superuser (2000) > superuserRevealedAt (0).
+    expect(state.unlockedAt['superuser']).toBe(2000);
+  });
+
+  it('preserves soundsMuted and superuserRevealedAt when already v4', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v4 = JSON.stringify({
+      version: 4,
+      unlocked: ['superuser'],
+      unlockedAt: { superuser: 5000 },
+      lastEarnedAt: 5000,
+      lastSeenAlbumAt: 4000,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      discoMuted: false,
+      soundsMuted: true,
+      superuserRevealedAt: 5000,
+    });
+    const state = parseStoredState(v4);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.soundsMuted).toBe(true);
+    expect(state.superuserRevealedAt).toBe(5000);
   });
 });
 
@@ -182,14 +282,56 @@ describe('unlockSticker superuser auto-award', () => {
     expect(recordOpenedProjectImperative('atomvault')).toBe(2);
   });
 
-  it('disco active flag toggles and persists', async () => {
+  it('disco active flag toggles in-memory but is NEVER persisted', async () => {
+    // v3 contract: discoActive is session-only. The runtime flag flips, but
+    // localStorage never stores it — every reload starts with disco off.
     const { setDiscoActiveImperative, __resetStoreForTest } = await loadStore();
     __resetStoreForTest();
     setDiscoActiveImperative(true);
+    const raw = memoryStorage.getItem('dhruv-stickers');
+    // Storage should be empty or, if a previous mutation wrote a blob, the
+    // blob must not contain a discoActive key at all.
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      expect(parsed.discoActive).toBeUndefined();
+    }
+  });
+
+  it('any write (e.g. mute pref) strips discoActive from the serialized blob', async () => {
+    // Defense-in-depth: even when the in-memory state has discoActive=true,
+    // writeToStorage must not serialize it. This guards against a future
+    // regression where someone reintroduces direct persistence.
+    const { setDiscoActiveImperative, setDiscoMutedImperative, __resetStoreForTest } = await loadStore();
+    __resetStoreForTest();
+    setDiscoActiveImperative(true);
+    setDiscoMutedImperative(true); // forces a write
     const raw = memoryStorage.getItem('dhruv-stickers') as string;
-    expect(JSON.parse(raw).discoActive).toBe(true);
-    setDiscoActiveImperative(false);
-    expect(JSON.parse(memoryStorage.getItem('dhruv-stickers') as string).discoActive).toBe(false);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw);
+    expect(parsed.discoActive).toBeUndefined();
+    expect(parsed.discoMuted).toBe(true);
+  });
+
+  it('reload-simulation: discoActive never leaks back into state after parseStoredState', async () => {
+    // End-to-end: flip disco on, unlock superuser, write, then simulate a
+    // reload by reparsing the blob. Superuser MUST persist, discoActive MUST
+    // reset to false.
+    const { STICKER_ROSTER } = await import('@/lib/stickers');
+    const {
+      setDiscoActiveImperative,
+      unlockSticker,
+      parseStoredState,
+      __resetStoreForTest,
+    } = await loadStore();
+    __resetStoreForTest();
+    // Earn superuser by unlocking everything.
+    for (const s of STICKER_ROSTER) unlockSticker(s.id);
+    setDiscoActiveImperative(true);
+    // Simulate reload by reparsing the persisted blob.
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    const rehydrated = parseStoredState(raw);
+    expect(rehydrated.unlocked).toContain('superuser');
+    expect(rehydrated.discoActive).toBe(false);
   });
 
   it('disco muted flag toggles and persists across reload', async () => {
@@ -219,6 +361,46 @@ describe('unlockSticker superuser auto-award', () => {
     resetStickerProgressImperative();
     const raw = memoryStorage.getItem('dhruv-stickers') as string;
     expect(JSON.parse(raw).unlocked).toEqual([]);
+  });
+
+  // ─── v4 additions ────────────────────────────────────────────────
+
+  it('soundsMuted toggles and persists across reload', async () => {
+    const { setSoundsMutedImperative, __resetStoreForTest, parseStoredState } = await loadStore();
+    __resetStoreForTest();
+    setSoundsMutedImperative(true);
+    const raw = memoryStorage.getItem('dhruv-stickers');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string).soundsMuted).toBe(true);
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.soundsMuted).toBe(true);
+    // Toggle back.
+    setSoundsMutedImperative(false);
+    expect(JSON.parse(memoryStorage.getItem('dhruv-stickers') as string).soundsMuted).toBe(false);
+  });
+
+  it('superuserRevealedAt advances only forward (monotonic)', async () => {
+    const { setSuperuserRevealedAtImperative, __resetStoreForTest, getSuperuserRevealedAtSync } = await loadStore();
+    __resetStoreForTest();
+    expect(getSuperuserRevealedAtSync()).toBe(0);
+    setSuperuserRevealedAtImperative(1000);
+    expect(getSuperuserRevealedAtSync()).toBe(1000);
+    // An older timestamp must not overwrite a newer one — the banner can
+    // only fire forward in time.
+    setSuperuserRevealedAtImperative(500);
+    expect(getSuperuserRevealedAtSync()).toBe(1000);
+    // A newer timestamp is accepted.
+    setSuperuserRevealedAtImperative(2500);
+    expect(getSuperuserRevealedAtSync()).toBe(2500);
+  });
+
+  it('superuserRevealedAt persists and rehydrates on reload', async () => {
+    const { setSuperuserRevealedAtImperative, parseStoredState, __resetStoreForTest } = await loadStore();
+    __resetStoreForTest();
+    setSuperuserRevealedAtImperative(9999);
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.superuserRevealedAt).toBe(9999);
   });
 });
 

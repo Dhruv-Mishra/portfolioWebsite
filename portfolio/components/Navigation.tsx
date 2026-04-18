@@ -72,7 +72,17 @@ const NavTab = React.memo(function NavTab({
     const y = active ? NAV_POSITIONS.active : hovered ? NAV_POSITIONS.hovered : NAV_POSITIONS.default;
 
     return (
-        <Link href={item.href} legacyBehavior={false} passHref onClick={onPress}>
+        <Link
+            href={item.href}
+            legacyBehavior={false}
+            passHref
+            onClick={onPress}
+            // Focus-visible ring lives on the anchor (the natural focus target)
+            // rather than the inner clip-pathed div, so the ring is never cut
+            // off by the tab's jagged bottom edge and keyboard users can reach
+            // every nav tab with a clear indicator.
+            className="rounded-b-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+        >
             <div
                 onMouseEnter={() => onHoverStart(item.name)}
                 onMouseLeave={onHoverEnd}

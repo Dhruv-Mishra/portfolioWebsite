@@ -10,6 +10,7 @@ import { PAPER_NOISE_SVG } from '@/lib/assets';
 import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
+import SoundToggleButton from './SoundToggleButton';
 import FeedbackTabButton from './FeedbackTabButton';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
@@ -73,9 +74,10 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
             {/* Paper Content Area */}
             <div className="flex-1 relative h-full flex flex-col isolation-auto">
-                {/* Theme Toggle - Bottom Left (Desktop only, mobile uses social bar) */}
-                <div className="hidden md:block absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
+                {/* Theme + Sound Toggles - Bottom Left (Desktop only, mobile uses social bar) */}
+                <div className="hidden md:flex items-center gap-1 absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
                     <ThemeToggle />
+                    <SoundToggleButton />
                 </div>
 
                 {/* Paper Texture Noise Overlay */}

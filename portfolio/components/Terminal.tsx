@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppHaptics } from "@/lib/haptics";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { stickerBus } from "@/lib/stickerBus";
+import { soundManager } from "@/lib/soundManager";
 import { recordTerminalCommandImperative } from "@/hooks/useStickers";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
@@ -110,6 +111,10 @@ export default function Terminal() {
 
         // Track command usage
         trackTerminalCommand(lowerCmd);
+
+        // Play a subtle typewriter click on command execute. Debounced
+        // inside the manager so rapid commands don't machine-gun the user.
+        soundManager.play('terminal-click');
 
         // Sticker emits (idempotent — hook deduplicates by id)
         stickerBus.emit('first-word');

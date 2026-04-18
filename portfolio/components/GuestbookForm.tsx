@@ -6,6 +6,7 @@ import { Pin, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import {
   ANIMATION_TOKENS,
@@ -116,6 +117,7 @@ export default function GuestbookForm() {
 
       // Fly-to-wall animation, then toast, then fresh form.
       success();
+      soundManager.play('guestbook-submit');
       setState('flying');
       setShowToast(true);
 

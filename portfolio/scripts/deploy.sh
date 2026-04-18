@@ -4,40 +4,44 @@
 #          FILE: deploy.sh
 #
 #         USAGE: sudo ./deploy.sh [OPTIONS]
-#                sudo deployWebsite [OPTIONS]           (via symlink)
+#                sudo deployWebsite [OPTIONS]                    (via symlink, legacy)
+#                sudo bash /path/to/release/.deploy/deploy.sh \
+#                         --release-dir /path/to/release \
+#                         --sha <git-sha> \
+#                         --site portfolio                        (artifact mode)
 #
 #   DESCRIPTION: Production deployment for a Next.js website.
-#                Uses standalone output mode behind an nginx reverse proxy.
+#                Supports two modes:
 #
-#                Flow:
-#                  1. Load config from /etc/deploy/
-#                  2. Pre-flight checks (root, deps, disk, SSL, env, git)
-#                  3. Kill orphaned processes on the Next.js port
-#                  4. Git pull
-#                  5. npm ci + next build (standalone output)
-#                  6. Prepare standalone bundle (copy static, public, .env)
-#                  7. Create/update systemd service
-#                  8. Restart Next.js, wait for readiness
-#                  9. Process nginx template, deploy, reload
-#                 10. Health checks
+#                1. ARTIFACT MODE (--release-dir / --sha):
+#                   A pre-built standalone bundle is already on disk (shipped
+#                   via GitHub Actions artifact + scp). Skips git / npm / build
+#                   entirely. Uses /opt/portfolio/{config,releases,current}
+#                   layout with atomic symlink swap and health-check-gated
+#                   rollback. This is the production path.
+#
+#                2. LEGACY MODE (no --release-dir):
+#                   Full git pull + npm ci + next build on the VM. Kept as a
+#                   safety net for emergency recovery; not the normal path.
 #
 #       OPTIONS:
-#                --site NAME   Site config to use (default: portfolio)
-#                --skip-git    Skip git pull
-#                --skip-deps   Skip npm ci
-#                --skip-build  Skip npm ci + next build
-#                --skip-nginx  Skip nginx config update
-#                --force       Deploy with uncommitted changes
-#                --help        Show help
+#                --release-dir DIR   [artifact] Path to extracted bundle
+#                --sha SHA           [artifact] Git SHA identifying this build
+#                --site NAME         Site config to use (default: portfolio)
+#                --skip-git          [legacy]   Skip git pull
+#                --skip-deps         [legacy]   Skip npm ci
+#                --skip-build        [legacy]   Skip npm ci + next build
+#                --skip-nginx        Skip nginx config update
+#                --force             [legacy]   Deploy with uncommitted changes
+#                --help              Show help
 #
 #      REQUIRES: /etc/deploy/machine.conf
 #                /etc/deploy/sites/<site>.conf
-#                See scripts/machine.conf.example and scripts/portfolio.conf.example
 #
-#       VERSION: 3.0.0
-#       CREATED: 2026-01-06
-#       UPDATED: 2026-03-08  Full rewrite: standalone mode, /etc/deploy/ config,
-#                            multi-site support, systemd hardening, memory limits
+#       VERSION: 4.0.0
+#       UPDATED: 2026-04-18  v4: artifact-based deploys with /opt/portfolio
+#                            layout, atomic swap, health-gated rollback.
+#                            Legacy git-based mode retained as safety net.
 #
 #===============================================================================
 
@@ -97,7 +101,7 @@ if ! [[ "${SERVICE_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     exit 1
 fi
 
-# Paths
+# Legacy paths (still referenced for first-run migration + legacy mode)
 readonly GIT_ROOT="${GIT_ROOT:?GIT_ROOT not set in ${SITE_CONF}}"
 readonly PROJECT_ROOT="${PROJECT_ROOT:?PROJECT_ROOT not set in ${SITE_CONF}}"
 
@@ -130,7 +134,7 @@ readonly BUILD_IONICE_CLASS="${BUILD_IONICE_CLASS:-3}"
 readonly NGINX_CONF_TEMPLATE="${NGINX_CONF_TEMPLATE:-nginx-cloudflare.conf}"
 readonly NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 readonly NGINX_SITES_ENABLED="${NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}"
-readonly SOURCE_NGINX_CONF="${PROJECT_ROOT}/${NGINX_CONF_TEMPLATE}"
+readonly NGINX_CONF_D="${NGINX_CONF_D:-/etc/nginx/conf.d}"
 
 # Backups & logs
 readonly BACKUP_DIR="${BACKUP_DIR:-/var/backups/${SERVICE_NAME}}"
@@ -141,32 +145,39 @@ readonly MAX_LOG_FILES="${MAX_LOG_FILES:-10}"
 # Build
 readonly NPM_BUILD_TIMEOUT="${NPM_BUILD_TIMEOUT:-600}"
 
-# Health check
-# 60s is safe for 1 OCPU ARM VMs where Node.js startup can take 15-25s
+# Health check — 60s is safe for 1 OCPU ARM VMs where Node.js startup can take 15-25s
 readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-60}"
 readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
+
+# Number of releases to retain (including the current one).
+# 2 is the minimum that allows rollback. 3+ gives more rollback depth at disk cost.
+# On 1-GB VMs with ~200MB per release, keep it tight.
+readonly RELEASE_RETENTION_COUNT="${RELEASE_RETENTION_COUNT:-2}"
 
 # Required env vars
 IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS:-LLM_API_KEY,LLM_BASE_URL,LLM_MODEL}"
 
 #===============================================================================
-# DERIVED CONSTANTS
+# DERIVED CONSTANTS — ARTIFACT LAYOUT
 #===============================================================================
 
-readonly NEXTJS_BUILD_DIR="${PROJECT_ROOT}/.next"
-readonly STANDALONE_DIR="${PROJECT_ROOT}/.next/standalone"
-readonly ENV_FILE="${PROJECT_ROOT}/.env.local"
+readonly DEPLOY_ROOT="/opt/${SERVICE_NAME}"
+readonly DEPLOY_CONFIG_DIR="${DEPLOY_ROOT}/config"
+readonly DEPLOY_RELEASES_DIR="${DEPLOY_ROOT}/releases"
+readonly DEPLOY_CURRENT_LINK="${DEPLOY_ROOT}/current"
+readonly DEPLOY_ENV_FILE="${DEPLOY_CONFIG_DIR}/.env.local"
+readonly DEPLOY_LOCK_FILE="/var/lock/${SERVICE_NAME}-deploy.lock"
+
+# Legacy paths (for first-run migration + backward compat)
+readonly LEGACY_STANDALONE_DIR="${PROJECT_ROOT}/.next/standalone"
+readonly LEGACY_ENV_FILE="${PROJECT_ROOT}/.env.local"
+readonly LEGACY_STANDALONE_ENV_FILE="${LEGACY_STANDALONE_DIR}/.env.local"
+
+# Configs
 readonly SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
 readonly NGINX_ACTIVE_CONF="${NGINX_SITES_AVAILABLE}/${SERVICE_NAME}"
+readonly NGINX_ZONES_CONF="${NGINX_CONF_D}/${SERVICE_NAME}-zones.conf"
 readonly LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d-%H%M%S).log"
-
-resolve_build_id() {
-    if [[ -n "${NEXT_BUILD_ID:-}" ]]; then
-        printf '%s\n' "${NEXT_BUILD_ID}"
-        return 0
-    fi
-    git -C "${GIT_ROOT}" rev-parse HEAD 2>/dev/null || printf '%s\n' "local-build"
-}
 
 #===============================================================================
 # COLOR CODES
@@ -185,13 +196,28 @@ readonly NC='\033[0m'
 # MUTABLE STATE
 #===============================================================================
 
+MODE="legacy"              # "artifact" | "legacy"
+RELEASE_DIR=""             # set in artifact mode
+RELEASE_SHA=""             # set in artifact mode
+
 SKIP_GIT=false
 SKIP_DEPS=false
 SKIP_BUILD=false
 SKIP_NGINX=false
 FORCE_DEPLOY=false
 DEPLOYMENT_START_TIME=""
-NGINX_BACKUP_FILE=""
+
+# Rollback state — captured BEFORE mutations so cleanup() can restore
+ROLLBACK_SYSTEMD_BACKUP=""
+ROLLBACK_NGINX_BACKUP=""
+ROLLBACK_PREV_SHA=""
+ROLLBACK_SYSTEMD_ACTIVATED=false
+ROLLBACK_SYMLINK_FLIPPED=false
+ROLLBACK_NGINX_ACTIVATED=false
+
+# Staging files (written before atomic activation)
+STAGED_SYSTEMD_UNIT=""
+STAGED_NGINX_CONF=""
 
 #===============================================================================
 # LOGGING
@@ -223,34 +249,37 @@ log_separator() {
 }
 
 #===============================================================================
-# UTILITY FUNCTIONS
+# ARG PARSING
 #===============================================================================
 
 show_help() {
     cat << 'EOF'
-Usage: sudo ./deploy.sh [OPTIONS]
+Usage:
+  Artifact mode (production path — invoked by deploy.yml from within the tarball):
+    sudo bash <release>/.deploy/deploy.sh --release-dir <release> --sha <sha> --site <name>
 
-Production deployment for a Next.js website (standalone mode).
+  Legacy mode (emergency recovery only — runs full build on VM):
+    sudo deployWebsite [--site NAME] [--skip-git|--skip-deps|--skip-build|--skip-nginx|--force]
 
-OPTIONS:
-    --site NAME     Site config to load from /etc/deploy/sites/ (default: portfolio)
-    --skip-git      Skip git pull
-    --skip-deps     Skip npm ci (code-only change, no package updates)
-    --skip-build    Skip npm ci + next build
-    --skip-nginx    Skip nginx config update & reload
-    --force         Deploy even with uncommitted changes
-    --help          Show this message
+OPTIONS
+  --release-dir DIR   Artifact mode: path to extracted standalone bundle
+  --sha SHA           Artifact mode: git SHA identifying this build
+  --site NAME         Site config in /etc/deploy/sites/ (default: portfolio)
+  --skip-git          (legacy) Skip git pull
+  --skip-deps         (legacy) Skip npm ci
+  --skip-build        (legacy) Skip npm ci + next build
+  --skip-nginx        Skip nginx config update & reload
+  --force             (legacy) Deploy even with uncommitted changes
+  --help, -h          Show this help
 
-CONFIGURATION:
-    Machine config: /etc/deploy/machine.conf
-    Site config:    /etc/deploy/sites/<name>.conf
+CONFIGURATION
+  Machine config: /etc/deploy/machine.conf
+  Site config:    /etc/deploy/sites/<name>.conf
 
-EXAMPLES:
-    sudo ./deploy.sh                          # Full deployment (portfolio)
-    sudo ./deploy.sh --site blog              # Deploy a different site
-    sudo ./deploy.sh --skip-git               # Deploy without pulling
-    sudo ./deploy.sh --skip-build             # Update nginx only
-    sudo ./deploy.sh --skip-build --skip-nginx  # Just restart Next.js
+LAYOUT (artifact mode)
+  /opt/<service>/config/.env.local       — secrets, survives deploys
+  /opt/<service>/releases/<sha>/         — one dir per release, auto-trimmed
+  /opt/<service>/current -> releases/X   — atomic symlink flipped at deploy time
 EOF
     exit 0
 }
@@ -259,10 +288,27 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --site)
+                # Already captured in early parsing; skip value
                 shift
                 if [[ $# -gt 0 ]] && [[ "$1" != --* ]]; then
-                    shift   # Site name already captured in early parsing
+                    shift
                 fi
+                ;;
+            --release-dir)
+                RELEASE_DIR="${2:-}"
+                if [[ -z "${RELEASE_DIR}" ]] || [[ "${RELEASE_DIR}" == --* ]]; then
+                    log ERROR "--release-dir requires a path"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --sha)
+                RELEASE_SHA="${2:-}"
+                if [[ -z "${RELEASE_SHA}" ]] || [[ "${RELEASE_SHA}" == --* ]]; then
+                    log ERROR "--sha requires a value"
+                    exit 1
+                fi
+                shift 2
                 ;;
             --skip-git)   SKIP_GIT=true;   shift ;;
             --skip-deps)  SKIP_DEPS=true;  shift ;;
@@ -275,7 +321,32 @@ parse_arguments() {
                 exit 1 ;;
         esac
     done
+
+    # Dispatch: artifact mode iff --release-dir given
+    if [[ -n "${RELEASE_DIR}" ]]; then
+        MODE="artifact"
+        if [[ -z "${RELEASE_SHA}" ]]; then
+            log ERROR "--release-dir requires --sha"
+            exit 1
+        fi
+        # Normalize & validate — use an explicit if to avoid pipeline precedence
+        # traps under set -e.
+        if [[ ! -d "${RELEASE_DIR}" ]]; then
+            log ERROR "--release-dir not a valid directory: ${RELEASE_DIR}"
+            exit 1
+        fi
+        local resolved
+        if ! resolved=$(cd "${RELEASE_DIR}" && pwd); then
+            log ERROR "Could not resolve --release-dir: ${RELEASE_DIR}"
+            exit 1
+        fi
+        RELEASE_DIR="${resolved}"
+    fi
 }
+
+#===============================================================================
+# CLEANUP / ROLLBACK
+#===============================================================================
 
 cleanup() {
     local exit_code=$?
@@ -284,14 +355,10 @@ cleanup() {
         log_separator
         log ERROR "Deployment failed (exit ${exit_code}). Log: ${LOG_FILE}"
 
-        if [[ -n "${NGINX_BACKUP_FILE}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
-            log WARN "Rolling back nginx configuration..."
-            if cp "${NGINX_BACKUP_FILE}" "${NGINX_ACTIVE_CONF}" && nginx -t &>/dev/null; then
-                systemctl reload nginx
-                log SUCCESS "Nginx rolled back successfully"
-            else
-                log ERROR "CRITICAL: Nginx rollback failed — manual intervention required!"
-            fi
+        if [[ "${MODE}" == "artifact" ]]; then
+            rollback_artifact
+        else
+            rollback_legacy_nginx
         fi
     fi
 
@@ -301,8 +368,72 @@ cleanup() {
     fi
 }
 
+# Artifact-mode rollback: undo mutations in reverse order
+rollback_artifact() {
+    log WARN "Rolling back artifact deploy..."
+
+    # 1. Flip symlink back to previous release (if we flipped it)
+    if [[ "${ROLLBACK_SYMLINK_FLIPPED}" == "true" ]] && [[ -n "${ROLLBACK_PREV_SHA}" ]]; then
+        local prev_target="${DEPLOY_RELEASES_DIR}/${ROLLBACK_PREV_SHA}"
+        if [[ -d "${prev_target}" ]]; then
+            log INFO "Restoring symlink: current -> ${ROLLBACK_PREV_SHA}"
+            ln -sfn "${prev_target}" "${DEPLOY_CURRENT_LINK}.tmp" && \
+                mv -Tf "${DEPLOY_CURRENT_LINK}.tmp" "${DEPLOY_CURRENT_LINK}" && \
+                log SUCCESS "Symlink restored" || \
+                log ERROR "CRITICAL: Failed to restore symlink — manual intervention required"
+        else
+            log ERROR "CRITICAL: Previous release ${ROLLBACK_PREV_SHA} not found for rollback"
+        fi
+    fi
+
+    # 2. Restore systemd unit (if we activated a new one)
+    if [[ "${ROLLBACK_SYSTEMD_ACTIVATED}" == "true" ]] && [[ -n "${ROLLBACK_SYSTEMD_BACKUP}" ]] && [[ -f "${ROLLBACK_SYSTEMD_BACKUP}" ]]; then
+        log INFO "Restoring systemd unit from ${ROLLBACK_SYSTEMD_BACKUP}"
+        if cp "${ROLLBACK_SYSTEMD_BACKUP}" "${SYSTEMD_UNIT}"; then
+            systemctl daemon-reload
+            systemctl restart "${SERVICE_NAME}" 2>/dev/null || \
+                log ERROR "CRITICAL: Service restart after systemd rollback failed"
+        else
+            log ERROR "CRITICAL: Could not restore systemd unit"
+        fi
+    elif [[ "${ROLLBACK_SYSTEMD_ACTIVATED}" == "true" ]]; then
+        # We activated a new unit but had no prior one to back up. Remove the
+        # (probably broken) new unit so we don't leave systemd in a weird state.
+        log WARN "No systemd backup to restore — removing newly-activated unit"
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        systemctl disable "${SERVICE_NAME}" 2>/dev/null || true
+        rm -f "${SYSTEMD_UNIT}"
+        systemctl daemon-reload
+    fi
+
+    # 3. Restore nginx config (if we activated a new one) and reload
+    if [[ "${ROLLBACK_NGINX_ACTIVATED}" == "true" ]] && [[ -n "${ROLLBACK_NGINX_BACKUP}" ]] && [[ -f "${ROLLBACK_NGINX_BACKUP}" ]]; then
+        log INFO "Restoring nginx config from ${ROLLBACK_NGINX_BACKUP}"
+        if cp "${ROLLBACK_NGINX_BACKUP}" "${NGINX_ACTIVE_CONF}" && nginx -t &>/dev/null; then
+            systemctl reload nginx
+            log SUCCESS "nginx rolled back"
+        else
+            log ERROR "CRITICAL: nginx rollback failed — manual intervention required"
+        fi
+    fi
+
+    log WARN "Rollback complete. Previous release should be serving traffic."
+}
+
+rollback_legacy_nginx() {
+    if [[ -n "${ROLLBACK_NGINX_BACKUP}" ]] && [[ -f "${ROLLBACK_NGINX_BACKUP}" ]]; then
+        log WARN "Rolling back nginx configuration..."
+        if cp "${ROLLBACK_NGINX_BACKUP}" "${NGINX_ACTIVE_CONF}" && nginx -t &>/dev/null; then
+            systemctl reload nginx
+            log SUCCESS "nginx rolled back"
+        else
+            log ERROR "CRITICAL: nginx rollback failed — manual intervention required"
+        fi
+    fi
+}
+
 #===============================================================================
-# PRE-FLIGHT CHECKS
+# PRE-FLIGHT (shared between modes)
 #===============================================================================
 
 check_root() {
@@ -316,28 +447,20 @@ check_root() {
 
 check_dependencies() {
     log STEP "Checking dependencies..."
+    local deps=("nginx" "systemctl" "curl" "sed" "rsync" "flock")
+    if [[ "${MODE}" == "legacy" ]]; then
+        deps+=("git" "node" "npm" "nice" "ionice")
+    fi
 
-    local deps=("git" "node" "npm" "nginx" "systemctl" "curl" "nice" "ionice" "sed")
     local missing=()
-
     for cmd in "${deps[@]}"; do
         if ! command -v "${cmd}" &>/dev/null; then
             missing+=("${cmd}")
-        else
-            local ver="installed"
-            case "${cmd}" in
-                node)  ver=$(node --version 2>/dev/null) ;;
-                npm)   ver=$(npm --version 2>/dev/null) ;;
-                nginx) ver=$(nginx -v 2>&1 | grep -oP '[\d.]+' || echo "?") ;;
-                git)   ver=$(git --version | awk '{print $3}') ;;
-            esac
-            log DEBUG "${cmd}: ${ver}"
         fi
     done
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         log ERROR "Missing: ${missing[*]}"
-        log INFO "Run optimize_vm.sh first to install dependencies"
         exit 1
     fi
     log SUCCESS "All dependencies present"
@@ -346,22 +469,29 @@ check_dependencies() {
 check_disk_space() {
     log STEP "Checking disk space..."
     local avail
-    avail=$(df -m "${PROJECT_ROOT}" | awk 'NR==2{print $4}')
+    avail=$(df -m / | awk 'NR==2{print $4}')
     if [[ ${avail} -lt ${MIN_DISK_MB} ]]; then
         log ERROR "Only ${avail}MB free (need ${MIN_DISK_MB}MB)"
         exit 1
     fi
+
+    # Artifact-mode extra check: release is ~2× staged size; bail early if tight
+    if [[ "${MODE}" == "artifact" ]] && [[ -d "${RELEASE_DIR}" ]]; then
+        local release_mb
+        release_mb=$(du -sm "${RELEASE_DIR}" 2>/dev/null | awk '{print $1}')
+        local need_mb=$(( release_mb * 2 + 100 ))   # 2× plus 100MB safety
+        if [[ ${avail} -lt ${need_mb} ]]; then
+            log ERROR "Disk tight: ${avail}MB free, need ~${need_mb}MB (2× release + safety)"
+            exit 1
+        fi
+        log DEBUG "Disk: ${avail}MB free, release: ${release_mb}MB, needed: ${need_mb}MB"
+    fi
+
     log SUCCESS "Disk OK: ${avail}MB free"
 }
 
-check_paths() {
-    log STEP "Validating paths..."
-
-    [[ -d "${PROJECT_ROOT}" ]] || { log ERROR "Project dir missing: ${PROJECT_ROOT}"; exit 1; }
-    [[ -f "${SOURCE_NGINX_CONF}" ]] || { log ERROR "Nginx template missing: ${SOURCE_NGINX_CONF}"; exit 1; }
-    [[ -d "${NGINX_SITES_AVAILABLE}" ]] || { log ERROR "nginx sites-available missing"; exit 1; }
-
-    # SSL certificates
+check_ssl_certs() {
+    log STEP "Validating SSL certificates..."
     [[ -f "${SSL_CERT}" ]] || { log ERROR "SSL cert missing: ${SSL_CERT}"; exit 1; }
     [[ -f "${SSL_KEY}" ]]  || { log ERROR "SSL key missing: ${SSL_KEY}"; exit 1; }
 
@@ -371,48 +501,696 @@ check_paths() {
         log WARN "Fixing SSL key permissions (${perms} → 600)"
         chmod 600 "${SSL_KEY}"
     fi
-
-    log SUCCESS "Paths validated"
+    log SUCCESS "SSL OK"
 }
 
-check_env_file() {
-    log STEP "Validating .env.local..."
+setup_directories() {
+    mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
+    chmod 755 "${LOG_DIR}" "${BACKUP_DIR}"
+    touch "${LOG_FILE}"
+    chmod 644 "${LOG_FILE}"
+}
 
-    if [[ ! -f "${ENV_FILE}" ]]; then
-        log ERROR ".env.local not found at ${ENV_FILE}"
-        log INFO "Required vars: ${REQUIRED_ENV_ARRAY[*]}"
+cleanup_old_artifacts() {
+    log STEP "Pruning old logs & backups..."
+    local count
+    count=$(find "${LOG_DIR}" -name "deploy-*.log" -type f 2>/dev/null | wc -l)
+    if [[ ${count} -gt ${MAX_LOG_FILES} ]]; then
+        local to_delete=$(( count - MAX_LOG_FILES ))
+        find "${LOG_DIR}" -name "deploy-*.log" -type f -printf '%T+ %p\n' \
+            | sort | head -n "${to_delete}" \
+            | cut -d' ' -f2- | xargs rm -f
+    fi
+    find "${BACKUP_DIR}" -name "*.backup.*" -type f -mtime "+${BACKUP_RETENTION_DAYS}" -delete 2>/dev/null || true
+    if command -v journalctl &>/dev/null; then
+        journalctl --vacuum-size=50M -u "${SERVICE_NAME}" &>/dev/null || true
+    fi
+    log SUCCESS "Cleanup complete"
+}
+
+#===============================================================================
+# PROCESS CLEANUP (shared — runs on port regardless of mode)
+#===============================================================================
+
+kill_orphaned_processes() {
+    log STEP "Killing orphaned processes on port ${NEXTJS_PORT}..."
+
+    # PM2 cleanup (legacy deployments may have this)
+    if command -v pm2 &>/dev/null; then
+        local pm2_list
+        pm2_list=$(sudo -u "${SERVICE_USER}" pm2 jlist 2>/dev/null || echo "[]")
+        if echo "${pm2_list}" | grep -q '"name":"'"${SERVICE_NAME}"'"'; then
+            log WARN "Stopping PM2-managed '${SERVICE_NAME}'..."
+            sudo -u "${SERVICE_USER}" pm2 stop "${SERVICE_NAME}" 2>/dev/null || true
+            sudo -u "${SERVICE_USER}" pm2 delete "${SERVICE_NAME}" 2>/dev/null || true
+            sudo -u "${SERVICE_USER}" pm2 save --force 2>/dev/null || true
+        fi
+    fi
+
+    # Kill leftover processes on the port (systemd stop handled elsewhere)
+    local pids
+    pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+
+    if [[ -n "${pids}" ]]; then
+        log WARN "Found orphaned PIDs on port ${NEXTJS_PORT}: ${pids}"
+        for pid in ${pids}; do
+            kill "${pid}" 2>/dev/null || true
+        done
+        sleep 2
+
+        pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+            | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+        if [[ -n "${pids}" ]]; then
+            log WARN "Force-killing: ${pids}"
+            for pid in ${pids}; do
+                kill -9 "${pid}" 2>/dev/null || true
+            done
+            sleep 1
+        fi
+    fi
+
+    local remaining_pids
+    remaining_pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+    if [[ -n "${remaining_pids}" ]]; then
+        log ERROR "Port ${NEXTJS_PORT} still occupied by PIDs: ${remaining_pids}"
         exit 1
     fi
 
+    log SUCCESS "Port ${NEXTJS_PORT} is clear"
+}
+
+#===============================================================================
+# ARTIFACT MODE — first-run bootstrap + release management
+#===============================================================================
+
+first_run_bootstrap() {
+    log STEP "Ensuring /opt/${SERVICE_NAME} layout..."
+
+    # First-run: do the expensive recursive chown + create skeleton.
+    # Steady-state: just ensure the dirs exist (cheap stat, no ownership sweep).
+    local first_run=false
+    if [[ ! -d "${DEPLOY_RELEASES_DIR}" ]]; then
+        first_run=true
+    fi
+
+    mkdir -p "${DEPLOY_CONFIG_DIR}" "${DEPLOY_RELEASES_DIR}"
+    chmod 755 "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}"
+    chmod 750 "${DEPLOY_CONFIG_DIR}"
+
+    if [[ "${first_run}" == "true" ]]; then
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DEPLOY_ROOT}"
+    else
+        # Ensure top-level dirs have correct owner without sweeping releases
+        chown "${SERVICE_USER}:${SERVICE_USER}" "${DEPLOY_ROOT}" \
+            "${DEPLOY_CONFIG_DIR}" "${DEPLOY_RELEASES_DIR}" 2>/dev/null || true
+    fi
+
+    # Migrate .env.local from legacy location if we don't have one yet
+    if [[ ! -f "${DEPLOY_ENV_FILE}" ]]; then
+        local src=""
+        if [[ -f "${LEGACY_ENV_FILE}" ]]; then
+            src="${LEGACY_ENV_FILE}"
+        elif [[ -f "${LEGACY_STANDALONE_ENV_FILE}" ]]; then
+            src="${LEGACY_STANDALONE_ENV_FILE}"
+        fi
+
+        if [[ -n "${src}" ]]; then
+            log INFO "First-run: migrating .env.local from ${src}"
+            cp "${src}" "${DEPLOY_ENV_FILE}"
+            chown "${SERVICE_USER}:${SERVICE_USER}" "${DEPLOY_ENV_FILE}"
+            chmod 600 "${DEPLOY_ENV_FILE}"
+        else
+            log ERROR "No .env.local found (tried ${LEGACY_ENV_FILE} and ${LEGACY_STANDALONE_ENV_FILE})"
+            log ERROR "Required vars: ${REQUIRED_ENV_ARRAY[*]}"
+            exit 1
+        fi
+    fi
+
+    log SUCCESS "Layout ready: ${DEPLOY_ROOT}"
+}
+
+validate_env_file() {
+    log STEP "Validating ${DEPLOY_ENV_FILE}..."
+
+    if [[ ! -f "${DEPLOY_ENV_FILE}" ]]; then
+        log ERROR ".env.local not found at ${DEPLOY_ENV_FILE}"
+        exit 1
+    fi
+
+    # Check required vars are present. Use fgrep-style fixed match for the
+    # variable name, but pre-filter to non-comment lines and anchor with `cut`
+    # so `# FOO=old` in a comment doesn't falsely satisfy FOO.
     local missing=()
+    local non_comment
+    non_comment=$(grep -vE '^[[:space:]]*(#|$)' "${DEPLOY_ENV_FILE}" || true)
     for var in "${REQUIRED_ENV_ARRAY[@]}"; do
-        var="$(echo "${var}" | xargs)"   # trim whitespace
-        if ! grep -q "^${var}=" "${ENV_FILE}"; then
+        var="$(echo "${var}" | xargs)"
+        if ! echo "${non_comment}" | cut -d= -f1 | grep -qxF "${var}"; then
             missing+=("${var}")
         fi
     done
-
     if [[ ${#missing[@]} -gt 0 ]]; then
         log ERROR "Missing in .env.local: ${missing[*]}"
         exit 1
     fi
 
-    log SUCCESS ".env.local validated (${#REQUIRED_ENV_ARRAY[@]} required vars present)"
-}
-
-check_swap() {
-    log STEP "Checking memory & swap..."
-    local total_ram total_swap
-    total_ram=$(free -m | awk '/Mem:/{print $2}')
-    total_swap=$(free -m | awk '/Swap:/{print $2}')
-    log DEBUG "RAM: ${total_ram}MB, Swap: ${total_swap}MB"
-
-    if [[ ${total_ram} -lt 1500 ]] && [[ ${total_swap} -lt 512 ]]; then
-        log WARN "Low memory (${total_ram}MB RAM) with minimal swap — builds may OOM"
-        log INFO "Run optimize_vm.sh to configure swap automatically"
+    # Validate systemd-compatible syntax — no `export`, no shell interpolation,
+    # no multi-line values, no unquoted spaces. systemd silently drops malformed
+    # lines which would surface as "missing API key" at runtime — fail loudly here.
+    # Accept lower-case keys too (http_proxy, etc. are valid systemd env vars).
+    local bad_lines
+    bad_lines=$(grep -vE '^[[:space:]]*(#|$)' "${DEPLOY_ENV_FILE}" | grep -vE '^[A-Za-z_][A-Za-z0-9_]*=.*$' || true)
+    if [[ -n "${bad_lines}" ]]; then
+        log ERROR ".env.local has lines incompatible with systemd EnvironmentFile syntax:"
+        echo "${bad_lines}" | head -5 | while read -r line; do
+            log ERROR "  > ${line}"
+        done
+        log ERROR "Each line must be KEY=value (no 'export', no shell \$interpolation, no multi-line)"
+        exit 1
     fi
-    log SUCCESS "Memory check complete"
+
+    log SUCCESS ".env.local valid (${#REQUIRED_ENV_ARRAY[@]} required vars, systemd-compatible)"
 }
+
+record_previous_release() {
+    if [[ -L "${DEPLOY_CURRENT_LINK}" ]]; then
+        local target
+        target=$(readlink "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+        if [[ -n "${target}" ]]; then
+            ROLLBACK_PREV_SHA="$(basename "${target}")"
+            log DEBUG "Previous release: ${ROLLBACK_PREV_SHA}"
+        fi
+    fi
+}
+
+stage_release() {
+    log STEP "Staging release ${RELEASE_SHA}..."
+
+    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+
+    # If the same SHA was already deployed (rerun of failed job), wipe & redo
+    if [[ -d "${target}" ]]; then
+        log WARN "Release ${RELEASE_SHA} already on disk — wiping & redeploying"
+        rm -rf "${target}"
+    fi
+
+    mkdir -p "${target}"
+
+    # Copy the extracted bundle. rsync --delete to guarantee clean target.
+    rsync -a --delete "${RELEASE_DIR}/" "${target}/"
+
+    # Copy the production .env.local into the release (systemd reads it from here)
+    cp "${DEPLOY_ENV_FILE}" "${target}/.env.local"
+    chmod 600 "${target}/.env.local"
+
+    # Fix ownership: service user owns the bundle
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${target}"
+
+    # Ensure nginx (www-data) can traverse to read static files.
+    # /opt/portfolio is not home-restricted but set +x defensively in case
+    # parent dirs have 700 perms.
+    chmod o+x "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}" "${target}" 2>/dev/null || true
+    [[ -d "${target}/.next/static" ]] && chmod -R o+rX "${target}/.next/static" 2>/dev/null || true
+    [[ -d "${target}/public" ]] && chmod -R o+rX "${target}/public" 2>/dev/null || true
+
+    local file_count
+    file_count=$(find "${target}" -type f | wc -l)
+    log SUCCESS "Staged ${file_count} files to ${target}"
+}
+
+#===============================================================================
+# ARTIFACT MODE — systemd unit (prepare → validate → activate)
+#===============================================================================
+
+prepare_systemd_unit() {
+    log STEP "Preparing systemd unit (staged)..."
+
+    local node_bin
+    node_bin=$(command -v node)
+
+    STAGED_SYSTEMD_UNIT="$(mktemp "/tmp/${SERVICE_NAME}.service.XXXXXX")"
+
+    cat > "${STAGED_SYSTEMD_UNIT}" << UNIT
+[Unit]
+Description=Next.js — ${DOMAIN}
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+WorkingDirectory=${DEPLOY_CURRENT_LINK}
+
+# Environment — file lives inside the release, injected at deploy time
+EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
+Environment=NODE_ENV=production
+Environment=PORT=${NEXTJS_PORT}
+Environment=HOSTNAME=0.0.0.0
+Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}"
+
+ExecStart=${node_bin} server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=15
+
+# ── Resource Limits ──
+MemoryHigh=${MEMORY_HIGH_MB}M
+MemoryMax=${MEMORY_MAX_MB}M
+CPUQuota=${CPU_QUOTA_PERCENT}%
+OOMScoreAdjust=500
+Nice=${SERVICE_NICE}
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+
+# ── Security Hardening ──
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=${DEPLOY_ROOT}
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+# ── Logging ──
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=${SERVICE_NAME}
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=100
+
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    chmod 644 "${STAGED_SYSTEMD_UNIT}"
+    log SUCCESS "systemd unit staged at ${STAGED_SYSTEMD_UNIT}"
+}
+
+backup_existing_systemd() {
+    if [[ -f "${SYSTEMD_UNIT}" ]]; then
+        ROLLBACK_SYSTEMD_BACKUP="${BACKUP_DIR}/systemd-${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
+        cp "${SYSTEMD_UNIT}" "${ROLLBACK_SYSTEMD_BACKUP}"
+        log DEBUG "systemd backup: ${ROLLBACK_SYSTEMD_BACKUP}"
+    fi
+}
+
+activate_systemd_unit() {
+    log STEP "Activating systemd unit..."
+    cp "${STAGED_SYSTEMD_UNIT}" "${SYSTEMD_UNIT}"
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}" &>/dev/null || true
+    ROLLBACK_SYSTEMD_ACTIVATED=true
+    log SUCCESS "systemd unit active"
+}
+
+#===============================================================================
+# ARTIFACT MODE — nginx (prepare → validate → activate)
+#===============================================================================
+
+ensure_nginx_zones() {
+    # The nginx template references limit_req_zone names `api` and `general` which
+    # must be defined in http{} context. If they don't exist on the VM already,
+    # nginx -t would fail. Write them defensively to conf.d/<service>-zones.conf
+    # (conf.d is auto-included by Ubuntu's default nginx.conf at http level).
+    #
+    # If zones are already defined elsewhere with the same name, nginx will fail
+    # on duplicate-zone error. Detect that case and skip.
+
+    log STEP "Ensuring nginx rate-limit zones exist..."
+
+    if grep -rqE '^\s*limit_req_zone[^;]+zone=(api|general)' /etc/nginx/ 2>/dev/null; then
+        log DEBUG "limit_req_zone api/general already defined — skipping"
+        return 0
+    fi
+
+    cat > "${NGINX_ZONES_CONF}" << 'ZONES'
+# Rate-limit zones (shared across all server blocks).
+# Defined in http{} via conf.d/ auto-include.
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=general:10m rate=120r/m;
+ZONES
+    chmod 644 "${NGINX_ZONES_CONF}"
+    log SUCCESS "Wrote ${NGINX_ZONES_CONF}"
+}
+
+prepare_nginx_config() {
+    log STEP "Preparing nginx config (staged)..."
+
+    local tmpl="${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}"
+    if [[ ! -f "${tmpl}" ]]; then
+        log ERROR "nginx template missing in release: ${tmpl}"
+        exit 1
+    fi
+
+    STAGED_NGINX_CONF="$(mktemp "/tmp/${SERVICE_NAME}-nginx.conf.XXXXXX")"
+
+    # __STANDALONE_DIR__ points to the atomic symlink, NOT the release dir directly.
+    # This way nginx configs don't reference a per-SHA path and survive symlink
+    # swaps without a reload (though we reload anyway for explicit cache invalidation).
+    sed -e "s|__DOMAIN__|${DOMAIN}|g" \
+        -e "s|__NEXTJS_PORT__|${NEXTJS_PORT}|g" \
+        -e "s|__SERVICE_NAME__|${SERVICE_NAME}|g" \
+        -e "s|__SSL_CERT__|${SSL_CERT}|g" \
+        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
+        -e "s|__STANDALONE_DIR__|${DEPLOY_CURRENT_LINK}|g" \
+        "${tmpl}" > "${STAGED_NGINX_CONF}"
+
+    chmod 644 "${STAGED_NGINX_CONF}"
+    log SUCCESS "nginx config staged at ${STAGED_NGINX_CONF}"
+}
+
+validate_staged_nginx() {
+    # Validate in a sandboxed nginx prefix — the live config is never touched.
+    # If this process dies mid-validation (SIGKILL, OOM), nothing on disk changes.
+    log STEP "Validating staged nginx config (sandboxed)..."
+
+    local sandbox
+    sandbox="$(mktemp -d "/tmp/${SERVICE_NAME}-nginx-test.XXXXXX")"
+
+    # Guarantee cleanup on ANY exit from this function (success, failure, signal).
+    # RETURN trap scope is function-local, so we don't disturb the global EXIT trap.
+    # shellcheck disable=SC2064
+    trap "rm -rf '${sandbox}'" RETURN
+
+    mkdir -p "${sandbox}/conf.d" "${sandbox}/sites-enabled" "${sandbox}/logs"
+
+    # nullglob so empty directories don't leave the raw pattern as a "filename"
+    shopt -s nullglob
+
+    # Mirror http-level snippets (shared rate-limit zones, log_format, gzip
+    # defaults, etc.) so our sandbox sees the same context the real nginx sees.
+    local f
+    for f in /etc/nginx/conf.d/*.conf; do
+        cp "${f}" "${sandbox}/conf.d/"
+    done
+
+    # Mirror dynamically-loaded modules (brotli, headers-more, etc.) — these are
+    # declared in nginx.conf via `load_module` at main context. If the staged
+    # site config uses a directive from one of these modules and we don't
+    # load them in the sandbox, validation passes here but fails on activation.
+    local load_module_lines=""
+    local modf
+    for modf in /etc/nginx/modules-enabled/*.conf; do
+        load_module_lines+="$(cat "${modf}")"$'\n'
+    done
+
+    shopt -u nullglob
+
+    # Stage the candidate site config
+    cp "${STAGED_NGINX_CONF}" "${sandbox}/sites-enabled/${SERVICE_NAME}"
+
+    # Minimal parent config that mirrors the real server's http-context includes.
+    # load_module MUST appear at main context (before events/http blocks).
+    cat > "${sandbox}/nginx.conf" <<SANDBOX
+${load_module_lines}
+events {
+    worker_connections 1024;
+}
+http {
+    default_type application/octet-stream;
+    include /etc/nginx/mime.types;
+    include ${sandbox}/conf.d/*.conf;
+    include ${sandbox}/sites-enabled/*;
+}
+SANDBOX
+
+    local test_out
+    if ! test_out=$(nginx -t -c "${sandbox}/nginx.conf" -p "${sandbox}/" 2>&1); then
+        log ERROR "nginx -t FAILED on staged config:"
+        echo "${test_out}" | head -30 | while IFS= read -r line; do
+            log ERROR "  ${line}"
+        done
+        exit 1
+    fi
+
+    log SUCCESS "nginx -t passed on staged config"
+}
+
+backup_existing_nginx() {
+    if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
+        ROLLBACK_NGINX_BACKUP="${BACKUP_DIR}/${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
+        cp "${NGINX_ACTIVE_CONF}" "${ROLLBACK_NGINX_BACKUP}"
+        chmod 644 "${ROLLBACK_NGINX_BACKUP}"
+        log DEBUG "nginx backup: ${ROLLBACK_NGINX_BACKUP}"
+    fi
+}
+
+activate_nginx_config() {
+    if [[ "${SKIP_NGINX}" == "true" ]]; then
+        log WARN "Skipping nginx activation (--skip-nginx)"
+        return 0
+    fi
+    log STEP "Activating nginx config..."
+
+    cp "${STAGED_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"
+
+    # Ensure site is enabled
+    local symlink="${NGINX_SITES_ENABLED}/${SERVICE_NAME}"
+    if [[ ! -L "${symlink}" ]]; then
+        ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
+        log DEBUG "Created enabled-site symlink: ${symlink}"
+    fi
+
+    # Proxy cache dir
+    mkdir -p "/var/cache/nginx/${SERVICE_NAME}"
+    chown www-data:www-data "/var/cache/nginx/${SERVICE_NAME}"
+
+    # Re-test with the live config now in place (belt & suspenders)
+    if ! nginx -t &>/dev/null; then
+        log ERROR "nginx -t failed at activation time (should not happen — validated earlier)"
+        exit 1
+    fi
+
+    ROLLBACK_NGINX_ACTIVATED=true
+    log SUCCESS "nginx config activated (reload deferred until after service up)"
+}
+
+#===============================================================================
+# ARTIFACT MODE — atomic symlink swap + service start
+#===============================================================================
+
+atomic_symlink_swap() {
+    log STEP "Atomic symlink swap → ${RELEASE_SHA}..."
+
+    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    local tmp="${DEPLOY_CURRENT_LINK}.tmp.$$"
+
+    # Two-step for atomic replace on ext4/xfs via rename(2):
+    #   1. Create temp symlink (fresh, definitely points to target)
+    #   2. mv -T replaces current atomically
+    ln -sfn "${target}" "${tmp}"
+    mv -Tf "${tmp}" "${DEPLOY_CURRENT_LINK}"
+
+    ROLLBACK_SYMLINK_FLIPPED=true
+    log SUCCESS "current -> ${target}"
+}
+
+start_service() {
+    log STEP "Starting ${SERVICE_NAME}..."
+
+    systemctl start "${SERVICE_NAME}"
+
+    log DEBUG "Waiting up to ${HEALTH_CHECK_RETRIES}s for port ${NEXTJS_PORT}..."
+    local i=0
+    while [[ $i -lt ${HEALTH_CHECK_RETRIES} ]]; do
+        if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null; then
+            log SUCCESS "Service responding on port ${NEXTJS_PORT} (${i}s)"
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+
+    log ERROR "Service failed to start within ${HEALTH_CHECK_RETRIES}s"
+    journalctl -u "${SERVICE_NAME}" --no-pager -n 30 2>&1 | tee -a "${LOG_FILE}"
+    return 1
+}
+
+reload_nginx() {
+    if [[ "${SKIP_NGINX}" == "true" ]]; then
+        return 0
+    fi
+    log STEP "Reloading nginx..."
+    systemctl reload nginx 2>&1 | tee -a "${LOG_FILE}" \
+        || { log ERROR "nginx reload failed"; return 1; }
+    if ! systemctl is-active --quiet nginx; then
+        log ERROR "nginx is not running after reload!"
+        return 1
+    fi
+    log SUCCESS "nginx reloaded"
+}
+
+#===============================================================================
+# ARTIFACT MODE — post-deploy housekeeping
+#===============================================================================
+
+trim_old_releases() {
+    log STEP "Trimming old releases (keeping last ${RELEASE_RETENTION_COUNT})..."
+
+    # List releases by modification time, skip the newest N, delete the rest.
+    # We never touch the release that `current` points to.
+    local current_target
+    current_target=$(readlink "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+    local current_sha=""
+    [[ -n "${current_target}" ]] && current_sha="$(basename "${current_target}")"
+
+    mapfile -t releases < <(
+        find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' \
+            | sort -rn | awk '{print $2}'
+    )
+
+    local kept=0
+    for rel in "${releases[@]}"; do
+        if [[ "${rel}" == "${current_sha}" ]] || [[ ${kept} -lt ${RELEASE_RETENTION_COUNT} ]]; then
+            kept=$((kept + 1))
+            continue
+        fi
+        log DEBUG "Removing old release: ${rel}"
+        rm -rf "${DEPLOY_RELEASES_DIR:?}/${rel}"
+    done
+
+    log SUCCESS "Releases retained: $(find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+}
+
+update_deploy_symlink() {
+    # Re-point /usr/local/bin/deployWebsite to the deploy.sh in the current release.
+    # Optional but useful: if anyone ever runs `sudo deployWebsite` on the VM,
+    # they get the deploy.sh that matches the currently-running bundle.
+    local target="${DEPLOY_CURRENT_LINK}/.deploy/deploy.sh"
+    if [[ -f "${target}" ]]; then
+        ln -sfn "${target}" "/usr/local/bin/deployWebsite" 2>/dev/null || \
+            log DEBUG "Could not update /usr/local/bin/deployWebsite symlink (non-fatal)"
+    fi
+}
+
+cleanup_orphaned_legacy() {
+    # After we've accumulated >=2 successful artifact releases, the legacy
+    # git-based bundle at $PROJECT_ROOT/.next and node_modules/ is dead weight
+    # (~100-200MB). Reclaim it.
+
+    local release_count
+    release_count=$(find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d | wc -l)
+
+    if [[ ${release_count} -ge 2 ]]; then
+        if [[ -d "${LEGACY_STANDALONE_DIR}" ]] || [[ -d "${PROJECT_ROOT}/node_modules" ]]; then
+            log STEP "Cleaning up legacy ${PROJECT_ROOT} build artifacts..."
+            rm -rf "${LEGACY_STANDALONE_DIR}" "${PROJECT_ROOT}/node_modules" 2>/dev/null || true
+            log SUCCESS "Legacy artifacts removed"
+        fi
+    fi
+}
+
+#===============================================================================
+# ARTIFACT MODE — orchestration
+#===============================================================================
+
+artifact_deploy() {
+    log INFO "Mode: artifact (sha=${RELEASE_SHA}, release_dir=${RELEASE_DIR})"
+
+    # Sanity on release contents
+    [[ -f "${RELEASE_DIR}/server.js" ]] || { log ERROR "server.js missing in release dir"; exit 1; }
+    [[ -f "${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}" ]] || \
+        { log ERROR "nginx template missing in release: ${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}"; exit 1; }
+
+    # Preflight
+    check_ssl_certs
+
+    # Bootstrap /opt/<service>/ on first run (or no-op if already set up)
+    first_run_bootstrap
+    validate_env_file
+    record_previous_release
+
+    # Stage new release on disk (does NOT activate yet)
+    stage_release
+
+    # Prepare staged configs
+    prepare_systemd_unit
+    prepare_nginx_config
+
+    # Validate nginx config BEFORE any mutation — catches template errors,
+    # missing SSL paths, bad placeholder substitution.
+    ensure_nginx_zones
+    validate_staged_nginx
+
+    # Backup existing configs (for rollback)
+    backup_existing_systemd
+    backup_existing_nginx
+
+    # ── MUTATION SEQUENCE ─────────────────────────────────────────────────────
+    # Critical ordering:
+    #   1. Everything that can be validated → validate first (above)
+    #   2. Symlink must be created BEFORE nginx config references it (to avoid
+    #      a window where nginx config points at a non-existent path)
+    #   3. Service start AFTER symlink swap (so it runs the new release)
+    #   4. nginx reload is LAST (failure there is recoverable — the atomic swap
+    #      already succeeded and the service is already healthy; a failed
+    #      reload is a non-fatal WARN, not a full rollback trigger)
+    # If anything below fails, cleanup() rolls back via ROLLBACK_* flags.
+
+    kill_orphaned_processes
+
+    # Stop service before symlink swap so there are no open FDs into the
+    # old release dir at the moment of swap.
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        log DEBUG "Stopping ${SERVICE_NAME}..."
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        sleep 2
+    fi
+
+    # Activate NEW systemd unit (WorkingDirectory=DEPLOY_CURRENT_LINK).
+    # The unit is on disk but the service is stopped — no effect yet.
+    activate_systemd_unit
+
+    # Flip the symlink atomically — AFTER this, DEPLOY_CURRENT_LINK points at
+    # the new release. Must happen before the nginx config that references it
+    # goes live, so nginx never sees a dangling path.
+    atomic_symlink_swap
+
+    # Activate NEW nginx config (references DEPLOY_CURRENT_LINK, which now
+    # points at the new release). Not reloaded yet — just staged to disk.
+    activate_nginx_config
+
+    # Start service. If this fails, cleanup() rolls back symlink + systemd.
+    # nginx stays on whatever config was active at entry (config file is
+    # already replaced, but nginx-in-memory still runs the old config — the
+    # rollback trap restores the old file for when nginx IS next reloaded).
+    if ! start_service; then
+        log ERROR "Service did not come up healthy"
+        exit 1
+    fi
+
+    # Service is up on the new release. Now reload nginx to adopt the new
+    # config. If reload fails: the new service is already serving traffic
+    # via the still-running old nginx (which keeps routing to 127.0.0.1:PORT
+    # as before — the upstream has not changed). Reload failure is fixable
+    # out-of-band; DO NOT trigger full rollback here.
+    if ! reload_nginx; then
+        log WARN "nginx reload failed — new service is up and serving, but nginx"
+        log WARN "config was not reloaded. Investigate manually:"
+        log WARN "  sudo nginx -t && sudo systemctl reload nginx"
+        log WARN "Deploy will be reported as successful; rollback is NOT triggered."
+    fi
+
+    # Post-deploy housekeeping (non-fatal)
+    trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
+    update_deploy_symlink
+    cleanup_orphaned_legacy || log WARN "legacy cleanup had issues (non-fatal)"
+
+    # Final health check
+    health_check
+}
+
+#===============================================================================
+# LEGACY MODE — git pull + build on VM (safety net; NOT the production path)
+#===============================================================================
 
 check_git_status() {
     log STEP "Checking git status..."
@@ -440,128 +1218,6 @@ check_git_status() {
     log SUCCESS "Git status OK (branch: ${GIT_BRANCH})"
 }
 
-#===============================================================================
-# DIRECTORY SETUP & CLEANUP
-#===============================================================================
-
-setup_directories() {
-    mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
-    chmod 755 "${LOG_DIR}" "${BACKUP_DIR}"
-    touch "${LOG_FILE}"
-    chmod 644 "${LOG_FILE}"
-}
-
-cleanup_old_artifacts() {
-    log STEP "Cleaning up old artifacts..."
-
-    # Trim deploy logs
-    local count
-    count=$(find "${LOG_DIR}" -name "deploy-*.log" -type f 2>/dev/null | wc -l)
-    if [[ ${count} -gt ${MAX_LOG_FILES} ]]; then
-        local to_delete=$(( count - MAX_LOG_FILES ))
-        find "${LOG_DIR}" -name "deploy-*.log" -type f -printf '%T+ %p\n' \
-            | sort | head -n "${to_delete}" \
-            | cut -d' ' -f2- | xargs rm -f
-    fi
-
-    # Trim old nginx backups
-    find "${BACKUP_DIR}" -name "*.backup.*" -type f -mtime "+${BACKUP_RETENTION_DAYS}" -delete 2>/dev/null || true
-
-    # Vacuum journal for this service
-    if command -v journalctl &>/dev/null; then
-        journalctl --vacuum-size=50M -u "${SERVICE_NAME}" &>/dev/null || true
-    fi
-
-    log SUCCESS "Cleanup complete"
-}
-
-#===============================================================================
-# PROCESS CLEANUP
-#===============================================================================
-
-kill_orphaned_processes() {
-    log STEP "Killing orphaned processes on port ${NEXTJS_PORT}..."
-
-    # PM2 cleanup (from legacy deployments)
-    if command -v pm2 &>/dev/null; then
-        local pm2_list
-        pm2_list=$(sudo -u "${SERVICE_USER}" pm2 jlist 2>/dev/null || echo "[]")
-        if echo "${pm2_list}" | grep -q '"name":"'"${SERVICE_NAME}"'"'; then
-            log WARN "Stopping PM2-managed '${SERVICE_NAME}'..."
-            sudo -u "${SERVICE_USER}" pm2 stop "${SERVICE_NAME}" 2>/dev/null || true
-            sudo -u "${SERVICE_USER}" pm2 delete "${SERVICE_NAME}" 2>/dev/null || true
-            sudo -u "${SERVICE_USER}" pm2 save --force 2>/dev/null || true
-        fi
-        local remaining
-        remaining=$(sudo -u "${SERVICE_USER}" pm2 jlist 2>/dev/null || echo "[]")
-        if [[ "${remaining}" == "[]" ]] || [[ -z "${remaining}" ]]; then
-            sudo -u "${SERVICE_USER}" pm2 kill 2>/dev/null || true
-        fi
-        if ls /etc/systemd/system/pm2-* &>/dev/null; then
-            sudo env PATH="$PATH:/usr/bin" pm2 unstartup systemd -u "${SERVICE_USER}" --hp "/home/${SERVICE_USER}" 2>/dev/null || true
-            systemctl daemon-reload
-        fi
-    fi
-
-    # Stop systemd service
-    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
-        log DEBUG "Stopping ${SERVICE_NAME}.service..."
-        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
-        sleep 2
-    fi
-
-    # Kill leftover processes on the port
-    local pids
-    pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
-        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
-
-    if [[ -n "${pids}" ]]; then
-        log WARN "Found orphaned PIDs on port ${NEXTJS_PORT}: ${pids}"
-        for pid in ${pids}; do
-            kill "${pid}" 2>/dev/null || true
-        done
-        sleep 2
-
-        pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
-            | grep -oP 'pid=\K[0-9]+' | sort -u || true)
-        if [[ -n "${pids}" ]]; then
-            log WARN "Force-killing: ${pids}"
-            for pid in ${pids}; do
-                kill -9 "${pid}" 2>/dev/null || true
-            done
-            sleep 1
-        fi
-    fi
-
-    # Kill stale "next start" or "node server.js" processes
-    local stale_pids
-    stale_pids=$(pgrep -f "node.*server\.js.*${NEXTJS_PORT}" 2>/dev/null || true)
-    if [[ -z "${stale_pids}" ]]; then
-        stale_pids=$(pgrep -f "next start.*--port ${NEXTJS_PORT}" 2>/dev/null || true)
-    fi
-    if [[ -n "${stale_pids}" ]]; then
-        log WARN "Killing stale processes: ${stale_pids}"
-        echo "${stale_pids}" | xargs kill 2>/dev/null || true
-        sleep 1
-        echo "${stale_pids}" | xargs kill -9 2>/dev/null || true
-    fi
-
-    # Final check
-    local remaining_pids
-    remaining_pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
-        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
-    if [[ -n "${remaining_pids}" ]]; then
-        log ERROR "Port ${NEXTJS_PORT} still occupied by PIDs: ${remaining_pids}"
-        exit 1
-    fi
-
-    log SUCCESS "Port ${NEXTJS_PORT} is clear"
-}
-
-#===============================================================================
-# GIT OPERATIONS
-#===============================================================================
-
 git_pull() {
     if [[ "${SKIP_GIT}" == "true" ]]; then
         log WARN "Skipping git pull (--skip-git)"
@@ -585,49 +1241,23 @@ git_pull() {
             || { log ERROR "git pull failed"; exit 1; }
         log SUCCESS "Updated to $(git rev-parse --short HEAD)"
     fi
-
-    log DEBUG "Last commit: $(git log -1 --pretty=format:'%h — %s (%an, %ar)')"
 }
 
 cleanup_git_changes() {
-    log STEP "Discarding build-generated changes..."
     cd "${GIT_ROOT}"
     git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null || true
-    log SUCCESS "Git worktree clean"
 }
-
-#===============================================================================
-# BUILD OPERATIONS
-#===============================================================================
 
 install_dependencies() {
     if [[ "${SKIP_DEPS}" == "true" ]] || [[ "${SKIP_BUILD}" == "true" ]]; then
         log WARN "Skipping dependency install"
         return 0
     fi
-
-    log STEP "Installing dependencies (nice ${BUILD_NICE}, ionice class ${BUILD_IONICE_CLASS})..."
+    log STEP "Installing dependencies (nice ${BUILD_NICE})..."
     cd "${PROJECT_ROOT}"
-
-    if [[ -d "node_modules" ]] && [[ -f "package-lock.json" ]]; then
-        if ! nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
-                npm ci --loglevel=warn 2>&1 | tee -a "${LOG_FILE}"; then
-            log WARN "npm ci failed, falling back to npm install..."
-            nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
-                npm install 2>&1 | tee -a "${LOG_FILE}" \
-                || { log ERROR "npm install failed"; exit 1; }
-        fi
-    else
-        nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
-            npm ci --loglevel=warn 2>&1 | tee -a "${LOG_FILE}" \
-            || {
-                log WARN "npm ci failed, falling back to npm install..."
-                nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
-                    npm install 2>&1 | tee -a "${LOG_FILE}" \
-                    || { log ERROR "npm install failed"; exit 1; }
-            }
-    fi
-
+    nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
+        npm ci --loglevel=warn 2>&1 | tee -a "${LOG_FILE}" \
+        || { log ERROR "npm ci failed"; exit 1; }
     log SUCCESS "Dependencies installed"
 }
 
@@ -636,113 +1266,54 @@ build_project() {
         log WARN "Skipping build (--skip-build)"
         return 0
     fi
-
-    # Clear stale build cache
-    log STEP "Clearing stale build cache..."
-    rm -rf "${NEXTJS_BUILD_DIR}/cache" 2>/dev/null || true
-
-    log STEP "Building Next.js project (standalone mode)..."
+    log STEP "Building Next.js (standalone mode)..."
     cd "${PROJECT_ROOT}"
-
     export NODE_ENV="production"
     export NEXT_BUILD_ID
-    NEXT_BUILD_ID="$(resolve_build_id)"
-    log INFO "NEXT_BUILD_ID=${NEXT_BUILD_ID}"
-
-    # Limit V8 heap during build to prevent OOM on low-RAM VMs
+    NEXT_BUILD_ID="$(git -C "${GIT_ROOT}" rev-parse HEAD 2>/dev/null || echo "local-build")"
+    rm -rf "${PROJECT_ROOT}/.next/cache" 2>/dev/null || true
     if ! timeout "${NPM_BUILD_TIMEOUT}" \
             nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
             env NODE_OPTIONS="--max-old-space-size=${BUILD_HEAP_MB}" \
             npm run build 2>&1 | tee -a "${LOG_FILE}"; then
-        log ERROR "Build failed! Check ${LOG_FILE}"
+        log ERROR "Build failed"
         exit 1
     fi
-
-    # Verify standalone output
-    if [[ ! -f "${STANDALONE_DIR}/server.js" ]]; then
-        log ERROR "Standalone output not found at ${STANDALONE_DIR}/server.js"
-        log INFO "Ensure next.config.ts has: output: 'standalone'"
-        exit 1
-    fi
-
-    log SUCCESS "Build complete (standalone mode)"
+    [[ -f "${LEGACY_STANDALONE_DIR}/server.js" ]] \
+        || { log ERROR "Standalone output not found"; exit 1; }
+    log SUCCESS "Build complete"
 }
 
-prepare_standalone() {
-    if [[ "${SKIP_BUILD}" == "true" ]]; then
-        log WARN "Skipping standalone preparation"
-        return 0
+prepare_legacy_standalone() {
+    if [[ "${SKIP_BUILD}" == "true" ]]; then return 0; fi
+    log STEP "Preparing standalone bundle (legacy mode)..."
+    if [[ -d "${PROJECT_ROOT}/.next/static" ]]; then
+        mkdir -p "${LEGACY_STANDALONE_DIR}/.next"
+        rm -rf "${LEGACY_STANDALONE_DIR}/.next/static"
+        cp -r "${PROJECT_ROOT}/.next/static" "${LEGACY_STANDALONE_DIR}/.next/static"
     fi
-
-    log STEP "Preparing standalone bundle..."
-
-    # Copy static assets into standalone (Next.js doesn't include them).
-    # IMPORTANT: Remove target first — if the directory already exists,
-    # cp -r creates a nested subdirectory instead of merging contents.
-    if [[ -d "${NEXTJS_BUILD_DIR}/static" ]]; then
-        mkdir -p "${STANDALONE_DIR}/.next"
-        rm -rf "${STANDALONE_DIR}/.next/static"
-        cp -r "${NEXTJS_BUILD_DIR}/static" "${STANDALONE_DIR}/.next/static"
-        log DEBUG "Copied .next/static → standalone"
-    fi
-
-    # Copy public assets into standalone
     if [[ -d "${PROJECT_ROOT}/public" ]]; then
-        rm -rf "${STANDALONE_DIR}/public"
-        cp -r "${PROJECT_ROOT}/public" "${STANDALONE_DIR}/public"
-        log DEBUG "Copied public/ → standalone"
+        rm -rf "${LEGACY_STANDALONE_DIR}/public"
+        cp -r "${PROJECT_ROOT}/public" "${LEGACY_STANDALONE_DIR}/public"
     fi
-
-    # Copy .env.local into standalone working directory
-    if [[ -f "${ENV_FILE}" ]]; then
-        cp "${ENV_FILE}" "${STANDALONE_DIR}/.env.local"
-        log DEBUG "Copied .env.local → standalone"
+    if [[ -f "${LEGACY_ENV_FILE}" ]]; then
+        cp "${LEGACY_ENV_FILE}" "${LEGACY_STANDALONE_DIR}/.env.local"
     fi
-
-    # Fix ownership: build runs as root, service runs as SERVICE_USER
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${NEXTJS_BUILD_DIR}"
-
-    # Ensure nginx (www-data) can traverse the path to serve static files.
-    # Ubuntu cloud images set /home/<user> to 700 by default, which blocks
-    # nginx from reading /_next/static/ and /public/ via alias directives.
-    local dir="${STANDALONE_DIR}"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${PROJECT_ROOT}/.next"
+    local dir="${LEGACY_STANDALONE_DIR}"
     while [[ "${dir}" != "/" ]]; do
         chmod o+x "${dir}" 2>/dev/null || true
         dir="$(dirname "${dir}")"
     done
-    log DEBUG "Directory traversal permissions set for nginx"
-
-    # Ensure static assets are world-readable (they're public, no secrets)
-    chmod -R o+r "${STANDALONE_DIR}/.next/static" 2>/dev/null || true
-    chmod -R o+r "${STANDALONE_DIR}/public" 2>/dev/null || true
-    # Directories need +x for listing
-    find "${STANDALONE_DIR}/.next/static" -type d -exec chmod o+x {} \; 2>/dev/null || true
-    find "${STANDALONE_DIR}/public" -type d -exec chmod o+x {} \; 2>/dev/null || true
-
-    local file_count
-    file_count=$(find "${STANDALONE_DIR}" -type f | wc -l)
-    log SUCCESS "Standalone bundle ready (${file_count} files)"
+    chmod -R o+rX "${LEGACY_STANDALONE_DIR}/.next/static" 2>/dev/null || true
+    chmod -R o+rX "${LEGACY_STANDALONE_DIR}/public" 2>/dev/null || true
+    log SUCCESS "Legacy standalone prepared"
 }
 
-prune_caches() {
-    log STEP "Pruning caches..."
-    nice -n 19 npm cache clean --force &>/dev/null || true
-    rm -f "${NEXTJS_BUILD_DIR}/trace" 2>/dev/null || true
-    local avail
-    avail=$(df -m "${PROJECT_ROOT}" | awk 'NR==2{print $4}')
-    log SUCCESS "Caches pruned (${avail}MB free)"
-}
-
-#===============================================================================
-# SYSTEMD SERVICE
-#===============================================================================
-
-ensure_systemd_service() {
-    log STEP "Configuring systemd service (${SERVICE_NAME})..."
-
+ensure_legacy_systemd() {
+    log STEP "Writing legacy systemd unit (points at ${LEGACY_STANDALONE_DIR})..."
     local node_bin
     node_bin=$(command -v node)
-
     cat > "${SYSTEMD_UNIT}" << UNIT
 [Unit]
 Description=Next.js — ${DOMAIN}
@@ -752,22 +1323,17 @@ Wants=network.target
 [Service]
 Type=simple
 User=${SERVICE_USER}
-WorkingDirectory=${STANDALONE_DIR}
-
-# Environment
-EnvironmentFile=-${STANDALONE_DIR}/.env.local
+WorkingDirectory=${LEGACY_STANDALONE_DIR}
+EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
 Environment=HOSTNAME=0.0.0.0
 Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}"
-
 ExecStart=${node_bin} server.js
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=60
 TimeoutStopSec=15
-
-# ── Resource Limits ──
 MemoryHigh=${MEMORY_HIGH_MB}M
 MemoryMax=${MEMORY_MAX_MB}M
 CPUQuota=${CPU_QUOTA_PERCENT}%
@@ -775,8 +1341,6 @@ OOMScoreAdjust=500
 Nice=${SERVICE_NICE}
 IOSchedulingClass=best-effort
 IOSchedulingPriority=4
-
-# ── Security Hardening ──
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
@@ -787,129 +1351,83 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
-
-# ── Logging ──
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=${SERVICE_NAME}
 LogRateLimitIntervalSec=30
 LogRateLimitBurst=100
-
-# Kill entire process group on stop
 KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-
     systemctl daemon-reload
     systemctl enable "${SERVICE_NAME}" &>/dev/null
-
-    log SUCCESS "systemd service configured (heap=${NODE_HEAP_MB}MB, MemoryMax=${MEMORY_MAX_MB}MB, Nice=${SERVICE_NICE})"
 }
 
-restart_nextjs() {
-    log STEP "Starting Next.js server..."
-
-    systemctl start "${SERVICE_NAME}"
-
-    log DEBUG "Waiting up to ${HEALTH_CHECK_RETRIES}s for port ${NEXTJS_PORT}..."
-    local i=0
-    while [[ $i -lt ${HEALTH_CHECK_RETRIES} ]]; do
-        if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null; then
-            log SUCCESS "Next.js ready on port ${NEXTJS_PORT} (took ${i}s)"
-            return 0
-        fi
-        i=$((i + 1))
-        sleep 1
-    done
-
-    log ERROR "Next.js failed to start within ${HEALTH_CHECK_RETRIES}s"
-    journalctl -u "${SERVICE_NAME}" --no-pager -n 30 2>&1 | tee -a "${LOG_FILE}"
-    exit 1
-}
-
-#===============================================================================
-# NGINX OPERATIONS
-#===============================================================================
-
-backup_nginx_config() {
-    log STEP "Backing up nginx configuration..."
-
-    if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
-        NGINX_BACKUP_FILE="${BACKUP_DIR}/${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
-        cp "${NGINX_ACTIVE_CONF}" "${NGINX_BACKUP_FILE}" \
-            || { log ERROR "Nginx backup failed"; exit 1; }
-        chmod 644 "${NGINX_BACKUP_FILE}"
-        log SUCCESS "Backed up to ${NGINX_BACKUP_FILE}"
-    else
-        log WARN "No existing nginx config — fresh deployment"
+deploy_legacy_nginx() {
+    if [[ "${SKIP_NGINX}" == "true" ]]; then
+        log WARN "Skipping nginx (--skip-nginx)"
+        return 0
     fi
-}
-
-process_nginx_template() {
-    log STEP "Processing nginx template..."
-
-    [[ -f "${SOURCE_NGINX_CONF}" ]] \
-        || { log ERROR "Nginx template missing: ${SOURCE_NGINX_CONF}"; exit 1; }
-
-    # Replace template placeholders with config values
+    log STEP "Deploying nginx config (legacy)..."
+    if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
+        ROLLBACK_NGINX_BACKUP="${BACKUP_DIR}/${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
+        cp "${NGINX_ACTIVE_CONF}" "${ROLLBACK_NGINX_BACKUP}"
+    fi
+    local tmpl="${PROJECT_ROOT}/${NGINX_CONF_TEMPLATE}"
     sed -e "s|__DOMAIN__|${DOMAIN}|g" \
         -e "s|__NEXTJS_PORT__|${NEXTJS_PORT}|g" \
         -e "s|__SERVICE_NAME__|${SERVICE_NAME}|g" \
         -e "s|__SSL_CERT__|${SSL_CERT}|g" \
         -e "s|__SSL_KEY__|${SSL_KEY}|g" \
-        -e "s|__STANDALONE_DIR__|${STANDALONE_DIR}|g" \
-        "${SOURCE_NGINX_CONF}" > "${NGINX_ACTIVE_CONF}"
-
+        -e "s|__STANDALONE_DIR__|${LEGACY_STANDALONE_DIR}|g" \
+        "${tmpl}" > "${NGINX_ACTIVE_CONF}"
     chmod 644 "${NGINX_ACTIVE_CONF}"
-    log SUCCESS "Template processed → ${NGINX_ACTIVE_CONF}"
-}
-
-deploy_nginx() {
-    if [[ "${SKIP_NGINX}" == "true" ]]; then
-        log WARN "Skipping nginx update (--skip-nginx)"
-        return 0
-    fi
-
-    backup_nginx_config
-    process_nginx_template
-
-    # Ensure site is enabled
     local symlink="${NGINX_SITES_ENABLED}/${SERVICE_NAME}"
-    if [[ ! -L "${symlink}" ]]; then
-        ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
-        log DEBUG "Created symlink: ${symlink}"
-    fi
-
-    # Create proxy cache directory
+    [[ -L "${symlink}" ]] || ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
     mkdir -p "/var/cache/nginx/${SERVICE_NAME}"
     chown www-data:www-data "/var/cache/nginx/${SERVICE_NAME}"
-
-    # Test configuration
-    log STEP "Testing nginx configuration..."
-    local test_out
-    if ! test_out=$(nginx -t 2>&1); then
-        log ERROR "nginx -t FAILED: ${test_out}"
+    if ! nginx -t &>/dev/null; then
+        log ERROR "nginx -t failed"
         exit 1
     fi
-    log SUCCESS "nginx -t passed"
+    systemctl reload nginx
+}
 
-    # Reload
-    log STEP "Reloading nginx..."
-    systemctl reload nginx 2>&1 | tee -a "${LOG_FILE}" \
-        || { log ERROR "nginx reload failed"; exit 1; }
+legacy_deploy() {
+    log INFO "Mode: legacy (build on VM — emergency recovery path)"
+    log WARN "Legacy mode is for emergency recovery only. Normal deploys use artifact mode."
 
-    if ! systemctl is-active --quiet nginx; then
-        log ERROR "Nginx is not running after reload!"
-        exit 1
-    fi
+    check_ssl_certs
+    if [[ "${SKIP_GIT}" != "true" ]]; then check_git_status; fi
+    kill_orphaned_processes
+    git_pull
+    install_dependencies
+    build_project
+    prepare_legacy_standalone
+    cleanup_git_changes
+    ensure_legacy_systemd
 
-    log SUCCESS "Nginx reloaded"
+    systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+    systemctl start "${SERVICE_NAME}"
+    local i=0
+    while [[ $i -lt ${HEALTH_CHECK_RETRIES} ]]; do
+        if curl -sf -o /dev/null --max-time 2 "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null; then
+            log SUCCESS "Service up (${i}s)"
+            break
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [[ $i -ge ${HEALTH_CHECK_RETRIES} ]] && { log ERROR "Service failed to start"; exit 1; }
+
+    deploy_legacy_nginx
+    health_check
 }
 
 #===============================================================================
-# HEALTH CHECKS
+# HEALTH CHECK (shared)
 #===============================================================================
 
 health_check() {
@@ -918,80 +1436,38 @@ health_check() {
     local passed=0
     local total=0
 
-    # 1. Nginx process
     total=$((total + 1))
-    if systemctl is-active --quiet nginx; then
-        log DEBUG "✓ Nginx running"
-        passed=$((passed + 1))
-    else
-        log WARN "✗ Nginx not running"
-    fi
+    systemctl is-active --quiet nginx && { log DEBUG "✓ Nginx"; passed=$((passed + 1)); } \
+        || log WARN "✗ Nginx not running"
 
-    # 2. Port 80
     total=$((total + 1))
-    if ss -tlnp | grep -q ':80 '; then
-        log DEBUG "✓ Port 80 listening"
-        passed=$((passed + 1))
-    else
-        log WARN "✗ Port 80 not listening"
-    fi
+    systemctl is-active --quiet "${SERVICE_NAME}" && { log DEBUG "✓ ${SERVICE_NAME}"; passed=$((passed + 1)); } \
+        || log WARN "✗ ${SERVICE_NAME} not running"
 
-    # 3. Port 443
     total=$((total + 1))
-    if ss -tlnp | grep -q ':443 '; then
-        log DEBUG "✓ Port 443 listening"
-        passed=$((passed + 1))
-    else
-        log WARN "✗ Port 443 not listening"
-    fi
+    ss -tlnp | grep -q ":${NEXTJS_PORT} " && { log DEBUG "✓ Port ${NEXTJS_PORT}"; passed=$((passed + 1)); } \
+        || log WARN "✗ Port ${NEXTJS_PORT} not listening"
 
-    # 4. Next.js service
-    total=$((total + 1))
-    if systemctl is-active --quiet "${SERVICE_NAME}"; then
-        log DEBUG "✓ ${SERVICE_NAME} service running"
-        passed=$((passed + 1))
-    else
-        log WARN "✗ ${SERVICE_NAME} service not running"
-    fi
-
-    # 5. Next.js port
-    total=$((total + 1))
-    if ss -tlnp | grep -q ":${NEXTJS_PORT} "; then
-        log DEBUG "✓ Next.js on port ${NEXTJS_PORT}"
-        passed=$((passed + 1))
-    else
-        log WARN "✗ Port ${NEXTJS_PORT} not listening"
-    fi
-
-    # 6. HTTPS response
     total=$((total + 1))
     local http_code
     http_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
         "https://127.0.0.1/" -H "Host: ${DOMAIN}" 2>/dev/null || echo "000")
     if [[ "${http_code}" =~ ^(200|301|302)$ ]]; then
-        log DEBUG "✓ HTTPS: ${http_code}"
-        passed=$((passed + 1))
+        log DEBUG "✓ HTTPS: ${http_code}"; passed=$((passed + 1))
     else
-        log WARN "? HTTPS: ${http_code} (may be expected with self-signed cert)"
-        passed=$((passed + 1))
+        log WARN "? HTTPS: ${http_code}"; passed=$((passed + 1))
     fi
 
-    # 7. Chat API
     total=$((total + 1))
     local chat_code
     chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
         -X POST -H "Content-Type: application/json" \
         -d '{"messages":[{"role":"user","content":"health check"}]}' \
         "http://127.0.0.1:${NEXTJS_PORT}/api/chat" 2>/dev/null || echo "000")
-    if [[ "${chat_code}" == "200" ]]; then
-        log DEBUG "✓ Chat API: 200"
-        passed=$((passed + 1))
-    elif [[ "${chat_code}" == "429" ]]; then
-        log DEBUG "✓ Chat API: 429 (rate limited — alive)"
-        passed=$((passed + 1))
+    if [[ "${chat_code}" == "200" ]] || [[ "${chat_code}" == "429" ]]; then
+        log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else
-        log WARN "? Chat API: ${chat_code} (check LLM provider)"
-        passed=$((passed + 1))
+        log WARN "? Chat API: ${chat_code}"; passed=$((passed + 1))
     fi
 
     if [[ ${passed} -eq ${total} ]]; then
@@ -1009,25 +1485,19 @@ print_summary() {
     log_separator
     log SUCCESS "DEPLOYMENT COMPLETED SUCCESSFULLY"
     log_separator
-
     echo ""
     echo -e "${WHITE}Summary:${NC}"
+    echo -e "  ${CYAN}•${NC} Mode:      ${MODE}"
     echo -e "  ${CYAN}•${NC} Site:      ${SERVICE_NAME}"
     echo -e "  ${CYAN}•${NC} Domain:    ${DOMAIN}"
-    echo -e "  ${CYAN}•${NC} Project:   ${PROJECT_ROOT}"
-    echo -e "  ${CYAN}•${NC} Branch:    ${GIT_BRANCH}"
-    echo -e "  ${CYAN}•${NC} Commit:    $(cd "${GIT_ROOT}" && git rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
-    echo -e "  ${CYAN}•${NC} Next.js:   port ${NEXTJS_PORT} (standalone, heap=${NODE_HEAP_MB}MB)"
-    echo -e "  ${CYAN}•${NC} Service:   ${SERVICE_NAME}.service (MemoryMax=${MEMORY_MAX_MB}MB)"
-    echo -e "  ${CYAN}•${NC} Nginx:     ${NGINX_ACTIVE_CONF}"
+    if [[ "${MODE}" == "artifact" ]]; then
+        echo -e "  ${CYAN}•${NC} SHA:       ${RELEASE_SHA}"
+        echo -e "  ${CYAN}•${NC} Current:   ${DEPLOY_CURRENT_LINK} → $(readlink ${DEPLOY_CURRENT_LINK} 2>/dev/null || echo '?')"
+        echo -e "  ${CYAN}•${NC} Releases:  $(find ${DEPLOY_RELEASES_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l) on disk"
+    fi
+    echo -e "  ${CYAN}•${NC} Service:   ${SERVICE_NAME}.service (port ${NEXTJS_PORT}, heap=${NODE_HEAP_MB}MB)"
     echo -e "  ${CYAN}•${NC} Log:       ${LOG_FILE}"
     echo ""
-
-    if [[ -n "${NGINX_BACKUP_FILE:-}" ]] && [[ -f "${NGINX_BACKUP_FILE}" ]]; then
-        echo -e "  ${YELLOW}Nginx backup:${NC} ${NGINX_BACKUP_FILE}"
-        echo ""
-    fi
-
     echo -e "${GREEN}Live at: https://${DOMAIN}${NC}"
     echo ""
 }
@@ -1038,58 +1508,40 @@ print_summary() {
 
 main() {
     DEPLOYMENT_START_TIME=$(date +%s)
+
+    setup_directories
+
+    # Mutex — prevent overlapping deploys on the same VM
+    exec 9>"${DEPLOY_LOCK_FILE}"
+    if ! flock -n 9; then
+        log ERROR "Another deploy is in progress (lock: ${DEPLOY_LOCK_FILE})"
+        exit 1
+    fi
+
     trap cleanup EXIT
 
     parse_arguments "$@"
 
-    # Setup
-    setup_directories
-
     log_separator
-    log INFO "Starting deployment: site=${SITE_NAME} at $(date)"
+    log INFO "Starting ${MODE} deployment: site=${SITE_NAME} at $(date)"
+    [[ -n "${RELEASE_SHA}" ]] && log INFO "SHA: ${RELEASE_SHA}"
     log INFO "Config: ${SITE_CONF}"
     log INFO "Log: ${LOG_FILE}"
     log_separator
 
-    # Pre-flight
+    # Shared preflight
     check_root
     check_dependencies
     check_disk_space
-    check_paths
-    check_env_file
-    check_swap
-
-    if [[ "${SKIP_GIT}" != "true" ]]; then
-        check_git_status
-    fi
-
     cleanup_old_artifacts
 
-    # Clear port
-    kill_orphaned_processes
+    # Mode dispatch
+    if [[ "${MODE}" == "artifact" ]]; then
+        artifact_deploy
+    else
+        legacy_deploy
+    fi
 
-    # Git
-    git_pull
-
-    # Build (standalone mode)
-    install_dependencies
-    build_project
-    prepare_standalone
-    prune_caches
-
-    cleanup_git_changes
-
-    # Service
-    ensure_systemd_service
-    restart_nextjs
-
-    # Nginx
-    deploy_nginx
-
-    # Verify
-    health_check
-
-    # Done
     print_summary
 }
 

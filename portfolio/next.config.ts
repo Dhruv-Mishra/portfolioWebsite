@@ -50,6 +50,21 @@ const BUILD_ID = resolveBuildId();
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
+  // File-trace the standalone bundle against this file's dir. Without this,
+  // Next.js autodetects from the nearest lockfile which can miss monorepo roots.
+  outputFileTracingRoot: CONFIG_DIR,
+  // Strip native-binary deps from the runtime bundle. Even with
+  // `images.unoptimized: true`, Next.js's file tracer walks require() graphs
+  // statically and pulls sharp + @img/sharp-<platform> into .next/standalone/
+  // regardless of whether they're actually invoked. Excluding them here makes
+  // the resulting bundle truly arch-agnostic (pure JS) and ~30MB smaller.
+  outputFileTracingExcludes: {
+    '*': [
+      'node_modules/sharp/**',
+      'node_modules/@img/**',
+      'node_modules/@next/swc-*/**',
+    ],
+  },
   // Pin workspace root so Next.js never auto-detects from a stray parent lockfile.
   // Without this, a lockfile one dir up can flip the resolved root and emit
   // standalone output in the wrong tree — breaking VPS deploys.
@@ -63,11 +78,14 @@ const nextConfig: NextConfig = {
   // avoiding double-compression CPU overhead on resource-constrained VMs.
   compress: false,
   images: {
-    // Enable Next.js image optimization (sharp) for responsive srcset, AVIF, lazy placeholders
-    // Removed `unoptimized: true` — build-time optimization is viable even on 1-vCPU
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [640, 828, 1024, 1200],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256],
+    // Image optimization disabled — the portfolio has ~8 images, all pre-optimized .webp,
+    // sitting behind Cloudflare which handles edge compression and caching.
+    // Disabling removes sharp (the only native-binary runtime dep), letting a single
+    // arch-agnostic JS build deploy to any Linux VM (x86_64 / arm64 / whatever).
+    // <Image> components still give us lazy loading, blur placeholders (via blurDataURL),
+    // priority hints, and layout-shift prevention — we only lose runtime AVIF conversion
+    // and responsive-srcset resizing, both of which are handled upstream by Cloudflare.
+    unoptimized: true,
   },
   // Optimize bundle
   compiler: {

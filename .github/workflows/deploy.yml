@@ -1,5 +1,29 @@
 name: Deploy Portfolio
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Architecture: build-once-deploy-many
+#
+#   build job (ubuntu-latest, once)
+#     └── npm ci → lint → test → next build → assemble standalone →
+#         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside
+#
+#   deploy job (matrix, 3 VMs in parallel, needs: build)
+#     └── download artifact → scp tarball to VM → ssh extract →
+#         invoke deploy.sh from WITHIN the artifact → health-check
+#
+# Why bundle deploy.sh inside the artifact:
+#   - Single-commit self-bootstrapping: the first push with this new workflow
+#     ships the new deploy.sh alongside the build. The VM extracts it from the
+#     tarball and runs it. No "update deploy.sh from git first" dance needed.
+#   - Hermetic reproducibility: deploy.sh version is always locked to bundle
+#     version. Impossible for them to drift.
+#
+# Why no arch matrix:
+#   - sharp has been disabled (images.unoptimized=true in next.config.ts).
+#   - The resulting standalone bundle is pure JavaScript + pre-optimized
+#     webp assets, portable across arm64/x86_64 Linux VMs.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,28 +32,8 @@ on:
         required: false
         default: portfolio
         type: string
-      skip_git:
-        description: 'Skip git pull (use code already on server)'
-        required: false
-        default: false
-        type: boolean
-      skip_deps:
-        description: 'Skip npm ci (code-only change, no package updates)'
-        required: false
-        default: false
-        type: boolean
-      skip_build:
-        description: 'Skip npm build (only update nginx config)'
-        required: false
-        default: false
-        type: boolean
       skip_nginx:
         description: 'Skip nginx config update & reload'
-        required: false
-        default: false
-        type: boolean
-      force:
-        description: 'Force deployment (ignore uncommitted changes)'
         required: false
         default: false
         type: boolean
@@ -51,13 +55,115 @@ concurrency:
 
 env:
   DOMAIN: whoisdhruv.com
-  DEPLOY_CMD: deployWebsite
+  NODE_VERSION: '22'
 
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # BUILD — runs once on ubuntu-latest, produces a single artifact
+  # ───────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        working-directory: portfolio
+        # SKIP_EMBEDDINGS_BUILD=1 tells the prebuild hook to reuse the committed
+        # lib/facts.embeddings.json rather than hitting the embeddings API.
+        # Avoids needing LLM_API_KEY as an Actions secret.
+        env:
+          SKIP_EMBEDDINGS_BUILD: '1'
+        run: npm ci
+
+      - name: Lint
+        working-directory: portfolio
+        run: npm run lint
+
+      - name: Test
+        working-directory: portfolio
+        run: npm test
+
+      - name: Build Next.js (standalone)
+        working-directory: portfolio
+        env:
+          SKIP_EMBEDDINGS_BUILD: '1'
+          NEXT_BUILD_ID: ${{ github.sha }}
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: npm run build
+
+      - name: Assemble standalone bundle
+        working-directory: portfolio
+        run: |
+          set -euo pipefail
+
+          # Next.js standalone omits static/ and public/ — copy them in
+          cp -r .next/static .next/standalone/.next/
+          cp -r public        .next/standalone/
+
+          # Ship deploy.sh + nginx template INSIDE the artifact at .deploy/
+          # so the VM can invoke it directly without a separate git pull.
+          mkdir -p .next/standalone/.deploy
+          cp scripts/deploy.sh          .next/standalone/.deploy/
+          cp nginx-cloudflare.conf      .next/standalone/.deploy/
+          chmod +x .next/standalone/.deploy/deploy.sh
+
+          # Build metadata — useful for forensics if a deploy goes sideways
+          cat > .next/standalone/.deploy/meta.json <<META
+          {
+            "sha": "${{ github.sha }}",
+            "ref": "${{ github.ref }}",
+            "actor": "${{ github.actor }}",
+            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "run_id": "${{ github.run_id }}",
+            "run_number": "${{ github.run_number }}"
+          }
+          META
+
+          # Package. Contents extract to the root of whatever dir you untar into.
+          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
+
+          ls -lh ../portfolio-${{ github.sha }}.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-bundle
+          path: portfolio-${{ github.sha }}.tar.gz
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Build summary
+        run: |
+          SIZE=$(ls -l portfolio-${{ github.sha }}.tar.gz | awk '{print $5}')
+          SIZE_MB=$(( SIZE / 1024 / 1024 ))
+          echo "## 📦 Build complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | portfolio-${{ github.sha }}.tar.gz |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | ${SIZE_MB} MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # DEPLOY — parallel matrix across all VMs, consumes the build artifact
+  # ───────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy to ${{ matrix.server.name }}
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
 
     strategy:
       fail-fast: false
@@ -95,6 +201,7 @@ jobs:
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Site | ${{ inputs.site || 'portfolio' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | artifact |" >> $GITHUB_STEP_SUMMARY
 
       - name: Check server secrets exist
         run: |
@@ -103,7 +210,26 @@ jobs:
             echo "SKIP_SERVER=true" >> $GITHUB_ENV
           fi
 
-      - name: Deploy to ${{ matrix.server.name }}
+      - name: Download build artifact
+        if: env.SKIP_SERVER != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: portfolio-bundle
+
+      - name: Copy artifact to VM
+        if: env.SKIP_SERVER != 'true'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          source: portfolio-${{ github.sha }}.tar.gz
+          target: /tmp/
+          timeout: 60s
+          command_timeout: 3m
+
+      - name: Deploy on ${{ matrix.server.name }}
         if: env.SKIP_SERVER != 'true'
         id: deploy
         uses: appleboy/ssh-action@v1.2.0
@@ -113,41 +239,64 @@ jobs:
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           script_stop: true
-          command_timeout: 12m
+          command_timeout: 5m
           script: |
-            echo "🚀 Deploying to ${{ matrix.server.name }}..."
+            set -euo pipefail
+
+            SHA="${{ github.sha }}"
+            SITE="${{ inputs.site || 'portfolio' }}"
+            TARBALL="/tmp/portfolio-${SHA}.tar.gz"
+            STAGING="/tmp/portfolio-stage-${SHA}"
+
+            # Cleanup trap — always remove staging, and remove tarball on success.
+            # (On failure, keep tarball at /tmp for forensics; it'll age out
+            # naturally via tmp cleanup or be overwritten on retry.)
+            DEPLOY_OK=0
+            cleanup_staging() {
+              sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ "$DEPLOY_OK" = "1" ]; then
+                sudo rm -f "$TARBALL" 2>/dev/null || true
+              fi
+            }
+            trap cleanup_staging EXIT
+
+            echo "🚀 Artifact deploy to ${{ matrix.server.name }}"
+            echo "   SHA:  ${SHA}"
+            echo "   Site: ${SITE}"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            if ! command -v ${{ env.DEPLOY_CMD }} &>/dev/null; then
-              echo "❌ '${{ env.DEPLOY_CMD }}' not found."
-              echo ""
-              echo "Setup (run once per machine):"
-              echo "  sudo ln -sf /path/to/portfolio/scripts/deploy.sh /usr/local/bin/${{ env.DEPLOY_CMD }}"
-              exit 1
+            [ -f "$TARBALL" ] || { echo "❌ Tarball missing at $TARBALL"; exit 1; }
+
+            # Extract into staging dir. Using rm -rf + mkdir -p covers the case
+            # where a prior failed deploy left behind a half-extracted staging.
+            sudo rm -rf "$STAGING"
+            sudo mkdir -p "$STAGING"
+            sudo tar xzf "$TARBALL" -C "$STAGING"
+
+            # Sanity: must contain both the bundle and the deploy scripts.
+            [ -f "$STAGING/server.js" ] || { echo "❌ server.js missing — artifact corrupt"; exit 1; }
+            [ -f "$STAGING/.deploy/deploy.sh" ] || { echo "❌ .deploy/deploy.sh missing — artifact corrupt"; exit 1; }
+
+            sudo chmod +x "$STAGING/.deploy/deploy.sh"
+
+            # Optional pass-throughs. Currently only skip_nginx is exposed as
+            # a workflow input — the other legacy flags (skip_git/deps/build,
+            # force) are meaningless in artifact mode.
+            EXTRA_FLAGS=""
+            if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
             fi
 
-            DEPLOY="sudo NEXT_BUILD_ID=${{ github.sha }} ${{ env.DEPLOY_CMD }}"
-            DEPLOY="$DEPLOY --site ${{ inputs.site || 'portfolio' }}"
+            # Invoke the deploy.sh that shipped with THIS build. The script
+            # handles first-run bootstrap (creating /opt/portfolio/ if needed,
+            # migrating .env.local from the legacy location, etc).
+            sudo bash "$STAGING/.deploy/deploy.sh" \
+              --release-dir "$STAGING" \
+              --sha "$SHA" \
+              --site "$SITE" \
+              $EXTRA_FLAGS
 
-            if [ "${{ inputs.skip_git }}" = "true" ]; then
-              DEPLOY="$DEPLOY --skip-git"
-            fi
-            if [ "${{ inputs.skip_deps }}" = "true" ]; then
-              DEPLOY="$DEPLOY --skip-deps"
-            fi
-            if [ "${{ inputs.skip_build }}" = "true" ]; then
-              DEPLOY="$DEPLOY --skip-build"
-            fi
-            if [ "${{ inputs.skip_nginx }}" = "true" ]; then
-              DEPLOY="$DEPLOY --skip-nginx"
-            fi
-            if [ "${{ inputs.force }}" = "true" ]; then
-              DEPLOY="$DEPLOY --force"
-            fi
-
-            echo "Command: $DEPLOY"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            $DEPLOY
+            DEPLOY_OK=1
             echo ""
             echo "✅ ${{ matrix.server.name }}: Deployment completed!"
 
@@ -161,37 +310,40 @@ jobs:
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 2m
           script: |
-            echo "🔍 Post-deploy verification..."
+            set -euo pipefail
 
             SITE="${{ inputs.site || 'portfolio' }}"
             SITE_CONF="/etc/deploy/sites/${SITE}.conf"
 
-            # Read service name and port from config
             SVC_NAME="portfolio"
             SVC_PORT="3000"
             if [ -f "$SITE_CONF" ]; then
               SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "portfolio")
-              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "3000")
+              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF"  | cut -d= -f2 | tr -d '"' || echo "3000")
             fi
 
-            # Check systemd service
+            echo "🔍 Post-deploy verification for $SVC_NAME"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # systemd health
             if sudo systemctl is-active --quiet "$SVC_NAME"; then
               echo "✅ ${SVC_NAME}.service is running"
             else
               echo "❌ ${SVC_NAME}.service is NOT running"
-              sudo journalctl -u "$SVC_NAME" --no-pager -n 10
+              sudo journalctl -u "$SVC_NAME" --no-pager -n 20
               exit 1
             fi
 
-            # Check Next.js responds
-            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
+            # Next.js HTTP health
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
+              "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Next.js responding (HTTP $HTTP_CODE on port $SVC_PORT)"
+              echo "✅ Next.js responding (HTTP $HTTP_CODE on :$SVC_PORT)"
             else
-              echo "⚠️  Next.js returned HTTP $HTTP_CODE"
+              echo "⚠️  Next.js returned HTTP $HTTP_CODE (expected 200)"
             fi
 
-            # Check nginx
+            # nginx health
             if sudo systemctl is-active --quiet nginx; then
               echo "✅ nginx is running"
             else
@@ -199,14 +351,25 @@ jobs:
               exit 1
             fi
 
-            # Disk usage
-            echo ""
-            echo "📊 Disk usage:"
-            df -h / | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
+            # Verify current release matches the deployed SHA
+            DEPLOY_ROOT="/opt/${SVC_NAME}"
+            if [ -L "$DEPLOY_ROOT/current" ]; then
+              CURRENT_SHA=$(basename "$(readlink -f "$DEPLOY_ROOT/current")")
+              if [ "$CURRENT_SHA" = "${{ github.sha }}" ]; then
+                echo "✅ current → ${CURRENT_SHA:0:12} (matches deployed SHA)"
+              else
+                echo "⚠️  current → ${CURRENT_SHA} but deployed SHA is ${{ github.sha }}"
+              fi
+              RELEASE_COUNT=$(find "$DEPLOY_ROOT/releases" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+              echo "📦 Releases on disk: $RELEASE_COUNT"
+            fi
 
-            # Memory usage
+            # Resource snapshot
+            echo ""
+            echo "📊 Disk:"
+            df -h / | tail -1 | awk '{print "   Used: "$3" / "$2" ("$5" full)"}'
             echo "📊 Memory:"
-            free -h | awk '/Mem:/{print "   RAM: "$3" used / "$2" total"}'
+            free -h | awk '/Mem:/{print  "   RAM:  "$3" used / "$2" total"}'
             free -h | awk '/Swap:/{print "   Swap: "$3" used / "$2" total"}'
 
       - name: Deployment Success (${{ matrix.server.name }})
@@ -228,9 +391,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ❌ ${{ matrix.server.name }}: Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Troubleshooting:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Troubleshooting (requires SSH access — if none, open a new workflow run):**" >> $GITHUB_STEP_SUMMARY
           SITE="${{ inputs.site || 'portfolio' }}"
-          echo "1. SSH in and check: \`/var/log/${SITE}-deploy/\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Service status: \`sudo systemctl status ${SITE}\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. Recent logs: \`sudo journalctl -u ${SITE} --no-pager -n 50\`" >> $GITHUB_STEP_SUMMARY
-          echo "4. Run manually: \`sudo deployWebsite --site ${SITE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "1. Deploy logs:     \`sudo ls -lt /var/log/${SITE}-deploy/ | head\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Service status:  \`sudo systemctl status ${SITE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Journal:         \`sudo journalctl -u ${SITE} --no-pager -n 80\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Current release: \`ls -la /opt/${SITE}/current\`" >> $GITHUB_STEP_SUMMARY
+          echo "5. Release history: \`ls -lt /opt/${SITE}/releases/\`" >> $GITHUB_STEP_SUMMARY
+          echo "6. nginx test:      \`sudo nginx -t\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback (if the automatic rollback didn't fire):**" >> $GITHUB_STEP_SUMMARY
+          echo "Re-run the workflow on the last known-good SHA — the deploy script will flip the symlink back to that release dir if it's still on disk." >> $GITHUB_STEP_SUMMARY

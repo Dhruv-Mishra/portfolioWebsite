@@ -137,11 +137,21 @@ Server-only (secrets):
 - `LLM_FALLBACK_API_KEY` — Fallback LLM API key
 - `LLM_FALLBACK_BASE_URL` — Fallback LLM base URL
 - `LLM_FALLBACK_MODEL` — Fallback LLM model
+<<<<<<< Updated upstream
 - `EMBEDDINGS_API_KEY` — Optional: API key for the embeddings endpoint. Falls back to `LLM_API_KEY`. Required at build time unless `SKIP_EMBEDDINGS_BUILD=1` or `EMBEDDINGS_MODE=local` is set.
 - `EMBEDDINGS_BASE_URL` — Optional: embeddings endpoint base URL. Falls back to `LLM_BASE_URL`; if neither resolves to an OpenAI-compatible embeddings provider, leave both unset so the script points at standard OpenAI.
 - `EMBEDDINGS_MODEL` — Optional embeddings model id. Defaults to `text-embedding-3-small`.
 - `EMBEDDINGS_MODE` — Set to `local` to generate deterministic hashed-n-gram embeddings offline (dev/CI only; lexical rather than semantic). Omit for real API embeddings.
 - `SKIP_EMBEDDINGS_BUILD` — Set to `1` in CI to skip the prebuild embeddings step and reuse the committed `lib/facts.embeddings.json`.
+=======
+<<<<<<< Updated upstream
+=======
+- `EMBEDDINGS_API_KEY` — Optional: API key for the embeddings endpoint. Falls back to `LLM_API_KEY`. If neither is set AND `EMBEDDINGS_MODE=local` is not set, the build script auto-reuses the committed `lib/facts.embeddings.json` (this is the default for production deploys — no config needed).
+- `EMBEDDINGS_BASE_URL` — Optional: embeddings endpoint base URL. Falls back to `LLM_BASE_URL`; if neither resolves to an OpenAI-compatible embeddings provider, leave both unset so the script points at standard OpenAI.
+- `EMBEDDINGS_MODEL` — Optional embeddings model id. Defaults to `text-embedding-3-small`.
+- `EMBEDDINGS_MODE` — Set to `local` to generate deterministic hashed-n-gram embeddings offline (dev/CI only; lexical rather than semantic). Omit for real API embeddings (or auto-reuse when no API key is present).
+- `SKIP_EMBEDDINGS_BUILD` — Set to `1` to explicitly skip the prebuild embeddings step and reuse the committed `lib/facts.embeddings.json`. Usually unnecessary — the default behavior auto-reuses when no API key is configured.
+>>>>>>> Stashed changes
 
 ## RAG / Chat Context
 
@@ -151,3 +161,7 @@ The chat system uses a hybrid retrieval pipeline:
 2. **Build-time embeddings** — `scripts/build-embeddings.ts` walks the corpus, calls the embeddings API, and writes `lib/facts.embeddings.json`. The file is committed and imported statically so Next.js bundles it.
 3. **Runtime retrieval** — `lib/factRetrieval.server.ts` embeds the user query at request time, computes cosine similarity in memory, and returns anchor facts plus the top-K non-anchor facts. Gracefully degrades to priority-ordered anchors if the embeddings API fails or the bundle is missing.
 4. **Conditional prompt assembly** — `lib/chatContext.server.ts` splits the system prompt into blocks (identity, style, grounding) plus conditional blocks (off-topic, UI action, terminal rules) emitted only when the latest user message warrants them.
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes

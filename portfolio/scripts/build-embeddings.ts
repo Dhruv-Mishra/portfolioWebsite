@@ -4,6 +4,7 @@
 // previous bundle are reused without hitting the API.
 //
 // Invocation: `npm run build:embeddings` (or automatically via `prebuild`).
+<<<<<<< Updated upstream
 // Gate: set SKIP_EMBEDDINGS_BUILD=1 to skip — the committed JSON is used as-is.
 //
 // Env resolution (first available wins):
@@ -16,6 +17,27 @@
 // without an API key. NEVER use this mode in production if you want
 // semantic (as opposed to lexical) retrieval; it matches on shared character
 // n-grams only. This mode still exercises the full pipeline end-to-end.
+=======
+//
+// Resolution order (first applicable wins):
+//   1. SKIP_EMBEDDINGS_BUILD=1    -> reuse committed bundle and exit
+//   2. EMBEDDINGS_MODE=local      -> deterministic hashed-n-gram embeddings
+//   3. EMBEDDINGS_API_KEY / LLM_API_KEY present -> real API embeddings
+//   4. Neither set, committed bundle exists     -> auto-reuse (warn)
+//   5. Neither set, no committed bundle         -> error
+//
+// Env vars for API mode:
+//   EMBEDDINGS_API_KEY / EMBEDDINGS_BASE_URL / EMBEDDINGS_MODEL
+//     -> LLM_API_KEY / LLM_BASE_URL (+ text-embedding-3-small default model)
+//
+// Auto-reuse (#4) is the safety net for production deploys: the committed
+// `lib/facts.embeddings.json` is the source of truth in git, so a deploy
+// without any embedding config just ships whatever was last committed.
+//
+// Local mode (#2) produces lexical rather than semantic vectors — it matches
+// on shared character n-grams only. Fine for dev/CI and offline correctness
+// tests, not equivalent to the API for production retrieval quality.
+>>>>>>> Stashed changes
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -136,6 +158,27 @@ async function main(): Promise<void> {
     return;
   }
 
+<<<<<<< Updated upstream
+=======
+  // Auto-reuse fallback for deploys that don't configure embeddings. The
+  // committed bundle is the source of truth in git; if nobody asked us to
+  // regenerate and nothing's configured, just ship what's there.
+  const hasApiKey = !!(process.env.EMBEDDINGS_API_KEY ?? process.env.LLM_API_KEY);
+  const hasLocalMode = process.env.EMBEDDINGS_MODE === 'local';
+  if (!hasApiKey && !hasLocalMode) {
+    if (fs.existsSync(OUTPUT_PATH)) {
+      console.warn(
+        `[build-embeddings] No EMBEDDINGS_API_KEY / LLM_API_KEY / EMBEDDINGS_MODE=local — reusing committed `
+        + `${path.relative(PROJECT_ROOT, OUTPUT_PATH)}. Set EMBEDDINGS_MODE=local to regenerate offline, `
+        + `or provide an API key for semantic embeddings.`,
+      );
+      return;
+    }
+    // No config and no committed bundle — genuinely can't build. Fall through
+    // to resolveConfig() so the error message is consistent.
+  }
+
+>>>>>>> Stashed changes
   const config = resolveConfig();
   console.log(
     `[build-embeddings] Mode: ${config.mode}; model "${config.model}"${config.baseURL ? ` @ ${config.baseURL}` : ''}`,

@@ -4,20 +4,6 @@
 // previous bundle are reused without hitting the API.
 //
 // Invocation: `npm run build:embeddings` (or automatically via `prebuild`).
-<<<<<<< Updated upstream
-// Gate: set SKIP_EMBEDDINGS_BUILD=1 to skip — the committed JSON is used as-is.
-//
-// Env resolution (first available wins):
-//   EMBEDDINGS_API_KEY / EMBEDDINGS_BASE_URL / EMBEDDINGS_MODEL
-//     -> LLM_API_KEY / LLM_BASE_URL (+ text-embedding-3-small as default model)
-//
-// Local fallback mode: set EMBEDDINGS_MODE=local to generate deterministic
-// hashed-n-gram embeddings without hitting any network. Produces a real,
-// cosine-similar vector per fact — useful in CI and in dev environments
-// without an API key. NEVER use this mode in production if you want
-// semantic (as opposed to lexical) retrieval; it matches on shared character
-// n-grams only. This mode still exercises the full pipeline end-to-end.
-=======
 //
 // Resolution order (first applicable wins):
 //   1. SKIP_EMBEDDINGS_BUILD=1    -> reuse committed bundle and exit
@@ -37,7 +23,6 @@
 // Local mode (#2) produces lexical rather than semantic vectors — it matches
 // on shared character n-grams only. Fine for dev/CI and offline correctness
 // tests, not equivalent to the API for production retrieval quality.
->>>>>>> Stashed changes
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -158,8 +143,6 @@ async function main(): Promise<void> {
     return;
   }
 
-<<<<<<< Updated upstream
-=======
   // Auto-reuse fallback for deploys that don't configure embeddings. The
   // committed bundle is the source of truth in git; if nobody asked us to
   // regenerate and nothing's configured, just ship what's there.
@@ -178,7 +161,6 @@ async function main(): Promise<void> {
     // to resolveConfig() so the error message is consistent.
   }
 
->>>>>>> Stashed changes
   const config = resolveConfig();
   console.log(
     `[build-embeddings] Mode: ${config.mode}; model "${config.model}"${config.baseURL ? ` @ ${config.baseURL}` : ''}`,

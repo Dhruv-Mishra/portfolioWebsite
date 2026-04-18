@@ -9,6 +9,15 @@
  * Why delegated? Zero per-component wiring. Adding `data-clickable` to any
  * future button gets the tick for free.
  *
+ * This is ALSO the site's global first-gesture warmup hook. Every
+ * `pointerdown` / `touchstart` / `keydown` eagerly calls
+ * `soundManager.primeOnGesture()` — this creates the `AudioContext` and
+ * kicks off the critical-sound warmup wave the moment the user shows ANY
+ * intent to interact, not just when they click a `data-clickable` button.
+ * The result: the very first click that DOES play a sound typically has
+ * the buffer pre-decoded, eliminating the "sound plays seconds later"
+ * latency that users reported.
+ *
  * Debounce is enforced by the sound manager (80ms). We additionally skip:
  *   - keyboard clicks (Enter / Space) — the terminal already has its own
  *     typewriter sound; we don't want to double-up.
@@ -46,6 +55,20 @@ export default function ClickSoundListener(): null {
       return true;
     }
 
+    // First-gesture warmup — ANY user input eagerly primes the sound manager
+    // so the critical-sound warmup wave kicks off on intent, not on the first
+    // audible click. Idempotent; the manager latches after the first call.
+    let warmed = false;
+    const prime = (): void => {
+      if (warmed) return;
+      warmed = true;
+      soundManager.primeOnGesture();
+    };
+    const primeOpts: AddEventListenerOptions = { capture: true, passive: true };
+    document.addEventListener('pointerdown', prime, primeOpts);
+    document.addEventListener('touchstart', prime, primeOpts);
+    document.addEventListener('keydown', prime, primeOpts);
+
     const handler = (evt: MouseEvent): void => {
       // Ignore pseudo-clicks fired by keyboard (detail === 0). Keyboard
       // activations travel through different sound cues.
@@ -56,7 +79,12 @@ export default function ClickSoundListener(): null {
     };
 
     document.addEventListener('click', handler, { capture: true, passive: true });
-    return () => document.removeEventListener('click', handler, { capture: true });
+    return () => {
+      document.removeEventListener('click', handler, { capture: true });
+      document.removeEventListener('pointerdown', prime, { capture: true });
+      document.removeEventListener('touchstart', prime, { capture: true });
+      document.removeEventListener('keydown', prime, { capture: true });
+    };
   }, []);
 
   return null;

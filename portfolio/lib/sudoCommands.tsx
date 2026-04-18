@@ -22,6 +22,7 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import { stickerBus } from '@/lib/stickerBus';
 import {
   setDiscoActiveImperative,
+  setMatrixActiveImperative,
   resetStickerProgressImperative,
 } from '@/hooks/useStickers';
 
@@ -56,8 +57,8 @@ export interface SudoCommandSpec {
 export const SUDO_COMMAND_SPECS: readonly SudoCommandSpec[] = [
   { name: 'help',       description: 'Lists every hidden sudo command.' },
   { name: 'cheatsheet', description: 'Reveals the full sticker cheatsheet.' },
-  { name: 'disco',      description: 'Toggles a cycling disco theme. `off` to exit.' },
-  { name: 'matrix',     description: 'Short matrix-rain overlay (~8s).' },
+  { name: 'disco',      description: 'Engages disco theme. Confirm with `sudo disco yes`. `off` to exit.' },
+  { name: 'matrix',     description: 'Engages persistent matrix overlay. Confirm with `sudo matrix yes`.' },
   { name: 'rainbow',    description: 'Rainbow-underline every link on the page.' },
   { name: 'fortune',    description: 'Prints a one-line Dhruv-voice quote.' },
   { name: 'whoami',     description: 'Identifies you as root, with flourish.' },
@@ -124,7 +125,10 @@ function renderSudoHelp(): React.ReactNode {
         </p>
       ))}
       <p className="pl-4 text-gray-500 italic mt-2">
-        tip: `sudo disco off` returns to the previous theme.
+        tip: `sudo disco` and `sudo matrix` both show a warning first; confirm with `yes`.
+      </p>
+      <p className="pl-4 text-gray-500 italic">
+        `sudo disco off` returns to the previous theme. matrix exits only via its WAKE UP button.
       </p>
     </div>
   );
@@ -153,12 +157,81 @@ function renderWhoami(): React.ReactNode {
   );
 }
 
+// ─── Confirm-flow warning frames ────────────────────────────────────────
+/**
+ * Terminal-themed warning card used by `sudo disco` and `sudo matrix` before
+ * they actually engage. Two-step confirmation prevents an accidental typo
+ * from taking over the page. Box-drawing characters frame the warning in a
+ * retro-terminal palette.
+ */
+function renderConfirmWarning(opts: {
+  title: string;
+  descriptionLines: readonly string[];
+  confirmCommand: string;
+  cancelCommand: string;
+}): React.ReactNode {
+  const { title, descriptionLines, confirmCommand, cancelCommand } = opts;
+  return (
+    <div className="font-code text-sm leading-[1.35] my-1">
+      <pre className="text-yellow-300 whitespace-pre">{`╔═══════════════════════════════════════════════════╗`}</pre>
+      <pre className="text-yellow-300 whitespace-pre">{`║                 ⚠  WARNING  ⚠                    ║`}</pre>
+      <pre className="text-yellow-300 whitespace-pre">{`╚═══════════════════════════════════════════════════╝`}</pre>
+      <p className="text-red-400 font-bold mt-1">{title}</p>
+      <div className="text-gray-300 mt-1 space-y-0.5">
+        {descriptionLines.map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
+      </div>
+      <div className="mt-3 space-y-0.5">
+        <p>
+          <span className="text-gray-500">&gt; proceed?</span>{' '}
+          <span className="text-emerald-400 font-bold">{confirmCommand}</span>{' '}
+          <span className="text-gray-500">to confirm,</span>{' '}
+          <span className="text-gray-400 font-bold">{cancelCommand}</span>{' '}
+          <span className="text-gray-500">to cancel.</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function renderCancellation(line: string): React.ReactNode {
+  return (
+    <div>
+      <span className="text-gray-400">✗</span>{' '}
+      <span className="text-gray-400">{line}</span>
+    </div>
+  );
+}
+
 // ─── disco ──────────────────────────────────────────────────────────────
+/**
+ * Confirm-flow sub-argument normaliser. Shared between `disco` and `matrix`
+ * so both have exactly the same vocabulary. Returns `'off'` only for disco
+ * (where `off` ALSO disengages running disco). For matrix the only exit is
+ * the WAKE UP button, so `off` / `stop` return `null` (= no recognition →
+ * treated as the bare form, which prints the confirm warning).
+ */
+type ConfirmAnswer = 'confirm' | 'cancel' | 'off' | null;
+
+function parseConfirmArg(arg: string | undefined): ConfirmAnswer {
+  if (!arg) return null;
+  const lowered = arg.toLowerCase();
+  if (lowered === 'yes' || lowered === 'y' || lowered === 'on' || lowered === 'engage') {
+    return 'confirm';
+  }
+  if (lowered === 'no' || lowered === 'n' || lowered === 'cancel' || lowered === 'abort') {
+    return 'cancel';
+  }
+  if (lowered === 'off' || lowered === 'stop' || lowered === 'false' || lowered === '0') {
+    return 'off';
+  }
+  return null;
+}
 
 function handleDisco(args: string[]): SudoCommandResult {
-  const sub = args[0]?.toLowerCase();
-  const turnOff = sub === 'off' || sub === 'stop' || sub === 'false' || sub === '0';
-  if (turnOff) {
+  const answer = parseConfirmArg(args[0]);
+  if (answer === 'off') {
     return {
       output: (
         <div>
@@ -171,47 +244,105 @@ function handleDisco(args: string[]): SudoCommandResult {
       },
     };
   }
+  if (answer === 'cancel') {
+    return { output: renderCancellation('disco cancelled. the lights stay off.') };
+  }
+  if (answer === 'confirm') {
+    return {
+      output: (
+        <div>
+          <span className="text-fuchsia-300 font-bold">✨ disco mode: engaged</span>
+          <p className="text-gray-500 italic text-sm mt-1">
+            everything&apos;s cycling. type `sudo disco off` when you&apos;ve had enough.
+          </p>
+        </div>
+      ),
+      action: () => {
+        // Pre-warm the heavy disco media chunk on the same user-gesture tick
+        // that sets the flag. Without this, there's a visible ~100ms gap while
+        // the bundle is fetched + parsed before sparkles/spotlights appear.
+        // The promise is intentionally not awaited — if it fails we fall back
+        // to the deferred fetch in DiscoFlagController.
+        if (typeof window !== 'undefined') {
+          void import('@/components/DiscoMediaLayer').catch(() => {
+            /* fetch will be retried by DiscoFlagController — best-effort */
+          });
+        }
+        setDiscoActiveImperative(true);
+      },
+    };
+  }
+  // Bare `sudo disco` — print confirm warning, take no action.
   return {
-    output: (
-      <div>
-        <span className="text-fuchsia-300 font-bold">✨ disco mode: engaged</span>
-        <p className="text-gray-500 italic text-sm mt-1">
-          everything&apos;s cycling. type `sudo disco off` when you&apos;ve had enough.
-        </p>
-      </div>
-    ),
-    action: () => {
-      // Pre-warm the heavy disco media chunk on the same user-gesture tick
-      // that sets the flag. Without this, there's a visible ~100ms gap while
-      // the bundle is fetched + parsed before sparkles/spotlights appear.
-      // The promise is intentionally not awaited — if it fails we fall back
-      // to the deferred fetch in DiscoFlagController.
-      if (typeof window !== 'undefined') {
-        void import('@/components/DiscoMediaLayer').catch(() => {
-          /* fetch will be retried by DiscoFlagController — best-effort */
-        });
-      }
-      setDiscoActiveImperative(true);
-    },
+    output: renderConfirmWarning({
+      title: 'disco mode will take over the page.',
+      descriptionLines: [
+        'sparkles, rainbow spotlights, a looping music bed, and every',
+        'component on the page will start dancing to the beat.',
+        'your device may vibrate in time if it has a haptic motor.',
+      ],
+      confirmCommand: 'sudo disco yes',
+      cancelCommand: 'sudo disco no',
+    }),
   };
 }
 
 // ─── matrix ─────────────────────────────────────────────────────────────
 
-function handleMatrix(): SudoCommandResult {
+function handleMatrix(args: string[]): SudoCommandResult {
+  const answer = parseConfirmArg(args[0]);
+  if (answer === 'cancel') {
+    return { output: renderCancellation('matrix cancelled. you stay in this reality.') };
+  }
+  if (answer === 'off') {
+    // The matrix overlay cannot be shut off via the terminal — that's the
+    // whole point. Point users at the WAKE UP button.
+    return {
+      output: (
+        <div>
+          <span className="text-emerald-400">&gt;</span>{' '}
+          <span className="text-gray-400">
+            there is no off switch here. the only way out is through the{' '}
+            <span className="text-cyan-300 font-bold">WAKE UP</span> button.
+          </span>
+        </div>
+      ),
+    };
+  }
+  if (answer === 'confirm') {
+    return {
+      output: (
+        <div>
+          <span className="text-emerald-400 font-bold">&gt; wake up, Neo...</span>
+          <p className="text-gray-500 text-xs italic mt-1">
+            the overlay will persist across navigation and reloads. find the
+            <span className="text-cyan-300 font-bold"> WAKE UP</span> button when you&apos;re ready.
+          </p>
+        </div>
+      ),
+      action: () => {
+        if (typeof window === 'undefined') return;
+        // Pre-warm the matrix overlay chunk on the user-gesture tick so the
+        // first paint doesn't stall on a chunk fetch.
+        void import('@/components/DiscoMatrixOverlay').catch(() => {
+          /* best-effort — DiscoFlagController will retry */
+        });
+        setMatrixActiveImperative(true);
+      },
+    };
+  }
+  // Bare `sudo matrix` — print confirm warning, take no action.
   return {
-    output: (
-      <div>
-        <span className="text-emerald-400 font-bold">&gt; wake up, Neo...</span>
-        <p className="text-gray-500 text-xs italic mt-1">
-          Following the white rabbit for ~8 seconds.
-        </p>
-      </div>
-    ),
-    action: () => {
-      if (typeof window === 'undefined') return;
-      window.dispatchEvent(new CustomEvent('sudo:matrix'));
-    },
+    output: renderConfirmWarning({
+      title: 'the matrix overlay is a one-way trip.',
+      descriptionLines: [
+        'falling green glyphs will cover the entire viewport and will',
+        'remain active across page navigation AND browser refreshes.',
+        'the only way out is the in-overlay WAKE UP button.',
+      ],
+      confirmCommand: 'sudo matrix yes',
+      cancelCommand: 'sudo matrix no',
+    }),
   };
 }
 
@@ -334,7 +465,7 @@ export function dispatchSudo(
     case 'disco':
       return handleDisco(args);
     case 'matrix':
-      return handleMatrix();
+      return handleMatrix(args);
     case 'rainbow':
       return handleRainbow();
     case 'fortune':

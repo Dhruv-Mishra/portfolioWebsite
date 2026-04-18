@@ -45,6 +45,44 @@ describe('sticker roster metadata', () => {
     expect(STICKER_TOTAL).toBeGreaterThanOrEqual(18);
     expect(STICKER_TOTAL).toBeLessThanOrEqual(22);
   });
+
+  it('the retired `konami` sticker is not in the roster', () => {
+    // Konami was removed because its keyboard-only emit path had no
+    // mobile-reachable trigger. Make sure regressions don't silently re-add it.
+    expect(STICKER_ROSTER.some((s) => (s.id as string) === 'konami')).toBe(false);
+  });
+
+  it('every roster id has a mobile-attainable trigger (manual audit)', () => {
+    // This is a static sentinel — the audit is performed in the PR
+    // description / code review. The test exists so that adding a new
+    // sticker to the roster forces someone to update this list consciously.
+    const auditedMobileReachable: ReadonlyArray<string> = [
+      'first-word',       // typing in on-screen keyboard
+      'help-wanted',      // typing `help`
+      'stand-up-comic',   // typing `joke`
+      'theme-flipper',    // mobile theme button in SocialSidebar
+      'note-sender',      // mobile feedback button
+      'page-turner',      // mobile navigation
+      'note-passer',      // MiniChat FAB (mobile-sized)
+      'long-read',        // timed resume page view
+      'full-chat',        // /chat navigation
+      'night-owl',        // time-based (any device)
+      'signed-guestbook', // guestbook form
+      'project-explorer', // project modal taps
+      'cheat-codes',      // typing `cheatsheet`
+      'drawer-dweller',   // /stickers navigation
+      'chat-conductor',   // chat AI perform-action
+      'terminal-addict',  // 5 distinct commands
+      'repo-hunter',      // project modal external link
+      'social-butterfly', // social pill link tap
+    ];
+    const rosterIds = STICKER_ROSTER.map((s) => s.id);
+    for (const audited of auditedMobileReachable) {
+      expect(rosterIds).toContain(audited);
+    }
+    // The audit list size must equal the roster size — catches silent adds.
+    expect(auditedMobileReachable.length).toBe(STICKER_ROSTER.length);
+  });
 });
 
 describe('hasEarnedAllRegularStickers', () => {

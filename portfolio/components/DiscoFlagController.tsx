@@ -12,11 +12,10 @@
  *      heavy `DiscoMediaLayer` (sparkle canvas + spotlights + mute button +
  *      audio engine). The import() call itself is gated on `discoActive` so
  *      users who never turn on disco never fetch the bundle.
- *   4. Hosts the matrix-rain overlay listener (a small piece of JS that lives
- *      in the heavy layer but is needed even without full disco activation —
- *      `sudo matrix` is a standalone easter egg). To keep the eager bundle
- *      tiny we delay loading the matrix module until the first sudo:matrix
- *      event fires.
+ *   4. Subscribes to `matrixActive` — when true, dynamically imports the
+ *      MATRIX overlay (`DiscoMatrixOverlay`). Matrix is PERSISTED across
+ *      reloads, so the overlay re-spawns on every page load while the
+ *      flag is true. The only exit path is the in-overlay WAKE UP button.
  *
  * Bundle-split contract:
  *   - `./DiscoFlagController.tsx` is the ONLY disco-related module in the
@@ -24,25 +23,29 @@
  *   - `./DiscoMediaLayer.tsx` (and its sub-deps: DiscoSparkleCanvas,
  *     DiscoSpotlights, DiscoMuteButton, @/lib/discoAudio) MUST NOT be in the
  *     initial bundle. They're fetched on demand when disco activates.
- *   - The matrix overlay module (`./DiscoMatrixOverlay`) is fetched only when
- *     the first `sudo:matrix` event fires.
+ *   - `./DiscoMatrixOverlay.tsx` is fetched only when `matrixActive` first
+ *     flips true (either via sudo or on a reload with the flag persisted).
  *
  * Re-render hygiene:
- *   - This component re-renders on `discoActive` flips only. The narrow hook
- *     `useDiscoActive` is backed by useSyncExternalStore with a boolean
- *     selector — mute toggles, sticker unlocks, and other store mutations do
- *     not trigger a re-render here.
- *   - The mounted `DiscoMediaLayer` is memoized at its module root so its
- *     React tree is preserved across parent re-renders.
+ *   - This component re-renders on `discoActive` / `matrixActive` flips.
+ *     The narrow `useDiscoActive` / `useMatrixActive` hooks are backed by
+ *     `useSyncExternalStore` with boolean selectors — mute toggles, sticker
+ *     unlocks, and other store mutations do not trigger a re-render here.
+ *   - The mounted `DiscoMediaLayer` and `DiscoMatrixOverlay` are both
+ *     memoized at their module root so their React trees are preserved
+ *     across parent re-renders.
  */
 import { useEffect, useState } from 'react';
-import { useDiscoActive } from '@/hooks/useStickers';
+import { useDiscoActive, useMatrixActive } from '@/hooks/useStickers';
 
 type MediaLayerModule = typeof import('./DiscoMediaLayer');
+type MatrixOverlayModule = typeof import('./DiscoMatrixOverlay');
 
 export default function DiscoFlagController(): React.ReactElement | null {
   const discoActive = useDiscoActive();
+  const matrixActive = useMatrixActive();
   const [MediaLayer, setMediaLayer] = useState<MediaLayerModule['default'] | null>(null);
+  const [MatrixOverlay, setMatrixOverlay] = useState<MatrixOverlayModule['default'] | null>(null);
 
   // 1) Sync store flag → <html data-disco>. This is the only always-on work.
   useEffect(() => {
@@ -55,9 +58,9 @@ export default function DiscoFlagController(): React.ReactElement | null {
     }
   }, [discoActive]);
 
-  // 2) Gate the heavy import — only fetch the chunk once `discoActive` is true
-  //    for the first time. Stays resolved for the rest of the session so a
-  //    subsequent off/on flip doesn't refetch.
+  // 2) Gate the heavy disco import — only fetch the chunk once `discoActive`
+  //    is true for the first time. Stays resolved for the rest of the session
+  //    so a subsequent off/on flip doesn't refetch.
   useEffect(() => {
     if (!discoActive) return;
     if (MediaLayer) return;
@@ -70,21 +73,41 @@ export default function DiscoFlagController(): React.ReactElement | null {
     };
   }, [discoActive, MediaLayer]);
 
-  // 3) Matrix overlay — completely independent of disco. Lives in its own
-  //    tiny chunk and is only loaded the first time the user types
-  //    `sudo matrix`. We listen for the CustomEvent here and hand it off.
+  // 3) Matrix overlay — PERSISTED across reloads. When matrixActive is true
+  //    on mount OR flips true later, dynamically import the overlay chunk
+  //    and mount it. The overlay owns its own lifecycle; dismissal happens
+  //    via `setMatrixActiveImperative(false)` from the in-overlay WAKE UP
+  //    button, which flips this flag back to false and unmounts the tree.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handler = (): void => {
-      void import('./DiscoMatrixOverlay').then((mod) => {
-        mod.spawnMatrixOverlay();
-      });
+    if (!matrixActive) return;
+    if (MatrixOverlay) return;
+    let cancelled = false;
+    void import('./DiscoMatrixOverlay').then((mod) => {
+      if (!cancelled) setMatrixOverlay(() => mod.default);
+    });
+    return () => {
+      cancelled = true;
     };
-    window.addEventListener('sudo:matrix', handler);
-    return () => window.removeEventListener('sudo:matrix', handler);
-  }, []);
+  }, [matrixActive, MatrixOverlay]);
 
-  // Only mount the media tree when BOTH: the flag is on AND the chunk landed.
-  if (!discoActive || !MediaLayer) return null;
-  return <MediaLayer />;
+  // 4) Sync store flag → <html data-matrix>. Consumers (e.g. sidebar chrome
+  //    that wants to dim during matrix) can subscribe to this attribute.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (matrixActive) {
+      root.dataset.matrix = 'on';
+    } else {
+      delete root.dataset.matrix;
+    }
+  }, [matrixActive]);
+
+  // Render: disco media tree AND/OR matrix overlay, each guarded by both
+  // (a) the store flag AND (b) the lazy chunk having landed.
+  return (
+    <>
+      {discoActive && MediaLayer ? <MediaLayer /> : null}
+      {matrixActive && MatrixOverlay ? <MatrixOverlay /> : null}
+    </>
+  );
 }

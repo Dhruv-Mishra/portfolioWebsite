@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
+import AssetPrefetchController from '@/components/AssetPrefetchController';
 
 /**
  * EagerEnhancements — a tiny, always-mounted client component that boots the
@@ -20,9 +21,12 @@ import { useDesktopOnly } from '@/hooks/useDesktopOnly';
  * Mobile gating: the command palette, shortcuts overlay, and shortcut hint
  * are keyboard-only surfaces. On touch-only devices (no hover, coarse
  * pointer) we skip rendering them entirely — which means their dynamic
- * chunks are never fetched either. Trackers + Konami listener stay eager
- * on all viewports because they work without a keyboard (Konami via an
- * external keyboard if one is ever plugged in, page tracking always).
+ * chunks are never fetched either. Trackers stay eager on all viewports
+ * because they work without a keyboard (page tracking always).
+ *
+ * Asset prefetch: `AssetPrefetchController` schedules the non-critical
+ * asset warmup (sound buffers + superuser-gated chunks) on the first user
+ * gesture via `requestIdleCallback`. Lives here so it mounts once, early.
  */
 
 const CommandPaletteProvider = dynamic(
@@ -40,17 +44,12 @@ const ShortcutsHint = dynamic(
   { ssr: false, loading: () => null },
 );
 
-// Agent D modules — eager-mounted so visited-page tracking and the konami
-// listener are live from the first paint. The toast listener + glance badge
-// are also eager-mounted so a sticker earned within the first few seconds
-// doesn't silently queue with no UI to display it.
+// Agent D modules — eager-mounted so visited-page tracking is live from the
+// first paint. The toast listener + glance badge are also eager-mounted so
+// a sticker earned within the first few seconds doesn't silently queue with
+// no UI to display it.
 const VisitedPagesTrackerMount = dynamic(
   () => import('@/components/VisitedPagesTrackerMount'),
-  { ssr: false, loading: () => null },
-);
-
-const KonamiListenerMount = dynamic(
-  () => import('@/components/KonamiListenerMount'),
   { ssr: false, loading: () => null },
 );
 
@@ -107,13 +106,13 @@ export default function EagerEnhancements() {
   return (
     <>
       <VisitedPagesTrackerMount />
-      <KonamiListenerMount />
       <StickerToastListener />
       <StickerGlanceBadge />
       <DiscoFlagController />
       <SoundRouteListener />
       <ClickSoundListener />
       <SuperuserToastController />
+      <AssetPrefetchController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

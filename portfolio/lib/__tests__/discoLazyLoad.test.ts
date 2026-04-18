@@ -182,6 +182,15 @@ describe('disco render-count hygiene — source guards', () => {
     expect(src).not.toMatch(/useStickers\s*\(/);
   });
 
+  it('DiscoFlagController also subscribes to matrixActive via the narrow selector', () => {
+    // v6: matrixActive is persisted, so a reload with the flag true must
+    // re-spawn the overlay. The flag controller is the mount site, and it
+    // must use the narrow useMatrixActive selector (NOT useStickers) so
+    // unrelated store mutations don't cause it to re-render.
+    const src = readSrc('DiscoFlagController.tsx');
+    expect(src).toMatch(/useMatrixActive/);
+  });
+
   it('DiscoAudioBridge subscribes to the narrow useSoundsMuted selector', () => {
     // The bridge's re-render scope is scoped to sitewide mute flips —
     // not to the entire sticker store. Using the narrow selector keeps the

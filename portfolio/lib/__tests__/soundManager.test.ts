@@ -305,6 +305,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
       'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'matrix',
     ];
     for (const id of ids) {
       expect(__test.VOLUMES).toHaveProperty(id);
@@ -318,6 +319,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
       'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'matrix',
     ];
     for (const id of ids) {
       expect(__test.DEBOUNCE_MS).toHaveProperty(id);
@@ -644,5 +646,186 @@ describe('soundManager — __reset cleans up loops and one-shots', () => {
     soundManager.__reset();
     expect(__test.loopCount()).toBe(0);
     expect(__test.hasActiveOneShot()).toBe(false);
+  });
+});
+
+// ─── Warmup waves ──────────────────────────────────────────────────────
+describe('soundManager — warmup waves', () => {
+  /**
+   * Stub `fetch` so the warmup pipeline records which URLs were requested.
+   * decodeAudioData is stubbed on the mock context to synthesize an
+   * AudioBuffer, so each successful fetch lands in the buffer cache.
+   */
+  function installFetchSpy(): { fetchMock: ReturnType<typeof vi.fn>; fetched: string[] } {
+    const fetched: string[] = [];
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const s = typeof url === 'string' ? url : url.toString();
+      fetched.push(s);
+      return {
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(8),
+      } as unknown as Response;
+    });
+    Object.defineProperty(globalThis, 'fetch', {
+      value: fetchMock,
+      configurable: true,
+      writable: true,
+    });
+    (globalThis.window as unknown as Record<string, unknown>).fetch = fetchMock;
+    return { fetchMock, fetched };
+  }
+
+  function installDecodeStub(): void {
+    // mockCtx is installed on globalThis.AudioContext; patch its decodeAudioData
+    // so that every URL fetch decodes into a fake AudioBuffer. We monkey-patch
+    // the prototype-ish ctx methods by waiting for the manager to create the
+    // context, then decorating.
+    // Easier: patch the ctor so every instance has decodeAudioData.
+    const Ctor = (globalThis as Record<string, unknown>).AudioContext as
+      | (new () => unknown)
+      | undefined;
+    if (!Ctor) return;
+    // No-op — decode stub will be installed per-test after manager initializes.
+  }
+  installDecodeStub();
+
+  /** Patch the live mock context's decodeAudioData to always succeed. */
+  function patchDecodeAudioData(): void {
+    if (!mockCtx) return;
+    (mockCtx as unknown as { decodeAudioData: (b: ArrayBuffer) => Promise<AudioBuffer> })
+      .decodeAudioData = vi.fn(async () => {
+        return { getChannelData: (): Float32Array => new Float32Array(1) } as unknown as AudioBuffer;
+      });
+  }
+
+  it('critical wave kicks off on first play and fetches every critical sound', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    // First gesture — kicks off the AudioContext + critical warmup.
+    soundManager.play('page-flip');
+    patchDecodeAudioData();
+    // Yield microtasks so the warmup fetches enqueue.
+    await new Promise<void>((r) => setTimeout(r, 0));
+    await new Promise<void>((r) => setTimeout(r, 0));
+    const criticalUrls = [
+      '/sounds/page-flip.mp3',
+      '/sounds/theme-dark.mp3',
+      '/sounds/theme-light.mp3',
+    ];
+    for (const url of criticalUrls) {
+      expect(fetched).toContain(url);
+    }
+  });
+
+  it('superuser wave does NOT fire before warmupSuperuserSounds() is called', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.play('page-flip');
+    // Settle microtasks — critical + second waves will fire, but NOT superuser.
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(fetched.some((u) => u.includes('/sounds/disco-start.mp3'))).toBe(false);
+    expect(fetched.some((u) => u.includes('/sounds/disco-loop.mp3'))).toBe(false);
+    expect(fetched.some((u) => u.includes('/sounds/matrix.mp3'))).toBe(false);
+  });
+
+  it('warmupSuperuserSounds() fetches disco-start, disco-loop, and matrix', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.play('page-flip');
+    soundManager.warmupSuperuserSounds();
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(fetched).toContain('/sounds/disco-start.mp3');
+    expect(fetched).toContain('/sounds/disco-loop.mp3');
+    expect(fetched).toContain('/sounds/matrix.mp3');
+  });
+
+  it('warmupSuperuserSounds() deduplicates repeat calls', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.play('page-flip');
+    soundManager.warmupSuperuserSounds();
+    soundManager.warmupSuperuserSounds();
+    soundManager.warmupSuperuserSounds();
+    await new Promise<void>((r) => setTimeout(r, 50));
+    // matrix.mp3 should have been fetched exactly once.
+    const matrixFetches = fetched.filter((u) => u === '/sounds/matrix.mp3').length;
+    expect(matrixFetches).toBe(1);
+  });
+
+  it('warmupSuperuserSounds() called before first gesture is deferred until ensure()', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    // No gesture yet — nothing should fetch.
+    soundManager.warmupSuperuserSounds();
+    await new Promise<void>((r) => setTimeout(r, 10));
+    expect(fetched.some((u) => u.includes('/sounds/matrix.mp3'))).toBe(false);
+    // Now fire a gesture — the deferred superuser wave picks up.
+    soundManager.play('page-flip');
+    await new Promise<void>((r) => setTimeout(r, 50));
+    expect(fetched).toContain('/sounds/matrix.mp3');
+  });
+
+  it('__debug reports criticalWaveStarted after first play', async () => {
+    installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    expect(soundManager.__debug.criticalWaveStarted).toBe(false);
+    soundManager.play('page-flip');
+    expect(soundManager.__debug.criticalWaveStarted).toBe(true);
+  });
+
+  it('__debug reports superuserWaveScheduled only after warmupSuperuserSounds', async () => {
+    installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.play('page-flip');
+    expect(soundManager.__debug.superuserWaveScheduled).toBe(false);
+    soundManager.warmupSuperuserSounds();
+    expect(soundManager.__debug.superuserWaveScheduled).toBe(true);
+  });
+
+  it('primeOnGesture() is idempotent and creates the context if missing', async () => {
+    installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    expect(ctxCreationCount).toBe(0);
+    soundManager.primeOnGesture();
+    expect(ctxCreationCount).toBe(1);
+    // Calling again is a no-op.
+    soundManager.primeOnGesture();
+    expect(ctxCreationCount).toBe(1);
+  });
+
+  it('deduplicates concurrent warmup calls for the same sound id', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    // Fire warmupSuperuserSounds AND a play that would retrigger critical —
+    // matrix should only fetch once.
+    soundManager.play('page-flip');
+    soundManager.warmupSuperuserSounds();
+    soundManager.warmupSuperuserSounds(); // should be no-op (latch)
+    await new Promise<void>((r) => setTimeout(r, 50));
+    const matrixFetches = fetched.filter((u) => u === '/sounds/matrix.mp3').length;
+    expect(matrixFetches).toBe(1);
+  });
+});
+
+// ─── Matrix loop — the new v6 superuser-gated loop ─────────────────────
+describe('soundManager — matrix loop', () => {
+  it('startLoop(matrix) plays on a buffer source when seeded', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const fakeBuffer = mockCtx!.createBuffer(2, 44100, 44100);
+    __test.seedBuffer('matrix', fakeBuffer);
+    const started = soundManager.startLoop('matrix');
+    expect(started).toBe(true);
+    expect(soundManager.isLoopPlaying('matrix')).toBe(true);
+  });
+
+  it('stopLoop(matrix) tears down the loop', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const fakeBuffer = mockCtx!.createBuffer(2, 44100, 44100);
+    __test.seedBuffer('matrix', fakeBuffer);
+    soundManager.startLoop('matrix');
+    soundManager.stopLoop('matrix');
+    expect(soundManager.isLoopPlaying('matrix')).toBe(false);
   });
 });

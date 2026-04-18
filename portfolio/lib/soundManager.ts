@@ -69,7 +69,56 @@ export type SoundId =
   | 'modal-close'
   | 'command-palette-pop'
   | 'disco-start'
-  | 'disco-loop';
+  | 'disco-loop'
+  | 'matrix';
+
+/**
+ * Critical-wave sounds — fetched in parallel on the first user gesture so the
+ * very next playback has a decoded buffer ready. These are the cues a user will
+ * hear during normal navigation (page flips, theme flips, clicks, modal
+ * open/close, chat send/receive). Procedural fallbacks still exist, but the
+ * goal is to not need them after the first tap.
+ */
+const CRITICAL_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
+  'page-flip',
+  'button-click',
+  'theme-dark',
+  'theme-light',
+  'chat-send',
+  'chat-receive',
+  'modal-open',
+  'modal-close',
+]);
+
+/**
+ * Second-wave sounds — less frequent UI cues. Warmed up after the critical
+ * wave lands or after a hard deadline (`SECOND_WAVE_DEADLINE_MS`), whichever
+ * fires first. These have procedural fallbacks that are musically solid, so
+ * even if the fetch lags there's no perceivable gap.
+ */
+const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
+  'sticker-ding',
+  'feedback-sent',
+  'guestbook-submit',
+  'command-palette-pop',
+  'terminal-click',
+  'superuser-fanfare',
+]);
+
+/**
+ * Superuser-gated sounds — only warmed up once the user has earned the hidden
+ * superuser sticker. Pre-superuser visitors never download these bytes. The
+ * warmup is triggered by the prefetch scheduler (`lib/assetPrefetch.ts`),
+ * which calls `warmupSuperuserSounds` during an idle window.
+ */
+const SUPERUSER_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
+  'disco-start',
+  'disco-loop',
+  'matrix',
+]);
+
+/** Deadline (ms) after which the second wave fires regardless of first-wave progress. */
+const SECOND_WAVE_DEADLINE_MS = 500;
 
 // ─── Environment helpers ────────────────────────────────────────────────
 
@@ -117,6 +166,7 @@ const VOLUMES: Readonly<Record<SoundId, number>> = Object.freeze({
   'command-palette-pop': 0.09,
   'disco-start':        0.22,
   'disco-loop':         0.18, // procedural fallback only — buffer uses sampleGain
+  'matrix':             0.22, // looping matrix rain — loops via startLoop
 });
 
 // ─── Manager state ──────────────────────────────────────────────────────
@@ -155,6 +205,7 @@ const DEBOUNCE_MS: Readonly<Record<SoundId, number>> = Object.freeze({
   'command-palette-pop': 150,
   'disco-start':        1500, // never double-fire on a single reveal
   'disco-loop':         0,    // N/A — loops go through startLoop()
+  'matrix':             0,    // N/A — loops go through startLoop()
 });
 
 // ─── Noise buffer builder ───────────────────────────────────────────────
@@ -191,9 +242,19 @@ function ensure(): ManagerState | null {
     noise: buildNoiseBuffer(ctx),
   };
   state = newState;
-  // Background-warm the URL-backed sounds so that by the second play they're
-  // already decoded and swap transparently from procedural → sample.
-  warmupAllUrlSounds(ctx);
+  // Background-warm the CRITICAL wave first (page-flip, theme-*, chat-*,
+  // button-click, modal-*). These are the cues a user will hear during
+  // normal navigation, so we want them decoded before the second tap. The
+  // second wave (sticker-ding, feedback-sent, etc) is chained off the
+  // critical wave settling, and the superuser wave (disco/matrix) is only
+  // warmed externally by `lib/assetPrefetch.ts` after superuser is earned.
+  warmupCriticalWave(ctx);
+  // If the prefetch scheduler already requested a superuser warmup before
+  // the gesture that created this context, honor it now.
+  if (superuserWavePending) {
+    superuserWavePending = false;
+    warmupSuperuserWave(ctx);
+  }
   return newState;
 }
 
@@ -794,6 +855,22 @@ function playDiscoLoopFallback(s: ManagerState, bundle: OneShotHandle, t: number
   });
 }
 
+/**
+ * Matrix procedural fallback — a low, ominous sub-drone. Only fires if the
+ * matrix.mp3 buffer hasn't been decoded yet AND the matrix effect is already
+ * active (rare — matrix is superuser-gated, so the prefetch scheduler almost
+ * always lands the buffer before activation). Kept tonally quiet so it blends
+ * until the real sample takes over on hot-swap.
+ */
+function playMatrixFallback(s: ManagerState, bundle: OneShotHandle, t: number, volume: number): void {
+  playTone(s, bundle, t, {
+    freqStart: midiToHz(36), // C2 — very low drone
+    type: 'sawtooth',
+    duration: 0.8,
+    peakGain: volume * 0.4,
+  });
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────────────
 
 type Renderer = (s: ManagerState, bundle: OneShotHandle, t: number, volume: number) => void;
@@ -820,6 +897,7 @@ const SOUND_SPECS: Readonly<Record<SoundId, SoundSpec>> = Object.freeze({
   'theme-light':        { render: playThemeLight, url: '/sounds/theme-light.mp3', sampleGain: 0.7 },
   'disco-start':        { render: playDiscoStart, url: '/sounds/disco-start.mp3', sampleGain: 0.75 },
   'disco-loop':         { render: playDiscoLoopFallback, url: '/sounds/disco-loop.mp3', sampleGain: 0.35 },
+  'matrix':             { render: playMatrixFallback, url: '/sounds/matrix.mp3', sampleGain: 0.5 },
 
   // Procedural-only.
   'chat-send':          { render: playChatSend },
@@ -842,10 +920,24 @@ const bufferCache: Map<SoundId, AudioBuffer> = new Map();
 /** Per-sound "already attempted" latch to avoid retrying a failed fetch on
  *  every play call (that would be a network-storm anti-pattern). */
 const warmupAttempted: Set<SoundId> = new Set();
+/** Per-sound "in flight" latch — deduplicates concurrent warmup calls so a
+ *  critical-wave trigger and a superuser-wave trigger for the same sound
+ *  don't race the fetch. Used by `warmupSound` and the wave schedulers. */
+const warmupInflight: Set<SoundId> = new Set();
 /** Subscribers waiting for a specific buffer to land. Used by `startLoop`'s
  *  switchover logic so the disco engine can upgrade from procedural to
  *  buffer-backed the moment the decode finishes. */
 const bufferReadySubscribers: Map<SoundId, Array<() => void>> = new Map();
+/** Has the second wave been kicked off? Guard against double-schedule. */
+let secondWaveScheduled = false;
+/** Has the superuser wave been kicked off? Guard against re-warm. */
+let superuserWaveScheduled = false;
+/**
+ * Latched request to run the superuser wave the next time an AudioContext
+ * becomes available. Set by `warmupSuperuserSounds()` if called before the
+ * first user gesture; drained by `ensure()`.
+ */
+let superuserWavePending = false;
 
 function notifyBufferReady(id: SoundId): void {
   const subs = bufferReadySubscribers.get(id);
@@ -873,9 +965,15 @@ function decodeArrayBuffer(ctx: AudioContext, bytes: ArrayBuffer): Promise<Audio
 }
 
 async function warmupSound(ctx: AudioContext, id: SoundId, url: string): Promise<void> {
-  if (bufferCache.has(id) || warmupAttempted.has(id)) return;
+  // Dedupe: skip if already cached, already attempted, or a concurrent call
+  // is already in flight for this id.
+  if (bufferCache.has(id) || warmupAttempted.has(id) || warmupInflight.has(id)) return;
+  warmupInflight.add(id);
   warmupAttempted.add(id);
-  if (typeof fetch !== 'function') return;
+  if (typeof fetch !== 'function') {
+    warmupInflight.delete(id);
+    return;
+  }
   try {
     const res = await fetch(url, { cache: 'force-cache' });
     if (!res.ok) return;
@@ -887,16 +985,92 @@ async function warmupSound(ctx: AudioContext, id: SoundId, url: string): Promise
     }
   } catch {
     /* best-effort; procedural fallback will cover this sound */
+  } finally {
+    warmupInflight.delete(id);
   }
 }
 
-function warmupAllUrlSounds(ctx: AudioContext): void {
-  for (const [id, spec] of Object.entries(SOUND_SPECS) as Array<[SoundId, SoundSpec]>) {
-    if (spec.url) {
-      // Fire-and-forget; each resolves into `bufferCache` independently.
+/**
+ * Schedule a callback during the next idle window. Falls back to a short
+ * `setTimeout` on browsers without `requestIdleCallback` (Safari, older
+ * mobile). The deadline guarantees the wave always fires, even if the main
+ * thread is permanently busy.
+ */
+function scheduleIdle(cb: () => void, fallbackMs: number): void {
+  if (typeof window === 'undefined') return;
+  const w = window as Window & {
+    requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+  };
+  if (typeof w.requestIdleCallback === 'function') {
+    w.requestIdleCallback(cb, { timeout: fallbackMs });
+  } else {
+    window.setTimeout(cb, Math.min(fallbackMs, 200));
+  }
+}
+
+/**
+ * Warm up the critical wave — the URL-backed cues a user hits during normal
+ * navigation. Kicked off on first gesture by `ensure()`. Fires the second
+ * wave once all critical fetches settle, or at the deadline, whichever first.
+ */
+function warmupCriticalWave(ctx: AudioContext): void {
+  const pending: Array<Promise<void>> = [];
+  for (const id of CRITICAL_WAVE_IDS) {
+    const spec = SOUND_SPECS[id];
+    if (!spec.url) continue;
+    pending.push(warmupSound(ctx, id, spec.url));
+  }
+  // Second wave fires as soon as critical wave settles (all promises resolve),
+  // OR at the deadline — whichever arrives first. Race ensures we don't stall
+  // indefinitely on a slow connection.
+  let secondFired = false;
+  const fireSecond = (): void => {
+    if (secondFired) return;
+    secondFired = true;
+    scheduleSecondWave(ctx);
+  };
+  void Promise.allSettled(pending).then(fireSecond);
+  if (typeof window !== 'undefined') {
+    window.setTimeout(fireSecond, SECOND_WAVE_DEADLINE_MS);
+  }
+}
+
+/**
+ * Warm up the second wave — less-frequent UI cues. Only runs once per
+ * session. Idle-scheduled so it yields to any critical rendering happening
+ * immediately after the first gesture.
+ */
+function scheduleSecondWave(ctx: AudioContext): void {
+  if (secondWaveScheduled) return;
+  secondWaveScheduled = true;
+  scheduleIdle(() => {
+    for (const id of SECOND_WAVE_IDS) {
+      const spec = SOUND_SPECS[id];
+      if (!spec.url) continue;
       void warmupSound(ctx, id, spec.url);
     }
-  }
+  }, 800);
+}
+
+/**
+ * Warm up the superuser-gated wave — disco + matrix. ONLY invoked externally
+ * by `lib/assetPrefetch.ts` after `hasSuperuser` flips true, so pre-superuser
+ * visitors never pay for these bytes. Idempotent + deduped.
+ *
+ * @internal — exposed on the manager as `warmupSuperuserSounds` for the
+ * prefetch scheduler. Calling this without an active `AudioContext` is a
+ * no-op; the scheduler waits for the first user gesture to run it.
+ */
+function warmupSuperuserWave(ctx: AudioContext): void {
+  if (superuserWaveScheduled) return;
+  superuserWaveScheduled = true;
+  scheduleIdle(() => {
+    for (const id of SUPERUSER_WAVE_IDS) {
+      const spec = SOUND_SPECS[id];
+      if (!spec.url) continue;
+      void warmupSound(ctx, id, spec.url);
+    }
+  }, 1500);
 }
 
 function playBufferedSample(
@@ -1004,6 +1178,21 @@ function stopLoopHandle(s: ManagerState | null, h: LoopHandle): void {
 
 // ─── Public surface ─────────────────────────────────────────────────────
 
+export interface SoundManagerDiagnostics {
+  /** Ids of every sound whose buffer is decoded and playback-ready. */
+  readonly buffered: ReadonlyArray<SoundId>;
+  /** Ids of every sound where a warmup fetch is currently in flight. */
+  readonly inflight: ReadonlyArray<SoundId>;
+  /** Ids where the warmup has been attempted (success or failure). */
+  readonly attempted: ReadonlyArray<SoundId>;
+  /** Has the critical wave kicked off? (proxy: is there a manager state?) */
+  readonly criticalWaveStarted: boolean;
+  /** Has the second wave been scheduled? */
+  readonly secondWaveScheduled: boolean;
+  /** Has the superuser wave been scheduled? */
+  readonly superuserWaveScheduled: boolean;
+}
+
 export interface SoundManager {
   /**
    * Play a sound by id. Returns `true` if dispatched, `false` if skipped
@@ -1059,6 +1248,26 @@ export interface SoundManager {
    * from procedural fallback → buffer playback on the first successful decode.
    */
   onBufferReady(id: SoundId, cb: () => void): () => void;
+  /**
+   * Schedule warmup of the superuser-gated sound wave (disco + matrix).
+   * Called by `lib/assetPrefetch.ts` after the user has earned superuser.
+   * If no AudioContext exists yet (no gesture has fired), records the
+   * intent so that the next `ensure()` picks it up after kicking off the
+   * critical wave.
+   */
+  warmupSuperuserSounds(): void;
+  /**
+   * Pre-warm the AudioContext imperatively on a user gesture. Idempotent —
+   * subsequent calls are a no-op. Use this from gesture handlers (e.g. a
+   * layout-level click handler) to eagerly decode critical sounds on the
+   * very first tap, ahead of any `play()` call.
+   */
+  primeOnGesture(): void;
+  /**
+   * Diagnostic accessor. Exposes the warmup state for tests + debugging.
+   * Do not read from this in render paths.
+   */
+  readonly __debug: SoundManagerDiagnostics;
 }
 
 /**
@@ -1288,6 +1497,34 @@ export const soundManager: SoundManager = {
     return !!state && state.ctx.state === 'running';
   },
 
+  warmupSuperuserSounds(): void {
+    const s = state;
+    if (s) {
+      warmupSuperuserWave(s.ctx);
+    } else {
+      // Defer — run as soon as the first gesture creates the AudioContext.
+      superuserWavePending = true;
+    }
+  },
+
+  primeOnGesture(): void {
+    if (typeof window === 'undefined') return;
+    // Idempotent — if the state already exists we've already primed.
+    if (state) return;
+    ensure();
+  },
+
+  get __debug(): SoundManagerDiagnostics {
+    return {
+      buffered: Array.from(bufferCache.keys()),
+      inflight: Array.from(warmupInflight),
+      attempted: Array.from(warmupAttempted),
+      criticalWaveStarted: state !== null,
+      secondWaveScheduled,
+      superuserWaveScheduled,
+    };
+  },
+
   __reset(): void {
     // Stop every active loop first.
     for (const h of loopRegistry.values()) {
@@ -1309,8 +1546,12 @@ export const soundManager: SoundManager = {
     muted = false;
     bufferCache.clear();
     warmupAttempted.clear();
+    warmupInflight.clear();
     bufferReadySubscribers.clear();
     externalLoopFactories.clear();
+    secondWaveScheduled = false;
+    superuserWaveScheduled = false;
+    superuserWavePending = false;
     for (const key of Object.keys(lastPlayedAt)) {
       delete lastPlayedAt[key as SoundId];
     }

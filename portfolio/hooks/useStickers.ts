@@ -43,6 +43,12 @@ import { STICKER_TIMING } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v6 — added persisted `matrixActive` boolean. UNLIKE `discoActive` (which
+ *      resets on every reload — session-only UX), the matrix effect is a
+ *      "Morpheus trap": it persists across navigation AND reloads, so the
+ *      user can only escape by clicking the in-overlay WAKE UP button. A
+ *      legacy migration drops the dead `konami` sticker id if present.
+ *      New field defaults to `false`; existing progress is untouched.
  * v5 — collapsed the disco-specific mute (`discoMuted`) into the sitewide
  *      `soundsMuted` preference. One toggle now governs every sound the site
  *      can make, including the disco loop. The per-loop `setLoopMuted` API
@@ -61,7 +67,7 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 5 as const;
+export const STORAGE_VERSION = 6 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -97,6 +103,14 @@ export interface StickerState {
    * future album visits show the quieter persistent banner. v4+.
    */
   superuserRevealedAt: number;
+  /**
+   * Persisted matrix-effect active flag. v6+. UNLIKE `discoActive`, this
+   * DOES survive page reloads — the matrix overlay is intentionally a
+   * persistent trap. The only way out is clicking the in-overlay WAKE UP
+   * button (which clears this flag). Navigation, ESC, and any other keys
+   * are ignored. Existing v1–v5 migrations default this to `false`.
+   */
+  matrixActive: boolean;
 }
 
 // Valid sticker ID set — regulars + superuser.
@@ -104,6 +118,15 @@ const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set<StickerId>([
   ...STICKER_ROSTER.map((s) => s.id),
   SUPERUSER_STICKER.id,
 ]);
+
+/**
+ * Dead sticker ids dropped on migration. When a sticker is retired from the
+ * roster (e.g. konami in v6), its id may still be persisted in old blobs.
+ * These ids are scrubbed from `unlocked` on load so the superuser
+ * auto-award predicate doesn't get confused and so the album doesn't try
+ * to render a missing SVG.
+ */
+const DEAD_STICKER_IDS: ReadonlySet<string> = new Set<string>(['konami']);
 
 function defaultState(): StickerState {
   return {
@@ -118,35 +141,58 @@ function defaultState(): StickerState {
     discoActive: false,
     soundsMuted: false,
     superuserRevealedAt: 0,
+    matrixActive: false,
   };
 }
 
 /**
  * Sanitize an arbitrary parsed blob into a clean current-version StickerState.
- * Handles every historical version (v1 → v5). Shape details per version:
+ * Handles every historical version (v1 → v6). Shape details per version:
  *
  *   - v1/v2 blobs may carry a `discoActive: true` that pre-v3 builds wrote;
  *     it is unconditionally scrubbed.
  *   - v2/v3/v4 blobs may carry a `discoMuted` boolean — DROPPED in v5. The
  *     sitewide `soundsMuted` preference now governs the disco loop too.
+ *   - v1–v5 blobs may include a persisted `konami` sticker id. Dropped in
+ *     v6 (roster retirement). The rest of the `unlocked` array is kept
+ *     so the superuser auto-award predicate still works correctly on the
+ *     reduced 18-sticker roster.
  *   - v3+ adds terminalCommands / openedProjects, v4+ adds soundsMuted /
- *     superuserRevealedAt. Missing fields default to empty/false/0.
+ *     superuserRevealedAt, v6+ adds matrixActive. Missing fields default
+ *     to empty/false/0.
  *
  * Invariants that hold regardless of input version:
  *   - Every array is filtered to only contain strings (or valid StickerIds for
  *     `unlocked`). Corrupt entries are silently dropped rather than crashing.
+ *   - Dead sticker ids (`konami`) are stripped from `unlocked` AND from
+ *     `unlockedAt` to keep the two maps in sync.
  *   - `discoActive` is ALWAYS forced to `false`. Disco never survives a page
  *     reload — it's a session-only flag.
+ *   - `matrixActive` DOES survive reloads (it's a persistent trap) — this is
+ *     an intentional asymmetry with disco.
  *   - `soundsMuted` preserves the user's last mute choice across migrations.
  */
 function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
-  const unlocked = Array.isArray(parsed.unlocked)
-    ? parsed.unlocked.filter((id): id is StickerId => typeof id === 'string' && VALID_STICKER_IDS.has(id as StickerId))
+  const rawUnlocked = Array.isArray(parsed.unlocked)
+    ? parsed.unlocked.filter((id): id is string => typeof id === 'string')
     : [];
-  const unlockedAt =
+  // Drop dead ids (`konami`) AND anything not in the current valid set.
+  const unlocked = rawUnlocked.filter(
+    (id): id is StickerId =>
+      !DEAD_STICKER_IDS.has(id) && VALID_STICKER_IDS.has(id as StickerId),
+  );
+  // Keep unlockedAt in sync with the filtered unlocked list — drop dead-id
+  // timestamps so they can't leak through. Passing through unknown keys is
+  // fine; only `unlocked` drives rendering.
+  const rawUnlockedAt =
     parsed.unlockedAt && typeof parsed.unlockedAt === 'object'
       ? (parsed.unlockedAt as Record<string, number>)
       : {};
+  const unlockedAt: Record<string, number> = {};
+  for (const [key, value] of Object.entries(rawUnlockedAt)) {
+    if (DEAD_STICKER_IDS.has(key)) continue;
+    if (typeof value === 'number') unlockedAt[key] = value;
+  }
   const visitedRoutes = Array.isArray(parsed.visitedRoutes)
     ? (parsed.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
     : [];
@@ -172,6 +218,8 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     soundsMuted: parsed.soundsMuted === true,
     /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
     superuserRevealedAt: typeof parsed.superuserRevealedAt === 'number' ? parsed.superuserRevealedAt : 0,
+    /** v6 — persisted matrix overlay state. Defaults to false for v1–v5 blobs. */
+    matrixActive: parsed.matrixActive === true,
   };
 }
 
@@ -205,6 +253,7 @@ export function parseStoredState(raw: string | null): StickerState {
     version === 2 ||
     version === 3 ||
     version === 4 ||
+    version === 5 ||
     version === STORAGE_VERSION
   ) {
     return migrateToCurrent(obj);
@@ -237,6 +286,10 @@ function writeToStorage(state: StickerState): void {
     // longer carries it, so it cannot be written by this path — but we still
     // strip any lingering occurrence from the initializeStoreOnce migration
     // write below, which feeds a legacy blob through this function.
+    //
+    // `matrixActive` IS persisted (v6+) — unlike disco, the matrix overlay
+    // is intentionally a "Morpheus trap" that survives reloads and can only
+    // be dismissed via the in-overlay WAKE UP button.
     const { discoActive: _unused, ...persistable } = state;
     void _unused;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
@@ -301,10 +354,11 @@ function recomputeProgress(): void {
 function initializeStoreOnce(): void {
   if (store.initialized || typeof window === 'undefined') return;
   store.state = readFromStorage();
-  // If the persisted blob was a v1–v4 schema (or otherwise mutated by
+  // If the persisted blob was a v1–v5 schema (or otherwise mutated by
   // migration) OR contains a stale `discoActive: true` from pre-v3 builds,
-  // OR still carries the pre-v5 `discoMuted` preference, proactively rewrite
-  // once at initialization so subsequent reads are fast and version-stable.
+  // OR still carries the pre-v5 `discoMuted` preference, OR carries a dead
+  // `konami` sticker id from pre-v6, proactively rewrite once at
+  // initialization so subsequent reads are fast and version-stable.
   // Only do this if we actually have data to write — avoid polluting storage
   // for fresh visitors.
   try {
@@ -314,7 +368,16 @@ function initializeStoreOnce(): void {
       const isOutdatedVersion = !parsed || parsed.version !== STORAGE_VERSION;
       const hasStaleDiscoFlag = parsed && parsed.discoActive !== undefined;
       const hasLegacyDiscoMuted = parsed && parsed.discoMuted !== undefined;
-      if (isOutdatedVersion || hasStaleDiscoFlag || hasLegacyDiscoMuted) {
+      const hasLegacyKonami =
+        parsed &&
+        Array.isArray(parsed.unlocked) &&
+        (parsed.unlocked as unknown[]).includes('konami');
+      if (
+        isOutdatedVersion ||
+        hasStaleDiscoFlag ||
+        hasLegacyDiscoMuted ||
+        hasLegacyKonami
+      ) {
         writeToStorage(store.state);
       }
     }
@@ -518,6 +581,22 @@ export function setDiscoActiveImperative(active: boolean): void {
   emitChange();
 }
 
+/**
+ * Explicit setter for the matrix flag — used by `sudo matrix yes` to engage
+ * the persistent matrix overlay, and by the in-overlay WAKE UP button to
+ * tear it down. Unlike `setDiscoActiveImperative`, this flag IS persisted
+ * across reloads.
+ */
+export function setMatrixActiveImperative(active: boolean): void {
+  initializeStoreOnce();
+  const current = store.state;
+  if (current.matrixActive === active) return;
+  const next: StickerState = { ...current, matrixActive: active };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
 /** Persist the user's mute preference for sitewide sound effects (v4+). */
 export function setSoundsMutedImperative(muted: boolean): void {
   initializeStoreOnce();
@@ -643,6 +722,29 @@ function getDiscoServerSnapshot(): boolean {
 
 export function useDiscoActive(): boolean {
   return useSyncExternalStore(subscribe, getDiscoSnapshot, getDiscoServerSnapshot);
+}
+
+function getMatrixSnapshot(): boolean {
+  initializeStoreOnce();
+  return store.state.matrixActive;
+}
+
+function getMatrixServerSnapshot(): boolean {
+  return false;
+}
+
+/** Subscribe to the persisted matrix-overlay active flag (v6+). */
+export function useMatrixActive(): boolean {
+  return useSyncExternalStore(subscribe, getMatrixSnapshot, getMatrixServerSnapshot);
+}
+
+/**
+ * Synchronous read of the persisted matrix-active flag. Used by the
+ * AssetPrefetch controller to detect matrix on first mount.
+ */
+export function getMatrixActiveSync(): boolean {
+  initializeStoreOnce();
+  return store.state.matrixActive;
 }
 
 function getSoundsMutedSnapshot(): boolean {

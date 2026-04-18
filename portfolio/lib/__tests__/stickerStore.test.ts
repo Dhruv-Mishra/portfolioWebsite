@@ -70,6 +70,7 @@ describe('parseStoredState migration', () => {
     expect(state.terminalCommands).toEqual([]);
     expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
+    expect(state.matrixActive).toBe(false);
   });
 
   it('malformed JSON yields defaultState (graceful)', async () => {
@@ -190,18 +191,20 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v3);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(5);
+    expect(state.version).toBe(6);
     expect(state.unlocked).toContain('superuser');
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
-    // New v4 defaults carried into v5.
+    // New v4 defaults carried into v5/v6.
     expect(state.soundsMuted).toBe(false);
     expect(state.superuserRevealedAt).toBe(0);
+    // v6 new field defaults to false.
+    expect(state.matrixActive).toBe(false);
     // Earned timestamp preserved — banner reveal trigger fires because
     // unlockedAt.superuser (2000) > superuserRevealedAt (0).
     expect(state.unlockedAt['superuser']).toBe(2000);
   });
 
-  it('migrates a v4 blob to v5, preserving soundsMuted/superuserRevealedAt but dropping discoMuted', async () => {
+  it('migrates a v4 blob to v6, preserving soundsMuted/superuserRevealedAt but dropping discoMuted', async () => {
     // The v4 → v5 migration is the consolidation of two mute controls into
     // one. The user's sitewide `soundsMuted` choice is carried forward
     // verbatim; `discoMuted` is removed without touching the global mute
@@ -223,14 +226,40 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v4);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(5);
+    expect(state.version).toBe(6);
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
+    // v6 new field defaults to false even when migrating from older versions.
+    expect(state.matrixActive).toBe(false);
     // The legacy discoMuted key is gone.
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
   });
 
-  it('preserves soundsMuted and superuserRevealedAt when already v5', async () => {
+  it('preserves soundsMuted and superuserRevealedAt when already v6', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v6 = JSON.stringify({
+      version: 6,
+      unlocked: ['superuser'],
+      unlockedAt: { superuser: 5000 },
+      lastEarnedAt: 5000,
+      lastSeenAlbumAt: 4000,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      soundsMuted: true,
+      superuserRevealedAt: 5000,
+      matrixActive: true,
+    });
+    const state = parseStoredState(v6);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.soundsMuted).toBe(true);
+    expect(state.superuserRevealedAt).toBe(5000);
+    // v6 — matrix state persists across reloads (unlike disco).
+    expect(state.matrixActive).toBe(true);
+    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+  });
+
+  it('migrates a v5 blob to v6, defaulting matrixActive to false', async () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v5 = JSON.stringify({
       version: 5,
@@ -246,9 +275,75 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v5);
     expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.version).toBe(6);
+    // Existing preferences preserved.
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
-    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+    // v6 new field defaults.
+    expect(state.matrixActive).toBe(false);
+  });
+
+  it('drops dead sticker ids (konami) on migration without losing other progress', async () => {
+    // Konami was retired in v6 because its emit path had no mobile-reachable
+    // trigger. Any persisted `konami` entry should be stripped from both
+    // `unlocked` and `unlockedAt` during migration, while the rest of the
+    // user's progress (including superuser, which was earned on the old
+    // 19-sticker roster) stays intact.
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v4 = JSON.stringify({
+      version: 4,
+      unlocked: ['first-word', 'konami', 'theme-flipper', 'superuser'],
+      unlockedAt: { 'first-word': 1, konami: 2, 'theme-flipper': 3, superuser: 4 },
+      lastEarnedAt: 4,
+      lastSeenAlbumAt: 1,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      soundsMuted: false,
+      superuserRevealedAt: 0,
+    });
+    const state = parseStoredState(v4);
+    expect(state.version).toBe(STORAGE_VERSION);
+    // Dead id dropped from both arrays.
+    expect(state.unlocked).not.toContain('konami');
+    expect(state.unlockedAt['konami']).toBeUndefined();
+    // Other ids preserved.
+    expect(state.unlocked).toContain('first-word');
+    expect(state.unlocked).toContain('theme-flipper');
+    expect(state.unlocked).toContain('superuser');
+    expect(state.unlockedAt['first-word']).toBe(1);
+    expect(state.unlockedAt['superuser']).toBe(4);
+  });
+
+  it('matrixActive persists across reload (unlike discoActive)', async () => {
+    const {
+      setMatrixActiveImperative,
+      parseStoredState,
+      getMatrixActiveSync,
+      __resetStoreForTest,
+    } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.clear();
+    setMatrixActiveImperative(true);
+    expect(getMatrixActiveSync()).toBe(true);
+    // Round-trip the persisted blob — matrixActive should come back as true
+    // even though discoActive would come back as false.
+    const raw = memoryStorage.getItem('dhruv-stickers');
+    expect(raw).not.toBeNull();
+    const reloaded = parseStoredState(raw as string);
+    expect(reloaded.matrixActive).toBe(true);
+    expect(reloaded.discoActive).toBe(false);
+  });
+
+  it('setMatrixActiveImperative(false) clears the persisted flag', async () => {
+    const { setMatrixActiveImperative, parseStoredState, __resetStoreForTest } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.clear();
+    setMatrixActiveImperative(true);
+    setMatrixActiveImperative(false);
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.matrixActive).toBe(false);
   });
 
   it('any persisted write strips a lingering discoMuted even when other state mutates', async () => {

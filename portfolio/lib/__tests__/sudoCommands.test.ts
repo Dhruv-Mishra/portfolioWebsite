@@ -60,12 +60,26 @@ describe('dispatchSudo', () => {
     }
   });
 
-  it('disco without args returns an action callback', () => {
+  it('disco without args shows a warning but does NOT expose an action', () => {
+    // v-confirm flow: `sudo disco` alone should only warn. Action arms on
+    // `sudo disco yes`.
     const result = dispatchSudo(parseSudoInvocation(['disco']), ctx);
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
+  });
+
+  it('disco yes arms the activation action', () => {
+    const result = dispatchSudo(parseSudoInvocation(['disco', 'yes']), ctx);
     expect(typeof result.action).toBe('function');
   });
 
-  it('disco off returns an action callback', () => {
+  it('disco no cancels without arming an action', () => {
+    const result = dispatchSudo(parseSudoInvocation(['disco', 'no']), ctx);
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
+  });
+
+  it('disco off returns an action callback (unchanged)', () => {
     const result = dispatchSudo(parseSudoInvocation(['disco', 'off']), ctx);
     expect(typeof result.action).toBe('function');
   });
@@ -83,9 +97,29 @@ describe('dispatchSudo', () => {
     }
   });
 
-  it('matrix returns an action (sudo:matrix event dispatch)', () => {
+  it('matrix without args shows a warning but does NOT expose an action', () => {
+    // v-confirm flow: `sudo matrix` alone should only warn.
     const result = dispatchSudo(parseSudoInvocation(['matrix']), ctx);
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
+  });
+
+  it('matrix yes arms the activation action', () => {
+    const result = dispatchSudo(parseSudoInvocation(['matrix', 'yes']), ctx);
     expect(typeof result.action).toBe('function');
+  });
+
+  it('matrix no cancels without arming an action', () => {
+    const result = dispatchSudo(parseSudoInvocation(['matrix', 'no']), ctx);
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
+  });
+
+  it('matrix off points user at the WAKE UP button (no action)', () => {
+    // There is no terminal off switch for the matrix overlay by design.
+    const result = dispatchSudo(parseSudoInvocation(['matrix', 'off']), ctx);
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
   });
 
   it('rainbow action returns a runnable action with output', () => {

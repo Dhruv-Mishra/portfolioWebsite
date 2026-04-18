@@ -7,10 +7,12 @@
  *   <StickerSvg id="first-word" size={60} />
  *
  * Roster:
- *   21 regular stickers cover every major feature / surface on the site so the
- *   collection acts as a feature-discovery trail. The hidden `superuser` sticker
- *   is not exposed on the album until it is earned — awarded automatically the
- *   moment the user owns every regular sticker.
+ *   18 regular stickers cover every major feature / surface on the site so the
+ *   collection acts as a feature-discovery trail. Every roster entry is
+ *   reachable on touch devices — the old keyboard-only Konami sticker was
+ *   retired because it had no mobile-attainable trigger. The hidden
+ *   `superuser` sticker is not exposed on the album until it is earned —
+ *   awarded automatically the moment the user owns every regular sticker.
  */
 import { memo } from 'react';
 import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/designTokens';
@@ -26,7 +28,6 @@ export const STICKER_ROSTER = [
   { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',           family: 'mint' },
   { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'sit with the resume page for a minute.',          family: 'denim' },
   { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',     family: 'mint' },
-  { id: 'konami',           label: 'The Code',              description: '↑ ↑ ↓ ↓ ← → ← → B A',                         hint: 'an old-school arcade sequence...',                family: 'lavender' },
   { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'show up after the clock strikes midnight.',       family: 'lavender' },
   { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.',  family: 'mint' },
   { id: 'project-explorer', label: 'Case Files',            description: 'Opened every project note.',                  hint: 'every project has more to say — tap them all.',   family: 'coral' },
@@ -323,33 +324,6 @@ const FullChatSvg = memo(function FullChatSvg({ size }: IllustratedSvgProps) {
       <circle cx="32" cy="36" r="1.6" fill={family.bg} />
       <circle cx="37" cy="36" r="1.6" fill={family.bg} />
       <circle cx="42" cy="36" r="1.6" fill={family.bg} />
-    </svg>
-  );
-});
-
-/**
- * Konami — a retro gamepad with D-pad and two face buttons, on lavender.
- */
-const KonamiSvg = memo(function KonamiSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.lavender;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Controller body */}
-      <rect x="10" y="22" width="40" height="18" rx="4" fill={family.ink} strokeLinejoin="round" />
-      {/* Side grips */}
-      <circle cx="13" cy="40" r="4" fill={family.ink} />
-      <circle cx="47" cy="40" r="4" fill={family.ink} />
-      {/* D-pad cross (left) */}
-      <rect x="15" y="29" width="10" height="4" rx="0.5" fill={family.bg} />
-      <rect x="18" y="26" width="4" height="10" rx="0.5" fill={family.bg} />
-      {/* A button (yellow) */}
-      <circle cx="39" cy="28" r="2.8" fill="#fde047" stroke={family.bg} strokeWidth="0.8" />
-      {/* B button (pink) */}
-      <circle cx="44" cy="33" r="2.8" fill="#fb7185" stroke={family.bg} strokeWidth="0.8" />
-      {/* Select / Start bars */}
-      <line x1="27" y1="37" x2="30" y2="37" stroke={family.bg} strokeWidth="1.4" strokeLinecap="round" />
-      <line x1="32" y1="37" x2="35" y2="37" stroke={family.bg} strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 });
@@ -733,9 +707,6 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
       break;
     case 'full-chat':
       inner = <FullChatSvg size={size} />;
-      break;
-    case 'konami':
-      inner = <KonamiSvg size={size} />;
       break;
     case 'night-owl':
       inner = <NightOwlSvg size={size} />;

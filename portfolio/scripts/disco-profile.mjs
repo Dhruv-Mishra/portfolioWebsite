@@ -53,8 +53,11 @@ const results = { tag, outDir, scenarios: [] };
 
 async function seedAndReload(page) {
   await page.evaluate(() => {
+    // v5 sticker-store shape. The pre-v5 `discoMuted` preference was dropped
+    // in favor of the sitewide `soundsMuted`; we seed muted=true here so the
+    // profile run doesn't blast disco audio on the dev box.
     const payload = {
-      version: 3,
+      version: 5,
       unlocked: ['superuser'],
       unlockedAt: { superuser: Date.now() },
       lastEarnedAt: Date.now(),
@@ -62,7 +65,8 @@ async function seedAndReload(page) {
       visitedRoutes: [],
       terminalCommands: [],
       openedProjects: [],
-      discoMuted: true,
+      soundsMuted: true,
+      superuserRevealedAt: Date.now(),
     };
     localStorage.setItem('dhruv-stickers', JSON.stringify(payload));
   });

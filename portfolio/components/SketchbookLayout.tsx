@@ -15,6 +15,13 @@ import FeedbackTabButton from './FeedbackTabButton';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
 
+// MobileSoundToggleFab — mobile-only floating FAB stacked above the MiniChat
+// FAB. Client-only so its `useSoundsMuted` subscription doesn't SSR-mismatch.
+const MobileSoundToggleFab = dynamic(() => import('./MobileSoundToggleFab'), {
+    ssr: false,
+    loading: () => null,
+});
+
 /** Hoisted paper noise overlay style — avoids re-allocation per render */
 const PAPER_NOISE_STYLE = {
     backgroundImage: PAPER_NOISE_SVG,
@@ -124,6 +131,12 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </main>
 
                 <SocialSidebar onFeedbackClick={openFeedback} />
+
+                {/* Mobile-only floating sound toggle — stacks above the MiniChat FAB.
+                    Desktop uses the inline SoundToggleButton rendered in the bottom-left
+                    chrome above, so this mount renders nothing on md+ (the component
+                    itself gates on md:hidden). */}
+                <MobileSoundToggleFab />
 
                 {/* Feedback icon (floating bottom-right) + modal */}
                 <FeedbackTabButton onClick={openFeedback} />

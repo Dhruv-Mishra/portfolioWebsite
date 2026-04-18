@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon, Volume2, VolumeX } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
-import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 const SOCIALS = [
@@ -127,29 +126,10 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
     );
 });
 
-const MobileSoundButton = React.memo(function MobileSoundButton({ onPress }: { onPress: () => void }) {
-    const muted = useSoundsMuted();
-    const [mounted, setMounted] = React.useState(false);
-    React.useEffect(() => { setMounted(true); }, []);
-    if (!mounted) return <div className="w-9 h-9 sm:w-11 sm:h-11" />;
-    return (
-        <button
-            onClick={() => {
-                onPress();
-                const next = !muted;
-                setSoundsMutedImperative(next);
-                soundManager.setMuted(next);
-                if (!next) soundManager.play('button-click');
-            }}
-            aria-pressed={muted}
-            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-            className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-emerald-600 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
-            title={muted ? 'Unmute sounds' : 'Mute sounds'}
-        >
-            {muted ? <VolumeX size={15} strokeWidth={2.5} /> : <Volume2 size={15} strokeWidth={2.5} />}
-        </button>
-    );
-});
+// Mobile sound toggle lives in `MobileSoundToggleFab`, a dedicated floating
+// FAB rendered by `SketchbookLayout` above the MiniChat FAB. The social pill
+// no longer carries a mute button so we don't double-render the control on
+// narrow viewports.
 
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     const { externalLink, openPanel, toggle } = useAppHaptics();
@@ -180,9 +160,6 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />
-
-                {/* Sound mute toggle — sitewide */}
-                <MobileSoundButton onPress={toggle} />
 
                 {MOBILE_SOCIALS.map((social) => (
                     <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />

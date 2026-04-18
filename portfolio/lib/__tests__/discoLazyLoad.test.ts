@@ -58,12 +58,12 @@ describe('disco lazy-load boundary', () => {
     const src = readSrc('DiscoFlagController.tsx');
     const statics = staticImportsOf(src);
     // The forbidden static imports — if any of these land in the flag
-    // controller the eager bundle swells.
+    // controller the eager bundle swells. (DiscoMuteButton was removed in
+    // the v5 single-mute consolidation — no longer tracked here.)
     const forbidden = [
       './DiscoMediaLayer',
       './DiscoSparkleCanvas',
       './DiscoSpotlights',
-      './DiscoMuteButton',
       '@/lib/discoAudio',
       './DiscoMatrixOverlay',
     ];
@@ -88,13 +88,11 @@ describe('disco lazy-load boundary', () => {
     const forbidden = [
       './DiscoSparkleCanvas',
       './DiscoSpotlights',
-      './DiscoMuteButton',
       './DiscoMediaLayer',
       './DiscoMatrixOverlay',
       '@/lib/discoAudio',
       '@/components/DiscoSparkleCanvas',
       '@/components/DiscoSpotlights',
-      '@/components/DiscoMuteButton',
       '@/components/DiscoMediaLayer',
       '@/components/DiscoMatrixOverlay',
     ];
@@ -106,15 +104,15 @@ describe('disco lazy-load boundary', () => {
   });
 
   it('DiscoMediaLayer itself dynamically imports its sub-modules', () => {
-    // Double-lazy pattern — even within the heavy chunk, the sparkle canvas /
-    // spotlights / mute button are each their own dynamic chunk. That way if
-    // a future optimization wants to skip the sparkle canvas on mobile, it
-    // can short-circuit the import entirely.
+    // Double-lazy pattern — even within the heavy chunk, the sparkle canvas
+    // and spotlights are each their own dynamic chunk. That way if a future
+    // optimization wants to skip the sparkle canvas on mobile, it can
+    // short-circuit the import entirely. (DiscoMuteButton was removed in
+    // the single-mute consolidation — disco no longer owns a UI control.)
     const src = readSrc('DiscoMediaLayer.tsx');
     const dyns = dynamicImportsOf(src);
     expect(dyns).toContain('./DiscoSparkleCanvas');
     expect(dyns).toContain('./DiscoSpotlights');
-    expect(dyns).toContain('./DiscoMuteButton');
   });
 
   it('DiscoModeController is a thin re-export of DiscoFlagController', () => {
@@ -147,12 +145,12 @@ describe('disco render-count hygiene — source guards', () => {
     // new particle system. The only store hook it reads is useIsMobile, which
     // is a media-query hook (stable).
     const src = readSrc('DiscoSparkleCanvas.tsx');
-    expect(src).not.toMatch(/useDiscoActive|useDiscoMuted|useStickers|useStickerUnlocked/);
+    expect(src).not.toMatch(/useDiscoActive|useSoundsMuted|useStickers|useStickerUnlocked/);
   });
 
   it('DiscoSpotlights is a pure functional component with no store subscription', () => {
     const src = readSrc('DiscoSpotlights.tsx');
-    expect(src).not.toMatch(/useDiscoActive|useDiscoMuted|useStickers|useStickerUnlocked|useSyncExternalStore/);
+    expect(src).not.toMatch(/useDiscoActive|useSoundsMuted|useStickers|useStickerUnlocked|useSyncExternalStore/);
   });
 
   it('DiscoVisuals (the long-lived tree) is memoized and reads no store state', () => {
@@ -162,7 +160,7 @@ describe('disco render-count hygiene — source guards', () => {
     const visualsBlock = src.match(/DiscoVisuals\s*=\s*memo\(function\s+DiscoVisuals[\s\S]*?\}\);/);
     expect(visualsBlock).toBeTruthy();
     // The visuals block itself does not touch any sticker-store hook.
-    expect(visualsBlock?.[0]).not.toMatch(/useDisco|useSticker/);
+    expect(visualsBlock?.[0]).not.toMatch(/useDisco|useSticker|useSoundsMuted/);
   });
 
   it('DiscoAudioBridge — the mute-reactive component — is zero-DOM (returns null)', () => {
@@ -184,11 +182,14 @@ describe('disco render-count hygiene — source guards', () => {
     expect(src).not.toMatch(/useStickers\s*\(/);
   });
 
-  it('DiscoMuteButton uses the narrow useDiscoMuted selector', () => {
-    // Same argument — the mute button must only re-render on mute flips.
-    const src = readSrc('DiscoMuteButton.tsx');
-    expect(src).toMatch(/useDiscoMuted/);
-    expect(src).not.toMatch(/useStickers\s*\(/);
+  it('DiscoAudioBridge subscribes to the narrow useSoundsMuted selector', () => {
+    // The bridge's re-render scope is scoped to sitewide mute flips —
+    // not to the entire sticker store. Using the narrow selector keeps the
+    // bridge quiet while disco is active and unrelated store keys mutate
+    // (unlocking a sticker, toggling sudo, etc.).
+    const src = readSrc('DiscoMediaLayer.tsx');
+    expect(src).toMatch(/useSoundsMuted/);
+    expect(src).not.toMatch(/useStickers\s*\(\s*\)/);
   });
 
   it('DiscoSpotlights includes 6 spotlight variants', () => {

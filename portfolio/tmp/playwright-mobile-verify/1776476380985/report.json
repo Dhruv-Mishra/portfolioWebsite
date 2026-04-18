@@ -1,0 +1,326 @@
+{
+  "mobile": [
+    {
+      "viewport": "320x844",
+      "activated": true,
+      "boxes": {
+        "miniChat": {
+          "selector": "button[aria-label=\"Open quick chat\"]",
+          "x": 256,
+          "y": 715.7823486328125,
+          "width": 48,
+          "height": 48,
+          "right": 304,
+          "bottom": 763.7823486328125
+        },
+        "soundFab": {
+          "selector": "[data-sound-toggle]",
+          "x": 256,
+          "y": 655.7823486328125,
+          "width": 48,
+          "height": 48,
+          "right": 304,
+          "bottom": 703.7823486328125
+        },
+        "socialPill": {
+          "selector": "[role=\"complementary\"][aria-label=\"Social media links\"]",
+          "x": 20,
+          "y": 776,
+          "width": 292,
+          "height": 52,
+          "right": 312,
+          "bottom": 828
+        },
+        "feedbackTab": {
+          "selector": "button[aria-label=\"Open feedback form\"]",
+          "x": 266.53125,
+          "y": 784,
+          "width": 35.421875,
+          "height": 36,
+          "right": 301.953125,
+          "bottom": 820
+        },
+        "navHeader": {
+          "selector": "nav[aria-label=\"Main navigation\"]",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 82,
+          "right": 320,
+          "bottom": 82
+        },
+        "vw": 320,
+        "vh": 844
+      },
+      "overlaps": {
+        "miniChat_vs_soundFab": false,
+        "miniChat_vs_socialPill": false,
+        "soundFab_vs_socialPill": false
+      },
+      "noOverlaps": true,
+      "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\mobile-320px-disco-on.png"
+    },
+    {
+      "viewport": "375x844",
+      "activated": true,
+      "boxes": {
+        "miniChat": {
+          "selector": "button[aria-label=\"Open quick chat\"]",
+          "x": 311,
+          "y": 715.7915649414062,
+          "width": 48,
+          "height": 48,
+          "right": 359,
+          "bottom": 763.7915649414062
+        },
+        "soundFab": {
+          "selector": "[data-sound-toggle]",
+          "x": 311,
+          "y": 655.7915649414062,
+          "width": 48,
+          "height": 48,
+          "right": 359,
+          "bottom": 703.7915649414062
+        },
+        "socialPill": {
+          "selector": "[role=\"complementary\"][aria-label=\"Social media links\"]",
+          "x": 45.5,
+          "y": 776,
+          "width": 296,
+          "height": 52,
+          "right": 341.5,
+          "bottom": 828
+        },
+        "feedbackTab": {
+          "selector": "button[aria-label=\"Open feedback form\"]",
+          "x": 295.5,
+          "y": 784,
+          "width": 36,
+          "height": 36,
+          "right": 331.5,
+          "bottom": 820
+        },
+        "navHeader": {
+          "selector": "nav[aria-label=\"Main navigation\"]",
+          "x": 0,
+          "y": 0,
+          "width": 375,
+          "height": 82,
+          "right": 375,
+          "bottom": 82
+        },
+        "vw": 375,
+        "vh": 844
+      },
+      "overlaps": {
+        "miniChat_vs_soundFab": false,
+        "miniChat_vs_socialPill": false,
+        "soundFab_vs_socialPill": false
+      },
+      "noOverlaps": true,
+      "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\mobile-375px-disco-on.png"
+    },
+    {
+      "viewport": "390x844",
+      "activated": true,
+      "boxes": {
+        "miniChat": {
+          "selector": "button[aria-label=\"Open quick chat\"]",
+          "x": 326,
+          "y": 715.7905883789062,
+          "width": 48,
+          "height": 48,
+          "right": 374,
+          "bottom": 763.7905883789062
+        },
+        "soundFab": {
+          "selector": "[data-sound-toggle]",
+          "x": 326,
+          "y": 655.7905883789062,
+          "width": 48,
+          "height": 48,
+          "right": 374,
+          "bottom": 703.7905883789062
+        },
+        "socialPill": {
+          "selector": "[role=\"complementary\"][aria-label=\"Social media links\"]",
+          "x": 53,
+          "y": 776,
+          "width": 296,
+          "height": 52,
+          "right": 349,
+          "bottom": 828
+        },
+        "feedbackTab": {
+          "selector": "button[aria-label=\"Open feedback form\"]",
+          "x": 303,
+          "y": 784,
+          "width": 36,
+          "height": 36,
+          "right": 339,
+          "bottom": 820
+        },
+        "navHeader": {
+          "selector": "nav[aria-label=\"Main navigation\"]",
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 82,
+          "right": 390,
+          "bottom": 82
+        },
+        "vw": 390,
+        "vh": 844
+      },
+      "overlaps": {
+        "miniChat_vs_soundFab": false,
+        "miniChat_vs_socialPill": false,
+        "soundFab_vs_socialPill": false
+      },
+      "noOverlaps": true,
+      "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\mobile-390px-disco-on.png"
+    },
+    {
+      "viewport": "414x844",
+      "activated": true,
+      "boxes": {
+        "miniChat": {
+          "selector": "button[aria-label=\"Open quick chat\"]",
+          "x": 350,
+          "y": 716,
+          "width": 48,
+          "height": 48,
+          "right": 398,
+          "bottom": 764
+        },
+        "soundFab": {
+          "selector": "[data-sound-toggle]",
+          "x": 350,
+          "y": 656,
+          "width": 48,
+          "height": 48,
+          "right": 398,
+          "bottom": 704
+        },
+        "socialPill": {
+          "selector": "[role=\"complementary\"][aria-label=\"Social media links\"]",
+          "x": 65,
+          "y": 776,
+          "width": 296,
+          "height": 52,
+          "right": 361,
+          "bottom": 828
+        },
+        "feedbackTab": {
+          "selector": "button[aria-label=\"Open feedback form\"]",
+          "x": 315,
+          "y": 784,
+          "width": 36,
+          "height": 36,
+          "right": 351,
+          "bottom": 820
+        },
+        "navHeader": {
+          "selector": "nav[aria-label=\"Main navigation\"]",
+          "x": 0,
+          "y": 0,
+          "width": 414,
+          "height": 82,
+          "right": 414,
+          "bottom": 82
+        },
+        "vw": 414,
+        "vh": 844
+      },
+      "overlaps": {
+        "miniChat_vs_soundFab": false,
+        "miniChat_vs_socialPill": false,
+        "soundFab_vs_socialPill": false
+      },
+      "noOverlaps": true,
+      "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\mobile-414px-disco-on.png"
+    }
+  ],
+  "desktop": {
+    "activated": true,
+    "soundToggle": {
+      "selector": "[data-sound-toggle]",
+      "x": 84,
+      "y": 836,
+      "width": 40,
+      "height": 40,
+      "right": 124,
+      "bottom": 876
+    },
+    "isInChromeBottomLeft": true,
+    "miniChat": {
+      "selector": "button[aria-label=\"Open quick chat\"]",
+      "x": 1304,
+      "y": 819.7976684570312,
+      "width": 56,
+      "height": 56,
+      "right": 1360,
+      "bottom": 875.7976684570312
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\desktop-1440px-disco-on.png"
+  },
+  "muteFlow": {
+    "activated": true,
+    "clicked": true,
+    "before": false,
+    "afterMute": true,
+    "afterUnmute": false,
+    "passed": true,
+    "afterMuteBoxes": {
+      "miniChat": {
+        "selector": "button[aria-label=\"Open quick chat\"]",
+        "x": 326,
+        "y": 716,
+        "width": 48,
+        "height": 48,
+        "right": 374,
+        "bottom": 764
+      },
+      "soundFab": {
+        "selector": "[data-sound-toggle]",
+        "x": 326,
+        "y": 656,
+        "width": 48,
+        "height": 48,
+        "right": 374,
+        "bottom": 704
+      },
+      "socialPill": {
+        "selector": "[role=\"complementary\"][aria-label=\"Social media links\"]",
+        "x": 53,
+        "y": 776,
+        "width": 296,
+        "height": 52,
+        "right": 349,
+        "bottom": 828
+      },
+      "feedbackTab": {
+        "selector": "button[aria-label=\"Open feedback form\"]",
+        "x": 303,
+        "y": 784,
+        "width": 36,
+        "height": 36,
+        "right": 339,
+        "bottom": 820
+      },
+      "navHeader": {
+        "selector": "nav[aria-label=\"Main navigation\"]",
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 82,
+        "right": 390,
+        "bottom": 82
+      },
+      "vw": 390,
+      "vh": 844
+    },
+    "screenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\playwright-mobile-verify\\1776476380985\\mute-flow-390px.png"
+  },
+  "errors": []
+}

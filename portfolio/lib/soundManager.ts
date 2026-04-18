@@ -1031,8 +1031,13 @@ export interface SoundManager {
   /**
    * Per-loop mute. Independent of the global `setMuted` — the loop's gain
    * node (buffer mode) or external setMuted (procedural mode) is toggled.
-   * Used for disco-specific mute where `discoMuted` is a separate store
-   * preference from `soundsMuted`.
+   *
+   * Internal plumbing primitive: in v5 the sitewide `soundsMuted` preference
+   * is the single source of truth for muting every sound, including loops.
+   * The DiscoAudioBridge still calls this directly to push the current
+   * preference into a freshly-started loop (so a loop that starts up while
+   * the user is muted does not briefly leak audio). UI code should NOT
+   * call this directly — go through `setMuted` + `setSoundsMutedImperative`.
    *
    * No-op if the loop isn't playing.
    */

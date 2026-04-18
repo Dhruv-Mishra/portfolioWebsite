@@ -17,10 +17,12 @@ async function runCase(browser, { viewport, isMobile, dark, tag }) {
   const page = await ctx.newPage();
   await page.goto(BASE, { waitUntil: 'networkidle' });
 
-  // Seed superuser.
+  // Seed superuser. Uses the current v5 sticker-store shape; `discoMuted`
+  // was removed in v5 so we set `soundsMuted: true` here to keep the dev
+  // box quiet during the check run.
   await page.evaluate((isDark) => {
     const payload = {
-      version: 3,
+      version: 5,
       unlocked: ['superuser'],
       unlockedAt: { superuser: Date.now() },
       lastEarnedAt: Date.now(),
@@ -28,7 +30,8 @@ async function runCase(browser, { viewport, isMobile, dark, tag }) {
       visitedRoutes: [],
       terminalCommands: [],
       openedProjects: [],
-      discoMuted: true,
+      soundsMuted: true,
+      superuserRevealedAt: Date.now(),
     };
     localStorage.setItem('dhruv-stickers', JSON.stringify(payload));
     // Set theme choice. next-themes uses the key "theme".

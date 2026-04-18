@@ -567,6 +567,72 @@ describe('soundManager — loop lifecycle', () => {
   });
 });
 
+describe('soundManager — setMuted is the single source for stopping every sound', () => {
+  it('setMuted(true) silences buffer-backed loops via master gain ramp', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const fakeBuffer = mockCtx!.createBuffer(2, 44100, 44100);
+    __test.seedBuffer('disco-loop', fakeBuffer);
+    soundManager.startLoop('disco-loop');
+    expect(soundManager.isLoopPlaying('disco-loop')).toBe(true);
+
+    // Identify the master (the first gain created, which the manager uses
+    // as the global chain head).
+    const gains = mockCtx!._nodes.filter((n) => n.kind === 'gain');
+    const master = gains[0];
+    const masterBefore = master.gain?.linearRampToValueAtTime.mock.calls.length ?? 0;
+
+    soundManager.setMuted(true);
+    expect(soundManager.isMuted()).toBe(true);
+
+    // The master gain ramp is how buffer-backed loops go silent — they're
+    // downstream of master. At least one new ramp call landed on master.
+    const masterAfter = master.gain?.linearRampToValueAtTime.mock.calls.length ?? 0;
+    expect(masterAfter).toBeGreaterThan(masterBefore);
+  });
+
+  it('setMuted(true) also mutes registered procedural-external loops', async () => {
+    const { soundManager, registerExternalLoopFactory } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const externalStop = vi.fn();
+    const externalSetMuted = vi.fn();
+    registerExternalLoopFactory('disco-loop', () => ({
+      stop: externalStop,
+      setMuted: externalSetMuted,
+    }));
+    // No buffer — loop uses the factory.
+    soundManager.startLoop('disco-loop');
+
+    // Global mute must cascade to procedural-external loops so the disco
+    // engine (not under the master gain chain) also goes silent.
+    soundManager.setMuted(true);
+    expect(externalSetMuted).toHaveBeenCalledWith(true);
+
+    // Unmuting cascades back.
+    soundManager.setMuted(false);
+    expect(externalSetMuted).toHaveBeenCalledWith(false);
+  });
+
+  it('setMuted(false) restores master gain ramp so buffer loops resume audibly', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const fakeBuffer = mockCtx!.createBuffer(2, 44100, 44100);
+    __test.seedBuffer('disco-loop', fakeBuffer);
+    soundManager.startLoop('disco-loop');
+    soundManager.setMuted(true);
+
+    const gains = mockCtx!._nodes.filter((n) => n.kind === 'gain');
+    const master = gains[0];
+    const rampsBefore = master.gain?.linearRampToValueAtTime.mock.calls.length ?? 0;
+
+    soundManager.setMuted(false);
+    const rampsAfter = master.gain?.linearRampToValueAtTime.mock.calls.length ?? 0;
+    // Another ramp landed on master (this time toward 1, not 0).
+    expect(rampsAfter).toBeGreaterThan(rampsBefore);
+    expect(soundManager.isMuted()).toBe(false);
+  });
+});
+
 describe('soundManager — __reset cleans up loops and one-shots', () => {
   it('__reset stops active loops and clears activeOneShot', async () => {
     const { soundManager, __test } = await loadSoundManager();

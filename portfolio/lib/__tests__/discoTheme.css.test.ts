@@ -154,8 +154,12 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/html\[data-disco="on"\]\s+h1\s*>\s*:where\(strong, em, span, b, i\)/);
   });
 
-  it('ships the mute button baseline class', () => {
-    expect(CSS).toMatch(/\.disco-mute-btn/);
+  it('no longer ships the .disco-mute-btn class (single-mute consolidation)', () => {
+    // Post-v5: the disco-specific floating mute pill was removed in favor
+    // of the sitewide sound toggle (SoundToggleButton + MobileSoundToggleFab).
+    // The CSS must not define a `.disco-mute-btn {` selector anymore —
+    // a commented-out reference is fine.
+    expect(CSS).not.toMatch(/^\s*\.disco-mute-btn\s*\{/m);
   });
 
   it('bumps muted-gray body text to a legible color under dark disco', () => {

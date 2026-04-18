@@ -1492,47 +1492,11 @@ html[data-disco="on"].dark h3 {
   100% { background-position: 250% 50%; }
 }
 
-/* Mute button — pinned bottom-right, above the Feedback FAB's seat. */
-.disco-mute-btn {
-  position: fixed;
-  right: 1.25rem;
-  bottom: calc(1.25rem + var(--c-fab-size) + 0.75rem);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.75rem;
-  font-family: var(--font-hand), cursive;
-  font-size: 0.8rem;
-  line-height: 1;
-  color: var(--c-ink);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1.5px solid rgba(31, 27, 46, 0.5);
-  border-radius: 14px 18px 14px 18px / 18px 14px 18px 14px;
-  box-shadow: 2px 3px 0 rgba(31, 27, 46, 0.4);
-  cursor: pointer;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  transition: transform 120ms ease, background-color 120ms ease;
-}
-html[data-disco="on"].dark .disco-mute-btn {
-  color: #fde68a;
-  background: rgba(30, 20, 45, 0.85);
-  border-color: rgba(251, 191, 36, 0.55);
-  box-shadow: 2px 3px 0 rgba(251, 191, 36, 0.3);
-}
-.disco-mute-btn:hover {
-  transform: translateY(-1px) scale(1.04);
-}
-.disco-mute-btn:active {
-  transform: translateY(0) scale(0.98);
-}
-.disco-mute-btn__label {
-  font-weight: 700;
-}
-@media (max-width: 640px) {
-  .disco-mute-btn__label { display: none; }
-  .disco-mute-btn { padding: 0.5rem; }
-}
+/* Note: `.disco-mute-btn` was removed in the single-mute consolidation. The
+   sitewide sound toggle (rendered by `SoundToggleButton` / `MobileSoundToggleFab`)
+   now governs disco audio too. If you're bringing back a disco-only control,
+   reuse the circular FAB pattern from `MobileSoundToggleFab` rather than the
+   old rectangular pill. */
 
 /* Disco: reduced-motion — intentionally IGNORED for disco since it's an
    opt-in easter egg. Regular site animations still honor prefers-reduced-motion

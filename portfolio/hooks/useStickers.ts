@@ -43,6 +43,13 @@ import { STICKER_TIMING } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v5 — collapsed the disco-specific mute (`discoMuted`) into the sitewide
+ *      `soundsMuted` preference. One toggle now governs every sound the site
+ *      can make, including the disco loop. The per-loop `setLoopMuted` API
+ *      is retained as an internal plumbing primitive, but the store no
+ *      longer tracks a disco-only mute flag. Migration from v4: the
+ *      `discoMuted` field is dropped during parse/write; the user's last
+ *      `soundsMuted` choice continues to apply, and disco audio honors it.
  * v4 — added sitewide sound preferences (`soundsMuted`) and a
  *      `superuserRevealedAt` timestamp used by SuperuserBanner to gate the
  *      one-shot fanfare/confetti reveal. Both fields are sticky preferences
@@ -50,12 +57,11 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v3 — `discoActive` is no longer persisted. Each page load begins with disco
  *      OFF regardless of what the previous session ended in; users must opt
  *      back in via `sudo disco` (which still requires superuser, which DOES
- *      persist via the `unlocked` array). `discoMuted` remains sticky because
- *      it's a preference, not a runtime state.
+ *      persist via the `unlocked` array).
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 4 as const;
+export const STORAGE_VERSION = 5 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -77,9 +83,11 @@ export interface StickerState {
    * preserved through the `unlocked` array, so `sudo disco` still works.
    */
   discoActive: boolean;
-  /** Persisted disco music mute preference. Sticky across sessions. */
-  discoMuted: boolean;
-  /** Persisted global sound-effects mute preference. Sticky. v4+. */
+  /**
+   * Persisted global sound-effects mute preference. Sticky. v4+. In v5 this
+   * preference also governs the disco loop — there is no longer a separate
+   * disco-only mute flag.
+   */
   soundsMuted: boolean;
   /**
    * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
@@ -108,7 +116,6 @@ function defaultState(): StickerState {
     terminalCommands: [],
     openedProjects: [],
     discoActive: false,
-    discoMuted: false,
     soundsMuted: false,
     superuserRevealedAt: 0,
   };
@@ -116,15 +123,21 @@ function defaultState(): StickerState {
 
 /**
  * Sanitize an arbitrary parsed blob into a clean current-version StickerState.
- * Used for both v1 and v2 → v3 migrations and for "best-effort keep unlocked"
- * when the persisted version is unknown/future.
+ * Handles every historical version (v1 → v5). Shape details per version:
  *
- * Invariants:
+ *   - v1/v2 blobs may carry a `discoActive: true` that pre-v3 builds wrote;
+ *     it is unconditionally scrubbed.
+ *   - v2/v3/v4 blobs may carry a `discoMuted` boolean — DROPPED in v5. The
+ *     sitewide `soundsMuted` preference now governs the disco loop too.
+ *   - v3+ adds terminalCommands / openedProjects, v4+ adds soundsMuted /
+ *     superuserRevealedAt. Missing fields default to empty/false/0.
+ *
+ * Invariants that hold regardless of input version:
  *   - Every array is filtered to only contain strings (or valid StickerIds for
  *     `unlocked`). Corrupt entries are silently dropped rather than crashing.
  *   - `discoActive` is ALWAYS forced to `false`. Disco never survives a page
  *     reload — it's a session-only flag.
- *   - `discoMuted` is preserved across versions because it's a preference.
+ *   - `soundsMuted` preserves the user's last mute choice across migrations.
  */
 function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
   const unlocked = Array.isArray(parsed.unlocked)
@@ -155,11 +168,9 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     openedProjects,
     /** Always false on load — discoActive is session-only, never persisted. */
     discoActive: false,
-    /** Preference carries across. */
-    discoMuted: parsed.discoMuted === true,
-    /** v4 preference — default OFF (sounds enabled). */
+    /** v4 preference — default OFF (sounds enabled). Governs disco loop in v5+. */
     soundsMuted: parsed.soundsMuted === true,
-    /** v4 ─ last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
+    /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
     superuserRevealedAt: typeof parsed.superuserRevealedAt === 'number' ? parsed.superuserRevealedAt : 0,
   };
 }
@@ -186,10 +197,16 @@ export function parseStoredState(raw: string | null): StickerState {
   //     so progress survives a bad deploy.
   //
   // Even if the persisted blob is already at the current version, we re-run
-  // sanitization to strip any stale discoActive that was written by older code
-  // paths (pre-v3 builds set discoActive:true under some conditions).
+  // sanitization to strip any stale discoActive / discoMuted fields written
+  // by older code paths (pre-v3 wrote discoActive, pre-v5 wrote discoMuted).
   const version = obj.version;
-  if (version === 1 || version === 2 || version === 3 || version === STORAGE_VERSION) {
+  if (
+    version === 1 ||
+    version === 2 ||
+    version === 3 ||
+    version === 4 ||
+    version === STORAGE_VERSION
+  ) {
     return migrateToCurrent(obj);
   }
   // Unknown/future — preserve unlocked if shape looks salvageable, else wipe.
@@ -215,6 +232,11 @@ function writeToStorage(state: StickerState): void {
     // alongside the forced `discoActive: false` in parseStoredState: even if a
     // stale build previously wrote `discoActive: true`, it won't come back on
     // reload, and we never write it forward either.
+    //
+    // Note: `discoMuted` was removed in v5. The StickerState interface no
+    // longer carries it, so it cannot be written by this path — but we still
+    // strip any lingering occurrence from the initializeStoreOnce migration
+    // write below, which feeds a legacy blob through this function.
     const { discoActive: _unused, ...persistable } = state;
     void _unused;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
@@ -279,18 +301,20 @@ function recomputeProgress(): void {
 function initializeStoreOnce(): void {
   if (store.initialized || typeof window === 'undefined') return;
   store.state = readFromStorage();
-  // If the persisted blob was a v1/v2 schema (or otherwise mutated by
+  // If the persisted blob was a v1–v4 schema (or otherwise mutated by
   // migration) OR contains a stale `discoActive: true` from pre-v3 builds,
-  // proactively rewrite once at initialization so subsequent reads are fast
-  // and version-stable AND the stale flag is gone. Only do this if we actually
-  // have data to write — avoid polluting storage for fresh visitors.
+  // OR still carries the pre-v5 `discoMuted` preference, proactively rewrite
+  // once at initialization so subsequent reads are fast and version-stable.
+  // Only do this if we actually have data to write — avoid polluting storage
+  // for fresh visitors.
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       const isOutdatedVersion = !parsed || parsed.version !== STORAGE_VERSION;
       const hasStaleDiscoFlag = parsed && parsed.discoActive !== undefined;
-      if (isOutdatedVersion || hasStaleDiscoFlag) {
+      const hasLegacyDiscoMuted = parsed && parsed.discoMuted !== undefined;
+      if (isOutdatedVersion || hasStaleDiscoFlag || hasLegacyDiscoMuted) {
         writeToStorage(store.state);
       }
     }
@@ -494,17 +518,6 @@ export function setDiscoActiveImperative(active: boolean): void {
   emitChange();
 }
 
-/** Persist the user's mute preference for disco music. */
-export function setDiscoMutedImperative(muted: boolean): void {
-  initializeStoreOnce();
-  const current = store.state;
-  if (current.discoMuted === muted) return;
-  const next: StickerState = { ...current, discoMuted: muted };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
-}
-
 /** Persist the user's mute preference for sitewide sound effects (v4+). */
 export function setSoundsMutedImperative(muted: boolean): void {
   initializeStoreOnce();
@@ -630,19 +643,6 @@ function getDiscoServerSnapshot(): boolean {
 
 export function useDiscoActive(): boolean {
   return useSyncExternalStore(subscribe, getDiscoSnapshot, getDiscoServerSnapshot);
-}
-
-function getDiscoMutedSnapshot(): boolean {
-  initializeStoreOnce();
-  return store.state.discoMuted;
-}
-
-function getDiscoMutedServerSnapshot(): boolean {
-  return false;
-}
-
-export function useDiscoMuted(): boolean {
-  return useSyncExternalStore(subscribe, getDiscoMutedSnapshot, getDiscoMutedServerSnapshot);
 }
 
 function getSoundsMutedSnapshot(): boolean {

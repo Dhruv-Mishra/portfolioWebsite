@@ -100,11 +100,13 @@ describe('parseStoredState migration', () => {
     expect(state.discoActive).toBe(false);
   });
 
-  it('migrates a v2 blob to v3, preserving progress but forcing discoActive=false', async () => {
+  it('migrates a v2 blob to current, preserving progress but forcing discoActive=false and dropping discoMuted', async () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
-    // Pre-v3 clients could persist `discoActive: true`. v3 must strip it so
+    // Pre-v3 clients could persist `discoActive: true`. v3+ must strip it so
     // every page load begins with disco off — while KEEPING the superuser
     // sticker (which lives in `unlocked`) so `sudo disco` still works.
+    // v5 additionally drops the `discoMuted` preference — sitewide
+    // `soundsMuted` now governs the disco loop.
     const v2 = JSON.stringify({
       version: 2,
       unlocked: ['first-word', 'superuser'],
@@ -115,15 +117,19 @@ describe('parseStoredState migration', () => {
       terminalCommands: ['help', 'about'],
       openedProjects: ['cropio'],
       discoActive: true, // <-- this MUST become false after parse
-      discoMuted: true, // <-- this MUST stay true (preference)
+      discoMuted: true, // <-- this MUST be dropped at v5
     });
     const state = parseStoredState(v2);
     expect(state.version).toBe(STORAGE_VERSION);
     expect(state.unlocked).toContain('superuser');
     expect(state.discoActive).toBe(false);
-    expect(state.discoMuted).toBe(true);
     expect(state.terminalCommands).toEqual(['help', 'about']);
     expect(state.openedProjects).toEqual(['cropio']);
+    // v5 contract — the `discoMuted` property no longer exists on the state
+    // shape, and there is no `useDiscoMuted` / `setDiscoMutedImperative`
+    // export. The sitewide `soundsMuted` default of `false` is what we get.
+    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+    expect(state.soundsMuted).toBe(false);
   });
 
   it('forces discoActive=false even for current-version blobs (stale flag cleanup)', async () => {
@@ -141,7 +147,6 @@ describe('parseStoredState migration', () => {
       terminalCommands: [],
       openedProjects: [],
       discoActive: true, // stale — must be wiped
-      discoMuted: false,
     });
     const state = parseStoredState(blob);
     expect(state.discoActive).toBe(false);
@@ -163,12 +168,14 @@ describe('parseStoredState migration', () => {
     expect(state.unlocked).not.toContain('made-up-sticker');
   });
 
-  it('migrates a v3 blob to v4, initializing new sound + banner fields to defaults', async () => {
+  it('migrates a v3 blob to current, initializing new sound + banner fields to defaults and dropping discoMuted', async () => {
     // v3 did not have `soundsMuted` or `superuserRevealedAt`. Users coming
     // from a pre-v4 install MUST land on defaults: soundsMuted=false (audio
     // on by default) and superuserRevealedAt=0 (so if they ALREADY earned
     // the superuser sticker before v4 shipped, the banner will play its
     // fanfare on first post-upgrade load — which is the intended UX).
+    // v5 additionally drops the pre-existing `discoMuted` preference; the
+    // sitewide sound toggle now governs the disco loop.
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v3 = JSON.stringify({
       version: 3,
@@ -183,10 +190,10 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v3);
     expect(state.version).toBe(STORAGE_VERSION);
-    expect(state.version).toBe(4);
+    expect(state.version).toBe(5);
     expect(state.unlocked).toContain('superuser');
-    expect(state.discoMuted).toBe(true); // preserved
-    // New v4 defaults.
+    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+    // New v4 defaults carried into v5.
     expect(state.soundsMuted).toBe(false);
     expect(state.superuserRevealedAt).toBe(0);
     // Earned timestamp preserved — banner reveal trigger fires because
@@ -194,7 +201,12 @@ describe('parseStoredState migration', () => {
     expect(state.unlockedAt['superuser']).toBe(2000);
   });
 
-  it('preserves soundsMuted and superuserRevealedAt when already v4', async () => {
+  it('migrates a v4 blob to v5, preserving soundsMuted/superuserRevealedAt but dropping discoMuted', async () => {
+    // The v4 → v5 migration is the consolidation of two mute controls into
+    // one. The user's sitewide `soundsMuted` choice is carried forward
+    // verbatim; `discoMuted` is removed without touching the global mute
+    // — this avoids forcibly muting someone who only wanted disco quiet but
+    // also avoids forcibly unmuting them. The global preference wins.
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v4 = JSON.stringify({
       version: 4,
@@ -205,14 +217,71 @@ describe('parseStoredState migration', () => {
       visitedRoutes: [],
       terminalCommands: [],
       openedProjects: [],
-      discoMuted: false,
+      discoMuted: true, // <-- dropped at v5
       soundsMuted: true,
       superuserRevealedAt: 5000,
     });
     const state = parseStoredState(v4);
     expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.version).toBe(5);
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
+    // The legacy discoMuted key is gone.
+    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+  });
+
+  it('preserves soundsMuted and superuserRevealedAt when already v5', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v5 = JSON.stringify({
+      version: 5,
+      unlocked: ['superuser'],
+      unlockedAt: { superuser: 5000 },
+      lastEarnedAt: 5000,
+      lastSeenAlbumAt: 4000,
+      visitedRoutes: [],
+      terminalCommands: [],
+      openedProjects: [],
+      soundsMuted: true,
+      superuserRevealedAt: 5000,
+    });
+    const state = parseStoredState(v5);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.soundsMuted).toBe(true);
+    expect(state.superuserRevealedAt).toBe(5000);
+    expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
+  });
+
+  it('any persisted write strips a lingering discoMuted even when other state mutates', async () => {
+    // End-to-end check: write a v4 blob (with discoMuted) directly, force
+    // a state mutation via the imperative API, and confirm the resulting
+    // serialized blob contains neither `discoMuted` nor `discoActive`.
+    const { __resetStoreForTest, setSoundsMutedImperative, STORAGE_VERSION } = await loadStore();
+    __resetStoreForTest();
+    memoryStorage.setItem(
+      'dhruv-stickers',
+      JSON.stringify({
+        version: 4,
+        unlocked: [],
+        unlockedAt: {},
+        lastEarnedAt: 0,
+        lastSeenAlbumAt: 0,
+        visitedRoutes: [],
+        terminalCommands: [],
+        openedProjects: [],
+        discoMuted: true,
+        soundsMuted: false,
+        superuserRevealedAt: 0,
+      }),
+    );
+    // Force a write by flipping soundsMuted (which triggers writeToStorage).
+    setSoundsMutedImperative(true);
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw);
+    expect(parsed.discoMuted).toBeUndefined();
+    expect(parsed.discoActive).toBeUndefined();
+    expect(parsed.version).toBe(STORAGE_VERSION);
+    expect(parsed.soundsMuted).toBe(true);
   });
 });
 
@@ -301,15 +370,19 @@ describe('unlockSticker superuser auto-award', () => {
     // Defense-in-depth: even when the in-memory state has discoActive=true,
     // writeToStorage must not serialize it. This guards against a future
     // regression where someone reintroduces direct persistence.
-    const { setDiscoActiveImperative, setDiscoMutedImperative, __resetStoreForTest } = await loadStore();
+    // Post-v5: uses `setSoundsMutedImperative` to force the write since the
+    // old `setDiscoMutedImperative` was removed when the two mutes merged.
+    const { setDiscoActiveImperative, setSoundsMutedImperative, __resetStoreForTest } = await loadStore();
     __resetStoreForTest();
     setDiscoActiveImperative(true);
-    setDiscoMutedImperative(true); // forces a write
+    setSoundsMutedImperative(true); // forces a write
     const raw = memoryStorage.getItem('dhruv-stickers') as string;
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw);
     expect(parsed.discoActive).toBeUndefined();
-    expect(parsed.discoMuted).toBe(true);
+    expect(parsed.soundsMuted).toBe(true);
+    // Legacy discoMuted must never reappear in a fresh write.
+    expect(parsed.discoMuted).toBeUndefined();
   });
 
   it('reload-simulation: discoActive never leaks back into state after parseStoredState', async () => {
@@ -334,21 +407,16 @@ describe('unlockSticker superuser auto-award', () => {
     expect(rehydrated.discoActive).toBe(false);
   });
 
-  it('disco muted flag toggles and persists across reload', async () => {
-    const { setDiscoMutedImperative, __resetStoreForTest, parseStoredState } = await loadStore();
-    __resetStoreForTest();
-    // Default is unmuted — storage is empty until the first mutation.
-    // Flip to true to force a write, then verify persistence.
-    setDiscoMutedImperative(true);
-    const raw = memoryStorage.getItem('dhruv-stickers');
-    expect(raw).not.toBeNull();
-    expect(JSON.parse(raw as string).discoMuted).toBe(true);
-    // Re-parse the persisted blob — simulating a reload.
-    const reloaded = parseStoredState(raw);
-    expect(reloaded.discoMuted).toBe(true);
-    // Flip back to false — must persist as false rather than be wiped.
-    setDiscoMutedImperative(false);
-    expect(JSON.parse(memoryStorage.getItem('dhruv-stickers') as string).discoMuted).toBe(false);
+  it('post-v5: setDiscoMutedImperative and useDiscoMuted are removed exports', async () => {
+    // The v4 → v5 consolidation removed both the imperative setter and the
+    // reactive hook. Any legacy caller should route through
+    // setSoundsMutedImperative / useSoundsMuted instead.
+    const mod = (await loadStore()) as unknown as Record<string, unknown>;
+    expect(mod.setDiscoMutedImperative).toBeUndefined();
+    expect(mod.useDiscoMuted).toBeUndefined();
+    // The sitewide ones remain.
+    expect(typeof mod.setSoundsMutedImperative).toBe('function');
+    expect(typeof mod.useSoundsMuted).toBe('function');
   });
 
   it('resetStickerProgressImperative wipes everything', async () => {

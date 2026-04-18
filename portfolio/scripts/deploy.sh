@@ -447,7 +447,7 @@ check_root() {
 
 check_dependencies() {
     log STEP "Checking dependencies..."
-    local deps=("nginx" "systemctl" "curl" "sed" "rsync" "flock")
+    local deps=("nginx" "systemctl" "curl" "sed" "flock")
     if [[ "${MODE}" == "legacy" ]]; then
         deps+=("git" "node" "npm" "nice" "ionice")
     fi
@@ -698,8 +698,10 @@ stage_release() {
 
     mkdir -p "${target}"
 
-    # Copy the extracted bundle. rsync --delete to guarantee clean target.
-    rsync -a --delete "${RELEASE_DIR}/" "${target}/"
+    # Copy the extracted bundle. Target is already empty (rm -rf + mkdir above),
+    # so cp -a is sufficient — preserves permissions, symlinks, timestamps.
+    # Avoids depending on rsync, which isn't in Ubuntu minimal cloud images.
+    cp -a "${RELEASE_DIR}/." "${target}/"
 
     # Copy the production .env.local into the release (systemd reads it from here)
     cp "${DEPLOY_ENV_FILE}" "${target}/.env.local"

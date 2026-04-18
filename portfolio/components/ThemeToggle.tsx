@@ -3,9 +3,8 @@
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from "@/lib/haptics";
-import { stickerBus } from "@/lib/stickerBus";
-import { useDiscoActive, setDiscoActiveImperative } from "@/hooks/useStickers";
-import { soundManager } from "@/lib/soundManager";
+import { useDiscoActive } from "@/hooks/useStickers";
+import { runThemeToggle } from "@/lib/themeToggleAction";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
@@ -24,17 +23,13 @@ export function ThemeToggle() {
 
     const handleClick = () => {
         toggle();
-        // In disco mode, the toggle exits disco and leaves the underlying
-        // light/dark theme untouched. Outside disco it cycles normally.
-        if (discoActive) {
-            setDiscoActiveImperative(false);
-            return;
-        }
-        const goingDark = resolvedTheme !== "dark"; // we're flipping
-        setTheme(goingDark ? "dark" : "light");
-        stickerBus.emit('theme-flipper');
-        // Cricket chirps for dark, rooster crow for light.
-        soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
+        // Shared handler — identical code path with the mobile button in
+        // `SocialSidebar`. Exits disco when active; otherwise cycles theme.
+        runThemeToggle({
+            discoActive,
+            isDark: resolvedTheme === 'dark',
+            setTheme,
+        });
     };
 
     const ariaLabel = discoActive ? "Exit disco mode" : "Toggle Theme";

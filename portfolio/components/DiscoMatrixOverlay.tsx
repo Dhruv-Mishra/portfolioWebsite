@@ -88,14 +88,45 @@ function effectiveDpr(mobile: boolean): number {
 }
 
 /**
+ * Read the current visible viewport size in CSS pixels. `visualViewport`
+ * (when available) gives us the true rendered area — on iOS Safari this
+ * matches the region between the top notch/URL-bar and the bottom toolbar,
+ * which is exactly what we want to cover. Falling back to
+ * `window.innerWidth/innerHeight` is fine for browsers without the API
+ * (desktop Chrome still hits this path when `visualViewport` returns null
+ * due to no pinch-zoom, though the modern spec always exposes it).
+ *
+ * Returns CSS-pixel dimensions; callers apply dpr scaling for the
+ * backing-store. The minimum of `visualViewport` and `innerHeight` is
+ * returned because `visualViewport.height` shrinks when a software
+ * keyboard is open, and we want the canvas to continue painting behind
+ * the keyboard rather than abruptly clipping.
+ */
+function readViewportSize(): { width: number; height: number } {
+  if (typeof window === 'undefined') return { width: 0, height: 0 };
+  const vv = window.visualViewport;
+  if (vv) {
+    // Use Math.max with innerHeight so opening the soft keyboard doesn't
+    // shrink the matrix canvas out from under the user. Width uses the
+    // visualViewport value directly — it accounts for horizontal page zoom
+    // (pinch-zoom) which we DO want to track.
+    return {
+      width: vv.width,
+      height: Math.max(vv.height, window.innerHeight),
+    };
+  }
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+/**
  * Compute font size and column count for the current viewport. Uses the CSS
  * pixel width (NOT the backing-store width) so columns stay visually
  * consistent across dpr values.
  */
-function computeLayout(mobile: boolean): { fontSize: number; columns: number } {
+function computeLayout(mobile: boolean, widthPx: number): { fontSize: number; columns: number } {
   if (typeof window === 'undefined') return { fontSize: FONT_SIZE_DESKTOP, columns: MIN_COLUMNS };
   const fontSize = mobile ? FONT_SIZE_MOBILE : FONT_SIZE_DESKTOP;
-  const raw = Math.floor(window.innerWidth / fontSize);
+  const raw = Math.floor(widthPx / fontSize);
   const columns = Math.max(MIN_COLUMNS, raw);
   return { fontSize, columns };
 }
@@ -120,7 +151,12 @@ const MatrixCanvas = memo(function MatrixCanvas() {
 
     let mobile = isNarrowViewport();
     let dpr = effectiveDpr(mobile);
-    let layout = computeLayout(mobile);
+    // Current CSS-pixel viewport size — read from visualViewport when
+    // available (mobile Safari / Chrome) so we match the actual rendered
+    // area, not the layout viewport. Updated on every resize + on the
+    // visualViewport.resize event fired when the iOS URL-bar collapses.
+    let viewport = readViewportSize();
+    let layout = computeLayout(mobile, viewport.width);
     let drops: number[] = [];
 
     /** Seed drop positions — slight jitter so columns don't hit the bottom at once. */
@@ -133,18 +169,19 @@ const MatrixCanvas = memo(function MatrixCanvas() {
       if (typeof window === 'undefined') return;
       mobile = isNarrowViewport();
       dpr = effectiveDpr(mobile);
-      layout = computeLayout(mobile);
-      const { innerWidth, innerHeight } = window;
-      canvas.width = Math.floor(innerWidth * dpr);
-      canvas.height = Math.floor(innerHeight * dpr);
-      canvas.style.width = `${innerWidth}px`;
-      canvas.style.height = `${innerHeight}px`;
+      viewport = readViewportSize();
+      layout = computeLayout(mobile, viewport.width);
+      const { width, height } = viewport;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       // Reset transform + apply dpr scale so drawing math stays in CSS px.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       seedDrops();
       // Paint a solid black background once so the first frame isn't empty.
       ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-      ctx.fillRect(0, 0, innerWidth, innerHeight);
+      ctx.fillRect(0, 0, width, height);
     }
     resize();
 
@@ -167,8 +204,15 @@ const MatrixCanvas = memo(function MatrixCanvas() {
       }
       lastFrameTime = now;
       if (typeof window === 'undefined') return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      // Use the same visible-viewport measurement as resize() so every frame
+      // fades exactly the area we're actually drawing into. Using
+      // `window.innerWidth/innerHeight` here would leave a strip un-faded
+      // on iOS Safari when the URL bar is collapsed (visualViewport is
+      // TALLER than the layout viewport in that state on the most recent
+      // Safari builds, though historically it was the opposite — either
+      // way, keeping resize + step aligned prevents mismatch).
+      const w = viewport.width;
+      const h = viewport.height;
 
       // Trailing fade — a semi-transparent black rect layered every frame
       // produces the tapering tail effect.
@@ -207,6 +251,22 @@ const MatrixCanvas = memo(function MatrixCanvas() {
     };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
+    // iOS Safari: `window.resize` fires only when the layout viewport changes,
+    // not when the URL bar / bottom toolbar collapses. `visualViewport.resize`
+    // fires for those toolbar-driven visible-viewport changes — without this
+    // listener the matrix canvas leaves a black gap where the toolbar used
+    // to be until the user scrolls. Capture + cleanup below.
+    const vv = window.visualViewport;
+    const onVisualViewportResize = (): void => {
+      resize();
+    };
+    if (vv) {
+      vv.addEventListener('resize', onVisualViewportResize);
+      // Some Safari builds fire scroll instead of resize when the toolbar
+      // collapses during inertial scroll. Both handlers just call resize();
+      // the work there is idempotent and cheap.
+      vv.addEventListener('scroll', onVisualViewportResize);
+    }
     // Visibility changes: rAF loop handles pause/resume via the hidden check;
     // we also seed drops when the tab comes back so the loop doesn't resume
     // with the same frozen glyph at the bottom of each column.
@@ -224,6 +284,10 @@ const MatrixCanvas = memo(function MatrixCanvas() {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
+      if (vv) {
+        vv.removeEventListener('resize', onVisualViewportResize);
+        vv.removeEventListener('scroll', onVisualViewportResize);
+      }
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
@@ -235,8 +299,14 @@ const MatrixCanvas = memo(function MatrixCanvas() {
       style={{
         position: 'fixed',
         inset: 0,
-        width: '100vw',
-        height: '100vh',
+        // Dynamic viewport units — match the visible area on iOS Safari
+        // including the bottom-toolbar zone. The JS resize handler above
+        // also sets pixel-precise width/height inline on the canvas element,
+        // which overrides these CSS values — but these keep the INITIAL
+        // paint full-viewport while the first resize runs, and provide a
+        // sensible fallback if JS ever fails to attach.
+        width: '100dvw',
+        height: '100dvh',
         zIndex: 9998,
         background: '#000000',
         pointerEvents: 'none',

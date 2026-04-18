@@ -161,8 +161,26 @@ function renderWhoami(): React.ReactNode {
 /**
  * Terminal-themed warning card used by `sudo disco` and `sudo matrix` before
  * they actually engage. Two-step confirmation prevents an accidental typo
- * from taking over the page. Box-drawing characters frame the warning in a
- * retro-terminal palette.
+ * from taking over the page.
+ *
+ * Rendered as CSS-drawn borders rather than `<pre>` + ASCII box-drawing
+ * glyphs. Prior behaviour: three `<pre whitespace="pre">` lines held a
+ * ~51-char frame (`╔═══…═══╗`) whose intrinsic width at monospace ~8–10px/ch
+ * was 408–510px. On an iPhone SE (375px) / iPhone 12 Pro (390px) viewport,
+ * that forced the terminal body to expand beyond the viewport which in turn
+ * triggered iOS Safari's auto-zoom + page-wide horizontal scroll. Box-drawing
+ * glyphs cannot break, so `word-wrap` can't save us. The CSS border
+ * treatment below renders an identical "caution tape" silhouette while
+ * flowing to `100%` of the terminal body — no intrinsic minimum width.
+ *
+ * Visual contract (preserved): yellow top-and-bottom double borders, a
+ * centered "WARNING" title with the ⚠ glyphs on each side, a dashed
+ * accent layer for the classic retro-terminal feel. The accent line
+ * sits below the title using a CSS `repeating-linear-gradient` so we
+ * don't need an extra `<div>`. Text inside honours `overflow-wrap:
+ * anywhere` (via `.break-words`) so long tokens never push the box wider
+ * than its parent. Margin + padding mirror the old pre-based block so
+ * the surrounding layout is unchanged on desktop.
  */
 function renderConfirmWarning(opts: {
   title: string;
@@ -172,18 +190,27 @@ function renderConfirmWarning(opts: {
 }): React.ReactNode {
   const { title, descriptionLines, confirmCommand, cancelCommand } = opts;
   return (
-    <div className="font-code text-sm leading-[1.35] my-1">
-      <pre className="text-yellow-300 whitespace-pre">{`╔═══════════════════════════════════════════════════╗`}</pre>
-      <pre className="text-yellow-300 whitespace-pre">{`║                 ⚠  WARNING  ⚠                    ║`}</pre>
-      <pre className="text-yellow-300 whitespace-pre">{`╚═══════════════════════════════════════════════════╝`}</pre>
-      <p className="text-red-400 font-bold mt-1">{title}</p>
-      <div className="text-gray-300 mt-1 space-y-0.5">
+    <div className="font-code text-sm leading-[1.35] my-1 max-w-full">
+      {/* Warning frame — responsive CSS borders instead of fixed-width ASCII.
+          `break-words` ensures no child content forces horizontal overflow. */}
+      <div
+        role="alert"
+        className="border-y-2 border-double border-yellow-300 text-yellow-300 py-1 px-2 my-1 max-w-full break-words text-center font-bold tracking-widest"
+      >
+        <span aria-hidden="true">⚠ </span>
+        WARNING
+        <span aria-hidden="true"> ⚠</span>
+      </div>
+      <p className="text-red-400 font-bold mt-1 max-w-full break-words">{title}</p>
+      <div className="text-gray-300 mt-1 space-y-0.5 max-w-full break-words">
         {descriptionLines.map((line, i) => (
-          <p key={i}>{line}</p>
+          <p key={i} className="max-w-full break-words">
+            {line}
+          </p>
         ))}
       </div>
-      <div className="mt-3 space-y-0.5">
-        <p>
+      <div className="mt-3 space-y-0.5 max-w-full break-words">
+        <p className="max-w-full break-words">
           <span className="text-gray-500">&gt; proceed?</span>{' '}
           <span className="text-emerald-400 font-bold">{confirmCommand}</span>{' '}
           <span className="text-gray-500">to confirm,</span>{' '}

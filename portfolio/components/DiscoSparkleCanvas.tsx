@@ -179,8 +179,15 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
       style={{
         position: 'fixed',
         inset: 0,
-        width: '100vw',
-        height: '100vh',
+        // Prefer the dynamic viewport units on the CSS display box so iOS
+        // Safari's collapsing address bar doesn't leave a strip of undrawn
+        // viewport at the bottom while the toolbar is visible. The canvas
+        // backing-store width/height are still driven by `window.innerWidth`
+        // / `window.innerHeight` inside the resize handler (which DO return
+        // the dynamic viewport value on Safari), so this CSS sizing only
+        // matters for the initial paint before the resize handler fires.
+        width: '100dvw',
+        height: '100dvh',
         pointerEvents: 'none',
         zIndex: 1,
         // `mix-blend-mode: screen` forces a full-viewport composite pass every

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Patrick_Hand, Fira_Code } from "next/font/google";
 import SketchbookLayout from "@/components/SketchbookLayout";
@@ -54,6 +54,29 @@ const STRUCTURED_DATA_LD = JSON.stringify({
     }
   ]
 });
+
+/**
+ * Viewport config — explicit so iOS Safari (a) respects `width=device-width`
+ * (preventing the auto-zoom that `<pre>` + ASCII-frame content used to
+ * trigger on narrow screens) and (b) lets the disco + matrix fixed layers
+ * paint into the bottom safe-area via `viewport-fit=cover`. `initialScale:
+ * 1` keeps the first paint at 1:1 physical/CSS pixels — no surprise zoom.
+ * We intentionally do NOT set `maximumScale: 1` or `userScalable: false`
+ * because doing so violates accessibility guidelines (users with low vision
+ * need to pinch-zoom). The real fix for the wide-content problem was
+ * removing the fixed-width ASCII frame in `lib/sudoCommands.tsx` — content
+ * now flows to the viewport width, so the browser has no reason to shrink
+ * the layout down.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fdfbf7' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1a1a' },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "Dhruv Mishra | Software Engineer",
@@ -122,8 +145,7 @@ export default function RootLayout({
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#fdfbf7" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+        {/* theme-color meta tags are emitted by the `viewport` export above. */}
 
         {/* Structured Data (JSON-LD) for SEO */}
         <script

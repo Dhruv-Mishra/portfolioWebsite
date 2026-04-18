@@ -7,7 +7,12 @@ import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
-import { soundManager } from '@/lib/soundManager';
+import { useDiscoActive } from '@/hooks/useStickers';
+import { runThemeToggle } from '@/lib/themeToggleAction';
+// Note: soundManager import removed — the mobile theme button now routes
+// audio playback through `runThemeToggle` so the desktop + mobile handlers
+// share exactly one code path. The shared helper owns the cricket/rooster
+// audio call itself.
 
 const SOCIALS = [
     {
@@ -99,29 +104,61 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
 // Pre-computed mobile social list (CP History replaced by feedback button)
 const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
 
+/**
+ * Mobile theme button — mirrors the desktop `ThemeToggle` behaviour so the
+ * two buttons stay in lock-step. Subscribes to `discoActive` (Bug 2c) so
+ * that while disco is engaged the button paints the disco-ball doodle
+ * instead of the sun/moon, and flips its aria-label to "Exit disco mode".
+ * The click handler routes through the shared `runThemeToggle` helper (Bug
+ * 2b) so we have exactly ONE code path that clears the disco flag — any
+ * remnants previously seen on mobile (sparkles / spotlights / body
+ * gradient) stuck around because the old handler only flipped the
+ * `next-themes` preference without touching `discoActive`.
+ *
+ * Visual placeholder dimensions are unchanged — the pre-mount
+ * `w-9 h-9 sm:w-11 sm:h-11` shell keeps the neighbouring social icons
+ * from shuffling on hydrate.
+ */
 const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
     const { setTheme, resolvedTheme } = useTheme();
+    const discoActive = useDiscoActive();
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
-    // Match the sibling social icons (9 on narrow, 11 from sm:) so the row doesn't
-    // get a lopsided bump from a larger neighbor — and the placeholder shares the
-    // same responsive footprint so mount-shift is zero.
     if (!mounted) return <div className="w-9 h-9 sm:w-11 sm:h-11" />;
     const isDark = resolvedTheme === 'dark';
+    const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';
     return (
         <button
             onClick={() => {
                 onPress();
-                const goingDark = !isDark;
-                setTheme(goingDark ? 'dark' : 'light');
-                stickerBus.emit('theme-flipper');
-                soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
+                runThemeToggle({ discoActive, isDark, setTheme });
             }}
             className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-            title="Toggle theme"
-            aria-label="Toggle theme"
+            title={ariaLabel}
+            aria-label={ariaLabel}
+            data-disco-bounce="1"
         >
-            {isDark ? <Sun size={15} strokeWidth={2.5} /> : <Moon size={15} strokeWidth={2.5} />}
+            {discoActive ? (
+                /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
+                   to 16px so it matches the sun / moon footprint at the 15px
+                   lucide sizes we ship elsewhere in the mobile pill. */
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
+                    <path d="M12 2v3" />
+                    <circle cx="12" cy="13" r="7" className="fill-fuchsia-200/40 dark:fill-fuchsia-900/40" />
+                    <path d="M5 13h14" opacity="0.55" />
+                    <path d="M12 6v14" opacity="0.55" />
+                    <path d="M7 9c1.5 2 8 2 10 0" opacity="0.45" />
+                    <path d="M7 17c1.5-2 8-2 10 0" opacity="0.45" />
+                    <path d="M9 7.2c0.9 3 5.1 3 6 0" opacity="0.35" />
+                    <path d="M9 18.8c0.9-3 5.1-3 6 0" opacity="0.35" />
+                    <path d="M2.5 7.5l1.5-1" opacity="0.6" />
+                    <path d="M21.5 16.5l-1.5-1" opacity="0.6" />
+                </svg>
+            ) : isDark ? (
+                <Sun size={15} strokeWidth={2.5} />
+            ) : (
+                <Moon size={15} strokeWidth={2.5} />
+            )}
         </button>
     );
 });

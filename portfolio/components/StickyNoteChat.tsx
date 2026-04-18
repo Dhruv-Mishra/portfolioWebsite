@@ -8,6 +8,7 @@ import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
@@ -16,6 +17,7 @@ import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
+import { stickerBus } from '@/lib/stickerBus';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -363,6 +365,11 @@ const StickyNote = memo(function StickyNote({
       }
       animate={{ opacity: message.isOld ? NOTE_ENTRANCE.oldNoteOpacity : 1, y: 0, x: 0, rotate: rotation }}
       transition={NOTE_SPRING}
+      /* Disco mode: each chat bubble shimmies side-to-side. The note-paper
+         bg classes already trigger the hue-cycle; the shimmy is scoped by
+         the site-wide selector on .bg-[var(--note-user)] / .bg-[var(--note-ai)].
+         data-disco-motion is redundant here but documents the intent. */
+      data-disco-motion="shimmy"
       className={cn(
         "relative max-w-[90%] sm:max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
         isUser
@@ -717,6 +724,19 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     setSuggestionsReady(true);
 
+    // Chat-driven UI action fires → chat-conductor sticker. We check if ANY
+    // real side-effect is about to run (not just the reply text). Idempotent
+    // via the store — repeated chat actions won't re-toast.
+    if (
+      action.themeAction ||
+      action.feedbackAction ||
+      action.projectSlug ||
+      (action.openUrls && action.openUrls.length > 0) ||
+      action.navigateTo
+    ) {
+      stickerBus.emit('chat-conductor');
+    }
+
     // Theme switching
     if (action.themeAction) {
       selection();
@@ -789,6 +809,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     completedAssistantHapticRef.current = lastAssistant.id;
     success();
+    // Audible "reply arrived" cue paired with the success haptic. The sound
+    // is a gentle descending chirp so it doesn't compete with the upward
+    // chat-send cue.
+    soundManager.play('chat-receive');
   }, [isLoading, messages, success]);
 
   useEffect(() => {
@@ -824,12 +848,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     submit();
+    soundManager.play('chat-send');
     sendMessage(text);
   }, [sendMessage, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     selection();
+    soundManager.play('chat-send');
     sendMessage(text);
   }, [selection, sendMessage]);
 

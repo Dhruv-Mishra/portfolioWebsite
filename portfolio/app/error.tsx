@@ -29,7 +29,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-paper">
+    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-paper">
       <m.div
         initial={{ opacity: 0, scale: 0.9, rotate: 1 }}
         animate={{ opacity: 1, scale: 1, rotate: 1 }}

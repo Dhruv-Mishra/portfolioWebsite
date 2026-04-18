@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { soundManager } from '@/lib/soundManager';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,23 @@ export function Modal({
   // ── Keep portal alive until exit animation completes ────────────────
   useEffect(() => {
     if (isOpen) setShouldRender(true);
+  }, [isOpen]);
+
+  // ── Open / close sound cues ─────────────────────────────────────────
+  // `isOpen` transitions are our cue. Skipping the very first mount means
+  // a modal that boots already-open (rare but possible via state rehydration)
+  // doesn't double-fire. The manager debounces within 200ms so a rapid open
+  // → close → open doesn't machine-gun.
+  const prevOpenRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevOpenRef.current === null) {
+      prevOpenRef.current = isOpen;
+      if (isOpen) soundManager.play('modal-open');
+      return;
+    }
+    if (prevOpenRef.current === isOpen) return;
+    prevOpenRef.current = isOpen;
+    soundManager.play(isOpen ? 'modal-open' : 'modal-close');
   }, [isOpen]);
 
   const handleExitComplete = useCallback(() => {

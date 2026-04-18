@@ -1,0 +1,237 @@
+/**
+ * Lazy-load boundary tests for the disco mode bundle split.
+ *
+ * The contract we're enforcing:
+ *   1. `DiscoFlagController` is the eagerly-mounted entry point. It subscribes
+ *      to `discoActive`, writes the `data-disco` attribute, and dynamically
+ *      imports the heavy layer only when the flag becomes true. It MUST NOT
+ *      statically import the sparkle canvas, spotlights, mute button, or
+ *      audio engine.
+ *   2. `DiscoMediaLayer` is the heavy tree. It can import anything.
+ *   3. `DiscoMatrixOverlay` is isolated — only loaded when `sudo matrix`
+ *      fires. It MUST NOT be imported statically from either of the above.
+ *   4. `EagerEnhancements.tsx` only uses `DiscoFlagController` (the tiny one).
+ *      It must NOT statically reference the heavy modules.
+ *
+ * These checks are regex-based on the source files — we're guarding against
+ * regressions where someone accidentally writes `import X from './DiscoSparkleCanvas'`
+ * at the top of DiscoFlagController and silently ships the chunk to every
+ * user. The guard does NOT run a webpack/turbopack build, so it won't catch
+ * transitive violations through third-party re-exports — but because we own
+ * every module in this chain, a source-level guard is sufficient.
+ */
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const COMPONENTS_DIR = path.resolve(__dirname, '../../components');
+
+function readSrc(filename: string): string {
+  return fs.readFileSync(path.join(COMPONENTS_DIR, filename), 'utf8');
+}
+
+/** Extract all static `import ... from '<path>'` specifiers from a TS file. */
+function staticImportsOf(src: string): string[] {
+  const out: string[] = [];
+  // Match `import ... from '<spec>'` and `import '<spec>'`
+  const re = /^\s*import\s+(?:[^'"]*\s+from\s+)?['"]([^'"]+)['"];?\s*$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    out.push(m[1]);
+  }
+  return out;
+}
+
+/** Extract every dynamic import('<spec>') specifier from a TS file. */
+function dynamicImportsOf(src: string): string[] {
+  const out: string[] = [];
+  const re = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    out.push(m[1]);
+  }
+  return out;
+}
+
+describe('disco lazy-load boundary', () => {
+  it('DiscoFlagController does not statically import the heavy media tree', () => {
+    const src = readSrc('DiscoFlagController.tsx');
+    const statics = staticImportsOf(src);
+    // The forbidden static imports — if any of these land in the flag
+    // controller the eager bundle swells. (DiscoMuteButton was removed in
+    // the v5 single-mute consolidation — no longer tracked here.)
+    const forbidden = [
+      './DiscoMediaLayer',
+      './DiscoSparkleCanvas',
+      './DiscoSpotlights',
+      '@/lib/discoAudio',
+      './DiscoMatrixOverlay',
+    ];
+    for (const spec of forbidden) {
+      expect(statics).not.toContain(spec);
+    }
+  });
+
+  it('DiscoFlagController dynamically imports DiscoMediaLayer and DiscoMatrixOverlay', () => {
+    const src = readSrc('DiscoFlagController.tsx');
+    const dyns = dynamicImportsOf(src);
+    expect(dyns).toContain('./DiscoMediaLayer');
+    expect(dyns).toContain('./DiscoMatrixOverlay');
+  });
+
+  it('EagerEnhancements only references the flag controller (no heavy modules)', () => {
+    const src = readSrc('EagerEnhancements.tsx');
+    // EagerEnhancements may reference DiscoFlagController or the re-exporting
+    // DiscoModeController — both are equivalent from a bundle-split POV.
+    const combined =
+      staticImportsOf(src).join(' ') + ' ' + dynamicImportsOf(src).join(' ');
+    const forbidden = [
+      './DiscoSparkleCanvas',
+      './DiscoSpotlights',
+      './DiscoMediaLayer',
+      './DiscoMatrixOverlay',
+      '@/lib/discoAudio',
+      '@/components/DiscoSparkleCanvas',
+      '@/components/DiscoSpotlights',
+      '@/components/DiscoMediaLayer',
+      '@/components/DiscoMatrixOverlay',
+    ];
+    for (const spec of forbidden) {
+      expect(combined).not.toContain(spec);
+    }
+    // Should reference the flag controller (directly OR via the re-export path).
+    expect(combined).toMatch(/DiscoFlagController|DiscoModeController/);
+  });
+
+  it('DiscoMediaLayer itself dynamically imports its sub-modules', () => {
+    // Double-lazy pattern — even within the heavy chunk, the sparkle canvas
+    // and spotlights are each their own dynamic chunk. That way if a future
+    // optimization wants to skip the sparkle canvas on mobile, it can
+    // short-circuit the import entirely. (DiscoMuteButton was removed in
+    // the single-mute consolidation — disco no longer owns a UI control.)
+    const src = readSrc('DiscoMediaLayer.tsx');
+    const dyns = dynamicImportsOf(src);
+    expect(dyns).toContain('./DiscoSparkleCanvas');
+    expect(dyns).toContain('./DiscoSpotlights');
+  });
+
+  it('DiscoModeController is a thin re-export of DiscoFlagController', () => {
+    // The legacy import path must keep working, but MUST NOT bloat.
+    const src = readSrc('DiscoModeController.tsx');
+    // Re-export syntax — either `export { default } from ...` or `export *`.
+    expect(src).toMatch(/export\s+\{\s*default\s*\}\s+from\s+['"]\.\/DiscoFlagController['"]/);
+    // No static imports of the heavy modules.
+    const statics = staticImportsOf(src);
+    expect(statics.some((s) => s.includes('MediaLayer'))).toBe(false);
+    expect(statics.some((s) => s.includes('SparkleCanvas'))).toBe(false);
+  });
+
+  it('sudo disco handler pre-warms the media chunk on the user-gesture tick', () => {
+    // Without pre-warming, there's a visible lag between `sudo disco` and
+    // first paint of spotlights while the chunk is fetched. The handler in
+    // lib/sudoCommands.tsx fires the import() on the click tick.
+    const sudoSrc = fs.readFileSync(
+      path.resolve(__dirname, '../../lib/sudoCommands.tsx'),
+      'utf8',
+    );
+    expect(sudoSrc).toMatch(/import\(\s*['"]@\/components\/DiscoMediaLayer['"]\s*\)/);
+  });
+});
+
+describe('disco render-count hygiene — source guards', () => {
+  it('DiscoSparkleCanvas is NOT wrapped in a store subscription', () => {
+    // The sparkle canvas must NOT subscribe to sticker/disco store. That way
+    // parent re-renders (and even internal effects on mute) cannot trigger a
+    // new particle system. The only store hook it reads is useIsMobile, which
+    // is a media-query hook (stable).
+    const src = readSrc('DiscoSparkleCanvas.tsx');
+    expect(src).not.toMatch(/useDiscoActive|useSoundsMuted|useStickers|useStickerUnlocked/);
+  });
+
+  it('DiscoSpotlights is a pure functional component with no store subscription', () => {
+    const src = readSrc('DiscoSpotlights.tsx');
+    expect(src).not.toMatch(/useDiscoActive|useSoundsMuted|useStickers|useStickerUnlocked|useSyncExternalStore/);
+  });
+
+  it('DiscoVisuals (the long-lived tree) is memoized and reads no store state', () => {
+    // The visual subtree must be a memo() wrapper so parent re-renders stop
+    // at this boundary. And it must not read store state — re-render stops here.
+    const src = readSrc('DiscoMediaLayer.tsx');
+    const visualsBlock = src.match(/DiscoVisuals\s*=\s*memo\(function\s+DiscoVisuals[\s\S]*?\}\);/);
+    expect(visualsBlock).toBeTruthy();
+    // The visuals block itself does not touch any sticker-store hook.
+    expect(visualsBlock?.[0]).not.toMatch(/useDisco|useSticker|useSoundsMuted/);
+  });
+
+  it('DiscoAudioBridge — the mute-reactive component — is zero-DOM (returns null)', () => {
+    // Keeps the audio bridge's re-renders cheap: they don't trigger any
+    // reconciler work below since the tree is empty.
+    const src = readSrc('DiscoMediaLayer.tsx');
+    // Grab a generous window around the bridge definition and verify the
+    // function type signature ends in `: null` AND its body returns null.
+    expect(src).toMatch(/function\s+DiscoAudioBridge\s*\(\s*\)\s*:\s*null/);
+    expect(src).toMatch(/DiscoAudioBridge[\s\S]*?return\s+null;\s*\}\s*\)/);
+  });
+
+  it('DiscoFlagController uses the narrow useDiscoActive selector (not useStickers)', () => {
+    // The broad useStickers hook returns a full state object and re-renders
+    // on every store mutation (sticker unlocks, album-seen, visited-routes).
+    // The flag controller must use the narrow boolean selector.
+    const src = readSrc('DiscoFlagController.tsx');
+    expect(src).toMatch(/useDiscoActive/);
+    expect(src).not.toMatch(/useStickers\s*\(/);
+  });
+
+  it('DiscoAudioBridge subscribes to the narrow useSoundsMuted selector', () => {
+    // The bridge's re-render scope is scoped to sitewide mute flips —
+    // not to the entire sticker store. Using the narrow selector keeps the
+    // bridge quiet while disco is active and unrelated store keys mutate
+    // (unlocking a sticker, toggling sudo, etc.).
+    const src = readSrc('DiscoMediaLayer.tsx');
+    expect(src).toMatch(/useSoundsMuted/);
+    expect(src).not.toMatch(/useStickers\s*\(\s*\)/);
+  });
+
+  it('DiscoSpotlights includes 6 spotlight variants', () => {
+    // Deliverable 3 — six variants total, three new (violet / lime / coral).
+    const src = readSrc('DiscoSpotlights.tsx');
+    expect(src).toMatch(/'magenta'/);
+    expect(src).toMatch(/'cyan'/);
+    expect(src).toMatch(/'gold'/);
+    expect(src).toMatch(/'violet'/);
+    expect(src).toMatch(/'lime'/);
+    expect(src).toMatch(/'coral'/);
+  });
+
+  it('DiscoSpotlights drops mix-blend-mode and extras on mobile (perf)', () => {
+    // `mix-blend-mode: screen` on the full-viewport wrapper forces the entire
+    // painted viewport to re-composite every frame. On mobile this was the
+    // single largest paint hit; the wrapper must switch to 'normal' on
+    // `isMobile`. The extras (violet/lime/coral) must also be conditionally
+    // rendered so mobile sees only 3 of the 6 spots.
+    const src = readSrc('DiscoSpotlights.tsx');
+    // Mixed blend mode is toggled via isMobile ternary.
+    expect(src).toMatch(/mixBlendMode:\s*isMobile\s*\?\s*['"]normal['"]\s*:\s*['"]screen['"]/);
+    // Extras are rendered only when !isMobile.
+    expect(src).toMatch(/!isMobile\s*&&/);
+    // The useIsMobile hook is imported.
+    expect(src).toMatch(/from\s+['"]@\/hooks\/useIsMobile['"]/);
+  });
+
+  it('DiscoSparkleCanvas caps dpr at 1 on mobile (reduces per-frame fill)', () => {
+    // Retina mobile viewports (dpr=3) at full-viewport = ~3M-pixel backing
+    // store. Clearing + redrawing that every frame costs meaningful CPU on
+    // throttled devices. Capping dpr at 1 on mobile cuts the fill by 9x on a
+    // typical phone.
+    const src = readSrc('DiscoSparkleCanvas.tsx');
+    expect(src).toMatch(/const\s+dpr\s*=\s*isMobile\s*\?\s*1\s*:/);
+  });
+
+  it('DiscoSparkleCanvas drops mix-blend-mode: screen on mobile', () => {
+    // Same story as the spotlight wrapper — screen blending a full-viewport
+    // canvas forces a per-frame composite pass. On mobile we switch to normal
+    // compositing; per-particle alpha is still correct via globalAlpha.
+    const src = readSrc('DiscoSparkleCanvas.tsx');
+    expect(src).toMatch(/mixBlendMode:\s*isMobile\s*\?\s*['"]normal['"]\s*:\s*['"]screen['"]/);
+  });
+});

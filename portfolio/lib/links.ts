@@ -17,7 +17,7 @@ export const PROJECT_LINKS = {
   cropio: 'https://github.com/Dhruv-Mishra/Cropio-ImageEditor',
   courseEvaluator: 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
   ivc: 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
-  portfolio: 'https://github.com/Dhruv-Mishra/portfolio-website',
+  portfolio: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
   recommender: 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
   atomvault: 'https://github.com/Dhruv-Mishra/AtomVault',
   bloomfilter: 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',

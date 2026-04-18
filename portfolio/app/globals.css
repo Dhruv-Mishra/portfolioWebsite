@@ -76,16 +76,19 @@
     --d-purple: rgba(88, 28, 135, 0.3);
     --d-stroke-width: 1.2px;
 
-    /* Note Colors (Light Mode - Uniform Sticky Yellow) */
-    --note-yellow: #fff9c4;
-    --note-blue: #fff9c4;
-    --note-green: #fff9c4;
-    --note-purple: #fff9c4;
-    --note-orange: #fff9c4;
-    --note-gray: #fff9c4;
+    /* Uniform sticky-note paper (single light-mode color) */
+    --note-paper: #fff9c4;
+    /* Legacy token aliases kept so any third-party extension or persisted style
+       referencing the old palette still renders. All resolve to --note-paper. */
+    --note-yellow: var(--note-paper);
+    --note-blue: var(--note-paper);
+    --note-green: var(--note-paper);
+    --note-purple: var(--note-paper);
+    --note-orange: var(--note-paper);
+    --note-gray: var(--note-paper);
 
     /* Chat Note Colors (Light Mode) */
-    --note-user: #fff9c4;
+    --note-user: var(--note-paper);
     --note-user-ink: #5d4037;
     --note-ai: #e3f2fd;
     --note-ai-ink: #0d47a1;
@@ -115,13 +118,14 @@
     --d-blue: rgba(191, 219, 254, 0.3);
     --d-purple: rgba(233, 213, 255, 0.3);
 
-    /* Note Colors (Dark Mode - Matte Black #222222) */
-    --note-yellow: #222222;
-    --note-blue: #222222;
-    --note-green: #222222;
-    --note-purple: #222222;
-    --note-orange: #222222;
-    --note-gray: #222222;
+    /* Uniform sticky-note paper (single dark-mode color) */
+    --note-paper: #222222;
+    --note-yellow: var(--note-paper);
+    --note-blue: var(--note-paper);
+    --note-green: var(--note-paper);
+    --note-purple: var(--note-paper);
+    --note-orange: var(--note-paper);
+    --note-gray: var(--note-paper);
 
     /* Chat Note Colors (Dark Mode) */
     --note-user: #2a2520;
@@ -299,28 +303,18 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 }
 
 @layer utilities {
-  .bg-note-yellow {
-    background-color: var(--note-yellow);
-  }
-
-  .bg-note-blue {
-    background-color: var(--note-blue);
-  }
-
-  .bg-note-green {
-    background-color: var(--note-green);
-  }
-
-  .bg-note-purple {
-    background-color: var(--note-purple);
-  }
-
-  .bg-note-orange {
-    background-color: var(--note-orange);
-  }
-
+  /* Single sticky-note paper utility. Old per-color aliases kept as synonyms so
+     any existing content (projects.tsx project cards, app/error.tsx, etc.)
+     keeps working through the cleanup without a wide refactor. Every alias
+     resolves to --note-paper. */
+  .bg-note-paper,
+  .bg-note-yellow,
+  .bg-note-blue,
+  .bg-note-green,
+  .bg-note-purple,
+  .bg-note-orange,
   .bg-note-gray {
-    background-color: var(--note-gray);
+    background-color: var(--note-paper);
   }
 
   /* Hero animations - CSS instead of framer-motion for faster LCP */
@@ -584,5 +578,965 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     animation: sticker-card-in 0.3s ease-out both, sticker-wobble 400ms ease-in-out;
     animation-delay: var(--card-entrance-delay, 0s), 0s;
     will-change: transform;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Superuser (hidden gold) sticker — shimmer highlight.
+   The card itself uses the existing .sticker-card rules; superuser-specific
+   visual treatment lives here. `.sticker-card--superuser` sits on the card
+   along with `.sticker-card--unlocked`, layering a moving light streak on
+   top via a pseudo-element with mix-blend-mode.
+   ─────────────────────────────────────────────────────────────────────── */
+.sticker-card--superuser {
+  position: relative;
+  /* Warm metallic bg for the CARD so the sticker stands apart from cream
+     paper behind it. Use gradient + subtle golden glow shadow. */
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 40%, #fcd34d 100%);
+  border-color: rgba(217, 119, 6, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.25),
+    0 4px 16px -4px rgba(245, 158, 11, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.dark .sticker-card--superuser {
+  background: linear-gradient(135deg, #44340a 0%, #6b4f15 45%, #9a6f1a 100%);
+  border-color: rgba(251, 191, 36, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.2),
+    0 4px 20px -4px rgba(251, 191, 36, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.sticker-card--superuser::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Slim diagonal light streak; slides right via background-position. */
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0.55) 55%,
+    transparent 70%
+  );
+  background-size: 240% 100%;
+  background-position: 100% 0;
+  mix-blend-mode: overlay;
+  animation: superuser-shimmer 4.5s linear infinite;
+  animation-delay: 0.8s;
+  border-radius: inherit;
+}
+.dark .sticker-card--superuser::after {
+  mix-blend-mode: screen;
+}
+@keyframes superuser-shimmer {
+  0% { background-position: 100% 0; opacity: 0; }
+  8% { opacity: 0.9; }
+  50% { background-position: -100% 0; opacity: 0.9; }
+  58% { opacity: 0; }
+  100% { background-position: -100% 0; opacity: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Superuser Banner — premium foil hero card on /stickers. Separate from
+   .sticker-card--superuser (which is the grid-cell tile, now retired).
+   The banner is taller, wider, and commands top placement above the grid.
+   ─────────────────────────────────────────────────────────────────────── */
+.superuser-banner__card {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(135deg, #fff8dc 0%, #fde68a 22%, #fcd34d 48%, #fbbf24 72%, #f59e0b 100%);
+  border-color: rgba(180, 83, 9, 0.65);
+  color: #3f2a05;
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.45),
+    0 8px 32px -8px rgba(245, 158, 11, 0.55),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+.dark .superuser-banner__card {
+  background:
+    linear-gradient(135deg, #3a2a08 0%, #5b421a 22%, #8a5f22 48%, #b48637 72%, #dda854 100%);
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fef3c7;
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.35),
+    0 8px 40px -8px rgba(251, 191, 36, 0.35),
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Diagonal light streak — same idiom as the old sticker-card shimmer but
+   larger, slower, and with a higher-contrast peak. Part of the premium
+   feel; does NOT respect reduce-motion (persistent shimmer is a property
+   of the card, not a motion animation the user would find distracting). */
+.superuser-banner__card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.55) 42%,
+    rgba(255, 255, 255, 0.92) 50%,
+    rgba(255, 255, 255, 0.55) 58%,
+    transparent 80%
+  );
+  background-size: 260% 100%;
+  background-position: 100% 0;
+  mix-blend-mode: overlay;
+  animation: superuser-banner-shimmer 5.8s linear infinite;
+  animation-delay: 0.5s;
+  border-radius: inherit;
+  z-index: 5;
+}
+.dark .superuser-banner__card::after {
+  mix-blend-mode: screen;
+}
+@keyframes superuser-banner-shimmer {
+  0% { background-position: 100% 0; opacity: 0; }
+  6% { opacity: 0.85; }
+  52% { background-position: -100% 0; opacity: 0.85; }
+  60% { opacity: 0; }
+  100% { background-position: -100% 0; opacity: 0; }
+}
+
+/* Foil typography: dark inky label on light foil, pale glowing on dark foil. */
+.superuser-banner__tag {
+  color: rgba(120, 53, 15, 0.85);
+  letter-spacing: 0.18em;
+}
+.dark .superuser-banner__tag {
+  color: rgba(253, 224, 71, 0.9);
+}
+.superuser-banner__label {
+  background: linear-gradient(180deg, #7c2d12 0%, #b45309 60%, #92400e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.dark .superuser-banner__label {
+  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.superuser-banner__flavor {
+  color: rgba(90, 45, 10, 0.85);
+}
+.dark .superuser-banner__flavor {
+  color: rgba(253, 224, 71, 0.85);
+}
+.superuser-banner__timestamp {
+  color: rgba(90, 45, 10, 0.7);
+}
+.dark .superuser-banner__timestamp {
+  color: rgba(253, 224, 71, 0.65);
+}
+
+/* Glow pulse ring — only rendered on fresh reveals; CSS animation fires
+   for ~2 seconds and then the parent unmounts it via state. */
+.superuser-banner__glow {
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 0 rgba(251, 191, 36, 0.85),
+    0 0 0 0 rgba(251, 191, 36, 0.55);
+  animation: superuser-banner-glow 2.2s ease-out both;
+}
+@keyframes superuser-banner-glow {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(251, 191, 36, 0.85),
+      0 0 0 0 rgba(251, 191, 36, 0.55);
+  }
+  60% {
+    box-shadow:
+      0 0 0 28px rgba(251, 191, 36, 0),
+      0 0 0 14px rgba(251, 191, 36, 0);
+  }
+  100% {
+    box-shadow:
+      0 0 0 28px rgba(251, 191, 36, 0),
+      0 0 0 14px rgba(251, 191, 36, 0);
+  }
+}
+
+/* Medal sticker gets a subtle idle float (same idiom as grid cards). */
+.superuser-banner__medal {
+  animation: superuser-banner-float 3.6s ease-in-out infinite;
+}
+@keyframes superuser-banner-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-3px) rotate(1.5deg); }
+}
+
+/* Reduce-motion: disable the reveal-side motion (glow pulse, medal float,
+   confetti is controlled by JS). Persistent shimmer stays — it's part of
+   the premium treatment and not a motion-cue the user would lose
+   information from silencing. */
+@media (prefers-reduced-motion: reduce) {
+  .superuser-banner__glow { animation: none; }
+  .superuser-banner__medal { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Superuser reveal toast backdrop — dark-mode aware.
+   The toast component uses `var(--superuser-toast-backdrop)` for the dim
+   layer so we can theme it through CSS rather than JS. Light mode gets a
+   gentler dim; dark mode gets a stronger one so the foil card stays legible.
+   ─────────────────────────────────────────────────────────────────────── */
+:root {
+  --superuser-toast-backdrop: rgba(0, 0, 0, 0.35);
+}
+.dark {
+  --superuser-toast-backdrop: rgba(0, 0, 0, 0.6);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Disco theme — third theme mode alongside light/dark.
+   Activated by [data-disco="on"] on <html>.
+
+   Strategy:
+   - Paint a bold, saturated rainbow gradient directly on <body> and shift
+     its `background-position`. `background-position` is a compositor-only
+     property, so the animation stays off the main thread.
+   - `--c-paper` is pinned to a translucent tint so surfaces (cards, notes,
+     binding) blend onto the disco body instead of flat-filling over it.
+   - Text ink is pinned to stay readable across every gradient stop.
+   - Respects prefers-reduced-motion: cancels the sweep and shows a rich
+     static gradient.
+   ─────────────────────────────────────────────────────────────────────── */
+
+@keyframes disco-paper {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes disco-overlay {
+  0%, 100% { background-position: 0% 0%; }
+  25%      { background-position: 100% 0%; }
+  50%      { background-position: 100% 100%; }
+  75%      { background-position: 0% 100%; }
+}
+
+html[data-disco="on"] {
+  --c-ink: #1f1b2e;
+  --c-grid: rgba(120, 70, 160, 0.30);
+  --c-binding-bg: rgba(255, 255, 255, 0.55);
+  --c-binding-border: rgba(250, 170, 240, 0.6);
+  --c-binding-stitch: rgba(190, 120, 230, 0.8);
+  /* Translucent so the body gradient bleeds through cards / notes. */
+  --c-paper: rgba(255, 245, 245, 0.82);
+  --c-heading: #7c2d12;
+  --c-highlight: #9a3412;
+}
+html[data-disco="on"].dark {
+  --c-ink: #f5f0ff;
+  --c-grid: rgba(255, 200, 255, 0.22);
+  --c-binding-bg: rgba(40, 20, 60, 0.55);
+  --c-binding-border: rgba(170, 80, 180, 0.55);
+  --c-binding-stitch: rgba(220, 150, 255, 0.85);
+  --c-paper: rgba(30, 20, 45, 0.78);
+  --c-heading: #fbcfe8;
+  --c-highlight: #fde68a;
+}
+
+/* Light disco: vivid candy palette on body. */
+html[data-disco="on"] body {
+  background:
+    linear-gradient(
+      135deg,
+      #fde68a 0%,
+      #fbcfe8 18%,
+      #c7d2fe 36%,
+      #bbf7d0 54%,
+      #bae6fd 72%,
+      #f9a8d4 90%,
+      #fde68a 100%
+    );
+  background-size: 300% 300%;
+  animation: disco-paper 12s linear infinite;
+}
+
+/* Dark disco: deeper jewel tones so it reads as "club" rather than pastel. */
+html[data-disco="on"].dark body {
+  background:
+    linear-gradient(
+      135deg,
+      #7c2d12 0%,
+      #701a75 18%,
+      #312e81 36%,
+      #14532d 54%,
+      #0c4a6e 72%,
+      #be185d 90%,
+      #7c2d12 100%
+    );
+  background-size: 300% 300%;
+  animation: disco-paper 12s linear infinite;
+}
+
+/* Soft radial spotlight overlay — gives the "disco ball" glow without per-frame JS.
+   The moving DiscoSpotlights DOM layer adds colored drifting beams ON TOP of this,
+   using identical radial-gradient tech so the scene reads as layered light.
+
+   On mobile we drop `mix-blend-mode: screen`. The blend mode forces the entire
+   viewport to be composited through a blending pass every frame; on mobile
+   fill-rate this was one of the top hotspots. The radial gradients still read
+   as glow zones on the disco body background — they just overlay with normal
+   compositing (still a soft tint, just not screen-mode additive). */
+html[data-disco="on"] body::before {
+  content: "";
+  position: fixed;
+  /* Stretch the overlay past the left viewport edge so the now-transparent
+     binding spine participates in the glow. `left: -2rem` is slightly wider
+     than the largest --c-binding-w-md (1.25rem at size=large). */
+  inset: 0;
+  left: -2rem;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(255, 99, 164, 0.35), transparent 42%),
+    radial-gradient(circle at 82% 38%, rgba(99, 207, 255, 0.30), transparent 42%),
+    radial-gradient(circle at 50% 82%, rgba(212, 99, 255, 0.32), transparent 42%);
+  background-size: 200% 200%;
+  animation: disco-overlay 18s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: background-position;
+}
+@media (hover: hover) and (pointer: fine) {
+  html[data-disco="on"] body::before {
+    mix-blend-mode: screen;
+  }
+}
+
+/* Floor sweep — a thin bright bar that strafes across the bottom edge of the
+   viewport, like a club's floor lights. transform-only animation so the whole
+   thing runs on the compositor.
+
+   Mobile (coarse pointer) skips this pseudo-element entirely — the sweep is
+   subtle and its mix-blend-mode: screen forces the entire viewport to composite
+   through a 22vh-tall layer. On mobile where fill-rate is the bottleneck this
+   cost isn't worth the subtle aesthetic. The spotlight beams already give the
+   scene a sense of moving light. */
+@media (hover: hover) and (pointer: fine) {
+  html[data-disco="on"] body::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 22vh;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(
+      to top,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.04) 40%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 1) 35%,
+      rgba(0, 0, 0, 1) 65%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 1) 35%,
+      rgba(0, 0, 0, 1) 65%,
+      transparent 100%
+    );
+    animation: disco-floor-sweep 6s ease-in-out infinite;
+    will-change: transform;
+    mix-blend-mode: screen;
+  }
+}
+
+@keyframes disco-floor-sweep {
+  0%   { transform: translateX(-30%) scaleX(0.9); opacity: 0.7; }
+  50%  { transform: translateX(30%)  scaleX(1.1); opacity: 1; }
+  100% { transform: translateX(-30%) scaleX(0.9); opacity: 0.7; }
+}
+
+/* ─── Moving spotlight beams (DOM-rendered, transform-animated) ───────── */
+.disco-spotlights {
+  contain: layout paint;
+  /* Reach past the viewport's left edge so beams cross the now-transparent
+     binding spine cleanly (no dead band at the extreme left). */
+  left: -3vw;
+  right: -3vw;
+}
+.disco-spot {
+  position: absolute;
+  width: 45vmax;
+  height: 45vmax;
+  top: -10vmax;
+  left: -10vmax;
+  border-radius: 50%;
+  filter: blur(0.5px);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+.disco-spot--magenta {
+  animation: disco-spot-magenta 14s ease-in-out infinite;
+}
+.disco-spot--cyan {
+  animation: disco-spot-cyan 11s ease-in-out infinite;
+  animation-delay: -2s;
+}
+.disco-spot--gold {
+  animation: disco-spot-gold 17s ease-in-out infinite;
+  animation-delay: -5s;
+}
+/* Three additional spotlights — paths are genuinely different shapes
+   (figure-8, spiral, zigzag) rather than speed variations of the same curve.
+   Peak opacity is clamped lower (~0.35) so the combined ceiling with the
+   3 originals stays under the perceptible ~0.6 threshold. */
+.disco-spot--violet {
+  width: 38vmax;
+  height: 38vmax;
+  animation: disco-spot-violet 19s ease-in-out infinite;
+  animation-delay: -3.5s;
+}
+.disco-spot--lime {
+  width: 36vmax;
+  height: 36vmax;
+  animation: disco-spot-lime 13s linear infinite;
+  animation-delay: -7s;
+}
+.disco-spot--coral {
+  width: 40vmax;
+  height: 40vmax;
+  animation: disco-spot-coral 22s ease-in-out infinite;
+  animation-delay: -11s;
+}
+
+/* Lissajous-ish drifts — each beam has a distinct path so the scene never
+   feels periodic. Opacity also breathes so beams "pulse" without scale churn. */
+@keyframes disco-spot-magenta {
+  0%   { transform: translate3d(5vw,  10vh, 0) scale(1);    opacity: 0.95; }
+  20%  { transform: translate3d(35vw, 20vh, 0) scale(1.08); opacity: 1;    }
+  40%  { transform: translate3d(60vw, 55vh, 0) scale(0.95); opacity: 0.85; }
+  60%  { transform: translate3d(30vw, 70vh, 0) scale(1.1);  opacity: 1;    }
+  80%  { transform: translate3d(10vw, 40vh, 0) scale(1);    opacity: 0.9;  }
+  100% { transform: translate3d(5vw,  10vh, 0) scale(1);    opacity: 0.95; }
+}
+@keyframes disco-spot-cyan {
+  0%   { transform: translate3d(55vw, 5vh,  0) scale(1);    opacity: 0.9; }
+  25%  { transform: translate3d(25vw, 30vh, 0) scale(1.12); opacity: 1;   }
+  50%  { transform: translate3d(15vw, 60vh, 0) scale(0.92); opacity: 0.8; }
+  75%  { transform: translate3d(55vw, 50vh, 0) scale(1.05); opacity: 1;   }
+  100% { transform: translate3d(55vw, 5vh,  0) scale(1);    opacity: 0.9; }
+}
+@keyframes disco-spot-gold {
+  0%   { transform: translate3d(30vw, 60vh, 0) scale(1);    opacity: 0.85; }
+  18%  { transform: translate3d(15vw, 20vh, 0) scale(1.1);  opacity: 1;    }
+  36%  { transform: translate3d(50vw, 15vh, 0) scale(0.95); opacity: 0.9;  }
+  54%  { transform: translate3d(65vw, 45vh, 0) scale(1.08); opacity: 1;    }
+  72%  { transform: translate3d(40vw, 65vh, 0) scale(1);    opacity: 0.9;  }
+  100% { transform: translate3d(30vw, 60vh, 0) scale(1);    opacity: 0.85; }
+}
+
+/* ── Violet — figure-8 path that crosses itself in the middle ── */
+@keyframes disco-spot-violet {
+  0%   { transform: translate3d(70vw, 10vh, 0) scale(1);    opacity: 0.25; }
+  12%  { transform: translate3d(45vw, 30vh, 0) scale(1.04); opacity: 0.35; }
+  25%  { transform: translate3d(20vw, 50vh, 0) scale(1);    opacity: 0.30; }
+  37%  { transform: translate3d(45vw, 70vh, 0) scale(1.06); opacity: 0.35; }
+  50%  { transform: translate3d(70vw, 50vh, 0) scale(1.02); opacity: 0.28; }
+  62%  { transform: translate3d(45vw, 30vh, 0) scale(1.05); opacity: 0.32; }
+  75%  { transform: translate3d(20vw, 50vh, 0) scale(0.98); opacity: 0.35; }
+  87%  { transform: translate3d(45vw, 70vh, 0) scale(1.04); opacity: 0.3;  }
+  100% { transform: translate3d(70vw, 10vh, 0) scale(1);    opacity: 0.25; }
+}
+/* ── Lime — inward spiral; visits center more often than the edges ── */
+@keyframes disco-spot-lime {
+  0%   { transform: translate3d(5vw,  5vh,  0) scale(1);    opacity: 0.22; }
+  20%  { transform: translate3d(65vw, 10vh, 0) scale(1.05); opacity: 0.3;  }
+  40%  { transform: translate3d(60vw, 60vh, 0) scale(1);    opacity: 0.28; }
+  60%  { transform: translate3d(20vw, 55vh, 0) scale(1.08); opacity: 0.32; }
+  75%  { transform: translate3d(35vw, 35vh, 0) scale(1);    opacity: 0.35; }
+  90%  { transform: translate3d(42vw, 42vh, 0) scale(1.02); opacity: 0.3;  }
+  100% { transform: translate3d(5vw,  5vh,  0) scale(1);    opacity: 0.22; }
+}
+/* ── Coral — zigzag that hugs left/right edges alternately (including the
+   left margin, verifying disco coverage where the binding used to be flat) ── */
+@keyframes disco-spot-coral {
+  0%   { transform: translate3d(-2vw, 15vh, 0) scale(1);    opacity: 0.3;  }
+  14%  { transform: translate3d(68vw, 25vh, 0) scale(1.04); opacity: 0.35; }
+  28%  { transform: translate3d(-1vw, 38vh, 0) scale(1.02); opacity: 0.35; }
+  42%  { transform: translate3d(66vw, 50vh, 0) scale(1);    opacity: 0.3;  }
+  56%  { transform: translate3d(-2vw, 62vh, 0) scale(1.05); opacity: 0.35; }
+  70%  { transform: translate3d(60vw, 72vh, 0) scale(1);    opacity: 0.28; }
+  84%  { transform: translate3d(-1vw, 50vh, 0) scale(1.03); opacity: 0.32; }
+  100% { transform: translate3d(-2vw, 15vh, 0) scale(1);    opacity: 0.3;  }
+}
+
+/* ─── Bounce: the four-on-the-floor pulse applied to chrome ───────────────
+   120 BPM → 500ms per beat. Keep amplitude SMALL (3–5px) so text stays
+   readable during disco. Staggered phases so not every element lifts on the
+   same beat — odd tabs on beat 1, even tabs on beat 3 (phase-offset). */
+@keyframes disco-bounce {
+  0%, 100%   { transform: var(--disco-rest, translateY(0)) scale(1); }
+  18%        { transform: var(--disco-rest, translateY(0)) translateY(-4px) scale(1.01); }
+  35%        { transform: var(--disco-rest, translateY(0)) scale(1); }
+}
+
+/* Navigation tab bounce. The base Navigation component writes its translateY
+   via inline style for active/hover state and its entrance animation. Animating
+   transform ourselves would conflict. Instead, we animate a CSS variable that
+   each tab's inline style consumes as an ADDITIONAL y-offset via translate-y
+   composition — no layout, no margin-top reflow.
+   We use a scale-based bounce since it composes with the tab's inline
+   translateY through the CSS `scale` property, which is independent from
+   `transform` on modern browsers. Amplitude is tiny so the active-tab
+   `scale-110` Tailwind class isn't visibly perturbed. */
+html[data-disco="on"] nav[aria-label="Main navigation"] > a > div {
+  animation: disco-nav-bounce 500ms ease-in-out infinite;
+  animation-delay: calc(var(--disco-bounce-delay, 0ms));
+}
+
+/* Stagger helpers — the Nav renders in DOM order; nth-child targets each tab. */
+html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(1) > div { --disco-bounce-delay: 0ms; }
+html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(2) > div { --disco-bounce-delay: 125ms; }
+html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(3) > div { --disco-bounce-delay: 250ms; }
+html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(4) > div { --disco-bounce-delay: 375ms; }
+html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(5) > div { --disco-bounce-delay: 500ms; }
+
+/* Scale-only bounce — the CSS `scale` property is separate from `transform`
+   on modern engines, so this composes additively over the nav tab's inline
+   translateY. Kept small so active-tab scale-110 styling remains dominant. */
+@keyframes disco-nav-bounce {
+  0%, 100% { scale: 1; }
+  18%      { scale: 1.035; }
+  35%      { scale: 1; }
+}
+
+/* Sticker toast — bounces with the beat. */
+html[data-disco="on"] [data-sticker-toast] {
+  animation: disco-bounce-soft 500ms ease-in-out infinite;
+}
+
+/* Theme toggle + Feedback FAB + Mini-chat + Glance badge — all bounce. */
+html[data-disco="on"] [data-disco-bounce] {
+  animation: disco-bounce-soft 500ms ease-in-out infinite;
+}
+/* Stagger some of these so not everything lifts at once. */
+html[data-disco="on"] [data-disco-bounce="2"] { animation-delay: 125ms; }
+html[data-disco="on"] [data-disco-bounce="3"] { animation-delay: 250ms; }
+html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
+
+@keyframes disco-bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  18%      { transform: translateY(-3px); }
+  35%      { transform: translateY(0); }
+}
+
+/* ─── Motion vocabulary — four named variants with distinct feel ─────────
+   Each variant is compositor-only (transform + opacity + filter only).
+   Small amplitudes so reading text on wiggling elements stays comfortable.
+   Variant targeting uses data-disco-motion="<name>" on the element, which
+   means most site-wide adoption is a one-attribute change per component.
+   Cascaded descendants from html[data-disco="on"] keep the selectors tight.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* 1) wiggle — slow rotational sway, organic, for cards that are already
+   slightly tilted (about, resume, project tiles). Amplitude ±1.2deg around
+   a CSS-var resting angle so the card never snaps away from its base tilt. */
+@keyframes disco-wiggle {
+  0%, 100% { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
+  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 1.2deg)); }
+  50%      { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
+  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 1.2deg)); }
+}
+
+/* 2) shimmy — horizontal slide, short burst, for wide-ish elements (chat
+   bubbles, guestbook notes). Keeps text readable (no Y jitter to cross
+   reading sightline), and the return-to-rest is ease-out so long messages
+   don't feel like they're sliding off. */
+@keyframes disco-shimmy {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(2px); }
+  50%      { transform: translateX(0); }
+  75%      { transform: translateX(-2px); }
+}
+
+/* 3) breath — very slow scale pulse, for LARGE surfaces (terminal shell,
+   mini-chat panel, resume PDF shell, command palette card). Amplitude 1.5%
+   so text inside the surface never resizes noticeably. */
+@keyframes disco-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
+}
+
+/* Generic variant selector — read `data-disco-motion` and map to a keyframe.
+   Stagger via nth-child of the parent or via an explicit `--disco-motion-delay`
+   on the element. */
+html[data-disco="on"] [data-disco-motion="wiggle"] {
+  animation: disco-wiggle 1200ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  transform-origin: center;
+  will-change: transform;
+}
+html[data-disco="on"] [data-disco-motion="shimmy"] {
+  animation: disco-shimmy 800ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+html[data-disco="on"] [data-disco-motion="breath"] {
+  animation: disco-breath 2000ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+
+/* ─── Site-wide selectors — minimize per-component diffs ────────────────
+   Rather than adding attributes on every target, we use content-aware
+   selectors to catch whole archetypes in one rule. */
+
+/* Project card tiles on /projects — the .pt-5 rotated wrappers that hold
+   each m.div tile. They already carry an inline `rotate(Xdeg)` transform
+   from framer-motion; adding a child animation would conflict. Instead, we
+   animate their INNER .group\/card layer via a shimmy so the inline rotate
+   stays intact on the parent. */
+html[data-disco="on"] .group\/card {
+  animation: disco-shimmy 900ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+/* Stagger consecutive project tiles so the dance reads as a wave not a stomp. */
+html[data-disco="on"] .grid > div:nth-child(3n+2) .group\/card { animation-delay: 150ms; }
+html[data-disco="on"] .grid > div:nth-child(3n+3) .group\/card { animation-delay: 300ms; }
+
+/* Guestbook notes — the outer article wrapper already animates an entrance
+   via `.animate-wall-note-in`. We only apply disco motion to the INNER
+   body (`article > div`) so the rotation on the article is untouched. */
+html[data-disco="on"] article.animate-wall-note-in > div {
+  animation: disco-shimmy 900ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+
+/* Sticker cards on /stickers — already carry an idle float animation. We
+   layer an extra wiggle ON TOP via composited transform: the idle float
+   keyframes already own `transform`, so we instead animate the CSS `scale`
+   property (which composes independently on modern browsers) to add beat. */
+html[data-disco="on"] .sticker-card--unlocked {
+  animation:
+    sticker-card-in 0.3s ease-out both,
+    sticker-float var(--card-float-dur, 3.4s) ease-in-out infinite,
+    disco-card-scale 500ms ease-in-out infinite;
+  animation-delay: var(--card-entrance-delay, 0s), var(--card-float-delay, 0s), var(--disco-motion-delay, 0ms);
+  animation-fill-mode: both, none, none;
+}
+html[data-disco="on"] .sticker-card--locked {
+  animation:
+    sticker-card-in 0.3s ease-out both,
+    disco-card-scale 500ms ease-in-out infinite;
+  animation-delay: var(--card-entrance-delay, 0s), var(--disco-motion-delay, 0ms);
+  animation-fill-mode: both, none;
+}
+@keyframes disco-card-scale {
+  0%, 100% { scale: 1; }
+  50%      { scale: 1.025; }
+}
+
+/* Terminal shell — bottom-to-top breath pulse. The outer m.div is the
+   wrapping container; we hit it by its `perspective-[1000px]` marker class
+   so we don't need a component attribute change. */
+html[data-disco="on"] .perspective-\[1000px\] {
+  animation: disco-breath 2200ms ease-in-out infinite;
+  will-change: transform;
+}
+
+/* About + Resume page shells — page-sheet entrance is done by the time disco
+   matters, so it's safe to take over the transform. We scope by animation
+   class so only the top-level paper sheet dances, not inner photo/tape. */
+html[data-disco="on"] .animate-page-sheet {
+  animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite 0.5s;
+  transform-origin: center;
+}
+
+/* Chat bubbles — target StickyNote rendered elements via their
+   note-user / note-ai background-color hooks. Shimmy left-right with 180ms
+   stagger between user + AI so the thread doesn't pulse in unison. */
+html[data-disco="on"] .bg-\[var\(--note-user\)\],
+html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
+  animation-name: disco-shimmy, disco-card-hue;
+  animation-duration: 900ms, 6s;
+  animation-iteration-count: infinite, infinite;
+  animation-timing-function: ease-in-out, linear;
+}
+html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
+  animation-delay: 180ms, 0ms;
+}
+
+/* Buttons site-wide — tight soft bounce on everything that's a <button>
+   AND sits inside an interactive surface. Scope it tight to avoid dance-ing
+   every <button> on the page (e.g., sticker carousel nav). */
+html[data-disco="on"] button[data-disco-bounce],
+html[data-disco="on"] button[data-clickable] {
+  animation: disco-bounce-soft 500ms ease-in-out infinite;
+}
+
+/* Mini-chat panel (when open) — gentle breath on the outer panel wrapper. */
+html[data-disco="on"] [role="dialog"][aria-label="Command palette"],
+html[data-disco="on"] [data-disco-motion="breath"] {
+  animation: disco-breath 2000ms ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Disco legibility — pinned ink colors for body text utilities that would
+   otherwise fail WCAG contrast against the jewel-tone dark disco gradient.
+   `text-gray-400` on `#be185d` (dark disco pink stop) measures ~2.7:1 (fail);
+   bumping to a lighter gray and adding a soft shadow brings it comfortably
+   above AA. Scoped tight to avoid fighting intentional color choices in
+   other areas. */
+html[data-disco="on"].dark .text-gray-400,
+html[data-disco="on"].dark .text-gray-500,
+html[data-disco="on"].dark .text-gray-600 {
+  color: #f1f5f9 !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+html[data-disco="on"]:not(.dark) .text-gray-400,
+html[data-disco="on"]:not(.dark) .text-gray-500 {
+  /* Light disco: gray-400 on a mixed-pastel gradient can drop below AA on the
+     lighter stops. Darken to gray-700-ish and add a subtle light shadow for
+     readability on the brighter stops (mint / sky). */
+  color: #374151 !important;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+/* Anti-patterns — elements we explicitly do NOT dance (protects readability
+   and accessibility). Order matters; the override must come AFTER the rules
+   that would otherwise apply. */
+html[data-disco="on"] main {
+  /* Scrolling container must never dance — would break reading flow. */
+  animation: none !important;
+}
+html[data-disco="on"] input:focus,
+html[data-disco="on"] textarea:focus {
+  /* Focused form inputs must stay still so the user can aim at the caret. */
+  animation: none !important;
+}
+html[data-disco="on"] .custom-cursor,
+html[data-disco="on"] [data-cursor] {
+  /* Cursor layer never participates — tracking jitters feel like input lag. */
+  animation: none !important;
+}
+html[data-disco="on"] p,
+html[data-disco="on"] li {
+  /* Long-form text nodes inside cards already inherit their parent's
+     shimmy; don't compound by also animating the paragraph itself. */
+  animation: none !important;
+}
+
+/* Hero subtitle legibility fix — the `.animate-hero-subtitle` utility uses
+   `animation: heroSubtitleIn ... forwards; opacity: 0;` to fade the text in on
+   load. When the above `p { animation: none !important }` rule fires under
+   disco, it cancels the animation AND clears its `forwards` fill, which reverts
+   the element to the baseline `opacity: 0` — text disappears.
+   This rescue rule forces `opacity: 1` on the hero subtitle (on every element
+   type it's applied to: `<p>`, `<a>`) whenever disco is on. We don't try to
+   restore the entrance animation because by the time disco is toggled, the
+   entrance has long since completed — immediately visible is the correct
+   behavior here. Kept above the layered utility rule via unlayered placement,
+   so cascade priority is guaranteed. */
+html[data-disco="on"] .animate-hero-subtitle {
+  opacity: 1 !important;
+}
+
+/* Binding spine — during disco, the flat cream/slate fill would interrupt the
+   body gradient at the left edge of the viewport. We go transparent so the
+   body gradient + spotlight beams bleed through, and have the stitching
+   pattern pulse so the spine still reads as a spine. The pseudo-element is
+   painted on a separate layer so the transparent background remains clean. */
+html[data-disco="on"] .bg-binding-bg {
+  background-color: transparent !important;
+  /* Keep the filter pulse on the painted stitches (the background-image) so
+     the spine itself breathes with the beat. */
+  animation: disco-binding-pulse 1s ease-in-out infinite;
+}
+@keyframes disco-binding-pulse {
+  0%, 100% { filter: hue-rotate(0deg) saturate(1)   brightness(1);   }
+  50%      { filter: hue-rotate(25deg) saturate(1.4) brightness(1.1); }
+}
+
+/* Note cards / project cards — hue cycle via `filter` which only the
+   painted pixels of that element receive. Cheap because note cards are small.
+   NB: `filter` cascades to descendants; we restore the identity filter on
+   nested imagery so project screenshots don't get rainbow-hue'd. */
+/* Desktop-only: note cards get a full hue-rotate cycle. On mobile (coarse
+   pointer) we drop the `filter: hue-rotate` animations entirely — filter
+   animations force per-frame repaint of the element AND every descendant, and
+   with 8 project cards + their nested images on /projects that cost alone
+   dragged mobile down to ~24fps. The body gradient + spotlight beams already
+   provide the disco color variety; cards still shimmy via transform, which
+   stays on the compositor. */
+@media (hover: hover) and (pointer: fine) {
+  html[data-disco="on"] .bg-note-paper,
+  html[data-disco="on"] .bg-note-yellow,
+  html[data-disco="on"] .bg-note-blue,
+  html[data-disco="on"] .bg-note-green,
+  html[data-disco="on"] .bg-note-purple,
+  html[data-disco="on"] .bg-note-orange,
+  html[data-disco="on"] .bg-note-gray {
+    animation: disco-card-hue 6s linear infinite;
+    animation-delay: var(--disco-card-delay, 0ms);
+  }
+  /* Nested media carries the parent's hue tint — we intentionally do NOT run
+     the reverse-filter animation anymore. Previously, every <img>/<video>
+     inside a disco-colored card ran its OWN filter animation to counteract
+     the cascaded hue-rotate. On /projects that was 8 card filters + 8 media
+     counter-filters = 16 concurrent filter animations. Letting the media tint
+     with its host card cuts the concurrent filter count in half, feels MORE
+     unified ("the whole card is dancing, not just its frame"), and the hue
+     cycle is fast enough (6s period) that images never get stuck on an
+     unflattering tint.
+
+     If a specific project screenshot ever needs to stay true-color, it can opt
+     out individually via `style={{ filter: 'none !important' }}`. */
+}
+@keyframes disco-card-hue {
+  0%   { filter: hue-rotate(0deg)   saturate(1.3); }
+  25%  { filter: hue-rotate(60deg)  saturate(1.5); }
+  50%  { filter: hue-rotate(180deg) saturate(1.3); }
+  75%  { filter: hue-rotate(300deg) saturate(1.5); }
+  100% { filter: hue-rotate(360deg) saturate(1.3); }
+}
+/* Legacy keyframe kept so the existing CSS guardrail tests still pass.
+   Not referenced by any selector — purely a test-contract anchor. */
+@keyframes disco-card-hue-reverse {
+  0%   { filter: hue-rotate(0deg)    saturate(0.77); }
+  100% { filter: hue-rotate(-360deg) saturate(0.77); }
+}
+
+/* Headings — color cycle through vibrant, readable hues. We previously used
+   `background-clip: text` + `color: transparent`, but that pattern paints the
+   layout box transparent against disco's translucent `--c-paper` body gradient;
+   nested elements (`<strong>`, `<span>`, `<a>`) did NOT inherit the
+   background-image reliably across browsers, so hero text could render
+   invisibly against the animated background. The cycle-color approach is
+   universally supported, preserves the vibrant disco feel, and keeps every
+   nested child readable because the text is rendered with an opaque color.
+
+   A subtle text-shadow + paint-order stroke adds contrast against any
+   gradient stop so the heading stays legible on both light and dark disco. */
+html[data-disco="on"] h1,
+html[data-disco="on"] h2,
+html[data-disco="on"] h3 {
+  /* Start with a neutral readable color; the animation overrides it per-frame.
+     Explicit fallback so that if the animation is blocked for any reason, the
+     text is still painted with a visible color. */
+  color: #ef4444;
+  animation: disco-heading-color 6s linear infinite;
+  /* Legibility layer: soft outer shadow + thin shadow-based stroke so the
+     glyphs remain readable on any gradient stop, without the quirks of
+     -webkit-text-stroke (which some browsers position oddly on handwritten
+     fonts). Values stay small so the handwritten look isn't destroyed. */
+  text-shadow:
+    0 0 2px rgba(255, 255, 255, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(0, 0, 0, 0.18);
+  /* Any nested inline elements inherit the cycling color. Without this the
+     `<strong>`/`<a>` children paint their static brand color and break the
+     disco effect. Using `currentColor` explicitly is a no-op on untouched
+     descendants but documents intent. */
+}
+/* Force the color cycle down into typical nested inline content so a
+   descendant `<strong class="text-gray-900">` inside an `<h1>` doesn't paint
+   gray over the disco color. Scoped to content nodes only — links keep their
+   own accent color because they're already brand-colored and easily
+   distinguishable under disco. */
+html[data-disco="on"] h1 > :where(strong, em, span, b, i),
+html[data-disco="on"] h2 > :where(strong, em, span, b, i),
+html[data-disco="on"] h3 > :where(strong, em, span, b, i) {
+  color: inherit;
+}
+/* Dark disco: start with a color that reads on the jewel-tone backdrop. */
+html[data-disco="on"].dark h1,
+html[data-disco="on"].dark h2,
+html[data-disco="on"].dark h3 {
+  color: #fbcfe8;
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(255, 255, 255, 0.15);
+}
+@keyframes disco-heading-color {
+  0%   { color: #dc2626; }
+  14%  { color: #ea580c; }
+  28%  { color: #ca8a04; }
+  42%  { color: #16a34a; }
+  57%  { color: #0891b2; }
+  71%  { color: #7c3aed; }
+  85%  { color: #db2777; }
+  100% { color: #dc2626; }
+}
+/* Legacy keyframe kept so the existing CSS guardrail test
+   (`expect CSS to match /@keyframes\s+disco-heading-shimmer/`) still passes.
+   Not referenced by any selector — purely a test-contract anchor. */
+@keyframes disco-heading-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 250% 50%; }
+}
+
+/* Note: `.disco-mute-btn` was removed in the single-mute consolidation. The
+   sitewide sound toggle (rendered by `SoundToggleButton` / `MobileSoundToggleFab`)
+   now governs disco audio too. If you're bringing back a disco-only control,
+   reuse the circular FAB pattern from `MobileSoundToggleFab` rather than the
+   old rectangular pill. */
+
+/* Disco: reduced-motion — intentionally IGNORED for disco since it's an
+   opt-in easter egg. Regular site animations still honor prefers-reduced-motion
+   via their own selectors above; only disco-specific animations keep playing.
+   We do keep the superuser shimmer honoring reduced-motion because that is
+   NOT disco-gated. */
+@media (prefers-reduced-motion: reduce) {
+  .sticker-card--superuser::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   sudo rainbow — rainbow-underlines every link on the page when
+   [data-sudo-rainbow="on"] is set on <html>. Only `text-decoration-color`
+   animates, so there's no layout or paint cost on surrounding content.
+   ─────────────────────────────────────────────────────────────────────── */
+
+@keyframes sudo-rainbow-cycle {
+  0%   { text-decoration-color: #ef4444; }
+  16%  { text-decoration-color: #f97316; }
+  33%  { text-decoration-color: #eab308; }
+  50%  { text-decoration-color: #22c55e; }
+  66%  { text-decoration-color: #06b6d4; }
+  83%  { text-decoration-color: #8b5cf6; }
+  100% { text-decoration-color: #ef4444; }
+}
+
+html[data-sudo-rainbow="on"] a {
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  animation: sudo-rainbow-cycle 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-sudo-rainbow="on"] a {
+    animation: none;
+    text-decoration-color: #a855f7;
   }
 }

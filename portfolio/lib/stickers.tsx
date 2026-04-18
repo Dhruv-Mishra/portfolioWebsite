@@ -1,34 +1,41 @@
 /**
- * Sticker system — the 12 achievement stickers, their metadata, and SVG renderer.
+ * Sticker system — the achievement stickers, their metadata, and SVG renderer.
  *
  * Usage:
  *   import { STICKER_ROSTER, StickerSvg, type StickerId } from '@/lib/stickers';
  *   stickerBus.emit('first-word'); // unlock a sticker
  *   <StickerSvg id="first-word" size={60} />
  *
- * Scope notes:
- *   - 3 stickers ship with fully-illustrated SVGs (`first-word`, `theme-flipper`,
- *     `page-turner`). The remaining 9 render a family-colored placeholder —
- *     rounded rectangle with the sticker's first initial. Art can be filled in
- *     later by editing the switch in <StickerSvg>.
+ * Roster:
+ *   21 regular stickers cover every major feature / surface on the site so the
+ *   collection acts as a feature-discovery trail. The hidden `superuser` sticker
+ *   is not exposed on the album until it is earned — awarded automatically the
+ *   moment the user owns every regular sticker.
  */
 import { memo } from 'react';
 import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/designTokens';
 
 // ─── Roster ─────────────────────────────────────────────────────────────
 export const STICKER_ROSTER = [
-  { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: 'the terminal is lonely — give it any command.',  family: 'sunshine' },
-  { id: 'help-wanted',      label: 'Help Wanted',           description: 'You asked for help — points for humility.',   hint: 'stuck? the terminal has a command for that.',    family: 'sunshine' },
-  { id: 'stand-up-comic',   label: 'Stand-Up',              description: 'Pulled a joke from the wire.',                hint: 'ask the terminal to tell you a joke.',           family: 'rose' },
-  { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'toggle the theme — look for a sun or moon.',     family: 'lavender' },
-  { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'send some real feedback — the floating icon.',   family: 'mint' },
-  { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'visit every page on the site — all of them.',    family: 'denim' },
-  { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',          family: 'mint' },
-  { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'sit with the resume page for a minute.',         family: 'denim' },
-  { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',    family: 'mint' },
-  { id: 'konami',           label: 'The Code',              description: '↑ ↑ ↓ ↓ ← → ← → B A',                         hint: 'an old-school arcade sequence...',               family: 'lavender' },
-  { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'show up after the clock strikes midnight.',      family: 'lavender' },
-  { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.', family: 'mint' },
+  { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: 'the terminal is lonely — give it any command.',   family: 'sunshine' },
+  { id: 'help-wanted',      label: 'Help Wanted',           description: 'You asked for help — points for humility.',   hint: 'stuck? the terminal has a command for that.',     family: 'sunshine' },
+  { id: 'stand-up-comic',   label: 'Stand-Up',              description: 'Pulled a joke from the wire.',                hint: 'ask the terminal to tell you a joke.',            family: 'rose' },
+  { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'toggle the theme — look for a sun or moon.',      family: 'lavender' },
+  { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'send some real feedback — the floating icon.',    family: 'mint' },
+  { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'visit every page on the site — all of them.',     family: 'denim' },
+  { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',           family: 'mint' },
+  { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'sit with the resume page for a minute.',          family: 'denim' },
+  { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',     family: 'mint' },
+  { id: 'konami',           label: 'The Code',              description: '↑ ↑ ↓ ↓ ← → ← → B A',                         hint: 'an old-school arcade sequence...',                family: 'lavender' },
+  { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'show up after the clock strikes midnight.',       family: 'lavender' },
+  { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.',  family: 'mint' },
+  { id: 'project-explorer', label: 'Case Files',            description: 'Opened every project note.',                  hint: 'every project has more to say — tap them all.',   family: 'coral' },
+  { id: 'cheat-codes',      label: 'Cheat Codes',           description: 'Peeked at the sticker cheatsheet.',           hint: 'the terminal has a privileged cheatsheet ~',      family: 'sunshine' },
+  { id: 'drawer-dweller',   label: 'Drawer Dweller',        description: 'Wandered into the sticker drawer.',           hint: 'there is a whole room for these stickers ~',      family: 'rose' },
+  { id: 'chat-conductor',   label: 'Chat Conductor',        description: 'Let chat-me steer the ship.',                 hint: 'ask the chat to actually *do* something.',        family: 'mint' },
+  { id: 'terminal-addict',  label: 'Terminal Addict',       description: 'Ran five different terminal commands.',       hint: 'five different commands in one visit ~',          family: 'sunshine' },
+  { id: 'repo-hunter',      label: 'Repo Hunter',           description: 'Followed a project back to its source.',      hint: 'source code lives a click away from each card.',  family: 'denim' },
+  { id: 'social-butterfly', label: 'Social Butterfly',      description: 'Tapped one of the social links.',             hint: 'the links along the edge go somewhere ~',         family: 'rose' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -37,22 +44,67 @@ export const STICKER_ROSTER = [
   family: StickerFamily;
 }>;
 
-export type StickerId = typeof STICKER_ROSTER[number]['id'];
-export type StickerEntry = typeof STICKER_ROSTER[number];
+/**
+ * Hidden "Superuser" sticker — not part of STICKER_ROSTER so the album doesn't
+ * reveal it. Earned automatically once every sticker in STICKER_ROSTER is
+ * unlocked. Once earned, a matching tile is appended to the album grid and
+ * `sudo` commands become available in the terminal.
+ */
+export const SUPERUSER_STICKER = {
+  id: 'superuser',
+  label: 'Superuser',
+  description: 'Earned root. Every sticker collected.',
+  hint: '???',
+  family: 'sunshine',
+} as const satisfies {
+  id: 'superuser';
+  label: string;
+  description: string;
+  hint: string;
+  family: StickerFamily;
+};
 
-const STICKER_LOOKUP: Record<StickerId, StickerEntry> = STICKER_ROSTER.reduce(
-  (acc, sticker) => {
-    acc[sticker.id] = sticker;
-    return acc;
-  },
-  {} as Record<StickerId, StickerEntry>,
-);
+export type SuperuserId = typeof SUPERUSER_STICKER.id;
+export type RegularStickerId = typeof STICKER_ROSTER[number]['id'];
+export type StickerId = RegularStickerId | SuperuserId;
+export type StickerEntry = typeof STICKER_ROSTER[number] | typeof SUPERUSER_STICKER;
+
+const STICKER_LOOKUP: Record<StickerId, StickerEntry> = {
+  ...STICKER_ROSTER.reduce(
+    (acc, sticker) => {
+      acc[sticker.id] = sticker;
+      return acc;
+    },
+    {} as Record<RegularStickerId, typeof STICKER_ROSTER[number]>,
+  ),
+  [SUPERUSER_STICKER.id]: SUPERUSER_STICKER,
+};
 
 export function getSticker(id: StickerId): StickerEntry {
   return STICKER_LOOKUP[id];
 }
 
+/** Count visible to the album — hidden superuser excluded. */
 export const STICKER_TOTAL = STICKER_ROSTER.length;
+
+/** Set of every regular (non-superuser) sticker id, used by predicates. */
+export const REGULAR_STICKER_IDS: ReadonlySet<RegularStickerId> = new Set(
+  STICKER_ROSTER.map((s) => s.id),
+);
+
+/**
+ * Predicate — returns true when the given unlocked list covers every regular
+ * sticker. Used by the store to detect the moment the superuser sticker should
+ * be auto-awarded.
+ */
+export function hasEarnedAllRegularStickers(unlocked: readonly StickerId[]): boolean {
+  if (unlocked.length < STICKER_ROSTER.length) return false;
+  const seen = new Set<string>();
+  for (const id of unlocked) {
+    if (REGULAR_STICKER_IDS.has(id as RegularStickerId)) seen.add(id);
+  }
+  return seen.size >= STICKER_ROSTER.length;
+}
 
 // ─── Deterministic hashing helpers (for stable per-sticker rotation / stagger) ───
 export function hashStickerId(id: string): number {
@@ -359,6 +411,235 @@ const SignedGuestbookSvg = memo(function SignedGuestbookSvg({ size }: Illustrate
 });
 
 /**
+ * Project Explorer — a stack of overlapping manila case files with a paperclip,
+ * on coral. Represents opening every project note.
+ */
+const ProjectExplorerSvg = memo(function ProjectExplorerSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.coral;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Back folder */}
+      <rect x="12" y="22" width="32" height="22" rx="1.5" fill="#fbbf24" stroke={family.ink} strokeWidth="1.6" strokeLinejoin="round" transform="rotate(-4 28 33)" />
+      {/* Middle folder */}
+      <rect x="14" y="20" width="32" height="22" rx="1.5" fill="#fde68a" stroke={family.ink} strokeWidth="1.6" strokeLinejoin="round" transform="rotate(2 30 31)" />
+      {/* Front folder with tab */}
+      <path d="M18 18 L30 18 L33 21 L46 21 L46 42 L18 42 Z" fill="#fef3c7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* File label strip */}
+      <rect x="22" y="26" width="18" height="3.2" fill={family.ink} opacity="0.25" />
+      <line x1="22" y1="32" x2="40" y2="32" stroke={family.ink} strokeWidth="0.9" opacity="0.35" />
+      <line x1="22" y1="35" x2="36" y2="35" stroke={family.ink} strokeWidth="0.9" opacity="0.35" />
+      {/* Paperclip */}
+      <path d="M38 14 Q42 14 42 18 L42 28 Q42 32 38 32 Q34 32 34 28 L34 20" fill="none" stroke={family.ink} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+});
+
+/**
+ * Cheat Codes — an arcade-style "IDKFA" cheat scrap of paper with underline,
+ * on sunshine. Represents accessing the privileged cheatsheet.
+ */
+const CheatCodesSvg = memo(function CheatCodesSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.sunshine;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Paper scrap with slight skew */}
+      <g transform="rotate(-3 30 30)">
+        <rect x="12" y="18" width="36" height="24" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+        {/* Torn-edge zigzag top */}
+        <path d="M12 18 L16 16 L20 18 L24 16 L28 18 L32 16 L36 18 L40 16 L44 18 L48 18" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
+        {/* Cheat code letters */}
+        <text x="30" y="31" textAnchor="middle" fontFamily="var(--font-code), monospace" fontSize="7" fontWeight="700" fill={family.ink}>IDKFA</text>
+        {/* Wavy underline */}
+        <path d="M16 36 Q19 34 22 36 T28 36 T34 36 T40 36 T44 36" fill="none" stroke="#dc2626" strokeWidth="1.4" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+});
+
+/**
+ * Drawer Dweller — an open drawer with stickers peeking out, on rose.
+ */
+const DrawerDwellerSvg = memo(function DrawerDwellerSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.rose;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Drawer front */}
+      <rect x="12" y="28" width="36" height="18" rx="1.5" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Drawer handle */}
+      <rect x="26" y="34" width="8" height="2.5" rx="1.25" fill={family.ink} />
+      {/* Stickers peeking above (3 small circles) */}
+      <circle cx="20" cy="24" r="5" fill="#fde68a" stroke={family.ink} strokeWidth="1.4" />
+      <circle cx="30" cy="22" r="5.5" fill="#bfdbfe" stroke={family.ink} strokeWidth="1.4" />
+      <circle cx="40" cy="24" r="5" fill="#bbf7d0" stroke={family.ink} strokeWidth="1.4" />
+      {/* Tiny icons on the peeking stickers */}
+      <path d="M18 23 L22 23 M20 21 L20 25" stroke={family.ink} strokeWidth="1" strokeLinecap="round" />
+      <circle cx="30" cy="22" r="1.5" fill={family.ink} />
+      <path d="M38 25 L42 23" stroke={family.ink} strokeWidth="1" strokeLinecap="round" />
+    </svg>
+  );
+});
+
+/**
+ * Chat Conductor — a baton crossed with a chat speech bubble, on mint.
+ */
+const ChatConductorSvg = memo(function ChatConductorSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Speech bubble */}
+      <path d="M12 18 Q12 14 16 14 L36 14 Q40 14 40 18 L40 30 Q40 34 36 34 L24 34 L18 40 L20 34 Q12 34 12 30 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Action dots */}
+      <circle cx="20" cy="24" r="1.6" fill={family.ink} />
+      <circle cx="26" cy="24" r="1.6" fill={family.ink} />
+      <circle cx="32" cy="24" r="1.6" fill={family.ink} />
+      {/* Conductor baton crossing bubble */}
+      <line x1="36" y1="38" x2="50" y2="22" stroke="#92400e" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="36" cy="38" r="2.6" fill={family.ink} />
+      {/* Motion arc */}
+      <path d="M44 30 Q46 35 41 40" fill="none" stroke={family.ink} strokeWidth="1.3" strokeLinecap="round" strokeDasharray="2 2" opacity="0.6" />
+    </svg>
+  );
+});
+
+/**
+ * Terminal Addict — a terminal window stacked over an energy icon, on sunshine.
+ */
+const TerminalAddictSvg = memo(function TerminalAddictSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.sunshine;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Terminal window */}
+      <rect x="10" y="14" width="40" height="26" rx="2" fill="#2d2a2e" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Traffic lights */}
+      <circle cx="14" cy="18" r="1.1" fill="#ff6b6b" />
+      <circle cx="17.5" cy="18" r="1.1" fill="#ffd166" />
+      <circle cx="21" cy="18" r="1.1" fill="#8ce99a" />
+      {/* Five prompt lines indicating repetition */}
+      <text x="14" y="27" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
+      <text x="14" y="31" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
+      <text x="14" y="35" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
+      <text x="14" y="39" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
+      {/* Lightning bolt indicating addiction / speed */}
+      <path d="M36 44 L40 38 L38 38 L41 32 L36 42 L38 42 Z" fill="#fbbf24" stroke={family.ink} strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+});
+
+/**
+ * Repo Hunter — a magnifying glass over the octocat-esque cat-face bracket
+ * pattern, representing GitHub exploration, on denim.
+ */
+const RepoHunterSvg = memo(function RepoHunterSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.denim;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Code brackets */}
+      <text x="14" y="34" fontFamily="var(--font-code), monospace" fontSize="14" fontWeight="700" fill={family.ink} opacity="0.5">{'<'}</text>
+      <text x="40" y="34" fontFamily="var(--font-code), monospace" fontSize="14" fontWeight="700" fill={family.ink} opacity="0.5">{'>'}</text>
+      {/* Branch dot + line */}
+      <circle cx="22" cy="42" r="2.4" fill={family.ink} />
+      <circle cx="38" cy="42" r="2.4" fill={family.ink} />
+      <line x1="22" y1="42" x2="38" y2="42" stroke={family.ink} strokeWidth="1.4" />
+      {/* Magnifying glass over the brackets */}
+      <circle cx="30" cy="26" r="8" fill="#fdfbf7" fillOpacity="0.85" stroke={family.ink} strokeWidth="1.8" />
+      <line x1="36" y1="32" x2="42" y2="38" stroke={family.ink} strokeWidth="2.4" strokeLinecap="round" />
+      {/* Tiny "git" symbol inside lens */}
+      <circle cx="27" cy="26" r="1.5" fill={family.ink} />
+      <circle cx="33" cy="26" r="1.5" fill={family.ink} />
+      <line x1="28.5" y1="26" x2="31.5" y2="26" stroke={family.ink} strokeWidth="1.2" />
+    </svg>
+  );
+});
+
+/**
+ * Social Butterfly — a butterfly whose wings are styled as two overlapping
+ * speech / link bubbles, on rose.
+ */
+const SocialButterflySvg = memo(function SocialButterflySvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.rose;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Body */}
+      <line x1="30" y1="18" x2="30" y2="44" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
+      {/* Antennae */}
+      <path d="M30 18 Q27 14 24 14" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M30 18 Q33 14 36 14" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="24" cy="14" r="1.2" fill={family.ink} />
+      <circle cx="36" cy="14" r="1.2" fill={family.ink} />
+      {/* Left wings */}
+      <path d="M30 24 Q14 20 12 30 Q14 38 30 34 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Right wings */}
+      <path d="M30 24 Q46 20 48 30 Q46 38 30 34 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Wing icons — tiny link chain + heart */}
+      <path d="M18 28 L21 28 M18 30 L20 30" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M38 28 Q39 26 40.5 27 Q42 26 43 28 Q43 30 40.5 32 Q38 30 38 28 Z" fill={family.ink} opacity="0.7" />
+    </svg>
+  );
+});
+
+/**
+ * Superuser — a metallic gold award medal with a crown and the word "ROOT".
+ * This is the hidden sticker earned by collecting all regular stickers. Rendered
+ * with a premium gold gradient + soft shine highlight; the card ancestor adds
+ * a shimmer via CSS.
+ */
+const SuperuserSvg = memo(function SuperuserSvg({ size }: IllustratedSvgProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="superuserGold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fde68a" />
+          <stop offset="25%" stopColor="#fbbf24" />
+          <stop offset="55%" stopColor="#f59e0b" />
+          <stop offset="85%" stopColor="#d97706" />
+          <stop offset="100%" stopColor="#92400e" />
+        </linearGradient>
+        <linearGradient id="superuserShine" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#fffbeb" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#fffbeb" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="superuserCore" cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stopColor="#fef3c7" />
+          <stop offset="60%" stopColor="#fbbf24" />
+          <stop offset="100%" stopColor="#b45309" />
+        </radialGradient>
+      </defs>
+      {/* Outer medal border */}
+      <circle cx="30" cy="30" r="27" fill="url(#superuserGold)" stroke="#78350f" strokeWidth={STICKER_TOKENS.strokeWidth} />
+      {/* Inner recessed ring */}
+      <circle cx="30" cy="30" r="22" fill="url(#superuserCore)" stroke="#92400e" strokeWidth="1.2" />
+      {/* Ray pattern — 8 inner rays */}
+      <g stroke="#78350f" strokeWidth="0.8" strokeLinecap="round" opacity="0.4">
+        <line x1="30" y1="12" x2="30" y2="16" />
+        <line x1="30" y1="44" x2="30" y2="48" />
+        <line x1="12" y1="30" x2="16" y2="30" />
+        <line x1="44" y1="30" x2="48" y2="30" />
+        <line x1="17.3" y1="17.3" x2="20.1" y2="20.1" />
+        <line x1="39.9" y1="39.9" x2="42.7" y2="42.7" />
+        <line x1="17.3" y1="42.7" x2="20.1" y2="39.9" />
+        <line x1="39.9" y1="20.1" x2="42.7" y2="17.3" />
+      </g>
+      {/* Crown above "ROOT" */}
+      <path d="M22 22 L24 18 L27 22 L30 17 L33 22 L36 18 L38 22 L38 25 L22 25 Z" fill="#fef3c7" stroke="#78350f" strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="24" cy="18" r="0.9" fill="#dc2626" />
+      <circle cx="30" cy="17" r="1" fill="#dc2626" />
+      <circle cx="36" cy="18" r="0.9" fill="#dc2626" />
+      {/* ROOT text */}
+      <text x="30" y="38" textAnchor="middle" fontFamily="var(--font-code), monospace" fontSize="8" fontWeight="700" fill="#451a03" letterSpacing="0.5">ROOT</text>
+      {/* Specular highlight on upper-left */}
+      <ellipse cx="20" cy="18" rx="6" ry="3" fill="url(#superuserShine)" opacity="0.65" transform="rotate(-30 20 18)" />
+    </svg>
+  );
+});
+
+/**
  * Strip a leading "the" from a label (case-insensitive) before picking the
  * placeholder initial, so stickers like "The Code" and "The Long Read" don't
  * all collapse to a single "T" glyph.
@@ -368,7 +649,7 @@ function pickInitial(label: string): string {
   return (stripped.charAt(0) || label.charAt(0) || '?').toUpperCase();
 }
 
-// ─── Placeholder (used for the 9 stickers without custom art) ───────────
+// ─── Placeholder (fallback only) ────────────────────────────────────────
 const PlaceholderSvg = memo(function PlaceholderSvg({
   size,
   family,
@@ -408,7 +689,7 @@ const PlaceholderSvg = memo(function PlaceholderSvg({
   );
 });
 
-// ─── Public Sticker component — switches on id, renders illustrated or placeholder ───
+// ─── Public Sticker component — switches on id, renders illustrated art ───
 interface StickerSvgProps {
   id: StickerId;
   size?: number;
@@ -462,9 +743,33 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     case 'signed-guestbook':
       inner = <SignedGuestbookSvg size={size} />;
       break;
+    case 'project-explorer':
+      inner = <ProjectExplorerSvg size={size} />;
+      break;
+    case 'cheat-codes':
+      inner = <CheatCodesSvg size={size} />;
+      break;
+    case 'drawer-dweller':
+      inner = <DrawerDwellerSvg size={size} />;
+      break;
+    case 'chat-conductor':
+      inner = <ChatConductorSvg size={size} />;
+      break;
+    case 'terminal-addict':
+      inner = <TerminalAddictSvg size={size} />;
+      break;
+    case 'repo-hunter':
+      inner = <RepoHunterSvg size={size} />;
+      break;
+    case 'social-butterfly':
+      inner = <SocialButterflySvg size={size} />;
+      break;
+    case 'superuser':
+      inner = <SuperuserSvg size={size} />;
+      break;
     default: {
-      // Fallback placeholder — only reached if a new sticker is added to the
-      // roster without a matching case above. Keeps the build safe.
+      // Fallback placeholder — only reached if a new sticker is added without
+      // a matching case above. Keeps the build safe.
       const entry = getSticker(id);
       const initial = pickInitial(entry.label);
       inner = <PlaceholderSvg size={size} family={entry.family} initial={initial} />;

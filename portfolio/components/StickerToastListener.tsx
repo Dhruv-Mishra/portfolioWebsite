@@ -12,7 +12,7 @@ import { memo, useCallback, useEffect } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { stickerBus } from '@/lib/stickerBus';
-import { getSticker, StickerSvg } from '@/lib/stickers';
+import { getSticker, StickerSvg, SUPERUSER_STICKER } from '@/lib/stickers';
 import {
   useActiveStickerToast,
   unlockSticker,
@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useStickers';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
 import { Z_INDEX, STICKER_TOKENS } from '@/lib/designTokens';
 
 const TOAST_INITIAL = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
@@ -44,9 +45,17 @@ export default function StickerToastListener(): React.ReactElement | null {
     return off;
   }, []);
 
-  // Fire a haptic each time a new toast becomes active.
+  // Fire a haptic + sound each time a new toast becomes active. The
+  // `sticker-ding` sound is debounced inside the manager, so a flood of
+  // near-simultaneous unlocks plays at a human rate. The special-case
+  // SUPERUSER fanfare is NOT played here — the SuperuserBanner component
+  // owns that sound so it fires alongside the confetti reveal exactly once.
   useEffect(() => {
-    if (activeToast) success();
+    if (!activeToast) return;
+    success();
+    if (activeToast !== SUPERUSER_STICKER.id) {
+      soundManager.play('sticker-ding');
+    }
   }, [activeToast, success]);
 
   const handleTap = useCallback(() => {
@@ -81,6 +90,7 @@ const ToastCard = memo(function ToastCard({ id, onTap }: ToastCardProps) {
       animate={TOAST_ANIMATE}
       exit={TOAST_EXIT}
       transition={TOAST_SPRING}
+      data-sticker-toast
       className="pointer-events-auto relative w-[280px] bg-[var(--note-user)] text-[var(--note-user-ink)] shadow-lg rounded-sm font-hand"
     >
       <TapeStrip size="sm" />

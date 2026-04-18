@@ -8,6 +8,8 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppHaptics } from "@/lib/haptics";
 import { trackTerminalCommand } from "@/lib/analytics";
 import { stickerBus } from "@/lib/stickerBus";
+import { soundManager } from "@/lib/soundManager";
+import { recordTerminalCommandImperative } from "@/hooks/useStickers";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
 import {
@@ -110,12 +112,25 @@ export default function Terminal() {
         // Track command usage
         trackTerminalCommand(lowerCmd);
 
+        // Play a subtle typewriter click on command execute. Debounced
+        // inside the manager so rapid commands don't machine-gun the user.
+        soundManager.play('terminal-click');
+
         // Sticker emits (idempotent — hook deduplicates by id)
         stickerBus.emit('first-word');
         if (lowerCmd === 'help') {
             stickerBus.emit('help-wanted');
         } else if (lowerCmd === 'joke') {
             stickerBus.emit('stand-up-comic');
+        }
+
+        // Track distinct command count — unlock `terminal-addict` at 5.
+        // Only count real commands (not empty/whitespace). COMMAND_REGISTRY
+        // membership isn't required — the spirit is "five distinct attempts",
+        // though we normalize to the lowercase first-token.
+        const distinctCount = recordTerminalCommandImperative(lowerCmd);
+        if (distinctCount >= 5) {
+            stickerBus.emit('terminal-addict');
         }
 
         // Special handling for 'clear'
@@ -231,6 +246,13 @@ export default function Terminal() {
             transition={{ duration: ANIMATION_TOKENS.duration.slow, type: "spring", bounce: 0.4 }}
             className="w-full max-w-[var(--c-terminal-max-w)] mx-auto relative group perspective-[1000px]"
             suppressHydrationWarning
+            /* Disco mode: the terminal shell gets a gentle "breath" pulse — a
+               slow 2s scale cycle so the largest surface on the home page is
+               alive with the beat without shifting the reading plane of the
+               text inside. Targeted via a site-wide selector on the
+               .perspective-[1000px] class; keeping the attribute here makes
+               the intent explicit for future maintainers. */
+            data-disco-motion="breath"
         >
             {/* Rough Shadow */}
             <div

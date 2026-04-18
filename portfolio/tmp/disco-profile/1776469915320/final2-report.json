@@ -1,0 +1,115 @@
+{
+  "tag": "final2",
+  "outDir": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776469915320",
+  "scenarios": [
+    {
+      "name": "desktop-home-steady",
+      "viewport": "1440x900",
+      "fps": 59.9,
+      "elapsedMs": 5012,
+      "frames": 300,
+      "memoryBefore": {
+        "supported": true,
+        "usedJSHeapSizeMB": 29.19,
+        "totalJSHeapSizeMB": 40.2,
+        "jsHeapSizeLimitMB": 4095.75
+      },
+      "memoryAfter": {
+        "supported": true,
+        "usedJSHeapSizeMB": 30.7,
+        "totalJSHeapSizeMB": 40.2,
+        "jsHeapSizeLimitMB": 4095.75
+      }
+    },
+    {
+      "name": "desktop-projects-steady",
+      "viewport": "1440x900",
+      "discoStateAfterNav": {
+        "disco": "on",
+        "bodyBg": "linear-gradient(135deg, rgb(253, 230, 138) 0%, rgb(251, 207, 232) 18%, rgb(199, 210, 254) 36%, rgb(187, 247, 208) 54%, r",
+        "spotlights": true,
+        "sparkles": true
+      },
+      "fps": 60.1,
+      "elapsedMs": 5009,
+      "frames": 301,
+      "memoryAfter": {
+        "supported": true,
+        "usedJSHeapSizeMB": 24.22,
+        "totalJSHeapSizeMB": 32.34,
+        "jsHeapSizeLimitMB": 4095.75
+      }
+    },
+    {
+      "name": "desktop-projects-scroll",
+      "viewport": "1440x900",
+      "fps": 60.1,
+      "elapsedMs": 5010,
+      "frames": 301
+    },
+    {
+      "name": "mobile-home-steady",
+      "viewport": "390x844 (4x CPU)",
+      "fps": 45.2,
+      "elapsedMs": 5004,
+      "frames": 226
+    },
+    {
+      "name": "mobile-projects-steady",
+      "viewport": "390x844 (4x CPU)",
+      "discoStateAfterNav": {
+        "disco": "on",
+        "bodyBg": "linear-gradient(135deg, rgb(253, 230, 138) 0%, rgb(251, 207, 232) 18%, rgb(199, 210, 254) 36%, rgb(187, 247, 208) 54%, r",
+        "spotlights": true,
+        "sparkles": true
+      },
+      "fps": 43,
+      "elapsedMs": 5004,
+      "frames": 215
+    }
+  ],
+  "activationCheck": {
+    "activated": true,
+    "attrs": {
+      "disco": "on",
+      "bodyBg": "linear-gradient(135deg, rgb(253, 230, 138) 0%, rgb(251, 207, 232) 18%, rgb(199, 210, 254) 36%, rgb(187, 247, 208) 54%, r",
+      "spotlights": true,
+      "sparkles": true
+    }
+  },
+  "heroSubtitleDesktop": {
+    "found": true,
+    "tagName": "P",
+    "text": "I'm Dhruv. I engineer high-performance systems, turning complex technical problems into elegant, reliable solutions.",
+    "color": "lab(35.6337 -1.58697 -10.8425)",
+    "opacity": "1",
+    "animation-name": "none",
+    "-webkit-text-fill-color": "lab(35.6337 -1.58697 -10.8425)",
+    "visibility": "visible",
+    "display": "block",
+    "z-index": "auto",
+    "background-clip": "border-box",
+    "-webkit-background-clip": "border-box",
+    "mix-blend-mode": "normal"
+  },
+  "projectsScreenshot": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776469915320\\final2-projects-disco-desktop.png",
+  "mobileActivationCheck": {
+    "disco": "on",
+    "bodyBg": "linear-gradient(135deg, rgb(253, 230, 138) 0%, rgb(251, 207, 232) 18%, rgb(199, 210, 254) 36%, rgb(187, 247, 208) 54%, r",
+    "spotlights": true,
+    "sparkles": true
+  },
+  "heroSubtitleMobile": {
+    "found": true,
+    "tagName": "P",
+    "text": "I'm Dhruv. I engineer high-performance systems, turning complex technical problems into elegant, reliable solutions.",
+    "color": "lab(35.6337 -1.58697 -10.8425)",
+    "opacity": "1",
+    "animation-name": "none",
+    "-webkit-text-fill-color": "lab(35.6337 -1.58697 -10.8425)"
+  },
+  "heroScreenshots": {
+    "desktop": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776469915320\\final2-hero-disco-desktop.png",
+    "mobile": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776469915320\\final2-hero-disco-mobile.png"
+  }
+}

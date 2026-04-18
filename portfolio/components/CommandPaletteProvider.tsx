@@ -50,7 +50,9 @@ export default function CommandPaletteProvider() {
   // ── Custom event: external opens ─────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleOpen = () => setIsOpen(true);
+    const handleOpen = () => {
+      setIsOpen(true);
+    };
     window.addEventListener('open-command-palette', handleOpen);
     return () => window.removeEventListener('open-command-palette', handleOpen);
   }, []);

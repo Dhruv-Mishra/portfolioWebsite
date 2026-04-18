@@ -1,0 +1,106 @@
+{
+  "tag": "before",
+  "outDir": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776468712418",
+  "scenarios": [
+    {
+      "name": "desktop-home-steady",
+      "viewport": "1440x900",
+      "fps": 60.1,
+      "elapsedMs": 5011,
+      "frames": 301,
+      "memoryBefore": {
+        "supported": true,
+        "usedJSHeapSizeMB": 29.38,
+        "totalJSHeapSizeMB": 40.94,
+        "jsHeapSizeLimitMB": 4095.75
+      },
+      "memoryAfter": {
+        "supported": true,
+        "usedJSHeapSizeMB": 31.19,
+        "totalJSHeapSizeMB": 41.19,
+        "jsHeapSizeLimitMB": 4095.75
+      }
+    },
+    {
+      "name": "desktop-projects-steady",
+      "viewport": "1440x900",
+      "discoAttr": null,
+      "fps": 60,
+      "elapsedMs": 5013,
+      "frames": 301,
+      "memoryAfter": {
+        "supported": true,
+        "usedJSHeapSizeMB": 36.18,
+        "totalJSHeapSizeMB": 50.73,
+        "jsHeapSizeLimitMB": 4095.75
+      }
+    },
+    {
+      "name": "desktop-projects-scroll",
+      "viewport": "1440x900",
+      "fps": 59.7,
+      "elapsedMs": 5012,
+      "frames": 299
+    },
+    {
+      "name": "mobile-home-steady",
+      "viewport": "390x844 (4x CPU)",
+      "fps": 60.3,
+      "elapsedMs": 5009,
+      "frames": 302
+    },
+    {
+      "name": "mobile-projects-steady",
+      "viewport": "390x844 (4x CPU)",
+      "fps": 58.9,
+      "elapsedMs": 5008,
+      "frames": 295
+    }
+  ],
+  "memoryOver60s": {
+    "t0": {
+      "supported": true,
+      "usedJSHeapSizeMB": 29.53,
+      "totalJSHeapSizeMB": 40.67,
+      "jsHeapSizeLimitMB": 4095.75
+    },
+    "t60": {
+      "supported": true,
+      "usedJSHeapSizeMB": 20.52,
+      "totalJSHeapSizeMB": 25.49,
+      "jsHeapSizeLimitMB": 4095.75
+    }
+  },
+  "heroSubtitleComputed": {
+    "desktop": {
+      "found": true,
+      "tagName": "P",
+      "text": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble",
+      "color": "lab(35.6337 -1.58697 -10.8425)",
+      "opacity": "0",
+      "animation-name": "none",
+      "animation-duration": "0s",
+      "animation-play-state": "running",
+      "-webkit-text-fill-color": "lab(35.6337 -1.58697 -10.8425)",
+      "visibility": "visible",
+      "display": "block",
+      "z-index": "auto",
+      "background-clip": "border-box",
+      "-webkit-background-clip": "border-box",
+      "mix-blend-mode": "normal"
+    },
+    "mobile": {
+      "found": true,
+      "tagName": "P",
+      "text": "I'm Dhruv. I engineer high-performance systems, turning complex technical proble",
+      "color": "lab(35.6337 -1.58697 -10.8425)",
+      "opacity": "1",
+      "animation-name": "heroSubtitleIn",
+      "-webkit-text-fill-color": "lab(35.6337 -1.58697 -10.8425)"
+    }
+  },
+  "heroScreenshots": {
+    "desktop": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776468712418\\before-hero-disco-desktop.png",
+    "mobile": "C:\\Users\\dhruvmishra\\Desktop\\portfolioWebsite\\portfolio\\tmp\\disco-profile\\1776468712418\\before-hero-disco-mobile.png"
+  }
+}

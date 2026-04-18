@@ -100,6 +100,9 @@ export default function MiniChat() {
               animate={INTERACTION_TOKENS.entrance.popIn.animate}
               exit={INTERACTION_TOKENS.exit.popOut}
               transition={GENTLE_SPRING_TRANSITION}
+              /* Disco: the open panel gets a slow scale-breath. The animation
+                 is keyed by the data-disco-motion selector in globals.css. */
+              data-disco-motion="breath"
               className={cn(
                 "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-lg md:shadow-2xl overflow-hidden",
                 // Mobile: full screen overlay
@@ -166,6 +169,7 @@ export default function MiniChat() {
         title="Ask Dhruv"
         aria-label="Open quick chat"
         style={FAB_BUTTON_STYLE}
+        data-disco-bounce="4"
       >
         {isOpen ? (
           <X size={22} className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.4} />

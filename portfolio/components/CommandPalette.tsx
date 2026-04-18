@@ -34,6 +34,7 @@ import {
   type CommandGroup,
   type CommandContext,
 } from '@/lib/commandRegistry';
+import { soundManager } from '@/lib/soundManager';
 
 // ── Static style objects (hoisted) ─────────────────────────────────
 
@@ -214,6 +215,16 @@ function CommandPalette({
 
   useEffect(() => {
     if (isOpen) setShouldRender(true);
+  }, [isOpen]);
+
+  // Distinct "pop" cue on open. Debounced inside the manager so open-close
+  // spam doesn't abuse the sound.
+  const prevIsOpenRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      soundManager.play('command-palette-pop');
+    }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
   const handleExitComplete = useCallback(() => {

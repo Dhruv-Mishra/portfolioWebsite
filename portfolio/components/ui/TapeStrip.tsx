@@ -12,6 +12,7 @@ interface TapeStripProps {
 export const TapeStrip = memo(function TapeStrip({ size = 'sm', className }: TapeStripProps) {
   return (
     <div
+      data-tape-strip
       className={cn(
         "absolute left-1/2 -translate-x-1/2 shadow-sm z-20",
         size === 'sm'

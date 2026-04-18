@@ -7,6 +7,11 @@ import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
 import { Send, Eraser, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
+import {
+  MatrixDeniedNote,
+  MatrixKeyRevealNote,
+  extractRevealedKey,
+} from '@/lib/matrixChatIntercept';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
 import type { ProjectSlug } from '@/lib/projectCatalog';
@@ -333,6 +338,48 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
   </m.button>
 ); });
 
+// ─── Matrix puzzle reply rendering ───
+/**
+ * Choose between plain text, MatrixDeniedNote, or MatrixKeyRevealNote
+ * based on the message's `matrixInterceptKind` AND a content-based
+ * fallback for reloaded (localStorage-restored) messages that may not
+ * carry the flag because we don't persist it.
+ */
+function MatrixAwareAssistantText({
+  message,
+  displayedText,
+}: {
+  message: ChatMessage;
+  displayedText: string;
+}): React.ReactElement {
+  const text = message.isOld ? message.content : displayedText;
+
+  // Live flag takes precedence.
+  if (message.matrixInterceptKind === 'denied') {
+    return <MatrixDeniedNote content={text} />;
+  }
+  if (message.matrixInterceptKind === 'reveal') {
+    const key = extractRevealedKey(message.content);
+    if (key) return <MatrixKeyRevealNote password={key} />;
+    return <span>{text}</span>;
+  }
+
+  // Reload-recovery path: restored messages may have lost the flag but still
+  // carry the distinctive content. Only try to reconstruct once typewriting
+  // has settled (displayedText === message.content) OR it's an old message.
+  if (message.isOld || displayedText === message.content) {
+    if (message.content === 'Only root should know that.') {
+      return <MatrixDeniedNote content={message.content} />;
+    }
+    const key = extractRevealedKey(message.content);
+    if (key && /^hello\s+dhruv/i.test(message.content)) {
+      return <MatrixKeyRevealNote password={key} />;
+    }
+  }
+
+  return <span>{text}</span>;
+}
+
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
@@ -409,7 +456,7 @@ const StickyNote = memo(function StickyNote({
           {isUser ? (
             message.content
           ) : (
-            <span>{message.isOld ? message.content : displayedText}</span>
+            <MatrixAwareAssistantText message={message} displayedText={displayedText} />
           )}
         </div>
       </div>

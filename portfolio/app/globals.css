@@ -1747,3 +1747,202 @@ html[data-sudo-rainbow="on"] a {
     text-decoration-color: #a855f7;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Matrix Puzzle — styles for the `sudo admin` auth-failure shake and the
+   /admin console chrome.
+
+   REDUCED-MOTION POLICY
+   The matrix puzzle's animations (shake, admin console digital rain,
+   experimental toggle pulse, disabled-enabled escape button transition)
+   INTENTIONALLY ignore `prefers-reduced-motion` — per the product brief,
+   everyone should see the effect because it's the flagship easter-egg
+   experience. Decorative animations elsewhere in the app continue to
+   respect the media query (see the superuser shimmer / rainbow link
+   rules above).
+   ─────────────────────────────────────────────────────────────────── */
+
+@keyframes terminal-auth-shake-keyframes {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  15%      { transform: translate3d(-6px, 0, 0); }
+  30%      { transform: translate3d(6px, 0, 0); }
+  45%      { transform: translate3d(-5px, 0, 0); }
+  60%      { transform: translate3d(5px, 0, 0); }
+  75%      { transform: translate3d(-2px, 0, 0); }
+  90%      { transform: translate3d(2px, 0, 0); }
+}
+
+.terminal-auth-shake {
+  animation: terminal-auth-shake-keyframes 520ms ease-in-out 1 both;
+  will-change: transform;
+  /* Narrow amber flash behind the text so the shake reads as "denied" at
+     a glance even without color context. */
+  background: linear-gradient(
+    180deg,
+    rgba(220, 38, 38, 0.08) 0%,
+    rgba(220, 38, 38, 0.0) 60%,
+    rgba(220, 38, 38, 0.0) 100%
+  );
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Admin console — subtle digital-rain border glow on the main card. */
+.admin-console__frame {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.admin-console__frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(16, 185, 129, 0.04) 0px,
+      rgba(16, 185, 129, 0.04) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+  opacity: 0.55;
+  z-index: 0;
+}
+
+.admin-console__title {
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Experimental toggle — the "flagship" switch at the bottom of /admin gets a
+   pulsing emerald outer glow. Always animates — reduced motion override is
+   intentional, see note above. */
+@keyframes admin-experimental-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45),
+                0 0 20px rgba(16, 185, 129, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.0),
+                0 0 32px rgba(16, 185, 129, 0.45);
+  }
+}
+
+.admin-toggle--experimental {
+  animation: admin-experimental-pulse 2.8s ease-in-out infinite;
+}
+
+/* Escape button — disabled vs enabled. Disabled is the "tinted gray" state
+   (before disco is active); enabled is the bright matrix-green. The
+   transition between them is a quick color-crossfade. Always animates. */
+.escape-button--disabled {
+  --escape-bg: rgba(75, 85, 99, 0.35);
+  --escape-border: rgba(107, 114, 128, 0.5);
+  --escape-color: #9ca3af;
+  --escape-glow: rgba(107, 114, 128, 0.25);
+  cursor: not-allowed;
+  filter: saturate(0.3);
+}
+
+.escape-button--enabled {
+  --escape-bg: rgba(6, 78, 59, 0.45);
+  --escape-border: rgba(52, 211, 153, 0.85);
+  --escape-color: #00ff41;
+  --escape-glow: rgba(0, 255, 65, 0.55);
+  cursor: pointer;
+  filter: none;
+}
+
+/* ChAin the CSS-var-driven colors onto the button component's core style. */
+.escape-button--chromed {
+  background: var(--escape-bg);
+  border-color: var(--escape-border);
+  color: var(--escape-color);
+  box-shadow: 0 0 20px var(--escape-glow);
+  transition: background 260ms ease, border-color 260ms ease,
+              color 260ms ease, box-shadow 260ms ease, filter 420ms ease;
+}
+
+/* Chat bubble — red LLM response for "Only root should know that." */
+.matrix-chat-denied {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.dark .matrix-chat-denied {
+  color: #f87171;
+}
+
+/* Chat bubble — key reveal with copyable monospace pill */
+.matrix-chat-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  margin: 0 0.15rem;
+  border-radius: 4px;
+  background: rgba(6, 78, 59, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  font-family: 'Fira Code', 'Menlo', monospace;
+  font-size: 0.82em;
+  color: #047857;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+
+.matrix-chat-key:hover {
+  background: rgba(6, 78, 59, 0.22);
+  border-color: rgba(16, 185, 129, 0.75);
+}
+
+.matrix-chat-key:active {
+  transform: scale(0.96);
+}
+
+.matrix-chat-key[data-copied="true"] {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.85);
+  color: #059669;
+}
+
+.dark .matrix-chat-key {
+  background: rgba(6, 78, 59, 0.25);
+  border-color: rgba(110, 231, 183, 0.55);
+  color: #6ee7b7;
+}
+
+.dark .matrix-chat-key:hover {
+  background: rgba(6, 78, 59, 0.35);
+  border-color: rgba(110, 231, 183, 0.85);
+}
+
+.dark .matrix-chat-key[data-copied="true"] {
+  background: rgba(16, 185, 129, 0.35);
+  color: #d1fae5;
+}
+
+/* Admin pref toggles: visual expression of the /admin toggles on real site
+   surfaces. Each toggle simply flips a data attribute on <html>; the CSS
+   below turns the visual treatment off when the user disables it on /admin.
+   Defaults (attribute present on fresh load) keep the existing look. */
+
+/* Paper grain — when disabled, hide the paper pattern background image.
+   The SketchbookLayout's decorative paper uses a CSS variable
+   `--paper-pattern`; setting it to `none` nukes just the texture layer
+   without touching the color tone. */
+html:not([data-pref-paper="on"]) {
+  --paper-pattern: none;
+}
+
+/* Tape effects — when disabled, hide every `<TapeStrip>` instance. */
+html:not([data-pref-tape="on"]) [data-tape-strip] {
+  display: none;
+}
+
+/* Sketch outlines — when disabled, sticker cards (the one place a dashed
+   "sketch" outline is prominent) switch to solid borders. */
+html:not([data-pref-sketch="on"]) .sticker-card {
+  border-style: solid;
+}

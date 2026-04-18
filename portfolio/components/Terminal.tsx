@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { m } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
@@ -21,6 +21,12 @@ import {
     LAYOUT_TOKENS,
 } from "@/lib/designTokens";
 import { createCommandRegistry } from "@/lib/terminalCommands";
+import {
+    getActivePrompt,
+    subscribeToPrompts,
+    setActivePrompt,
+    type PromptSubmitAction,
+} from "@/lib/terminalPrompts";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
 import { useTerminalPlaceholder } from "@/hooks/useTerminalPlaceholder";
@@ -66,6 +72,8 @@ const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: Termi
     );
 });
 
+const getServerPromptSnapshot = () => null;
+
 export default function Terminal() {
     const { outputLines, commandHistory, addCommand, addToHistory, clearOutput } = useTerminal();
     const isMobile = useIsMobile();
@@ -76,14 +84,33 @@ export default function Terminal() {
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [hasInteracted, setHasInteracted] = useState(false);
 
+    // Inline prompt subscription. When non-null, the next Enter-press is
+    // routed to the prompt's `onSubmit` instead of the command registry.
+    const activePrompt = useSyncExternalStore(subscribeToPrompts, getActivePrompt, getServerPromptSnapshot);
+
     const inputRef = useRef<HTMLInputElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
 
+    // When a prompt activates, auto-focus the input and clear any leftover text
+    // so the user can start typing the password / username immediately.
+    useEffect(() => {
+        if (!activePrompt) return;
+        setInput("");
+        // Desktop: focus immediately. Mobile: don't pop the keyboard
+        // unsolicited — the user already tapped to trigger the prompt
+        // chain, so focus is usually preserved anyway.
+        if (typeof window !== 'undefined' && window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) {
+            window.setTimeout(() => inputRef.current?.focus(), 30);
+        }
+    }, [activePrompt]);
+
     // Typewritten placeholder — cycles command hints while the input is empty.
     // Stops automatically the moment the user types anything (overlay unmounts).
-    const placeholderRef = useTerminalPlaceholder(!input);
+    // Also disabled while a prompt (password/username) is active so the
+    // placeholder doesn't distract from the request being made.
+    const placeholderRef = useTerminalPlaceholder(!input && activePrompt === null);
 
     // Command Registry defined outside
     const COMMAND_REGISTRY = React.useMemo(() => createCommandRegistry(router), [router]);
@@ -99,8 +126,38 @@ export default function Terminal() {
         }
     }, [outputLines]);
 
+    const applyPromptAction = React.useCallback((action: PromptSubmitAction, rawText: string) => {
+        const echo = action.echo ?? rawText;
+        if (echo) {
+            addToHistory(echo);
+        }
+        const output = action.output ?? null;
+        // Use an echo-only command line (no prompt chrome in recorded history)
+        // so the password * mask appears where the command would have been.
+        addCommand(echo, output);
+    }, [addCommand, addToHistory]);
+
     const handleCommand = React.useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // If a prompt is active, route the raw input (no lowercasing, no
+        // tokenization) straight to its handler.
+        if (activePrompt) {
+            const rawValue = input;
+            setInput("");
+            soundManager.play('terminal-click');
+            submit();
+            try {
+                const result = await activePrompt.onSubmit(rawValue, { router });
+                applyPromptAction(result, rawValue);
+            } catch (err) {
+                console.error('Prompt handler error:', err);
+                errorHaptic();
+                setActivePrompt(null);
+                addCommand(rawValue, <span className={TERMINAL_COLORS.error}>Error processing input.</span>);
+            }
+            return;
+        }
 
         const trimmedInput = input.trim();
         if (!trimmedInput) return;
@@ -178,7 +235,20 @@ export default function Terminal() {
         addCommand(trimmedInput, output);
         setInput("");
         setHistoryIndex(-1); // Reset history pointer
-    }, [input, addCommand, addToHistory, clearHaptic, clearOutput, COMMAND_REGISTRY, errorHaptic, submit, warning]);
+    }, [
+        input,
+        addCommand,
+        addToHistory,
+        clearHaptic,
+        clearOutput,
+        COMMAND_REGISTRY,
+        errorHaptic,
+        submit,
+        warning,
+        activePrompt,
+        applyPromptAction,
+        router,
+    ]);
 
     // Better History Logic Implementation
     const navigateHistory = React.useCallback((direction: 'up' | 'down') => {
@@ -221,6 +291,20 @@ export default function Terminal() {
     }, [hasInteracted]);
 
     const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+        // During an inline prompt, disable command history + tab-complete —
+        // the user is entering a password/username, not a command.
+        if (activePrompt) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                const cancelResult = activePrompt.onCancel?.() ?? null;
+                setActivePrompt(null);
+                setInput('');
+                if (cancelResult) {
+                    applyPromptAction(cancelResult, '');
+                }
+            }
+            return;
+        }
         if (e.key === "ArrowUp") {
             e.preventDefault();
             navigateHistory('up');
@@ -235,7 +319,7 @@ export default function Terminal() {
                 setInput(match);
             }
         }
-    }, [navigateHistory, input, AVAILABLE_COMMANDS]);
+    }, [navigateHistory, input, AVAILABLE_COMMANDS, activePrompt, applyPromptAction]);
 
 
 
@@ -308,22 +392,55 @@ export default function Terminal() {
                     )}
 
                     <form onSubmit={handleCommand} className="flex gap-3 items-center mt-4">
-                        <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
-                        <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
+                        {activePrompt ? (
+                            <span className="font-bold">{activePrompt.label}</span>
+                        ) : (
+                            <>
+                                <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
+                                <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
+                            </>
+                        )}
                         <div className="relative flex-1">
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={handleKeyDownReal}
-                                onFocus={handleInputFocus}
-                                className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
-                                autoComplete="off"
-                                aria-label="Terminal Command Input"
-                                placeholder=""
-                            />
-                            {!input && (
+                            {activePrompt?.masked ? (
+                                <input
+                                    ref={inputRef}
+                                    type="password"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={handleKeyDownReal}
+                                    onFocus={handleInputFocus}
+                                    className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
+                                    autoComplete="new-password"
+                                    aria-label={`Terminal prompt: ${activePrompt.id}`}
+                                    // iOS Safari zoom-on-focus fix: font-size must be ≥ 16px.
+                                    // Fira Code at 16px on mobile is still compact enough, and
+                                    // prevents the viewport from auto-zooming when the user
+                                    // taps the password field.
+                                    style={{ fontSize: '16px' }}
+                                    spellCheck={false}
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    inputMode="text"
+                                />
+                            ) : (
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={handleKeyDownReal}
+                                    onFocus={handleInputFocus}
+                                    className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
+                                    autoComplete="off"
+                                    aria-label={activePrompt ? `Terminal prompt: ${activePrompt.id}` : "Terminal Command Input"}
+                                    placeholder=""
+                                    style={activePrompt ? { fontSize: '16px' } : undefined}
+                                    spellCheck={activePrompt ? false : undefined}
+                                    autoCapitalize={activePrompt ? 'off' : undefined}
+                                    autoCorrect={activePrompt ? 'off' : undefined}
+                                />
+                            )}
+                            {!input && !activePrompt && (
                                 <span
                                     ref={placeholderRef}
                                     aria-hidden="true"

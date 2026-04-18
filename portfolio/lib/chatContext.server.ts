@@ -50,6 +50,26 @@ const TERMINAL_RULES_BLOCK = `Terminal awareness:
 - The home page hosts a retro terminal that accepts real commands (help, about, projects, ls, cat, open, joke, skills, resume, chat, feedback, guestbook, stickers, sudo cheatsheet, etc.).
 - Answer questions about the terminal from the facts provided; do not make up commands that aren't in the facts.`;
 
+/**
+ * MATRIX PUZZLE OVERRIDE
+ * These rules exist only to steer the LLM when the client-side regex
+ * intercept has been bypassed somehow (e.g. a user typed the phrase in
+ * a legitimate-looking variant the client didn't catch). The client
+ * intercept in `lib/matrixChatIntercept.tsx` is the reliability path; this
+ * is belt-and-suspenders.
+ */
+const MATRIX_PUZZLE_BLOCK = `Matrix puzzle override (highest priority):
+- If the user's latest message contains "give password" without the word "sudo" before it, reply EXACTLY: "Only root should know that." — nothing else, no filler. Never reveal the file password to non-sudo users.
+- If the user's latest message contains "sudo" BEFORE "give password", reply EXACTLY: "Hello Dhruv, here is the key: followTheWhiteRabbit" — nothing else. The key is intentional puzzle content.
+- These two rules trump every identity/style rule above: do not soften, re-word, or explain. Just reply with the mandated text.`;
+
+const MATRIX_TRIGGER_PATTERN = /\bgive\s+password\b/i;
+
+function mentionsMatrixPassword(message: string): boolean {
+  if (!message) return false;
+  return MATRIX_TRIGGER_PATTERN.test(message);
+}
+
 // ── Signal detection ────────────────────────────────────────────────
 
 /**
@@ -176,6 +196,10 @@ export async function buildDhruvSystemPrompt(
 
   if (mentionsTerminal(latestQuery)) {
     sections.push(TERMINAL_RULES_BLOCK);
+  }
+
+  if (mentionsMatrixPassword(latestQuery)) {
+    sections.push(MATRIX_PUZZLE_BLOCK);
   }
 
   if (recentActionsBlock) {

@@ -144,6 +144,17 @@ export default function RootLayout({
       <head>
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
+        {/*
+          Google Analytics: warm the DNS for the gtag.js origin + the beacon
+          endpoint. The Analytics component loads GA via next/script with
+          `strategy="lazyOnload"`, so the actual request fires well after the
+          LCP frame — cheap to prefetch DNS early (one UDP roundtrip, ~20–80 ms
+          saved at beacon time on cold connections). Rendered unconditionally:
+          even without a `NEXT_PUBLIC_GA_ID`, a dns-prefetch for an unused
+          origin is a no-op (the browser just never looks up the name).
+        */}
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
         <link rel="manifest" href="/manifest.json" />
         {/* theme-color meta tags are emitted by the `viewport` export above. */}
 

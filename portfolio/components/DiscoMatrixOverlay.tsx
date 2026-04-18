@@ -56,9 +56,11 @@ import { useRouter } from 'next/navigation';
 import {
   setMatrixActiveImperative,
   setMatrixEscapedImperative,
+  useDiscoActive,
   useSoundsMuted,
 } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
+import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
 
 const GLYPHS =
   'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ01Dhruv';
@@ -446,10 +448,41 @@ const WakeUpButton = memo(function WakeUpButton({ visible, onWakeUp }: WakeUpBut
  */
 interface EscapeButtonProps {
   visible: boolean;
+  enabled: boolean;
   onEscape: () => void;
+  onDisabledClick: () => void;
 }
 
-const EscapeButton = memo(function EscapeButton({ visible, onEscape }: EscapeButtonProps) {
+const EscapeButton = memo(function EscapeButton({
+  visible,
+  enabled,
+  onEscape,
+  onDisabledClick,
+}: EscapeButtonProps) {
+  // Matrix-green when enabled, tinted gray when disabled. Clicks on the
+  // disabled state route to onDisabledClick which emits the "see the
+  // world differently" hint toast.
+  const handleClick = useCallback(() => {
+    if (enabled) onEscape();
+    else onDisabledClick();
+  }, [enabled, onEscape, onDisabledClick]);
+
+  const activeColors = enabled
+    ? {
+        color: '#00ff41',
+        background: 'rgba(6, 78, 59, 0.45)',
+        borderColor: 'rgba(52, 211, 153, 0.85)',
+        glow: 'rgba(0, 255, 65, 0.55)',
+        filter: 'none',
+      }
+    : {
+        color: '#9ca3af',
+        background: 'rgba(75, 85, 99, 0.35)',
+        borderColor: 'rgba(107, 114, 128, 0.5)',
+        glow: 'rgba(107, 114, 128, 0.25)',
+        filter: 'saturate(0.25) brightness(0.9)',
+      };
+
   return (
     <div
       style={{
@@ -464,35 +497,47 @@ const EscapeButton = memo(function EscapeButton({ visible, onEscape }: EscapeBut
     >
       <button
         type="button"
-        onClick={onEscape}
-        aria-label="Escape the Matrix — take a different way out"
+        onClick={handleClick}
+        aria-label={
+          enabled
+            ? 'Escape the Matrix — take a different way out'
+            : 'Escape button disabled — see the world differently first'
+        }
+        aria-disabled={!enabled}
         tabIndex={visible ? 0 : -1}
         style={{
           fontFamily: '"Fira Code", "Menlo", monospace',
           fontSize: '0.85rem',
           letterSpacing: '0.3em',
-          color: '#a7f3d0',
-          background: 'rgba(6, 78, 59, 0.4)',
-          border: '1.5px solid rgba(110, 231, 183, 0.55)',
+          color: activeColors.color,
+          background: activeColors.background,
+          border: `1.5px solid ${activeColors.borderColor}`,
           borderRadius: '8px',
           padding: '0.7rem 1.25rem',
           minHeight: '44px',
           minWidth: '44px',
-          cursor: 'pointer',
-          boxShadow: '0 0 20px rgba(16, 185, 129, 0.35)',
-          animation: visible ? 'matrix-escape-flicker 3.4s ease-in-out infinite' : 'none',
+          cursor: enabled ? 'pointer' : 'not-allowed',
+          boxShadow: `0 0 20px ${activeColors.glow}`,
+          animation:
+            visible && enabled
+              ? 'matrix-escape-flicker 3.4s ease-in-out infinite'
+              : 'none',
           outline: 'none',
           transform: 'translate3d(0,0,0)',
-          willChange: 'box-shadow, opacity',
+          willChange: 'box-shadow, opacity, background, color, filter',
           textTransform: 'uppercase',
           fontWeight: 700,
+          filter: activeColors.filter,
+          transition:
+            'color 260ms ease, background 260ms ease, border-color 260ms ease, box-shadow 260ms ease, filter 420ms ease',
         }}
         onFocus={(e) => {
+          if (!enabled) return;
           e.currentTarget.style.boxShadow =
-            '0 0 30px rgba(16, 185, 129, 0.7), 0 0 0 3px rgba(110, 231, 183, 0.4)';
+            '0 0 30px rgba(0, 255, 65, 0.7), 0 0 0 3px rgba(110, 231, 183, 0.4)';
         }}
         onBlur={(e) => {
-          e.currentTarget.style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.35)';
+          e.currentTarget.style.boxShadow = `0 0 20px ${activeColors.glow}`;
         }}
       >
         ESCAPE THE MATRIX →
@@ -500,11 +545,11 @@ const EscapeButton = memo(function EscapeButton({ visible, onEscape }: EscapeBut
       {/* Flicker keyframes inlined — subtle glyph-glitch feel, not a strobe. */}
       <style>{`
         @keyframes matrix-escape-flicker {
-          0%, 100% { box-shadow: 0 0 14px rgba(16, 185, 129, 0.3); filter: none; }
-          48%      { box-shadow: 0 0 22px rgba(16, 185, 129, 0.65); filter: none; }
+          0%, 100% { box-shadow: 0 0 14px rgba(0, 255, 65, 0.3); filter: none; }
+          48%      { box-shadow: 0 0 22px rgba(0, 255, 65, 0.7); filter: none; }
           49%      { filter: hue-rotate(-8deg) brightness(1.08); }
           51%      { filter: none; }
-          52%      { box-shadow: 0 0 28px rgba(110, 231, 183, 0.55); }
+          52%      { box-shadow: 0 0 28px rgba(52, 211, 153, 0.55); }
         }
       `}</style>
     </div>
@@ -627,11 +672,21 @@ const EscapeTransition = memo(function EscapeTransition({ active }: EscapeTransi
 function DiscoMatrixOverlayImpl(): React.ReactElement {
   const router = useRouter();
   const soundsMuted = useSoundsMuted();
+  // Disco active governs whether ESCAPE THE MATRIX is clickable. When
+  // disco is off the button paints in a disabled/gray state and any
+  // click routes to the "see the world differently" nudge toast.
+  const discoActive = useDiscoActive();
   const [wakeButtonVisible, setWakeButtonVisible] = useState(false);
   const [escapeButtonVisible, setEscapeButtonVisible] = useState(false);
   const [escapeTransitionActive, setEscapeTransitionActive] = useState(false);
+  const [disabledHint, setDisabledHint] = useState<string | null>(null);
   // Guard against double-click firing two router pushes + two flag writes.
   const escapeFiredRef = useRef(false);
+  const disabledHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (disabledHintTimerRef.current !== null) clearTimeout(disabledHintTimerRef.current);
+  }, []);
 
   // On mount, dismiss the iOS/Android software keyboard if any input is
   // focused. The common activation path is `sudo matrix yes` + Go — the
@@ -711,6 +766,20 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
     // Audio stops in the unmount cleanup above.
   }, []);
 
+  const handleDisabledEscapeClick = useCallback(() => {
+    writeSessionFlag(MATRIX_PUZZLE_KEYS.clickedDisabledEscape, true);
+    // Show the inline hint toast. Auto-dismiss.
+    setDisabledHint(
+      'You must enter the matrix first. Try seeing the world differently.',
+    );
+    if (disabledHintTimerRef.current !== null) {
+      clearTimeout(disabledHintTimerRef.current);
+    }
+    disabledHintTimerRef.current = setTimeout(() => {
+      setDisabledHint(null);
+    }, 4200);
+  }, []);
+
   /**
    * Fire the ESCAPE transition. Sequence:
    *   1. Set the `matrixEscaped` flag immediately so subsequent
@@ -766,8 +835,46 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
       <WakeUpButton visible={wakeButtonVisible && !escapeTransitionActive} onWakeUp={handleWakeUp} />
       <EscapeButton
         visible={escapeButtonVisible && !escapeTransitionActive}
+        enabled={discoActive}
         onEscape={handleEscape}
+        onDisabledClick={handleDisabledEscapeClick}
       />
+      {/* Inline hint toast — appears when the user clicks the disabled
+          escape button. Mirrors the bottom-left sticker-toast slot but
+          positioned above the WAKE UP pill so it's visible in the
+          matrix overlay context. */}
+      {disabledHint ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 'calc(10vh + 72px)',
+            transform: 'translateX(-50%)',
+            zIndex: 10001,
+            pointerEvents: 'none',
+            maxWidth: 'min(92vw, 420px)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: '"Fira Code", "Menlo", monospace',
+              fontSize: '0.85rem',
+              lineHeight: 1.4,
+              color: '#a7f3d0',
+              background: 'rgba(0, 0, 0, 0.75)',
+              border: '1px solid rgba(52, 211, 153, 0.55)',
+              padding: '0.7rem 1rem',
+              borderRadius: 6,
+              boxShadow: '0 0 24px rgba(52, 211, 153, 0.18)',
+              textAlign: 'center',
+            }}
+          >
+            {disabledHint}
+          </div>
+        </div>
+      ) : null}
       <EscapeTransition active={escapeTransitionActive} />
       {/* Screen-reader announcement only — visually hidden. */}
       <span

@@ -16,13 +16,14 @@
  * live under the `.test.ts` glob that vitest.config.ts picks up — the
  * overall suite does not yet need a `.tsx` extension pattern.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type * as React from 'react';
 import {
   dispatchSudo,
   parseSudoInvocation,
 } from '@/lib/sudoCommands';
+import { setAdminPref } from '@/hooks/useAdminPrefs';
 
 // Minimal cheatsheet renderer stub — dispatchSudo's context interface needs
 // a renderCheatsheet function even when we aren't exercising the cheatsheet
@@ -30,6 +31,15 @@ import {
 const ctx = {
   renderCheatsheet: (): React.ReactNode => null,
 };
+
+// The `sudo matrix` subcommand is experimental — gated behind the
+// /admin "experimental commands" toggle. Enable it for these tests so
+// the existing regression coverage of the confirm warning still runs.
+// The toggle is a preference, not part of the sticker store, so turning
+// it on here doesn't leak into other tests.
+beforeAll(() => {
+  setAdminPref('experimentalCommands', true);
+});
 
 function renderWarning(sub: 'disco' | 'matrix'): string {
   const result = dispatchSudo(parseSudoInvocation([sub]), ctx);

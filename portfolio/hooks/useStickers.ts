@@ -907,6 +907,17 @@ export function isSuperuserEarnedSync(): boolean {
 }
 
 /**
+ * Synchronous read of the runtime disco flag. Used only by non-render code
+ * paths (e.g. the matrix-puzzle hint builder and the matrix overlay's
+ * enabled-state check). Never call during render — use `useDiscoActive`
+ * there.
+ */
+export function getDiscoActiveSync(): boolean {
+  initializeStoreOnce();
+  return store.state.discoActive;
+}
+
+/**
  * Synchronous read of the sounds-muted preference. Used by the visibility
  * listener in `hooks/useSounds.ts` to restore the manager's mute state when
  * the tab becomes visible again (no React subscription available there).

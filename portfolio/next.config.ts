@@ -95,7 +95,22 @@ const nextConfig: NextConfig = {
   },
   // Enable experimental features for better performance
   experimental: {
-    optimizePackageImports: ['framer-motion', 'lucide-react', 'next-themes', 'clsx', 'tailwind-merge'],
+    // `optimizePackageImports` rewrites `import { X } from 'pkg'` into a deep
+    // path import so unused exports never land in the bundle. We include every
+    // client-side dependency that exposes a barrel entry AND is imported by
+    // more than one route — this includes `web-haptics` and `web-haptics/react`
+    // (used on every page via `useAppHaptics`), alongside the already-covered
+    // animation/icon libs. `next/dynamic` is a framework-level hot path and
+    // benefits too.
+    optimizePackageImports: [
+      'framer-motion',
+      'lucide-react',
+      'next-themes',
+      'clsx',
+      'tailwind-merge',
+      'web-haptics',
+      'web-haptics/react',
+    ],
     optimizeCss: true,
   },
   // Allow LAN devices (e.g. mobile on same WiFi) to access dev server
@@ -125,7 +140,17 @@ const nextConfig: NextConfig = {
       {
         source: '/_next/static/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          {
+            key: 'Cache-Control',
+            // In dev, edits regenerate chunks but URLs can collide as
+            // Turbopack rewrites bundles incrementally — `immutable` then
+            // pins stale bytes in the browser. Only production builds
+            // emit fully content-addressed, durable hashes worth pinning.
+            value:
+              process.env.NODE_ENV === 'production'
+                ? 'public, max-age=31536000, immutable'
+                : 'no-store, must-revalidate',
+          },
         ],
       },
       {

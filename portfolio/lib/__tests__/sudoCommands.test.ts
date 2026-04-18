@@ -6,13 +6,21 @@
  *   - Known subcommands all produce a result with output
  *   - Destructive reset requires explicit `yes`
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import React from 'react';
 import {
   parseSudoInvocation,
   dispatchSudo,
   SUDO_COMMAND_SPECS,
 } from '@/lib/sudoCommands';
+import { setAdminPref } from '@/hooks/useAdminPrefs';
+
+// `sudo matrix` is an experimental command gated on the /admin toggle.
+// Enable it for these tests so the existing dispatcher regression
+// coverage continues to run on the matrix sub-command.
+beforeAll(() => {
+  setAdminPref('experimentalCommands', true);
+});
 
 describe('parseSudoInvocation', () => {
   it('empty args → null subcommand', () => {

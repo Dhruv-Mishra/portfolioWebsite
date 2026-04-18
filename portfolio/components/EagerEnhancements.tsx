@@ -109,6 +109,23 @@ const MatrixNotesEntryButton = dynamic(
   { ssr: false, loading: () => null },
 );
 
+// EscapeToastListener — global listener for the Escape-the-Matrix
+// achievement toast. Auto-fires on home mount when the user has escaped
+// (detection lives inside the listener so a dynamic-chunk race between
+// emitter and subscriber can't drop the event). Also subscribes to the
+// matrixToastBus for explicit / future-flow triggers.
+const EscapeToastListener = dynamic(
+  () => import('@/components/matrix/EscapeToastListener'),
+  { ssr: false, loading: () => null },
+);
+
+// AdminPrefsController — mirrors admin-prefs store into <html data-pref-*>
+// attributes so CSS selectors toggle visual treatments.
+const AdminPrefsController = dynamic(
+  () => import('@/components/AdminPrefsController'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -121,6 +138,8 @@ export default function EagerEnhancements() {
       <ClickSoundListener />
       <SuperuserToastController />
       <MatrixNotesEntryButton />
+      <EscapeToastListener />
+      <AdminPrefsController />
       <AssetPrefetchController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}

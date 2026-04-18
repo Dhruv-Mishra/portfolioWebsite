@@ -6,7 +6,11 @@ import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
 import CheatsheetOutput from '@/components/CheatsheetOutput';
-import { isSuperuserEarnedSync } from '@/hooks/useStickers';
+import {
+    isSuperuserEarnedSync,
+    getMatrixEscapedSync,
+    getDiscoActiveSync,
+} from '@/hooks/useStickers';
 import {
     parseSudoInvocation,
     dispatchSudo,
@@ -14,6 +18,15 @@ import {
 } from '@/lib/sudoCommands';
 import { stickerBus } from '@/lib/stickerBus';
 import { STICKER_ROSTER } from '@/lib/stickers';
+import {
+    getCurrentStage,
+    getHintForStage,
+    MATRIX_PUZZLE_KEYS,
+    readSessionFlag,
+    type MatrixPuzzleSignals,
+} from '@/lib/matrixPuzzle';
+import { getExperimentalCommandsSync } from '@/hooks/useAdminPrefs';
+import { hasClientAdminTokenSync } from '@/lib/adminAuthClient';
 
 /** Delay (ms) before executing page navigation from terminal commands */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
@@ -61,6 +74,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <p className="pl-4 text-emerald-400">sign       - Alias for guestbook</p>
                 <p className="pl-4 text-emerald-400">stickers   - Open the sticker drawer</p>
                 <p className="pl-4 text-emerald-400">cheatsheet - Browse all stickers</p>
+                <p className="pl-4 text-emerald-400">matrix hint - Nudge for the current puzzle stage <span className="text-gray-500">(alias: /hint)</span></p>
             </div>
         )
     }),
@@ -241,21 +255,46 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             </div>
         )
     }),
-    ls: () => ({
-        output: (
-            <div className="grid grid-cols-2 gap-2 max-w-xs text-blue-300">
-                <span>about.md</span>
-                <span>projects.json</span>
-                <span>cropio.md</span>
-                <span>resume.pdf</span>
-                <span>contact.txt</span>
-                <span>secrets.env</span>
-            </div>
-        )
-    }),
+    ls: () => {
+        // adminTerminal.txt only appears in the listing once the user has
+        // sudo; otherwise it's a hidden/root-only file.
+        const hasSudo = isSuperuserEarnedSync();
+        return {
+            output: (
+                <div className="grid grid-cols-2 gap-2 max-w-xs text-blue-300">
+                    <span>about.md</span>
+                    <span>projects.json</span>
+                    <span>cropio.md</span>
+                    <span>resume.pdf</span>
+                    <span>contact.txt</span>
+                    <span>secrets.env</span>
+                    {hasSudo ? (
+                        <span
+                            className="text-amber-300 font-bold"
+                            title="Read with `sudo cat adminTerminal.txt`"
+                        >
+                            adminTerminal.txt
+                        </span>
+                    ) : null}
+                </div>
+            ),
+        };
+    },
     cat: (args: string[]) => {
         const file = args[0];
         if (!file) return { output: "Usage: cat [filename]" };
+        // Special-case the privileged file — bare `cat` is always denied;
+        // the user must go through `sudo cat`. Matches Linux-style copy.
+        if (file.toLowerCase() === 'adminterminal.txt') {
+            return {
+                output: (
+                    <div>
+                        <span className="text-red-400 font-bold">cat: adminTerminal.txt: Permission denied.</span>{' '}
+                        <span className="text-gray-400">(insufficient privileges)</span>
+                    </div>
+                ),
+            };
+        }
         const files: Record<string, string> = {
             "about.md": "Dhruv Mishra: Algorithmic thinker, Developer, and Problem Solver.",
             "projects.json": "[ { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
@@ -337,5 +376,58 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             }
         },
     }),
+    /**
+     * `matrix` — dispatch subcommands. Currently only `hint` is implemented
+     * but this keeps room for future growth (e.g. `matrix status`).
+     */
+    matrix: (args: string[]) => {
+        const sub = (args[0] || '').toLowerCase();
+        if (sub === 'hint') return renderMatrixHintResult();
+        return {
+            output: (
+                <div>
+                    <p className="text-gray-300">Usage: <span className="text-emerald-400 font-bold">matrix hint</span></p>
+                    <p className="text-gray-500 italic text-xs">
+                        returns an indirect nudge based on where you are in the puzzle.
+                    </p>
+                </div>
+            ),
+        };
+    },
+    /** Alias: `/hint` — same behavior as `matrix hint`. */
+    '/hint': () => renderMatrixHintResult(),
+    hint: () => renderMatrixHintResult(),
     clear: () => ({ output: "" })
 });
+
+/**
+ * Compose the current puzzle-stage signals and return a hint line. Pure
+ * read — no state mutations. Called by both `matrix hint` and `/hint`.
+ */
+function renderMatrixHintResult(): CommandResult {
+    const signals: MatrixPuzzleSignals = {
+        hasSuperuser: isSuperuserEarnedSync(),
+        sawAdminTerminalFile: readSessionFlag(MATRIX_PUZZLE_KEYS.sawAdminTerminalFile),
+        hasFileContents: readSessionFlag(MATRIX_PUZZLE_KEYS.hasFileContents),
+        adminAuthUnlocked: hasClientAdminTokenSync(),
+        experimentalCommandsEnabled: getExperimentalCommandsSync(),
+        ranSudoMatrix: readSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix),
+        clickedDisabledEscape: readSessionFlag(MATRIX_PUZZLE_KEYS.clickedDisabledEscape),
+        discoActive: getDiscoActiveSync(),
+        matrixEscaped: getMatrixEscapedSync(),
+    };
+    const stage = getCurrentStage(signals);
+    const hint = getHintForStage(stage);
+    return {
+        output: (
+            <div
+                role="status"
+                aria-live="polite"
+                className="border-l-2 border-cyan-400/60 pl-3 py-1 my-1"
+            >
+                <p className="text-cyan-300 font-bold text-xs uppercase tracking-widest">oracle hint</p>
+                <p className="text-gray-200 mt-1 italic">{hint}</p>
+            </div>
+        ),
+    };
+}

@@ -10,6 +10,7 @@ import type { ProjectSlug } from '@/lib/projectCatalog';
 import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { FILLER_DELAYS } from '@/lib/llmConfig';
+import { interceptMatrixPrompt } from '@/lib/matrixChatIntercept';
 
 export interface ChatMessage {
   id: string;
@@ -25,6 +26,12 @@ export interface ChatMessage {
   feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
   signature?: string; // Server signature for trusted assistant history replay
+  /**
+   * Matrix puzzle reply kind — set by the client-side regex intercept for
+   * `give password` / `sudo give password`. Controls special rendering in
+   * StickyNoteChat (red "denied" text or copyable key pill).
+   */
+  matrixInterceptKind?: 'denied' | 'reveal';
 }
 
 interface UseStickyChat {
@@ -377,6 +384,31 @@ export function useStickyChat(): UseStickyChat {
   const sendMessage = useCallback(async (content: string) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isLoadingRef.current) return;
+
+    // ── Matrix puzzle client-side intercept ──
+    // Short-circuit before rate-limit / server fetch so this works offline
+    // and without burning chat quota. See `lib/matrixChatIntercept.tsx`.
+    const intercept = interceptMatrixPrompt(trimmed);
+    if (intercept) {
+      const userMsg: ChatMessage = {
+        id: generateId(),
+        role: 'user',
+        content: trimmed,
+        timestamp: Date.now(),
+      };
+      const assistantMsg: ChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: intercept.content,
+        timestamp: Date.now() + 1,
+        matrixInterceptKind: intercept.kind,
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      // Persist so reloads still show the reveal (with copy affordance
+      // reconstructed on mount — see StickyNoteChat).
+      return;
+    }
+
     // Immediately guard against double-fire — blocks concurrent sends before React
     // re-renders and syncs the ref from state. Without this, rapid double-clicks
     // could bypass the guard since setIsLoading(true) only updates the ref on next render.

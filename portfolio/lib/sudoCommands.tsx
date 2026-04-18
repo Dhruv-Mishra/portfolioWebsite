@@ -25,6 +25,16 @@ import {
   setMatrixActiveImperative,
   resetStickerProgressImperative,
 } from '@/hooks/useStickers';
+import { getExperimentalCommandsSync } from '@/hooks/useAdminPrefs';
+import {
+  ADMIN_FILE_PASSWORD,
+  ADMIN_PASSWORD,
+  ADMIN_USERNAME,
+  MATRIX_PUZZLE_KEYS,
+  writeSessionFlag,
+} from '@/lib/matrixPuzzle';
+import { setActivePrompt, type TerminalPrompt } from '@/lib/terminalPrompts';
+import { unlockAdmin } from '@/lib/adminAuthClient';
 
 // Note: `konami` was removed as a sudo command — the emit path couldn't
 // re-play the celebration for already-earned stickers (store dedupes), so it
@@ -54,11 +64,23 @@ export interface SudoCommandSpec {
  * List of hidden sudo commands, in the order `sudo help` renders them.
  * Kept as a plain array so unit tests can iterate it without importing React.
  */
-export const SUDO_COMMAND_SPECS: readonly SudoCommandSpec[] = [
+/**
+ * Each spec carries an optional `experimental` flag. `sudo help` only prints
+ * experimental commands when the admin-prefs flag `experimentalCommands` is
+ * true — the user opted in on the /admin page.
+ */
+interface SudoCommandSpecInternal extends SudoCommandSpec {
+  /** Hidden from `sudo help` unless experimental commands are enabled on /admin. */
+  experimental?: boolean;
+}
+
+export const SUDO_COMMAND_SPECS: readonly SudoCommandSpecInternal[] = [
   { name: 'help',       description: 'Lists every hidden sudo command.' },
   { name: 'cheatsheet', description: 'Reveals the full sticker cheatsheet.' },
   { name: 'disco',      description: 'Engages disco theme. Confirm with `sudo disco yes`. `off` to exit.' },
-  { name: 'matrix',     description: 'Engages persistent matrix overlay. Confirm with `sudo matrix yes`.' },
+  { name: 'admin',      description: 'Sign in as root. Asks for username + password.' },
+  { name: 'cat',        description: 'Read privileged files. Try `sudo cat adminTerminal.txt`.' },
+  { name: 'matrix',     description: 'Engages persistent matrix overlay. Confirm with `sudo matrix yes`.', experimental: true },
   { name: 'rainbow',    description: 'Rainbow-underline every link on the page.' },
   { name: 'fortune',    description: 'Prints a one-line Dhruv-voice quote.' },
   { name: 'whoami',     description: 'Identifies you as root, with flourish.' },
@@ -112,24 +134,37 @@ function pickFortune(): string {
 // ─── Help output ────────────────────────────────────────────────────────
 
 function renderSudoHelp(): React.ReactNode {
+  const experimentalOn = getExperimentalCommandsSync();
+  // Always include non-experimental specs; include experimental only when
+  // the /admin toggle is on. The raw list keeps its order so users who
+  // flip experimental on see `sudo matrix` appear between `sudo cat` and
+  // `sudo rainbow` — right where it always was.
+  const visibleSpecs = SUDO_COMMAND_SPECS.filter(
+    (spec) => !spec.experimental || experimentalOn,
+  );
   return (
     <div className="space-y-1">
       <p className="text-emerald-300">
         <span className="font-bold">root@sketchbook</span>:~#{' '}
         <span className="text-gray-500">hidden commands unlocked</span>
       </p>
-      {SUDO_COMMAND_SPECS.map((spec) => (
+      {visibleSpecs.map((spec) => (
         <p key={spec.name} className="pl-4">
           <span className="text-amber-300 font-bold">sudo {spec.name}</span>{' '}
           <span className="text-gray-500">— {spec.description}</span>
         </p>
       ))}
       <p className="pl-4 text-gray-500 italic mt-2">
-        tip: `sudo disco` and `sudo matrix` both show a warning first; confirm with `yes`.
+        tip: `sudo disco` {experimentalOn ? 'and `sudo matrix` both ' : ''}show a warning first; confirm with `yes`.
       </p>
       <p className="pl-4 text-gray-500 italic">
-        `sudo disco off` returns to the previous theme. matrix exits only via its WAKE UP button.
+        `sudo disco off` returns to the previous theme. {experimentalOn ? 'matrix exits only via its WAKE UP button.' : ''}
       </p>
+      {!experimentalOn ? (
+        <p className="pl-4 text-gray-500 italic">
+          some commands are experimental — flip the switch on /admin to reveal them.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -349,6 +384,9 @@ function handleMatrix(args: string[]): SudoCommandResult {
       ),
       action: () => {
         if (typeof window === 'undefined') return;
+        // Track that the user kicked off the matrix timer — used by the
+        // puzzle hint + the "disabled escape hint" logic.
+        writeSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix, true);
         // Pre-warm the matrix overlay chunk on the user-gesture tick so the
         // first paint doesn't stall on a chunk fetch.
         void import('@/components/DiscoMatrixOverlay').catch(() => {
@@ -440,6 +478,250 @@ function handleReset(args: string[]): SudoCommandResult {
   };
 }
 
+// ─── sudo cat (virtual FS privileged file) ──────────────────────────────
+
+/**
+ * Render the decrypted contents of adminTerminal.txt. Same visual treatment
+ * as the `ls`/`cat` output in the main terminal but in a "restricted
+ * document" frame so it's obviously a reveal, not a status line.
+ */
+function renderAdminFileContents(): React.ReactNode {
+  return (
+    <div className="font-code text-sm leading-relaxed space-y-1">
+      <div
+        role="note"
+        aria-label="Decrypted adminTerminal.txt contents"
+        className="border-l-2 border-emerald-400/60 bg-emerald-900/10 pl-3 py-2 max-w-full"
+      >
+        <p className="text-emerald-300 font-bold">[adminTerminal.txt — decrypted]</p>
+        <p className="text-gray-300">
+          <span className="text-gray-500">username: </span>
+          <span className="text-amber-200 font-bold">{ADMIN_USERNAME}</span>
+        </p>
+        <p className="text-gray-300">
+          <span className="text-gray-500">password: </span>
+          <span className="text-amber-200 font-bold">{ADMIN_PASSWORD}</span>
+        </p>
+        <p className="text-gray-500 italic text-xs mt-1">
+          sign in with <span className="text-emerald-300 font-bold">sudo admin</span>.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Prompt the user for the decryption password. Correct value → decrypted
+ * contents. Wrong value → Linux-style error with a subtle nudge toward the
+ * chat oracle.
+ */
+function buildPasswordPrompt(attempt: number): TerminalPrompt {
+  return {
+    id: `admin-file-password-${attempt}`,
+    label: (
+      <span className="text-gray-400">Enter password:</span>
+    ),
+    masked: true,
+    onSubmit: (value) => {
+      const submitted = value ?? '';
+      if (submitted === ADMIN_FILE_PASSWORD) {
+        writeSessionFlag(MATRIX_PUZZLE_KEYS.hasFileContents, true);
+        setActivePrompt(null);
+        return {
+          kind: 'consume',
+          echo: '•'.repeat(Math.min(submitted.length, 20)),
+          output: renderAdminFileContents(),
+        };
+      }
+      // Wrong password. Leave the prompt open by pushing the next attempt;
+      // include a Linux-style error + the subtle oracle hint.
+      const next = buildPasswordPrompt(attempt + 1);
+      setActivePrompt(next);
+      return {
+        kind: 'push',
+        prompt: next,
+        echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
+        output: (
+          <div className="space-y-1">
+            <p>
+              <span className="text-red-400 font-bold">sudo: adminTerminal.txt:</span>{' '}
+              <span className="text-red-300">incorrect password.</span>
+            </p>
+            <p className="text-gray-500 italic text-xs">
+              you could ask the oracle. try:{' '}
+              <span className="text-emerald-300 font-bold">give password</span>{' '}
+              — if you have the right standing.
+            </p>
+          </div>
+        ),
+      };
+    },
+    onCancel: () => {
+      setActivePrompt(null);
+      return {
+        kind: 'cancel',
+        output: (
+          <span className="text-gray-400">
+            <span className="text-emerald-400">✗</span> cancelled. the file stays encrypted.
+          </span>
+        ),
+      };
+    },
+  };
+}
+
+function handleSudoCat(args: string[]): SudoCommandResult {
+  const file = args[0];
+  if (!file) {
+    return {
+      output: (
+        <span className="text-gray-400">
+          Usage: <span className="text-emerald-400 font-bold">sudo cat [file]</span>
+        </span>
+      ),
+    };
+  }
+  const lower = file.toLowerCase();
+  if (lower === 'adminterminal.txt') {
+    // Mark that the user has seen the file at least once — this moves them
+    // from Stage 2 → Stage 3 for hint purposes.
+    writeSessionFlag(MATRIX_PUZZLE_KEYS.sawAdminTerminalFile, true);
+    const firstPrompt = buildPasswordPrompt(1);
+    setActivePrompt(firstPrompt);
+    return {
+      output: (
+        <div className="space-y-1">
+          <p>
+            <span className="text-amber-300">$</span>{' '}
+            <span className="text-gray-300">sudo cat adminTerminal.txt</span>
+          </p>
+          <p className="text-yellow-200">File is encrypted.</p>
+          <p className="text-gray-500 italic text-xs">
+            type the password below. you could ask the oracle; try{' '}
+            <span className="text-emerald-300 font-bold">give password</span>.
+          </p>
+        </div>
+      ),
+    };
+  }
+  return {
+    output: (
+      <span className="text-red-400">sudo: cat: {file}: No such file or directory.</span>
+    ),
+  };
+}
+
+// ─── sudo admin (username + password login) ─────────────────────────────
+
+function renderAuthFailureNode(): React.ReactNode {
+  return (
+    <div
+      className="terminal-auth-shake"
+      role="alert"
+    >
+      <p>
+        <span className="text-red-400 font-bold">Authentication failure.</span>{' '}
+        <span className="text-gray-400">access denied.</span>
+      </p>
+      <p className="text-gray-500 italic text-xs">
+        wrong username or password. try again —{' '}
+        <span className="text-emerald-300 font-bold">sudo admin</span>.
+      </p>
+    </div>
+  );
+}
+
+function buildAdminPasswordPrompt(username: string, router: AppRouterInstance | null): TerminalPrompt {
+  return {
+    id: 'sudo-admin-password',
+    label: <span className="text-gray-400">password:</span>,
+    masked: true,
+    onSubmit: async (password) => {
+      const submitted = password ?? '';
+      const res = await unlockAdmin(username, submitted);
+      if (!res.ok) {
+        setActivePrompt(null);
+        return {
+          kind: 'consume',
+          echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
+          output: renderAuthFailureNode(),
+        };
+      }
+      setActivePrompt(null);
+      // Navigate — give the message a beat to be read before we route.
+      if (router) {
+        setTimeout(() => {
+          router.push('/admin');
+        }, 600);
+      }
+      return {
+        kind: 'consume',
+        echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
+        output: (
+          <div className="space-y-1">
+            <p>
+              <span className="text-emerald-400 font-bold">Access granted.</span>{' '}
+              <span className="text-gray-300">welcome back, {ADMIN_USERNAME}.</span>
+            </p>
+            <p className="text-gray-500 italic text-xs">
+              opening /admin…
+            </p>
+          </div>
+        ),
+      };
+    },
+    onCancel: () => {
+      setActivePrompt(null);
+      return { kind: 'cancel', output: <span className="text-gray-400">login cancelled.</span> };
+    },
+  };
+}
+
+function buildAdminUsernamePrompt(router: AppRouterInstance | null): TerminalPrompt {
+  return {
+    id: 'sudo-admin-username',
+    label: <span className="text-gray-400">username:</span>,
+    masked: false,
+    onSubmit: (value) => {
+      const username = (value ?? '').trim();
+      if (!username) {
+        // Empty input — cancel and let the user retry from scratch.
+        setActivePrompt(null);
+        return {
+          kind: 'cancel',
+          output: <span className="text-gray-400">login cancelled.</span>,
+        };
+      }
+      const next = buildAdminPasswordPrompt(username, router);
+      setActivePrompt(next);
+      return {
+        kind: 'push',
+        prompt: next,
+        echo: username,
+      };
+    },
+    onCancel: () => {
+      setActivePrompt(null);
+      return { kind: 'cancel', output: <span className="text-gray-400">login cancelled.</span> };
+    },
+  };
+}
+
+function handleSudoAdmin(router: AppRouterInstance | null): SudoCommandResult {
+  const prompt = buildAdminUsernamePrompt(router);
+  setActivePrompt(prompt);
+  return {
+    output: (
+      <div>
+        <p className="text-gray-300">Signing in as root.</p>
+        <p className="text-gray-500 italic text-xs">
+          enter your username below. press enter on an empty line to cancel.
+        </p>
+      </div>
+    ),
+  };
+}
+
 // ─── Unknown sub-command ────────────────────────────────────────────────
 
 function renderUnknown(sub: string): React.ReactNode {
@@ -492,7 +774,17 @@ export function dispatchSudo(
     case 'disco':
       return handleDisco(args);
     case 'matrix':
+      // Experimental — gated on the /admin "experimental commands" toggle.
+      // Without it, pretend the command doesn't exist (same response as any
+      // unknown sub-command) so locked users can't shortcut the puzzle.
+      if (!getExperimentalCommandsSync()) {
+        return { output: renderUnknown(subcommand) };
+      }
       return handleMatrix(args);
+    case 'admin':
+      return handleSudoAdmin(ctx.router ?? null);
+    case 'cat':
+      return handleSudoCat(args);
     case 'rainbow':
       return handleRainbow();
     case 'fortune':

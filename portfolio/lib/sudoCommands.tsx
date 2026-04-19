@@ -544,6 +544,19 @@ function renderIncorrectPasswordNode(): React.ReactNode {
  * The decrypt bar animates ~1400ms (compressed to ~250ms under
  * prefers-reduced-motion) and then self-replaces with the reveal node.
  */
+/**
+ * Generate a stable id for a decrypt-bar instance. Used so the bar can
+ * persist its completion state across React re-mounts (page navigation).
+ * Fresh per password submission — a user who re-runs `sudo cat` for a
+ * second attempt gets a new animation.
+ */
+function generateDecryptBarId(): string {
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `decrypt-bar-${suffix}`;
+}
+
 function buildPasswordPrompt(): TerminalPrompt {
   return {
     id: 'admin-file-password',
@@ -563,10 +576,16 @@ function buildPasswordPrompt(): TerminalPrompt {
       const reveal: React.ReactNode = isCorrect
         ? renderAdminFileContents()
         : renderIncorrectPasswordNode();
+      const decryptId = generateDecryptBarId();
       return {
         kind: 'consume',
+        // `suppressEcho` hides the entire header line (no bullets, no text)
+        // from the transcript. The echo string is kept for back-compat with
+        // tests that still assert the masked value, but the renderer does
+        // not use it when `suppressEcho` is set.
         echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
-        output: <TerminalDecryptBar reveal={reveal} />,
+        suppressEcho: true,
+        output: <TerminalDecryptBar id={decryptId} reveal={reveal} />,
       };
     },
     onCancel: () => {
@@ -656,7 +675,12 @@ function buildAdminPasswordPrompt(username: string, router: AppRouterInstance | 
         setActivePrompt(null);
         return {
           kind: 'consume',
+          // `suppressEcho` hides the masked bullets from the transcript so
+          // the submitted password leaves no trace. The `echo` string is
+          // retained for back-compat with existing tests but ignored by the
+          // renderer.
           echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
+          suppressEcho: true,
           output: renderAuthFailureNode(),
         };
       }
@@ -670,6 +694,7 @@ function buildAdminPasswordPrompt(username: string, router: AppRouterInstance | 
       return {
         kind: 'consume',
         echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
+        suppressEcho: true,
         output: (
           <div className="space-y-1">
             <p>
@@ -711,6 +736,9 @@ function buildAdminUsernamePrompt(router: AppRouterInstance | null): TerminalPro
         kind: 'push',
         prompt: next,
         echo: username,
+        // Hide the plaintext username from the transcript — after submission
+        // only the subsequent `password:` prompt line should be visible.
+        suppressEcho: true,
       };
     },
     onCancel: () => {

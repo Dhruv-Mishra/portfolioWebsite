@@ -18,9 +18,7 @@ import {
   interceptMatrixPrompt,
   isInterrogationActive,
   ORACLE_ANSWER_PAUSE_MS,
-  ORACLE_FILLER_PAUSE_MS,
-  ORACLE_INTERROGATION_START_PAUSE_MS,
-  ORACLE_REPLY_PAUSE_MS,
+  ORACLE_MESSAGE_GAP_MS,
   startInterrogation,
   type InterrogationTransition,
   type MatrixInterceptKind,
@@ -485,12 +483,30 @@ export function useStickyChat(): UseStickyChat {
   }, [appendOracleMessage]);
 
   /**
-   * Play the pre-reveal filler pool then emit the final reveal message.
-   * After the reveal, if `startInterrogationAfter` is true, fires the
-   * first interrogation question.
+   * Compute how many ms to wait before the NEXT oracle message should start
+   * streaming, given the previous message's typewriter duration. The
+   * guarantee is ≥ ORACLE_MESSAGE_GAP_MS of "settle time" after typing
+   * finishes AND before the next message begins — the brief asked for a
+   * ≥1000ms beat between discrete oracle messages so the cadence feels
+   * intentional rather than machine-gunned.
+   */
+  const oracleStepDelay = useCallback((prevLine: string) => {
+    return estimateTypewriterDuration(prevLine) + ORACLE_MESSAGE_GAP_MS;
+  }, []);
+
+  /**
+   * Play the pre-reveal / pre-interrogation filler pool.
    *
-   * Returns the real-time offset (ms) at which the last scheduled step
-   * runs — caller doesn't need it, but it keeps the scheduler explicit.
+   * Behaviour by branch:
+   *   - `denied` → fillers, then the red "Only root…" reply. No interrogation.
+   *   - `reveal` → fillers, then kick off the interrogation. The key is
+   *     NOT revealed here — the orchestrator waits for the user to pass
+   *     all 4 interrogation checks (see `playOracleTransition`). A wrong
+   *     or invalid answer aborts without the reveal.
+   *
+   * Each oracle message is separated from the next by
+   * ORACLE_MESSAGE_GAP_MS settle time (post-typewriter). The user's own
+   * message lands instantly — the cadence applies only to oracle beats.
    */
   const playOracleFillerSequence = useCallback(
     (options: {
@@ -502,7 +518,7 @@ export function useStickyChat(): UseStickyChat {
       const { userText, fillerLines, reveal, startInterrogationAfter } = options;
 
       // 1. User message goes in first (no placeholder — each filler is its
-      //    own assistant note).
+      //    own assistant note). No oracle gap on this one.
       const userMsg: ChatMessage = {
         id: generateId(),
         role: 'user',
@@ -511,69 +527,105 @@ export function useStickyChat(): UseStickyChat {
       };
       setMessages((prev) => [...prev, userMsg]);
 
-      // 2. Stream filler lines one at a time. Each line is a new assistant
-      //    message that types out via the existing typewriter; we wait for
-      //    the estimated type duration + a small pause before the next.
-      let offsetMs = 0;
+      // 2. Stream filler lines one at a time. The first filler lands after
+      //    a short ≥ ORACLE_MESSAGE_GAP_MS beat (gives the user a moment
+      //    to see their own note) and each subsequent one waits for the
+      //    previous to finish typing + the settle gap.
+      let offsetMs = ORACLE_MESSAGE_GAP_MS;
       for (const line of fillerLines) {
         const localLine = line;
         scheduleOracle(() => {
           emitFillerLine(localLine);
         }, offsetMs);
-        offsetMs += estimateTypewriterDuration(localLine) + ORACLE_FILLER_PAUSE_MS;
+        offsetMs += oracleStepDelay(localLine);
       }
 
-      // 3. After all fillers, append the real reveal message. This one is
-      //    NOT a filler (isFiller: false) and carries the intercept kind
-      //    so StickyNoteChat's special renderer fires.
-      scheduleOracle(() => {
-        appendOracleMessage({
-          content: reveal.content,
-          matrixInterceptKind: reveal.matrixInterceptKind,
-          isFiller: false,
-        });
-      }, offsetMs + ORACLE_REPLY_PAUSE_MS);
-      offsetMs += ORACLE_REPLY_PAUSE_MS + estimateTypewriterDuration(reveal.content);
-
-      // 4. Kick off interrogation only after the reveal has rendered.
       if (startInterrogationAfter) {
+        // 3a. Reveal branch — kick off interrogation. The first question's
+        //     preamble lands after the final filler's settle gap. We do NOT
+        //     emit the key reveal here; `playOracleTransition` emits it
+        //     only after a successful `finish-reveal` transition.
         scheduleOracle(() => {
           const transition = startInterrogation();
           playOracleTransition(transition);
-        }, offsetMs + ORACLE_INTERROGATION_START_PAUSE_MS);
+        }, offsetMs);
+      } else {
+        // 3b. Denied branch — emit the red denial as a real (non-filler)
+        //     assistant line. The `matrixInterceptKind` makes StickyNoteChat
+        //     render it via `MatrixDeniedNote`.
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: reveal.content,
+            matrixInterceptKind: reveal.matrixInterceptKind,
+            isFiller: false,
+          });
+        }, offsetMs);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scheduleOracle, emitFillerLine, appendOracleMessage],
+    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
   );
 
   /**
-   * Emit the two-beat "preamble filler + question" played for each
-   * interrogation step. Used by the question path and recursively by
-   * answer-driven transitions.
+   * Emit the per-transition oracle beats.
+   *
+   *   ask-next       → preamble filler  →  question
+   *   finish-reveal  → approval         →  release preamble  →  key reveal
+   *   finish-hazard  → security-hazard closing line
+   *   finish-invalid → invalid closing line
+   *
+   * Between every streamed oracle message the scheduler waits for the
+   * previous line's typewriter to finish AND adds ORACLE_MESSAGE_GAP_MS
+   * of settle time so the cadence feels deliberate. This applies
+   * uniformly to every branch above.
    */
   const playOracleTransition = useCallback(
     (transition: InterrogationTransition): void => {
       if (transition.kind === 'ask-next') {
         const { preamble, question } = transition;
-        // Preamble first — single filler line.
         scheduleOracle(() => {
           emitFillerLine(preamble);
         }, 0);
-        // Then the actual question, as a real (non-filler) assistant line.
-        const preambleDuration = estimateTypewriterDuration(preamble) + ORACLE_FILLER_PAUSE_MS;
         scheduleOracle(() => {
           appendOracleMessage({
             content: question,
             isFiller: false,
           });
-        }, preambleDuration);
+        }, oracleStepDelay(preamble));
         return;
       }
 
-      // finish-yes | finish-no | finish-invalid — all just emit a single
-      // closing line. No additional state to manage (startInterrogation /
-      // advanceInterrogation already reset `interrogationState`).
+      if (transition.kind === 'finish-reveal') {
+        const { approval, releasePreamble, revealContent } = transition;
+        // Beat 1 — approval line.
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: approval,
+            isFiller: false,
+          });
+        }, 0);
+        // Beat 2 — release preamble (italic filler treatment).
+        const afterApproval = oracleStepDelay(approval);
+        scheduleOracle(() => {
+          emitFillerLine(releasePreamble);
+        }, afterApproval);
+        // Beat 3 — the actual key reveal, carrying the `reveal` intercept
+        // kind so StickyNoteChat renders the copyable pill.
+        const afterRelease = afterApproval + oracleStepDelay(releasePreamble);
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: revealContent,
+            matrixInterceptKind: 'reveal',
+            isFiller: false,
+          });
+        }, afterRelease);
+        return;
+      }
+
+      // finish-hazard | finish-invalid — single closing line. No reveal.
+      // startInterrogation / advanceInterrogation already reset the
+      // module-scope state, so a subsequent `sudo give password` starts
+      // the whole flow from scratch.
       scheduleOracle(() => {
         appendOracleMessage({
           content: transition.closing,
@@ -581,7 +633,7 @@ export function useStickyChat(): UseStickyChat {
         });
       }, 0);
     },
-    [scheduleOracle, emitFillerLine, appendOracleMessage],
+    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
   );
 
   /**

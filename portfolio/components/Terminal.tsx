@@ -48,26 +48,47 @@ const noiseStyle = { backgroundImage: HEADER_NOISE_SVG } as const;
 
 // Memoised output area — only re-renders when outputLines changes, not on every keystroke
 interface TerminalOutputProps {
-    outputLines: { id: number; command: string; output: React.ReactNode }[];
+    outputLines: { id: number; command: string; output: React.ReactNode; hideCommandHeader?: boolean }[];
 }
 
 const TerminalOutput = React.memo(function TerminalOutput({ outputLines }: TerminalOutputProps) {
     return (
         <>
-            {outputLines.map((item) => (
-                <div key={item.id} className="mb-4">
-                    <div className="flex gap-3 opacity-90">
-                        <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
-                        <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
-                        <span className={TERMINAL_COLORS.command}>{item.command}</span>
-                    </div>
-                    {item.output && (
-                        <div className={`ml-7 mt-2 ${TERMINAL_COLORS.output} tracking-wide leading-relaxed border-l-2 ${TERMINAL_COLORS.border} pl-3`}>
-                            {item.output}
+            {outputLines.map((item) => {
+                // When `hideCommandHeader` is set (sensitive inline-prompt
+                // submissions: decrypt password, admin username/password),
+                // the `➜ ~ <echo>` header line is suppressed entirely so the
+                // transcript never shows the submitted value — bullets or
+                // otherwise. We still render the `output` block (e.g. the
+                // decrypt bar or auth failure note), but drop the left
+                // border + indent so the result flows directly after the
+                // preceding command without a visual "reply" gutter for a
+                // non-existent header.
+                if (item.hideCommandHeader) {
+                    if (!item.output) return null;
+                    return (
+                        <div key={item.id} className="mb-4">
+                            <div className={`${TERMINAL_COLORS.output} tracking-wide leading-relaxed`}>
+                                {item.output}
+                            </div>
                         </div>
-                    )}
-                </div>
-            ))}
+                    );
+                }
+                return (
+                    <div key={item.id} className="mb-4">
+                        <div className="flex gap-3 opacity-90">
+                            <span className={`${TERMINAL_COLORS.prompt} font-bold`}>➜</span>
+                            <span className={`${TERMINAL_COLORS.directory} font-bold`}>~</span>
+                            <span className={TERMINAL_COLORS.command}>{item.command}</span>
+                        </div>
+                        {item.output && (
+                            <div className={`ml-7 mt-2 ${TERMINAL_COLORS.output} tracking-wide leading-relaxed border-l-2 ${TERMINAL_COLORS.border} pl-3`}>
+                                {item.output}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </>
     );
 });
@@ -131,9 +152,17 @@ export default function Terminal() {
         const output = action.output ?? null;
         // Inline-prompt submissions must NEVER appear in the command-history
         // ring (↑/↓ arrows). That would leak passwords/usernames and surface
-        // bare echoes like "•••••" at the main `➜ ~` prompt. We still render
-        // the echo inline via addCommand(...) so the transcript shows what
-        // was typed, but we skip addToHistory entirely for prompt input.
+        // bare echoes like "•••••" at the main `➜ ~` prompt.
+        //
+        // When `suppressEcho` is set (decrypt/admin password, admin username),
+        // we also OMIT the echo from the rendered transcript — only the
+        // `output` block (decrypt bar, auth failure note, etc.) is appended.
+        // Without this, the transcript would persist either bullet runs or
+        // plaintext usernames after submission, which felt wrong.
+        if (action.suppressEcho) {
+            addCommand('', output, { skipHistory: true, hideCommandHeader: true });
+            return;
+        }
         addCommand(echo, output, { skipHistory: true });
     }, [addCommand]);
 

@@ -2,7 +2,7 @@
 
 /**
  * TerminalDecryptBar — a terminal-style progress bar that animates from 0 →
- * 100% over ~1400ms (compressed to ~250ms under prefers-reduced-motion),
+ * 100% over ~3500ms (compressed to ~500ms under prefers-reduced-motion),
  * then swaps itself out for the supplied `reveal` React node.
  *
  * USAGE
@@ -16,14 +16,27 @@
  *   light-shade ( ░ ) glyphs. When progress reaches 100%, this component
  *   unmounts the bar and renders `reveal` in its place.
  *
+ * PERSISTENCE ACROSS REMOUNTS
+ *   The caller passes a stable `id` on first instantiation. When the bar
+ *   animation finishes, the id is added to a module-scope Set. If the
+ *   component re-mounts with the same id — which happens when the user
+ *   navigates away from the home page and back (the TerminalProvider
+ *   survives at root layout, so the bar node persists in `outputLines`,
+ *   but the Terminal component subtree re-mounts and every child's
+ *   useState resets) — the bar skips the animation entirely and renders
+ *   `reveal` immediately. No re-animation, no flicker.
+ *
+ *   The set is cleared on a full page reload because it's module-scope;
+ *   that matches the overall session-storage semantics of the puzzle.
+ *
  * DESIGN CHOICES
  *   - Uses `requestAnimationFrame` so the animation runs at the browser's
  *     native paint cadence (no `setInterval` drift, no layout thrash).
  *     The frame callback computes progress from `performance.now()` so
  *     duration is wall-clock accurate regardless of frame rate.
  *   - Respects `prefers-reduced-motion` by compressing the duration to
- *     ~250ms — the bar still appears (the illusion is load-bearing for
- *     the puzzle) but it's effectively instant for motion-sensitive users.
+ *     ~500ms — the bar still appears (the illusion is load-bearing for
+ *     the puzzle) but it's quick for motion-sensitive users.
  *   - Width is driven entirely by monospaced characters + percent digits,
  *     so a 360px mobile viewport fits the whole thing with room to spare.
  *     `overflow-wrap: anywhere` on the container handles edge cases on
@@ -46,12 +59,38 @@ const BAR_CELLS = 30;
 const FILLED_CELL = '\u2588';
 /** Light-shade glyph for pending cells. */
 const EMPTY_CELL = '\u2591';
-/** Default duration in ms — designer-tuned for "feels deliberate, not slow". */
-const DEFAULT_DURATION_MS = 1400;
+/** Default duration in ms — long enough to feel deliberate, short enough not to drag. */
+const DEFAULT_DURATION_MS = 3500;
 /** Compressed duration for prefers-reduced-motion. Still visible, near-instant. */
-const REDUCED_MOTION_DURATION_MS = 250;
+const REDUCED_MOTION_DURATION_MS = 500;
+
+/**
+ * Module-scope registry of bar ids that have already completed their
+ * animation. Survives React re-mounts (and therefore page-internal
+ * navigation that remounts the Terminal tree) but NOT full page reloads.
+ * Exported for tests only — production code should never read/write it.
+ */
+const completedBarIds = new Set<string>();
+
+/** Test-only hook so the vitest harness can reset state between runs. */
+export function __resetDecryptBarRegistryForTests(): void {
+  completedBarIds.clear();
+}
+
+/** Test-only hook so the vitest harness can assert completion state. */
+export function __hasDecryptBarCompletedForTests(id: string): boolean {
+  return completedBarIds.has(id);
+}
 
 interface TerminalDecryptBarProps {
+  /**
+   * Stable identifier used to persist completion across React re-mounts.
+   * MUST be unique per invocation (the caller should generate a fresh id
+   * when the user submits a new password). If the caller supplies the
+   * same id on re-mount, the component skips the animation and jumps
+   * straight to `reveal`.
+   */
+  id: string;
   /** Displayed above the bar. "decrypting adminTerminal.txt" by default. */
   label?: string;
   /** React node rendered AFTER the bar animation completes. */
@@ -71,16 +110,28 @@ function prefersReducedMotion(): boolean {
 }
 
 export default function TerminalDecryptBar({
+  id,
   label = 'decrypting adminTerminal.txt',
   reveal,
   durationMs,
 }: TerminalDecryptBarProps): React.ReactElement {
-  const [done, setDone] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
+  // If this bar instance has already completed (user navigated away + back),
+  // start in the done state so we render `reveal` immediately without
+  // re-animating. useState initializer runs once per mount and reads the
+  // module-scope Set synchronously, so no flicker.
+  const [done, setDone] = React.useState<boolean>(() => completedBarIds.has(id));
+  const [progress, setProgress] = React.useState<number>(() => (completedBarIds.has(id) ? 1 : 0));
 
   React.useEffect(() => {
+    // Already completed in a previous mount — nothing to animate.
+    if (completedBarIds.has(id)) {
+      setDone(true);
+      return;
+    }
+
     if (typeof window === 'undefined') {
       // SSR: skip animation, go straight to reveal on the first client paint.
+      completedBarIds.add(id);
       setDone(true);
       return;
     }
@@ -103,6 +154,9 @@ export default function TerminalDecryptBar({
       const eased = 1 - Math.pow(1 - raw, 1.6);
       setProgress(eased);
       if (raw >= 1) {
+        // Record completion BEFORE flipping state so a cascaded re-render
+        // that reads the Set during useState initializer sees the mark.
+        completedBarIds.add(id);
         setDone(true);
         return;
       }
@@ -114,7 +168,7 @@ export default function TerminalDecryptBar({
       running = false;
       cancelAnimationFrame(rafId);
     };
-  }, [durationMs]);
+  }, [id, durationMs]);
 
   if (done) return <>{reveal}</>;
 

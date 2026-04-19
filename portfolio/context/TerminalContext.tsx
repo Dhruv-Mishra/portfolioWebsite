@@ -8,6 +8,14 @@ export interface TerminalLine {
     id: number;
     command: string;
     output: React.ReactNode;
+    /**
+     * When true, the rendered transcript omits the `➜ ~ <command>` header
+     * line and shows only `output` (un-indented, no left border). Used by
+     * inline-prompt submissions (decrypt/admin password, admin username)
+     * to keep sensitive input completely out of the transcript while still
+     * appending the result block (decrypt bar, auth failure note, etc.).
+     */
+    hideCommandHeader?: boolean;
 }
 
 /**
@@ -15,10 +23,17 @@ export interface TerminalLine {
  * (password / username entries from `sudo cat adminTerminal.txt` + `sudo admin`)
  * render in the transcript WITHOUT leaking into the ↑/↓ command-history ring.
  * The main terminal input keeps the default behavior (history captures it).
+ *
+ * `hideCommandHeader` suppresses the rendered `➜ ~ <echo>` header line for
+ * this entry — the output block alone appears in the transcript. Paired with
+ * `skipHistory: true` for the three sensitive prompts (decrypt password,
+ * admin username, admin password).
  */
 export interface AddCommandOptions {
     /** When true, the command is NOT appended to commandHistory. Default false. */
     skipHistory?: boolean;
+    /** When true, the rendered output omits the command header line. Default false. */
+    hideCommandHeader?: boolean;
 }
 
 interface TerminalContextType {
@@ -87,7 +102,13 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
 
     const addCommand = useCallback((command: string, output: React.ReactNode, options?: AddCommandOptions) => {
         setLines(prev => {
-            const next = capTerminalLines([...prev, { id: nextLineId++, command, output }]);
+            const entry: TerminalLine = {
+                id: nextLineId++,
+                command,
+                output,
+                ...(options?.hideCommandHeader ? { hideCommandHeader: true } : {}),
+            };
+            const next = capTerminalLines([...prev, entry]);
             setNextLineId(next);
             return next;
         });

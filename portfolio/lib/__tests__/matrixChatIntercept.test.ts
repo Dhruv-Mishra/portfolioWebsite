@@ -9,11 +9,16 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   __resetInterrogationForTests,
   advanceInterrogation,
+  CLOSE_SECURITY_HAZARD,
   drawDeniedFillerLines,
   drawRevealFillerLines,
   interceptMatrixPrompt,
+  INTERROGATION_APPROVAL,
   INTERROGATION_QUESTIONS,
+  INTERROGATION_RELEASE_PREAMBLE,
+  INTERROGATION_STEPS,
   isInterrogationActive,
+  MATRIX_KEY_REVEAL_CONTENT,
   normalizeAnswer,
   startInterrogation,
 } from '@/lib/matrixChatIntercept';
@@ -94,6 +99,28 @@ describe('normalizeAnswer', () => {
   });
 });
 
+describe('interrogation step definitions', () => {
+  it('has exactly 4 steps', () => {
+    expect(INTERROGATION_STEPS).toHaveLength(4);
+  });
+
+  it('carries mixed polarity — at least two expected NO', () => {
+    const noSteps = INTERROGATION_STEPS.filter((s) => s.expected === 'no');
+    expect(noSteps.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('each step has non-empty question text', () => {
+    for (const step of INTERROGATION_STEPS) {
+      expect(step.question.length).toBeGreaterThan(0);
+      expect(step.expected === 'yes' || step.expected === 'no').toBe(true);
+    }
+  });
+
+  it('INTERROGATION_QUESTIONS legacy export matches INTERROGATION_STEPS order', () => {
+    expect(INTERROGATION_QUESTIONS).toEqual(INTERROGATION_STEPS.map((s) => s.question));
+  });
+});
+
 describe('interrogation state machine', () => {
   beforeEach(() => {
     __resetInterrogationForTests();
@@ -108,54 +135,96 @@ describe('interrogation state machine', () => {
     expect(isInterrogationActive()).toBe(true);
     expect(transition.kind).toBe('ask-next');
     if (transition.kind !== 'ask-next') throw new Error('type narrow');
-    expect(transition.question).toBe(INTERROGATION_QUESTIONS[0]);
+    expect(transition.question).toBe(INTERROGATION_STEPS[0].question);
+    expect(transition.expected).toBe(INTERROGATION_STEPS[0].expected);
     expect(transition.preamble.length).toBeGreaterThan(0);
   });
 
-  it('advanceInterrogation on a YES advances to Q2', () => {
-    startInterrogation();
-    const transition = advanceInterrogation('yes');
+  it('advances when the user answers with the expected polarity', () => {
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    const transition = advanceInterrogation(first.expected);
     expect(transition.kind).toBe('ask-next');
     if (transition.kind !== 'ask-next') throw new Error('type narrow');
-    expect(transition.question).toBe(INTERROGATION_QUESTIONS[1]);
+    expect(transition.question).toBe(INTERROGATION_STEPS[1].question);
+    expect(transition.expected).toBe(INTERROGATION_STEPS[1].expected);
     expect(isInterrogationActive()).toBe(true);
   });
 
-  it('advanceInterrogation on 3 YES in a row finishes with blessing', () => {
-    startInterrogation();
-    advanceInterrogation('yes');
-    advanceInterrogation('y');
-    const finish = advanceInterrogation('YES');
-    expect(finish.kind).toBe('finish-yes');
-    if (finish.kind !== 'finish-yes') throw new Error('type narrow');
-    expect(finish.closing.length).toBeGreaterThan(0);
+  it('finishes with the reveal once every step is answered correctly', () => {
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    let transition = advanceInterrogation(first.expected);
+    for (let i = 1; i < INTERROGATION_STEPS.length - 1; i++) {
+      if (transition.kind !== 'ask-next') throw new Error('expected ask-next');
+      transition = advanceInterrogation(transition.expected);
+    }
+    // Final answer — should produce the reveal.
+    if (transition.kind !== 'ask-next') throw new Error('expected ask-next');
+    const finish = advanceInterrogation(transition.expected);
+    expect(finish.kind).toBe('finish-reveal');
+    if (finish.kind !== 'finish-reveal') throw new Error('type narrow');
+    expect(finish.approval).toBe(INTERROGATION_APPROVAL);
+    expect(finish.releasePreamble).toBe(INTERROGATION_RELEASE_PREAMBLE);
+    expect(finish.revealContent).toBe(MATRIX_KEY_REVEAL_CONTENT);
+    expect(finish.revealContent).toContain('followTheWhiteRabbit');
     expect(isInterrogationActive()).toBe(false);
   });
 
-  it('advanceInterrogation on NO at step 1 ends the flow', () => {
-    startInterrogation();
-    const finish = advanceInterrogation('no');
-    expect(finish.kind).toBe('finish-no');
-    if (finish.kind !== 'finish-no') throw new Error('type narrow');
-    expect(finish.closing.length).toBeGreaterThan(0);
+  it('aborts with finish-hazard when the user answers the OPPOSITE of step 1', () => {
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    const opposite = first.expected === 'yes' ? 'no' : 'yes';
+    const finish = advanceInterrogation(opposite);
+    expect(finish.kind).toBe('finish-hazard');
+    if (finish.kind !== 'finish-hazard') throw new Error('type narrow');
+    expect(finish.closing).toBe(CLOSE_SECURITY_HAZARD);
     expect(isInterrogationActive()).toBe(false);
   });
 
-  it('advanceInterrogation on NO after some YES answers ends the flow', () => {
-    startInterrogation();
-    advanceInterrogation('yes');
-    const finish = advanceInterrogation('no');
-    expect(finish.kind).toBe('finish-no');
+  it('aborts with finish-hazard on the opposite polarity at a later step', () => {
+    // Pass step 1, fail step 2 with wrong polarity.
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    const second = advanceInterrogation(first.expected);
+    if (second.kind !== 'ask-next') throw new Error('expected ask-next');
+    const wrong = second.expected === 'yes' ? 'no' : 'yes';
+    const finish = advanceInterrogation(wrong);
+    expect(finish.kind).toBe('finish-hazard');
     expect(isInterrogationActive()).toBe(false);
   });
 
-  it('advanceInterrogation on an invalid answer closes the channel', () => {
+  it('aborts with finish-hazard on the LAST step with wrong polarity (no reveal)', () => {
+    // Walk to the last step correctly then blow it.
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    let transition = advanceInterrogation(first.expected);
+    for (let i = 1; i < INTERROGATION_STEPS.length - 1; i++) {
+      if (transition.kind !== 'ask-next') throw new Error('expected ask-next');
+      transition = advanceInterrogation(transition.expected);
+    }
+    if (transition.kind !== 'ask-next') throw new Error('expected ask-next');
+    const wrong = transition.expected === 'yes' ? 'no' : 'yes';
+    const finish = advanceInterrogation(wrong);
+    expect(finish.kind).toBe('finish-hazard');
+    expect(isInterrogationActive()).toBe(false);
+  });
+
+  it('aborts with finish-invalid when the user types something that is not yes/no', () => {
     startInterrogation();
-    advanceInterrogation('yes');
     const finish = advanceInterrogation('maybe so');
     expect(finish.kind).toBe('finish-invalid');
     if (finish.kind !== 'finish-invalid') throw new Error('type narrow');
     expect(finish.closing.length).toBeGreaterThan(0);
+    expect(isInterrogationActive()).toBe(false);
+  });
+
+  it('invalid abort also fires mid-flow (not just at step 1)', () => {
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    advanceInterrogation(first.expected);
+    const finish = advanceInterrogation('yeah');
+    expect(finish.kind).toBe('finish-invalid');
     expect(isInterrogationActive()).toBe(false);
   });
 
@@ -168,8 +237,10 @@ describe('interrogation state machine', () => {
   });
 
   it('re-running startInterrogation after a finish works (fresh flow each time)', () => {
-    startInterrogation();
-    advanceInterrogation('no');
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    const wrong = first.expected === 'yes' ? 'no' : 'yes';
+    advanceInterrogation(wrong);
     expect(isInterrogationActive()).toBe(false);
 
     const t2 = startInterrogation();
@@ -177,7 +248,43 @@ describe('interrogation state machine', () => {
     expect(t2.kind).toBe('ask-next');
     if (t2.kind !== 'ask-next') throw new Error('type narrow');
     // Back to question zero.
-    expect(t2.question).toBe(INTERROGATION_QUESTIONS[0]);
+    expect(t2.question).toBe(INTERROGATION_STEPS[0].question);
+  });
+
+  it('rejects wrong-polarity answer on a YES-expected step without revealing the key', () => {
+    // Find a YES-expected step; answer with NO — must finish-hazard.
+    const yesStep = INTERROGATION_STEPS.findIndex((s) => s.expected === 'yes');
+    expect(yesStep).toBeGreaterThanOrEqual(0);
+
+    // Walk up to that step answering correctly.
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    let transition: ReturnType<typeof advanceInterrogation> = first;
+    for (let i = 0; i < yesStep; i++) {
+      if (transition.kind !== 'ask-next') throw new Error('walk broke');
+      transition = advanceInterrogation(transition.expected);
+    }
+    if (transition.kind !== 'ask-next') throw new Error('expected ask-next at yes step');
+    expect(transition.expected).toBe('yes');
+    const finish = advanceInterrogation('no');
+    expect(finish.kind).toBe('finish-hazard');
+  });
+
+  it('rejects wrong-polarity answer on a NO-expected step without revealing the key', () => {
+    const noStep = INTERROGATION_STEPS.findIndex((s) => s.expected === 'no');
+    expect(noStep).toBeGreaterThanOrEqual(0);
+
+    const first = startInterrogation();
+    if (first.kind !== 'ask-next') throw new Error('expected ask-next');
+    let transition: ReturnType<typeof advanceInterrogation> = first;
+    for (let i = 0; i < noStep; i++) {
+      if (transition.kind !== 'ask-next') throw new Error('walk broke');
+      transition = advanceInterrogation(transition.expected);
+    }
+    if (transition.kind !== 'ask-next') throw new Error('expected ask-next at no step');
+    expect(transition.expected).toBe('no');
+    const finish = advanceInterrogation('yes');
+    expect(finish.kind).toBe('finish-hazard');
   });
 });
 

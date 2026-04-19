@@ -40,6 +40,14 @@ export type PromptSubmitAction =
       output?: React.ReactNode;
       /** Optional side effect. */
       action?: () => void;
+      /**
+       * When true, the transcript will NOT render the `➜ ~ <echo>` header line
+       * for this submission — only the `output` block is appended. Used for
+       * sensitive prompts (decrypt/admin password, admin username) where
+       * persisting ANY echo in the transcript (bullets or plaintext) feels
+       * wrong. The ↑/↓ history exclusion (skipHistory: true) still applies.
+       */
+      suppressEcho?: boolean;
     }
   | {
       /** Replace the current prompt with a new one. Used for username → password chains. */
@@ -47,12 +55,16 @@ export type PromptSubmitAction =
       prompt: TerminalPrompt;
       echo?: string;
       output?: React.ReactNode;
+      /** See `suppressEcho` on `consume`. */
+      suppressEcho?: boolean;
     }
   | {
       /** Abort — close the prompt and render a cancel message. */
       kind: 'cancel';
       echo?: string;
       output?: React.ReactNode;
+      /** See `suppressEcho` on `consume`. */
+      suppressEcho?: boolean;
     };
 
 /**

@@ -1,0 +1,129 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3]:
+      - /url: "#main-content"
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Toggle Theme" [ref=e84]:
+          - img [ref=e86]
+        - button "Mute sound effects" [ref=e8]:
+          - img [ref=e10]
+      - generic:
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+      - main [ref=e14]:
+        - navigation "Main navigation" [ref=e15]:
+          - link "Home" [ref=e16]:
+            - /url: /
+            - generic [ref=e17]: Home
+          - link "Projects" [ref=e18]:
+            - /url: /projects
+            - generic [ref=e19]: Projects
+          - link "About" [ref=e20]:
+            - /url: /about
+            - generic [ref=e21]: About
+          - link "Resume" [ref=e22]:
+            - /url: /resume
+            - generic [ref=e23]: Resume
+          - link "Chat" [ref=e24]:
+            - /url: /chat
+            - generic [ref=e25]: Chat
+        - main [ref=e506]:
+          - generic [ref=e507]:
+            - generic [ref=e508]:
+              - paragraph [ref=e509]: root@sketchbook · /admin
+              - heading "Admin Console" [level=1] [ref=e510]
+              - paragraph [ref=e511]: signed in — session ~8 hours
+            - region "Site preferences" [ref=e512]:
+              - generic [ref=e513]:
+                - generic [ref=e514]:
+                  - img [ref=e515]
+                  - generic [ref=e518]:
+                    - paragraph [ref=e519]: Paper grain
+                    - paragraph [ref=e520]: Add the sketchbook paper texture behind every page.
+                  - checkbox "Paper grain" [checked] [ref=e521]
+                - generic [ref=e524]:
+                  - img [ref=e525]
+                  - generic [ref=e528]:
+                    - paragraph [ref=e529]: Tape effects
+                    - paragraph [ref=e530]: Decorative taped edges on notes, stickers, and cards.
+                  - checkbox "Tape effects" [checked] [ref=e531]
+                - generic [ref=e534]:
+                  - img [ref=e535]
+                  - generic [ref=e540]:
+                    - paragraph [ref=e541]: Sketch outlines
+                    - paragraph [ref=e542]: Dashed, hand-drawn borders on sticker cards.
+                  - checkbox "Sketch outlines" [checked] [ref=e543]
+                - generic [ref=e546]:
+                  - img [ref=e547]
+                  - generic [ref=e550]:
+                    - paragraph [ref=e551]: Enable experimental commands
+                    - paragraph [ref=e552]: All experiments require patience.
+                  - checkbox "Enable experimental commands" [checked] [active] [ref=e553]
+            - generic [ref=e556]:
+              - button "back home" [ref=e557]:
+                - img [ref=e558]
+                - text: back home
+              - button "Sign out of the admin console" [ref=e561]:
+                - img [ref=e562]
+                - text: sign out
+            - paragraph [ref=e565]:
+              - text: Preferences save to your browser. They change how the portfolio
+              - emphasis [ref=e566]: looks
+              - text: — not who Dhruv is.
+      - complementary "Social media links" [ref=e54]:
+        - link "GitHub" [ref=e55]:
+          - /url: https://github.com/Dhruv-Mishra
+          - img [ref=e56]
+          - generic: GitHub
+        - link "LinkedIn" [ref=e59]:
+          - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+          - img [ref=e60]
+          - generic: LinkedIn
+        - link "Codeforces" [ref=e64]:
+          - /url: https://codeforces.com/profile/DhruvMishra
+          - img [ref=e65]
+          - generic: Codeforces
+        - link "CP History" [ref=e66]:
+          - /url: https://zibada.guru/gcj/profile/Dhruv985
+          - img [ref=e67]
+          - generic: CP History
+        - link "Email" [ref=e73]:
+          - /url: mailto:dhruvmishra.id@gmail.com
+          - img [ref=e74]
+          - generic: Email
+        - link "Phone" [ref=e77]:
+          - /url: tel:+919599377944
+          - img [ref=e78]
+          - generic: Phone
+      - button "Open feedback form" [ref=e81]:
+        - img [ref=e82]
+  - button "Open Next.js Dev Tools" [ref=e131] [cursor=pointer]:
+    - img [ref=e132]
+  - alert [ref=e135]: 404 Not Found | Dhruv Mishra
+  - link "Sticker drawer — 18 of 18 pinned" [ref=e251]:
+    - /url: /stickers
+    - img [ref=e137]
+    - generic [ref=e141]: 18/18
+  - generic:
+    - generic:
+      - generic:
+        - img
+  - button "Open quick chat" [ref=e152]:
+    - img [ref=e464]

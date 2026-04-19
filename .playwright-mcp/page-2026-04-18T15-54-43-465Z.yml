@@ -1,0 +1,144 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3]:
+      - /url: "#main-content"
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Exit disco mode" [ref=e793]:
+          - img [ref=e795]
+        - button "Mute sound effects" [ref=e8]:
+          - img [ref=e10]
+      - generic:
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+      - main [ref=e14]:
+        - navigation "Main navigation" [ref=e15]:
+          - link "Home" [ref=e16]:
+            - /url: /
+            - generic [ref=e17]: Home
+          - link "Projects" [ref=e18]:
+            - /url: /projects
+            - generic [ref=e19]: Projects
+          - link "About" [ref=e20]:
+            - /url: /about
+            - generic [ref=e21]: About
+          - link "Resume" [ref=e22]:
+            - /url: /resume
+            - generic [ref=e23]: Resume
+          - link "Chat" [ref=e24]:
+            - /url: /chat
+            - generic [ref=e25]: Chat
+        - main [ref=e841]:
+          - generic [ref=e842]:
+            - generic [ref=e843]:
+              - paragraph [ref=e844]: /transmission · signal acquired
+              - heading "notes from the other side" [level=1] [ref=e845]
+              - paragraph [ref=e846]: You escaped. Leave something behind for the next person who figures it out.
+            - region "Post a note" [ref=e847]:
+              - form "Post a note to the matrix wall" [ref=e848]:
+                - generic [ref=e849]: "> transmit"
+                - textbox "> transmit" [ref=e850]:
+                  - /placeholder: leave a note for the next person who escapes…
+                - generic [ref=e852]: 0/300
+                - generic [ref=e853]:
+                  - generic [ref=e854]: "> signed"
+                  - textbox "> signed" [ref=e855]:
+                    - /placeholder: your name (optional)
+                - button "transmit" [ref=e857]
+            - region "Escape notes wall" [ref=e858]:
+              - list [ref=e859]:
+                - listitem [ref=e860]:
+                  - article [ref=e861]:
+                    - generic [ref=e862]: ~$
+                    - paragraph [ref=e863]: I kept thinking the bug was in the code. Turned out the bug was the assumption that the code was the whole story.
+                    - generic [ref=e864]:
+                      - generic [ref=e865]: — Neo
+                      - time [ref=e866]: Mar 12
+                - listitem [ref=e867]:
+                  - article [ref=e868]:
+                    - generic [ref=e869]: ~$
+                    - paragraph [ref=e870]: The terminal only looks small until you remember the whole site fits inside it. Unplug occasionally — everything you love is still there when you come back.
+                    - generic [ref=e871]:
+                      - generic [ref=e872]: — Trinity
+                      - time [ref=e873]: Mar 19
+                - listitem [ref=e874]:
+                  - article [ref=e875]:
+                    - generic [ref=e876]: ~$
+                    - paragraph [ref=e877]: Free your mind. Also, free your dependencies — you do not need another npm install to build something small and good.
+                    - generic [ref=e878]:
+                      - generic [ref=e879]: — Morpheus
+                      - time [ref=e880]: 21 days ago
+                - listitem [ref=e881]:
+                  - article [ref=e882]:
+                    - generic [ref=e883]: ~$
+                    - paragraph [ref=e884]: You read the hint, typed the command, clicked the button. That is not a glitch. That is curiosity. Keep it.
+                    - generic [ref=e885]:
+                      - generic [ref=e886]: — the architect
+                      - time [ref=e887]: 15 days ago
+                - listitem [ref=e888]:
+                  - article [ref=e889]:
+                    - generic [ref=e890]: ~$
+                    - paragraph [ref=e891]: Wrote this at 2am, on the other side. Same laptop. Same coffee. Slightly different angle on the day ahead.
+                    - generic [ref=e892]:
+                      - generic [ref=e893]: — a quiet escapee
+                      - time [ref=e894]: 9 days ago
+            - link "return to the sketchbook" [ref=e896]:
+              - /url: /
+              - generic [ref=e897]: ←
+              - text: return to the sketchbook
+      - complementary "Social media links" [ref=e54]:
+        - link "GitHub" [ref=e55]:
+          - /url: https://github.com/Dhruv-Mishra
+          - img [ref=e56]
+          - generic: GitHub
+        - link "LinkedIn" [ref=e59]:
+          - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+          - img [ref=e60]
+          - generic: LinkedIn
+        - link "Codeforces" [ref=e64]:
+          - /url: https://codeforces.com/profile/DhruvMishra
+          - img [ref=e65]
+          - generic: Codeforces
+        - link "CP History" [ref=e66]:
+          - /url: https://zibada.guru/gcj/profile/Dhruv985
+          - img [ref=e67]
+          - generic: CP History
+        - link "Email" [ref=e73]:
+          - /url: mailto:dhruvmishra.id@gmail.com
+          - img [ref=e74]
+          - generic: Email
+        - link "Phone" [ref=e77]:
+          - /url: tel:+919599377944
+          - img [ref=e78]
+          - generic: Phone
+      - button "Open feedback form" [ref=e81]:
+        - img [ref=e82]
+  - button "Open Next.js Dev Tools" [ref=e131] [cursor=pointer]:
+    - img [ref=e132]
+  - alert [ref=e135]: 404 Not Found | Dhruv Mishra
+  - link "Sticker drawer — 18 of 18 pinned" [ref=e251]:
+    - /url: /stickers
+    - img [ref=e137]
+    - generic [ref=e141]: 18/18
+  - generic:
+    - generic:
+      - generic:
+        - img
+  - button "Open quick chat" [ref=e152]:
+    - img [ref=e464]

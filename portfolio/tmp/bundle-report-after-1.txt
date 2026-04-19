@@ -1,0 +1,55 @@
+Shared baseline (rootMainFiles + polyfillFiles):
+  static/chunks/66a8c16702b8a250.js                                 2,529 B
+  static/chunks/a874286f7003d7ed.js                                30,165 B
+  static/chunks/7d6514a90169e63d.js                              1,11,078 B
+  static/chunks/69be39811437728d.js                              2,23,454 B
+  static/chunks/f091501564eb2ea3.js                                32,831 B
+  static/chunks/turbopack-bd53bfc4598e2423.js                      10,268 B
+  static/chunks/a6dad97d9634a72d.js                              1,12,594 B
+  TOTAL:                                                        5,22,919 B
+
+Per-route First Load JS (JS only, plus CSS noted):
+Route                     Chunks     Unique JS      Total JS     Total CSS
+--------------------------------------------------------------------------
+/chat/page                    14      3,49,915      3,49,915      1,50,688
+/projects/page                14      3,44,627      3,44,627      1,50,688
+/stickers/page                13      3,20,981      3,20,981      1,50,688
+/guestbook/page               13      3,20,713      3,20,713      1,50,688
+/about/page                   13      3,14,238      3,14,238      1,50,688
+/matrix-notes/page            13      3,10,823      3,10,823      1,50,688
+/page                         13      3,00,702      3,00,702      1,50,688
+/resume/page                  13      3,00,536      3,00,536      1,50,688
+/_not-found/page              12      3,00,148      3,00,148      1,50,688
+/_global-error/page            2        30,963        30,963             0
+/api/chat/route                0             0             0             0
+/api/chat/suggestions/route       0             0             0             0
+/api/feedback/route            0             0             0             0
+/api/guestbook/route           0             0             0             0
+/api/matrix-notes/route        0             0             0             0
+/sitemap.xml/route             0             0             0             0
+
+Top 20 static/chunks by size:
+Chunk                                  Bytes
+--------------------------------------------
+69be39811437728d.js                 2,23,454
+a6dad97d9634a72d.js                 1,12,594
+7d6514a90169e63d.js                 1,11,078
+15dda96bc4b441ad.js                   71,148
+8516aee447f06964.js                   43,618
+6c37fe704ab758e1.js                   40,850
+5bc7d3251c72d2a3.js                   36,559
+e156365d7afaa715.js                   35,772
+f091501564eb2ea3.js                   32,831
+d2be314c3ece3fbe.js                   30,681
+acb033630e86a675.js                   30,478
+a874286f7003d7ed.js                   30,165
+da5e11e4662ff4ba.js                   25,813
+991431f10995cf21.js                   25,705
+c6a13db90384c390.js                   25,668
+0c6871fbf87549a6.js                   25,461
+b6462ce308dfcf13.js                   20,863
+369b7764af5d7d8a.js                   20,833
+23f28c1c334c4451.js                   20,565
+5a7b7c5c07a3efdb.js                   19,171
+
+Total .next/static/chunks/*.js: 12,67,508 B

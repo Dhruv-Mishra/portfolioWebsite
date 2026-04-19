@@ -1787,6 +1787,75 @@ html[data-sudo-rainbow="on"] a {
   border-radius: 2px;
 }
 
+/* Terminal decrypt progress bar — shown after password submit at
+   `sudo cat adminTerminal.txt` and before the result (success/failure)
+   renders. The JS owns the tick loop + bar characters (via rAF); this
+   stylesheet just sets the visual chrome.
+
+   The bar container has a monospaced width that fits the 30-cell glyph
+   track plus the label line. `overflow-wrap: anywhere` guards against
+   narrow-viewport overflow (the track is monospaced so an accidentally
+   long label would push it wider than 360px otherwise).
+
+   Reduced-motion: we keep the bar visible (the illusion is load-bearing
+   for the puzzle) but compress the total duration — that logic lives in
+   the JS, the media query here just silences the caret blink so screen
+   readers / motion-sensitive users don't see a blinker. */
+.terminal-decrypt-bar {
+  font-family: 'Fira Code', 'Menlo', monospace;
+  color: #a7f3d0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.terminal-decrypt-bar__label {
+  color: #facc15;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.terminal-decrypt-bar__label::after {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  background: currentColor;
+  vertical-align: -0.1em;
+  animation: terminal-decrypt-caret 0.9s steps(2, start) infinite;
+}
+
+.terminal-decrypt-bar__track {
+  display: inline-block;
+  color: #34d399;
+  letter-spacing: 0.02em;
+  /* The track is a sequence of Unicode block glyphs rendered in a
+     monospaced font; no extra styling needed — the JS updates the
+     textContent with filled/empty cells. */
+}
+
+.terminal-decrypt-bar__percent {
+  color: #6ee7b7;
+  margin-left: 0.35em;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes terminal-decrypt-caret {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-decrypt-bar__label::after {
+    animation: none;
+    opacity: 0.8;
+  }
+}
+
 /* Admin console — subtle digital-rain border glow on the main card. */
 .admin-console__frame {
   position: relative;

@@ -1,0 +1,12 @@
+[     127ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     151ms] [LOG] [Fast Refresh] done in 123ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     182ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     215ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     265ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  126815ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  127620ms] [LOG] [Fast Refresh] done in 319ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297

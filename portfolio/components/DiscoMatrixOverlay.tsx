@@ -768,9 +768,11 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
 
   const handleDisabledEscapeClick = useCallback(() => {
     writeSessionFlag(MATRIX_PUZZLE_KEYS.clickedDisabledEscape, true);
-    // Show the inline hint toast. Auto-dismiss.
+    // Show the inline hint toast. Auto-dismiss at 4.2s.
+    // Copy intentionally references theme + energy without spelling out
+    // "turn on disco" — the puzzle demands a little inference.
     setDisabledHint(
-      'You must enter the matrix first. Try seeing the world differently.',
+      'The matrix rejects grayscale souls. Enter with more energy, or a different theme.',
     );
     if (disabledHintTimerRef.current !== null) {
       clearTimeout(disabledHintTimerRef.current);

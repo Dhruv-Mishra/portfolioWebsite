@@ -1,0 +1,47 @@
+[     173ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     173ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     173ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     173ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     173ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     174ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     446ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     514ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     804ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     810ms] [LOG] [Fast Refresh] done in 114ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   36565ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   36567ms] [LOG] [Fast Refresh] done in 111ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   36603ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36603ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36603ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36603ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36603ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36604ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   36668ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   36718ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   93737ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   93986ms] [LOG] [Fast Refresh] done in 323ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  103915ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  106218ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106218ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106219ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106219ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106219ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106219ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  106234ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  106293ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  108985ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=0-FzjvYOB1CYeJdQR1UuG' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  111306ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=0-FzjvYOB1CYeJdQR1UuG' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  113640ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=0-FzjvYOB1CYeJdQR1UuG' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  115964ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=0-FzjvYOB1CYeJdQR1UuG' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  118286ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=0-FzjvYOB1CYeJdQR1UuG' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  123300ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  127943ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127943ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127943ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127944ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127944ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127944ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[  127974ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  128021ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  128168ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  128274ms] [LOG] [Fast Refresh] done in 215ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297

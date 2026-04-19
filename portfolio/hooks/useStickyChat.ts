@@ -10,7 +10,21 @@ import type { ProjectSlug } from '@/lib/projectCatalog';
 import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { FILLER_DELAYS } from '@/lib/llmConfig';
-import { interceptMatrixPrompt } from '@/lib/matrixChatIntercept';
+import {
+  advanceInterrogation,
+  drawDeniedFillerLines,
+  drawRevealFillerLines,
+  estimateTypewriterDuration,
+  interceptMatrixPrompt,
+  isInterrogationActive,
+  ORACLE_ANSWER_PAUSE_MS,
+  ORACLE_FILLER_PAUSE_MS,
+  ORACLE_INTERROGATION_START_PAUSE_MS,
+  ORACLE_REPLY_PAUSE_MS,
+  startInterrogation,
+  type InterrogationTransition,
+  type MatrixInterceptKind,
+} from '@/lib/matrixChatIntercept';
 
 export interface ChatMessage {
   id: string;
@@ -32,6 +46,14 @@ export interface ChatMessage {
    * StickyNoteChat (red "denied" text or copyable key pill).
    */
   matrixInterceptKind?: 'denied' | 'reveal';
+  /**
+   * True on any assistant message emitted by the local matrix-puzzle
+   * oracle orchestrator (filler preamble, key reveal, interrogation
+   * questions, closing lines). Used to EXCLUDE these synthetic messages
+   * from the LLM conversation context window so the remote model never
+   * sees — and thus never imitates — the oracle's scripted voice.
+   */
+  oracleEmitted?: boolean;
 }
 
 interface UseStickyChat {
@@ -256,11 +278,14 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip isOld/isFiller flags and welcome message before saving; keep action metadata for display
+    // Strip ephemeral flags (isOld / isFiller / oracleEmitted) and the welcome
+    // message before saving; keep action metadata for display. On reload,
+    // oracle messages restore as plain assistant notes (fine — the
+    // interrogation state is deliberately NOT persisted per brief).
     const toSave = messages
       .filter(m => m.id !== 'welcome')
       // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to omit from saved data
-      .map(({ isOld: _isOld, isFiller: _isFiller, ...m }) => m)
+      .map(({ isOld: _isOld, isFiller: _isFiller, oracleEmitted: _oracleEmitted, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
   } catch {
@@ -284,12 +309,25 @@ export function useStickyChat(): UseStickyChat {
   const isLoadingRef = useRef(isLoading);
   isLoadingRef.current = isLoading;
 
-  // Abort in-flight requests and cancel filler timers on unmount
+  // ── Matrix oracle scheduler refs (must be declared BEFORE the unmount
+  // effect so the effect's cleanup can close over the same Set reference).
+  // Pending timers from the oracle orchestrator — cleared on clearMessages()
+  // / unmount. Without this, a user clearing the desk mid-interrogation
+  // would still see later oracle beats land.
+  const oracleTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // Abort in-flight requests and cancel filler timers on unmount.
+  // Capture the timers Set in a local variable so the cleanup callback
+  // reads the same reference React saw at commit time (React lint rule).
   useEffect(() => {
+    const timers = oracleTimersRef.current;
     return () => {
       abortControllerRef.current?.abort('unmount');
       suggestionsAbortRef.current?.abort('unmount');
       fillerCleanupRef.current?.();
+      // Cancel any pending oracle sequencer timers (matrix puzzle).
+      for (const id of timers) clearTimeout(id);
+      timers.clear();
     };
   }, []);
 
@@ -331,9 +369,13 @@ export function useStickyChat(): UseStickyChat {
     return () => clearTimeout(id);
   }, [messages]);
 
-  // Fetch LLM-generated suggestions based on conversation context
+  // Fetch LLM-generated suggestions based on conversation context.
+  // Skip oracle-emitted (matrix puzzle) messages — same reasoning as the
+  // main chat context: don't let the LLM imitate the scripted voice.
   const fetchSuggestions = useCallback(() => {
-    const currentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
+    const currentMessages = messagesRef.current.filter(
+      (m) => m.id !== 'welcome' && !m.oracleEmitted,
+    );
     if (currentMessages.length === 0) return;
 
     // Abort any in-flight suggestion request to prevent stale results / leaks
@@ -381,31 +423,223 @@ export function useStickyChat(): UseStickyChat {
       });
   }, []);
 
+  // ── Matrix oracle scheduler ────────────────────────────────────────────
+  // (oracleTimersRef is declared earlier, above the unmount useEffect, so
+  // the cleanup closure can capture the same Set reference.)
+
+  const clearOracleTimers = useCallback(() => {
+    for (const id of oracleTimersRef.current) {
+      clearTimeout(id);
+    }
+    oracleTimersRef.current.clear();
+  }, []);
+
+  const scheduleOracle = useCallback((fn: () => void, delayMs: number) => {
+    const id = setTimeout(() => {
+      oracleTimersRef.current.delete(id);
+      fn();
+    }, delayMs);
+    oracleTimersRef.current.add(id);
+  }, []);
+
+  /**
+   * Append a brand new assistant message. Returns its id so later scheduler
+   * callbacks can target it. Automatically stamps `oracleEmitted: true`
+   * so these synthetic messages are excluded from the LLM context window
+   * (the remote model should never see — or learn to imitate — the
+   * oracle's scripted voice).
+   */
+  const appendOracleMessage = useCallback(
+    (init: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>): string => {
+      const id = generateId();
+      const msg: ChatMessage = {
+        id,
+        role: 'assistant',
+        timestamp: Date.now(),
+        oracleEmitted: true,
+        ...init,
+      };
+      setMessages((prev) => [...prev, msg]);
+      return id;
+    },
+    [],
+  );
+
+  /**
+   * Append a filler line as a NEW assistant message. Each filler gets its
+   * own typewriter pass + preserved in the transcript — feels like a
+   * streaming oracle rather than a cursor overwriting itself.
+   *
+   * We INTENTIONALLY omit `isFiller: true` here: the `isFiller` flag causes
+   * the sticky note to render italic + 50% opacity, which is the right
+   * treatment for the main chat's "thinking while the LLM is slow" cue, but
+   * the wrong treatment for the oracle's scripted streaming filler. The
+   * brief asks for the filler to render in the SAME visual style as regular
+   * LLM streamed text, so we leave these as plain assistant notes — the
+   * typewriter still fires per note on first mount.
+   */
+  const emitFillerLine = useCallback((line: string): string => {
+    return appendOracleMessage({
+      content: line,
+    });
+  }, [appendOracleMessage]);
+
+  /**
+   * Play the pre-reveal filler pool then emit the final reveal message.
+   * After the reveal, if `startInterrogationAfter` is true, fires the
+   * first interrogation question.
+   *
+   * Returns the real-time offset (ms) at which the last scheduled step
+   * runs — caller doesn't need it, but it keeps the scheduler explicit.
+   */
+  const playOracleFillerSequence = useCallback(
+    (options: {
+      userText: string;
+      fillerLines: string[];
+      reveal: { content: string; matrixInterceptKind: MatrixInterceptKind };
+      startInterrogationAfter: boolean;
+    }): void => {
+      const { userText, fillerLines, reveal, startInterrogationAfter } = options;
+
+      // 1. User message goes in first (no placeholder — each filler is its
+      //    own assistant note).
+      const userMsg: ChatMessage = {
+        id: generateId(),
+        role: 'user',
+        content: userText,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      // 2. Stream filler lines one at a time. Each line is a new assistant
+      //    message that types out via the existing typewriter; we wait for
+      //    the estimated type duration + a small pause before the next.
+      let offsetMs = 0;
+      for (const line of fillerLines) {
+        const localLine = line;
+        scheduleOracle(() => {
+          emitFillerLine(localLine);
+        }, offsetMs);
+        offsetMs += estimateTypewriterDuration(localLine) + ORACLE_FILLER_PAUSE_MS;
+      }
+
+      // 3. After all fillers, append the real reveal message. This one is
+      //    NOT a filler (isFiller: false) and carries the intercept kind
+      //    so StickyNoteChat's special renderer fires.
+      scheduleOracle(() => {
+        appendOracleMessage({
+          content: reveal.content,
+          matrixInterceptKind: reveal.matrixInterceptKind,
+          isFiller: false,
+        });
+      }, offsetMs + ORACLE_REPLY_PAUSE_MS);
+      offsetMs += ORACLE_REPLY_PAUSE_MS + estimateTypewriterDuration(reveal.content);
+
+      // 4. Kick off interrogation only after the reveal has rendered.
+      if (startInterrogationAfter) {
+        scheduleOracle(() => {
+          const transition = startInterrogation();
+          playOracleTransition(transition);
+        }, offsetMs + ORACLE_INTERROGATION_START_PAUSE_MS);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scheduleOracle, emitFillerLine, appendOracleMessage],
+  );
+
+  /**
+   * Emit the two-beat "preamble filler + question" played for each
+   * interrogation step. Used by the question path and recursively by
+   * answer-driven transitions.
+   */
+  const playOracleTransition = useCallback(
+    (transition: InterrogationTransition): void => {
+      if (transition.kind === 'ask-next') {
+        const { preamble, question } = transition;
+        // Preamble first — single filler line.
+        scheduleOracle(() => {
+          emitFillerLine(preamble);
+        }, 0);
+        // Then the actual question, as a real (non-filler) assistant line.
+        const preambleDuration = estimateTypewriterDuration(preamble) + ORACLE_FILLER_PAUSE_MS;
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: question,
+            isFiller: false,
+          });
+        }, preambleDuration);
+        return;
+      }
+
+      // finish-yes | finish-no | finish-invalid — all just emit a single
+      // closing line. No additional state to manage (startInterrogation /
+      // advanceInterrogation already reset `interrogationState`).
+      scheduleOracle(() => {
+        appendOracleMessage({
+          content: transition.closing,
+          isFiller: false,
+        });
+      }, 0);
+    },
+    [scheduleOracle, emitFillerLine, appendOracleMessage],
+  );
+
+  /**
+   * Handle a user message while interrogation is active. Always claims the
+   * message (never forwards to the LLM) — parses it as yes/no/invalid and
+   * either asks the next question or closes the channel.
+   */
+  const handleInterrogationUserReply = useCallback(
+    (userText: string): void => {
+      const userMsg: ChatMessage = {
+        id: generateId(),
+        role: 'user',
+        content: userText,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      // Give the user's note a beat to land before the oracle responds.
+      scheduleOracle(() => {
+        const transition = advanceInterrogation(userText);
+        playOracleTransition(transition);
+      }, ORACLE_ANSWER_PAUSE_MS);
+    },
+    [scheduleOracle, playOracleTransition],
+  );
+
   const sendMessage = useCallback(async (content: string) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isLoadingRef.current) return;
 
+    // ── Interrogation takes priority over every other path ──
+    // If a sudo-give-password flow armed an interrogation, EVERY user
+    // message while it's active is claimed here (parsed as yes/no/invalid).
+    // The regular LLM is never called during interrogation.
+    if (isInterrogationActive()) {
+      handleInterrogationUserReply(trimmed);
+      return;
+    }
+
     // ── Matrix puzzle client-side intercept ──
     // Short-circuit before rate-limit / server fetch so this works offline
     // and without burning chat quota. See `lib/matrixChatIntercept.tsx`.
+    // This path plays the oracle-thinking filler preamble before the final
+    // reveal, then (for the sudo branch) kicks off an interrogation.
     const intercept = interceptMatrixPrompt(trimmed);
     if (intercept) {
-      const userMsg: ChatMessage = {
-        id: generateId(),
-        role: 'user',
-        content: trimmed,
-        timestamp: Date.now(),
-      };
-      const assistantMsg: ChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: intercept.content,
-        timestamp: Date.now() + 1,
-        matrixInterceptKind: intercept.kind,
-      };
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      // Persist so reloads still show the reveal (with copy affordance
-      // reconstructed on mount — see StickyNoteChat).
+      const fillerLines = intercept.kind === 'reveal'
+        ? drawRevealFillerLines(3)
+        : drawDeniedFillerLines(3);
+      playOracleFillerSequence({
+        userText: trimmed,
+        fillerLines,
+        reveal: {
+          content: intercept.content,
+          matrixInterceptKind: intercept.kind,
+        },
+        startInterrogationAfter: intercept.kind === 'reveal',
+      });
       return;
     }
 
@@ -475,8 +709,16 @@ export function useStickyChat(): UseStickyChat {
     fillerCleanupRef.current = clearFillerTimers;
 
     try {
-      // Build conversation history
-      const recentMessages = messagesRef.current.filter(m => m.id !== 'welcome');
+      // Build conversation history. Oracle-emitted (matrix puzzle) messages
+      // are stripped from the context so the remote LLM never sees the
+      // scripted voice and can't accidentally imitate it on subsequent
+      // turns. The user's `give password` / `sudo give password` question
+      // is NOT oracle-emitted so it stays in context — but that's fine
+      // because the server's MATRIX_PUZZLE_BLOCK already teaches the LLM
+      // the right response for those phrases anyway.
+      const recentMessages = messagesRef.current.filter(
+        (m) => m.id !== 'welcome' && !m.oracleEmitted,
+      );
       const contextWindow = recentMessages.slice(-10);
       const conversationMessages = [
         ...contextWindow.map(m => ({
@@ -618,7 +860,7 @@ export function useStickyChat(): UseStickyChat {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
-  }, []); // Stable: reads all mutable state via refs
+  }, [handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
   const addLocalExchange = useCallback((userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => {
     const userMsg: ChatMessage = {
@@ -645,6 +887,8 @@ export function useStickyChat(): UseStickyChat {
     clearPendingChatRecovery();
     // Cancel any pending filler timers
     fillerCleanupRef.current?.();
+    // Cancel any oracle (matrix puzzle) sequencer timers too.
+    clearOracleTimers();
     // Reset all state
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setIsLoading(false);
@@ -655,7 +899,7 @@ export function useStickyChat(): UseStickyChat {
       localStorage.removeItem(CHAT_CONFIG.storageKey);
       localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);
     }
-  }, []);
+  }, [clearOracleTimers]);
 
   const markOpenUrlsFailed = useCallback((messageId: string) => {
     setMessages(prev =>

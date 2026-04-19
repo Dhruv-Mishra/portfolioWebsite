@@ -10,10 +10,21 @@ export interface TerminalLine {
     output: React.ReactNode;
 }
 
+/**
+ * Options for `addCommand`. `skipHistory` exists so inline-prompt submissions
+ * (password / username entries from `sudo cat adminTerminal.txt` + `sudo admin`)
+ * render in the transcript WITHOUT leaking into the ↑/↓ command-history ring.
+ * The main terminal input keeps the default behavior (history captures it).
+ */
+export interface AddCommandOptions {
+    /** When true, the command is NOT appended to commandHistory. Default false. */
+    skipHistory?: boolean;
+}
+
 interface TerminalContextType {
     outputLines: TerminalLine[];
     commandHistory: string[];
-    addCommand: (command: string, output: React.ReactNode) => void;
+    addCommand: (command: string, output: React.ReactNode, options?: AddCommandOptions) => void;
     addToHistory: (command: string) => void;
     clearOutput: () => void;
 }
@@ -32,6 +43,32 @@ function setNextLineId(lines: TerminalLine[]) {
     nextLineId = lines.reduce((maxId, line) => Math.max(maxId, line.id), 0) + 1;
 }
 
+/**
+ * Pure helper: decide what the NEXT history ring should be given the
+ * current ring, an incoming command, and whether history capture is
+ * being skipped (e.g. inline-prompt password submissions).
+ *
+ * Exported so unit tests can exercise the decision logic without
+ * mounting the full provider. The reducer above delegates to the same
+ * rules inline — kept as an exact duplicate so production keeps a tiny
+ * hot-path and tests can hit the pure function.
+ *
+ * Rules:
+ *   - If `skipHistory` is true, return `current` unchanged.
+ *   - If `command` is empty/whitespace, return `current` unchanged.
+ *   - Otherwise append and clamp to MAX_HISTORY.
+ */
+export function computeNextHistory(
+    current: readonly string[],
+    command: string,
+    options?: AddCommandOptions,
+): string[] {
+    if (options?.skipHistory) return [...current];
+    if (!command.trim()) return [...current];
+    const next = [...current, command];
+    return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
+}
+
 export function createInitialTerminalLine(): TerminalLine {
     return {
         id: 1,
@@ -48,14 +85,17 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
     });
     const [commandHistory, setCommandHistory] = useState<string[]>([]);
 
-    const addCommand = useCallback((command: string, output: React.ReactNode) => {
+    const addCommand = useCallback((command: string, output: React.ReactNode, options?: AddCommandOptions) => {
         setLines(prev => {
             const next = capTerminalLines([...prev, { id: nextLineId++, command, output }]);
             setNextLineId(next);
             return next;
         });
 
-        if (command.trim()) {
+        // Skip history capture when the caller explicitly opts out (e.g.
+        // inline-prompt password/username submissions). Otherwise fall back
+        // to the default behavior: any non-empty command goes into the ring.
+        if (!options?.skipHistory && command.trim()) {
             setCommandHistory(prev => {
                 const next = [...prev, command];
                 return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;

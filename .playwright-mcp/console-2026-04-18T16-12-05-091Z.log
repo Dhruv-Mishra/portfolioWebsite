@@ -1,0 +1,26 @@
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     159ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[     362ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     439ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     723ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     725ms] [LOG] [Fast Refresh] done in 104ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   49046ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JCtJIEBLNJUwnGpSqEtrn' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[   51381ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JCtJIEBLNJUwnGpSqEtrn' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[   53704ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JCtJIEBLNJUwnGpSqEtrn' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[   56032ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JCtJIEBLNJUwnGpSqEtrn' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[   58362ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JCtJIEBLNJUwnGpSqEtrn' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[   63380ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   66399ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66399ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66399ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66400ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66400ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66400ms] [WARNING] <link rel=preload> uses an unsupported `as` value @ http://localhost:3000/:0
+[   66455ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   66530ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   66696ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   66846ms] [LOG] [Fast Refresh] done in 277ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297

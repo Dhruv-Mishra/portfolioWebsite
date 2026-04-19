@@ -1,0 +1,50 @@
+
+> portfolio@0.1.0 prebuild
+> npm run build:embeddings
+
+
+> portfolio@0.1.0 build:embeddings
+> tsx scripts/build-embeddings.ts
+
+[build-embeddings] SKIP_EMBEDDINGS_BUILD=1 set — using existing lib\facts.embeddings.json.
+
+> portfolio@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Experiments (use with caution):
+  ✓ optimizeCss
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 8.4s
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/17) ...
+  Generating static pages using 15 workers (4/17) 
+  Generating static pages using 15 workers (8/17) 
+  Generating static pages using 15 workers (12/17) 
+✓ Generating static pages using 15 workers (17/17) in 722.1ms
+  Finalizing page optimization ...
+
+Route (app)                Revalidate  Expire
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about                         1h      1y
+├ ƒ /api/chat
+├ ƒ /api/chat/suggestions
+├ ƒ /api/feedback
+├ ƒ /api/guestbook
+├ ƒ /api/matrix-notes
+├ ○ /chat
+├ ƒ /guestbook
+├ ○ /matrix-notes
+├ ○ /projects
+├ ○ /resume                        1h      1y
+├ ○ /sitemap.xml
+└ ○ /stickers
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -725,10 +725,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     setSuggestionsReady(true);
   }, [messages, llmSuggestions, followupActions]);
 
-  // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual
+  // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual.
+  // Skip oracle-emitted (matrix puzzle) messages — they arrive in bursts
+  // (filler preamble + reveal + interrogation questions), and rebuilding
+  // the suggestion strip on each one would flicker badly and waste LLM
+  // quota. Regular LLM-driven suggestions refresh once the oracle flow
+  // ends and the user sends a normal chat turn.
   useEffect(() => {
     const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
-    if (!lastAssistant || isLoading || lastAssistant.isOld) return;
+    if (!lastAssistant || isLoading || lastAssistant.isOld || lastAssistant.oracleEmitted) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
     hasFetchedSuggestionsRef.current = lastAssistant.id;
 
@@ -855,6 +860,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
 
     completedAssistantHapticRef.current = lastAssistant.id;
+
+    // Oracle-emitted (matrix puzzle) messages arrive in bursts — filler
+    // preamble, reveal, interrogation questions. Firing the success haptic
+    // + chat-receive sound on each would feel spammy and drown out the
+    // oracle's atmosphere. Skip the feedback cues for those; the regular
+    // LLM reply path still announces with haptic + sound as before.
+    if (lastAssistant.oracleEmitted) {
+      return;
+    }
+
     success();
     // Audible "reply arrived" cue paired with the success haptic. The sound
     // is a gentle descending chirp so it doesn't compete with the upward

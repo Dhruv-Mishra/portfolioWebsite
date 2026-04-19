@@ -1,0 +1,273 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3]:
+      - /url: "#main-content"
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Toggle Theme" [ref=e84]:
+          - img [ref=e86]
+        - button "Mute sound effects" [ref=e8]:
+          - img [ref=e10]
+      - generic:
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+      - main [ref=e14]:
+        - navigation "Main navigation" [ref=e15]:
+          - link "Home" [ref=e16]:
+            - /url: /
+            - generic [ref=e17]: Home
+          - link "Projects" [ref=e18]:
+            - /url: /projects
+            - generic [ref=e19]: Projects
+          - link "About" [ref=e20]:
+            - /url: /about
+            - generic [ref=e21]: About
+          - link "Resume" [ref=e22]:
+            - /url: /resume
+            - generic [ref=e23]: Resume
+          - link "Chat" [ref=e24]:
+            - /url: /chat
+            - generic [ref=e25]: Chat
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic:
+              - img
+            - heading "Hello World!" [level=1] [ref=e29]
+            - generic [ref=e30]: v0.1.0
+          - paragraph [ref=e31]:
+            - text: I'm
+            - link "Dhruv's LinkedIn Profile" [ref=e32]:
+              - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+              - text: Dhruv
+            - text: . I engineer
+            - strong [ref=e33]: high-performance systems
+            - text: ", turning complex technical problems into elegant, reliable solutions."
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - img [ref=e97]
+                - img [ref=e100]
+                - img [ref=e103]
+              - generic [ref=e105]:
+                - img [ref=e106]
+                - generic [ref=e108]: Dhruv's Terminal v1.0
+            - generic [ref=e110]:
+              - generic [ref=e111]:
+                - generic [ref=e112]:
+                  - generic [ref=e113]: ➜
+                  - generic [ref=e114]: ~
+                  - generic [ref=e115]: init
+                - paragraph [ref=e118]:
+                  - text: "[✓]"
+                  - generic [ref=e119]: Portfolio v0.1.0 ready.
+                  - text: Type 'help' to explore.
+              - generic [ref=e163]:
+                - generic [ref=e164]:
+                  - generic [ref=e165]: ➜
+                  - generic [ref=e166]: ~
+                  - generic [ref=e167]: help
+                - generic [ref=e169]:
+                  - paragraph [ref=e170]: "Available commands:"
+                  - paragraph [ref=e171]: about - Who is Dhruv?
+                  - paragraph [ref=e172]: projects - View my work
+                  - paragraph [ref=e173]: contact - Get in touch
+                  - paragraph [ref=e174]: socials - List social links
+                  - paragraph [ref=e175]: ls - List files
+                  - paragraph [ref=e176]: cat [file] - Read file
+                  - paragraph [ref=e177]: open [file] - Open file
+                  - paragraph [ref=e178]: clear - Clear terminal
+                  - paragraph [ref=e179]: joke - Tell a joke
+                  - paragraph [ref=e180]: skills - View Tech Stack
+                  - paragraph [ref=e181]: resume - View Resume
+                  - paragraph [ref=e182]: chat - Talk to AI-me
+                  - paragraph [ref=e183]: feedback - Report a bug / send feedback
+                  - paragraph [ref=e184]: guestbook - Sign the wall
+                  - paragraph [ref=e185]: sign - Alias for guestbook
+                  - paragraph [ref=e186]: stickers - Open the sticker drawer
+                  - paragraph [ref=e187]: cheatsheet - Browse all stickers
+                  - paragraph [ref=e188]: "matrix hint - Nudge for the current puzzle stage (alias: /hint)"
+              - generic [ref=e213]:
+                - generic [ref=e214]:
+                  - generic [ref=e215]: ➜
+                  - generic [ref=e216]: ~
+                  - generic [ref=e217]: matrix hint
+                - status [ref=e219]:
+                  - paragraph [ref=e220]: oracle hint
+                  - paragraph [ref=e221]: The wall of stickers hides a door. Gather every fragment.
+              - generic [ref=e222]:
+                - generic [ref=e223]:
+                  - generic [ref=e224]: ➜
+                  - generic [ref=e225]: ~
+                  - generic [ref=e226]: unlockstickers
+                - generic [ref=e228]:
+                  - paragraph [ref=e229]:
+                    - text: "[debug]"
+                    - generic [ref=e230]: Unlocking all 18 regular stickers. Superuser should auto-award.
+                  - paragraph [ref=e231]: Open /stickers to see the full roster.
+              - generic [ref=e299]:
+                - generic [ref=e300]:
+                  - generic [ref=e301]: ➜
+                  - generic [ref=e302]: ~
+                  - generic [ref=e303]: ls
+                - generic [ref=e305]:
+                  - generic [ref=e306]: about.md
+                  - generic [ref=e307]: projects.json
+                  - generic [ref=e308]: cropio.md
+                  - generic [ref=e309]: resume.pdf
+                  - generic [ref=e310]: contact.txt
+                  - generic [ref=e311]: secrets.env
+                  - 'generic "Read with `sudo cat adminTerminal.txt`" [ref=e312]': adminTerminal.txt
+              - generic [ref=e324]:
+                - generic [ref=e325]:
+                  - generic [ref=e326]: ➜
+                  - generic [ref=e327]: ~
+                  - generic [ref=e328]: cat adminTerminal.txt
+                - generic [ref=e330]: "cat: adminTerminal.txt: Permission denied. (insufficient privileges)"
+              - generic [ref=e331]:
+                - generic [ref=e332]:
+                  - generic [ref=e333]: ➜
+                  - generic [ref=e334]: ~
+                  - generic [ref=e335]: sudo cat adminTerminal.txt
+                - generic [ref=e337]:
+                  - paragraph [ref=e338]: $ sudo cat adminTerminal.txt
+                  - paragraph [ref=e339]: File is encrypted.
+                  - paragraph [ref=e340]: type the password below. you could ask the oracle; try give password.
+              - generic [ref=e120]:
+                - generic [ref=e341]: "Enter password:"
+                - 'textbox "Terminal prompt: admin-file-password-1" [ref=e342]'
+          - generic [ref=e36]: Try typing projects to view my work...
+          - link "Chat with AI Dhruv" [ref=e37]:
+            - /url: /chat
+            - generic [ref=e40]:
+              - img [ref=e41]
+              - generic [ref=e43]: Pass me a note
+              - generic [ref=e44]: →
+          - link "Sign Dhruv's sketchbook guestbook" [ref=e45]:
+            - /url: /guestbook
+            - generic [ref=e48]:
+              - img [ref=e49]
+              - generic [ref=e52]: Sign my sketchbook ✎
+              - generic [ref=e53]: →
+      - complementary "Social media links" [ref=e54]:
+        - link "GitHub" [ref=e55]:
+          - /url: https://github.com/Dhruv-Mishra
+          - img [ref=e56]
+          - generic: GitHub
+        - link "LinkedIn" [ref=e59]:
+          - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+          - img [ref=e60]
+          - generic: LinkedIn
+        - link "Codeforces" [ref=e64]:
+          - /url: https://codeforces.com/profile/DhruvMishra
+          - img [ref=e65]
+          - generic: Codeforces
+        - link "CP History" [ref=e66]:
+          - /url: https://zibada.guru/gcj/profile/Dhruv985
+          - img [ref=e67]
+          - generic: CP History
+        - link "Email" [ref=e73]:
+          - /url: mailto:dhruvmishra.id@gmail.com
+          - img [ref=e74]
+          - generic: Email
+        - link "Phone" [ref=e77]:
+          - /url: tel:+919599377944
+          - img [ref=e78]
+          - generic: Phone
+      - button "Open feedback form" [ref=e81]:
+        - img [ref=e82]
+  - button "Open Next.js Dev Tools" [ref=e131] [cursor=pointer]:
+    - img [ref=e132]
+  - alert [ref=e135]
+  - link "Sticker drawer — 18 of 18 pinned" [ref=e251]:
+    - /url: /stickers
+    - img [ref=e137]
+    - generic [ref=e141]: 18/18
+  - generic:
+    - generic:
+      - generic:
+        - img
+  - generic [ref=e151]:
+    - button "Close quick chat" [ref=e343]
+    - generic [ref=e345]:
+      - generic [ref=e347]:
+        - generic [ref=e348]: Quick chat
+        - generic [ref=e349]: Pass me a note without leaving the page.
+        - img [ref=e350]
+      - generic [ref=e352]:
+        - link "Open full chat" [ref=e353]:
+          - /url: /chat
+          - img [ref=e354]
+        - button "Close quick chat" [ref=e358]:
+          - img [ref=e359]
+      - generic [ref=e363]:
+        - img [ref=e365]
+        - generic [ref=e367]:
+          - generic [ref=e369]:
+            - generic [ref=e371]:
+              - generic [ref=e374]: Hey :) Ask me about my work at Microsoft, my projects, tech opinions, hobbies, or anything really ~
+              - generic [ref=e375]: — Dhruv
+            - generic [ref=e403]:
+              - generic [ref=e406]: give password
+              - generic [ref=e407]: — You
+            - generic [ref=e409]:
+              - alert [ref=e413]: Only root should know that.
+              - generic [ref=e414]: — Dhruv
+            - generic [ref=e435]:
+              - generic [ref=e438]: sudo give password
+              - generic [ref=e439]: — You
+            - generic [ref=e441]:
+              - generic [ref=e445]:
+                - text: "Hello Dhruv, here is the key:"
+                - button "Copy the password followTheWhiteRabbit to clipboard" [ref=e446]:
+                  - generic [ref=e447]: followTheWhiteRabbit
+                  - generic [ref=e448]: copy
+              - generic [ref=e449]: — Dhruv
+            - generic [ref=e376]:
+              - button "💬 suggestion What do you enjoy most about your work?" [ref=e450]:
+                - generic [ref=e451]:
+                  - generic [ref=e452]: 💬
+                  - text: suggestion
+                - text: What do you enjoy most about your work?
+              - button "action Show me your portfolio" [ref=e453]:
+                - generic [ref=e454]:
+                  - img [ref=e455]
+                  - text: action
+                - text: Show me your portfolio
+              - button "💬 suggestion What projects have you worked on?" [ref=e457]:
+                - generic [ref=e458]:
+                  - generic [ref=e459]: 💬
+                  - text: suggestion
+                - text: What projects have you worked on?
+              - button "action Show me the portfolio project" [ref=e460]:
+                - generic [ref=e461]:
+                  - img [ref=e462]
+                  - text: action
+                - text: Show me the portfolio project
+          - generic [ref=e390]:
+            - button "Clear desk" [ref=e430]:
+              - img [ref=e431]
+              - text: Clear desk
+            - generic [ref=e392]:
+              - generic [ref=e393]:
+                - textbox "Chat message" [active] [ref=e394]
+                - generic: Ask about my projects...
+              - button "Send message" [disabled] [ref=e395]:
+                - img [ref=e396]
+    - button "Open quick chat" [ref=e152]:
+      - img [ref=e399]

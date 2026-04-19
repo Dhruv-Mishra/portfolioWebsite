@@ -1,0 +1,171 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3]:
+      - /url: "#main-content"
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - button "Toggle Theme" [ref=e84]:
+          - img [ref=e86]
+        - button "Mute sound effects" [ref=e8]:
+          - img [ref=e10]
+      - generic:
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+        - generic:
+          - img
+      - main [ref=e14]:
+        - navigation "Main navigation" [ref=e15]:
+          - link "Home" [ref=e16]:
+            - /url: /
+            - generic [ref=e17]: Home
+          - link "Projects" [ref=e18]:
+            - /url: /projects
+            - generic [ref=e19]: Projects
+          - link "About" [ref=e20]:
+            - /url: /about
+            - generic [ref=e21]: About
+          - link "Resume" [ref=e22]:
+            - /url: /resume
+            - generic [ref=e23]: Resume
+          - link "Chat" [ref=e24]:
+            - /url: /chat
+            - generic [ref=e25]: Chat
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic:
+              - img
+            - heading "Hello World!" [level=1] [ref=e29]
+            - generic [ref=e30]: v0.1.0
+          - paragraph [ref=e31]:
+            - text: I'm
+            - link "Dhruv's LinkedIn Profile" [ref=e32]:
+              - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+              - text: Dhruv
+            - text: . I engineer
+            - strong [ref=e33]: high-performance systems
+            - text: ", turning complex technical problems into elegant, reliable solutions."
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]:
+                - img [ref=e97]
+                - img [ref=e100]
+                - img [ref=e103]
+              - generic [ref=e105]:
+                - img [ref=e106]
+                - generic [ref=e108]: Dhruv's Terminal v1.0
+            - generic [ref=e110]:
+              - generic [ref=e111]:
+                - generic [ref=e112]:
+                  - generic [ref=e113]: ➜
+                  - generic [ref=e114]: ~
+                  - generic [ref=e115]: init
+                - paragraph [ref=e118]:
+                  - text: "[✓]"
+                  - generic [ref=e119]: Portfolio v0.1.0 ready.
+                  - text: Type 'help' to explore.
+              - generic [ref=e163]:
+                - generic [ref=e164]:
+                  - generic [ref=e165]: ➜
+                  - generic [ref=e166]: ~
+                  - generic [ref=e167]: help
+                - generic [ref=e169]:
+                  - paragraph [ref=e170]: "Available commands:"
+                  - paragraph [ref=e171]: about - Who is Dhruv?
+                  - paragraph [ref=e172]: projects - View my work
+                  - paragraph [ref=e173]: contact - Get in touch
+                  - paragraph [ref=e174]: socials - List social links
+                  - paragraph [ref=e175]: ls - List files
+                  - paragraph [ref=e176]: cat [file] - Read file
+                  - paragraph [ref=e177]: open [file] - Open file
+                  - paragraph [ref=e178]: clear - Clear terminal
+                  - paragraph [ref=e179]: joke - Tell a joke
+                  - paragraph [ref=e180]: skills - View Tech Stack
+                  - paragraph [ref=e181]: resume - View Resume
+                  - paragraph [ref=e182]: chat - Talk to AI-me
+                  - paragraph [ref=e183]: feedback - Report a bug / send feedback
+                  - paragraph [ref=e184]: guestbook - Sign the wall
+                  - paragraph [ref=e185]: sign - Alias for guestbook
+                  - paragraph [ref=e186]: stickers - Open the sticker drawer
+                  - paragraph [ref=e187]: cheatsheet - Browse all stickers
+                  - paragraph [ref=e188]: "matrix hint - Nudge for the current puzzle stage (alias: /hint)"
+              - generic [ref=e120]:
+                - generic [ref=e121]: ➜
+                - generic [ref=e122]: ~
+                - generic [ref=e123]:
+                  - textbox "Terminal Command Input" [active] [ref=e124]:
+                    - /placeholder: ""
+                  - generic: type a comma
+          - generic [ref=e36]: Try typing projects to view my work...
+          - link "Chat with AI Dhruv" [ref=e37]:
+            - /url: /chat
+            - generic [ref=e40]:
+              - img [ref=e41]
+              - generic [ref=e43]: Pass me a note
+              - generic [ref=e44]: →
+          - link "Sign Dhruv's sketchbook guestbook" [ref=e45]:
+            - /url: /guestbook
+            - generic [ref=e48]:
+              - img [ref=e49]
+              - generic [ref=e52]: Sign my sketchbook ✎
+              - generic [ref=e53]: →
+      - complementary "Social media links" [ref=e54]:
+        - link "GitHub" [ref=e55]:
+          - /url: https://github.com/Dhruv-Mishra
+          - img [ref=e56]
+          - generic: GitHub
+        - link "LinkedIn" [ref=e59]:
+          - /url: https://www.linkedin.com/in/dhruv-mishra-id/
+          - img [ref=e60]
+          - generic: LinkedIn
+        - link "Codeforces" [ref=e64]:
+          - /url: https://codeforces.com/profile/DhruvMishra
+          - img [ref=e65]
+          - generic: Codeforces
+        - link "CP History" [ref=e66]:
+          - /url: https://zibada.guru/gcj/profile/Dhruv985
+          - img [ref=e67]
+          - generic: CP History
+        - link "Email" [ref=e73]:
+          - /url: mailto:dhruvmishra.id@gmail.com
+          - img [ref=e74]
+          - generic: Email
+        - link "Phone" [ref=e77]:
+          - /url: tel:+919599377944
+          - img [ref=e78]
+          - generic: Phone
+      - button "Open feedback form" [ref=e81]:
+        - img [ref=e82]
+  - button "Open Next.js Dev Tools" [ref=e131] [cursor=pointer]:
+    - img [ref=e132]
+  - alert [ref=e135]
+  - 'link "You unlocked: The First Word. Tap to open the sticker drawer." [ref=e191]':
+    - /url: /stickers
+    - img [ref=e193]
+    - generic [ref=e201]:
+      - paragraph [ref=e202]: You unlocked
+      - paragraph [ref=e203]: The First Word
+    - generic [ref=e204]: tap ↗
+  - link "Sticker drawer — 2 of 18 pinned" [ref=e205]:
+    - /url: /stickers
+    - img [ref=e137]
+    - generic [ref=e141]: 2/18
+  - generic:
+    - generic:
+      - generic:
+        - img
+  - button "Open quick chat" [ref=e152]:
+    - img [ref=e153]

@@ -128,14 +128,14 @@ export default function Terminal() {
 
     const applyPromptAction = React.useCallback((action: PromptSubmitAction, rawText: string) => {
         const echo = action.echo ?? rawText;
-        if (echo) {
-            addToHistory(echo);
-        }
         const output = action.output ?? null;
-        // Use an echo-only command line (no prompt chrome in recorded history)
-        // so the password * mask appears where the command would have been.
-        addCommand(echo, output);
-    }, [addCommand, addToHistory]);
+        // Inline-prompt submissions must NEVER appear in the command-history
+        // ring (↑/↓ arrows). That would leak passwords/usernames and surface
+        // bare echoes like "•••••" at the main `➜ ~` prompt. We still render
+        // the echo inline via addCommand(...) so the transcript shows what
+        // was typed, but we skip addToHistory entirely for prompt input.
+        addCommand(echo, output, { skipHistory: true });
+    }, [addCommand]);
 
     const handleCommand = React.useCallback(async (e: React.FormEvent) => {
         e.preventDefault();

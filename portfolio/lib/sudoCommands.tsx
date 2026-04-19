@@ -35,6 +35,7 @@ import {
 } from '@/lib/matrixPuzzle';
 import { setActivePrompt, type TerminalPrompt } from '@/lib/terminalPrompts';
 import { unlockAdmin } from '@/lib/adminAuthClient';
+import TerminalDecryptBar from '@/components/TerminalDecryptBar';
 
 // Note: `konami` was removed as a sudo command — the emit path couldn't
 // re-play the celebration for already-earned stickers (store dedupes), so it
@@ -484,6 +485,10 @@ function handleReset(args: string[]): SudoCommandResult {
  * Render the decrypted contents of adminTerminal.txt. Same visual treatment
  * as the `ls`/`cat` output in the main terminal but in a "restricted
  * document" frame so it's obviously a reveal, not a status line.
+ *
+ * Intentionally does NOT include a "sign in with sudo admin" tail hint —
+ * the matrix-hint command already nudges toward `sudo admin` for the next
+ * stage, and the duplicated nudge made the file feel hand-holdy.
  */
 function renderAdminFileContents(): React.ReactNode {
   return (
@@ -502,58 +507,66 @@ function renderAdminFileContents(): React.ReactNode {
           <span className="text-gray-500">password: </span>
           <span className="text-amber-200 font-bold">{ADMIN_PASSWORD}</span>
         </p>
-        <p className="text-gray-500 italic text-xs mt-1">
-          sign in with <span className="text-emerald-300 font-bold">sudo admin</span>.
-        </p>
       </div>
     </div>
   );
 }
 
 /**
- * Prompt the user for the decryption password. Correct value → decrypted
- * contents. Wrong value → Linux-style error with a subtle nudge toward the
- * chat oracle.
+ * Build the "incorrect password" reveal node. Rendered AFTER the decrypt bar
+ * finishes so it feels like the decryption attempt ran, then failed.
  */
-function buildPasswordPrompt(attempt: number): TerminalPrompt {
+function renderIncorrectPasswordNode(): React.ReactNode {
+  return (
+    <div className="space-y-1">
+      <p>
+        <span className="text-red-400 font-bold">sudo: adminTerminal.txt:</span>{' '}
+        <span className="text-red-300">incorrect password.</span>
+      </p>
+      <p className="text-gray-500 italic text-xs">
+        you could ask the oracle. try:{' '}
+        <span className="text-emerald-300 font-bold">give password</span>{' '}
+        — if you have the right standing.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Prompt the user for the decryption password. ONE ATTEMPT ONLY — on a
+ * wrong password the prompt closes and the user is returned to the normal
+ * `➜ ~` terminal input, where they can re-run `sudo cat adminTerminal.txt`
+ * if they want another try.
+ *
+ * Correct value → decrypt bar → decrypted file contents.
+ * Wrong   value → decrypt bar → Linux-style error + oracle nudge.
+ *
+ * The decrypt bar animates ~1400ms (compressed to ~250ms under
+ * prefers-reduced-motion) and then self-replaces with the reveal node.
+ */
+function buildPasswordPrompt(): TerminalPrompt {
   return {
-    id: `admin-file-password-${attempt}`,
+    id: 'admin-file-password',
     label: (
       <span className="text-gray-400">Enter password:</span>
     ),
     masked: true,
     onSubmit: (value) => {
       const submitted = value ?? '';
-      if (submitted === ADMIN_FILE_PASSWORD) {
+      // Always close the prompt — one attempt, then back to normal terminal.
+      setActivePrompt(null);
+
+      const isCorrect = submitted === ADMIN_FILE_PASSWORD;
+      if (isCorrect) {
         writeSessionFlag(MATRIX_PUZZLE_KEYS.hasFileContents, true);
-        setActivePrompt(null);
-        return {
-          kind: 'consume',
-          echo: '•'.repeat(Math.min(submitted.length, 20)),
-          output: renderAdminFileContents(),
-        };
       }
-      // Wrong password. Leave the prompt open by pushing the next attempt;
-      // include a Linux-style error + the subtle oracle hint.
-      const next = buildPasswordPrompt(attempt + 1);
-      setActivePrompt(next);
+      const reveal: React.ReactNode = isCorrect
+        ? renderAdminFileContents()
+        : renderIncorrectPasswordNode();
       return {
-        kind: 'push',
-        prompt: next,
+        kind: 'consume',
         echo: submitted ? '•'.repeat(Math.min(submitted.length, 20)) : '',
-        output: (
-          <div className="space-y-1">
-            <p>
-              <span className="text-red-400 font-bold">sudo: adminTerminal.txt:</span>{' '}
-              <span className="text-red-300">incorrect password.</span>
-            </p>
-            <p className="text-gray-500 italic text-xs">
-              you could ask the oracle. try:{' '}
-              <span className="text-emerald-300 font-bold">give password</span>{' '}
-              — if you have the right standing.
-            </p>
-          </div>
-        ),
+        output: <TerminalDecryptBar reveal={reveal} />,
       };
     },
     onCancel: () => {
@@ -586,7 +599,7 @@ function handleSudoCat(args: string[]): SudoCommandResult {
     // Mark that the user has seen the file at least once — this moves them
     // from Stage 2 → Stage 3 for hint purposes.
     writeSessionFlag(MATRIX_PUZZLE_KEYS.sawAdminTerminalFile, true);
-    const firstPrompt = buildPasswordPrompt(1);
+    const firstPrompt = buildPasswordPrompt();
     setActivePrompt(firstPrompt);
     return {
       output: (

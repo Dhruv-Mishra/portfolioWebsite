@@ -7,7 +7,7 @@
  *   <StickerSvg id="first-word" size={60} />
  *
  * Roster:
- *   18 regular stickers cover every major feature / surface on the site so the
+ *   19 regular stickers cover every major feature / surface on the site so the
  *   collection acts as a feature-discovery trail. Every roster entry is
  *   reachable on touch devices — the old keyboard-only Konami sticker was
  *   retired because it had no mobile-attainable trigger. The hidden
@@ -37,6 +37,7 @@ export const STICKER_ROSTER = [
   { id: 'terminal-addict',  label: 'Terminal Addict',       description: 'Ran five different terminal commands.',       hint: 'five different commands in one visit ~',          family: 'sunshine' },
   { id: 'repo-hunter',      label: 'Repo Hunter',           description: 'Followed a project back to its source.',      hint: 'source code lives a click away from each card.',  family: 'denim' },
   { id: 'social-butterfly', label: 'Social Butterfly',      description: 'Tapped one of the social links.',             hint: 'the links along the edge go somewhere ~',         family: 'rose' },
+  { id: 'phoned-a-friend',  label: 'Phoned a Friend',       description: 'Called the voice agent at jarvis.whoisdhruv.com.', hint: 'one of the projects is a voice agent — give it a ring.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -614,6 +615,49 @@ const SuperuserSvg = memo(function SuperuserSvg({ size }: IllustratedSvgProps) {
 });
 
 /**
+ * Phoned a Friend — vintage telephone handset with sound waves on mint green.
+ * Earned the first time a visitor follows the live demo link to the voice
+ * agent at jarvis.whoisdhruv.com.
+ */
+const PhonedAFriendSvg = memo(function PhonedAFriendSvg({ size }: IllustratedSvgProps) {
+  const family = STICKER_FAMILIES.mint;
+  return (
+    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
+      {/* Handset — diagonal vintage receiver shape */}
+      <path
+        d="M16 22 Q14 18 18 16 Q22 14 26 18 L30 22 Q31 23 30.5 24.5 L28 27 Q34 33 37 36 L39.5 33.5 Q41 33 42 34 L46 38 Q50 42 48 46 Q46 50 42 48 Q26 38 16 22 Z"
+        fill={family.ink}
+        strokeLinejoin="round"
+      />
+      {/* Inner highlight stripe along the handset */}
+      <path
+        d="M19 19 Q20 18 22 18 L24 20"
+        fill="none"
+        stroke={family.bg}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+      <path
+        d="M40 40 L43 43"
+        fill="none"
+        stroke={family.bg}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+      {/* Sound waves leaving the earpiece — agent talking back */}
+      <path d="M14 30 Q11 32 12 36" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.55" />
+      <path d="M11 28 Q7 31 8 38" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.4" />
+      {/* Glowing dial dot — "live" indicator */}
+      <circle cx="48" cy="16" r="3" fill="#22c55e" stroke={family.ink} strokeWidth="1" />
+      <circle cx="48" cy="16" r="1" fill="#fdfbf7" />
+    </svg>
+  );
+});
+
+/**
  * Strip a leading "the" from a label (case-insensitive) before picking the
  * placeholder initial, so stickers like "The Code" and "The Long Read" don't
  * all collapse to a single "T" glyph.
@@ -734,6 +778,9 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
       break;
     case 'social-butterfly':
       inner = <SocialButterflySvg size={size} />;
+      break;
+    case 'phoned-a-friend':
+      inner = <PhonedAFriendSvg size={size} />;
       break;
     case 'superuser':
       inner = <SuperuserSvg size={size} />;

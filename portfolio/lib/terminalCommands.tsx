@@ -10,6 +10,7 @@ import {
     isSuperuserEarnedSync,
     getMatrixEscapedSync,
     getDiscoActiveSync,
+    setMatrixEscapedImperative,
 } from '@/hooks/useStickers';
 import {
     parseSudoInvocation,
@@ -23,10 +24,13 @@ import {
     getHintForStage,
     MATRIX_PUZZLE_KEYS,
     readSessionFlag,
+    writeSessionFlag,
+    ADMIN_USERNAME,
+    ADMIN_PASSWORD,
     type MatrixPuzzleSignals,
 } from '@/lib/matrixPuzzle';
-import { getExperimentalCommandsSync } from '@/hooks/useAdminPrefs';
-import { hasClientAdminTokenSync } from '@/lib/adminAuthClient';
+import { getExperimentalCommandsSync, setAdminPref } from '@/hooks/useAdminPrefs';
+import { hasClientAdminTokenSync, unlockAdmin } from '@/lib/adminAuthClient';
 
 /** Delay (ms) before executing page navigation from terminal commands */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.navigationDelay;
@@ -377,6 +381,57 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             for (const sticker of STICKER_ROSTER) {
                 stickerBus.emit(sticker.id);
             }
+        },
+    }),
+    /**
+     * `hesoyam` — hidden GTA San Andreas-style cheat code. Not in `help`.
+     * Unlocks every regular sticker (which atomically auto-awards the
+     * Superuser sticker via the store), flips on experimental commands,
+     * marks every matrix-puzzle stage as solved, escapes the matrix, and
+     * fire-and-forget signs in to the admin terminal — effectively
+     * granting full sketchbook access in one shot.
+     */
+    hesoyam: () => ({
+        output: (
+            <div className="space-y-1 font-mono text-sm">
+                <p>
+                    <span className="text-emerald-400 font-bold">CHEAT ACTIVATED</span>{' '}
+                    <span className="text-gray-300">— hesoyam</span>
+                </p>
+                <p className="text-amber-300">
+                    +health &nbsp; +armor &nbsp; +$250,000 &nbsp;{' '}
+                    <span className="text-emerald-300">+ every sticker</span>
+                </p>
+                <p className="text-emerald-300">
+                    sudo · matrix · admin terminal · experimental commands 
+                    <span className="text-gray-500">— all unlocked.</span>
+                </p>
+                <p className="text-gray-400">
+                    Welcome, root. The whole sketchbook just unlocked.{' '}
+                    <span className="text-gray-500 italic">try `sudo help`.</span>
+                </p>
+            </div>
+        ),
+        action: () => {
+            // 1. Award every regular sticker — store auto-awards superuser.
+            for (const sticker of STICKER_ROSTER) {
+                stickerBus.emit(sticker.id);
+            }
+            // 2. Flip experimental commands on so `sudo matrix` shows up.
+            setAdminPref('experimentalCommands', true);
+            // 3. Mark every matrix-puzzle session flag as satisfied so the
+            //    stage detector sees the puzzle as completed end-to-end.
+            writeSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix, true);
+            writeSessionFlag(MATRIX_PUZZLE_KEYS.sawAdminTerminalFile, true);
+            writeSessionFlag(MATRIX_PUZZLE_KEYS.hasFileContents, true);
+            // 4. Persist matrix-escaped so /matrix-notes is freely reachable.
+            setMatrixEscapedImperative(true);
+            // 5. Fire-and-forget admin sign-in. Credentials are already
+            //    client-visible puzzle content (see lib/matrixPuzzle.ts);
+            //    no new secret exposure here.
+            void unlockAdmin(ADMIN_USERNAME, ADMIN_PASSWORD).catch(() => {
+                /* silently ignore — admin unlock is a bonus, not load-bearing */
+            });
         },
     }),
     /**

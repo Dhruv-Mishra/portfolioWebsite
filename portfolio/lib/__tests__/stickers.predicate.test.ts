@@ -75,6 +75,7 @@ describe('sticker roster metadata', () => {
       'terminal-addict',  // 5 distinct commands
       'repo-hunter',      // project modal external link
       'social-butterfly', // social pill link tap
+      'phoned-a-friend',  // jarvis live-demo external link tap
     ];
     const rosterIds = STICKER_ROSTER.map((s) => s.id);
     for (const audited of auditedMobileReachable) {

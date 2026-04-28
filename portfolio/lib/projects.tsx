@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from 'react';
 import { Activity, Database, Film, Globe, Mic, ScrollText, Scissors, Search, Smartphone } from 'lucide-react';
 import type { ProjectSlug } from '@/lib/projectCatalog';
+import { stickerBus } from '@/lib/stickerBus';
 
 export interface ProjectRecord {
   slug: ProjectSlug;
@@ -40,7 +41,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Jarvis — Voice Agent',
     desc: (
       <>
-        A <strong>voice-to-voice AI agent</strong> that picks up the phone, holds a <span className="underline decoration-wavy decoration-emerald-400">full human-sounding conversation</span>, and actually <em>operates the website for you</em> — navigates pages, fills forms, opens maps, sends quotes, and <span className="bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">negotiates in real time</span>. A <strong>live AI agent with tool calling</strong> over a long-lived WebSocket, persona switching, phone-line audio compression, and <span className="underline decoration-double decoration-teal-500">SPA continuity across page changes</span>. Live demo at <a href="https://jarvis.whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-800/70 hover:ring-emerald-500 hover:text-emerald-900 dark:hover:text-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">jarvis.whoisdhruv.com&nbsp;↗</a> — meant as an alternative to traditional customer support and dispatch agents.
+        A <strong>voice-to-voice AI agent</strong> that picks up the phone, holds a <span className="underline decoration-wavy decoration-emerald-400">full human-sounding conversation</span>, and actually <em>operates the website for you</em> — navigates pages, fills forms, opens maps, sends quotes, and <span className="bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">negotiates in real time</span>. A <strong>live AI agent with tool calling</strong> over a long-lived WebSocket, persona switching, phone-line audio compression, and <span className="underline decoration-double decoration-teal-500">SPA continuity across page changes</span>. Live demo at <a href="https://jarvis.whoisdhruv.com" target="_blank" rel="noopener noreferrer" onClick={() => { stickerBus.emit('phoned-a-friend'); }} className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-800/70 hover:ring-emerald-500 hover:text-emerald-900 dark:hover:text-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">jarvis.whoisdhruv.com&nbsp;↗</a> — meant as an alternative to traditional customer support and dispatch agents.
       </>
     ),
     lang: 'JavaScript / Node.js',

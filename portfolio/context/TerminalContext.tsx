@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { LAYOUT_TOKENS } from '@/lib/designTokens';
 import { createInitialTerminalOutput } from '@/lib/terminalCommands';
 
@@ -137,6 +137,24 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
         setLines([]);
         setNextLineId([]);
     }, []);
+
+    // System-injected terminal lines from elsewhere in the app (e.g. matrix
+    // overlay early-exit nudge). The detail carries either a string or any
+    // ReactNode — rendered with hideCommandHeader so no fake `➜ ~` prompt
+    // appears, and no command is captured into the ↑/↓ history ring.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handler = (raw: Event): void => {
+            const detail = (raw as CustomEvent<{ output?: ReactNode; command?: string }>).detail;
+            if (!detail || detail.output === undefined || detail.output === null) return;
+            addCommand(detail.command ?? 'system', detail.output, {
+                skipHistory: true,
+                hideCommandHeader: true,
+            });
+        };
+        window.addEventListener('terminal:enqueue-system', handler);
+        return () => window.removeEventListener('terminal:enqueue-system', handler);
+    }, [addCommand]);
 
     const value = useMemo(() => ({
         outputLines,

@@ -13,6 +13,8 @@ export const PERSONAL_LINKS = {
 
 /** Project repository links */
 export const PROJECT_LINKS = {
+  jarvis: 'https://github.com/Dhruv-Mishra/AudioControlledAgenticWebsite',
+  jarvisDemo: 'https://jarvis.whoisdhruv.com',
   fluentui: 'https://github.com/microsoft/fluentui-android',
   cropio: 'https://github.com/Dhruv-Mishra/Cropio-ImageEditor',
   courseEvaluator: 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',

@@ -762,9 +762,32 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
   }, [soundsMuted]);
 
   const handleWakeUp = useCallback(() => {
+    // If the user bails before ESCAPE THE MATRIX has even faded in, drop a
+    // gentle nudge into the home-page terminal so they know there was a
+    // second exit they missed by being impatient. Read from the imperative
+    // ref so the closure isn't stale across React batched state updates.
+    const escapeWasAvailable = escapeButtonVisible;
     setMatrixActiveImperative(false);
+    if (!escapeWasAvailable && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('terminal:enqueue-system', {
+            detail: {
+              command: 'matrix',
+              output: (
+                <span className="text-emerald-400 italic">
+                  more patience would be nice in the matrix.
+                </span>
+              ),
+            },
+          }),
+        );
+      } catch {
+        /* best-effort — CustomEvent unsupported or detached window */
+      }
+    }
     // Audio stops in the unmount cleanup above.
-  }, []);
+  }, [escapeButtonVisible]);
 
   const handleDisabledEscapeClick = useCallback(() => {
     writeSessionFlag(MATRIX_PUZZLE_KEYS.clickedDisabledEscape, true);

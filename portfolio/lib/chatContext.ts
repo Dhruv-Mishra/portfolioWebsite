@@ -26,7 +26,7 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['project', 'portfolio', 'work', 'built', 'shipped', 'microsoft'],
     messages: [
-      "Got a bit scrambled there — I've worked on Fluent UI Android (ships in Outlook/Teams), built Cropio as an AI portrait cropper, did Bloom Filter research with a 300% throughput gain, and built this site. Projects page has the full list!",
+      "Got a bit scrambled there — I've built Jarvis (voice-to-voice agent that operates websites via Gemini Live), shipped Fluent UI Android (in Outlook/Teams), built Cropio as an AI portrait cropper, and did Bloom Filter research with a 300% throughput gain. Projects page has the full list!",
       "Sorry, lost my thread for a sec. I've built an NLP course evaluator, a contactless vital-checkup system with OpenCV, a hybrid movie recommender, and more — check the projects page ~",
       "My notes got mixed up. At Microsoft I shipped Fluent UI Android and M365 Shell encryption at 7B+ hits/day — the projects page has everything!",
     ],

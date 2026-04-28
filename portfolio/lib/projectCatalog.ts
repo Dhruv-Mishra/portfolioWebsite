@@ -1,5 +1,12 @@
 export const PROJECT_ACTIONS = [
   {
+    slug: 'jarvis-voice-agent',
+    label: 'Show me Jarvis Voice Agent',
+    verbs: ['show', 'open', 'view', 'tell'],
+    keywords: ['jarvis', 'voice\\s*agent', 'audio\\s*agent', 'audio[-\\s]*controlled', 'agentic\\s*website'],
+    response: 'Opening Jarvis Voice Agent right here ~',
+  },
+  {
     slug: 'fluent-ui-android',
     label: 'Show me Fluent UI Android',
     verbs: ['show', 'open', 'view', 'tell'],

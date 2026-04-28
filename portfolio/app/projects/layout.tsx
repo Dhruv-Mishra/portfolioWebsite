@@ -2,13 +2,13 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Projects | Dhruv Mishra',
-  description: 'Explore projects by Dhruv Mishra — Fluent UI Android, Course Evaluator, IVC, AtomVault, Bloom Filter research, and more.',
+  description: 'Explore projects by Dhruv Mishra — Jarvis voice agent, Fluent UI Android, Cropio, Course Evaluator, IVC, AtomVault, Bloom Filter research, and more.',
   alternates: {
     canonical: '/projects',
   },
   openGraph: {
     title: 'Projects | Dhruv Mishra',
-    description: 'Explore projects by Dhruv Mishra — from Microsoft Fluent UI to research in concurrent data structures.',
+    description: 'Explore projects by Dhruv Mishra — Jarvis voice agent, Fluent UI Android, Cropio, and research in concurrent data structures.',
     url: 'https://whoisdhruv.com/projects',
   },
 };

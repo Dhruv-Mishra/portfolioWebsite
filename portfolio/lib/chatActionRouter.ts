@@ -73,6 +73,7 @@ const LINK_TARGETS: Array<{ pattern: RegExp; action: ActionExecution }> = [
 ];
 
 const PROJECT_REPO_TARGETS: Partial<Record<ProjectSlug, string>> = {
+  'jarvis-voice-agent': PROJECT_LINKS.jarvis,
   'fluent-ui-android': PROJECT_LINKS.fluentui,
   'course-evaluator': PROJECT_LINKS.courseEvaluator,
   'ivc-vital-checkup': PROJECT_LINKS.ivc,
@@ -84,6 +85,7 @@ const PROJECT_REPO_TARGETS: Partial<Record<ProjectSlug, string>> = {
 };
 
 const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
+  { slug: 'jarvis-voice-agent', aliases: ['jarvis', 'voice agent', 'audio agent', 'audio controlled agentic website', 'agentic website'] },
   { slug: 'fluent-ui-android', aliases: ['fluent ui android', 'fluent ui', 'microsoft 365'] },
   { slug: 'course-evaluator', aliases: ['course evaluator', 'course similarity evaluator'] },
   { slug: 'ivc-vital-checkup', aliases: ['ivc', 'instant vital checkup', 'vital checkup'] },

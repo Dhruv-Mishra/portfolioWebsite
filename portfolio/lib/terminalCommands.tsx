@@ -264,6 +264,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <div className="grid grid-cols-2 gap-2 max-w-xs text-blue-300">
                     <span>about.md</span>
                     <span>projects.json</span>
+                    <span>jarvis.md</span>
                     <span>cropio.md</span>
                     <span>resume.pdf</span>
                     <span>contact.txt</span>
@@ -297,7 +298,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         }
         const files: Record<string, string> = {
             "about.md": "Dhruv Mishra: Algorithmic thinker, Developer, and Problem Solver.",
-            "projects.json": "[ { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
+            "projects.json": "[ { \"name\": \"Jarvis Voice Agent\", \"stack\": \"Gemini Live + Node.js + WebSockets\" }, { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
+            "jarvis.md": "Jarvis: voice-to-voice AI agent that holds full human-sounding phone calls and operates the website via Gemini Live tool calling \u2014 navigation, form filling, quote generation, negotiation. Live demo at jarvis.whoisdhruv.com.",
             "cropio.md": "Cropio: privacy-conscious AI portrait cropper. Uses YOLO11 pose estimation, an interactive crop editor, full-resolution browser export, and semantic search over local IndexedDB embeddings.",
             "contact.txt": "Email: dhruvmishra.id@gmail.com\nPhone: (+91) 9599377944",
             "resume.pdf": "Error: Binary file not readable. Try 'open resume.pdf'",
@@ -311,6 +313,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const openable: Record<string, { output: string; route: string }> = {
             "resume.pdf": { output: "Opening resume...", route: "/resume" },
             "projects.json": { output: "Opening projects...", route: "/projects" },
+            "jarvis.md": { output: "Opening projects...", route: "/projects" },
             "cropio.md": { output: "Opening projects...", route: "/projects" },
         };
         const entry = openable[file];

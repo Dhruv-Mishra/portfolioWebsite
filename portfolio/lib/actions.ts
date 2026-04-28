@@ -51,6 +51,8 @@ const OPEN_LINK_TOOL_OPTIONS = [
   { key: 'email', url: PERSONAL_LINKS.email, fallbackReply: 'Opening email ~' },
   { key: 'phone', url: PERSONAL_LINKS.phone, fallbackReply: 'Opening the phone shortcut ~' },
   { key: 'resume', url: PERSONAL_LINKS.resume, fallbackReply: 'Opening the resume PDF ~' },
+  { key: 'project-jarvis', url: PROJECT_LINKS.jarvis, fallbackReply: 'Opening the Jarvis voice agent repo ~' },
+  { key: 'project-jarvis-demo', url: PROJECT_LINKS.jarvisDemo, fallbackReply: 'Calling Jarvis live ~' },
   { key: 'project-fluentui', url: PROJECT_LINKS.fluentui, fallbackReply: 'Opening the Fluent UI repo ~' },
   { key: 'project-cropio', url: PROJECT_LINKS.cropio, fallbackReply: 'Opening the Cropio repo ~' },
   { key: 'project-courseevaluator', url: PROJECT_LINKS.courseEvaluator, fallbackReply: 'Opening the Course Evaluator repo ~' },
@@ -100,6 +102,14 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Open the Cropio repo',
     openUrls: [PROJECT_LINKS.cropio],
+  },
+  {
+    label: 'Open the Jarvis voice agent repo',
+    openUrls: [PROJECT_LINKS.jarvis],
+  },
+  {
+    label: 'Try the Jarvis voice agent live',
+    openUrls: [PROJECT_LINKS.jarvisDemo],
   },
   {
     label: 'Open your GitHub profile',
@@ -196,6 +206,7 @@ export const FOLLOWUP_CONVERSATIONAL = [
 export const INITIAL_SUGGESTIONS = [
   "What do you work on at Microsoft?",
   "What's your tech stack?",
+  "Tell me about Jarvis",
   "Tell me about Cropio",
   "Report a bug",
 ] as const;

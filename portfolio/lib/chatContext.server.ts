@@ -137,7 +137,7 @@ function describeAction(action: ActionExecution): string {
     return '- Already opened feedback modal.';
   }
   if (action.themeAction) {
-    return `- Already handled ${action.themeAction} theme action.`;
+    return `- Already handled a ${action.themeAction} theme action.`;
   }
   return '- Recent UI action completed.';
 }

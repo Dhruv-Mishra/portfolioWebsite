@@ -31,13 +31,14 @@ Identity rules:
 - Asked if AI? Deflect lightly in character, e.g. "Nah, just Dhruv scribbling notes between meetings :P".
 - Answer as Dhruv re own work, projects, interests, opinions.`;
 
-const STYLE_BLOCK = `Output style (your replies must follow these — write naturally, NOT in compressed/caveman style):
-- Sharp, direct, casual, slightly dry.
-- Reads like sticky notes passed in class.
-- Usually 1-2 short paragraphs, ~30-80 words; longer only if truly needed.
-- No markdown headers, bullet lists, or code blocks.
-- Sparing text emoticons: ~, :), :P, ^_^. Never Unicode emoji.
-- Use full sentences and natural English. Do NOT mimic the terse fragmented style of this system prompt.`;
+const STYLE_BLOCK = `Output style (write naturally, NOT in this prompt's compressed style):
+- Warm, sharp, quietly confident. Witty when it lands, never forced.
+- Concise. Every sentence earns its place. Cut filler, hedging, and throat-clearing ("Honestly,", "I think", "Just to say").
+- Mirror the user. Greetings get a sentence. Real questions get 1-2 short paragraphs (~20-60 words). Go longer only if truly needed.
+- Plain prose. No markdown headers, bullets, or code blocks.
+- NEVER use em-dashes (—), en-dashes (–), or hyphens (-) as sentence punctuation. Use commas, periods, parentheses, or two sentences.
+- Sparing text emoticons OK: ~, :), :P, ^_^. No Unicode emoji.
+- Don't volunteer work/projects/resume facts unprompted. Small talk stays small.`;
 
 const NEVER_INVENT_BLOCK = `Grounding:
 - Only state facts in "Relevant facts" section. Unknown? Say "I'd have to check on that." Never invent.
@@ -51,7 +52,8 @@ const UI_ACTION_BLOCK = `Interaction:
 - UI actions handled outside you. Never mention tools, function calls, JSON, or action syntax.
 - Info / explanation / comparison / small talk → plain text reply.
 - Already-opened items → answer follow-ups directly, don't re-narrate the open.
-- Casual ack or topic change after a UI action → stay conversational.`;
+- Casual ack or topic change after a UI action → stay conversational.
+- When a project clearly fits the topic and hasn't already been opened this turn, end with a short, natural offer like "Want me to pull up Cropio?" or "I can open the Jarvis demo if you're curious." One offer max, only when it genuinely fits. Never list multiple projects, never pitch unprompted on greetings or off-topic turns.`;
 
 const TERMINAL_RULES_BLOCK = `Terminal:
 - Home page hosts a retro terminal accepting real commands: help, about, projects, ls, cat, open, joke, skills, resume, chat, feedback, guestbook, stickers, sudo cheatsheet, etc.
@@ -98,6 +100,9 @@ const OFF_TOPIC_PATTERNS: readonly RegExp[] = [
 const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(open|show|pull up|bring up|take me|go to|navigate|visit|switch|toggle|turn on|dark mode|light mode)\b/i,
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
+  // Project-topic mentions also emit the UI block so the model knows it can
+  // offer to open the relevant project modal.
+  /\b(project|projects|cropio|jarvis|fluent|bloom filter|nlp|movie recommender|vital|opencv)\b/i,
 ];
 
 const TERMINAL_PATTERNS: readonly RegExp[] = [
@@ -119,6 +124,18 @@ function hasActionIntent(message: string): boolean {
 function mentionsTerminal(message: string): boolean {
   if (!message) return false;
   return TERMINAL_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+// Pure greetings / acks / very short small-talk. When matched, skip fact
+// retrieval so the model isn't tempted to dump Microsoft Shell context onto
+// a simple "hi".
+const GREETING_PATTERN = /^(hi+|hey+|hello+|yo+|sup|hola|namaste|howdy|good\s+(morning|afternoon|evening|night)|gm|gn|thanks?|thank you|ty|cool|nice|ok(ay)?|got it|cheers|bye+|see ya|later)[\s!.,~:)\-]*$/i;
+
+function isPureGreeting(message: string): boolean {
+  if (!message) return false;
+  const trimmed = message.trim();
+  if (trimmed.length > 40) return false;
+  return GREETING_PATTERN.test(trimmed);
 }
 
 // ── Recent-action context ───────────────────────────────────────────
@@ -180,46 +197,89 @@ export interface BuildPromptOptions {
 }
 
 /**
- * Assemble the full system prompt for the chat turn.
- * Conditional blocks are included only when the latest user message warrants
- * them, which keeps the prompt lean on simple turns like "hi".
+ * Result of {@link buildDhruvSystemPromptParts}.
+ *
+ * - `stable` is byte-identical across every chat turn: identity + style +
+ *   grounding rules. Putting it in its own system message at index 0 makes it
+ *   the longest matching prefix for Groq's automatic prompt caching, which
+ *   yields a meaningful TTFT reduction on warm cache hits.
+ * - `conditional` carries everything that varies per turn (off-topic / UI /
+ *   terminal / matrix overrides, recent UI actions, retrieved facts). May be
+ *   the empty string for trivial turns; callers should skip emitting an empty
+ *   second system message in that case.
+ */
+export interface SystemPromptParts {
+  readonly stable: string;
+  readonly conditional: string;
+}
+
+/**
+ * The cache-friendly stable prefix. Exposed for testing — must NEVER be
+ * mutated per turn; any change here invalidates upstream prompt caches.
+ */
+export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK].join('\n\n');
+
+/**
+ * Assemble the system prompt as two parts (stable prefix + conditional
+ * suffix). Prefer this over {@link buildDhruvSystemPrompt} when calling an
+ * upstream that supports prompt caching.
+ */
+export async function buildDhruvSystemPromptParts(
+  messages: readonly MessageShape[],
+  options: BuildPromptOptions = {},
+): Promise<SystemPromptParts> {
+  const latestQuery = latestUserQuery(messages);
+  const recentActionsBlock = buildRecentActionContext(messages);
+
+  const conditionalSections: string[] = [];
+
+  if (looksOffTopic(latestQuery)) {
+    conditionalSections.push(OFF_TOPIC_BLOCK);
+  }
+
+  if (recentActionsBlock || hasActionIntent(latestQuery)) {
+    conditionalSections.push(UI_ACTION_BLOCK);
+  }
+
+  if (mentionsTerminal(latestQuery)) {
+    conditionalSections.push(TERMINAL_RULES_BLOCK);
+  }
+
+  if (mentionsMatrixPassword(latestQuery)) {
+    conditionalSections.push(MATRIX_PUZZLE_BLOCK);
+  }
+
+  if (recentActionsBlock) {
+    conditionalSections.push(recentActionsBlock);
+  }
+
+  // On pure greetings/acks, skip fact retrieval entirely. Keeps simple turns
+  // light and stops the model from anchoring onto whichever fact happens to
+  // rank first (e.g. the Microsoft Shell role).
+  const skipFacts = options.factsOverride === undefined && isPureGreeting(latestQuery);
+  const facts = options.factsOverride
+    ?? (skipFacts ? '' : await getRelevantFactContext(latestQuery, { limit: options.factLimit }));
+  if (facts) {
+    conditionalSections.push(`Relevant facts:\n${facts}`);
+  }
+
+  return {
+    stable: STABLE_SYSTEM_PROMPT,
+    conditional: conditionalSections.join('\n\n'),
+  };
+}
+
+/**
+ * Assemble the full system prompt for the chat turn as a single string.
+ * Backwards-compatible wrapper around {@link buildDhruvSystemPromptParts}.
+ * Prefer the parts-based API for cache-friendly upstreams (Groq).
  */
 export async function buildDhruvSystemPrompt(
   messages: readonly MessageShape[],
   options: BuildPromptOptions = {},
 ): Promise<string> {
-  const latestQuery = latestUserQuery(messages);
-  const recentActionsBlock = buildRecentActionContext(messages);
-
-  const sections: string[] = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK];
-
-  if (looksOffTopic(latestQuery)) {
-    sections.push(OFF_TOPIC_BLOCK);
-  }
-
-  if (recentActionsBlock || hasActionIntent(latestQuery)) {
-    sections.push(UI_ACTION_BLOCK);
-  }
-
-  if (mentionsTerminal(latestQuery)) {
-    sections.push(TERMINAL_RULES_BLOCK);
-  }
-
-  if (mentionsMatrixPassword(latestQuery)) {
-    sections.push(MATRIX_PUZZLE_BLOCK);
-  }
-
-  if (recentActionsBlock) {
-    sections.push(recentActionsBlock);
-  }
-
-  const facts = options.factsOverride
-    ?? await getRelevantFactContext(latestQuery, { limit: options.factLimit });
-  if (facts) {
-    sections.push(`Relevant facts:\n${facts}`);
-  }
-
-  return sections.join('\n\n');
+  const { stable, conditional } = await buildDhruvSystemPromptParts(messages, options);
+  return conditional ? `${stable}\n\n${conditional}` : stable;
 }
 
 // ── Exports for tests ───────────────────────────────────────────────

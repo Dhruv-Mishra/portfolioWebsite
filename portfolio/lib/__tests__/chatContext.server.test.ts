@@ -77,12 +77,17 @@ describe('buildDhruvSystemPrompt — conditional blocks', () => {
   });
 
   it('omits UI-action block for plain info queries without recent actions', async () => {
-    const prompt = await build([{ role: 'user', content: 'what is cropio' }]);
+    const prompt = await build([{ role: 'user', content: 'what is your favorite food' }]);
     expect(prompt).not.toContain(UI_ACTION_BLOCK);
   });
 
   it('emits UI-action block on action-intent queries', async () => {
     const prompt = await build([{ role: 'user', content: 'open my github profile' }]);
+    expect(prompt).toContain(UI_ACTION_BLOCK);
+  });
+
+  it('emits UI-action block on project-topic queries so model can offer to open the project', async () => {
+    const prompt = await build([{ role: 'user', content: 'what is cropio' }]);
     expect(prompt).toContain(UI_ACTION_BLOCK);
   });
 

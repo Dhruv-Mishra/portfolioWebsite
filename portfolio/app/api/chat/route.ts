@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
 import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
-import { buildDhruvSystemPrompt } from '@/lib/chatContext.server';
+import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
@@ -26,6 +26,34 @@ interface ProviderCallResult {
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 24_000;
 const MAX_CONTEXT_CHARS = 5_000;
+
+/**
+ * Sampling parameters for the main chat completion.
+ *
+ * Tuned for the "concise, sharp, no filler" voice mandated by STYLE_BLOCK:
+ *   - temperature 0.7 + top_p 0.9 give enough variation for personality without
+ *     the rambling and dash-heavy filler that t=1/top_p=1 produced.
+ *   - max_completion_tokens 400 (~300 words) is 4-5x the 20-60 word target,
+ *     leaving headroom for legitimate longer answers while bounding any
+ *     runaway generation.
+ *   - stop sequences cut off the rare "User:"/"Assistant:" hallucinated turn
+ *     and the triple-newline runaway pattern early.
+ *
+ * Applied uniformly to both Groq (primary) and the legacy OpenAI-compatible
+ * provider (fallback) so behavior is identical regardless of which provider
+ * served the request.
+ */
+const GROQ_SAMPLING: {
+  readonly temperature: number;
+  readonly topP: number;
+  readonly maxCompletionTokens: number;
+  readonly stop: string[];
+} = {
+  temperature: 0.7,
+  topP: 0.9,
+  maxCompletionTokens: 800,
+  stop: ['\n\n\n', '\nUser:', '\nAssistant:'],
+};
 
 
 
@@ -187,11 +215,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Build full message array with system prompt (server-side only!)
-    // System prompt is async so it can include build-time-embedded RAG facts.
-    const systemPrompt = await buildDhruvSystemPrompt(sanitized);
+    // Build system prompt as two parts so the stable identity/style/grounding
+    // prefix is byte-identical across turns. This makes it the longest cacheable
+    // prefix on Groq's automatic prompt caching, reducing TTFT on warm hits.
+    // The conditional block (off-topic / UI / terminal / matrix overrides,
+    // recent UI actions, retrieved facts) is emitted as a separate system
+    // message, and only when non-empty.
+    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized);
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: stable },
+      ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
       ...sanitized,
     ];
 
@@ -254,9 +287,10 @@ async function callProvider(
       const completion = await groq.chat.completions.create({
         model: provider.model,
         messages: messages as Groq.Chat.Completions.ChatCompletionMessageParam[],
-        temperature: 1,
-        max_completion_tokens: 1024,
-        top_p: 1,
+        temperature: GROQ_SAMPLING.temperature,
+        top_p: GROQ_SAMPLING.topP,
+        max_completion_tokens: GROQ_SAMPLING.maxCompletionTokens,
+        stop: GROQ_SAMPLING.stop,
         stream: false,
       }, {
         signal: controller.signal,
@@ -270,6 +304,7 @@ async function callProvider(
         temperature: CHAT_CONFIG.temperature,
         top_p: CHAT_CONFIG.topP,
         max_tokens: CHAT_CONFIG.maxTokens,
+        stop: GROQ_SAMPLING.stop,
         stream: false,
       }, {
         signal: controller.signal,

@@ -85,8 +85,14 @@ export function getContextualFallback(userPrompt: string): string {
 }
 
 export const CHAT_CONFIG = {
-  maxTokens: 2048,      // Allow longer responses when needed
-  temperature: 0.6,     // Slightly lower for more reliable action-tag compliance
+  // Bounds the legacy fallback provider's reply. ~600 words is well above
+  // the 20-60 word target from STYLE_BLOCK, leaving generous headroom for
+  // legitimate longer answers while bounding any runaway generation. Mirrors
+  // the Groq primary provider's max_completion_tokens; keep them in lockstep.
+  maxTokens: 800,
+  // Sharp but not deterministic. Lower than the prior 0.6 felt flat;
+  // 0.7 + topP 0.9 matches the primary Groq sampling for behavior parity.
+  temperature: 0.7,
   topP: 0.9,
   maxStoredMessages: 50,
   maxUserMessageLength: 500, // Max characters per user message

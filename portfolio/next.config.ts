@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { NextConfig } from "next";
+import withBundleAnalyzer from "@next/bundle-analyzer";
 
 // Absolute path to this config file's directory. This pins the Next.js workspace
 // root so a stray parent lockfile can never flip auto-detection and emit the
@@ -176,5 +177,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  openAnalyzer: false,
+})(nextConfig);
 

@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Coordinates multi-agent team for building portfolio website features. Breaks tasks into subtasks and delegates to designer, frontend-dev, reviewer, and oracle agents. Run with `claude --agent orchestrator`.
-tools: Agent(designer, frontend-dev, reviewer, oracle, orchestrator), Read, Grep, Glob, Bash, Write, Edit
+tools: vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscode/newWorkspace, vscode/resolveMemoryFileUri, vscode/runCommand, vscode/vscodeAPI, vscode/extensions, vscode/askQuestions, execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/createAndRunTask, execute/runInTerminal, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/readNotebookCellOutput, read/terminalSelection, read/terminalLastCommand, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, web/githubTextSearch, browser/openBrowserPage, todo
 model: opus
 effort: max
 ---

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { Patrick_Hand, Fira_Code } from "next/font/google";
+import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -18,17 +18,23 @@ import "./globals.css";
 // "use client" imports hydrate normally. Any nested lazy imports happen inside
 // each client component.
 
-const patrickHand = Patrick_Hand({
+// Self-hosted via next/font/local — woff2 files live under app/fonts/ and are
+// served from the same origin (cached at the Cloudflare edge, no third-party
+// DNS / TLS hop). Replaces the prior next/font/google calls; subsetted to
+// latin to match the previous `subsets: ["latin"]` config.
+const patrickHand = localFont({
+  src: "./fonts/patrick-hand-latin-400.woff2",
   weight: "400",
+  style: "normal",
   variable: "--font-hand",
-  subsets: ["latin"],
   display: "swap", // Prevent FOIT for faster text rendering
 });
 
-const firaCode = Fira_Code({
+const firaCode = localFont({
+  src: "./fonts/fira-code-latin-400.woff2",
   weight: "400",
+  style: "normal",
   variable: "--font-code",
-  subsets: ["latin"],
   display: "optional", // Fira Code is secondary (monospace only) — don't block render
 });
 
@@ -108,9 +114,13 @@ export const metadata: Metadata = {
     siteName: "Dhruv Mishra Portfolio",
     images: [
       {
-        url: '/resources/og-image.png',
-        width: 1200,
-        height: 630,
+        // og-image.png does not exist in /public/resources. Falling back to the
+        // existing about photo so social-share previews render an actual image
+        // instead of a 404 placeholder. Dimensions are not the canonical 1200x630
+        // OG ratio (this is a portrait .webp), but every major OG consumer
+        // (Twitter, Slack, Discord, LinkedIn, Facebook) handles non-1.91:1
+        // images by letterboxing — a real preview beats a broken one.
+        url: '/resources/aboutPhoto.webp',
         alt: 'Dhruv Mishra - Software Engineer Portfolio',
       },
     ],
@@ -119,7 +129,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: "Dhruv Mishra | Software Engineer",
     description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
-    images: ['/resources/og-image.png'],
+    images: ['/resources/aboutPhoto.webp'],
   },
   robots: {
     index: true,

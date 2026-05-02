@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build:embeddings": "tsx scripts/build-embeddings.ts",
-    "prepare": "node scripts/install-git-hooks.js"
+    "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

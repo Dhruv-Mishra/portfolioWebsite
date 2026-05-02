@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface VoiceBackendToggleProps {
   /** True while the Whisper model is currently downloading. */
@@ -17,7 +18,8 @@ interface VoiceBackendToggleProps {
 /**
  * Tiny "HD" pill toggle next to the mic button. Lights up when the user
  * has opted into the offline Whisper backend. First tap triggers a
- * one-time ~35MB model download; cached in IndexedDB afterwards.
+ * one-time ~35MB model download (multilingual whisper-tiny); cached in
+ * IndexedDB afterwards. Subsequent sessions are instant.
  */
 export function VoiceBackendToggle({
   isLoading = false,
@@ -33,9 +35,10 @@ export function VoiceBackendToggle({
     ? `Loading HD voice model… ${Math.round(loadProgress * 100)}%`
     : active
       ? 'HD voice (offline Whisper) — tap to switch back to native'
-      : 'Higher-quality offline transcription (one-time ~35MB download)';
+      : 'Multilingual offline transcription (one-time ~35MB download)';
 
   return (
+    <Tooltip label={title}>
     <button
       type="button"
       onClick={togglePref}
@@ -59,5 +62,6 @@ export function VoiceBackendToggle({
         <span aria-hidden="true">HD</span>
       )}
     </button>
+    </Tooltip>
   );
 }

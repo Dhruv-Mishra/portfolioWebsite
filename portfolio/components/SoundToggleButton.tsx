@@ -20,6 +20,7 @@ import { memo, useCallback } from 'react';
 import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 function SoundToggleButton(): React.ReactElement {
   const muted = useSoundsMuted();
@@ -41,6 +42,7 @@ function SoundToggleButton(): React.ReactElement {
   }, [muted, toggleHaptic]);
 
   return (
+    <Tooltip label={muted ? 'Unmute sound effects' : 'Mute sound effects'}>
     <button
       onClick={handleClick}
       aria-pressed={muted}
@@ -94,6 +96,7 @@ function SoundToggleButton(): React.ReactElement {
         style={{ borderRadius: '50% 40% 60% 50% / 50% 60% 40% 50%' }}
       />
     </button>
+    </Tooltip>
   );
 }
 

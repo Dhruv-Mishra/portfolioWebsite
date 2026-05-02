@@ -14,6 +14,7 @@ import { useStickerProgress } from '@/hooks/useStickers';
 import { useAppHaptics } from '@/lib/haptics';
 import { StickerStackGlyph } from '@/lib/stickers';
 import { Z_INDEX } from '@/lib/designTokens';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export default function StickerGlanceBadge(): React.ReactElement | null {
   const pathname = usePathname();
@@ -28,6 +29,7 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
   if (pathname === '/stickers') return null;
 
   return (
+    <Tooltip label={`Sticker album — ${unlocked}/${total} pinned`}>
     <Link
       href="/stickers"
       onClick={navigate}
@@ -48,5 +50,6 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
         />
       )}
     </Link>
+    </Tooltip>
   );
 }

@@ -4,11 +4,13 @@ import { MessageSquare } from "lucide-react";
 import { useAppHaptics } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 import { Z_INDEX } from "@/lib/designTokens";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 export default function FeedbackTabButton({ onClick }: { onClick: () => void }) {
     const { openPanel } = useAppHaptics();
 
     return (
+        <Tooltip label="Send feedback">
         <button
             onClick={() => {
                 openPanel();
@@ -31,5 +33,6 @@ export default function FeedbackTabButton({ onClick }: { onClick: () => void }) 
         >
             <MessageSquare size={18} className="md:w-5 md:h-5" />
         </button>
+        </Tooltip>
     );
 }

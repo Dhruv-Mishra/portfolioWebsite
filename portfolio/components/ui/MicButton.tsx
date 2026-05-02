@@ -2,6 +2,7 @@
 
 import { Loader2, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface MicButtonProps {
   isListening: boolean;
@@ -53,6 +54,7 @@ export function MicButton({
     'Start voice input';
 
   return (
+    <Tooltip label={computedTitle}>
     <button
       type="button"
       onClick={onClick}
@@ -86,5 +88,6 @@ export function MicButton({
         <Mic size={size} className="relative" aria-hidden="true" />
       )}
     </button>
+    </Tooltip>
   );
 }

@@ -89,7 +89,18 @@ export async function transcribeWithWorker(
   const w = getWorker();
   if (!w) {
     const asr = await getWhisperPipeline(opts?.onProgress);
-    const out = await asr(audio);
+    const decodeOpts: Record<string, unknown> = {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: false,
+      temperature: 0,
+      no_repeat_ngram_size: 3,
+    };
+    if (opts?.language) {
+      decodeOpts.language = opts.language;
+      decodeOpts.task = 'transcribe';
+    }
+    const out = await asr(audio, decodeOpts);
     const text = Array.isArray(out) ? out.map((o) => o.text).join(' ') : out.text;
     return text.trim();
   }

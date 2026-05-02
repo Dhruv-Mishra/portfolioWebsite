@@ -16,6 +16,53 @@ import {
   transcribeWithWorker,
 } from '@/lib/whisperWorkerClient';
 
+/**
+ * Whisper's transformers.js API expects the full lowercase language NAME
+ * (e.g. 'english', 'hindi', 'spanish'), not a BCP-47 tag. Map the BCP-47
+ * primary subtag to the canonical Whisper name. Returning `undefined`
+ * lets the model auto-detect, which is the right default for users with
+ * mixed-language speech or whose `navigator.language` doesn't match what
+ * they're about to say.
+ *
+ * Only the most common languages are mapped — anything else falls through
+ * to auto-detect rather than risk forcing the wrong language.
+ */
+const WHISPER_LANG_MAP: Readonly<Record<string, string>> = {
+  en: 'english',
+  hi: 'hindi',
+  es: 'spanish',
+  fr: 'french',
+  de: 'german',
+  it: 'italian',
+  pt: 'portuguese',
+  ru: 'russian',
+  ja: 'japanese',
+  ko: 'korean',
+  zh: 'chinese',
+  ar: 'arabic',
+  bn: 'bengali',
+  ta: 'tamil',
+  te: 'telugu',
+  mr: 'marathi',
+  gu: 'gujarati',
+  pa: 'punjabi',
+  ur: 'urdu',
+  tr: 'turkish',
+  nl: 'dutch',
+  pl: 'polish',
+  sv: 'swedish',
+  vi: 'vietnamese',
+  th: 'thai',
+  id: 'indonesian',
+};
+
+function resolveWhisperLanguage(explicit?: string): string | undefined {
+  const raw = explicit ?? (typeof navigator !== 'undefined' ? navigator.language : undefined);
+  if (!raw) return undefined;
+  const primary = raw.toLowerCase().split('-')[0];
+  return WHISPER_LANG_MAP[primary];
+}
+
 export type VoiceBackend = 'auto' | 'whisper' | 'native';
 export type ResolvedBackend = 'whisper' | 'native' | null;
 
@@ -277,7 +324,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
           setIsTranscribing(false);
           return;
         }
-        const text = await transcribeWithWorker(audio);
+        const text = await transcribeWithWorker(audio, { language: resolveWhisperLanguage(lang) });
         setWhisperTranscript(text.trim());
         const ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - tStart);
         logVoiceEvent('transcription-complete', {
@@ -305,7 +352,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       stopMediaTracks();
       setWhisperError(err instanceof Error ? err.message : 'recorder-start-failed');
     }
-  }, [backend, native, stopMediaTracks]);
+  }, [backend, native, stopMediaTracks, lang]);
 
   const stopWhisper = useCallback(() => {
     const rec = recorderRef.current;

@@ -3,14 +3,11 @@
 /**
  * Lazy-loaded singleton for Transformers.js ASR pipeline.
  *
- * Model: `Xenova/whisper-tiny` — multilingual (99 languages, ~39M params).
- * Same parameter count as `whisper-tiny.en`, ~30-40MB quantized; the .en
- * variant is only marginally better on English but loses every other
- * language, so the multilingual default is the better trade-off.
- * Runs via WebGPU when available, otherwise WASM SIMD. The previous
- * Moonshine swap was reverted because `onnx-community/moonshine-tiny-ONNX`
- * does not ship a `q4` quantization and its encoder/decoder split is not
- * a drop-in for the `automatic-speech-recognition` pipeline in v4.
+ * Model: `Xenova/whisper-tiny` — multilingual (99 languages, ~39M params,
+ * ~30-40MB quantized). Smallest viable Whisper variant; faster inference
+ * and lighter download than `whisper-base` at the cost of some accuracy
+ * (especially on short clips / non-English speech). Runs via WebGPU when
+ * available, otherwise WASM SIMD.
  *
  * Weights are fetched from huggingface.co (NOT this origin) and cached in
  * IndexedDB after the first load. The pipeline + ONNX runtime + tokenizer
@@ -19,7 +16,10 @@
 
 const MODEL_ID = 'Xenova/whisper-tiny';
 
-type AsrPipeline = (audio: Float32Array) => Promise<{ text: string } | { text: string }[]>;
+type AsrPipeline = (
+  audio: Float32Array,
+  opts?: Record<string, unknown>,
+) => Promise<{ text: string } | { text: string }[]>;
 
 export type WhisperProgress = {
   status: string;
@@ -152,7 +152,22 @@ export async function blobToWhisperAudio(blob: Blob): Promise<Float32Array> {
   src.connect(offline.destination);
   src.start(0);
   const rendered = await offline.startRendering();
-  return rendered.getChannelData(0);
+  const samples = rendered.getChannelData(0);
+
+  // Peak-normalize to [-1, 1]. Whisper benefits noticeably from a clean,
+  // full-scale input — quiet recordings (built-in mic, far field) otherwise
+  // get padded toward silence after mel-spectrogram normalization and the
+  // decoder hallucinates short outputs (`you`, `.`, etc).
+  let peak = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const v = samples[i] < 0 ? -samples[i] : samples[i];
+    if (v > peak) peak = v;
+  }
+  if (peak > 0 && peak < 0.99) {
+    const gain = 0.99 / peak;
+    for (let i = 0; i < samples.length; i++) samples[i] *= gain;
+  }
+  return samples;
 }
 
 /**

@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useAppHaptics } from "@/lib/haptics";
 import { useDiscoActive } from "@/hooks/useStickers";
 import { runThemeToggle } from "@/lib/themeToggleAction";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
@@ -33,8 +34,12 @@ export function ThemeToggle() {
     };
 
     const ariaLabel = discoActive ? "Exit disco mode" : "Toggle Theme";
+    const tooltipLabel = discoActive
+        ? "Exit disco mode"
+        : resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode";
 
     return (
+        <Tooltip label={tooltipLabel}>
         <button
             onClick={handleClick}
             className="relative p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group"
@@ -89,5 +94,6 @@ export function ThemeToggle() {
             {/* Rough circle hover effect that looks drawn */}
             <div className="absolute inset-0 border-2 border-gray-400/0 group-hover:border-gray-400/30 rounded-full scale-110 opacity-0 group-hover:opacity-100 transition-[border-color,opacity] duration-150 pointer-events-none" style={{ borderRadius: "50% 40% 60% 50% / 50% 60% 40% 50%" }}></div>
         </button>
+        </Tooltip>
     );
 }

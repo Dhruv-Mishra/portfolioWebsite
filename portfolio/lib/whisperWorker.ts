@@ -87,9 +87,29 @@ ctx.addEventListener('message', (event: MessageEvent<InMessage>) => {
   if (msg.type === 'transcribe') {
     loadPipeline(msg.model, onProgress)
       .then(async (asr) => {
-        // Multilingual whisper-tiny auto-detects when no language is provided.
-        // Pass language explicitly only if the caller specified one.
-        const opts = msg.language ? { language: msg.language, task: 'transcribe' as const } : undefined;
+        // Multilingual whisper auto-detects when no `language` is passed.
+        // Decoding params chosen for short voice-input clips:
+        //   chunk_length_s: 30, stride_length_s: 5 — matches Whisper's
+        //     training receptive field and avoids boundary artifacts on
+        //     longer dictations.
+        //   return_timestamps: false — we only want the transcript.
+        //   temperature: 0 — greedy, deterministic, no hallucinated retries.
+        //   no_repeat_ngram_size: 3 — kills the classic Whisper repetition
+        //     loops ("thank you. thank you. thank you.") on quiet audio.
+        // `task` defaults to 'transcribe'. Forcing it when language is
+        // unset would short-circuit auto-detect, so we only attach it
+        // alongside an explicit language hint.
+        const opts: Record<string, unknown> = {
+          chunk_length_s: 30,
+          stride_length_s: 5,
+          return_timestamps: false,
+          temperature: 0,
+          no_repeat_ngram_size: 3,
+        };
+        if (msg.language) {
+          opts.language = msg.language;
+          opts.task = 'transcribe';
+        }
         const out = await asr(msg.audio, opts);
         const text = Array.isArray(out) ? out.map((o) => o.text).join(' ') : out.text;
         post({ type: 'result', id: msg.id, text: text.trim() });

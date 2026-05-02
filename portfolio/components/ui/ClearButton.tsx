@@ -2,6 +2,7 @@
 
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 interface ClearButtonProps {
   onClick: () => void;
@@ -16,6 +17,7 @@ interface ClearButtonProps {
  */
 export function ClearButton({ onClick, size = 14, className, title = 'Clear input' }: ClearButtonProps) {
   return (
+    <Tooltip label={title}>
     <button
       type="button"
       onClick={onClick}
@@ -32,5 +34,6 @@ export function ClearButton({ onClick, size = 14, className, title = 'Clear inpu
     >
       <X size={size} strokeWidth={2.5} />
     </button>
+    </Tooltip>
   );
 }

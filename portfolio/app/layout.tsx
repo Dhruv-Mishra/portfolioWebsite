@@ -114,22 +114,25 @@ export const metadata: Metadata = {
     siteName: "Dhruv Mishra Portfolio",
     images: [
       {
-        // og-image.png does not exist in /public/resources. Falling back to the
-        // existing about photo so social-share previews render an actual image
-        // instead of a 404 placeholder. Dimensions are not the canonical 1200x630
-        // OG ratio (this is a portrait .webp), but every major OG consumer
-        // (Twitter, Slack, Discord, LinkedIn, Facebook) handles non-1.91:1
-        // images by letterboxing — a real preview beats a broken one.
-        url: '/resources/aboutPhoto.webp',
+        // Use the 512x512 PWA icon as the social preview. Square is non-canonical
+        // for OG (which prefers 1.91:1) but every major consumer (Twitter, Slack,
+        // Discord, LinkedIn, Facebook) renders square images cleanly — and this
+        // asset is already in /public, already optimized, and recognizable.
+        url: '/icon-512.png',
+        width: 512,
+        height: 512,
         alt: 'Dhruv Mishra - Software Engineer Portfolio',
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    // 512x512 is square (1:1), not 2:1 — use `summary` rather than
+    // `summary_large_image` so Twitter renders the icon in the small square
+    // card slot it was designed for instead of stretching/cropping.
+    card: 'summary',
     title: "Dhruv Mishra | Software Engineer",
     description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
-    images: ['/resources/aboutPhoto.webp'],
+    images: ['/icon-512.png'],
   },
   robots: {
     index: true,

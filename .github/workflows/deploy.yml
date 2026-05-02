@@ -56,6 +56,9 @@ concurrency:
 env:
   DOMAIN: whoisdhruv.com
   NODE_VERSION: '22'
+  # Suppress the anonymous telemetry banner from Next.js builds; we don't act
+  # on it and it pollutes CI logs.
+  NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
   # ───────────────────────────────────────────────────────────────────────────
@@ -76,6 +79,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: portfolio/package-lock.json
+
+      # Restore Turbopack/webpack incremental cache. Hashes lockfile + source
+      # so a dependency change or any code change misses, but pure CI re-runs
+      # of the same commit (e.g. retry after flaky deploy) hit warm and shave
+      # ~30-50% off the Next.js compile step.
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: portfolio/.next/cache
+          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
+            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
         working-directory: portfolio

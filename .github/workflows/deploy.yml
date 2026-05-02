@@ -100,7 +100,18 @@ jobs:
         # Avoids needing LLM_API_KEY as an Actions secret.
         env:
           SKIP_EMBEDDINGS_BUILD: '1'
-        run: npm ci
+        # Two-stage install: a fast dry-run first to surface lockfile drift
+        # with a clear, actionable error before paying the full install cost.
+        # The pre-commit hook in .githooks/ should prevent this from firing,
+        # but this guard catches bypasses (--no-verify), Dependabot edge cases,
+        # and any future drift introduced outside the hook's scope.
+        run: |
+          if ! npm ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10 install --package-lock-only --include=optional"
+            npm ci --dry-run
+            exit 1
+          fi
+          npm ci
 
       - name: Lint
         working-directory: portfolio

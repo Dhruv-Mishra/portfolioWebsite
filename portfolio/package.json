@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:embeddings": "tsx scripts/build-embeddings.ts"
+    "build:embeddings": "tsx scripts/build-embeddings.ts",
+    "prepare": "node scripts/install-git-hooks.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

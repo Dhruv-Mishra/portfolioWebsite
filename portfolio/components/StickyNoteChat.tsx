@@ -20,6 +20,12 @@ import { CHAT_CONFIG } from '@/lib/chatContext';
 import PillScrollbar from '@/components/PillScrollbar';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
+import { MicButton } from '@/components/ui/MicButton';
+import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
+import { ClearButton } from '@/components/ui/ClearButton';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
+import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
 import { stickerBus } from '@/lib/stickerBus';
@@ -548,13 +554,41 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
+  const { pref: voicePref } = useVoiceBackendPref();
+  const speech = useVoiceInput({ backend: voicePref });
+  const baseInputRef = useRef('');
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading) return;
+    if (speech.isListening) speech.stop();
     onSend(input.trim());
     setInput('');
+    speech.reset();
+    baseInputRef.current = '';
     setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
-  }, [input, isLoading, onSend]);
+  }, [input, isLoading, onSend, speech]);
+
+  // Live-merge speech transcript (final + interim) into the textarea while listening.
+  useEffect(() => {
+    if (!speech.isListening && !speech.transcript && !speech.interimTranscript) return;
+    const spoken = (speech.transcript + (speech.interimTranscript ? ' ' + speech.interimTranscript : '')).trim();
+    if (!spoken) return;
+    const merged = (baseInputRef.current
+      ? baseInputRef.current.replace(/\s+$/, '') + ' ' + spoken
+      : spoken
+    ).slice(0, CHAT_CONFIG.maxUserMessageLength);
+    setInput(merged);
+  }, [speech.transcript, speech.interimTranscript, speech.isListening]);
+
+  const handleMicToggle = useCallback(() => {
+    if (speech.isListening) {
+      speech.stop();
+      return;
+    }
+    baseInputRef.current = input;
+    speech.reset();
+    speech.start();
+  }, [input, speech]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -597,22 +631,23 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           style={INPUT_NOTE_STYLE}
         >
           <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-h-[28px] md:min-h-[32px]">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                disabled={isLoading}
+                disabled={isLoading || speech.isListening || speech.isTranscribing}
                 aria-label="Chat message"
                 className={cn(
                   "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
                   compact ? "text-sm leading-snug max-[767px]:text-base" : "text-base md:text-lg",
+                  (speech.isListening || speech.isTranscribing) && "invisible",
                 )}
               />
-              {/* Typewriter placeholder overlay — hidden when user has typed */}
-              {!input && (
+              {/* Typewriter placeholder overlay — hidden when user has typed or is recording */}
+              {!input && !speech.isListening && !speech.isTranscribing && (
                 <span
                   ref={placeholderRef}
                   aria-hidden
@@ -622,7 +657,46 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   )}
                 />
               )}
+              <ListeningOverlay
+                isListening={speech.isListening}
+                isTranscribing={speech.isTranscribing}
+                backend={speech.backend}
+                interim={speech.interimTranscript}
+                analyser={speech.analyser}
+              />
             </div>
+
+            {(input.length > 0 || speech.isListening || speech.isTranscribing) && (
+              <ClearButton
+                onClick={() => {
+                  if (speech.isListening) speech.stop();
+                  speech.reset();
+                  baseInputRef.current = '';
+                  setInput('');
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+                size={compact ? 12 : 14}
+              />
+            )}
+
+            {speech.isSupported && (
+              <>
+                <VoiceBackendToggle
+                  isLoading={speech.isLoading}
+                  loadProgress={speech.loadProgress}
+                  compact
+                />
+                <MicButton
+                  isListening={speech.isListening}
+                  isLoading={speech.isLoading}
+                  isTranscribing={speech.isTranscribing}
+                  loadProgress={speech.loadProgress}
+                  onClick={handleMicToggle}
+                  disabled={isLoading}
+                  size={compact ? 16 : 18}
+                />
+              </>
+            )}
 
             {/* Paperclip send button */}
             <m.button
@@ -906,6 +980,45 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, isLoading, suggestionsReady]);
+
+  // Auto-scroll DURING typewriter growth — observes the scroll container's
+  // content size and snaps to bottom whenever it grows AND the user was
+  // anchored near the bottom BEFORE the growth. Respects manual scroll-up
+  // for reading history (threshold: 80px from bottom).
+  useEffect(() => {
+    const el = messagesScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    let lastScrollHeight = el.scrollHeight;
+    let rafId: number | null = null;
+
+    const observer = new ResizeObserver(() => {
+      const nextHeight = el.scrollHeight;
+      if (nextHeight === lastScrollHeight) return;
+      // Compute "near bottom" against the height we observed BEFORE this growth,
+      // so the new content doesn't flip us out of the anchored state.
+      const distanceFromBottom = lastScrollHeight - el.scrollTop - el.clientHeight;
+      const wasNearBottom = distanceFromBottom < 80;
+      lastScrollHeight = nextHeight;
+      if (!wasNearBottom) return;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        el.scrollTop = el.scrollHeight;
+      });
+    });
+
+    observer.observe(el);
+    // Also observe each direct child so we catch typewriter growth that doesn't
+    // resize the scroll container itself (only its content).
+    const children = Array.from(el.children) as HTMLElement[];
+    children.forEach((c) => observer.observe(c));
+
+    return () => {
+      observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [messages.length]);
 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;

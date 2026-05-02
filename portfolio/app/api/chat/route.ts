@@ -1,5 +1,6 @@
 // app/api/chat/route.ts — Server-side proxy for LLM API (keeps API key secret)
 import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { NextRequest } from 'next/server';
 import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
@@ -238,21 +239,39 @@ async function callProvider(
   const timeout = setTimeout(() => controller.abort(), LLM_PROVIDER_TIMEOUT_MS);
 
   try {
-    const client = createProviderClient(provider);
-    const completion = await client.chat.completions.create({
-      model: provider.model,
-      messages,
-      temperature: CHAT_CONFIG.temperature,
-      top_p: CHAT_CONFIG.topP,
-      max_tokens: CHAT_CONFIG.maxTokens,
-      stream: false,
-    }, {
-      signal: controller.signal,
-    });
+    let rawContent: unknown;
+
+    if (provider.kind === 'groq') {
+      const groq = new Groq({ apiKey: provider.apiKey, maxRetries: 0 });
+      const completion = await groq.chat.completions.create({
+        model: provider.model,
+        messages: messages as Groq.Chat.Completions.ChatCompletionMessageParam[],
+        temperature: 1,
+        max_completion_tokens: 1024,
+        top_p: 1,
+        stream: false,
+      }, {
+        signal: controller.signal,
+      });
+      rawContent = completion.choices?.[0]?.message?.content;
+    } else {
+      const client = createProviderClient(provider);
+      const completion = await client.chat.completions.create({
+        model: provider.model,
+        messages,
+        temperature: CHAT_CONFIG.temperature,
+        top_p: CHAT_CONFIG.topP,
+        max_tokens: CHAT_CONFIG.maxTokens,
+        stream: false,
+      }, {
+        signal: controller.signal,
+      });
+      rawContent = completion.choices?.[0]?.message?.content;
+    }
 
     clearTimeout(timeout);
 
-    const rawReply = stripThinkTags(getDeltaText(completion.choices?.[0]?.message?.content));
+    const rawReply = stripThinkTags(getDeltaText(rawContent));
     const reply = sanitizeAssistantReplyText(rawReply);
 
     if (!reply) {
@@ -261,6 +280,7 @@ async function callProvider(
 
     if (isRawLogEnabled()) {
       console.log('[LLM RAW]', {
+        provider: provider.label,
         model: provider.model,
         raw: rawReply,
         clean: reply,

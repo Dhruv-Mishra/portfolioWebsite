@@ -523,6 +523,28 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 .animate-wall-note-in { animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both; }
 
+/* ─── Listening overlay — animated bars + ellipsis (CSS-only fallback) ─── */
+@keyframes listening-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+.animate-listening-bar {
+  transform-origin: center;
+  animation: listening-bar 0.9s ease-in-out infinite;
+}
+@keyframes listening-ellipsis {
+  0%   { opacity: 0.2; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.2; }
+}
+.animate-listening-ellipsis {
+  animation: listening-ellipsis 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-listening-bar,
+  .animate-listening-ellipsis { animation: none; }
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    Sticker album — pure-CSS idle float + entrance.
    Replaces the 12 framer-motion `repeat: Infinity` animations that were

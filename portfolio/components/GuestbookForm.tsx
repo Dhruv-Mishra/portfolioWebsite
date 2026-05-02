@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
 import { TapeStrip } from '@/components/ui/TapeStrip';
+import { MicButton } from '@/components/ui/MicButton';
+import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
+import { ClearButton } from '@/components/ui/ClearButton';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
+import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import {
   ANIMATION_TOKENS,
   GUESTBOOK_ANIMATION,
@@ -51,6 +57,9 @@ export default function GuestbookForm() {
   const [formKey, setFormKey] = useState(0); // bump → remount form after success animation
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { pref: voicePref } = useVoiceBackendPref();
+  const speech = useVoiceInput({ backend: voicePref });
+  const baseMessageRef = useRef('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flyingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +84,34 @@ export default function GuestbookForm() {
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value.slice(0, GUESTBOOK_LIMITS.maxNameLength));
   }, []);
+
+  // Live-merge speech transcript into the message field while listening.
+  useEffect(() => {
+    if (!speech.isListening && !speech.transcript && !speech.interimTranscript) return;
+    const spoken = (speech.transcript + (speech.interimTranscript ? ' ' + speech.interimTranscript : '')).trim();
+    if (!spoken) return;
+    const merged = (baseMessageRef.current
+      ? baseMessageRef.current.replace(/\s+$/, '') + ' ' + spoken
+      : spoken
+    ).slice(0, GUESTBOOK_LIMITS.maxMessageLength);
+    setMessage(merged);
+    if (inlineError) setInlineError('');
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+    }
+  }, [speech.transcript, speech.interimTranscript, speech.isListening, inlineError]);
+
+  const handleMicToggle = useCallback(() => {
+    if (speech.isListening) {
+      speech.stop();
+      return;
+    }
+    baseMessageRef.current = message;
+    speech.reset();
+    speech.start();
+  }, [message, speech]);
 
   const handleSubmit = useCallback(async (e?: FormEvent<HTMLFormElement>) => {
     if (e) e.preventDefault();
@@ -186,7 +223,7 @@ export default function GuestbookForm() {
           <TapeStrip size="md" />
 
           {/* Message textarea */}
-          <div className="relative">
+          <div className="relative min-h-[96px]">
             <textarea
               ref={textareaRef}
               value={message}
@@ -194,7 +231,7 @@ export default function GuestbookForm() {
               placeholder="Leave a note on the wall ~"
               rows={3}
               maxLength={GUESTBOOK_LIMITS.maxMessageLength}
-              disabled={isDisabled}
+              disabled={isDisabled || speech.isListening || speech.isTranscribing}
               aria-label="Your guestbook message"
               aria-invalid={inlineError ? 'true' : undefined}
               aria-describedby={inlineError ? 'guestbook-inline-error' : undefined}
@@ -205,20 +242,30 @@ export default function GuestbookForm() {
                 'focus:outline-none focus-visible:outline-none',
                 'max-h-[160px] overflow-y-auto',
                 'disabled:opacity-60',
+                (speech.isListening || speech.isTranscribing) && 'invisible',
               )}
               style={TEXTAREA_LINED_STYLE}
             />
 
-            {/* Character counter */}
-            <span
-              aria-live="polite"
-              className={cn(
-                'absolute bottom-2 right-4 font-code text-[10px]',
-                charCountDanger ? 'text-rose-500 opacity-80' : 'opacity-40',
-              )}
-            >
-              {charCount}/{GUESTBOOK_LIMITS.maxMessageLength}
-            </span>
+            {/* Character counter — hidden during recording so the surface stays clean */}
+            {!speech.isListening && !speech.isTranscribing && (
+              <span
+                aria-live="polite"
+                className={cn(
+                  'absolute bottom-2 right-4 font-code text-[10px]',
+                  charCountDanger ? 'text-rose-500 opacity-80' : 'opacity-40',
+                )}
+              >
+                {charCount}/{GUESTBOOK_LIMITS.maxMessageLength}
+              </span>
+            )}
+            <ListeningOverlay
+              isListening={speech.isListening}
+              isTranscribing={speech.isTranscribing}
+              backend={speech.backend}
+              interim={speech.interimTranscript}
+              analyser={speech.analyser}
+            />
           </div>
 
           {inlineError && (
@@ -269,7 +316,39 @@ export default function GuestbookForm() {
           />
 
           {/* Submit row */}
-          <div className="flex items-center justify-end mt-4">
+          <div className="flex items-center justify-end gap-1 mt-4">
+            {(message.length > 0 || speech.isListening || speech.isTranscribing) && (
+              <ClearButton
+                onClick={() => {
+                  if (speech.isListening) speech.stop();
+                  speech.reset();
+                  baseMessageRef.current = '';
+                  setMessage('');
+                  setInlineError('');
+                  const ta = textareaRef.current;
+                  if (ta) { ta.style.height = 'auto'; ta.focus(); }
+                }}
+                size={12}
+              />
+            )}
+            {speech.isSupported && (
+              <>
+                <VoiceBackendToggle
+                  isLoading={speech.isLoading}
+                  loadProgress={speech.loadProgress}
+                  compact
+                />
+                <MicButton
+                  isListening={speech.isListening}
+                  isLoading={speech.isLoading}
+                  isTranscribing={speech.isTranscribing}
+                  loadProgress={speech.loadProgress}
+                  onClick={handleMicToggle}
+                  disabled={isDisabled}
+                  size={16}
+                />
+              </>
+            )}
             <m.button
               type="submit"
               whileHover={isDisabled ? undefined : SUBMIT_BUTTON_HOVER}

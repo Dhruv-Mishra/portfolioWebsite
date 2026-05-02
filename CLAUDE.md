@@ -131,9 +131,11 @@ Public (client-safe):
 - `NEXT_PUBLIC_ENABLE_ERROR_TRACKING` — Error tracking toggle
 
 Server-only (secrets):
-- `LLM_API_KEY` — Primary LLM API key
-- `LLM_BASE_URL` — Primary LLM base URL
-- `LLM_MODEL` — Primary LLM model
+- `GROQ_API_KEY` — **Primary** LLM provider. When set, the chat route uses Groq (`groq-sdk`) for inference and falls back to the legacy `LLM_*` provider on any error. Get a key at https://console.groq.com/keys.
+- `GROQ_MODEL` — Optional. Groq model id. Defaults to `llama-3.1-8b-instant`. Groq calls always use `temperature=1`, `top_p=1`, `max_completion_tokens=1024`, `stream=false`.
+- `LLM_API_KEY` — Fallback LLM API key (e.g. NVIDIA / OpenAI-compatible). Used as primary when `GROQ_API_KEY` is unset.
+- `LLM_BASE_URL` — Fallback LLM base URL.
+- `LLM_MODEL` — Fallback LLM model.
 - `LLM_FALLBACK_API_KEY` — Fallback LLM API key
 - `LLM_FALLBACK_BASE_URL` — Fallback LLM base URL
 - `LLM_FALLBACK_MODEL` — Fallback LLM model

@@ -41,7 +41,10 @@
     "vitest": "^4.1.5"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "webpack-bundle-analyzer": {
+      "ws": "^8.18.0"
+    }
   },
   "browserslist": [
     "last 2 Chrome versions",

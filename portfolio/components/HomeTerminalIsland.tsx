@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { TerminalProvider } from "@/context/TerminalContext";
 
 const Terminal = dynamic(() => import("@/components/Terminal"), {
   loading: () => (
@@ -9,6 +10,13 @@ const Terminal = dynamic(() => import("@/components/Terminal"), {
   ssr: false,
 });
 
+// TerminalProvider is scoped to the home route here (rather than mounted in
+// the root layout) so non-home routes do not pay the cost of importing
+// `lib/terminalCommands.tsx` and allocating the initial transcript.
 export default function HomeTerminalIsland() {
-  return <Terminal />;
+  return (
+    <TerminalProvider>
+      <Terminal />
+    </TerminalProvider>
+  );
 }

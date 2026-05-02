@@ -6,6 +6,7 @@ import { m } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
+import { reportError } from '@/lib/errorReporting';
 
 // Hoisted animation configs — avoid allocation per render
 const ALERT_SHAKE_ANIMATE = {
@@ -26,6 +27,7 @@ export default function Error({
   useEffect(() => {
     // Log the error to an error reporting service
     console.error('Application error:', error);
+    reportError(error, { digest: error.digest, source: 'app/error.tsx' });
   }, [error]);
 
   return (

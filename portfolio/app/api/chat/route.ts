@@ -13,6 +13,7 @@ import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThink
 import { createProviderClient, getChatProviders, type LLMProvider } from '@/lib/llmProviders.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
+import { isClientChatMessage } from '@/lib/chatMessageSchema';
 
 export const runtime = 'nodejs';
 
@@ -26,11 +27,8 @@ const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, max
 const MAX_CHAT_BODY_BYTES = 24_000;
 const MAX_CONTEXT_CHARS = 5_000;
 
-function isClientChatMessage(
-  message: { role?: unknown; content?: unknown; signature?: unknown; action?: unknown },
-): message is ClientChatMessage {
-  return (message.role === 'user' || message.role === 'assistant') && typeof message.content !== 'undefined';
-}
+
+
 
 function getContentLength(request: NextRequest): number | null {
   const header = request.headers.get('content-length');
@@ -108,7 +106,7 @@ function createFallbackResponse(latestUserMessage: string) {
 export async function POST(request: NextRequest) {
   try {
     // Block cross-origin requests (prevents LLM credit abuse from other sites)
-    const originError = validateOrigin(request);
+    const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
     // Get client IP for rate limiting
@@ -123,11 +121,21 @@ export async function POST(request: NextRequest) {
     }
 
     const contentLength = getContentLength(request);
-    if (contentLength !== null && contentLength > MAX_CHAT_BODY_BYTES) {
+    // Strict: missing/NaN content-length means the request might use chunked
+    // encoding to bypass the body cap. Reject with 411 Length Required.
+    if (contentLength === null) {
+      return Response.json({ error: 'Content-Length header required' }, { status: 411 });
+    }
+    if (contentLength > MAX_CHAT_BODY_BYTES) {
       return Response.json({ error: 'Request body is too large' }, { status: 413 });
     }
 
-    const body = await request.json() as { messages?: ClientChatMessage[] };
+    let body: { messages?: ClientChatMessage[] };
+    try {
+      body = await request.json() as { messages?: ClientChatMessage[] };
+    } catch {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const userMessages = body.messages;
 
     if (!userMessages || !Array.isArray(userMessages) || userMessages.length === 0) {

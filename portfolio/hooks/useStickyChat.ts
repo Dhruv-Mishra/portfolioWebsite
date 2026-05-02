@@ -59,7 +59,6 @@ interface UseStickyChat {
   isLoading: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
-  addLocalExchange: (userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => void;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
@@ -914,22 +913,6 @@ export function useStickyChat(): UseStickyChat {
     }
   }, [handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
-  const addLocalExchange = useCallback((userText: string, response: Omit<ChatMessage, 'id' | 'role' | 'timestamp'>) => {
-    const userMsg: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      content: userText,
-      timestamp: Date.now(),
-    };
-    const assistantMsg: ChatMessage = {
-      id: generateId(),
-      role: 'assistant',
-      timestamp: Date.now(),
-      ...response,
-    };
-    setMessages(prev => [...prev, userMsg, assistantMsg]);
-  }, []);
-
   const clearMessages = useCallback(() => {
     // Abort any in-flight LLM request and suggestions fetch
     abortControllerRef.current?.abort('clear');
@@ -964,7 +947,6 @@ export function useStickyChat(): UseStickyChat {
     isLoading,
     error,
     sendMessage,
-    addLocalExchange,
     clearMessages,
     markOpenUrlsFailed,
     rateLimitRemaining,

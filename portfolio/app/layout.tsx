@@ -4,7 +4,6 @@ import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { TerminalProvider } from "@/context/TerminalContext";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import DeferredEnhancements from "@/components/DeferredEnhancements";
@@ -225,14 +224,12 @@ export default function RootLayout({
         <Analytics />
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <TerminalProvider>
-              <SketchbookLayout>
-                <Navigation />
-                {children}
-              </SketchbookLayout>
-              <EagerEnhancements />
-              <DeferredEnhancements />
-            </TerminalProvider>
+            <SketchbookLayout>
+              <Navigation />
+              {children}
+            </SketchbookLayout>
+            <EagerEnhancements />
+            <DeferredEnhancements />
           </ThemeProvider>
         </ErrorBoundary>
       </body>

@@ -12,7 +12,7 @@ import { validateOrigin } from '@/lib/validateOrigin';
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request);
+  const originError = validateOrigin(request, { requireOrigin: true });
   if (originError) return originError;
 
   return new Response(

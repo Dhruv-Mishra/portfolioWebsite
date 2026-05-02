@@ -32,26 +32,25 @@ import 'server-only';
  *     `lib/guestbook.ts` handles both.
  */
 
+import { createHash } from 'crypto';
+
 import { GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { parseIssueBody, type GuestbookEntry } from '@/lib/guestbook';
+import { sanitizeMarkdown } from '@/lib/markdownEscape';
 
 /** Note kind discriminator. Controls label names + env var lookup. */
 export type NoteKind = 'guestbook' | 'matrix';
 
-/** Escape markdown-injection characters by backslash-prefixing them. */
-function sanitizeMarkdown(str: string): string {
-  return str.replace(/[\[\]()@`|#*_!<>]/g, (ch) => `\\${ch}`);
-}
-
-/** Privacy-preserving IP hash — same djb2-ish shape used by the feedback route. */
+/**
+ * Privacy-preserving IP hash — SHA-256 with a server-side salt so the
+ * resulting digest cannot be reversed via a precomputed IPv4 rainbow table.
+ * Salt comes from `IP_HASH_SALT` env when set; otherwise falls back to a
+ * hard-coded constant. TODO: provision a unique `IP_HASH_SALT` per
+ * deployment so digests are not portable across environments.
+ */
 function hashIP(ip: string): string {
-  let hash = 0;
-  for (let i = 0; i < ip.length; i++) {
-    const char = ip.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
+  const salt = process.env.IP_HASH_SALT ?? 'sketchbook-default-ip-salt-v1';
+  return createHash('sha256').update(salt).update(':').update(ip).digest('hex').slice(0, 16);
 }
 
 /**

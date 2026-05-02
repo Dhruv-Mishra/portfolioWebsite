@@ -47,7 +47,7 @@ function timingSafeStringEqual(a: string, b: string): boolean {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request);
+  const originError = validateOrigin(request, { requireOrigin: true });
   if (originError) return originError;
 
   const ip = getClientIP(request);
@@ -75,7 +75,11 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const userOk = timingSafeStringEqual(username, ADMIN_USERNAME);
   const passOk = timingSafeStringEqual(password, ADMIN_PASSWORD);
-  if (!userOk || !passOk) {
+  // Bitwise OR of the failure bits — does NOT short-circuit. Both string
+  // compares always run regardless of which side mismatched, so the timing
+  // signal cannot distinguish "wrong username" from "wrong password".
+  const failureBits = (userOk ? 0 : 1) | (passOk ? 0 : 1);
+  if (failureBits !== 0) {
     return Response.json({ error: 'Authentication failure' }, { status: 401 });
   }
 

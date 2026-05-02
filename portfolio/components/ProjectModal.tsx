@@ -269,7 +269,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                             <a
                                 href={project.link}
                                 target="_blank"
-                                rel="noreferrer"
+                                rel="noopener noreferrer"
                                 onClick={() => { externalLink(); stickerBus.emit('repo-hunter'); }}
                                 aria-label={`View source for ${project.name}`}
                                 className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors shadow-sm font-bold bg-white/30 dark:bg-black/20"

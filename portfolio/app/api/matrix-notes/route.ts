@@ -58,7 +58,7 @@ function asString(value: unknown): string {
 // ─── POST /api/matrix-notes — new entry submission ──────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const originError = validateOrigin(request);
+    const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
     const ip = getClientIP(request);

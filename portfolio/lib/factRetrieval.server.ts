@@ -194,6 +194,17 @@ export async function embedQuery(query: string, options: RetrievalOptions = {}):
     return normalize(vector);
   }
 
+  // LRU cache: most repeat questions ("tell me about cropio", "what do you do")
+  // hit the cache and skip the embeddings API call entirely. Keyed on the
+  // lowercased trimmed query. Only consulted/populated when no custom client
+  // or model override is supplied (so test injection is unaffected).
+  const useCache = !options.client && !options.model;
+  const cacheKey = trimmed.toLowerCase();
+  if (useCache) {
+    const hit = embedQueryCache.get(cacheKey);
+    if (hit) return hit;
+  }
+
   const client = options.client ?? getEmbeddingsClient();
   if (!client) return null;
 
@@ -212,12 +223,55 @@ export async function embedQuery(query: string, options: RetrievalOptions = {}):
       console.warn(`[factRetrieval] Query embedding dimension ${vector.length} ≠ corpus ${LOADED.dimension}; discarding.`);
       return null;
     }
-    return normalize(vector as number[]);
+    const normalized = normalize(vector as number[]);
+    if (useCache) embedQueryCache.set(cacheKey, normalized);
+    return normalized;
   } catch (err) {
     console.warn('[factRetrieval] Embeddings API call failed; degrading to anchors-only.', err);
     return null;
   }
 }
+
+// ── Embedding query cache (LRU + TTL) ───────────────────────────────
+//
+// Caches normalized query-embedding vectors so repeat questions (which are
+// the common case for a portfolio chatbot) skip the embeddings API call.
+// Size 200 is plenty for the long tail of real questions; 1h TTL bounds
+// staleness if the embeddings model id changes between deploys.
+
+interface CacheEntry {
+  value: readonly number[];
+  expires: number;
+}
+
+const EMBED_CACHE_MAX = 200;
+const EMBED_CACHE_TTL_MS = 60 * 60 * 1000;
+
+const embedQueryCache = (() => {
+  const store = new Map<string, CacheEntry>();
+  return {
+    get(key: string): readonly number[] | undefined {
+      const entry = store.get(key);
+      if (!entry) return undefined;
+      if (entry.expires <= Date.now()) {
+        store.delete(key);
+        return undefined;
+      }
+      // Re-insert to mark as most-recently-used.
+      store.delete(key);
+      store.set(key, entry);
+      return entry.value;
+    },
+    set(key: string, value: readonly number[]): void {
+      if (store.has(key)) store.delete(key);
+      store.set(key, { value, expires: Date.now() + EMBED_CACHE_TTL_MS });
+      if (store.size > EMBED_CACHE_MAX) {
+        const oldest = store.keys().next().value;
+        if (oldest !== undefined) store.delete(oldest);
+      }
+    },
+  };
+})();
 
 /**
  * Main entry point — retrieve facts relevant to the user's last few messages.

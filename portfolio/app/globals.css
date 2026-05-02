@@ -450,6 +450,18 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
+  /* Per-navigation page fade. Replaces a previous framer-motion template so
+     the motion runtime is no longer on the critical path of every navigation.
+     Pure opacity \u2014 no transform \u2014 so it cannot trigger CLS. */
+  .animate-page-template-in {
+    animation: pageTemplateIn 0.2s ease-out both;
+  }
+
+  @keyframes pageTemplateIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
 }
 
 /* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.

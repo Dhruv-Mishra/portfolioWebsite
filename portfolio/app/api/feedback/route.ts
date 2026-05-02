@@ -1,15 +1,12 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
+import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { validateOrigin } from '@/lib/validateOrigin';
+import { sanitizeMarkdown } from '@/lib/markdownEscape';
 
 export const runtime = 'nodejs';
-
-/** Escape markdown-injection characters by backslash-prefixing them. */
-function sanitizeMarkdown(str: string): string {
-  return str.replace(/[\[\]()@`|#*_!<>]/g, (ch) => `\\${ch}`);
-}
 
 const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
 
@@ -44,7 +41,7 @@ interface FeedbackBody {
 export async function POST(request: NextRequest) {
   try {
     // Block cross-origin requests
-    const originError = validateOrigin(request);
+    const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
     const ip = getClientIP(request);
@@ -65,7 +62,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Feedback service is not configured' }, { status: 500 });
     }
 
-    const body: FeedbackBody = await request.json();
+    const body: FeedbackBody = await request.json().catch(() => null) as FeedbackBody;
+    if (!body || typeof body !== 'object') {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Validate category
     if (!body.category || !VALID_CATEGORIES.includes(body.category)) {
@@ -168,13 +168,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** Simple hash of IP for privacy — not reversible, just for dedup in issue body */
+/** Privacy-preserving IP hash — SHA-256 with a server-side salt so the
+ * resulting digest cannot be reversed via a precomputed IPv4 rainbow table.
+ * Salt comes from `IP_HASH_SALT` env when set; otherwise falls back to a
+ * hard-coded constant. TODO: provision a unique `IP_HASH_SALT` per
+ * deployment so digests are not portable across environments. */
 function hashIP(ip: string): string {
-  let hash = 0;
-  for (let i = 0; i < ip.length; i++) {
-    const char = ip.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
+  const salt = process.env.IP_HASH_SALT ?? 'sketchbook-default-ip-salt-v1';
+  return createHash('sha256').update(salt).update(':').update(ip).digest('hex').slice(0, 16);
 }

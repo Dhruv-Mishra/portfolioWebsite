@@ -6,6 +6,7 @@ import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, 
 import { createProviderClient, getSuggestionsProviders, type LLMProvider } from '@/lib/llmProviders.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
+import { isClientChatMessage } from '@/lib/chatMessageSchema';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +48,7 @@ Rules:
 export async function POST(request: NextRequest) {
   try {
     // Block cross-origin requests
-    const originError = validateOrigin(request);
+    const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
     const ip = getClientIP(request);
@@ -56,17 +57,34 @@ export async function POST(request: NextRequest) {
       return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
     }
 
-    const contentLength = request.headers.get('content-length');
-    if (contentLength && Number(contentLength) > MAX_SUGGESTIONS_BODY_BYTES) {
+    const contentLength = Number(request.headers.get('content-length'));
+    // Strict: missing/NaN content-length means the request might use chunked
+    // encoding to bypass the body cap. Reject with 411 Length Required.
+    if (!Number.isFinite(contentLength)) {
+      return Response.json({ suggestions: [] }, { status: 411 });
+    }
+    if (contentLength > MAX_SUGGESTIONS_BODY_BYTES) {
       return Response.json({ suggestions: [] }, { status: 413 });
     }
 
-    const body = await request.json();
-    const messages: { role: string; content: string }[] = body.messages || [];
+    let body: { messages?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ suggestions: [] }, { status: 400 });
+    }
+
+    // Validate messages shape: must be an array of {role: 'user'|'assistant', content}.
+    // System/tool roles are blocked here so a hostile caller cannot inject
+    // prompt-system context through the suggestions endpoint (P1-6).
+    const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+    const messages: { role: string; content: string }[] = rawMessages
+      .filter((m): m is { role: 'user' | 'assistant'; content: unknown } =>
+        typeof m === 'object' && m !== null && isClientChatMessage(m as { role?: unknown; content?: unknown }))
+      .map((m) => ({ role: m.role, content: String(m.content) }));
 
     // Take last 4 messages for context (lightweight)
     const context = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
       .slice(-4);
 

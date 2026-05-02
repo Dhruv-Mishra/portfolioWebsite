@@ -42,7 +42,7 @@ function asString(value: unknown): string {
 // ─── POST /api/guestbook — new entry submission ─────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const originError = validateOrigin(request);
+    const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
     const ip = getClientIP(request);

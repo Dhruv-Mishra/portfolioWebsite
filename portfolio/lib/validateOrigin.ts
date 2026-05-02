@@ -49,28 +49,51 @@ const ALLOWED_ORIGINS: ReadonlySet<string> = new Set(
     .filter((origin): origin is string => origin !== null),
 );
 
+export interface ValidateOriginOptions {
+  /**
+   * When true (recommended for write/state-changing endpoints), requests with
+   * NO `Origin` header are rejected unless `Sec-Fetch-Site: same-origin` is
+   * present. This blocks scripted abuse from non-browser tooling that strips
+   * the Origin header. When false, header-less requests are allowed for
+   * compatibility with curl/cron/server-to-server callers (read-only routes).
+   */
+  requireOrigin?: boolean;
+}
+
 /**
  * Validate the Origin header on an incoming request.
  *
  * Returns `null` if the request is allowed, or a 403 `Response` to return early.
  *
- * Policy:
+ * Policy (default — read-only callers):
  * - Origin present & in allowed set → allow
  * - Origin present & NOT in allowed set → block (403)
  * - Origin absent → allow (non-browser clients: curl, cron, server-to-server)
+ *
+ * Policy (`requireOrigin: true` — write/state-changing endpoints):
+ * - Origin present & in allowed set → allow
+ * - Origin absent BUT `Sec-Fetch-Site: same-origin` → allow (modern browsers
+ *   strip Origin on certain same-origin requests but always send Sec-Fetch-Site)
+ * - Anything else → block (403)
  */
-export function validateOrigin(request: Request): Response | null {
+export function validateOrigin(
+  request: Request,
+  options: ValidateOriginOptions = {},
+): Response | null {
   const origin = request.headers.get('origin');
+  const requireOrigin = options.requireOrigin === true;
 
-  // No Origin header → non-browser client (curl, Postman, etc.) → allow
-  if (!origin) return null;
+  if (origin) {
+    if (ALLOWED_ORIGINS.has(origin)) return null;
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
-  // Origin matches an allowed value → allow
-  if (ALLOWED_ORIGINS.has(origin)) return null;
+  // No Origin header.
+  if (!requireOrigin) return null;
 
-  // Cross-origin browser request → block
-  return Response.json(
-    { error: 'Forbidden' },
-    { status: 403 },
-  );
+  // Strict mode: accept Sec-Fetch-Site: same-origin as a fallback for
+  // browser-initiated same-origin requests that omit Origin.
+  if (request.headers.get('sec-fetch-site') === 'same-origin') return null;
+
+  return Response.json({ error: 'Forbidden' }, { status: 403 });
 }

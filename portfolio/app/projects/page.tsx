@@ -239,7 +239,7 @@ export default function Projects() {
                                     <a
                                         href={proj.link}
                                         target="_blank"
-                                        rel="noreferrer"
+                                        rel="noopener noreferrer"
                                         onClick={() => { stickerBus.emit('repo-hunter'); }}
                                         aria-label={`View source for ${proj.name}`}
                                         className="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"

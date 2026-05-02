@@ -745,6 +745,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handledActionsRef = useRef<Set<string>>(new Set());
   const pendingActionsRef = useRef<Map<string, ChatMessage>>(new Map());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
+  const committedExtrasForIdRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
   const hasInitializedSuggestionsRef = useRef(false);
   const completedAssistantHapticRef = useRef<string | null>(null);
@@ -778,6 +779,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (lastAssistant?.isOld) {
       // Returning to chat with history — use cached LLM suggestions if available
       hasFetchedSuggestionsRef.current = lastAssistant.id;
+      committedExtrasForIdRef.current = lastAssistant.id;
       const base = [
         ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
         ...pickRandom(followupActions, 1),
@@ -810,6 +812,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!lastAssistant || isLoading || lastAssistant.isOld || lastAssistant.oracleEmitted) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
     hasFetchedSuggestionsRef.current = lastAssistant.id;
+    // New target id — allow exactly one extras commit for this id.
+    committedExtrasForIdRef.current = null;
 
     // Exclude the suggestion the user just clicked (= their last message text)
     const lastUserMsg = messages.findLast(m => m.role === 'user');
@@ -826,9 +830,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     fetchSuggestions();
   }, [messages, isLoading, fetchSuggestions, followupActions]);
 
-  // When LLM contextual suggestions arrive (or fail), fill the extra slots
+  // When LLM contextual suggestions arrive (or fail), fill the extra slots.
+  // Race guard (P2-4 / P2-5): commit at most ONCE per assistant id, gated on
+  // `hasFetchedSuggestionsRef` (set by the trigger effect to lastAssistant.id).
+  // Without this, a stale `llmSuggestions` carried over between turns could
+  // overwrite the freshly-cleared `extraSuggestions` for the new turn.
   useEffect(() => {
-    if (isSuggestionsLoading || !hasFetchedSuggestionsRef.current) return;
+    const targetId = hasFetchedSuggestionsRef.current;
+    if (isSuggestionsLoading || !targetId) return;
+    if (committedExtrasForIdRef.current === targetId) return;
+    committedExtrasForIdRef.current = targetId;
     if (llmSuggestions.length > 0) {
       setExtraSuggestions(llmSuggestions.slice(0, 2));
     } else {

@@ -22,6 +22,7 @@ import type * as React from 'react';
 import {
   dispatchSudo,
   parseSudoInvocation,
+  handleDisco,
 } from '@/lib/sudoCommands';
 import { setAdminPref } from '@/hooks/useAdminPrefs';
 
@@ -42,7 +43,9 @@ beforeAll(() => {
 });
 
 function renderWarning(sub: 'disco' | 'matrix'): string {
-  const result = dispatchSudo(parseSudoInvocation([sub]), ctx);
+  const result = sub === 'disco'
+    ? handleDisco([])
+    : dispatchSudo(parseSudoInvocation([sub]), ctx);
   return renderToStaticMarkup(result.output as React.ReactElement);
 }
 
@@ -78,8 +81,8 @@ describe('sudo confirm warning — responsive mobile markup', () => {
 
   it('warning still advertises the confirm command and cancel command', () => {
     const markupDisco = renderWarning('disco');
-    expect(markupDisco).toMatch(/sudo disco yes/);
-    expect(markupDisco).toMatch(/sudo disco no/);
+    expect(markupDisco).toMatch(/disco yes/);
+    expect(markupDisco).toMatch(/disco no/);
     const markupMatrix = renderWarning('matrix');
     expect(markupMatrix).toMatch(/sudo matrix yes/);
     expect(markupMatrix).toMatch(/sudo matrix no/);
@@ -101,8 +104,8 @@ describe('sudo confirm warning — responsive mobile markup', () => {
     expect(markup).toMatch(/role="alert"/);
   });
 
-  it('action is still undefined for bare `sudo disco` / `sudo matrix` (confirm flow preserved)', () => {
-    const disco = dispatchSudo(parseSudoInvocation(['disco']), ctx);
+  it('action is still undefined for bare `disco` / `sudo matrix` (confirm flow preserved)', () => {
+    const disco = handleDisco([]);
     const matrix = dispatchSudo(parseSudoInvocation(['matrix']), ctx);
     expect(disco.action).toBeUndefined();
     expect(matrix.action).toBeUndefined();
@@ -110,7 +113,7 @@ describe('sudo confirm warning — responsive mobile markup', () => {
 
   it('action IS defined after explicit `yes` (regression guard)', () => {
     // Bug 1 fix must not accidentally break the two-step confirm flow.
-    const disco = dispatchSudo(parseSudoInvocation(['disco', 'yes']), ctx);
+    const disco = handleDisco(['yes']);
     const matrix = dispatchSudo(parseSudoInvocation(['matrix', 'yes']), ctx);
     expect(typeof disco.action).toBe('function');
     expect(typeof matrix.action).toBe('function');

@@ -69,27 +69,30 @@ describe('dispatchSudo', () => {
   });
 
   it('disco without args shows a warning but does NOT expose an action', () => {
-    // v-confirm flow: `sudo disco` alone should only warn. Action arms on
-    // `sudo disco yes`.
+    // `disco` is no longer a sudo subcommand — it now falls through to the
+    // unknown-subcommand response. The public `disco` command is covered in
+    // discoCommand.test.ts.
     const result = dispatchSudo(parseSudoInvocation(['disco']), ctx);
     expect(result.action).toBeUndefined();
     expect(result.output).toBeTruthy();
   });
 
-  it('disco yes arms the activation action', () => {
+  it('disco yes also falls through to unknown (sudo path removed)', () => {
     const result = dispatchSudo(parseSudoInvocation(['disco', 'yes']), ctx);
-    expect(typeof result.action).toBe('function');
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
   });
 
-  it('disco no cancels without arming an action', () => {
+  it('disco no also falls through to unknown (sudo path removed)', () => {
     const result = dispatchSudo(parseSudoInvocation(['disco', 'no']), ctx);
     expect(result.action).toBeUndefined();
     expect(result.output).toBeTruthy();
   });
 
-  it('disco off returns an action callback (unchanged)', () => {
+  it('disco off also falls through to unknown (sudo path removed)', () => {
     const result = dispatchSudo(parseSudoInvocation(['disco', 'off']), ctx);
-    expect(typeof result.action).toBe('function');
+    expect(result.action).toBeUndefined();
+    expect(result.output).toBeTruthy();
   });
 
   it('reset without confirmation does NOT expose an action (warning only)', () => {

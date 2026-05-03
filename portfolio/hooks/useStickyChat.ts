@@ -59,6 +59,7 @@ interface UseStickyChat {
   isLoading: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
+  sendCanned: (userText: string, response: string) => void;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
@@ -942,11 +943,44 @@ export function useStickyChat(): UseStickyChat {
     );
   }, []);
 
+  /**
+   * Inject a user message + canned assistant reply locally — bypasses
+   * `/api/chat` entirely. Used by the chat UI to short-circuit hardcoded
+   * initial-suggestion clicks (see `lib/suggestionResponses.ts`).
+   *
+   * No rate limiting, no filler timers, no oracle handoff: this is
+   * intentionally a deterministic synchronous path, since the response is
+   * baked at build time.
+   */
+  const sendCanned = useCallback((userText: string, response: string) => {
+    if (isLoadingRef.current) return;
+    const trimmed = userText.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
+    if (!trimmed) return;
+    const now = Date.now();
+    const userMsg: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: trimmed,
+      timestamp: now,
+    };
+    const assistantMsg: ChatMessage = {
+      id: generateId(),
+      role: 'assistant',
+      content: response,
+      timestamp: now + 1,
+    };
+    const next = [...messagesRef.current, userMsg, assistantMsg];
+    setMessages(next);
+    saveMessages(next);
+    setError(null);
+  }, []);
+
   return {
     messages,
     isLoading,
     error,
     sendMessage,
+    sendCanned,
     clearMessages,
     markOpenUrlsFailed,
     rateLimitRemaining,

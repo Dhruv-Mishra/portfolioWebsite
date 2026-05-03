@@ -73,7 +73,6 @@ interface SudoCommandSpecInternal extends SudoCommandSpec {
 export const SUDO_COMMAND_SPECS: readonly SudoCommandSpecInternal[] = [
   { name: 'help',       description: 'Lists every hidden sudo command.' },
   { name: 'cheatsheet', description: 'Reveals the full sticker cheatsheet.' },
-  { name: 'disco',      description: 'Engages disco theme. Confirm with `sudo disco yes`. `off` to exit.' },
   { name: 'admin',      description: 'Sign in as root. Asks for username + password.' },
   { name: 'cat',        description: 'Read privileged files. Try `sudo cat adminTerminal.txt`.' },
   { name: 'matrix',     description: 'Engages persistent matrix overlay. Confirm with `sudo matrix yes`.', experimental: true },
@@ -151,10 +150,10 @@ function renderSudoHelp(): React.ReactNode {
         </p>
       ))}
       <p className="pl-4 text-gray-500 italic mt-2">
-        tip: `sudo disco` {experimentalOn ? 'and `sudo matrix` both ' : ''}show a warning first; confirm with `yes`.
+        tip: {experimentalOn ? '`sudo matrix` shows a warning first; confirm with `yes`.' : 'try `disco` (no sudo) for the lights — confirm with `disco yes`.'}
       </p>
       <p className="pl-4 text-gray-500 italic">
-        `sudo disco off` returns to the previous theme. {experimentalOn ? 'matrix exits only via its WAKE UP button.' : ''}
+        {experimentalOn ? 'matrix exits only via its WAKE UP button.' : '`disco off` returns to the previous theme.'}
       </p>
       {!experimentalOn ? (
         <p className="pl-4 text-gray-500 italic">
@@ -287,7 +286,7 @@ function parseConfirmArg(arg: string | undefined): ConfirmAnswer {
   return null;
 }
 
-function handleDisco(args: string[]): SudoCommandResult {
+export function handleDisco(args: string[]): SudoCommandResult {
   const answer = parseConfirmArg(args[0]);
   if (answer === 'off') {
     return {
@@ -311,7 +310,7 @@ function handleDisco(args: string[]): SudoCommandResult {
         <div>
           <span className="text-fuchsia-300 font-bold">✨ disco mode: engaged</span>
           <p className="text-gray-500 italic text-sm mt-1">
-            everything&apos;s cycling. type `sudo disco off` when you&apos;ve had enough.
+            everything&apos;s cycling. type `disco off` when you&apos;ve had enough.
           </p>
         </div>
       ),
@@ -339,8 +338,8 @@ function handleDisco(args: string[]): SudoCommandResult {
         'component on the page will start dancing to the beat.',
         'your device may vibrate in time if it has a haptic motor.',
       ],
-      confirmCommand: 'sudo disco yes',
-      cancelCommand: 'sudo disco no',
+      confirmCommand: 'disco yes',
+      cancelCommand: 'disco no',
     }),
   };
 }
@@ -805,7 +804,10 @@ export function dispatchSudo(
         ),
       };
     case 'disco':
-      return handleDisco(args);
+      // `disco` is now a public terminal command (no sudo required). Fall
+      // through to the unknown-subcommand response so `sudo disco` no longer
+      // shortcuts past the public command.
+      return { output: renderUnknown(subcommand) };
     case 'matrix':
       // Experimental — gated on the /admin "experimental commands" toggle.
       // Without it, pretend the command doesn't exist (same response as any

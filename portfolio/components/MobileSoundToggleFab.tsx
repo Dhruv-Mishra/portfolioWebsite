@@ -29,6 +29,7 @@
 
 import { memo, useCallback } from 'react';
 import { m } from 'framer-motion';
+import { usePathname } from 'next/navigation';
 import { Volume2, VolumeX } from 'lucide-react';
 import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
@@ -54,9 +55,10 @@ const FAB_ANIMATE = {
   transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy },
 };
 
-function MobileSoundToggleFabImpl(): React.ReactElement {
+function MobileSoundToggleFabImpl(): React.ReactElement | null {
   const muted = useSoundsMuted();
   const { toggle: toggleHaptic } = useAppHaptics();
+  const pathname = usePathname();
 
   const handleClick = useCallback(() => {
     const next = !muted;
@@ -70,6 +72,12 @@ function MobileSoundToggleFabImpl(): React.ReactElement {
       soundManager.play('button-click');
     }
   }, [muted, toggleHaptic]);
+
+  // Hide on the dedicated chat route — the chat page owns the bottom-right
+  // corner with the input bar/controls and the mute toggle adds visual
+  // clutter without value during a chat session. Gate AFTER hooks so
+  // React's hook-call order stays stable across renders.
+  if (pathname === '/chat') return null;
 
   return (
     <m.button

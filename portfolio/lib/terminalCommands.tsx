@@ -17,6 +17,7 @@ import {
     parseSudoInvocation,
     dispatchSudo,
     SUDO_DENIED_NODE,
+    handleDisco,
 } from '@/lib/sudoCommands';
 import { stickerBus } from '@/lib/stickerBus';
 import { STICKER_ROSTER } from '@/lib/stickers';
@@ -59,38 +60,56 @@ export function createInitialTerminalOutput(): React.ReactNode {
 
 export const createCommandRegistry = (router: AppRouterInstance): Record<string, CommandHandler> => ({
     help: (args: string[]) => {
-        // Compact two-column layout keeps the full command list on-screen
-        // even on short mobile viewports (was 17 stacked lines, now ~9 rows).
-        // `help all` retains the verbose vertical layout for users who want
-        // descriptions in a wider format.
+        // Paginated help — full descriptions are restored, but commands
+        // are split across pages of HELP_PAGE_SIZE so output never feels
+        // cluttered on short mobile viewports. `help all` keeps the legacy
+        // single-page verbose layout for power users.
         const verbose = args[0]?.toLowerCase() === 'all';
-        const entries: ReadonlyArray<{ cmd: string; arg?: string; desc: string }> = [
-            { cmd: 'about', desc: 'Who is Dhruv?' },
-            { cmd: 'projects', desc: 'View my work' },
-            { cmd: 'contact', desc: 'Get in touch' },
-            { cmd: 'socials', desc: 'List social links' },
-            { cmd: 'ls', desc: 'List files' },
-            { cmd: 'cat', arg: '[file]', desc: 'Read file' },
-            { cmd: 'open', arg: '[file]', desc: 'Open file' },
-            { cmd: 'clear', desc: 'Clear terminal' },
-            { cmd: 'joke', desc: 'Tell a joke' },
-            { cmd: 'skills', desc: 'View tech stack' },
-            { cmd: 'resume', desc: 'View resume' },
-            { cmd: 'chat', desc: 'Talk to AI-me' },
-            { cmd: 'feedback', desc: 'Report a bug / send feedback' },
-            { cmd: 'guestbook', desc: 'Sign the wall' },
-            { cmd: 'sign', desc: 'Alias for guestbook' },
-            { cmd: 'stickers', desc: 'Open the sticker drawer' },
-            { cmd: 'cheatsheet', desc: 'Browse all stickers' },
-            { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
+
+        type HelpEntry = { cmd: string; arg?: string; desc: string };
+        // Logical grouping: navigation/info first, utility second, fun/easter
+        // eggs last. Order within each group preserved as-is.
+        const HELP_PAGES: ReadonlyArray<ReadonlyArray<HelpEntry>> = [
+            // Page 1 — core navigation + identity
+            [
+                { cmd: 'about', desc: 'Who is Dhruv?' },
+                { cmd: 'projects', desc: 'View my work' },
+                { cmd: 'contact', desc: 'Get in touch' },
+                { cmd: 'socials', desc: 'List social links' },
+                { cmd: 'resume', desc: 'View resume' },
+                { cmd: 'skills', desc: 'View tech stack' },
+                { cmd: 'chat', desc: 'Talk to AI-me' },
+            ],
+            // Page 2 — file system + utilities
+            [
+                { cmd: 'ls', desc: 'List files' },
+                { cmd: 'cat', arg: '[file]', desc: 'Read file' },
+                { cmd: 'open', arg: '[file]', desc: 'Open file' },
+                { cmd: 'clear', desc: 'Clear terminal' },
+                { cmd: 'feedback', desc: 'Report a bug / send feedback' },
+                { cmd: 'guestbook', desc: 'Sign the wall' },
+                { cmd: 'sign', desc: 'Alias for guestbook' },
+            ],
+            // Page 3 — fun / stickers / puzzle
+            [
+                { cmd: 'joke', desc: 'Tell a joke' },
+                { cmd: 'stickers', desc: 'Open the sticker drawer' },
+                { cmd: 'cheatsheet', desc: 'Browse all stickers' },
+                { cmd: 'disco', desc: 'Engages disco mode (`disco yes` to confirm, `disco off` to exit)' },
+                { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
+            ],
         ];
+        const totalPages = HELP_PAGES.length;
+
+        // Flatten for `help all` legacy verbose output.
+        const allEntries: ReadonlyArray<HelpEntry> = HELP_PAGES.flat();
 
         if (verbose) {
             return {
                 output: (
                     <div className="space-y-1">
                         <p>Available commands:</p>
-                        {entries.map((e) => (
+                        {allEntries.map((e) => (
                             <p key={e.cmd} className="pl-4 text-emerald-400">
                                 {e.cmd.padEnd(11, ' ')}
                                 {e.arg ? <span className="text-gray-500"> {e.arg}</span> : null}
@@ -103,32 +122,71 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             };
         }
 
+        // Parse optional page number — `help`, `help 2`, `help 3`.
+        let pageNum = 1;
+        const rawArg = args[0];
+        if (rawArg && /^\d+$/.test(rawArg)) {
+            pageNum = parseInt(rawArg, 10);
+        } else if (rawArg !== undefined) {
+            // Non-numeric, non-`all` arg → friendly error.
+            return {
+                output: (
+                    <div className="space-y-1">
+                        <p className="text-yellow-400">
+                            Unknown help page <span className="font-bold">&apos;{rawArg}&apos;</span>.
+                        </p>
+                        <p className="text-gray-400">
+                            Try <span className="text-emerald-400">help</span>,{' '}
+                            <span className="text-emerald-400">help 1</span>…
+                            <span className="text-emerald-400">help {totalPages}</span>, or{' '}
+                            <span className="text-emerald-400">help all</span> for everything.
+                        </p>
+                    </div>
+                ),
+            };
+        }
+
+        if (pageNum < 1 || pageNum > totalPages) {
+            return {
+                output: (
+                    <div className="space-y-1">
+                        <p className="text-yellow-400">
+                            No page {pageNum}. Valid range: 1–{totalPages}.
+                        </p>
+                        <p className="text-gray-400">
+                            Try <span className="text-emerald-400">help 1</span> or{' '}
+                            <span className="text-emerald-400">help all</span>.
+                        </p>
+                    </div>
+                ),
+            };
+        }
+
+        const page = HELP_PAGES[pageNum - 1];
+        const isLastPage = pageNum === totalPages;
+        const footerText = isLastPage
+            ? `Page ${pageNum}/${totalPages}`
+            : `Page ${pageNum}/${totalPages} — type 'help ${pageNum + 1}' for more`;
+
         return {
             output: (
                 <div className="space-y-1">
                     <p>
                         Available commands{' '}
                         <span className="text-gray-500">
-                            (type <span className="text-emerald-400">help all</span> for descriptions)
+                            (page {pageNum}/{totalPages} · <span className="text-emerald-400">help all</span> for everything)
                         </span>
                         :
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0.5 pl-4 text-xs sm:text-sm">
-                        {entries.map((e) => (
-                            <span
-                                key={e.cmd}
-                                className="text-emerald-400"
-                                title={e.desc}
-                            >
-                                {e.cmd}
-                                {e.arg ? <span className="text-gray-500"> {e.arg}</span> : null}
-                            </span>
-                        )) as React.ReactNode}
-                    </div>
-                    <p className="text-gray-500 pt-1">
-                        Tip: <span className="text-emerald-400">/hint</span> nudges the puzzle ·{' '}
-                        <span className="text-emerald-400">stickers status</span> shows your settings
-                    </p>
+                    {page.map((e) => (
+                        <p key={e.cmd} className="pl-4 text-emerald-400">
+                            {e.cmd.padEnd(11, ' ')}
+                            {e.arg ? <span className="text-gray-500"> {e.arg}</span> : null}
+                            {' - '}
+                            <span className="text-gray-300">{e.desc}</span>
+                        </p>
+                    )) as React.ReactNode}
+                    <p className="text-gray-500 pt-1 italic">{footerText}</p>
                 </div>
             ),
         };
@@ -423,6 +481,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             renderCheatsheet: () => <CheatsheetOutput />,
         });
     },
+    disco: (args: string[]) => handleDisco(args),
     feedback: () => ({
         output: (
             <span className="text-emerald-300">Opening feedback form... ✏️</span>
@@ -541,7 +600,7 @@ const STAGE_NUDGES: Record<number, string> = {
     4: 'Next: take the credentials to /admin and sign in.',
     5: 'Next: in the admin console, flip the experimental commands toggle on.',
     6: 'Next: type `sudo matrix` in the terminal.',
-    7: 'Next: turn on disco mode (`sudo disco`) — the escape button needs a beat.',
+    7: 'Next: turn on disco mode (`disco`) — the escape button needs a beat.',
     8: 'Next: stay on the page with disco running for ~20 seconds.',
     9: 'You did it. Welcome to the other side.',
 };

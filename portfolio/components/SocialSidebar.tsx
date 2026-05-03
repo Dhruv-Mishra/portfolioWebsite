@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
@@ -170,6 +171,12 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
 
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     const { externalLink, openPanel, toggle } = useAppHaptics();
+    const pathname = usePathname();
+    // The dedicated chat route owns the bottom of the viewport (input bar +
+    // suggestion strip) on mobile — hide the floating mobile pill there
+    // to free vertical real estate. Desktop sidebar is harmless (off to
+    // the right edge) so it stays on every route.
+    const hideMobileBar = pathname === '/chat';
 
     return (
         <>
@@ -189,6 +196,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area.
                 max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
+            {!hideMobileBar && (
             <div
                 className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 bg-[var(--c-paper)] px-2 sm:px-3 py-1.5 sm:py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50 max-w-[calc(100vw-var(--c-binding-w)-1rem)]"
                 role="complementary"
@@ -217,6 +225,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                     </button>
                 )}
             </div>
+            )}
         </>
     );
 }

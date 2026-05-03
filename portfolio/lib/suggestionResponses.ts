@@ -1,0 +1,45 @@
+// lib/suggestionResponses.ts — Pregenerated canned replies for the
+// pre-baked initial suggestion chips on the chat page.
+//
+// When the user clicks one of the EXACT suggestion strings as their FIRST
+// message in a session, we short-circuit the /api/chat round-trip and
+// return the canned reply locally. This eliminates a network hop on the
+// most common cold-start path and keeps the model from inventing details
+// when it lacks context.
+//
+// Action-bearing suggestions (e.g. "Report a bug") are intentionally NOT
+// in this map — those still flow through the existing action router so
+// the side-effect (open feedback modal, navigate, etc.) fires.
+
+const RESPONSES: ReadonlyMap<string, string> = new Map([
+  [
+    "What do you work on at Microsoft?",
+    "I'm a Software Engineer at Microsoft, working across Android and backend platforms used by millions of people. Day to day that means profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds off systems where every ms matters. Less glamorous than it sounds, more satisfying than it looks ~",
+  ],
+  [
+    "What's your tech stack?",
+    "Daily drivers: TypeScript, C#, Kotlin, Python, and a healthy amount of C++ when I'm in CP mode. On the web side I lean on Next.js, React, Tailwind, and Framer Motion (this site is the proof). Backend leans Node.js, MySQL, and Azure. For Android: Jetpack Compose with Hilt for DI. I care more about choosing the right tool than collecting them ^_^",
+  ],
+  [
+    "Tell me about Jarvis",
+    "Jarvis is my personal side-project — a voice-to-voice AI agent that picks up the phone, holds a real conversation, and actually drives a website on the caller's behalf via tool calling. Think alternative to traditional support / dispatch agents. Vanilla JS frontend with an AudioWorklet streaming 16 kHz PCM, Node.js backend bridging a long-lived WebSocket to a live AI agent, and tool schemas that let the model click buttons, fill forms, and navigate pages for real. Live demo at jarvis.whoisdhruv.com if you want to call it, code is open at github.com/Dhruv-Mishra/AudioControlledAgenticWebsite. Want me to pull up the project card?",
+  ],
+  [
+    "Tell me about Cropio",
+    "Cropio is a precision-agriculture platform I built that turns satellite imagery and weather data into actionable insights for farmers — crop health scoring, irrigation timing, yield forecasting. The fun part was the data pipeline: pulling Sentinel-2 tiles, computing NDVI/EVI indices at scale, and surfacing it through a dashboard a non-technical farmer can actually read. Want me to open the project card?",
+  ],
+]);
+
+/**
+ * Look up a pre-baked response for an EXACT initial-suggestion string.
+ * Returns the canned reply if matched, otherwise null (caller should fall
+ * back to the normal /api/chat round-trip).
+ */
+export function getSuggestionResponse(text: string): string | null {
+  return RESPONSES.get(text) ?? null;
+}
+
+/** Diagnostic: every suggestion text the bypass map covers. */
+export function getCannedSuggestionTexts(): readonly string[] {
+  return Array.from(RESPONSES.keys());
+}

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
@@ -23,12 +23,15 @@ import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { MicButton } from '@/components/ui/MicButton';
 import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
 import { ClearButton } from '@/components/ui/ClearButton';
+import { Modal } from '@/components/ui/Modal';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
+import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
+import { setDiscoActiveImperative } from '@/hooks/useStickers';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -550,13 +553,85 @@ interface ChatInputAreaProps {
   onClear: () => void;
 }
 
+/**
+ * Confirmation modal body — sketchbook-styled disclaimer card with a
+ * descriptive paragraph and two action buttons. Production-grade
+ * accessibility: focuses the cancel button on mount (safer default than
+ * confirm), labelled via `ariaLabelledBy` on the parent <Modal>.
+ */
+const ConfirmContent = memo(function ConfirmContent({
+  titleId,
+  title,
+  body,
+  confirmLabel,
+  confirmTone,
+  onCancel,
+  onConfirm,
+}: {
+  titleId: string;
+  title: string;
+  body: string;
+  confirmLabel: string;
+  confirmTone: 'danger' | 'primary';
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  // Auto-focus the safe option (cancel) so an accidental Enter doesn't
+  // commit a destructive action — matches WCAG dialog guidance.
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+  return (
+    <div className="flex flex-col gap-4">
+      <h2
+        id={titleId}
+        className="font-hand text-xl md:text-2xl font-bold text-[var(--c-heading)] leading-tight"
+      >
+        {title}
+      </h2>
+      <p className="font-hand text-sm md:text-base text-[var(--c-ink)]/85 leading-relaxed">
+        {body}
+      </p>
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-1">
+        <button
+          ref={cancelRef}
+          type="button"
+          onClick={onCancel}
+          className="font-hand font-bold text-sm md:text-base px-4 py-2 rounded border-2 border-dashed border-[var(--c-ink)]/30 text-[var(--c-ink)]/80 hover:bg-[var(--c-ink)]/5 hover:border-[var(--c-ink)]/55 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className={cn(
+            'font-hand font-bold text-sm md:text-base px-4 py-2 rounded border-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+            confirmTone === 'danger'
+              ? 'bg-red-100 border-red-500 text-red-800 hover:bg-red-200 dark:bg-red-950/40 dark:border-red-400 dark:text-red-200 dark:hover:bg-red-900/60 focus-visible:outline-red-500'
+              : 'bg-amber-100 border-amber-600 text-amber-900 hover:bg-amber-200 dark:bg-amber-500/30 dark:border-amber-300 dark:text-amber-100 dark:hover:bg-amber-500/50 focus-visible:outline-amber-500',
+          )}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+});
+
 const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear }: ChatInputAreaProps) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
-  const { pref: voicePref } = useVoiceBackendPref();
+  const { pref: voicePref, togglePref: toggleVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
   const baseInputRef = useRef('');
+  // Confirmation modal state — lifted into the input area so both the
+  // Clear-chat action and the Local Transcription opt-in flow can share
+  // the production-grade `Modal` shell (portal, focus trap, scroll lock,
+  // Escape dismissal). null = no modal open.
+  type ConfirmKind = 'clear' | 'enableLocal' | null;
+  const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading) return;
@@ -568,16 +643,35 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
   }, [input, isLoading, onSend, speech]);
 
-  // Live-merge speech transcript (final + interim) into the textarea while listening.
+  // Live-merge speech transcript into the textarea. While the mic is
+  // actively listening we DON'T touch `setInput` — every interim token
+  // would otherwise force the auto-grow textarea to re-measure and the
+  // box would jitter taller as words come in. Instead we keep the latest
+  // spoken string in a ref and the `ListeningOverlay` shows the live
+  // interim text. The accumulated buffer is committed to `input` once
+  // the user releases the mic (isListening flips false) so the resize
+  // happens exactly once.
+  const pendingTranscriptRef = useRef('');
   useEffect(() => {
-    if (!speech.isListening && !speech.transcript && !speech.interimTranscript) return;
     const spoken = (speech.transcript + (speech.interimTranscript ? ' ' + speech.interimTranscript : '')).trim();
-    if (!spoken) return;
+    if (!spoken) {
+      if (!speech.isListening) pendingTranscriptRef.current = '';
+      return;
+    }
     const merged = (baseInputRef.current
       ? baseInputRef.current.replace(/\s+$/, '') + ' ' + spoken
       : spoken
     ).slice(0, CHAT_CONFIG.maxUserMessageLength);
-    setInput(merged);
+    if (speech.isListening) {
+      // Buffer only — do not trigger a re-render / resize per token.
+      pendingTranscriptRef.current = merged;
+      return;
+    }
+    // Listening just ended (or transcribing finalised) — commit once.
+    if (pendingTranscriptRef.current || merged) {
+      setInput(pendingTranscriptRef.current || merged);
+      pendingTranscriptRef.current = '';
+    }
   }, [speech.transcript, speech.interimTranscript, speech.isListening]);
 
   const handleMicToggle = useCallback(() => {
@@ -597,41 +691,110 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     }
   }, [handleSend]);
 
+  // Auto-grow the textarea up to its CSS max-height. We measure the
+  // intrinsic scrollHeight after every value change in a layout effect so
+  // the resize is committed before the browser paints — no flicker, no
+  // jumpiness. Past max-height the textarea's own `overflow-y: auto`
+  // kicks in and the user scrolls inside the input.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    // Reset to 'auto' first so shrinking works as text is deleted.
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   return (
     <div className={cn(
-      "absolute bottom-0 inset-x-0 pointer-events-none",
+      "absolute inset-x-0 pointer-events-none",
+      // Lift the input bar off the viewport bottom on both breakpoints so
+      // the user's eye is drawn TO it (rather than it disappearing into
+      // the page chrome). Mobile gets ~8px, desktop a generous ~24px so
+      // the sticky-note feels like a card the visitor can grab.
+      "bottom-2 md:bottom-6",
       "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
-    )}>
+    )}
+    style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className={cn(
-        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pb-22 md:pb-4 pt-2",
-        compact && "px-2 pb-2 pt-1",
+        // Slightly more breathing room on mobile (pt-2 / pb-2) so the
+        // toolbar above and the input note don't visually crowd each
+        // other; desktop keeps its existing comfortable gutter.
+        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pt-2 pb-2 md:pt-3 md:pb-3",
+        compact && "px-2 pt-1 pb-1",
       )}>
-        {/* Clear desk button */}
-        {hasMessages && (
-          <div className="flex justify-end mb-2">
-            <button
-              onClick={onClear}
-              className="flex items-center gap-1.5 text-xs font-hand font-bold text-[var(--c-ink)] opacity-50 hover:opacity-90 hover:text-red-600 dark:hover:text-red-400 transition-[color,opacity,background-color,border-color] duration-200 px-2 py-1 rounded border border-transparent hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-950/20"
-              title="Clear desk"
+        {/* Ancillary controls toolbar — lives ABOVE the input box so the
+            input itself stays visually clean (text + send only). All
+            controls share a single translucent themed pill so they read
+            as a unified "chat utilities" cluster rather than three
+            disconnected affordances. */}
+        {(hasMessages || speech.isSupported) && (
+          <div className="flex items-center justify-end mb-1.5 px-1">
+            <div
+              className={cn(
+                'flex items-center gap-3 md:gap-4 rounded-full px-2.5 py-1 md:px-3 md:py-1.5',
+                // Translucent paper background — reads on both light and
+                // dark themes via the --c-paper / --c-ink tokens, then
+                // softened with /60 + backdrop-blur so messages bleed
+                // through faintly. Dashed sketch border keeps the
+                // sketchbook aesthetic.
+                'bg-[var(--c-paper)]/60 backdrop-blur-sm',
+                'border border-dashed border-[var(--c-ink)]/20',
+                'shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)]',
+              )}
             >
-              <Eraser size={14} />
-              Clear desk
-            </button>
+            {hasMessages && (
+              <button
+                onClick={() => setConfirmKind('clear')}
+                className="flex items-center gap-1 text-[11px] md:text-xs font-hand font-bold text-[var(--c-ink)]/70 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200 px-1.5 py-0.5 rounded whitespace-nowrap"
+                title="Clear chat history"
+              >
+                <Eraser size={12} />
+                Clear chat
+              </button>
+            )}
+            {speech.isSupported && (
+              <>
+                <VoiceBackendToggle
+                  isLoading={speech.isLoading}
+                  loadProgress={speech.loadProgress}
+                  compact
+                  onToggleIntercept={(nextActive) => {
+                    // Disabling is safe and instant. Enabling triggers a
+                    // ~35MB one-time download — surface a confirmation
+                    // modal first so the user understands what they're
+                    // opting into (especially on mobile / metered data).
+                    if (nextActive) setConfirmKind('enableLocal');
+                    else toggleVoicePref();
+                  }}
+                />
+                <MicButton
+                  isListening={speech.isListening}
+                  isLoading={speech.isLoading}
+                  isTranscribing={speech.isTranscribing}
+                  loadProgress={speech.loadProgress}
+                  onClick={handleMicToggle}
+                  disabled={isLoading}
+                  size={compact ? 12 : 14}
+                />
+              </>
+            )}
+            </div>
           </div>
         )}
 
-        {/* The input "sticky note" */}
+        {/* The input "sticky note" — symmetric vertical padding (top = bottom). */}
         <m.div
           initial={INPUT_NOTE_INITIAL}
           animate={INPUT_NOTE_ANIMATE}
           className={cn(
             "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
-            compact ? "p-2" : "p-2 md:p-4",
+            // Tighter mobile padding now that ancillary controls live above.
+            compact ? "px-2 py-1.5" : "px-2 py-1.5 md:px-4 md:py-2.5",
           )}
           style={INPUT_NOTE_STYLE}
         >
-          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
-            <div className="relative flex-1 min-h-[28px] md:min-h-[32px]">
+          <div className="flex items-end gap-1.5 md:gap-2" onClick={() => inputRef.current?.focus()}>
+            <div className="relative flex-1 min-h-[22px] md:min-h-[28px]">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -641,19 +804,29 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 disabled={isLoading || speech.isListening || speech.isTranscribing}
                 aria-label="Chat message"
                 className={cn(
-                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none",
-                  compact ? "text-sm leading-snug max-[767px]:text-base" : "text-base md:text-lg",
+                  // Auto-grow textarea: rows=1 baseline; useLayoutEffect
+                  // measures scrollHeight and applies inline height up to
+                  // ~3-4 lines, then internal overflow-y kicks in.
+                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
+                  // Placeholder text uses the SAME font-size as typed text;
+                  // greyer color is applied via the overlay span below
+                  // (the textarea's native placeholder is unused on
+                  // purpose — we render a custom typewriter overlay).
+                  compact ? "text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
                   (speech.isListening || speech.isTranscribing) && "invisible",
                 )}
               />
-              {/* Typewriter placeholder overlay — hidden when user has typed or is recording */}
+              {/* Typewriter placeholder overlay — same font-size as the
+                  textarea (mobile: text-base, desktop: text-lg) so swapping
+                  in real typed text doesn't reflow. Color is the only
+                  difference: muted ink rather than full ink. */}
               {!input && !speech.isListening && !speech.isTranscribing && (
                 <span
                   ref={placeholderRef}
                   aria-hidden
                   className={cn(
-                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden",
-                    compact ? "text-sm leading-snug" : "text-base md:text-lg",
+                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
+                    compact ? "text-base" : "text-base md:text-lg",
                   )}
                 />
               )}
@@ -672,6 +845,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   if (speech.isListening) speech.stop();
                   speech.reset();
                   baseInputRef.current = '';
+                  pendingTranscriptRef.current = '';
                   setInput('');
                   setTimeout(() => inputRef.current?.focus(), 0);
                 }}
@@ -679,33 +853,17 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               />
             )}
 
-            {speech.isSupported && (
-              <>
-                <VoiceBackendToggle
-                  isLoading={speech.isLoading}
-                  loadProgress={speech.loadProgress}
-                  compact
-                />
-                <MicButton
-                  isListening={speech.isListening}
-                  isLoading={speech.isLoading}
-                  isTranscribing={speech.isTranscribing}
-                  loadProgress={speech.loadProgress}
-                  onClick={handleMicToggle}
-                  disabled={isLoading}
-                  size={compact ? 16 : 18}
-                />
-              </>
-            )}
-
-            {/* Paperclip send button */}
+            {/* Paperclip send button — stays inline with the textarea
+                because send is the primary action paired with text. The
+                ancillary mic / voice / clear-chat controls were moved to
+                the toolbar above to declutter the input row. */}
             <m.button
               whileHover={SEND_BUTTON_HOVER}
               whileTap={SEND_BUTTON_TAP}
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               className={cn(
-                "p-2 rounded-full transition-colors shrink-0",
+                "p-1 md:p-1.5 rounded-full transition-colors shrink-0",
                 input.trim() && !isLoading
                   ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
                   : "text-gray-400 dark:text-gray-600",
@@ -713,11 +871,48 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               title="Send note"
               aria-label="Send message"
             >
-              <Send size={compact ? 18 : 22} />
+              <Send size={compact ? 14 : 16} className="md:w-[20px] md:h-[20px]" />
             </m.button>
           </div>
         </m.div>
       </div>
+
+      {/* ─── Confirmation modal (Clear chat / Enable Local Transcription) ─── */}
+      <Modal
+        isOpen={confirmKind !== null}
+        onClose={() => setConfirmKind(null)}
+        ariaLabelledBy="chat-confirm-title"
+        className="w-[min(92vw,420px)] bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60 rounded-lg shadow-xl p-5 md:p-6 mt-[20vh] md:mt-[18vh]"
+      >
+        {confirmKind === 'clear' && (
+          <ConfirmContent
+            titleId="chat-confirm-title"
+            title="Clear this conversation?"
+            body="This erases the entire chat from this device — every note in the thread above will be removed and cannot be recovered. Your suggestions will reset to the starter set."
+            confirmLabel="Clear chat"
+            confirmTone="danger"
+            onCancel={() => setConfirmKind(null)}
+            onConfirm={() => {
+              setConfirmKind(null);
+              onClear();
+            }}
+          />
+        )}
+        {confirmKind === 'enableLocal' && (
+          <ConfirmContent
+            titleId="chat-confirm-title"
+            title="Enable Local Transcription?"
+            body="Switches voice input from the browser's online speech API to an on-device Whisper model. The first time you turn it on, your browser downloads ~35 MB and caches it for future visits — works fully offline after that, with multilingual support and better accuracy. Heads up if you're on a metered connection."
+            confirmLabel="Download & enable"
+            confirmTone="primary"
+            onCancel={() => setConfirmKind(null)}
+            onConfirm={() => {
+              setConfirmKind(null);
+              toggleVoicePref();
+            }}
+          />
+        )}
+      </Modal>
     </div>
   );
 });
@@ -726,7 +921,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, sendCanned, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
@@ -879,6 +1074,17 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       selection();
       if (action.themeAction === 'toggle') {
         setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+      } else if (action.themeAction === 'disco') {
+        // Pre-warm the heavy disco media chunk on the user-gesture tick
+        // so sparkles/spotlights paint without a fetch stall.
+        if (typeof window !== 'undefined') {
+          void import('@/components/DiscoMediaLayer').catch(() => {
+            /* DiscoFlagController retries lazily — best-effort */
+          });
+        }
+        setDiscoActiveImperative(true);
+      } else if (action.themeAction === 'disco-off') {
+        setDiscoActiveImperative(false);
       } else {
         setTheme(action.themeAction);
       }
@@ -1042,8 +1248,19 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     hasHadInteractionRef.current = true;
     selection();
     soundManager.play('chat-send');
+    // Pre-baked initial suggestions short-circuit the API. Only applies on
+    // the very first interaction (no prior user messages) so subsequent
+    // free-form turns always go through the live model.
+    const hasPriorUser = messages.some(m => m.role === 'user');
+    if (!hasPriorUser) {
+      const canned = getSuggestionResponse(text);
+      if (canned) {
+        sendCanned(text, canned);
+        return;
+      }
+    }
     sendMessage(text);
-  }, [selection, sendMessage]);
+  }, [selection, sendMessage, sendCanned, messages]);
 
   const handleClearDesk = useCallback(() => {
     if (navigationTimeoutRef.current !== null) {
@@ -1078,11 +1295,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-12 pb-0 md:pt-10 md:pb-1 shrink-0">
+        <div className="text-center pt-2 pb-0 md:pt-10 md:pb-1 shrink-0">
           <m.h1
             initial={HEADING_INITIAL}
             animate={HEADING_ANIMATE}
-            className="text-4xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
+            className="text-2xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
           >
             Pass me a note
           </m.h1>
@@ -1091,7 +1308,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: ANIMATION_TOKENS.delay.medium }}
-            className="font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60 mt-2"
+            className="font-hand text-sm md:text-xl text-[var(--c-ink)] opacity-60 mt-0.5 md:mt-2 hidden md:block"
           >
             Ask me anything ~
           </m.p>
@@ -1110,9 +1327,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       <div
         ref={messagesScrollRef}
         className={cn(
-        "absolute inset-0 overflow-y-auto overflow-x-hidden px-2 md:px-6 py-4 pb-36 md:pb-28 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
+        "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 pb-32 md:pb-28 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
         compact && "px-2 pt-4 pb-24 gap-4",
-      )}>
+      )}
+        style={{ touchAction: 'pan-y' }}>
         {/* Messages (welcome note is always first) */}
         {messages.map((msg, idx) => {
           // Show "old notes" divider before the first non-welcome old message

@@ -4,7 +4,7 @@ import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
 export interface ActionExecution {
   navigateTo?: string;
-  themeAction?: 'dark' | 'light' | 'toggle';
+  themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off';
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
@@ -14,14 +14,14 @@ export interface ActionExecution {
 export interface ActionDef {
   label: string;
   navigateTo?: string;
-  themeAction?: 'dark' | 'light' | 'toggle';
+  themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off';
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
 }
 
 export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat'] as const;
-export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle'] as const;
+export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
 
 type NavigationPath = (typeof VALID_NAVIGATION_PATHS)[number];
 type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
@@ -41,6 +41,8 @@ const THEME_REPLIES: Record<ThemeAction, string> = {
   dark: 'Switching to dark mode ~',
   light: 'Switching to light mode ~',
   toggle: 'Toggling the theme ~',
+  disco: 'Engaging disco mode — turn the music up ~',
+  'disco-off': 'Exiting disco mode ~',
 };
 
 const OPEN_LINK_TOOL_OPTIONS = [
@@ -94,6 +96,14 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Toggle the theme',
     themeAction: 'toggle',
+  },
+  {
+    label: 'Engage disco mode',
+    themeAction: 'disco',
+  },
+  {
+    label: 'Exit disco mode',
+    themeAction: 'disco-off',
   },
   {
     label: 'Take me to the projects page',

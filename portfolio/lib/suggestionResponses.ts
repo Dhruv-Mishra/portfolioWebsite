@@ -30,7 +30,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What's the Escape the Matrix puzzle?",
-    "It's a multi-stage puzzle hidden across the site terminal on the home page. The trail starts with stickers (every interactive surface earns one), and once you have collected them all you'll unlock `sudo`. From there, poke around with `sudo ls`, `sudo cat`, and the rest of the privileged commands to start pulling on the thread. Once you're on the path, typing `matrix hint` in the terminal gives you a stage-appropriate nudge without spoiling the fun. Want me to drop a hint about your current stage?",
+    "It's a multi-stage easter egg hidden in the home terminal — and honestly it's way more fun if you find your own way through it :) The trail starts with the sticker collection (every interactive surface earns one), and unlocking the right stickers opens up some new commands worth poking at. I'd rather not spoil it. Go play with the terminal, see how far you get, and if you genuinely get stuck try `matrix hint` in there for a stage-appropriate nudge.",
   ],
 ]);
 

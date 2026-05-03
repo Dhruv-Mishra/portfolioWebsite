@@ -182,6 +182,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
         <>
             {/* Desktop: Vertical sidebar on right */}
             <div
+                data-social-sidebar
                 className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 flex-col gap-6"
                 role="complementary"
                 aria-label="Social media links"
@@ -198,6 +199,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             {!hideMobileBar && (
             <div
+                data-social-sidebar
                 className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 bg-[var(--c-paper)] px-2 sm:px-3 py-1.5 sm:py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50 max-w-[calc(100vw-var(--c-binding-w)-1rem)]"
                 role="complementary"
                 aria-label="Social media links"

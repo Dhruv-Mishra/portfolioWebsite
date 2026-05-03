@@ -21,16 +21,21 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMatrixActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { Z_INDEX } from '@/lib/designTokens';
 
 export default function MatrixNotesEntryButton(): React.ReactElement | null {
   const pathname = usePathname();
   const escaped = useMatrixEscaped();
   const matrixActive = useMatrixActive();
+  const isMobile = useIsMobile();
 
   if (!escaped) return null;
   if (matrixActive) return null;
   if (pathname === '/matrix-notes') return null;
+  // On mobile /chat, the floating pill competes with the chat input chrome
+  // and adds clutter. Hide it there only — desktop and other routes keep it.
+  if (isMobile && pathname === '/chat') return null;
 
   return (
     <Link

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
@@ -19,6 +20,7 @@ export default function Home() {
 
         {/* Hero title - CSS animation instead of framer-motion for faster LCP */}
         <h1
+          data-disco-motion="wiggle"
           className="animate-hero-title text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] leading-none font-hand font-extrabold tracking-tighter text-indigo-900 p-4 max-[360px]:text-5xl"
         >
           Hello World!
@@ -26,6 +28,8 @@ export default function Home() {
 
         {/* Version Sticker - CSS animation */}
         <div
+          data-disco-motion="bob"
+          style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
           className="animate-hero-badge absolute -bottom-4 right-2 md:right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
         >
           {APP_VERSION}
@@ -34,6 +38,8 @@ export default function Home() {
 
       {/* Subtitle - CSS animation */}
       <p
+        data-disco-motion="shimmy"
+        style={{ '--disco-motion-delay': '90ms' } as CSSProperties}
         className="animate-hero-subtitle text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center max-w-lg font-hand leading-loose -rotate-1 mt-4"
       >
         I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" aria-label="Dhruv's LinkedIn Profile" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-300 hover:scale-105 hover:-rotate-2 inline-block transition-[color,transform,text-decoration-color] duration-200">Dhruv</a>.
@@ -58,13 +64,19 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="mt-8 text-sm font-mono text-gray-400">
+      <div
+        data-disco-motion="bob"
+        style={{ '--disco-motion-delay': '300ms' } as CSSProperties}
+        className="mt-8 text-sm font-mono text-gray-400"
+      >
         Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">projects</span> to view my work...
       </div>
 
       {/* Passed Note — Chat CTA */}
       <Link
         href="/chat"
+        data-disco-motion="wiggle"
+        style={{ '--disco-motion-delay': '420ms' } as CSSProperties}
         className="group mt-6 relative inline-block animate-hero-subtitle"
         aria-label="Chat with AI Dhruv"
       >
@@ -99,6 +111,8 @@ export default function Home() {
       {/* Guestbook CTA — coral sibling of the chat CTA */}
       <Link
         href="/guestbook"
+        data-disco-motion="wiggle"
+        style={{ '--disco-motion-delay': '560ms' } as CSSProperties}
         className="group mt-4 relative inline-block animate-hero-subtitle"
         aria-label="Sign Dhruv's sketchbook guestbook"
       >

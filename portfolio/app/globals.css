@@ -1383,32 +1383,42 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    ──────────────────────────────────────────────────────────────────────── */
 
 /* 1) wiggle — slow rotational sway, organic, for cards that are already
-   slightly tilted (about, resume, project tiles). Amplitude ±1.2deg around
-   a CSS-var resting angle so the card never snaps away from its base tilt. */
+   slightly tilted (about, resume, project tiles). Amplitude bumped to
+   ±2.5deg around a CSS-var resting angle for a more energetic dance-floor
+   feel without crossing into seizure-inducing territory. */
 @keyframes disco-wiggle {
   0%, 100% { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 1.2deg)); }
+  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 2.5deg)); }
   50%      { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 1.2deg)); }
+  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 2.5deg)); }
 }
 
 /* 2) shimmy — horizontal slide, short burst, for wide-ish elements (chat
-   bubbles, guestbook notes). Keeps text readable (no Y jitter to cross
-   reading sightline), and the return-to-rest is ease-out so long messages
-   don't feel like they're sliding off. */
+   bubbles, guestbook notes). Amplitude bumped to ±4px. Still keeps text
+   readable (no Y jitter to cross reading sightline). */
 @keyframes disco-shimmy {
   0%, 100% { transform: translateX(0); }
-  25%      { transform: translateX(2px); }
+  25%      { transform: translateX(4px); }
   50%      { transform: translateX(0); }
-  75%      { transform: translateX(-2px); }
+  75%      { transform: translateX(-4px); }
 }
 
-/* 3) breath — very slow scale pulse, for LARGE surfaces (terminal shell,
-   mini-chat panel, resume PDF shell, command palette card). Amplitude 1.5%
-   so text inside the surface never resizes noticeably. */
+/* 3) breath — slow scale pulse, for LARGE surfaces (terminal shell,
+   mini-chat panel, resume PDF shell, command palette card). Amplitude
+   bumped to 2.5% so the surface visibly inhales/exhales with the beat. */
 @keyframes disco-breath {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.015); }
+  50%      { transform: scale(1.025); }
+}
+
+/* 4) bob — vertical bob with a tiny rotation kick, for smaller standalone
+   elements (hint text, badges, hero CTAs). Amplitude tuned so text stays
+   readable mid-bob. */
+@keyframes disco-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25%      { transform: translateY(-5px) rotate(0.8deg); }
+  50%      { transform: translateY(0) rotate(0deg); }
+  75%      { transform: translateY(-3px) rotate(-0.8deg); }
 }
 
 /* Generic variant selector — read `data-disco-motion` and map to a keyframe.
@@ -1427,6 +1437,11 @@ html[data-disco="on"] [data-disco-motion="shimmy"] {
 }
 html[data-disco="on"] [data-disco-motion="breath"] {
   animation: disco-breath 2000ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+html[data-disco="on"] [data-disco-motion="bob"] {
+  animation: disco-bob 1100ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform;
 }
@@ -1738,6 +1753,47 @@ html[data-disco="on"].dark h3 {
    now governs disco audio too. If you're bringing back a disco-only control,
    reuse the circular FAB pattern from `MobileSoundToggleFab` rather than the
    old rectangular pill. */
+
+/* ─── Disco-only: paler typewriter placeholder in the home terminal ─────
+   The cycling typewritten hint should read as a *suggestion* rather than
+   real terminal output or user-typed input. Lower its opacity in disco so
+   the live caret + actual output stand out. Scoped to the dedicated
+   data attribute so other themes are untouched. */
+html[data-disco="on"] [data-terminal-placeholder] {
+  opacity: 0.55;
+}
+
+/* ─── Disco motion amplification — homepage chrome ──────────────────────
+   The hero, CTAs, terminal hint, social sidebar, and footer doodles all
+   join the dance via `data-disco-motion` attributes wired in their
+   components. The keyframes themselves were bumped above to read as more
+   energetic; the rules below are the additional surface coverage. */
+html[data-disco="on"] [data-social-sidebar] > * {
+  animation: disco-bob 1100ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
+  will-change: transform;
+}
+html[data-disco="on"] [data-social-sidebar] > *:nth-child(1) { --disco-motion-delay: 0ms; }
+html[data-disco="on"] [data-social-sidebar] > *:nth-child(2) { --disco-motion-delay: 110ms; }
+html[data-disco="on"] [data-social-sidebar] > *:nth-child(3) { --disco-motion-delay: 220ms; }
+html[data-disco="on"] [data-social-sidebar] > *:nth-child(4) { --disco-motion-delay: 330ms; }
+html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-delay: 440ms; }
+
+/* Reduced motion: opt the *amplified* / *extra* disco motions out.
+   The original disco rules (kept above) intentionally keep playing because
+   disco is opt-in; the additional homepage choreography is purely
+   decorative and respects user preference. We disable only the new
+   motion keyframes (wiggle/shimmy/breath/bob attached via
+   `data-disco-motion`) and the social-sidebar bob added here. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-disco="on"] [data-disco-motion="wiggle"],
+  html[data-disco="on"] [data-disco-motion="shimmy"],
+  html[data-disco="on"] [data-disco-motion="breath"],
+  html[data-disco="on"] [data-disco-motion="bob"],
+  html[data-disco="on"] [data-social-sidebar] > * {
+    animation: none !important;
+  }
+}
 
 /* Disco: reduced-motion — intentionally IGNORED for disco since it's an
    opt-in easter egg. Regular site animations still honor prefers-reduced-motion

@@ -31,7 +31,7 @@ import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT
 import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
-import { setDiscoActiveImperative } from '@/hooks/useStickers';
+import { setDiscoActiveImperative, useMatrixEscaped } from '@/hooks/useStickers';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -346,6 +346,43 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     {text}
   </m.button>
 ); });
+
+// Hardcoded "Enter the Matrix" chip — only renders when the user has
+// already escaped the puzzle. Distinct matrix-green diagonal-stripe styling
+// so it visually pops next to the regular cream sticky-note chips, while
+// keeping the sketchbook border treatment for cohesion. Click navigates
+// directly to /matrix-notes — no API call.
+const MATRIX_CHIP_STYLE = {
+  transform: 'rotate(-1deg)',
+  backgroundImage:
+    'repeating-linear-gradient(135deg, rgba(0,255,65,0.18) 0px, rgba(0,255,65,0.18) 6px, rgba(6,78,59,0.55) 6px, rgba(6,78,59,0.55) 12px)',
+  backgroundColor: '#022c22',
+} as const;
+
+const MatrixEscapeChip = memo(function MatrixEscapeChip({ onSelect, skipEntrance }: { onSelect: () => void; skipEntrance?: boolean }) {
+  return (
+    <m.button
+      initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
+      animate={SUGGESTION_ITEM_ANIMATE}
+      exit={SUGGESTION_ITEM_EXIT}
+      transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { duration: 0.25 }}
+      whileHover={SUGGESTION_HOVER}
+      whileTap={SUGGESTION_TAP}
+      onClick={onSelect}
+      type="button"
+      aria-label="Enter the matrix — open the matrix-notes wall"
+      className="px-4 py-2 border-2 border-emerald-300/80 rounded shadow-[0_0_14px_rgba(16,185,129,0.45)] font-code text-sm md:text-base text-emerald-100 hover:text-white hover:shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-shadow flex flex-col items-start"
+      style={MATRIX_CHIP_STYLE}
+      data-clickable
+    >
+      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.22em] mb-0.5 text-emerald-200/90">
+        <span aria-hidden="true">&gt;_</span>
+        matrix
+      </span>
+      <span className="tracking-wide">Enter the Matrix →</span>
+    </m.button>
+  );
+});
 
 // ─── Matrix puzzle reply rendering ───
 /**
@@ -933,6 +970,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
+  const matrixEscaped = useMatrixEscaped();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1278,6 +1316,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     setSelectedProjectSlug(null);
   }, [closePanel]);
 
+  const handleEnterMatrix = useCallback(() => {
+    selection();
+    soundManager.play('chat-send');
+    navigate();
+    router.push('/matrix-notes');
+  }, [navigate, router, selection]);
+
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
 
@@ -1356,7 +1401,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           {!isLoading && (() => {
             const lastAssistant = messages.findLast(m => m.role === 'assistant');
             return !!lastAssistant && readyForAssistantId === lastAssistant.id;
-          })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
+          })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0 || matrixEscaped) && (
               <m.div
                 key="suggestions-container"
                 initial={SUGGESTIONS_CONTAINER_INITIAL}
@@ -1365,6 +1410,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 transition={SUGGESTIONS_CONTAINER_TRANSITION}
                 className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
               >
+                {matrixEscaped && (
+                  <MatrixEscapeChip
+                    onSelect={handleEnterMatrix}
+                    skipEntrance={!hasHadInteractionRef.current}
+                  />
+                )}
                 {baseSuggestions.map((q, i) => (
                   <SuggestionStrip
                     key={q}

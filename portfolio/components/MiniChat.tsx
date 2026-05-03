@@ -76,12 +76,15 @@ export default function MiniChat() {
     });
   }, [closePanel, openPanel]);
 
-  // Don't show on /chat page
-  if (pathname === '/chat') return null;
+  // Don't show on /chat page (or any nested /chat/* route)
+  if (pathname?.startsWith('/chat')) return null;
   if (!hasMounted) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 right-4 md:right-20" style={{ zIndex: Z_INDEX.sidebar }}>
+    <div
+      className="fixed right-4 md:right-20 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
+      style={{ zIndex: Z_INDEX.nav }}
+    >
       <AnimatePresence>
         {isOpen && (
           <>

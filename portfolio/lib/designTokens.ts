@@ -266,6 +266,8 @@ export const Z_INDEX = {
   nav: 50,
   /** Full-screen modals — portaled to document.body (project detail, feedback, etc.) */
   modal: 100,
+  /** Command palette / overlay above modals */
+  palette: 150,
   /** Skip-to-main-content link when focused */
   skipNav: 200,
   /** Custom cursor — always topmost */

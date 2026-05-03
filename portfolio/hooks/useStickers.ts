@@ -40,6 +40,7 @@ import {
   type SuperuserId,
 } from '@/lib/stickers';
 import { STICKER_TIMING } from '@/lib/designTokens';
+import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
@@ -496,6 +497,10 @@ function enqueueToast(id: StickerId): void {
 export function unlockSticker(id: StickerId): void {
   initializeStoreOnce();
   if (!VALID_STICKER_IDS.has(id)) return;
+  // Master kill-switch: if the user has paused sticker earning via admin
+  // prefs (or the `stickers off` terminal command), drop the unlock on the
+  // floor \u2014 no roster mutation, no bus emit, no toast.
+  if (!getAdminPrefsSnapshot().stickersEnabled) return;
   const current = store.state;
   if (current.unlocked.includes(id)) return;
 

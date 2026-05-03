@@ -97,7 +97,7 @@ function EscapeToastListenerImpl(): React.ReactElement | null {
 
   return (
     <div
-      className="fixed bottom-20 md:bottom-24 left-4 md:left-8 pointer-events-none"
+      className="fixed left-3 md:left-8 right-3 md:right-auto pointer-events-none bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
       style={{ zIndex: Z_INDEX.sidebar }}
       aria-live="polite"
       aria-atomic="true"

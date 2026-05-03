@@ -28,7 +28,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'dhruv-admin-prefs';
-const STORAGE_VERSION = 1 as const;
+const STORAGE_VERSION = 2 as const;
 
 export interface AdminPrefs {
   version: typeof STORAGE_VERSION;
@@ -40,6 +40,13 @@ export interface AdminPrefs {
   sketchOutlines: boolean;
   /** The flagship gate — enables `sudo matrix` in sudo help. Default: off. */
   experimentalCommands: boolean;
+  /** Master switch — when false, no new stickers are earned (no roster
+   *  mutation, no bus emit, no toast). Default: on. */
+  stickersEnabled: boolean;
+  /** When false, sticker unlocks happen silently (no toast UI, no sound,
+   *  no haptic). The glance badge can still pulse. Default: OFF — toasts
+   *  are opt-in to keep the experience uncluttered. */
+  stickerToastsEnabled: boolean;
 }
 
 function defaultPrefs(): AdminPrefs {
@@ -49,6 +56,8 @@ function defaultPrefs(): AdminPrefs {
     tapeEffects: true,
     sketchOutlines: true,
     experimentalCommands: false,
+    stickersEnabled: true,
+    stickerToastsEnabled: false,
   };
 }
 
@@ -59,12 +68,17 @@ function readFromStorage(): AdminPrefs {
     if (!raw) return defaultPrefs();
     const parsed = JSON.parse(raw) as Partial<AdminPrefs>;
     if (!parsed || typeof parsed !== 'object') return defaultPrefs();
+    // Migration: missing `stickersEnabled` defaults to true (collecting on),
+    // missing `stickerToastsEnabled` defaults to false (toasts opt-in).
+    // Users who explicitly toggled the toast on retain their choice.
     return {
       version: STORAGE_VERSION,
       paperGrain: parsed.paperGrain !== false,
       tapeEffects: parsed.tapeEffects !== false,
       sketchOutlines: parsed.sketchOutlines !== false,
       experimentalCommands: parsed.experimentalCommands === true,
+      stickersEnabled: parsed.stickersEnabled !== false,
+      stickerToastsEnabled: parsed.stickerToastsEnabled === true,
     };
   } catch {
     return defaultPrefs();
@@ -177,6 +191,15 @@ export function applyPrefsToDocument(prefs: AdminPrefs): void {
 export function getExperimentalCommandsSync(): boolean {
   initOnce();
   return state.experimentalCommands;
+}
+
+/**
+ * Imperative snapshot reader for non-React call sites (e.g. the sticker
+ * unlock pipeline). Returns the live module state — do NOT mutate.
+ */
+export function getAdminPrefsSnapshot(): AdminPrefs {
+  initOnce();
+  return state;
 }
 
 /** @internal — test helper, never call in app code. */

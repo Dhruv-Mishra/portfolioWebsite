@@ -126,7 +126,7 @@ export function getCurrentStage(signals: MatrixPuzzleSignals): MatrixStage {
  */
 const STAGE_HINTS: Readonly<Record<MatrixStage, string>> = {
   [MATRIX_STAGE.COLLECTING_STICKERS]:
-    'The wall of stickers hides a door. Gather every fragment.',
+    'Some doors only open when the sticker sheet is awake. Check yours.',
   [MATRIX_STAGE.HAS_SUDO]:
     "Look where root keeps secrets. `ls` might surprise you.",
   [MATRIX_STAGE.SAW_ENCRYPTED_FILE]:

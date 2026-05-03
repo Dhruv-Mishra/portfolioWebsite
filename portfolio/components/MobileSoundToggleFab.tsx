@@ -38,13 +38,13 @@ import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designToken
 
 /**
  * Position anchored to the MiniChat FAB:
- *   - MiniChat sits at `bottom-20` (5rem) on mobile with size `--c-fab-size`.
- *   - We sit above it: 5rem + fab height + 0.75rem gap.
+ *   - MiniChat sits at calc(env(safe-area-inset-bottom,0px)+5rem) on mobile
+ *     with size --c-fab-size (~3.5rem). We park ~1rem above it.
  *   - Right edge matches MiniChat (`right-4`).
  */
 const FAB_POSITION_STYLE = {
   right: '1rem',
-  bottom: 'calc(5rem + var(--c-fab-size) + 0.75rem)',
+  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 9.5rem)',
   transform: 'rotate(-2deg)',
 } as const;
 

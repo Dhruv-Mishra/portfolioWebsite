@@ -8,9 +8,10 @@
  *
  * Mounted once by EagerEnhancements so the bus listener is always live.
  */
-import { memo, useCallback, useEffect } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { stickerBus } from '@/lib/stickerBus';
 import { getSticker, StickerSvg, SUPERUSER_STICKER } from '@/lib/stickers';
 import {
@@ -18,6 +19,8 @@ import {
   unlockSticker,
   dismissActiveToast,
 } from '@/hooks/useStickers';
+import { useAdminPrefs } from '@/hooks/useAdminPrefs';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
@@ -27,6 +30,7 @@ const TOAST_INITIAL = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
 const TOAST_ANIMATE = { opacity: 1, y: 0, rotate: -2, scale: 1 } as const;
 const TOAST_EXIT = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
 const TOAST_SPRING = { type: 'spring' as const, stiffness: 400, damping: 15 };
+const TOAST_AUTO_DISMISS_MS = 4500;
 
 export default function StickerToastListener(): React.ReactElement | null {
   // Narrow subscription: only re-renders when the active toast slot itself
@@ -34,8 +38,13 @@ export default function StickerToastListener(): React.ReactElement | null {
   // do NOT trigger a re-render of this component.
   const activeToast = useActiveStickerToast();
   const { success, navigate } = useAppHaptics();
+  const { stickerToastsEnabled } = useAdminPrefs();
+  const isMobile = useIsMobile();
+  const pathname = usePathname();
+  const timerRef = useRef<number | null>(null);
 
-  // Bridge bus -> store. Do this once on mount.
+  // Bridge bus -> store. Always run so the underlying unlock fires even
+  // when the toast UI is suppressed (glance badge stays in sync).
   useEffect(() => {
     const off = stickerBus.on((evt) => {
       if (evt.type === 'earn') {
@@ -45,33 +54,80 @@ export default function StickerToastListener(): React.ReactElement | null {
     return off;
   }, []);
 
-  // Fire a haptic + sound each time a new toast becomes active. The
-  // `sticker-ding` sound is debounced inside the manager, so a flood of
-  // near-simultaneous unlocks plays at a human rate. The special-case
-  // SUPERUSER fanfare is NOT played here — the SuperuserBanner component
-  // owns that sound so it fires alongside the confetti reveal exactly once.
+  // Suppress toast UI on /chat on mobile (chat owns the bottom of the
+  // viewport there) or when the user has muted sticker toasts.
+  const suppressUi = isMobile && pathname?.startsWith('/chat');
+  const renderToast = stickerToastsEnabled && !suppressUi;
+
+  // Fire haptic + sound only when the toast actually renders.
   useEffect(() => {
     if (!activeToast) return;
+    if (!renderToast) return;
     success();
     if (activeToast !== SUPERUSER_STICKER.id) {
       soundManager.play('sticker-ding');
     }
-  }, [activeToast, success]);
+  }, [activeToast, success, renderToast]);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const scheduleDismiss = useCallback(() => {
+    clearTimer();
+    timerRef.current = window.setTimeout(() => {
+      dismissActiveToast();
+      timerRef.current = null;
+    }, TOAST_AUTO_DISMISS_MS);
+  }, [clearTimer]);
+
+  // Auto-dismiss after 4500ms whenever a toast becomes visible.
+  useEffect(() => {
+    if (!activeToast || !renderToast) {
+      clearTimer();
+      return;
+    }
+    scheduleDismiss();
+    return clearTimer;
+  }, [activeToast, renderToast, scheduleDismiss, clearTimer]);
 
   const handleTap = useCallback(() => {
     navigate();
+    clearTimer();
     dismissActiveToast();
-  }, [navigate]);
+  }, [navigate, clearTimer]);
+
+  // Pause-on-hover (desktop only).
+  const handleMouseEnter = useCallback(() => {
+    if (isMobile) return;
+    clearTimer();
+  }, [isMobile, clearTimer]);
+  const handleMouseLeave = useCallback(() => {
+    if (isMobile) return;
+    if (activeToast && renderToast) scheduleDismiss();
+  }, [isMobile, activeToast, renderToast, scheduleDismiss]);
+
+  if (!renderToast) return null;
 
   return (
     <div
-      className="fixed bottom-20 md:bottom-24 left-4 md:left-8 pointer-events-none"
+      className="fixed left-3 md:left-8 right-3 md:right-auto pointer-events-none bottom-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
       style={{ zIndex: Z_INDEX.sidebar }}
       aria-live="polite"
       aria-atomic="true"
     >
       <AnimatePresence>
-        {activeToast && <ToastCard id={activeToast} onTap={handleTap} />}
+        {activeToast && (
+          <ToastCard
+            id={activeToast}
+            onTap={handleTap}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -80,9 +136,11 @@ export default function StickerToastListener(): React.ReactElement | null {
 interface ToastCardProps {
   id: ReturnType<typeof getSticker>['id'];
   onTap: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
 }
 
-const ToastCard = memo(function ToastCard({ id, onTap }: ToastCardProps) {
+const ToastCard = memo(function ToastCard({ id, onTap, onMouseEnter, onMouseLeave }: ToastCardProps) {
   const sticker = getSticker(id);
   return (
     <m.div
@@ -91,7 +149,9 @@ const ToastCard = memo(function ToastCard({ id, onTap }: ToastCardProps) {
       exit={TOAST_EXIT}
       transition={TOAST_SPRING}
       data-sticker-toast
-      className="pointer-events-auto relative w-[280px] bg-[var(--note-user)] text-[var(--note-user-ink)] shadow-lg rounded-sm font-hand"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className="pointer-events-auto relative w-full max-w-[260px] md:max-w-[280px] bg-[var(--note-user)] text-[var(--note-user-ink)] shadow-lg rounded-sm font-hand opacity-95 backdrop-blur-[2px] scale-[0.96] md:scale-100"
     >
       <TapeStrip size="sm" />
       <Link

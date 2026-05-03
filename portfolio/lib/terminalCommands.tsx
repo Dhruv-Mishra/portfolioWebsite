@@ -29,7 +29,7 @@ import {
     ADMIN_PASSWORD,
     type MatrixPuzzleSignals,
 } from '@/lib/matrixPuzzle';
-import { getExperimentalCommandsSync, setAdminPref } from '@/hooks/useAdminPrefs';
+import { getExperimentalCommandsSync, setAdminPref, getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 import { hasClientAdminTokenSync, unlockAdmin } from '@/lib/adminAuthClient';
 
 /** Delay (ms) before executing page navigation from terminal commands */
@@ -57,31 +57,81 @@ export function createInitialTerminalOutput(): React.ReactNode {
 }
 
 export const createCommandRegistry = (router: AppRouterInstance): Record<string, CommandHandler> => ({
-    help: () => ({
-        output: (
-            <div className="space-y-1">
-                <p>Available commands:</p>
-                <p className="pl-4 text-emerald-400">about      - Who is Dhruv?</p>
-                <p className="pl-4 text-emerald-400">projects   - View my work</p>
-                <p className="pl-4 text-emerald-400">contact    - Get in touch</p>
-                <p className="pl-4 text-emerald-400">socials    - List social links</p>
-                <p className="pl-4 text-emerald-400">ls         - List files</p>
-                <p className="pl-4 text-emerald-400">cat <span className="text-gray-500">[file]</span> - Read file</p>
-                <p className="pl-4 text-emerald-400">open <span className="text-gray-500">[file]</span> - Open file</p>
-                <p className="pl-4 text-emerald-400">clear      - Clear terminal</p>
-                <p className="pl-4 text-emerald-400">joke       - Tell a joke</p>
-                <p className="pl-4 text-emerald-400">skills     - View Tech Stack</p>
-                <p className="pl-4 text-emerald-400">resume     - View Resume</p>
-                <p className="pl-4 text-emerald-400">chat       - Talk to AI-me</p>
-                <p className="pl-4 text-emerald-400">feedback   - Report a bug / send feedback</p>
-                <p className="pl-4 text-emerald-400">guestbook  - Sign the wall</p>
-                <p className="pl-4 text-emerald-400">sign       - Alias for guestbook</p>
-                <p className="pl-4 text-emerald-400">stickers   - Open the sticker drawer</p>
-                <p className="pl-4 text-emerald-400">cheatsheet - Browse all stickers</p>
-                <p className="pl-4 text-emerald-400">matrix hint - Nudge for the current puzzle stage <span className="text-gray-500">(alias: /hint)</span></p>
-            </div>
-        )
-    }),
+    help: (args: string[]) => {
+        // Compact two-column layout keeps the full command list on-screen
+        // even on short mobile viewports (was 17 stacked lines, now ~9 rows).
+        // `help all` retains the verbose vertical layout for users who want
+        // descriptions in a wider format.
+        const verbose = args[0]?.toLowerCase() === 'all';
+        const entries: ReadonlyArray<{ cmd: string; arg?: string; desc: string }> = [
+            { cmd: 'about', desc: 'Who is Dhruv?' },
+            { cmd: 'projects', desc: 'View my work' },
+            { cmd: 'contact', desc: 'Get in touch' },
+            { cmd: 'socials', desc: 'List social links' },
+            { cmd: 'ls', desc: 'List files' },
+            { cmd: 'cat', arg: '[file]', desc: 'Read file' },
+            { cmd: 'open', arg: '[file]', desc: 'Open file' },
+            { cmd: 'clear', desc: 'Clear terminal' },
+            { cmd: 'joke', desc: 'Tell a joke' },
+            { cmd: 'skills', desc: 'View tech stack' },
+            { cmd: 'resume', desc: 'View resume' },
+            { cmd: 'chat', desc: 'Talk to AI-me' },
+            { cmd: 'feedback', desc: 'Report a bug / send feedback' },
+            { cmd: 'guestbook', desc: 'Sign the wall' },
+            { cmd: 'sign', desc: 'Alias for guestbook' },
+            { cmd: 'stickers', desc: 'Open the sticker drawer' },
+            { cmd: 'cheatsheet', desc: 'Browse all stickers' },
+            { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
+        ];
+
+        if (verbose) {
+            return {
+                output: (
+                    <div className="space-y-1">
+                        <p>Available commands:</p>
+                        {entries.map((e) => (
+                            <p key={e.cmd} className="pl-4 text-emerald-400">
+                                {e.cmd.padEnd(11, ' ')}
+                                {e.arg ? <span className="text-gray-500"> {e.arg}</span> : null}
+                                {' - '}
+                                <span className="text-gray-300">{e.desc}</span>
+                            </p>
+                        )) as React.ReactNode}
+                    </div>
+                ),
+            };
+        }
+
+        return {
+            output: (
+                <div className="space-y-1">
+                    <p>
+                        Available commands{' '}
+                        <span className="text-gray-500">
+                            (type <span className="text-emerald-400">help all</span> for descriptions)
+                        </span>
+                        :
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 pl-4">
+                        {entries.map((e) => (
+                            <span
+                                key={e.cmd}
+                                className="text-emerald-400 truncate"
+                                title={e.desc}
+                            >
+                                {e.cmd}
+                                {e.arg ? <span className="text-gray-500"> {e.arg}</span> : null}
+                            </span>
+                        )) as React.ReactNode}
+                    </div>
+                    <p className="text-gray-500 pt-1">
+                        Tip: <span className="text-emerald-400">/hint</span> nudges the puzzle ·{' '}
+                        <span className="text-emerald-400">stickers status</span> shows your settings
+                    </p>
+                </div>
+            ),
+        };
+    },
     joke: async () => {
         if (!rateLimiter.check('joke-api', RATE_LIMITS.JOKE_API)) {
             const remainingTime = rateLimiter.getRemainingTime('joke-api', RATE_LIMITS.JOKE_API);
@@ -166,10 +216,35 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         output: "Navigating to the wall...",
         action: () => { setTimeout(() => router.push("/guestbook"), NAVIGATION_DELAY_MS); }
     }),
-    stickers: () => ({
-        output: "Opening sticker drawer...",
-        action: () => { setTimeout(() => router.push("/stickers"), NAVIGATION_DELAY_MS); }
-    }),
+    stickers: (args: string[]) => {
+        const sub = (args[0] ?? '').toLowerCase();
+        if (!sub) {
+            return {
+                output: "Opening sticker drawer...",
+                action: () => { setTimeout(() => router.push("/stickers"), NAVIGATION_DELAY_MS); }
+            };
+        }
+        if (sub === 'off') {
+            setAdminPref('stickersEnabled', false);
+            return { output: "Stickers paused. Run `stickers on` to resume." };
+        }
+        if (sub === 'on') {
+            setAdminPref('stickersEnabled', true);
+            setAdminPref('stickerToastsEnabled', true);
+            return { output: "Stickers enabled." };
+        }
+        if (sub === 'quiet') {
+            setAdminPref('stickerToastsEnabled', false);
+            return { output: "Sticker toasts muted. Stickers still earn silently." };
+        }
+        if (sub === 'status') {
+            const p = getAdminPrefsSnapshot();
+            return {
+                output: `Stickers: ${p.stickersEnabled ? 'ON' : 'OFF'} \u00b7 Toasts: ${p.stickerToastsEnabled ? 'ON' : 'OFF'}`,
+            };
+        }
+        return { output: "usage: stickers [on|off|quiet|status]" };
+    },
     init: () => {
         const uptime = typeof window !== 'undefined' ? Math.floor(performance.now() / 1000) : 0;
         return {

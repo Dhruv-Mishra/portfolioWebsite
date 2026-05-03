@@ -24,6 +24,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
 import { useMatrixEscaped, useMatrixEscapedAt, useStickers } from '@/hooks/useStickers';
+import { useAdminPrefs, setAdminPref } from '@/hooks/useAdminPrefs';
 import { stickerBus } from '@/lib/stickerBus';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
@@ -124,7 +125,9 @@ export default function StickerDrawerPage() {
         ) : null}
 
         {/* ─── Progress pill ─── */}
-        <ProgressCard unlockedCount={unlockedCount} total={total} />
+        <div className="mt-6 md:mt-8">
+          <ProgressCard unlockedCount={unlockedCount} total={total} />
+        </div>
 
         {/* ─── Progress caption ─── */}
         <p className="mt-6 md:mt-8 text-center font-hand italic text-lg md:text-xl text-[var(--c-ink)] opacity-50">
@@ -135,6 +138,9 @@ export default function StickerDrawerPage() {
         <div role="status" aria-live="polite" className="sr-only">
           {hasSuperuser ? 'You earned the Superuser sticker. Sudo terminal access unlocked.' : ''}
         </div>
+
+        {/* ─── Sticker settings strip — tucked above the grid ─── */}
+        <StickerSettingsStrip />
 
         {/* ─── Grid ─── */}
         <section
@@ -292,3 +298,93 @@ const StickerCard = memo(StickerCardImpl, (prev, next) =>
   prev.sticker.id === next.sticker.id &&
   prev.index === next.index,
 );
+
+// ─── Sticker settings strip ─────────────────────────────────────────────
+// Always-expanded sketchbook card. Two paper-style toggles. Persists via
+// `useAdminPrefs` (localStorage key `dhruv-admin-prefs`).
+function StickerSettingsStrip() {
+  const { stickersEnabled, stickerToastsEnabled } = useAdminPrefs();
+  return (
+    <section
+      aria-label="Sticker settings"
+      className="mt-8 md:mt-10 mb-2 mx-auto max-w-lg rounded-md border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)]/70 px-5 py-4 font-hand text-[var(--c-ink)] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+    >
+      <header className="flex items-baseline gap-2 mb-3">
+        <h2 className="text-lg md:text-xl font-bold text-[var(--c-heading)]">
+          Sticker settings
+        </h2>
+        <span className="text-xs md:text-sm text-[var(--c-ink)]/55 italic">
+          (saved in your browser)
+        </span>
+      </header>
+      <div className="space-y-2.5 text-base md:text-lg">
+        <SketchToggle
+          label="Earn stickers as I explore"
+          checked={stickersEnabled}
+          onChange={(v) => setAdminPref('stickersEnabled', v)}
+        />
+        <SketchToggle
+          label="Show pop-up when I earn one"
+          hint="off by default — turn on if you like the celebration"
+          checked={stickerToastsEnabled}
+          disabled={!stickersEnabled}
+          onChange={(v) => setAdminPref('stickerToastsEnabled', v)}
+        />
+      </div>
+    </section>
+  );
+}
+
+interface SketchToggleProps {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}
+
+function SketchToggle({ label, hint, checked, disabled, onChange }: SketchToggleProps) {
+  return (
+    <label
+      className={cn(
+        'flex items-center justify-between gap-4 rounded-sm border border-dashed border-[var(--c-ink)]/25 bg-[var(--c-paper)]/60 px-3 py-2 transition-colors',
+        disabled
+          ? 'cursor-not-allowed opacity-55'
+          : 'cursor-pointer hover:bg-[var(--c-paper)]/90',
+      )}
+    >
+      <span className="flex-1 min-w-0">
+        <span className="block leading-tight">{label}</span>
+        {hint ? (
+          <span className="block text-xs md:text-sm text-[var(--c-ink)]/55 italic mt-0.5">
+            {hint}
+          </span>
+        ) : null}
+      </span>
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={label}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'relative inline-flex w-12 h-6 rounded-full border-2 border-dashed shrink-0 transition-colors',
+          checked
+            ? 'bg-[var(--c-heading)]/25 border-[var(--c-heading)]/70'
+            : 'bg-[var(--c-paper)] border-[var(--c-ink)]/40',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-[1px] inline-block w-4 h-4 rounded-full bg-[var(--c-ink)] shadow-sm transition-transform duration-200',
+            checked ? 'translate-x-[26px]' : 'translate-x-[2px]',
+          )}
+        />
+      </span>
+    </label>
+  );
+}

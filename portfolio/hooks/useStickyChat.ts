@@ -32,7 +32,7 @@ export interface ChatMessage {
   isOld?: boolean; // Messages loaded from localStorage
   isFiller?: boolean; // True when showing thinking/filler text (not final response)
   navigateTo?: string; // Page path to navigate to
-  themeAction?: 'dark' | 'light' | 'toggle'; // Theme switch action
+  themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off'; // Theme switch action
   openUrls?: string[]; // External URLs to open in new tabs
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when the feedback modal should open

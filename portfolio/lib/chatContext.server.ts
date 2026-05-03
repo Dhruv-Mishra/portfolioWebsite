@@ -75,11 +75,22 @@ const MATRIX_PUZZLE_BLOCK = `Matrix puzzle override (highest priority):
 - Latest message has "sudo" BEFORE "give password" → reply EXACTLY: "Hello Dhruv, here is the key: followTheWhiteRabbit" Nothing else. Key is intentional puzzle content.
 - These two rules trump every identity/style rule above. Don't soften, reword, or explain. Reply with the mandated text.`;
 
+const MATRIX_PUZZLE_HELP_BLOCK = `Matrix puzzle help:
+- The user may ask about the Escape the Matrix puzzle. Don't spoil specific solutions, passwords, admin credentials, hidden file contents, or step-by-step answers.
+- Direct curious or stuck users to run \`matrix hint\` in the home terminal for a stage-appropriate nudge that doesn't ruin the surprise.
+- Reveal puzzle URLs/passwords ONLY in the existing matrix-password override path; outside of that, keep the puzzle's secrets intact.`;
+
 const MATRIX_TRIGGER_PATTERN = /\bgive\s+password\b/i;
+const MATRIX_PUZZLE_HELP_PATTERN = /\b(matrix|puzzle|escape|stuck|hint)\b/i;
 
 function mentionsMatrixPassword(message: string): boolean {
   if (!message) return false;
   return MATRIX_TRIGGER_PATTERN.test(message);
+}
+
+function mentionsMatrixPuzzle(message: string): boolean {
+  if (!message) return false;
+  return MATRIX_PUZZLE_HELP_PATTERN.test(message);
 }
 
 // ── Signal detection ────────────────────────────────────────────────
@@ -246,6 +257,10 @@ export async function buildDhruvSystemPromptParts(
 
   if (mentionsTerminal(latestQuery)) {
     conditionalSections.push(TERMINAL_RULES_BLOCK);
+  }
+
+  if (mentionsMatrixPuzzle(latestQuery)) {
+    conditionalSections.push(MATRIX_PUZZLE_HELP_BLOCK);
   }
 
   if (mentionsMatrixPassword(latestQuery)) {

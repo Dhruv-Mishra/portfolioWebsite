@@ -218,5 +218,6 @@ export const INITIAL_SUGGESTIONS = [
   "What's your tech stack?",
   "Tell me about Jarvis",
   "Tell me about Cropio",
+  "What's the Escape the Matrix puzzle?",
   "Report a bug",
 ] as const;

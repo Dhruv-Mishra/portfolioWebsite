@@ -929,7 +929,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
-  const [suggestionsReady, setSuggestionsReady] = useState(false);
+  const [readyForAssistantId, setReadyForAssistantId] = useState<string | null>('welcome');
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
@@ -993,7 +993,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
       setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
     }
-    setSuggestionsReady(true);
+    const latestAssistant = messages.findLast(m => m.role === 'assistant');
+    setReadyForAssistantId(latestAssistant?.id ?? 'welcome');
   }, [messages, llmSuggestions, followupActions]);
 
   // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual.
@@ -1053,8 +1054,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       clearTimeout(navigationTimeoutRef.current);
       navigationTimeoutRef.current = null;
     }
-
-    setSuggestionsReady(true);
 
     // Chat-driven UI action fires → chat-conductor sticker. We check if ANY
     // real side-effect is about to run (not just the reply text). Idempotent
@@ -1126,7 +1125,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
 
   const handleTypewriterDone = useCallback((messageId: string) => {
-    setSuggestionsReady(true);
+    setReadyForAssistantId(messageId);
 
     const action = pendingActionsRef.current.get(messageId);
     if (!action) return;
@@ -1134,11 +1133,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     pendingActionsRef.current.delete(messageId);
     executeAction(action);
   }, [executeAction]);
-  useEffect(() => {
-    if (isLoading) {
-      setSuggestionsReady(false);
-    }
-  }, [isLoading]);
 
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
@@ -1196,7 +1190,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if ((countChanged || !isLoading) && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, isLoading, suggestionsReady]);
+  }, [messages.length, isLoading, readyForAssistantId]);
 
   // Auto-scroll DURING typewriter growth — observes the scroll container's
   // content size and snaps to bottom whenever it grows AND the user was
@@ -1271,7 +1265,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     clearMessages();
     setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
     setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
-    setSuggestionsReady(true);
+    setReadyForAssistantId('welcome');
     hasFetchedSuggestionsRef.current = null;
     hasInitializedSuggestionsRef.current = false;
     pendingActionsRef.current.clear();
@@ -1359,7 +1353,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Base (hardcoded) suggestions render immediately when ready;
             Extra (LLM) suggestions animate in alongside without re-mounting base. */}
         <AnimatePresence>
-          {!isLoading && suggestionsReady && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
+          {!isLoading && (() => {
+            const lastAssistant = messages.findLast(m => m.role === 'assistant');
+            return !!lastAssistant && readyForAssistantId === lastAssistant.id;
+          })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0) && (
               <m.div
                 key="suggestions-container"
                 initial={SUGGESTIONS_CONTAINER_INITIAL}

@@ -28,6 +28,10 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
     "Tell me about Cropio",
     "Cropio is a precision-agriculture platform I built that turns satellite imagery and weather data into actionable insights for farmers — crop health scoring, irrigation timing, yield forecasting. The fun part was the data pipeline: pulling Sentinel-2 tiles, computing NDVI/EVI indices at scale, and surfacing it through a dashboard a non-technical farmer can actually read. Want me to open the project card?",
   ],
+  [
+    "What's the Escape the Matrix puzzle?",
+    "It's a multi-stage puzzle hidden across the site terminal on the home page. The trail starts with stickers (every interactive surface earns one), and once you have collected them all you'll unlock `sudo`. From there, poke around with `sudo ls`, `sudo cat`, and the rest of the privileged commands to start pulling on the thread. Once you're on the path, typing `matrix hint` in the terminal gives you a stage-appropriate nudge without spoiling the fun. Want me to drop a hint about your current stage?",
+  ],
 ]);
 
 /**

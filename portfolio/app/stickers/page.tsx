@@ -353,6 +353,15 @@ function SketchToggle({ label, hint, checked, disabled, onChange }: SketchToggle
           : 'cursor-pointer hover:bg-[var(--c-paper)]/90',
       )}
     >
+      {/* Hidden input first so the visible track can be its `peer` for focus styling. */}
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={label}
+      />
       <span className="flex-1 min-w-0">
         <span className="block leading-tight">{label}</span>
         {hint ? (
@@ -361,18 +370,11 @@ function SketchToggle({ label, hint, checked, disabled, onChange }: SketchToggle
           </span>
         ) : null}
       </span>
-      <input
-        type="checkbox"
-        className="sr-only"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={label}
-      />
       <span
         aria-hidden
         className={cn(
           'relative inline-flex w-12 h-6 rounded-full border-2 border-dashed shrink-0 transition-colors',
+          'peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-[var(--c-heading)]/60 peer-focus-visible:ring-offset-[var(--c-paper)]',
           checked
             ? 'bg-[var(--c-heading)]/25 border-[var(--c-heading)]/70'
             : 'bg-[var(--c-paper)] border-[var(--c-ink)]/40',

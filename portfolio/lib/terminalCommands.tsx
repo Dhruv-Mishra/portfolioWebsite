@@ -112,11 +112,11 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                         </span>
                         :
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 pl-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-0.5 pl-4 text-xs sm:text-sm">
                         {entries.map((e) => (
                             <span
                                 key={e.cmd}
-                                className="text-emerald-400 truncate"
+                                className="text-emerald-400"
                                 title={e.desc}
                             >
                                 {e.cmd}
@@ -230,8 +230,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         }
         if (sub === 'on') {
             setAdminPref('stickersEnabled', true);
-            setAdminPref('stickerToastsEnabled', true);
-            return { output: "Stickers enabled." };
+            return { output: "Stickers enabled. (Toasts unchanged \u2014 use `stickers quiet` or the /stickers settings to control them.)" };
         }
         if (sub === 'quiet') {
             setAdminPref('stickerToastsEnabled', false);

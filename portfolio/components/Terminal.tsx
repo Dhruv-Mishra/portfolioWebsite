@@ -204,20 +204,9 @@ export default function Terminal() {
 
         // Sticker emits (idempotent — hook deduplicates by id)
         stickerBus.emit('first-word');
-        if (lowerCmd === 'help') {
-            stickerBus.emit('help-wanted');
-        } else if (lowerCmd === 'joke') {
-            stickerBus.emit('stand-up-comic');
-        }
 
-        // Track distinct command count — unlock `terminal-addict` at 5.
-        // Only count real commands (not empty/whitespace). COMMAND_REGISTRY
-        // membership isn't required — the spirit is "five distinct attempts",
-        // though we normalize to the lowercase first-token.
-        const distinctCount = recordTerminalCommandImperative(lowerCmd);
-        if (distinctCount >= 5) {
-            stickerBus.emit('terminal-addict');
-        }
+        // Track distinct command count (persisted state for future use).
+        recordTerminalCommandImperative(lowerCmd);
 
         // Special handling for 'clear'
         if (lowerCmd === 'clear') {

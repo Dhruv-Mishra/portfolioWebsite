@@ -2,11 +2,10 @@
 
 /**
  * useVisitedPagesTracker — records the current pathname whenever it
- * changes and emits sticker events when tour/night-owl conditions are met.
+ * changes and emits sticker events when the tour condition is met.
  *
  * Triggers:
  *   - 'page-turner': visited all 5 core routes (/, /projects, /about, /resume, /chat).
- *   - 'night-owl':   pathname change happens between 23:00 and 05:00 local.
  *
  * Mounts via <VisitedPagesTrackerMount /> in EagerEnhancements.
  */
@@ -24,11 +23,6 @@ function hasVisitedAllCore(visited: readonly string[]): boolean {
     if (!set.has(route)) return false;
   }
   return true;
-}
-
-function isNightOwlHour(): boolean {
-  const h = new Date().getHours();
-  return h >= 23 || h < 5;
 }
 
 export function useVisitedPagesTracker(): void {
@@ -56,10 +50,6 @@ export function useVisitedPagesTracker(): void {
 
     if (hasVisitedAllCore(visited)) {
       stickerBus.emit('page-turner');
-    }
-
-    if (isNightOwlHour()) {
-      stickerBus.emit('night-owl');
     }
   }, [pathname]);
 }

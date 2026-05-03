@@ -19,7 +19,6 @@
  */
 import React from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
-import { stickerBus } from '@/lib/stickerBus';
 import {
   setDiscoActiveImperative,
   setMatrixActiveImperative,
@@ -36,10 +35,6 @@ import {
 import { setActivePrompt, type TerminalPrompt } from '@/lib/terminalPrompts';
 import { unlockAdmin } from '@/lib/adminAuthClient';
 import TerminalDecryptBar from '@/components/TerminalDecryptBar';
-
-// Note: `konami` was removed as a sudo command — the emit path couldn't
-// re-play the celebration for already-earned stickers (store dedupes), so it
-// just echoed text. Leaving `stickerBus` imported for the cheatsheet emit.
 
 // ─── Types ──────────────────────────────────────────────────────────────
 export interface SudoCommandResult {
@@ -808,9 +803,6 @@ export function dispatchSudo(
             <div className="mt-2">{ctx.renderCheatsheet()}</div>
           </div>
         ),
-        action: () => {
-          stickerBus.emit('cheat-codes');
-        },
       };
     case 'disco':
       return handleDisco(args);

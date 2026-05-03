@@ -14,7 +14,6 @@
  *
  * On mount:
  *   - markAlbumSeen() dismisses the badge pulse.
- *   - stickerBus.emit('drawer-dweller') unlocks the "visited the album" sticker.
  *
  * Perf note: Cards use pure CSS animations (`sticker-card`, `sticker-card--unlocked`,
  * `sticker-card--locked`) defined in app/globals.css. The banner uses
@@ -25,7 +24,6 @@ import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from '
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
 import { useMatrixEscaped, useMatrixEscapedAt, useStickers } from '@/hooks/useStickers';
 import { useAdminPrefs, setAdminPref } from '@/hooks/useAdminPrefs';
-import { stickerBus } from '@/lib/stickerBus';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { cn } from '@/lib/utils';
@@ -53,10 +51,8 @@ export default function StickerDrawerPage() {
   }, [hasEscaped]);
 
   // Mark album seen on mount so the glance badge stops pulsing.
-  // Also unlock the "visited the album" sticker — cheap, idempotent.
   useEffect(() => {
     markAlbumSeen();
-    stickerBus.emit('drawer-dweller');
   }, [markAlbumSeen]);
 
   // Build the unlocked-id lookup set once per change — O(1) membership per card.

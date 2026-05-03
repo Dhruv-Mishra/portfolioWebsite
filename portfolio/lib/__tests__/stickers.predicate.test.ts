@@ -41,9 +41,8 @@ describe('sticker roster metadata', () => {
     expect(REGULAR_STICKER_IDS.size).toBe(STICKER_TOTAL);
   });
 
-  it('STICKER_TOTAL is in the target 18-22 range', () => {
-    expect(STICKER_TOTAL).toBeGreaterThanOrEqual(18);
-    expect(STICKER_TOTAL).toBeLessThanOrEqual(22);
+  it('STICKER_TOTAL is 11 (current roster size)', () => {
+    expect(STICKER_TOTAL).toBe(11);
   });
 
   it('the retired `konami` sticker is not in the roster', () => {
@@ -58,24 +57,16 @@ describe('sticker roster metadata', () => {
     // sticker to the roster forces someone to update this list consciously.
     const auditedMobileReachable: ReadonlyArray<string> = [
       'first-word',       // typing in on-screen keyboard
-      'help-wanted',      // typing `help`
-      'stand-up-comic',   // typing `joke`
       'theme-flipper',    // mobile theme button in SocialSidebar
       'note-sender',      // mobile feedback button
       'page-turner',      // mobile navigation
       'note-passer',      // MiniChat FAB (mobile-sized)
-      'long-read',        // timed resume page view
       'full-chat',        // /chat navigation
-      'night-owl',        // time-based (any device)
       'signed-guestbook', // guestbook form
       'project-explorer', // project modal taps
-      'cheat-codes',      // typing `cheatsheet`
-      'drawer-dweller',   // /stickers navigation
       'chat-conductor',   // chat AI perform-action
-      'terminal-addict',  // 5 distinct commands
       'repo-hunter',      // project modal external link
       'social-butterfly', // social pill link tap
-      'phoned-a-friend',  // jarvis live-demo external link tap
     ];
     const rosterIds = STICKER_ROSTER.map((s) => s.id);
     for (const audited of auditedMobileReachable) {

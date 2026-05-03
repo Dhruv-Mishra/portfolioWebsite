@@ -402,8 +402,6 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     date: () => ({ output: new Date().toString() }),
     // Cheatsheet is privileged. The bare command only reveals that privileges
     // are required — the user has to figure out how to escalate on their own.
-    // We still award the `cheat-codes` sticker for *trying* the command so it
-    // remains reachable before Superuser (which gates the full sudo path).
     cheatsheet: () => ({
         output: (
             <div>
@@ -412,7 +410,6 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 <span className="text-gray-500">hint: try with escalated permissions.</span>
             </div>
         ),
-        action: () => { stickerBus.emit('cheat-codes'); },
     }),
     sudo: (args: string[]) => {
         const invocation = parseSudoInvocation(args);

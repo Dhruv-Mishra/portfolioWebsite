@@ -7,12 +7,11 @@
  *   <StickerSvg id="first-word" size={60} />
  *
  * Roster:
- *   19 regular stickers cover every major feature / surface on the site so the
- *   collection acts as a feature-discovery trail. Every roster entry is
- *   reachable on touch devices — the old keyboard-only Konami sticker was
- *   retired because it had no mobile-attainable trigger. The hidden
- *   `superuser` sticker is not exposed on the album until it is earned —
- *   awarded automatically the moment the user owns every regular sticker.
+ *   11 regular stickers reward genuine site exploration (no grindy counters
+ *   or time-of-day gimmicks). Every roster entry is reachable on touch
+ *   devices. The hidden `superuser` sticker is not exposed on the album
+ *   until it is earned — awarded automatically the moment the user owns
+ *   every regular sticker.
  */
 import { memo } from 'react';
 import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/designTokens';
@@ -20,24 +19,16 @@ import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/desi
 // ─── Roster ─────────────────────────────────────────────────────────────
 export const STICKER_ROSTER = [
   { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: 'the terminal is lonely — give it any command.',   family: 'sunshine' },
-  { id: 'help-wanted',      label: 'Help Wanted',           description: 'You asked for help — points for humility.',   hint: 'stuck? the terminal has a command for that.',     family: 'sunshine' },
-  { id: 'stand-up-comic',   label: 'Stand-Up',              description: 'Pulled a joke from the wire.',                hint: 'ask the terminal to tell you a joke.',            family: 'rose' },
   { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'toggle the theme — look for a sun or moon.',      family: 'lavender' },
   { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'send some real feedback — the floating icon.',    family: 'mint' },
   { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'visit every page on the site — all of them.',     family: 'denim' },
   { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',           family: 'mint' },
-  { id: 'long-read',        label: 'The Long Read',         description: 'Spent time with the resume.',                 hint: 'sit with the resume page for a minute.',          family: 'denim' },
   { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',     family: 'mint' },
-  { id: 'night-owl',        label: 'Night Owl',             description: 'Stopped by after the moon rose.',             hint: 'show up after the clock strikes midnight.',       family: 'lavender' },
   { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.',  family: 'mint' },
   { id: 'project-explorer', label: 'Case Files',            description: 'Opened every project note.',                  hint: 'every project has more to say — tap them all.',   family: 'coral' },
-  { id: 'cheat-codes',      label: 'Cheat Codes',           description: 'Peeked at the sticker cheatsheet.',           hint: 'the terminal has a privileged cheatsheet ~',      family: 'sunshine' },
-  { id: 'drawer-dweller',   label: 'Drawer Dweller',        description: 'Wandered into the sticker drawer.',           hint: 'there is a whole room for these stickers ~',      family: 'rose' },
   { id: 'chat-conductor',   label: 'Chat Conductor',        description: 'Let chat-me steer the ship.',                 hint: 'ask the chat to actually *do* something.',        family: 'mint' },
-  { id: 'terminal-addict',  label: 'Terminal Addict',       description: 'Ran five different terminal commands.',       hint: 'five different commands in one visit ~',          family: 'sunshine' },
   { id: 'repo-hunter',      label: 'Repo Hunter',           description: 'Followed a project back to its source.',      hint: 'source code lives a click away from each card.',  family: 'denim' },
   { id: 'social-butterfly', label: 'Social Butterfly',      description: 'Tapped one of the social links.',             hint: 'the links along the edge go somewhere ~',         family: 'rose' },
-  { id: 'phoned-a-friend',  label: 'Phoned a Friend',       description: 'Called the voice agent at jarvis.whoisdhruv.com.', hint: 'one of the projects is a voice agent — give it a ring.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -199,50 +190,6 @@ const PageTurnerSvg = memo(function PageTurnerSvg({ size }: IllustratedSvgProps)
 });
 
 /**
- * Help Wanted — speech bubble with a bold question mark on sunshine yellow.
- */
-const HelpWantedSvg = memo(function HelpWantedSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.sunshine;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Speech bubble */}
-      <path d="M14 22 Q14 16 20 16 L40 16 Q46 16 46 22 L46 34 Q46 40 40 40 L28 40 L22 45 L23 40 L20 40 Q14 40 14 34 Z" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-      {/* ? curve */}
-      <path d="M25 24 Q25 20 30 20 Q35 20 35 24 Q35 27 31 29 L31 33" fill="none" stroke={family.ink} strokeWidth="2.2" strokeLinecap="round" />
-      {/* ? dot */}
-      <circle cx="31" cy="37" r="1.6" fill={family.ink} />
-    </svg>
-  );
-});
-
-/**
- * Stand-Up Comic — a microphone on its stand with sound waves, on rose.
- */
-const StandUpComicSvg = memo(function StandUpComicSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.rose;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Mic head */}
-      <rect x="24" y="14" width="12" height="20" rx="6" ry="6" fill={family.ink} strokeLinejoin="round" />
-      {/* Mic grille lines */}
-      <line x1="26" y1="20" x2="34" y2="20" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
-      <line x1="26" y1="24" x2="34" y2="24" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
-      <line x1="26" y1="28" x2="34" y2="28" stroke={family.bg} strokeWidth="0.9" opacity="0.8" />
-      {/* Cradle */}
-      <path d="M20 30 Q20 40 30 40 Q40 40 40 30" fill="none" stroke={family.ink} strokeWidth="1.8" strokeLinecap="round" />
-      {/* Stand */}
-      <line x1="30" y1="40" x2="30" y2="46" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
-      <line x1="24" y1="46" x2="36" y2="46" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
-      {/* Sound waves */}
-      <path d="M15 22 Q12 26 15 30" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
-      <path d="M45 22 Q48 26 45 30" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
-    </svg>
-  );
-});
-
-/**
  * Note Sender — a paper airplane in flight, on mint green.
  */
 const NoteSenderSvg = memo(function NoteSenderSvg({ size }: IllustratedSvgProps) {
@@ -286,30 +233,6 @@ const NotePasserSvg = memo(function NotePasserSvg({ size }: IllustratedSvgProps)
 });
 
 /**
- * Long Read — reading glasses laid across an open page, on denim blue.
- */
-const LongReadSvg = memo(function LongReadSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.denim;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Page */}
-      <rect x="14" y="14" width="32" height="32" rx="1" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-      {/* Text lines (top half) */}
-      <line x1="18" y1="20" x2="42" y2="20" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
-      <line x1="18" y1="24" x2="40" y2="24" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
-      <line x1="18" y1="28" x2="42" y2="28" stroke={family.ink} strokeWidth="1.1" opacity="0.35" />
-      {/* Reading glasses over lower text */}
-      <circle cx="22" cy="38" r="5.5" fill="none" stroke={family.ink} strokeWidth="2" />
-      <circle cx="38" cy="38" r="5.5" fill="none" stroke={family.ink} strokeWidth="2" />
-      <line x1="27.5" y1="38" x2="32.5" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
-      <line x1="16.5" y1="38" x2="14" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
-      <line x1="43.5" y1="38" x2="46" y2="38" stroke={family.ink} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-});
-
-/**
  * Full Chat — two overlapping speech bubbles mid-conversation, on mint.
  */
 const FullChatSvg = memo(function FullChatSvg({ size }: IllustratedSvgProps) {
@@ -325,36 +248,6 @@ const FullChatSvg = memo(function FullChatSvg({ size }: IllustratedSvgProps) {
       <circle cx="32" cy="36" r="1.6" fill={family.bg} />
       <circle cx="37" cy="36" r="1.6" fill={family.bg} />
       <circle cx="42" cy="36" r="1.6" fill={family.bg} />
-    </svg>
-  );
-});
-
-/**
- * Night Owl — an owl with a crescent moon, on lavender.
- */
-const NightOwlSvg = memo(function NightOwlSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.lavender;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Crescent moon */}
-      <path d="M44 14 A5 5 0 1 0 48 19 A3.5 3.5 0 0 1 44 14 Z" fill="#fde047" stroke={family.ink} strokeWidth="1.2" strokeLinejoin="round" />
-      {/* Owl body */}
-      <ellipse cx="27" cy="34" rx="12" ry="13" fill="#a78bfa" stroke={family.ink} strokeWidth="1.8" />
-      {/* Ear tufts */}
-      <path d="M20 23 L18 16 L24 21 Z" fill="#a78bfa" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M34 23 L36 16 L30 21 Z" fill="#a78bfa" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
-      {/* Belly lighter patch */}
-      <ellipse cx="27" cy="38" rx="6" ry="6" fill="#e9d5ff" opacity="0.7" />
-      {/* Eyes */}
-      <circle cx="22" cy="30" r="3.4" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.2" />
-      <circle cx="32" cy="30" r="3.4" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.2" />
-      <circle cx="22" cy="30" r="1.4" fill={family.ink} />
-      <circle cx="32" cy="30" r="1.4" fill={family.ink} />
-      {/* Beak */}
-      <path d="M25 33 L29 33 L27 36 Z" fill="#fb923c" stroke={family.ink} strokeWidth="1" strokeLinejoin="round" />
-      {/* Wing hint */}
-      <path d="M18 36 Q17 42 22 45" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
     </svg>
   );
 });
@@ -411,53 +304,6 @@ const ProjectExplorerSvg = memo(function ProjectExplorerSvg({ size }: Illustrate
 });
 
 /**
- * Cheat Codes — an arcade-style "IDKFA" cheat scrap of paper with underline,
- * on sunshine. Represents accessing the privileged cheatsheet.
- */
-const CheatCodesSvg = memo(function CheatCodesSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.sunshine;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Paper scrap with slight skew */}
-      <g transform="rotate(-3 30 30)">
-        <rect x="12" y="18" width="36" height="24" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-        {/* Torn-edge zigzag top */}
-        <path d="M12 18 L16 16 L20 18 L24 16 L28 18 L32 16 L36 18 L40 16 L44 18 L48 18" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinejoin="round" />
-        {/* Cheat code letters */}
-        <text x="30" y="31" textAnchor="middle" fontFamily="var(--font-code), monospace" fontSize="7" fontWeight="700" fill={family.ink}>IDKFA</text>
-        {/* Wavy underline */}
-        <path d="M16 36 Q19 34 22 36 T28 36 T34 36 T40 36 T44 36" fill="none" stroke="#dc2626" strokeWidth="1.4" strokeLinecap="round" />
-      </g>
-    </svg>
-  );
-});
-
-/**
- * Drawer Dweller — an open drawer with stickers peeking out, on rose.
- */
-const DrawerDwellerSvg = memo(function DrawerDwellerSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.rose;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Drawer front */}
-      <rect x="12" y="28" width="36" height="18" rx="1.5" fill="#fdfbf7" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-      {/* Drawer handle */}
-      <rect x="26" y="34" width="8" height="2.5" rx="1.25" fill={family.ink} />
-      {/* Stickers peeking above (3 small circles) */}
-      <circle cx="20" cy="24" r="5" fill="#fde68a" stroke={family.ink} strokeWidth="1.4" />
-      <circle cx="30" cy="22" r="5.5" fill="#bfdbfe" stroke={family.ink} strokeWidth="1.4" />
-      <circle cx="40" cy="24" r="5" fill="#bbf7d0" stroke={family.ink} strokeWidth="1.4" />
-      {/* Tiny icons on the peeking stickers */}
-      <path d="M18 23 L22 23 M20 21 L20 25" stroke={family.ink} strokeWidth="1" strokeLinecap="round" />
-      <circle cx="30" cy="22" r="1.5" fill={family.ink} />
-      <path d="M38 25 L42 23" stroke={family.ink} strokeWidth="1" strokeLinecap="round" />
-    </svg>
-  );
-});
-
-/**
  * Chat Conductor — a baton crossed with a chat speech bubble, on mint.
  */
 const ChatConductorSvg = memo(function ChatConductorSvg({ size }: IllustratedSvgProps) {
@@ -476,31 +322,6 @@ const ChatConductorSvg = memo(function ChatConductorSvg({ size }: IllustratedSvg
       <circle cx="36" cy="38" r="2.6" fill={family.ink} />
       {/* Motion arc */}
       <path d="M44 30 Q46 35 41 40" fill="none" stroke={family.ink} strokeWidth="1.3" strokeLinecap="round" strokeDasharray="2 2" opacity="0.6" />
-    </svg>
-  );
-});
-
-/**
- * Terminal Addict — a terminal window stacked over an energy icon, on sunshine.
- */
-const TerminalAddictSvg = memo(function TerminalAddictSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.sunshine;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Terminal window */}
-      <rect x="10" y="14" width="40" height="26" rx="2" fill="#2d2a2e" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-      {/* Traffic lights */}
-      <circle cx="14" cy="18" r="1.1" fill="#ff6b6b" />
-      <circle cx="17.5" cy="18" r="1.1" fill="#ffd166" />
-      <circle cx="21" cy="18" r="1.1" fill="#8ce99a" />
-      {/* Five prompt lines indicating repetition */}
-      <text x="14" y="27" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
-      <text x="14" y="31" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
-      <text x="14" y="35" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
-      <text x="14" y="39" fontFamily="var(--font-code), monospace" fontSize="4" fill="#8ce99a">&gt; cmd</text>
-      {/* Lightning bolt indicating addiction / speed */}
-      <path d="M36 44 L40 38 L38 38 L41 32 L36 42 L38 42 Z" fill="#fbbf24" stroke={family.ink} strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   );
 });
@@ -615,49 +436,6 @@ const SuperuserSvg = memo(function SuperuserSvg({ size }: IllustratedSvgProps) {
 });
 
 /**
- * Phoned a Friend — vintage telephone handset with sound waves on mint green.
- * Earned the first time a visitor follows the live demo link to the voice
- * agent at jarvis.whoisdhruv.com.
- */
-const PhonedAFriendSvg = memo(function PhonedAFriendSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.mint;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Handset — diagonal vintage receiver shape */}
-      <path
-        d="M16 22 Q14 18 18 16 Q22 14 26 18 L30 22 Q31 23 30.5 24.5 L28 27 Q34 33 37 36 L39.5 33.5 Q41 33 42 34 L46 38 Q50 42 48 46 Q46 50 42 48 Q26 38 16 22 Z"
-        fill={family.ink}
-        strokeLinejoin="round"
-      />
-      {/* Inner highlight stripe along the handset */}
-      <path
-        d="M19 19 Q20 18 22 18 L24 20"
-        fill="none"
-        stroke={family.bg}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        opacity="0.7"
-      />
-      <path
-        d="M40 40 L43 43"
-        fill="none"
-        stroke={family.bg}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        opacity="0.7"
-      />
-      {/* Sound waves leaving the earpiece — agent talking back */}
-      <path d="M14 30 Q11 32 12 36" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.55" />
-      <path d="M11 28 Q7 31 8 38" fill="none" stroke={family.ink} strokeWidth="1.4" strokeLinecap="round" opacity="0.4" />
-      {/* Glowing dial dot — "live" indicator */}
-      <circle cx="48" cy="16" r="3" fill="#22c55e" stroke={family.ink} strokeWidth="1" />
-      <circle cx="48" cy="16" r="1" fill="#fdfbf7" />
-    </svg>
-  );
-});
-
-/**
  * Strip a leading "the" from a label (case-insensitive) before picking the
  * placeholder initial, so stickers like "The Code" and "The Long Read" don't
  * all collapse to a single "T" glyph.
@@ -734,26 +512,14 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     case 'page-turner':
       inner = <PageTurnerSvg size={size} />;
       break;
-    case 'help-wanted':
-      inner = <HelpWantedSvg size={size} />;
-      break;
-    case 'stand-up-comic':
-      inner = <StandUpComicSvg size={size} />;
-      break;
     case 'note-sender':
       inner = <NoteSenderSvg size={size} />;
       break;
     case 'note-passer':
       inner = <NotePasserSvg size={size} />;
       break;
-    case 'long-read':
-      inner = <LongReadSvg size={size} />;
-      break;
     case 'full-chat':
       inner = <FullChatSvg size={size} />;
-      break;
-    case 'night-owl':
-      inner = <NightOwlSvg size={size} />;
       break;
     case 'signed-guestbook':
       inner = <SignedGuestbookSvg size={size} />;
@@ -761,26 +527,14 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     case 'project-explorer':
       inner = <ProjectExplorerSvg size={size} />;
       break;
-    case 'cheat-codes':
-      inner = <CheatCodesSvg size={size} />;
-      break;
-    case 'drawer-dweller':
-      inner = <DrawerDwellerSvg size={size} />;
-      break;
     case 'chat-conductor':
       inner = <ChatConductorSvg size={size} />;
-      break;
-    case 'terminal-addict':
-      inner = <TerminalAddictSvg size={size} />;
       break;
     case 'repo-hunter':
       inner = <RepoHunterSvg size={size} />;
       break;
     case 'social-butterfly':
       inner = <SocialButterflySvg size={size} />;
-      break;
-    case 'phoned-a-friend':
-      inner = <PhonedAFriendSvg size={size} />;
       break;
     case 'superuser':
       inner = <SuperuserSvg size={size} />;

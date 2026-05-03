@@ -306,10 +306,16 @@ async function callProvider(
       });
       rawContent = completion.choices?.[0]?.message?.content;
     } else {
+      // Some OpenAI-compatible providers (e.g. NVIDIA-hosted Qwen) reject
+      // multiple system messages with: "System message must be at the
+      // beginning". Collapse all leading system messages into a single one
+      // for non-Groq providers. Groq accepts the split form and benefits
+      // from prompt caching on the stable prefix.
+      const collapsedMessages = collapseLeadingSystemMessages(messages);
       const client = createProviderClient(provider);
       const completion = await client.chat.completions.create({
         model: provider.model,
-        messages,
+        messages: collapsedMessages,
         temperature: CHAT_CONFIG.temperature,
         top_p: CHAT_CONFIG.topP,
         max_tokens: CHAT_CONFIG.maxTokens,
@@ -368,4 +374,31 @@ function getDeltaText(content: unknown): string {
       return '';
     })
     .join('');
+}
+
+/**
+ * Merge consecutive leading `system` messages into a single one (joined by
+ * a blank line) and leave the rest of the conversation untouched. Required
+ * for OpenAI-compatible providers that only accept one system message at
+ * the start of the conversation.
+ */
+function collapseLeadingSystemMessages(
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  let splitIdx = 0;
+  while (splitIdx < messages.length && messages[splitIdx].role === 'system') {
+    splitIdx += 1;
+  }
+  if (splitIdx <= 1) return messages;
+
+  const systemContent = messages
+    .slice(0, splitIdx)
+    .map(m => (typeof m.content === 'string' ? m.content : ''))
+    .filter(Boolean)
+    .join('\n\n');
+
+  return [
+    { role: 'system', content: systemContent },
+    ...messages.slice(splitIdx),
+  ];
 }

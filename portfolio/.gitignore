@@ -47,3 +47,8 @@ scripts/deploy.local.conf
 *.md
 # …except the RAG fact corpus — these power the build-time embeddings pipeline.
 !content/facts/**/*.md
+# …and except the LLM-crawler markdown route handlers (per llmstxt.org).
+# The directory names literally end in `.md` so the route serves at /about.md
+# etc. — the route.ts files inside must be tracked.
+!app/**/*.md/
+!app/**/*.md/**

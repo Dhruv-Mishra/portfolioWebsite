@@ -1408,9 +1408,9 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    feel without crossing into seizure-inducing territory. */
 @keyframes disco-wiggle {
   0%, 100% { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 2.5deg)); }
+  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 5deg)); }
   50%      { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 2.5deg)); }
+  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 5deg)); }
 }
 
 /* 2) shimmy — horizontal slide, short burst, for wide-ish elements (chat
@@ -1476,8 +1476,9 @@ html[data-disco="on"] [data-disco-motion="bob"] {
    animate their INNER .group\/card layer via a shimmy so the inline rotate
    stays intact on the parent. */
 html[data-disco="on"] .group\/card {
-  animation: disco-shimmy 900ms ease-in-out infinite;
+  animation: disco-wiggle 1400ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
+  transform-origin: center;
   will-change: transform;
 }
 /* Stagger consecutive project tiles so the dance reads as a wave not a stomp. */
@@ -1488,8 +1489,9 @@ html[data-disco="on"] .grid > div:nth-child(3n+3) .group\/card { animation-delay
    via `.animate-wall-note-in`. We only apply disco motion to the INNER
    body (`article > div`) so the rotation on the article is untouched. */
 html[data-disco="on"] article.animate-wall-note-in > div {
-  animation: disco-shimmy 900ms ease-in-out infinite;
+  animation: disco-wiggle 1400ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
+  transform-origin: center;
   will-change: transform;
 }
 
@@ -1528,11 +1530,12 @@ html[data-disco="on"] .sticker-card--locked {
   }
 }
 
-/* Terminal shell — bottom-to-top breath pulse. The outer m.div is the
-   wrapping container; we hit it by its `perspective-[1000px]` marker class
-   so we don't need a component attribute change. */
+/* Terminal shell — same wiggle motion as the about-page sheet so the
+   home terminal sways in sync with the rest of the disco choreography.
+   Targeted via the `perspective-[1000px]` marker class on the outer m.div. */
 html[data-disco="on"] .perspective-\[1000px\] {
-  animation: disco-breath 2200ms ease-in-out infinite;
+  animation: disco-wiggle 1400ms ease-in-out infinite;
+  transform-origin: center;
   will-change: transform;
 }
 

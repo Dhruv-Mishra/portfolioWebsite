@@ -931,7 +931,7 @@ const SOUND_SPECS: Readonly<Record<SoundId, SoundSpec>> = Object.freeze({
   'theme-dark':         { render: playThemeDark,  url: '/sounds/theme-dark.mp3',  sampleGain: 0.65 },
   'theme-light':        { render: playThemeLight, url: '/sounds/theme-light.mp3', sampleGain: 0.7 },
   'disco-start':        { render: playDiscoStart, url: '/sounds/disco-start.mp3', sampleGain: 0.75 },
-  'disco-loop':         { render: playDiscoLoopFallback, url: '/sounds/disco-loop.mp3', sampleGain: 0.35 },
+  'disco-loop':         { render: playDiscoLoopFallback, url: '/sounds/disco-loop.mp3?v=2', sampleGain: 0.35 },
   'matrix':             { render: playMatrixFallback, url: '/sounds/matrix.mp3', sampleGain: 0.5 },
 
   // Procedural-only.

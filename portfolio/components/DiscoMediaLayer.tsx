@@ -50,8 +50,7 @@ import { memo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useSoundsMuted } from '@/hooks/useStickers';
 import { useAppHaptics } from '@/lib/haptics';
-import { startDiscoAudio } from '@/lib/discoAudio';
-import { soundManager, registerExternalLoopFactory } from '@/lib/soundManager';
+import { soundManager } from '@/lib/soundManager';
 import { startDiscoHaptics, stopDiscoHaptics } from '@/lib/discoHaptics';
 
 // Nested modules — all lazy, none in the eager bundle.
@@ -72,22 +71,11 @@ const DiscoVisuals = memo(function DiscoVisuals(): React.ReactElement {
   );
 });
 
-// Register the procedural-external factory on module load. This is safe at
-// module-top because registration is just Map.set; it doesn't create an
-// AudioContext or start audio. The factory is only INVOKED from inside a
-// user-gesture call tree (startLoop).
-//
-// The factory is the bridge between the sound manager's looping API and
-// the existing discoAudio engine. When the MP3 buffer isn't ready, the
-// manager calls this to get an object that can stop() / setMuted().
-registerExternalLoopFactory('disco-loop', () => {
-  const handle = startDiscoAudio({ muted: false });
-  if (!handle) return null;
-  return {
-    stop: (): void => handle.stop(),
-    setMuted: (m: boolean): void => handle.setMuted(m),
-  };
-});
+// Procedural-external factory registration was removed: when the user adds
+// a custom disco-loop.mp3 we never want to fall back to the synthesized
+// disco engine, otherwise the wrong audio plays during the brief window
+// before the MP3 buffer finishes decoding. DiscoAudioBridge now waits for
+// the real buffer to land before starting playback.
 
 /**
  * DiscoAudioBridge — a zero-DOM component that owns the disco music
@@ -123,35 +111,26 @@ const DiscoAudioBridge = memo(function DiscoAudioBridge(): null {
     let cancelled = false;
     let unsubscribeReady: (() => void) | null = null;
 
-    // Kick off the loop immediately. startLoop() synchronously decides the
-    // mode based on buffer availability.
-    const started = soundManager.startLoop('disco-loop');
+    // Make sure the MP3 buffer is being fetched. Cheap idempotent call —
+    // safe to fire on every disco activation; downstream warmup logic
+    // dedupes by sound id.
+    soundManager.warmupSuperuserSounds();
 
-    // Apply the current sitewide mute preference to the loop so that if the
-    // user had muted before activating disco, no audio leaks out on start.
-    if (started) {
-      soundManager.setLoopMuted('disco-loop', soundsMuted);
-    }
+    const startBufferLoop = () => {
+      if (cancelled) return;
+      const ok = soundManager.startLoop('disco-loop');
+      if (ok) soundManager.setLoopMuted('disco-loop', soundsMuted);
+    };
 
-    // If we're currently on the procedural fallback (buffer wasn't ready),
-    // subscribe to buffer-ready so we can upgrade.
-    const isBufferMode = soundManager.hasBuffer('disco-loop');
-    if (started && !isBufferMode) {
-      // Hot-swap listener — fires when the MP3 decode finishes.
+    if (soundManager.hasBuffer('disco-loop')) {
+      // Buffer already cached — start immediately.
+      startBufferLoop();
+    } else {
+      // Wait for the MP3 to finish decoding before starting any audio,
+      // so we never play the procedural disco synth as a placeholder.
       unsubscribeReady = soundManager.onBufferReady('disco-loop', () => {
         if (cancelled) return;
-        // Are we still playing the procedural fallback? If so, swap in the
-        // buffer. If the loop has already been stopped (disco exited), do
-        // nothing — the next disco activation will just use buffer directly.
-        if (!soundManager.isLoopPlaying('disco-loop')) return;
-        soundManager.stopLoop('disco-loop');
-        // Brief micro-delay so the stop's fade starts before the new loop's
-        // fade-in overlaps (~300ms cross-fade total).
-        window.setTimeout(() => {
-          if (cancelled) return;
-          soundManager.startLoop('disco-loop');
-          soundManager.setLoopMuted('disco-loop', soundsMuted);
-        }, 150);
+        startBufferLoop();
       });
     }
 

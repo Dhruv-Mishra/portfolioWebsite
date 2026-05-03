@@ -354,7 +354,7 @@ export default function Terminal() {
                text inside. Targeted via a site-wide selector on the
                .perspective-[1000px] class; keeping the attribute here makes
                the intent explicit for future maintainers. */
-            data-disco-motion="breath"
+            data-disco-motion="wiggle"
         >
             {/* Rough Shadow */}
             <div

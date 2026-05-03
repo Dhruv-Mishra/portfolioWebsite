@@ -744,9 +744,9 @@ describe('soundManager — warmup waves', () => {
     soundManager.play('page-flip');
     soundManager.warmupSuperuserSounds();
     await new Promise<void>((r) => setTimeout(r, 50));
-    expect(fetched).toContain('/sounds/disco-start.mp3');
-    expect(fetched).toContain('/sounds/disco-loop.mp3');
-    expect(fetched).toContain('/sounds/matrix.mp3');
+    expect(fetched.some((u) => u.includes('/sounds/disco-start.mp3'))).toBe(true);
+    expect(fetched.some((u) => u.includes('/sounds/disco-loop.mp3'))).toBe(true);
+    expect(fetched.some((u) => u.includes('/sounds/matrix.mp3'))).toBe(true);
   });
 
   it('warmupSuperuserSounds() deduplicates repeat calls', async () => {

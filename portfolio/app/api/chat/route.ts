@@ -120,7 +120,7 @@ function createFallbackResponse(latestUserMessage: string, reason?: string) {
   const reply = getContextualFallback(latestUserMessage);
   const headers: Record<string, string> = {
     'Cache-Control': 'no-store',
-    'X-Chat-Fallback': 'local',
+    'X-Chat-Fallback': 'localStatic',
   };
   if (reason) {
     // Truncate hard so we never leak full error bodies / keys to the client.
@@ -240,11 +240,14 @@ export async function POST(request: NextRequest) {
     }
 
     let result: ProviderCallResult | null = null;
+    let succeededTier: 'primaryOnline' | 'fallbackOnline' | null = null;
     const providerErrors: string[] = [];
 
-    for (const provider of providers) {
+    for (let i = 0; i < providers.length; i += 1) {
+      const provider = providers[i];
       try {
         result = await callProvider(provider, apiMessages);
+        succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
         break;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown provider failure';
@@ -269,7 +272,10 @@ export async function POST(request: NextRequest) {
       action: result.action,
       signature: signAssistantMessage(result.reply, result.action),
     }, {
-      headers: { 'Cache-Control': 'no-store' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Chat-Fallback': succeededTier ?? 'primaryOnline',
+      },
     });
   } catch (err) {
     console.error('Chat API error:', err);

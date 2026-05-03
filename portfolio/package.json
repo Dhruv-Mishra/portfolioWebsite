@@ -2,6 +2,7 @@
   "name": "portfolio",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.9.8",
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm run build:embeddings",
@@ -39,6 +40,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
+    "vite": "7.3.2",
     "vitest": "^4.1.5"
   },
   "overrides": {

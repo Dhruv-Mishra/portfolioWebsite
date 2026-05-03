@@ -29,7 +29,7 @@ export default function Navigation() {
 
     return (
         <nav
-            className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 flex justify-center md:justify-end gap-2 md:gap-4 perspective-[500px]"
+            className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 flex flex-wrap justify-center md:justify-end gap-1 sm:gap-2 md:gap-4 perspective-[500px]"
             aria-label="Main navigation"
             style={{ zIndex: Z_INDEX.nav }}
         >

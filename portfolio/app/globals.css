@@ -1468,10 +1468,21 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    Stagger via nth-child of the parent or via an explicit `--disco-motion-delay`
    on the element. */
 html[data-disco="on"] [data-disco-motion="wiggle"] {
-  animation: disco-wiggle 1200ms ease-in-out infinite;
+  /* Use the standalone `rotate:` keyframe (`disco-spin-prop`) instead of the
+     `transform: rotate(...)` keyframe so the dance composes orthogonally
+     with framer-motion's inline `style.transform` writes (e.g. the home
+     Terminal's entrance tween settles to a non-trivial transform; the
+     `data-disco-motion="wiggle"` rule must still wiggle on top of it). */
+  animation: disco-spin-prop 1200ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   transform-origin: center;
-  will-change: transform;
+  will-change: rotate;
+}
+@supports not (rotate: 1deg) {
+  html[data-disco="on"] [data-disco-motion="wiggle"] {
+    animation: disco-wiggle 1200ms ease-in-out infinite;
+    will-change: transform;
+  }
 }
 html[data-disco="on"] [data-disco-motion="shimmy"] {
   animation: disco-shimmy 800ms ease-in-out infinite;
@@ -1521,10 +1532,18 @@ html[data-disco="on"] .grid > div:nth-child(3n+3) .group\/card { animation-delay
    via `.animate-wall-note-in`. We only apply disco motion to the INNER
    body (`article > div`) so the rotation on the article is untouched. */
 html[data-disco="on"] article.animate-wall-note-in > div {
-  animation: disco-wiggle 1400ms ease-in-out infinite;
+  /* Standalone-rotate variant so the inner wiggle composes with any
+     transform left on the wrapping <article> by its entrance animation. */
+  animation: disco-spin-prop 1400ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   transform-origin: center;
-  will-change: transform;
+  will-change: rotate;
+}
+@supports not (rotate: 1deg) {
+  html[data-disco="on"] article.animate-wall-note-in > div {
+    animation: disco-wiggle 1400ms ease-in-out infinite;
+    will-change: transform;
+  }
 }
 
 /* Sticker cards on /stickers — already carry an idle float animation. We
@@ -1562,21 +1581,29 @@ html[data-disco="on"] .sticker-card--locked {
   }
 }
 
-/* Terminal shell — same wiggle motion as the about-page sheet so the
-   home terminal sways in sync with the rest of the disco choreography.
-   Targeted via the `perspective-[1000px]` marker class on the outer m.div. */
-html[data-disco="on"] .perspective-\[1000px\] {
-  animation: disco-wiggle 1400ms ease-in-out infinite;
-  transform-origin: center;
-  will-change: transform;
-}
+/* Terminal shell — the home terminal `<m.div>` already carries
+   `data-disco-motion="wiggle"`, which now uses the standalone-rotate
+   keyframe (`disco-spin-prop`) and dances reliably regardless of
+   framer-motion's inline transform writes from the entrance tween.
+   The previous duplicate `.perspective-[1000px]` rule competed with
+   the data-attribute selector at the same specificity (last-source
+   wins) and used the older `transform`-based `disco-wiggle`, which
+   could be silently suppressed by framer-motion's settled
+   `style.transform`. Removing it eliminates the race entirely. */
 
 /* About + Resume page shells — page-sheet entrance is done by the time disco
    matters, so it's safe to take over the transform. We scope by animation
-   class so only the top-level paper sheet dances, not inner photo/tape. */
+   class so only the top-level paper sheet dances, not inner photo/tape.
+   Uses `disco-spin-prop` (standalone `rotate:`) so the dance composes
+   independently of any inline `style.transform` left over from the entrance. */
 html[data-disco="on"] .animate-page-sheet {
-  animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite 0.5s;
+  animation: pageSheetIn 0.35s ease-out both, disco-spin-prop 1400ms ease-in-out infinite 0.5s;
   transform-origin: center;
+}
+@supports not (rotate: 1deg) {
+  html[data-disco="on"] .animate-page-sheet {
+    animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite 0.5s;
+  }
 }
 
 /* Chat bubbles — target StickyNote rendered elements via their
@@ -1647,10 +1674,14 @@ html[data-disco="on"] [data-cursor] {
   /* Cursor layer never participates — tracking jitters feel like input lag. */
   animation: none !important;
 }
-html[data-disco="on"] p,
-html[data-disco="on"] li {
+html[data-disco="on"] p:not([data-disco-motion]),
+html[data-disco="on"] li:not([data-disco-motion]) {
   /* Long-form text nodes inside cards already inherit their parent's
-     shimmy; don't compound by also animating the paragraph itself. */
+     shimmy; don't compound by also animating the paragraph itself.
+     EXCEPTION: elements that explicitly opt-in via `data-disco-motion`
+     (e.g. the home page subtitle <p data-disco-motion="shimmy">) must
+     keep their dance — the `:not([data-disco-motion])` guard preserves
+     the no-double-shimmy intent without silencing opt-in animations. */
   animation: none !important;
 }
 

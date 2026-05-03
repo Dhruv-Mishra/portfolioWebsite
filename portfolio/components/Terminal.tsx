@@ -348,12 +348,14 @@ export default function Terminal() {
             transition={{ duration: ANIMATION_TOKENS.duration.slow, type: "spring", bounce: 0.4 }}
             className="w-full max-w-[var(--c-terminal-max-w)] mx-auto relative group perspective-[1000px]"
             suppressHydrationWarning
-            /* Disco mode: the terminal shell gets a gentle "breath" pulse — a
-               slow 2s scale cycle so the largest surface on the home page is
-               alive with the beat without shifting the reading plane of the
-               text inside. Targeted via a site-wide selector on the
-               .perspective-[1000px] class; keeping the attribute here makes
-               the intent explicit for future maintainers. */
+            /* Disco mode: the terminal shell wiggles on the beat. The CSS
+               rule lives in `app/globals.css` keyed off this
+               `data-disco-motion="wiggle"` attribute, and it animates the
+               standalone `rotate:` property so it composes cleanly with
+               the inline `style.transform` left behind by the framer-motion
+               entrance tween above (without that, the wiggle would race
+               framer-motion's settled transform and occasionally fail to
+               start after a route remount). */
             data-disco-motion="wiggle"
         >
             {/* Rough Shadow */}

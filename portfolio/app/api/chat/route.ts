@@ -116,19 +116,22 @@ function getOrderedProviders(primary: LLMProvider | null, fallback: LLMProvider 
     });
 }
 
-function createFallbackResponse(latestUserMessage: string) {
+function createFallbackResponse(latestUserMessage: string, reason?: string) {
   const reply = getContextualFallback(latestUserMessage);
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-store',
+    'X-Chat-Fallback': 'local',
+  };
+  if (reason) {
+    // Truncate hard so we never leak full error bodies / keys to the client.
+    headers['X-Chat-Fallback-Reason'] = reason.replace(/[\r\n]+/g, ' ').slice(0, 300);
+  }
   return Response.json({
     reply,
     action: null,
     degraded: true,
     signature: signAssistantMessage(reply, null),
-  }, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'X-Chat-Fallback': 'local',
-    },
-  });
+  }, { headers });
 }
 
 export async function POST(request: NextRequest) {
@@ -233,7 +236,7 @@ export async function POST(request: NextRequest) {
 
     if (providers.length === 0) {
       console.error('No LLM providers are configured; returning local fallback reply.');
-      return createFallbackResponse(latestUserMessage);
+      return createFallbackResponse(latestUserMessage, 'no-providers-configured');
     }
 
     let result: ProviderCallResult | null = null;
@@ -251,8 +254,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!result) {
-      console.error('All LLM providers failed; returning local fallback reply.', providerErrors);
-      return createFallbackResponse(latestUserMessage);
+      console.error('All LLM providers failed; returning local fallback reply.', {
+        attempted: providers.map(p => p.label),
+        errors: providerErrors,
+      });
+      return createFallbackResponse(
+        latestUserMessage,
+        `all-providers-failed; tried=${providers.map(p => p.label).join(',')}; ${providerErrors.join(' | ')}`,
+      );
     }
 
     return Response.json({

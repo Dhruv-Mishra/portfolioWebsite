@@ -190,11 +190,14 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
 /**
  * Get followup action labels for suggestion chips.
- * Theme actions are intentionally excluded to keep suggestions stable.
+ * Light / dark / toggle / disco-off theme actions are excluded (UI already
+ * exposes those via the theme toggle), but `disco` is allowed through so the
+ * chat surfaces a hardcoded "Engage disco mode" chip with disco-themed
+ * styling — see SuggestionStrip in StickyNoteChat.tsx.
  */
 export function getFollowupActions(): string[] {
   return ACTION_REGISTRY
-    .filter(a => !a.themeAction)
+    .filter(a => !a.themeAction || a.themeAction === 'disco')
     .map(a => a.label);
 }
 
@@ -210,6 +213,7 @@ export const FOLLOWUP_CONVERSATIONAL = [
   "What are your hobbies?",
   "Tell me about your PC build",
   "What games do you play?",
+  "What's disco mode?",
 ] as const;
 
 /** Initial suggestions shown before any conversation */
@@ -217,7 +221,7 @@ export const INITIAL_SUGGESTIONS = [
   "What do you work on at Microsoft?",
   "What's your tech stack?",
   "Tell me about Jarvis",
-  "Tell me about Cropio",
+  "What's disco mode?",
   "What's the Escape the Matrix puzzle?",
   "Report a bug",
 ] as const;

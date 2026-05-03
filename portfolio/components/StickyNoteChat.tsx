@@ -277,6 +277,17 @@ const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 // Static rotation styles hoisted to module scope to avoid re-creating objects per render
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
 const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
+// Disco "Engage disco mode" chip — vivid candy-palette gradient that mirrors
+// the disco-on body background (pink → fuchsia → cyan → amber). Always shown
+// in disco colors regardless of light/dark theme so the chip telegraphs what
+// it does. Border is fuchsia for max contrast against the pink stops.
+const SUGGESTION_STYLE_DISCO = {
+  transform: 'rotate(-1deg)',
+  backgroundImage:
+    'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 25%, #c4b5fd 50%, #a5f3fc 75%, #fde68a 100%)',
+  backgroundColor: '#fbcfe8',
+} as const;
+const DISCO_ACTION_LABEL = 'Engage disco mode';
 
 // RateLimitNote animation constants
 const RATE_LIMIT_INITIAL = { opacity: 0, scale: 0.9 } as const;
@@ -321,6 +332,7 @@ function getNoteRotation(messageId: string, isUser: boolean): number {
 
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
+  const isDisco = isAction && text === DISCO_ACTION_LABEL;
   return (
   <m.button
     initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
@@ -331,17 +343,26 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     whileTap={SUGGESTION_TAP}
     onClick={handleClick}
     className={cn(
-      "px-4 py-2 bg-[var(--c-paper)] border-2 rounded shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] opacity-80 hover:opacity-100 transition-opacity flex flex-col items-start",
-      isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
+      "px-4 py-2 border-2 rounded shadow-sm font-hand text-sm md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
+      isDisco
+        ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
+        : cn(
+            "bg-[var(--c-paper)] text-[var(--c-ink)]",
+            isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
+          ),
     )}
-    style={isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL}
+    style={isDisco ? SUGGESTION_STYLE_DISCO : (isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL)}
   >
     <span className={cn(
       "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-0.5",
-      isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
+      isDisco
+        ? "text-fuchsia-700"
+        : isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
     )}>
-      {isAction ? <Zap size={10} className="text-amber-500" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
-      {isAction ? 'action' : 'suggestion'}
+      {isDisco
+        ? <span aria-hidden="true">🪩</span>
+        : isAction ? <Zap size={10} className="text-amber-500" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
+      {isDisco ? 'disco' : (isAction ? 'action' : 'suggestion')}
     </span>
     {text}
   </m.button>

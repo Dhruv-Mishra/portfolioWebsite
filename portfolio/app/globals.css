@@ -42,7 +42,7 @@
     --c-terminal-max-w: 48rem;
     --c-nav-tab-py: 0.75rem;
     --c-nav-tab-py-md: 1rem;
-    --c-nav-tab-px: 0.75rem;
+    --c-nav-tab-px: 1rem;
     --c-nav-tab-px-md: 1.25rem;
     --c-nav-tab-pt: 3rem;
     --c-nav-tab-pt-md: 4rem;
@@ -238,7 +238,7 @@
     :root,
     [data-size="small"],
     [data-size="large"] {
-      --c-nav-tab-px: 0.375rem;
+      --c-nav-tab-px: 0.625rem;
       --t-nav: 0.75rem;
       --t-hero: 3rem;
       --t-hero-md: 3rem;
@@ -1423,6 +1423,29 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
   75%      { transform: translateX(-4px); }
 }
 
+/* 2b) spin-prop — same rotational sway as `disco-wiggle`, but animates the
+   standalone `rotate:` CSS property instead of `transform`. This composes
+   independently with framer-motion's inline `transform` (used on project
+   tiles' hover/tap), so the dance is visible even after pointer interaction
+   resolves the inline transform. */
+@keyframes disco-spin-prop {
+  0%, 100% { rotate: var(--disco-wiggle-rest, 0deg); }
+  25%      { rotate: calc(var(--disco-wiggle-rest, 0deg) + 5deg); }
+  50%      { rotate: var(--disco-wiggle-rest, 0deg); }
+  75%      { rotate: calc(var(--disco-wiggle-rest, 0deg) - 5deg); }
+}
+
+/* 2c) chat-sway — combined slight rotate + horizontal translation for chat
+   bubbles. Rotate uses standalone `rotate:` so it composes with framer/inline
+   transforms; translate runs as the keyframe's `transform`. Amplitude kept
+   tight (±2deg / ±4px) so message text remains readable. */
+@keyframes disco-chat-sway {
+  0%, 100% { transform: translateX(0);    rotate: 0deg; }
+  25%      { transform: translateX(4px);  rotate: 2deg; }
+  50%      { transform: translateX(0);    rotate: 0deg; }
+  75%      { transform: translateX(-4px); rotate: -2deg; }
+}
+
 /* 3) breath — slow scale pulse, for LARGE surfaces (terminal shell,
    mini-chat panel, resume PDF shell, command palette card). Amplitude
    bumped to 2.5% so the surface visibly inhales/exhales with the beat. */
@@ -1476,10 +1499,19 @@ html[data-disco="on"] [data-disco-motion="bob"] {
    animate their INNER .group\/card layer via a shimmy so the inline rotate
    stays intact on the parent. */
 html[data-disco="on"] .group\/card {
-  animation: disco-wiggle 1400ms ease-in-out infinite;
+  animation: disco-spin-prop 1400ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   transform-origin: center;
-  will-change: transform;
+  will-change: rotate;
+}
+/* Safari ≤14.x fallback — standalone `rotate:` unsupported, fall back to the
+   transform-based wiggle. (On those browsers, framer-motion's hover transform
+   may briefly suppress the dance during interaction — acceptable degradation.) */
+@supports not (rotate: 1deg) {
+  html[data-disco="on"] .group\/card {
+    animation: disco-wiggle 1400ms ease-in-out infinite;
+    will-change: transform;
+  }
 }
 /* Stagger consecutive project tiles so the dance reads as a wave not a stomp. */
 html[data-disco="on"] .grid > div:nth-child(3n+2) .group\/card { animation-delay: 150ms; }
@@ -1552,10 +1584,11 @@ html[data-disco="on"] .animate-page-sheet {
    stagger between user + AI so the thread doesn't pulse in unison. */
 html[data-disco="on"] .bg-\[var\(--note-user\)\],
 html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
-  animation-name: disco-shimmy, disco-card-hue;
+  animation-name: disco-chat-sway, disco-card-hue;
   animation-duration: 900ms, 6s;
   animation-iteration-count: infinite, infinite;
   animation-timing-function: ease-in-out, linear;
+  will-change: transform, rotate;
 }
 html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
   animation-delay: 180ms, 0ms;

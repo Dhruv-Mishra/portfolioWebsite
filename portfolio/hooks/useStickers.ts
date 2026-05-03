@@ -87,7 +87,7 @@ export interface StickerState {
   visitedRoutes: string[];
   /** Distinct terminal commands run — unlocks `terminal-addict` at size ≥5 */
   terminalCommands: string[];
-  /** Distinct project slugs whose modal has been opened — unlocks `project-explorer` at size 8 */
+  /** Distinct project slugs whose modal has been opened — unlocks `project-explorer` the first time any project is opened */
   openedProjects: string[];
   /**
    * Runtime-only disco flag. NOT persisted — every page load begins with disco
@@ -712,6 +712,17 @@ export function resetStickerProgressImperative(): void {
 
 export function dismissActiveToast(): void {
   dismissToastInternal();
+}
+
+/**
+ * Synchronous read of the current sticker progress snapshot. Excludes the
+ * hidden superuser sticker from the unlocked count. Safe to call from event
+ * handlers and terminal commands; not reactive — for UI subscriptions use
+ * `useStickerProgress()`.
+ */
+export function getStickerProgressSync(): StickerProgress {
+  initializeStoreOnce();
+  return store.progress;
 }
 
 // ─── Narrow selector snapshots ──────────────────────────────────────────

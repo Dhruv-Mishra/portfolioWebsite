@@ -41,8 +41,8 @@ describe('sticker roster metadata', () => {
     expect(REGULAR_STICKER_IDS.size).toBe(STICKER_TOTAL);
   });
 
-  it('STICKER_TOTAL is 11 (current roster size)', () => {
-    expect(STICKER_TOTAL).toBe(11);
+  it('STICKER_TOTAL is 12 (current roster size)', () => {
+    expect(STICKER_TOTAL).toBe(12);
   });
 
   it('the retired `konami` sticker is not in the roster', () => {
@@ -67,6 +67,7 @@ describe('sticker roster metadata', () => {
       'chat-conductor',   // chat AI perform-action
       'repo-hunter',      // project modal external link
       'social-butterfly', // social pill link tap
+      'phoned-a-friend',  // jarvis live-demo external link tap
     ];
     const rosterIds = STICKER_ROSTER.map((s) => s.id);
     for (const audited of auditedMobileReachable) {

@@ -64,15 +64,13 @@ export default function Projects() {
     const openProject = useCallback((index: number) => {
         openPanel();
         setSelectedProject(index);
-        // Track opened projects — unlock `project-explorer` once every project
-        // modal has been opened at least once. PROJECTS is the canonical list,
-        // so comparing distinct-count to PROJECTS.length is the correct gate.
+        // Track opened projects — unlock `project-explorer` the first time any
+        // project modal is opened. The bus listener (useStickers/unlockSticker)
+        // dedups, so re-emits on subsequent opens are harmless.
         const proj = PROJECTS[index];
         if (proj) {
-            const distinct = recordOpenedProjectImperative(proj.slug);
-            if (distinct >= PROJECTS.length) {
-                stickerBus.emit('project-explorer');
-            }
+            recordOpenedProjectImperative(proj.slug);
+            stickerBus.emit('project-explorer');
         }
     }, [openPanel]);
 

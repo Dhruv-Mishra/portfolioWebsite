@@ -11,6 +11,7 @@ import {
     getMatrixEscapedSync,
     getDiscoActiveSync,
     setMatrixEscapedImperative,
+    getStickerProgressSync,
 } from '@/hooks/useStickers';
 import {
     parseSudoInvocation,
@@ -533,6 +534,21 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
  * Compose the current puzzle-stage signals and return a hint line. Pure
  * read — no state mutations. Called by both `matrix hint` and `/hint`.
  */
+const STAGE_NUDGES: Record<number, string> = {
+    1: 'Next: enable the sticker sheet at /stickers, then earn every regular sticker.',
+    2: 'Next: with sudo unlocked, try `sudo ls` in the terminal.',
+    3: 'Next: try `sudo cat <file>` on what root just showed you.',
+    4: 'Next: take the credentials to /admin and sign in.',
+    5: 'Next: in the admin console, flip the experimental commands toggle on.',
+    6: 'Next: type `sudo matrix` in the terminal.',
+    7: 'Next: turn on disco mode (`sudo disco`) — the escape button needs a beat.',
+    8: 'Next: stay on the page with disco running for ~20 seconds.',
+    9: 'You did it. Welcome to the other side.',
+};
+
+const TOTAL_STAGES = 9;
+const PROGRESS_BAR_CELLS = 12;
+
 function renderMatrixHintResult(): CommandResult {
     const signals: MatrixPuzzleSignals = {
         hasSuperuser: isSuperuserEarnedSync(),
@@ -547,15 +563,39 @@ function renderMatrixHintResult(): CommandResult {
     };
     const stage = getCurrentStage(signals);
     const hint = getHintForStage(stage);
+    const nudge = STAGE_NUDGES[stage] ?? '';
+    const { unlocked, total } = getStickerProgressSync();
+    const filled = Math.min(
+        PROGRESS_BAR_CELLS,
+        Math.round((stage / TOTAL_STAGES) * PROGRESS_BAR_CELLS),
+    );
+    const bar = '█'.repeat(filled) + '░'.repeat(PROGRESS_BAR_CELLS - filled);
+    const pct = Math.round((stage / TOTAL_STAGES) * 100);
+    const escaped = stage >= TOTAL_STAGES;
+
     return {
         output: (
             <div
                 role="status"
                 aria-live="polite"
-                className="border-l-2 border-cyan-400/60 pl-3 py-1 my-1"
+                className="font-mono text-xs leading-relaxed my-1"
             >
-                <p className="text-cyan-300 font-bold text-xs uppercase tracking-widest">oracle hint</p>
-                <p className="text-gray-200 mt-1 italic">{hint}</p>
+                <pre className="text-cyan-300 whitespace-pre">{`╔═══════════════════════════════════════════╗
+║  THE MATRIX — escape route in progress    ║
+╠═══════════════════════════════════════════╣`}</pre>
+                <pre className="text-gray-200 whitespace-pre">{`║  Stickers: `}<span className="text-emerald-400">{`${unlocked}/${total}`}</span>{`  ·  Stage: `}<span className="text-emerald-400">{`${stage}/${TOTAL_STAGES}`}</span>{`            ║
+║  [`}<span className="text-emerald-400">{bar}</span>{`] ${pct}%${' '.repeat(Math.max(0, 26 - bar.length - String(pct).length))}║`}</pre>
+                <pre className="text-cyan-300 whitespace-pre">{`╚═══════════════════════════════════════════╝`}</pre>
+                <p className="text-cyan-300 font-bold mt-2 uppercase tracking-widest">oracle hint:</p>
+                <p className="text-gray-200 italic pl-2">&ldquo;{hint}&rdquo;</p>
+                {escaped ? (
+                    <p className="text-emerald-400 mt-2 pl-2">★ {nudge}</p>
+                ) : (
+                    <>
+                        <p className="text-cyan-300 font-bold mt-2 uppercase tracking-widest">next:</p>
+                        <p className="text-emerald-400 pl-2">{nudge}</p>
+                    </>
+                )}
             </div>
         ),
     };

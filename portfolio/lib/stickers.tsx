@@ -7,7 +7,7 @@
  *   <StickerSvg id="first-word" size={60} />
  *
  * Roster:
- *   11 regular stickers reward genuine site exploration (no grindy counters
+ *   12 regular stickers reward genuine site exploration (no grindy counters
  *   or time-of-day gimmicks). Every roster entry is reachable on touch
  *   devices. The hidden `superuser` sticker is not exposed on the album
  *   until it is earned — awarded automatically the moment the user owns
@@ -25,10 +25,11 @@ export const STICKER_ROSTER = [
   { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',           family: 'mint' },
   { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',     family: 'mint' },
   { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.',  family: 'mint' },
-  { id: 'project-explorer', label: 'Case Files',            description: 'Opened every project note.',                  hint: 'every project has more to say — tap them all.',   family: 'coral' },
+  { id: 'project-explorer', label: 'Case Files',            description: 'Opened a project note.',                      hint: 'tap any project card to peek inside.',            family: 'coral' },
   { id: 'chat-conductor',   label: 'Chat Conductor',        description: 'Let chat-me steer the ship.',                 hint: 'ask the chat to actually *do* something.',        family: 'mint' },
   { id: 'repo-hunter',      label: 'Repo Hunter',           description: 'Followed a project back to its source.',      hint: 'source code lives a click away from each card.',  family: 'denim' },
   { id: 'social-butterfly', label: 'Social Butterfly',      description: 'Tapped one of the social links.',             hint: 'the links along the edge go somewhere ~',         family: 'rose' },
+  { id: 'phoned-a-friend',  label: 'Phoned a Friend',       description: 'Called the voice agent at jarvis.whoisdhruv.com.', hint: 'one of the projects is a voice agent — give it a ring.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -185,6 +186,27 @@ const PageTurnerSvg = memo(function PageTurnerSvg({ size }: IllustratedSvgProps)
       <path d="M41 16 L48 13 L46 18 L50 18 L46 22 L40 22 Z" fill={family.ink} strokeLinejoin="round" />
       {/* Curved orbit trail */}
       <path d="M40 20 Q50 22 48 32" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="2 2" opacity="0.55" />
+    </svg>
+  );
+});
+
+/**
+ * Phoned a Friend — a rotated handset with a couple of sound waves, on mint.
+ */
+const PhonedAFriendSvg = memo(function PhonedAFriendSvg({ size }: IllustratedSvgProps) {
+  const palette = STICKER_FAMILIES.mint;
+  return (
+    <svg viewBox="0 0 80 80" width={size} height={size} aria-hidden="true">
+      {/* phone receiver — handset rotated */}
+      <g transform="rotate(-30 40 40)">
+        <rect x="22" y="28" width="36" height="24" rx="11" fill={palette.bg} stroke={palette.ink} strokeWidth="2.5" />
+        <circle cx="30" cy="40" r="4" fill={palette.ink} />
+        <circle cx="50" cy="40" r="4" fill={palette.ink} />
+        <line x1="22" y1="40" x2="58" y2="40" stroke={palette.ink} strokeWidth="1.5" strokeDasharray="2 2" opacity="0.4" />
+      </g>
+      {/* sound waves */}
+      <path d="M 60 22 Q 66 28 60 34" fill="none" stroke={palette.ink} strokeWidth="2" strokeLinecap="round" opacity="0.65" />
+      <path d="M 66 18 Q 74 28 66 38" fill="none" stroke={palette.ink} strokeWidth="2" strokeLinecap="round" opacity="0.4" />
     </svg>
   );
 });
@@ -514,6 +536,9 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
       break;
     case 'note-sender':
       inner = <NoteSenderSvg size={size} />;
+      break;
+    case 'phoned-a-friend':
+      inner = <PhonedAFriendSvg size={size} />;
       break;
     case 'note-passer':
       inner = <NotePasserSvg size={size} />;

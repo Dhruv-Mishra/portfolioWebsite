@@ -104,6 +104,11 @@ const NOTE_ROTATION_CLASSES = [
 
 const DISCO_REST_ROTATIONS = ['-0.8deg', '0.65deg', '-0.35deg', '0.9deg'] as const;
 
+const TIMELINE_LOGO_STYLE = {
+  width: 'auto',
+  height: 'auto',
+} satisfies CSSProperties;
+
 function GrowIndigoWordmark({ className }: GrowIndigoWordmarkProps) {
   return (
     <span
@@ -381,6 +386,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                                   width={entry.logo.width}
                                   height={entry.logo.height}
                                   sizes={entry.logo.sizes}
+                                  style={TIMELINE_LOGO_STYLE}
                                   className={cn(
                                     'h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28',
                                     entry.logo.darkSrc && 'dark:hidden',
@@ -394,6 +400,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                                     width={entry.logo.width}
                                     height={entry.logo.height}
                                     sizes={entry.logo.sizes}
+                                    style={TIMELINE_LOGO_STYLE}
                                     className={cn(
                                       'hidden h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28 dark:block',
                                       entry.logo.darkClassName,

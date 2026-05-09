@@ -83,13 +83,14 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
   return (
     // OUTER wrapper: owns rotation + entrance animation; overflow is VISIBLE so
     // the tape strip (which lives below as a sibling of the clipped body) isn't
-    // clipped. Note: `content-visibility: auto` from `content-defer` is applied
-    // here too so off-screen notes still defer paint.
+    // clipped. We intentionally avoid `content-visibility: auto` here because
+    // mobile browsers can inflate the initial inline size of deferred elements
+    // inside CSS columns, which widens the guestbook page until a later reflow.
     <article
       aria-labelledby={signatureId}
       style={wrapperStyle}
       className={cn(
-        'relative content-defer animate-wall-note-in',
+        'relative w-full max-w-full animate-wall-note-in',
         'shadow-md font-hand text-base text-[var(--c-ink)] border',
         GUESTBOOK_NOTE_BORDER,
       )}

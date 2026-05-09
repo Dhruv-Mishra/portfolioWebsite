@@ -28,8 +28,6 @@
  *     flag flips true.
  */
 
-import { soundManager } from '@/lib/soundManager';
-
 /** Was prefetch already scheduled in this session? Guards repeat calls. */
 let scheduled = false;
 
@@ -98,8 +96,8 @@ function scheduleIdle(cb: () => void, timeoutMs: number): void {
 export function scheduleSuperuserPrefetch(): void {
   if (typeof window === 'undefined') return;
   if (scheduled) return;
-  scheduled = true;
   if (!shouldPrefetch()) return;
+  scheduled = true;
 
   scheduleIdle(() => {
     // Disco media chunk — harmless if it was already imported by
@@ -115,7 +113,11 @@ export function scheduleSuperuserPrefetch(): void {
     // Superuser sound samples (disco-start, disco-loop, matrix). Dedup'd
     // by the sound manager — if the AudioContext isn't up yet the wave
     // is latched and fires on the next gesture.
-    soundManager.warmupSuperuserSounds();
+    void import('@/lib/soundManager')
+      .then(({ soundManager }) => soundManager.warmupSuperuserSounds())
+      .catch(() => {
+        /* best-effort */
+      });
   }, 1500);
 }
 

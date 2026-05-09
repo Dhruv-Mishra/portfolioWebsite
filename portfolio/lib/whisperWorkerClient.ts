@@ -12,9 +12,8 @@
 import {
   WHISPER_MODEL_ID,
   blobToWhisperAudio as _blobToWhisperAudio,
-  getWhisperPipeline,
   type WhisperProgress,
-} from './whisperClient';
+} from './whisperShared';
 
 export { WHISPER_MODEL_ID };
 export const blobToWhisperAudio = _blobToWhisperAudio;
@@ -88,6 +87,7 @@ export async function transcribeWithWorker(
 ): Promise<string> {
   const w = getWorker();
   if (!w) {
+    const { getWhisperPipeline } = await import('./whisperClient');
     const asr = await getWhisperPipeline(opts?.onProgress);
     const decodeOpts: Record<string, unknown> = {
       chunk_length_s: 30,
@@ -115,7 +115,12 @@ export async function transcribeWithWorker(
       );
     } catch {
       // Some browsers reject transferables of certain TypedArrays — fall back to copy.
-      w.postMessage({ type: 'transcribe', id, model: WHISPER_MODEL_ID, audio, language: opts?.language });
+      try {
+        w.postMessage({ type: 'transcribe', id, model: WHISPER_MODEL_ID, audio, language: opts?.language });
+      } catch (error) {
+        pending.delete(id);
+        reject(error instanceof Error ? error : new Error('whisper-worker-post-failed'));
+      }
     }
   });
 }
@@ -127,7 +132,9 @@ export async function transcribeWithWorker(
 export function preloadWhisperWorker(onProgress?: (p: WhisperProgress) => void): Promise<boolean> {
   const w = getWorker();
   if (!w) {
-    return import('./whisperClient').then((m) => m.preloadWhisperPipeline());
+    return import('./whisperClient')
+      .then((m) => m.preloadWhisperPipeline())
+      .catch(() => false);
   }
   return new Promise<boolean>((resolve) => {
     const id = nextId++;

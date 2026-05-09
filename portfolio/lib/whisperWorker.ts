@@ -15,7 +15,7 @@
 
 /// <reference lib="webworker" />
 
-import type { WhisperProgress } from './whisperClient';
+import type { WhisperProgress } from './whisperShared';
 
 type AsrPipeline = (
   audio: Float32Array,

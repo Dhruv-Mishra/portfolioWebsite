@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { LAYOUT_TOKENS } from '@/lib/designTokens';
-import { createInitialTerminalOutput } from '@/lib/terminalCommands';
+import { createInitialTerminalOutput } from '@/lib/terminalInitialOutput';
 
 export interface TerminalLine {
     id: number;
@@ -50,6 +50,13 @@ const MAX_OUTPUT_LINES = LAYOUT_TOKENS.maxOutputLines;
 const MAX_HISTORY = LAYOUT_TOKENS.maxHistory;
 let nextLineId = 1;
 
+interface TerminalSessionState {
+    outputLines: TerminalLine[];
+    commandHistory: string[];
+}
+
+let terminalSessionState: TerminalSessionState | null = null;
+
 function capTerminalLines(lines: TerminalLine[]): TerminalLine[] {
     return lines.length > MAX_OUTPUT_LINES ? lines.slice(-MAX_OUTPUT_LINES) : lines;
 }
@@ -92,50 +99,87 @@ export function createInitialTerminalLine(): TerminalLine {
     };
 }
 
+function createInitialTerminalSessionState(): TerminalSessionState {
+    const outputLines = [createInitialTerminalLine()];
+    setNextLineId(outputLines);
+    return { outputLines, commandHistory: [] };
+}
+
+function readTerminalSessionState(): TerminalSessionState {
+    terminalSessionState ??= createInitialTerminalSessionState();
+    setNextLineId(terminalSessionState.outputLines);
+    return terminalSessionState;
+}
+
+function persistTerminalOutputLines(outputLines: TerminalLine[]): void {
+    const current = readTerminalSessionState();
+    terminalSessionState = { ...current, outputLines };
+    setNextLineId(outputLines);
+}
+
+function persistTerminalCommandHistory(commandHistory: string[]): void {
+    const current = readTerminalSessionState();
+    terminalSessionState = { ...current, commandHistory };
+}
+
+/** @internal test hook */
+export function __resetTerminalSessionForTest(): void {
+    terminalSessionState = null;
+    nextLineId = 1;
+}
+
+/** @internal test hook */
+export function __readTerminalSessionForTest(): TerminalSessionState {
+    return readTerminalSessionState();
+}
+
+/** @internal test hook */
+export function __persistTerminalSessionForTest(next: TerminalSessionState): void {
+    terminalSessionState = {
+        outputLines: capTerminalLines([...next.outputLines]),
+        commandHistory: next.commandHistory.slice(-MAX_HISTORY),
+    };
+    setNextLineId(terminalSessionState.outputLines);
+}
+
 export function TerminalProvider({ children }: { children: ReactNode }) {
-    const [outputLines, setLines] = useState<TerminalLine[]>(() => {
-        const initialLines = [createInitialTerminalLine()];
-        setNextLineId(initialLines);
-        return initialLines;
-    });
-    const [commandHistory, setCommandHistory] = useState<string[]>([]);
+    const [outputLines, setLines] = useState<TerminalLine[]>(() => readTerminalSessionState().outputLines);
+    const [commandHistory, setCommandHistory] = useState<string[]>(() => readTerminalSessionState().commandHistory);
 
     const addCommand = useCallback((command: string, output: React.ReactNode, options?: AddCommandOptions) => {
-        setLines(prev => {
-            const entry: TerminalLine = {
-                id: nextLineId++,
-                command,
-                output,
-                ...(options?.hideCommandHeader ? { hideCommandHeader: true } : {}),
-            };
-            const next = capTerminalLines([...prev, entry]);
-            setNextLineId(next);
-            return next;
-        });
+        const current = readTerminalSessionState();
+        const entry: TerminalLine = {
+            id: nextLineId++,
+            command,
+            output,
+            ...(options?.hideCommandHeader ? { hideCommandHeader: true } : {}),
+        };
+        const nextOutputLines = capTerminalLines([...current.outputLines, entry]);
+        persistTerminalOutputLines(nextOutputLines);
+        setLines(nextOutputLines);
 
         // Skip history capture when the caller explicitly opts out (e.g.
         // inline-prompt password/username submissions). Otherwise fall back
         // to the default behavior: any non-empty command goes into the ring.
         if (!options?.skipHistory && command.trim()) {
-            setCommandHistory(prev => {
-                const next = [...prev, command];
-                return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-            });
+            const nextHistory = computeNextHistory(current.commandHistory, command, options);
+            persistTerminalCommandHistory(nextHistory);
+            setCommandHistory(nextHistory);
         }
     }, []);
 
     const addToHistory = useCallback((command: string) => {
         if (command.trim()) {
-            setCommandHistory(prev => {
-                const next = [...prev, command];
-                return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-            });
+            const current = readTerminalSessionState();
+            const nextHistory = computeNextHistory(current.commandHistory, command);
+            persistTerminalCommandHistory(nextHistory);
+            setCommandHistory(nextHistory);
         }
     }, []);
 
     const clearOutput = useCallback(() => {
+        persistTerminalOutputLines([]);
         setLines([]);
-        setNextLineId([]);
     }, []);
 
     // System-injected terminal lines from elsewhere in the app (e.g. matrix

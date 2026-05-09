@@ -20,7 +20,12 @@ import {
     ANIMATION_TOKENS,
     LAYOUT_TOKENS,
 } from "@/lib/designTokens";
-import { createCommandRegistry } from "@/lib/terminalCommands";
+import {
+    TERMINAL_COMMAND_NAME_SET,
+    completeTerminalCommandInput,
+    type TerminalCommandCompletionSession,
+} from "@/lib/terminalCommandNames";
+import type { CommandHandler } from "@/lib/terminalCommands";
 import {
     getActivePrompt,
     subscribeToPrompts,
@@ -45,6 +50,7 @@ const containerStyleMobile = {
 } as const;
 const headerStyle = { backgroundColor: TERMINAL_COLORS.headerBg } as const;
 const noiseStyle = { backgroundImage: HEADER_NOISE_SVG } as const;
+type CommandRegistry = Record<string, CommandHandler>;
 
 // Memoised output area — only re-renders when outputLines changes, not on every keystroke
 interface TerminalOutputProps {
@@ -113,11 +119,26 @@ export default function Terminal() {
     const bottomRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInitialMount = useRef(true);
+    const commandRegistryRef = useRef<CommandRegistry | null>(null);
+    const completionSessionRef = useRef<TerminalCommandCompletionSession | null>(null);
+
+    const getCommandRegistry = React.useCallback(async (): Promise<CommandRegistry> => {
+        if (!commandRegistryRef.current) {
+            const { createCommandRegistry } = await import("@/lib/terminalCommands");
+            commandRegistryRef.current = createCommandRegistry(router);
+        }
+        return commandRegistryRef.current;
+    }, [router]);
+
+    useEffect(() => {
+        commandRegistryRef.current = null;
+    }, [router]);
 
     // When a prompt activates, auto-focus the input and clear any leftover text
     // so the user can start typing the password / username immediately.
     useEffect(() => {
         if (!activePrompt) return;
+        completionSessionRef.current = null;
         setInput("");
         // Desktop: focus immediately. Mobile: don't pop the keyboard
         // unsolicited — the user already tapped to trigger the prompt
@@ -133,10 +154,14 @@ export default function Terminal() {
     // placeholder doesn't distract from the request being made.
     const placeholderRef = useTerminalPlaceholder(!input && activePrompt === null);
 
-    // Command Registry defined outside
-    const COMMAND_REGISTRY = React.useMemo(() => createCommandRegistry(router), [router]);
+    const warmCommandRegistry = React.useCallback(() => {
+        void getCommandRegistry().catch(() => {});
+    }, [getCommandRegistry]);
 
-    const AVAILABLE_COMMANDS = React.useMemo(() => Object.keys(COMMAND_REGISTRY), [COMMAND_REGISTRY]);
+    const updateInput = React.useCallback((next: string) => {
+        completionSessionRef.current = null;
+        setInput(next);
+    }, []);
 
     useEffect(() => {
         if (isInitialMount.current) {
@@ -173,7 +198,7 @@ export default function Terminal() {
         // tokenization) straight to its handler.
         if (activePrompt) {
             const rawValue = input;
-            setInput("");
+            updateInput("");
             soundManager.play('terminal-click');
             submit();
             try {
@@ -183,7 +208,10 @@ export default function Terminal() {
                 console.error('Prompt handler error:', err);
                 errorHaptic();
                 setActivePrompt(null);
-                addCommand(rawValue, <span className={TERMINAL_COLORS.error}>Error processing input.</span>);
+                addCommand('', <span className={TERMINAL_COLORS.error}>Error processing input.</span>, {
+                    skipHistory: true,
+                    hideCommandHeader: true,
+                });
             }
             return;
         }
@@ -213,16 +241,30 @@ export default function Terminal() {
             addToHistory("clear");
             clearOutput();
             clearHaptic();
-            setInput("");
+            updateInput("");
             return;
         }
 
-        if (COMMAND_REGISTRY[lowerCmd]) {
+        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
             submit();
         }
 
-        const commandDef = COMMAND_REGISTRY[lowerCmd];
+        let commandDef: CommandHandler | undefined;
+        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
+            try {
+                const commandRegistry = await getCommandRegistry();
+                commandDef = commandRegistry[lowerCmd];
+            } catch (error) {
+                console.error('Command registry load error:', error);
+                errorHaptic();
+                addCommand(trimmedInput, <span className={TERMINAL_COLORS.error}>Error loading command module.</span>);
+                updateInput("");
+                setHistoryIndex(-1);
+                return;
+            }
+        }
         let output: React.ReactNode;
+        let action: (() => void) | undefined;
 
         if (commandDef) {
             try {
@@ -230,9 +272,7 @@ export default function Terminal() {
                 // Await result in case it's a promise
                 const result = await commandDef(args);
                 output = result.output;
-                if (result.action) {
-                    result.action();
-                }
+                action = result.action;
             } catch (error) {
                 console.error('Command execution error:', error);
                 errorHaptic();
@@ -251,20 +291,22 @@ export default function Terminal() {
 
         // Add original input string to history
         addCommand(trimmedInput, output);
-        setInput("");
+        updateInput("");
         setHistoryIndex(-1); // Reset history pointer
+        action?.();
     }, [
         input,
         addCommand,
         addToHistory,
         clearHaptic,
         clearOutput,
-        COMMAND_REGISTRY,
+        getCommandRegistry,
         errorHaptic,
         submit,
         warning,
         activePrompt,
         applyPromptAction,
+        updateInput,
         router,
     ]);
 
@@ -286,14 +328,14 @@ export default function Terminal() {
         setHistoryIndex(newIndex);
 
         if (newIndex === -1) {
-            setInput("");
+            updateInput("");
         } else {
             // history is [oldest, ..., newest]
             // up arrow (index 0) -> newest (length - 1)
             const targetCommand = commandHistory[commandHistory.length - 1 - newIndex];
-            setInput(targetCommand);
+            updateInput(targetCommand);
         }
-    }, [commandHistory, historyIndex]);
+    }, [commandHistory, historyIndex, updateInput]);
 
     // On mobile the virtual keyboard can cover the input. Wait for the keyboard
     // animation (~250ms on iOS) and then scroll the input back into the visible
@@ -301,12 +343,13 @@ export default function Terminal() {
     // walks all scrollable ancestors.
     const handleInputFocus = React.useCallback(() => {
         if (!hasInteracted) setHasInteracted(true);
+        warmCommandRegistry();
         if (typeof window === 'undefined') return;
         if (window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) return;
         window.setTimeout(() => {
             inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 320);
-    }, [hasInteracted]);
+    }, [hasInteracted, warmCommandRegistry]);
 
     const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
         // During an inline prompt, disable command history + tab-complete —
@@ -316,7 +359,7 @@ export default function Terminal() {
                 e.preventDefault();
                 const cancelResult = activePrompt.onCancel?.() ?? null;
                 setActivePrompt(null);
-                setInput('');
+                updateInput('');
                 if (cancelResult) {
                     applyPromptAction(cancelResult, '');
                 }
@@ -331,13 +374,13 @@ export default function Terminal() {
             navigateHistory('down');
         } else if (e.key === "Tab") {
             e.preventDefault();
-            const [cmd] = input.trim().split(/\s+/); // only autocomplete first word
-            const match = AVAILABLE_COMMANDS.find(c => c.startsWith(cmd));
-            if (match) {
-                setInput(match);
+            const completion = completeTerminalCommandInput(input, completionSessionRef.current);
+            completionSessionRef.current = completion.session;
+            if (completion.completed) {
+                setInput(completion.value);
             }
         }
-    }, [navigateHistory, input, AVAILABLE_COMMANDS, activePrompt, applyPromptAction]);
+    }, [navigateHistory, input, activePrompt, applyPromptAction, updateInput]);
 
 
 
@@ -426,7 +469,7 @@ export default function Terminal() {
                                     ref={inputRef}
                                     type="password"
                                     value={input}
-                                    onChange={(e) => setInput(e.target.value)}
+                                    onChange={(e) => updateInput(e.target.value)}
                                     onKeyDown={handleKeyDownReal}
                                     onFocus={handleInputFocus}
                                     className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
@@ -447,7 +490,7 @@ export default function Terminal() {
                                     ref={inputRef}
                                     type="text"
                                     value={input}
-                                    onChange={(e) => setInput(e.target.value)}
+                                    onChange={(e) => updateInput(e.target.value)}
                                     onKeyDown={handleKeyDownReal}
                                     onFocus={handleInputFocus}
                                     className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}

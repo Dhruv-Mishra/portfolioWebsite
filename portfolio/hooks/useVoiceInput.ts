@@ -10,11 +10,19 @@ import {
   logVoiceEvent,
   pickAudioMimeType,
   WHISPER_MODEL_ID,
-} from '@/lib/whisperClient';
-import {
-  preloadWhisperWorker,
-  transcribeWithWorker,
-} from '@/lib/whisperWorkerClient';
+} from '@/lib/whisperShared';
+
+type WhisperWorkerClient = typeof import('@/lib/whisperWorkerClient');
+
+let whisperWorkerClientPromise: Promise<WhisperWorkerClient> | null = null;
+
+function loadWhisperWorkerClient(): Promise<WhisperWorkerClient> {
+  whisperWorkerClientPromise ??= import('@/lib/whisperWorkerClient').catch((error) => {
+    whisperWorkerClientPromise = null;
+    throw error;
+  });
+  return whisperWorkerClientPromise;
+}
 
 /**
  * Whisper's transformers.js API expects the full lowercase language NAME
@@ -149,7 +157,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     };
     idle(() => {
       if (cancelled) return;
-      void preloadWhisperWorker().then((ok) => { if (!cancelled && ok) setIsWhisperReady(true); });
+      void loadWhisperWorkerClient()
+        .then(({ preloadWhisperWorker }) => preloadWhisperWorker())
+        .then((ok) => { if (!cancelled && ok) setIsWhisperReady(true); })
+        .catch(() => { if (!cancelled) setIsWhisperReady(false); });
     });
     return () => { cancelled = true; };
   }, [backend, whisperFeasible]);
@@ -214,6 +225,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const startNativeAnalyser = useCallback(async () => {
     if (typeof window === 'undefined') return;
     if (!navigator?.mediaDevices?.getUserMedia) return;
+    const AudioCtx =
+      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
     const token = ++nativeStartTokenRef.current;
     let stream: MediaStream;
     try {
@@ -228,10 +243,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     }
     nativeStreamRef.current = stream;
     try {
-      const AudioCtx =
-        (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
       const actx = new AudioCtx();
       const src = actx.createMediaStreamSource(stream);
       const an = actx.createAnalyser();
@@ -286,11 +297,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       /* no-op — waveform is non-essential */
     }
 
+    const workerClientPromise = loadWhisperWorkerClient();
+
     // Kick off model load in parallel with the first chunks of recording.
     setIsLoading(true);
-    preloadWhisperWorker((p) => {
-      if (typeof p.progress === 'number') setLoadProgress(p.progress / 100);
-    })
+    workerClientPromise
+      .then(({ preloadWhisperWorker }) => preloadWhisperWorker((p) => {
+        if (typeof p.progress === 'number') setLoadProgress(p.progress / 100);
+      }))
       .then((ok) => { setIsLoading(false); setLoadProgress(ok ? 1 : 0); })
       .catch(() => { setIsLoading(false); });
 
@@ -319,12 +333,15 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       try {
         const blob = new Blob(chunksRef.current, { type: mimeType || chunksRef.current[0].type });
         const audio = await blobToWhisperAudio(blob);
+        if (cancelledRef.current) return;
         // Skip clips shorter than ~250ms — usually a misclick.
         if (audio.length < 4000) {
           setIsTranscribing(false);
           return;
         }
+        const { transcribeWithWorker } = await workerClientPromise;
         const text = await transcribeWithWorker(audio, { language: resolveWhisperLanguage(lang) });
+        if (cancelledRef.current) return;
         setWhisperTranscript(text.trim());
         const ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - tStart);
         logVoiceEvent('transcription-complete', {
@@ -335,11 +352,12 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
           chars: text.trim().length,
         });
       } catch (err) {
+        if (cancelledRef.current) return;
         const message = err instanceof Error ? err.message : 'transcribe-failed';
         setWhisperError(message);
         logVoiceEvent('transcription-failed', { error: message });
       } finally {
-        setIsTranscribing(false);
+        if (!cancelledRef.current) setIsTranscribing(false);
       }
     };
 

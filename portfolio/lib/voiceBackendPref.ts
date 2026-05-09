@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import { preloadWhisperPipeline } from '@/lib/whisperClient';
 
 export type VoiceBackendPref = 'native' | 'whisper';
 
@@ -53,7 +52,9 @@ export function useVoiceBackendPref(): {
     } catch { /* no-op */ }
     // Kick off background model preload when opting into Whisper.
     if (next === 'whisper') {
-      void preloadWhisperPipeline();
+      void import('@/lib/whisperWorkerClient')
+        .then(({ preloadWhisperWorker }) => preloadWhisperWorker())
+        .catch(() => false);
     }
   }, []);
 

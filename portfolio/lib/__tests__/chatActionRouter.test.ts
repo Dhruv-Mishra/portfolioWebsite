@@ -55,6 +55,7 @@ describe('resolveChatIntent — exact action labels', () => {
     check('Toggle the theme', { kind: 'action', themeAction: 'toggle' });
     check('Report a bug', { kind: 'action', feedbackAction: true });
     check('Show me your portfolio', { kind: 'action', navigateTo: '/projects' });
+    check('Show me your experience timeline', { kind: 'action', navigateTo: '/about' });
     check('Open your GitHub profile', { kind: 'action', openUrlContains: 'github.com/Dhruv-Mishra' });
   });
 });
@@ -86,6 +87,7 @@ describe('resolveChatIntent — navigation intents', () => {
   it('matches explicit route requests', () => {
     check('take me to the projects page', { kind: 'action', navigateTo: '/projects' });
     check('go to the about page', { kind: 'action', navigateTo: '/about' });
+    check('open the experience timeline', { kind: 'action', navigateTo: '/about' });
     check('navigate to the resume page', { kind: 'action', navigateTo: '/resume' });
     check('bring me to the home page', { kind: 'action', navigateTo: '/' });
     check('open the home page', { kind: 'action', navigateTo: '/' });
@@ -107,6 +109,7 @@ describe('resolveChatIntent — navigation intents', () => {
     check('go to hell', { kind: 'null' });
     check('I was thinking about home cooking', { kind: 'null' });
     check('homework is due', { kind: 'null' });
+    check('tell me about your experience timeline', { kind: 'null' });
   });
 });
 

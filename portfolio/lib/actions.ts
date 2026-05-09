@@ -113,6 +113,10 @@ export const ACTION_REGISTRY: ActionDef[] = [
     navigateTo: '/projects',
   },
   {
+    label: 'Show me your experience timeline',
+    navigateTo: '/about',
+  },
+  {
     label: 'Open the Cropio repo',
     openUrls: [PROJECT_LINKS.cropio],
   },

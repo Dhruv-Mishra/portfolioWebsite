@@ -143,6 +143,12 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(ids).toContain('site-terminal');
   });
 
+  it('surfaces the about-page timeline fact when asked about the experience timeline', async () => {
+    const facts = await retrieveRelevantFacts('experience timeline career filters about page', { limit: 8 });
+    const ids = facts.map((fact) => fact.id);
+    expect(ids).toContain('site-experience-timeline');
+  });
+
   it('respects custom limit', async () => {
     const facts = await retrieveRelevantFacts('microsoft work', { limit: 3 });
     expect(facts.length).toBeLessThanOrEqual(3);

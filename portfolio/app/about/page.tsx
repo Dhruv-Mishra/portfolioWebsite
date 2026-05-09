@@ -1,16 +1,18 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Thumbpin } from '@/components/DoodleIcons';
+import ExperienceTimeline from '@/components/ExperienceTimeline';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
+import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 
 export const revalidate = 3600;
 
 export default function About() {
     return (
-        <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-center py-16 pb-24 md:py-0 md:pb-0">
-            <div className="relative transform -rotate-1">
+        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col py-16 pb-24 md:py-10 md:pb-16">
+            <div className="relative mx-auto w-full max-w-4xl transform -rotate-1">
                 <div className="animate-page-sheet relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
@@ -123,6 +125,8 @@ export default function About() {
                     </div>
                 </div>
             </div>
+
+            <ExperienceTimeline entries={experienceTimelineEntries} />
         </div>
     );
 }

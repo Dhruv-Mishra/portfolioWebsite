@@ -56,7 +56,7 @@ const FEEDBACK_PHRASE_PATTERN = /\b(report|file|submit|send|leave|give|log)\s+(?
 
 const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; pattern: RegExp }> = [
   { path: '/', pattern: /\b(home|homepage|main page|start page|landing page)\b/i },
-  { path: '/about', pattern: /\b(about|about page|about you)\b/i },
+  { path: '/about', pattern: /\b(about|about page|about you|experience timeline|career timeline|work timeline)\b/i },
   { path: '/projects', pattern: /\b(projects|projects page|portfolio page|work page|your portfolio)\b/i },
   { path: '/resume', pattern: /\b(resume|cv|resume page)\b/i },
   { path: '/chat', pattern: /\b(chat|chat page|notes|note page)\b/i },

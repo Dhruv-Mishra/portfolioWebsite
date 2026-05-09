@@ -100,6 +100,12 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
   return sanitized;
 }
 
+function toProviderMessages(
+  messages: SanitizedChatMessage[],
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  return messages.map(({ role, content }) => ({ role, content }));
+}
+
 function getOrderedProviders(primary: LLMProvider | null, fallback: LLMProvider | null): LLMProvider[] {
   const seen = new Set<string>();
 
@@ -228,7 +234,7 @@ export async function POST(request: NextRequest) {
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
-      ...sanitized,
+      ...toProviderMessages(sanitized),
     ];
 
     const { primary, fallback } = getChatProviders();

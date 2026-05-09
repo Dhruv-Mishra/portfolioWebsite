@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import GuestbookForm from '@/components/GuestbookForm';
+import GuestbookPendingEmptyGate from '@/components/GuestbookPendingEmptyGate';
 import GuestbookPendingNotes from '@/components/GuestbookPendingNotes';
 import GuestbookWall from '@/components/GuestbookWall';
 import { GuestbookEmptyState } from '@/components/GuestbookEmptyState';
@@ -75,7 +76,9 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
 
       {/* ─── Wall / empty state ─── */}
       {isEmpty ? (
-        <GuestbookEmptyState />
+        <GuestbookPendingEmptyGate>
+          <GuestbookEmptyState />
+        </GuestbookPendingEmptyGate>
       ) : (
         <>
           <GuestbookWall entries={pageEntries} />

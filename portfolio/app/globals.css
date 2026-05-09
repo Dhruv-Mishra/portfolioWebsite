@@ -1683,7 +1683,9 @@ html[data-disco="on"] [data-disco-chat-shell]:has(textarea:focus),
 html[data-disco="on"] [data-disco-chat-input-bar]:has(input:focus),
 html[data-disco="on"] [data-disco-chat-input-bar]:has(textarea:focus),
 html[data-disco="on"] [data-disco-chat-input]:has(input:focus),
-html[data-disco="on"] [data-disco-chat-input]:has(textarea:focus) {
+html[data-disco="on"] [data-disco-chat-input]:has(textarea:focus),
+html[data-disco="on"] [data-disco-home-terminal]:has(input:focus),
+html[data-disco="on"] [data-disco-home-terminal]:has(textarea:focus) {
   animation: none !important;
 }
 html[data-disco="on"] .custom-cursor,

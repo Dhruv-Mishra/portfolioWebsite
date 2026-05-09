@@ -31,23 +31,29 @@ export default function Home() {
         </h1>
 
         {/* Version Sticker - CSS animation */}
-        <div
-          data-disco-motion="bob"
-          style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
-          className="animate-hero-badge absolute -bottom-4 right-2 md:right-0 md:-right-12 bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
-        >
-          {APP_VERSION}
+        <div className="animate-hero-badge absolute -bottom-4 right-2 md:right-0 md:-right-12">
+          <span
+            data-disco-motion="bob"
+            style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
+            className="inline-block bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
+          >
+            {APP_VERSION}
+          </span>
         </div>
 
         <Link
           href="/guestbook"
-          data-disco-motion="bob"
-          style={{ '--disco-motion-delay': '240ms' } as CSSProperties}
-          className="animate-hero-badge animate-hero-badge-mirror absolute -bottom-4 left-2 md:-left-16 inline-flex items-center gap-1.5 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100 px-3 py-1 font-mono text-xs shadow-md transition-transform duration-200 hover:rotate-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+          className="animate-hero-badge animate-hero-badge-mirror absolute -bottom-4 left-2 md:-left-16 inline-flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
           aria-label="Sign Dhruv's sketchbook guestbook"
         >
-          <PenLine size={12} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-          <span>guestbook</span>
+          <span
+            data-disco-motion="bob"
+            style={{ '--disco-motion-delay': '240ms' } as CSSProperties}
+            className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100 px-3 py-1 font-mono text-xs shadow-md transition-transform duration-200 hover:rotate-0"
+          >
+            <PenLine size={12} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+            <span>guestbook</span>
+          </span>
         </Link>
       </div>
 
@@ -68,6 +74,7 @@ export default function Home() {
 
       {/* The Terminal */}
       <div
+        data-disco-home-terminal
         data-disco-motion="breath"
         style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
         className="w-full max-w-2xl mt-8 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative"

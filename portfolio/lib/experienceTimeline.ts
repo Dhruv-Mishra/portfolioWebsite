@@ -1,5 +1,13 @@
 export type ExperienceTimelineCategory = 'work' | 'internship' | 'research' | 'education' | 'achievement';
 
+export interface ExperienceTimelineLogo {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  sizes: string;
+}
+
 export interface ExperienceTimelineEntry {
   id: string;
   category: ExperienceTimelineCategory;
@@ -7,6 +15,7 @@ export interface ExperienceTimelineEntry {
   title: string;
   organization: string;
   location: string;
+  logo?: ExperienceTimelineLogo;
   summary: string;
   impact: string;
   highlights: readonly string[];
@@ -21,6 +30,13 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Software Engineer',
     organization: 'Microsoft, M365 Shell Team',
     location: 'Noida, India',
+    logo: {
+      src: '/resources/logos/microsoft.svg',
+      alt: 'Microsoft',
+      width: 112,
+      height: 24,
+      sizes: '(max-width: 640px) 88px, 112px',
+    },
     summary: 'Building high-scale Shell platform systems for identity, user data, Office encryption, and internal AI workflows.',
     impact: '$240K/year infrastructure savings, 7B+ daily backend hits supported, and 99% faster Excel Compose shimmer loading.',
     highlights: [
@@ -40,6 +56,13 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Machine Learning Engineer',
     organization: 'growIndigo',
     location: 'Delhi, India',
+    logo: {
+      src: '/resources/logos/growindigo.png',
+      alt: 'growIndigo',
+      width: 112,
+      height: 50,
+      sizes: '(max-width: 640px) 88px, 112px',
+    },
     summary: 'Rebuilt a crop-classification workflow into a faster Python ML pipeline for agricultural intelligence.',
     impact: 'Improved crop classification accuracy from 80% to 93% while shrinking a manual Google Earth Engine workflow.',
     highlights: [
@@ -55,6 +78,13 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Software Engineering Intern',
     organization: 'Microsoft Loop',
     location: 'Noida, India',
+    logo: {
+      src: '/resources/logos/microsoft-loop.svg',
+      alt: 'Microsoft Loop',
+      width: 112,
+      height: 28,
+      sizes: '(max-width: 640px) 88px, 112px',
+    },
     summary: 'Built connection-management infrastructure for third-party integrations across Microsoft Loop and Power Platform.',
     impact: 'The service became the generic backend for third-party integrations, and the GitHub connectors are used across major Microsoft apps.',
     highlights: [
@@ -70,6 +100,13 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'B.Tech, Computer Science and Applied Mathematics',
     organization: 'IIIT Delhi',
     location: 'Delhi, India',
+    logo: {
+      src: '/resources/logos/iiitd.png',
+      alt: 'IIIT Delhi',
+      width: 112,
+      height: 50,
+      sizes: '(max-width: 640px) 88px, 112px',
+    },
     summary: 'Studied computer science and applied mathematics with a strong systems, ML, and engineering project spine.',
     impact: 'Graduated with Academic Honors and CGPA 8.96/10.0.',
     highlights: [
@@ -85,6 +122,13 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Undergraduate Researcher',
     organization: 'DCLL, IIIT Delhi',
     location: 'Delhi, India',
+    logo: {
+      src: '/resources/logos/iiitd.png',
+      alt: 'IIIT Delhi',
+      width: 112,
+      height: 50,
+      sizes: '(max-width: 640px) 88px, 112px',
+    },
     summary: 'Worked under Prof. Bapi Chatterjee on concurrent data-structure research for Counting Bloom Filters.',
     impact: 'Achieved a 300% throughput boost with minimal impact on false positive and false negative rates.',
     highlights: [

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { AnimatePresence, m, type Variants } from 'framer-motion';
 import {
   BriefcaseBusiness,
@@ -97,6 +98,8 @@ const NOTE_ROTATION_CLASSES = [
   'md:rotate-[0.9deg]',
 ] as const;
 
+const DISCO_REST_ROTATIONS = ['-0.8deg', '0.65deg', '-0.35deg', '0.9deg'] as const;
+
 function getEntriesForFilter(entries: readonly ExperienceTimelineEntry[], filter: TimelineFilter) {
   return filter === 'all' ? entries : entries.filter((entry) => entry.category === filter);
 }
@@ -117,7 +120,7 @@ function usePrefersReducedMotion() {
 }
 
 export default function ExperienceTimeline({ entries }: ExperienceTimelineProps) {
-  const [activeId, setActiveId] = useState(entries[0]?.id ?? '');
+  const [activeId, setActiveId] = useState<string | null>(entries[0]?.id ?? null);
   const [selectedFilter, setSelectedFilter] = useState<TimelineFilter>('all');
   const prefersReducedMotion = usePrefersReducedMotion();
   const { selection, subtle, toggle } = useAppHaptics();
@@ -128,60 +131,66 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
   );
 
   const activeEntry = useMemo(() => (
-    filteredEntries.find((entry) => entry.id === activeId) ?? filteredEntries[0]
+    filteredEntries.find((entry) => entry.id === activeId) ?? null
   ), [activeId, filteredEntries]);
 
-  const activeIndex = Math.max(0, filteredEntries.findIndex((entry) => entry.id === activeEntry?.id));
-  const progressScale = filteredEntries.length > 1
+  const activeIndex = activeEntry ? filteredEntries.findIndex((entry) => entry.id === activeEntry.id) : -1;
+  const progressScale = activeIndex >= 0
     ? (activeIndex + 1) / filteredEntries.length
-    : 1;
+    : 0;
 
   const selectEntry = useCallback((entryId: string) => {
+    if (activeId === entryId) {
+      setActiveId(null);
+      toggle();
+      return;
+    }
+
     setActiveId(entryId);
     selection();
-  }, [selection]);
+  }, [activeId, selection, toggle]);
 
   const selectFilter = useCallback((filter: TimelineFilter) => {
     const nextEntries = getEntriesForFilter(entries, filter);
     setSelectedFilter(filter);
-    setActiveId(nextEntries[0]?.id ?? '');
+    setActiveId(nextEntries[0]?.id ?? null);
     toggle();
   }, [entries, toggle]);
 
-  const moveActiveEntry = useCallback((direction: -1 | 1) => {
+  const moveActiveEntry = useCallback((direction: -1 | 1, fallbackEntryId: string) => {
     if (filteredEntries.length === 0) return;
-    const currentIndex = filteredEntries.findIndex((entry) => entry.id === activeEntry?.id);
+    const currentIndex = filteredEntries.findIndex((entry) => entry.id === (activeId ?? fallbackEntryId));
     const fallbackIndex = currentIndex < 0 ? 0 : currentIndex;
     const nextIndex = (fallbackIndex + direction + filteredEntries.length) % filteredEntries.length;
     setActiveId(filteredEntries[nextIndex].id);
     subtle();
-  }, [activeEntry?.id, filteredEntries, subtle]);
+  }, [activeId, filteredEntries, subtle]);
 
-  const handleEntryKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+  const handleEntryKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>, entryId: string) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
       event.preventDefault();
-      moveActiveEntry(1);
+      moveActiveEntry(1, entryId);
     }
 
     if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
       event.preventDefault();
-      moveActiveEntry(-1);
+      moveActiveEntry(-1, entryId);
     }
 
     if (event.key === 'Home') {
       event.preventDefault();
-      setActiveId(filteredEntries[0]?.id ?? '');
+      setActiveId(filteredEntries[0]?.id ?? null);
       subtle();
     }
 
     if (event.key === 'End') {
       event.preventDefault();
-      setActiveId(filteredEntries[filteredEntries.length - 1]?.id ?? '');
+      setActiveId(filteredEntries[filteredEntries.length - 1]?.id ?? null);
       subtle();
     }
   }, [filteredEntries, moveActiveEntry, subtle]);
 
-  if (entries.length === 0 || !activeEntry) {
+  if (entries.length === 0) {
     return null;
   }
 
@@ -233,11 +242,15 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
 
         <ol className="relative space-y-7 md:space-y-10">
           {filteredEntries.map((entry, index) => {
-            const isActive = entry.id === activeEntry.id;
+            const isActive = entry.id === activeId;
             const meta = CATEGORY_META[entry.category];
             const Icon = meta.icon;
             const detailsId = `timeline-details-${entry.id}`;
             const noteOnRight = index % 2 === 0;
+            const discoMotionStyle = {
+              '--disco-motion-delay': `${index * 115}ms`,
+              '--disco-wiggle-rest': DISCO_REST_ROTATIONS[index % DISCO_REST_ROTATIONS.length],
+            } as CSSProperties;
 
             return (
               <li
@@ -265,9 +278,11 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                 <div className={cn('relative z-10', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
                   <m.article
                     layout
+                    data-disco-motion="wiggle"
+                    style={discoMotionStyle}
                     whileHover={prefersReducedMotion ? undefined : { y: -3, rotate: noteOnRight ? 0.25 : -0.25 }}
                     className={cn(
-                      'relative overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,transform] md:p-5',
+                      'group/timeline-card relative overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,transform] md:p-5',
                       'shadow-[4px_5px_0_color-mix(in_srgb,var(--c-ink)_14%,transparent)]',
                       'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:bg-[linear-gradient(transparent_95%,color-mix(in_srgb,var(--c-ink)_8%,transparent)_96%)] before:bg-[length:100%_22px] before:opacity-55',
                       NOTE_ROTATION_CLASSES[index % NOTE_ROTATION_CLASSES.length],
@@ -282,10 +297,10 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                     <button
                       type="button"
                       onClick={() => selectEntry(entry.id)}
-                      onFocus={() => setActiveId(entry.id)}
-                      onKeyDown={handleEntryKeyDown}
+                      onKeyDown={(event) => handleEntryKeyDown(event, entry.id)}
                       aria-expanded={isActive}
                       aria-controls={detailsId}
+                      aria-label={isActive ? `Collapse ${entry.title}` : `Expand ${entry.title}`}
                       className="relative z-10 block w-full rounded-[6px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35"
                     >
                       <span className="flex flex-col gap-2">
@@ -300,23 +315,49 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                           </span>
                         </span>
 
-                        <span>
-                          <span className="block font-hand text-xl font-bold leading-tight md:text-2xl">
-                            {entry.title}
+                        <span className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <span className="min-w-0">
+                            <span className="block font-hand text-xl font-bold leading-tight md:text-2xl">
+                              {entry.title}
+                            </span>
+                            <span className="mt-1 block text-sm leading-snug text-[var(--c-ink)]/75 md:text-base">
+                              {entry.organization}
+                            </span>
                           </span>
-                          <span className="mt-1 block text-sm leading-snug text-[var(--c-ink)]/75 md:text-base">
-                            {entry.organization}
-                          </span>
+
+                          {entry.logo && (
+                            <span className="inline-flex h-10 w-24 shrink-0 items-center justify-center self-start rounded-[6px] border border-[var(--c-ink)]/10 bg-white/75 px-2 py-1.5 shadow-[1px_1px_0_rgba(0,0,0,0.08)] sm:self-center md:h-11 md:w-28">
+                              <Image
+                                src={entry.logo.src}
+                                alt={entry.logo.alt}
+                                width={entry.logo.width}
+                                height={entry.logo.height}
+                                sizes={entry.logo.sizes}
+                                className="max-h-full w-auto object-contain"
+                              />
+                            </span>
+                          )}
                         </span>
 
-                        <span className="flex items-center gap-1 text-xs text-[var(--c-ink)]/55">
-                          <MapPin aria-hidden="true" className="size-3.5" strokeWidth={1.9} />
-                          {entry.location}
-                          <ChevronDown
-                            aria-hidden="true"
-                            className={cn('ml-auto size-4 transition-transform', isActive && 'rotate-180')}
-                            strokeWidth={2}
-                          />
+                        <span className="flex flex-col gap-2 text-xs text-[var(--c-ink)]/55 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <MapPin aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={1.9} />
+                            <span className="truncate">{entry.location}</span>
+                          </span>
+                          <span
+                            className={cn(
+                              'inline-flex w-fit shrink-0 items-center gap-1 rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/45 px-2 py-1 font-hand text-[0.72rem] font-semibold text-[var(--c-ink)]/65 transition-[background-color,border-color,color,transform]',
+                              'md:group-hover/timeline-card:-translate-y-0.5 md:group-hover/timeline-card:border-[var(--c-ink)]/35 md:group-hover/timeline-card:bg-[var(--c-paper)] md:group-hover/timeline-card:text-[var(--c-ink)]',
+                              isActive && 'border-[var(--c-ink)]/30 bg-[var(--c-paper)]/75 text-[var(--c-ink)]',
+                            )}
+                          >
+                            {isActive ? 'Click to collapse' : 'Click to expand'}
+                            <ChevronDown
+                              aria-hidden="true"
+                              className={cn('size-4 transition-transform', isActive && 'rotate-180')}
+                              strokeWidth={2}
+                            />
+                          </span>
                         </span>
                       </span>
                     </button>

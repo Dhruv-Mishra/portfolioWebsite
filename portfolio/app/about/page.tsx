@@ -11,12 +11,12 @@ export const revalidate = 3600;
 
 export default function About() {
     return (
-        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col py-16 pb-24 md:py-10 md:pb-16">
-            <div className="relative mx-auto w-full max-w-4xl transform -rotate-1">
+        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-3 py-6 pb-16 sm:px-4 md:px-0 md:py-10 md:pb-16">
+            <div className="relative mx-auto w-full max-w-4xl md:transform md:-rotate-1">
                 <div className="animate-page-sheet relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
-                        className="absolute -top-1 -left-6 w-24 md:w-32 h-10 shadow-sm z-20 -rotate-[8deg]"
+                        className="absolute -top-1 left-3 w-24 h-10 shadow-sm z-20 -rotate-[8deg] md:-left-6 md:w-32"
                         style={TAPE_STYLE_DECOR}
                     />
 
@@ -45,24 +45,24 @@ export default function About() {
                             }}
                         />
 
-                        <h1 className="text-4xl md:text-5xl font-hand font-bold mb-6 text-gray-900 border-b-2 border-gray-400/30 pb-2">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-hand font-bold mb-6 text-gray-900 border-b-2 border-gray-400/30 pb-2">
                             About Me
                         </h1>
 
-                        <div className="space-y-3 md:space-y-5 text-base md:text-xl font-hand leading-relaxed">
-                            {/* Pinned Photo — floated right on all sizes, smaller on mobile */}
-                            <div className="float-right ml-3 md:ml-6 mb-1 md:mb-2 mt-1 md:mt-2 relative transform rotate-3 z-20">
+                        <div className="space-y-4 text-base font-hand leading-relaxed sm:text-lg md:space-y-5 md:text-xl">
+                            {/* Pinned Photo — stacks first on mobile, then floats into the sheet on desktop */}
+                            <div className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3">
                                 <div className="bg-white p-1 md:p-2 shadow-md border border-gray-200 relative">
                                     <div
                                         className="absolute -top-2 md:-top-3 left-1/2 -translate-x-1/2 w-16 md:w-24 h-6 md:h-8 shadow-sm z-30 -rotate-1"
                                         style={TAPE_STYLE_DECOR}
                                     />
-                                    <div className="w-24 h-24 md:w-48 md:h-48 bg-gray-200 relative overflow-hidden">
+                                    <div className="relative h-36 w-36 overflow-hidden bg-gray-200 sm:h-40 sm:w-40 md:h-48 md:w-48">
                                         <Image
                                             src="/resources/aboutPhoto.webp"
                                             alt="Dhruv Mishra - Software Engineer at Microsoft"
                                             fill
-                                            sizes="(max-width: 768px) 96px, 192px"
+                                            sizes="(max-width: 640px) 144px, (max-width: 768px) 160px, 192px"
                                             loading="eager"
                                             placeholder="blur"
                                             blurDataURL="data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACQAQCdASoIAAgABUB8JZQAApt4/8AA/tAqOjucrquuceXgAAA="

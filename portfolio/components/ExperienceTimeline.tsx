@@ -195,8 +195,8 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
   }
 
   return (
-    <section aria-labelledby="experience-timeline-heading" className="relative mt-14 overflow-x-clip px-1 md:mt-16">
-      <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <section id="experience" aria-labelledby="experience-timeline-heading" className="relative mt-12 w-full min-w-0 max-w-full scroll-mt-20 overflow-visible px-1 md:mt-16 md:scroll-mt-24">
+      <div className="mb-7 flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="max-w-xl">
           <p className="font-hand text-sm md:text-base text-[var(--c-ink)]/55">Pinned career thread</p>
           <h2 id="experience-timeline-heading" className="font-hand text-3xl font-bold text-[var(--c-ink)] md:text-4xl">
@@ -204,7 +204,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
           </h2>
         </div>
 
-        <div className="flex max-w-full gap-2 overflow-x-auto pb-1 scrollbar-hidden" aria-label="Timeline filters">
+        <div className="flex max-w-full gap-2 overflow-x-auto overflow-y-visible pb-1 scrollbar-hidden" aria-label="Timeline filters">
           {FILTER_OPTIONS.map((option) => {
             const isSelected = selectedFilter === option.id;
             const Icon = option.icon;
@@ -231,7 +231,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative min-w-0 max-w-full">
         <div aria-hidden="true" className="absolute bottom-6 left-[23px] top-4 w-[2px] rounded-full bg-[var(--c-ink)]/15 md:left-1/2 md:-translate-x-1/2" />
         <m.div
           aria-hidden="true"
@@ -240,7 +240,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
           transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.25 }}
         />
 
-        <ol className="relative space-y-7 md:space-y-10">
+        <ol className="relative min-w-0 max-w-full space-y-7 md:space-y-10">
           {filteredEntries.map((entry, index) => {
             const isActive = entry.id === activeId;
             const meta = CATEGORY_META[entry.category];
@@ -255,7 +255,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
             return (
               <li
                 key={entry.id}
-                className="relative pl-12 md:grid md:grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] md:items-start md:pl-0"
+                className="relative min-w-0 pl-10 sm:pl-12 md:grid md:grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] md:items-start md:pl-0"
               >
                 <span
                   aria-hidden="true"
@@ -275,14 +275,14 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                   )}
                 />
 
-                <div className={cn('relative z-10', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
+                <div className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
                   <m.article
                     layout
                     data-disco-motion="wiggle"
                     style={discoMotionStyle}
                     whileHover={prefersReducedMotion ? undefined : { y: -3, rotate: noteOnRight ? 0.25 : -0.25 }}
                     className={cn(
-                      'group/timeline-card relative overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,transform] md:p-5',
+                      'group/timeline-card relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,transform] md:p-5',
                       'shadow-[4px_5px_0_color-mix(in_srgb,var(--c-ink)_14%,transparent)]',
                       'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:bg-[linear-gradient(transparent_95%,color-mix(in_srgb,var(--c-ink)_8%,transparent)_96%)] before:bg-[length:100%_22px] before:opacity-55',
                       NOTE_ROTATION_CLASSES[index % NOTE_ROTATION_CLASSES.length],
@@ -326,16 +326,33 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                           </span>
 
                           {entry.logo && (
-                            <span className="inline-flex h-10 w-24 shrink-0 items-center justify-center self-start rounded-[6px] border border-[var(--c-ink)]/10 bg-white/75 px-2 py-1.5 shadow-[1px_1px_0_rgba(0,0,0,0.08)] sm:self-center md:h-11 md:w-28">
+                            <>
                               <Image
                                 src={entry.logo.src}
                                 alt={entry.logo.alt}
                                 width={entry.logo.width}
                                 height={entry.logo.height}
                                 sizes={entry.logo.sizes}
-                                className="max-h-full w-auto object-contain"
+                                className={cn(
+                                  'h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28',
+                                  entry.logo.darkSrc && 'dark:hidden',
+                                  entry.logo.className,
+                                )}
                               />
-                            </span>
+                              {entry.logo.darkSrc && (
+                                <Image
+                                  src={entry.logo.darkSrc}
+                                  alt={entry.logo.alt}
+                                  width={entry.logo.width}
+                                  height={entry.logo.height}
+                                  sizes={entry.logo.sizes}
+                                  className={cn(
+                                    'hidden h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28 dark:block',
+                                    entry.logo.darkClassName,
+                                  )}
+                                />
+                              )}
+                            </>
                           )}
                         </span>
 

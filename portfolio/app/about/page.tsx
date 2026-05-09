@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { ArrowDown, BriefcaseBusiness } from 'lucide-react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import ExperienceTimeline from '@/components/ExperienceTimeline';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
@@ -9,11 +10,26 @@ import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 
 export const revalidate = 3600;
 
+const CAREER_SNAPSHOT = [
+    {
+        label: 'Microsoft',
+        value: 'M365 Shell, identity, encryption, 7B+ daily hits',
+    },
+    {
+        label: 'ML systems',
+        value: 'growIndigo crop pipeline from 80% to 93% accuracy',
+    },
+    {
+        label: 'IIIT Delhi',
+        value: 'CSAM Honors with systems, ML, and research depth',
+    },
+] as const;
+
 export default function About() {
     return (
-        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-3 py-6 pb-16 sm:px-4 md:px-0 md:py-10 md:pb-16">
-            <div className="relative mx-auto w-full max-w-4xl md:transform md:-rotate-1">
-                <div className="animate-page-sheet relative min-h-[400px] text-gray-800 shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
+        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col px-1.5 py-2 pb-16 sm:px-0 md:py-10 md:pb-16">
+            <div className="relative mx-auto w-full min-w-0 max-w-4xl md:px-3">
+                <div className="animate-page-sheet relative min-h-[400px] w-full min-w-0 max-w-full text-gray-800 shadow-[3px_4px_9px_rgba(0,0,0,0.18)] md:transform md:-rotate-1 md:shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
                         className="absolute -top-1 left-3 w-24 h-10 shadow-sm z-20 -rotate-[8deg] md:-left-6 md:w-32"
@@ -25,7 +41,7 @@ export default function About() {
 
                     {/* Paper Content (Clipped) */}
                     <div
-                        className="bg-[#fff9c4] p-6 md:p-12 w-full h-full relative"
+                        className="bg-[#fff9c4] p-4 sm:p-6 md:p-12 w-full min-w-0 max-w-full h-full relative"
                         style={{
                             clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0% 100%)'
                         }}
@@ -49,7 +65,33 @@ export default function About() {
                             About Me
                         </h1>
 
-                        <div className="space-y-4 text-base font-hand leading-relaxed sm:text-lg md:space-y-5 md:text-xl">
+                        <div className="relative z-10 mb-6 rounded-[8px] border border-gray-700/15 bg-white/35 px-3 py-3 shadow-[2px_2px_0_rgba(31,41,55,0.08)] sm:px-4 md:mb-7">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="inline-flex items-center gap-1.5 font-hand text-sm font-bold text-gray-800 md:text-base">
+                                    <BriefcaseBusiness aria-hidden="true" className="size-4" strokeWidth={1.9} />
+                                    Career thread below
+                                </p>
+                                <Link
+                                    href="#experience"
+                                    aria-label="Jump to experience timeline"
+                                    className="inline-flex w-fit items-center gap-1.5 rounded-[7px] border border-gray-700/20 bg-indigo-100/70 px-2.5 py-1.5 font-hand text-sm font-bold text-indigo-800 shadow-[2px_2px_0_rgba(79,70,229,0.14)] transition-[background-color,border-color,color,transform] hover:-rotate-1 hover:bg-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-700/30"
+                                >
+                                    Jump to experience
+                                    <ArrowDown aria-hidden="true" className="size-4" strokeWidth={2} />
+                                </Link>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                                {CAREER_SNAPSHOT.map((item) => (
+                                    <div key={item.label} className="rounded-[7px] border border-dashed border-gray-700/20 bg-[#fff9c4]/60 px-2.5 py-2 text-gray-800">
+                                        <p className="font-hand text-sm font-bold leading-snug md:text-base">{item.label}</p>
+                                        <p className="mt-0.5 text-xs leading-snug text-gray-700 md:text-sm">{item.value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="min-w-0 space-y-4 text-base font-hand leading-relaxed [overflow-wrap:anywhere] sm:text-lg md:space-y-5 md:text-xl">
                             {/* Pinned Photo — stacks first on mobile, then floats into the sheet on desktop */}
                             <div className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3">
                                 <div className="bg-white p-1 md:p-2 shadow-md border border-gray-200 relative">
@@ -91,7 +133,7 @@ export default function About() {
                                 I graduated with <strong className="text-gray-900">Honors in CSAM</strong> from <a href="https://www.linkedin.com/in/dhruv-mishra-id/details/education/" target="_blank" rel="noopener noreferrer" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">IIIT Delhi</a>, and spend time honing my skills through <a href={PERSONAL_LINKS.codeforces} target="_blank" rel="noopener noreferrer" className="bg-emerald-200 hover:bg-emerald-300 px-1.5 py-0.5 rounded text-emerald-800 transition-[background-color,transform] inline-block hover:-rotate-2">competitive programming</a>.
                             </p>
                             <p className="text-base md:text-lg text-gray-600 mt-4">
-                                💬 Reach out: <a href={PERSONAL_LINKS.email} className="bg-red-200 hover:bg-red-300 px-1.5 py-0.5 rounded text-red-800 transition-[background-color,transform] inline-block hover:-rotate-2">dhruvmishra.id@gmail.com</a> • <a href={PERSONAL_LINKS.phone} className="bg-green-200 hover:bg-green-300 px-1.5 py-0.5 rounded text-green-800 transition-[background-color,transform] inline-block hover:-rotate-2">+91-9599377944</a>
+                                💬 Reach out: <a href={PERSONAL_LINKS.email} className="bg-red-200 hover:bg-red-300 px-1.5 py-0.5 rounded text-red-800 transition-[background-color,transform] inline-block max-w-full break-all align-baseline hover:-rotate-2">dhruvmishra.id@gmail.com</a> • <a href={PERSONAL_LINKS.phone} className="bg-green-200 hover:bg-green-300 px-1.5 py-0.5 rounded text-green-800 transition-[background-color,transform] inline-block max-w-full break-all align-baseline hover:-rotate-2">+91-9599377944</a>
                             </p>
                             <p className="text-base md:text-lg text-gray-600 mt-2 italic">
                                 📄 For more details, check out my <a href="/resume" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-[background-color,transform] inline-block hover:-rotate-2">resume</a>.

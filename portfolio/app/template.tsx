@@ -16,7 +16,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
     return (
         <div
-            className={`h-full animate-page-template-in ${fullBleed ? 'overflow-hidden' : 'overflow-y-auto p-8 md:p-12 ruler-scrollbar'}`}
+            className={`h-full min-w-0 max-w-full animate-page-template-in ${fullBleed ? 'overflow-hidden' : 'overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar'}`}
         >
             {children}
         </div>

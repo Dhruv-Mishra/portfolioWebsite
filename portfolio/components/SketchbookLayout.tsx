@@ -62,7 +62,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
     }, [openFeedback]);
 
     return (
-        <div className="h-[100dvh] w-screen bg-paper transition-colors duration-500 relative flex overflow-hidden">
+        <div className="h-[100dvh] w-full max-w-full bg-paper transition-colors duration-500 relative flex overflow-hidden">
             {/* Skip to main content for accessibility */}
             <a
                 href="#main-content"
@@ -80,7 +80,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
             />
 
             {/* Paper Content Area */}
-            <div className="flex-1 relative h-full flex flex-col isolation-auto">
+            <div className="min-w-0 flex-1 relative h-full flex flex-col isolation-auto">
                 {/* Theme + Sound Toggles - Bottom Left (Desktop only, mobile uses social bar) */}
                 <div className="hidden md:flex items-center gap-1 absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
                     <ThemeToggle />
@@ -123,7 +123,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <main
                     id="main-content"
                     role="main"
-                    className="relative w-full h-full overflow-y-auto overflow-x-hidden ruler-scrollbar md:perspective-[2000px]"
+                    className="relative w-full min-w-0 h-full overflow-y-auto overflow-x-clip ruler-scrollbar md:perspective-[2000px]"
                     style={{ zIndex: Z_INDEX.content }}
                     tabIndex={-1}
                 >

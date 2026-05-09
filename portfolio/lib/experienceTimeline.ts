@@ -2,10 +2,13 @@ export type ExperienceTimelineCategory = 'work' | 'internship' | 'research' | 'e
 
 export interface ExperienceTimelineLogo {
   src: string;
+  darkSrc?: string;
   alt: string;
   width: number;
   height: number;
   sizes: string;
+  className?: string;
+  darkClassName?: string;
 }
 
 export interface ExperienceTimelineEntry {
@@ -57,7 +60,8 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     organization: 'growIndigo',
     location: 'Delhi, India',
     logo: {
-      src: '/resources/logos/growindigo.png',
+      src: '/resources/logos/growindigo-ink.svg',
+      darkSrc: '/resources/logos/growindigo.png',
       alt: 'growIndigo',
       width: 112,
       height: 50,

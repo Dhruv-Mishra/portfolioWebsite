@@ -9,6 +9,7 @@ export interface ExperienceTimelineLogo {
   sizes: string;
   className?: string;
   darkClassName?: string;
+  variant?: 'growindigo-wordmark';
 }
 
 export interface ExperienceTimelineEntry {
@@ -60,12 +61,12 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     organization: 'growIndigo',
     location: 'Delhi, India',
     logo: {
-      src: '/resources/logos/growindigo-ink.svg',
-      darkSrc: '/resources/logos/growindigo.png',
+      src: '/resources/logos/growindigo.png',
       alt: 'growIndigo',
       width: 112,
       height: 50,
       sizes: '(max-width: 640px) 88px, 112px',
+      variant: 'growindigo-wordmark',
     },
     summary: 'Rebuilt a crop-classification workflow into a faster Python ML pipeline for agricultural intelligence.',
     impact: 'Improved crop classification accuracy from 80% to 93% while shrinking a manual Google Earth Engine workflow.',

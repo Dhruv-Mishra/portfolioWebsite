@@ -39,6 +39,10 @@ interface ExperienceTimelineProps {
   entries: readonly ExperienceTimelineEntry[];
 }
 
+interface GrowIndigoWordmarkProps {
+  className?: string;
+}
+
 const FILTER_OPTIONS: readonly FilterOption[] = [
   { id: 'all', label: 'All', icon: Filter },
   { id: 'work', label: 'Work', icon: BriefcaseBusiness },
@@ -99,6 +103,47 @@ const NOTE_ROTATION_CLASSES = [
 ] as const;
 
 const DISCO_REST_ROTATIONS = ['-0.8deg', '0.65deg', '-0.35deg', '0.9deg'] as const;
+
+function GrowIndigoWordmark({ className }: GrowIndigoWordmarkProps) {
+  return (
+    <span
+      aria-label="growIndigo"
+      role="img"
+      className={cn(
+        'inline-flex h-10 max-w-28 shrink-0 items-center gap-1.5 self-start text-gray-900 sm:self-center md:h-11',
+        'dark:text-[var(--c-ink)]',
+        className,
+      )}
+    >
+      <svg aria-hidden="true" viewBox="0 0 38 38" className="size-7 shrink-0" fill="none">
+        <path
+          d="M22.5 7.5c6.1 0 11 4.9 11 11 0 7.2-5.8 13-13 13H8.5V19.4c0-5.2 4.2-9.4 9.4-9.4 3.4 0 6.4 1.8 8 4.6"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M18 15.5c2.8 0 5 2.2 5 5s-2.2 5-5 5h-4.4v-4.4c0-3.1 2.5-5.6 5.6-5.6"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12.6 9.4C10.4 6 7.5 4.5 4 4.8c0 4.2 2.4 6.6 7.2 7.3"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="font-sans text-sm font-black leading-none tracking-normal md:text-[0.95rem]">
+        growIndigo
+      </span>
+    </span>
+  );
+}
 
 function getEntriesForFilter(entries: readonly ExperienceTimelineEntry[], filter: TimelineFilter) {
   return filter === 'all' ? entries : entries.filter((entry) => entry.category === filter);
@@ -326,33 +371,37 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                           </span>
 
                           {entry.logo && (
-                            <>
-                              <Image
-                                src={entry.logo.src}
-                                alt={entry.logo.alt}
-                                width={entry.logo.width}
-                                height={entry.logo.height}
-                                sizes={entry.logo.sizes}
-                                className={cn(
-                                  'h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28',
-                                  entry.logo.darkSrc && 'dark:hidden',
-                                  entry.logo.className,
-                                )}
-                              />
-                              {entry.logo.darkSrc && (
+                            entry.logo.variant === 'growindigo-wordmark' ? (
+                              <GrowIndigoWordmark className={entry.logo.className} />
+                            ) : (
+                              <>
                                 <Image
-                                  src={entry.logo.darkSrc}
+                                  src={entry.logo.src}
                                   alt={entry.logo.alt}
                                   width={entry.logo.width}
                                   height={entry.logo.height}
                                   sizes={entry.logo.sizes}
                                   className={cn(
-                                    'hidden h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28 dark:block',
-                                    entry.logo.darkClassName,
+                                    'h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28',
+                                    entry.logo.darkSrc && 'dark:hidden',
+                                    entry.logo.className,
                                   )}
                                 />
-                              )}
-                            </>
+                                {entry.logo.darkSrc && (
+                                  <Image
+                                    src={entry.logo.darkSrc}
+                                    alt={entry.logo.alt}
+                                    width={entry.logo.width}
+                                    height={entry.logo.height}
+                                    sizes={entry.logo.sizes}
+                                    className={cn(
+                                      'hidden h-auto max-h-10 w-auto max-w-24 shrink-0 self-start object-contain sm:self-center md:max-h-11 md:max-w-28 dark:block',
+                                      entry.logo.darkClassName,
+                                    )}
+                                  />
+                                )}
+                              </>
+                            )
                           )}
                         </span>
 

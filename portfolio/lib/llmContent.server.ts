@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { loadFacts } from '@/lib/factLoader';
 import type { Fact, FactCategory } from '@/lib/factTypes';
+import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { SITE, PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 
 const FACTS_DIR = path.resolve(process.cwd(), 'content', 'facts');
@@ -36,6 +37,26 @@ function factsByCategory(category: FactCategory): readonly Fact[] {
 
 function joinFactBodies(facts: readonly Fact[]): string {
   return facts.map((f) => f.text.trim()).join('\n\n');
+}
+
+function buildExperienceTimelineMarkdown(): string {
+  return experienceTimelineEntries.map((entry) => {
+    const lines: string[] = [
+      `### ${entry.title} — ${entry.organization}`,
+      ``,
+      `- Category: ${entry.category}`,
+      `- Dates: ${entry.dateLabel}`,
+      `- Location: ${entry.location}`,
+      `- Summary: ${entry.summary}`,
+      `- Impact: ${entry.impact}`,
+      `- Tools: ${entry.tools.join(', ')}`,
+      ``,
+      `Highlights:`,
+      ...entry.highlights.map((highlight) => `- ${highlight}`),
+    ];
+
+    return lines.join('\n');
+  }).join('\n\n');
 }
 
 const SUMMARY = `Dhruv Mishra — Software Engineer at Microsoft (M365 Shell). CS & Applied Math, IIIT Delhi. Codeforces Expert. Builds high-performance, production-grade systems across Android, distributed services, and developer tooling.`;
@@ -159,6 +180,10 @@ export function buildAboutMarkdown(): string {
     `## Current and past work`,
     ``,
     joinFactBodies(resume),
+    ``,
+    `## Detailed experience timeline`,
+    ``,
+    buildExperienceTimelineMarkdown(),
     ``,
     `## Links`,
     ``,

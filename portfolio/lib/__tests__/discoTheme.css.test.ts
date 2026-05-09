@@ -116,6 +116,11 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/input:focus[\s\S]*?animation:\s*none/);
   });
 
+  it('does not freeze opted-in chat or home wrappers when fields are focused', () => {
+    expect(CSS).not.toMatch(/\[data-disco-chat-[^\]]+\]:has\((?:input|textarea):focus\)[\s\S]{0,240}?animation:\s*none/);
+    expect(CSS).not.toMatch(/\[data-disco-home-terminal\]:has\((?:input|textarea):focus\)[\s\S]{0,240}?animation:\s*none/);
+  });
+
   it('defines the disco floor sweep keyframe', () => {
     expect(CSS).toMatch(/@keyframes\s+disco-floor-sweep/);
   });

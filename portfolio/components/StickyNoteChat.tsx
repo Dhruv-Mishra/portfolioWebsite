@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMemo, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
@@ -28,10 +28,17 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
-import { ACTION_REGISTRY, getFollowupActions, FOLLOWUP_CONVERSATIONAL, INITIAL_SUGGESTIONS } from '@/lib/actions';
+import {
+  ACTION_REGISTRY,
+  DISCO_ACTION_LABEL,
+  FOLLOWUP_CONVERSATIONAL,
+  getFollowupActions,
+  getInitialChatSuggestions,
+  getPromotedFollowupActions,
+} from '@/lib/actions';
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
-import { setDiscoActiveImperative, useMatrixEscaped } from '@/hooks/useStickers';
+import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -287,7 +294,31 @@ const SUGGESTION_STYLE_DISCO = {
     'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 25%, #c4b5fd 50%, #a5f3fc 75%, #fde68a 100%)',
   backgroundColor: '#fbcfe8',
 } as const;
-const DISCO_ACTION_LABEL = 'Engage disco mode';
+
+type DiscoMotionStyle = CSSProperties & { '--disco-motion-delay'?: string };
+
+function getSuggestionStyle(isDisco: boolean, isAction: boolean | undefined, index: number): DiscoMotionStyle {
+  const style: DiscoMotionStyle = {
+    ...(isDisco ? SUGGESTION_STYLE_DISCO : (isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL)),
+    '--disco-motion-delay': `${index * 110}ms`,
+  };
+  return style;
+}
+
+function pickFollowupAction(
+  actions: readonly string[],
+  options: Parameters<typeof getPromotedFollowupActions>[1],
+): string[] {
+  const candidates = getPromotedFollowupActions(actions, options);
+  if (candidates.length === 0) return [];
+  if (candidates[0] === DISCO_ACTION_LABEL) return [DISCO_ACTION_LABEL];
+  return pickRandom(candidates, 1);
+}
+
+function filterUnavailableSuggestions(suggestions: readonly string[], discoActive: boolean): string[] {
+  if (!discoActive) return [...suggestions];
+  return suggestions.filter(suggestion => suggestion !== DISCO_ACTION_LABEL);
+}
 
 // RateLimitNote animation constants
 const RATE_LIMIT_INITIAL = { opacity: 0, scale: 0.9 } as const;
@@ -313,6 +344,8 @@ const SUGGESTION_TAP = { scale: 0.95 } as const;
 
 // Input area animation constants
 const INPUT_NOTE_STYLE = { transform: 'rotate(0.5deg)' } as const;
+const INPUT_NOTE_DISCO_STYLE: DiscoMotionStyle = { ...INPUT_NOTE_STYLE, '--disco-motion-delay': '220ms' };
+const INPUT_TOOLBAR_DISCO_STYLE: DiscoMotionStyle = { '--disco-motion-delay': '120ms' };
 const INPUT_NOTE_INITIAL = { opacity: 0, y: 20 } as const;
 const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
 const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
@@ -332,7 +365,8 @@ function getNoteRotation(messageId: string, isUser: boolean): number {
 
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
-  const isDisco = isAction && text === DISCO_ACTION_LABEL;
+  const isDisco = Boolean(isAction && text === DISCO_ACTION_LABEL);
+  const suggestionStyle = getSuggestionStyle(isDisco, isAction, index);
   return (
   <m.button
     initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
@@ -342,6 +376,7 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     whileHover={SUGGESTION_HOVER}
     whileTap={SUGGESTION_TAP}
     onClick={handleClick}
+    data-disco-motion={isDisco ? 'wiggle' : 'bob'}
     className={cn(
       "px-4 py-2 border-2 rounded shadow-sm font-hand text-sm md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
       isDisco
@@ -351,7 +386,7 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
             isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
           ),
     )}
-    style={isDisco ? SUGGESTION_STYLE_DISCO : (isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL)}
+    style={suggestionStyle}
   >
     <span className={cn(
       "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-0.5",
@@ -392,6 +427,7 @@ const MatrixEscapeChip = memo(function MatrixEscapeChip({ onSelect, skipEntrance
       onClick={onSelect}
       type="button"
       aria-label="Enter the matrix — open the matrix-notes wall"
+      data-disco-motion="wiggle"
       className="px-4 py-2 border-2 border-emerald-300/80 rounded shadow-[0_0_14px_rgba(16,185,129,0.45)] font-code text-sm md:text-base text-emerald-100 hover:text-white hover:shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-shadow flex flex-col items-start"
       style={MATRIX_CHIP_STYLE}
       data-clickable
@@ -788,6 +824,8 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         {(hasMessages || speech.isSupported) && (
           <div className="flex items-center justify-end mb-1.5 px-1">
             <div
+              data-disco-motion="shimmy"
+              data-disco-chat-input-bar
               className={cn(
                 'flex items-center gap-3 md:gap-4 rounded-full px-2.5 py-1 md:px-3 md:py-1.5',
                 // Translucent paper background — reads on both light and
@@ -799,6 +837,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 'border border-dashed border-[var(--c-ink)]/20',
                 'shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)]',
               )}
+              style={INPUT_TOOLBAR_DISCO_STYLE}
             >
             {hasMessages && (
               <button
@@ -844,12 +883,14 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         <m.div
           initial={INPUT_NOTE_INITIAL}
           animate={INPUT_NOTE_ANIMATE}
+          data-disco-motion="bob"
+          data-disco-chat-input
           className={cn(
             "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
             // Tighter mobile padding now that ancillary controls live above.
             compact ? "px-2 py-1.5" : "px-2 py-1.5 md:px-4 md:py-2.5",
           )}
-          style={INPUT_NOTE_STYLE}
+          style={INPUT_NOTE_DISCO_STYLE}
         >
           <div className="flex items-end gap-1.5 md:gap-2" onClick={() => inputRef.current?.focus()}>
             <div className="relative flex-1 min-h-[22px] md:min-h-[28px]">
@@ -992,6 +1033,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const followupActions = useMemo(() => getFollowupActions(), []);
   const matrixEscaped = useMatrixEscaped();
+  const discoActive = useDiscoActive();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1036,25 +1078,27 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       committedExtrasForIdRef.current = lastAssistant.id;
       const base = [
         ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
-        ...pickRandom(followupActions, 1),
+        ...pickFollowupAction(followupActions, { discoActive }),
       ];
       setBaseSuggestions(base);
-      if (llmSuggestions.length > 0) {
-        setExtraSuggestions(llmSuggestions.slice(0, 2));
+      const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
+      if (availableLlmSuggestions.length > 0) {
+        setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
       } else {
         setExtraSuggestions([
           ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
-          ...pickRandom(followupActions.filter(s => !base.includes(s)), 1),
+          ...pickFollowupAction(followupActions, { discoActive, exclude: base }),
         ]);
       }
     } else {
       // Fresh visit — show initial suggestions
-      setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
-      setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
+      const initialSuggestions = getInitialChatSuggestions(discoActive);
+      setBaseSuggestions(initialSuggestions.base);
+      setExtraSuggestions(initialSuggestions.extra);
     }
     const latestAssistant = messages.findLast(m => m.role === 'assistant');
     setReadyForAssistantId(latestAssistant?.id ?? 'welcome');
-  }, [messages, llmSuggestions, followupActions]);
+  }, [messages, llmSuggestions, followupActions, discoActive]);
 
   // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual.
   // Skip oracle-emitted (matrix puzzle) messages — they arrive in bursts
@@ -1077,13 +1121,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)
     const hardcoded = [
       ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => s.toLowerCase() !== lastUserText), 1),
-      ...pickRandom(followupActions.filter(s => s.toLowerCase() !== lastUserText), 1),
+      ...pickFollowupAction(followupActions, { discoActive, lastUserText }),
     ];
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
     // Fire background LLM request for 2 contextual suggestions
     fetchSuggestions();
-  }, [messages, isLoading, fetchSuggestions, followupActions]);
+  }, [messages, isLoading, fetchSuggestions, followupActions, discoActive]);
 
   // When LLM contextual suggestions arrive (or fail), fill the extra slots.
   // Race guard (P2-4 / P2-5): commit at most ONCE per assistant id, gated on
@@ -1095,16 +1139,23 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (isSuggestionsLoading || !targetId) return;
     if (committedExtrasForIdRef.current === targetId) return;
     committedExtrasForIdRef.current = targetId;
-    if (llmSuggestions.length > 0) {
-      setExtraSuggestions(llmSuggestions.slice(0, 2));
+    const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
+    if (availableLlmSuggestions.length > 0) {
+      setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
     } else {
       // LLM failed — fill with 1 conversational + 1 action (different from base)
       setExtraSuggestions([
         ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
-        ...pickRandom(followupActions.filter(s => !baseSuggestions.includes(s)), 1),
+        ...pickFollowupAction(followupActions, { discoActive, exclude: baseSuggestions }),
       ]);
     }
-  }, [isSuggestionsLoading, llmSuggestions, baseSuggestions, followupActions]);
+  }, [isSuggestionsLoading, llmSuggestions, baseSuggestions, followupActions, discoActive]);
+
+  useEffect(() => {
+    if (!discoActive) return;
+    setBaseSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL));
+    setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL));
+  }, [discoActive]);
 
   // Gate suggestion visibility: hide during loading, show when typewriter signals completion.
   // Also executes any pending actions (navigation, theme, URLs) once the note is fully typed.
@@ -1322,15 +1373,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
     clear();
     clearMessages();
-    setBaseSuggestions(INITIAL_SUGGESTIONS.slice(0, 2));
-    setExtraSuggestions(INITIAL_SUGGESTIONS.slice(2));
+    const initialSuggestions = getInitialChatSuggestions(discoActive);
+    setBaseSuggestions(initialSuggestions.base);
+    setExtraSuggestions(initialSuggestions.extra);
     setReadyForAssistantId('welcome');
     hasFetchedSuggestionsRef.current = null;
     hasInitializedSuggestionsRef.current = false;
     pendingActionsRef.current.clear();
     handledActionsRef.current.clear();
     setSelectedProjectSlug(null);
-  }, [clear, clearMessages]);
+  }, [clear, clearMessages, discoActive]);
 
   const handleCloseProjectModal = useCallback(() => {
     closePanel();
@@ -1351,14 +1403,24 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     <div className={cn(
       "flex flex-col h-full",
       compact ? "max-h-full" : ""
-    )}>
+    )}
+      data-disco-chat-shell
+      data-disco-motion={compact ? undefined : 'breath'}
+      style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
+    >
       {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       {/* ─── Header ─── */}
       {!compact ? (
-        <div className="text-center pt-2 pb-0 md:pt-10 md:pb-1 shrink-0">
+        <div
+          data-disco-motion="bob"
+          style={{ '--disco-motion-delay': '80ms' } as CSSProperties}
+          className="text-center pt-2 pb-0 md:pt-10 md:pb-1 shrink-0"
+        >
           <m.h1
             initial={HEADING_INITIAL}
             animate={HEADING_ANIMATE}
+            data-disco-motion="wiggle"
+            style={{ '--disco-motion-delay': '160ms' } as CSSProperties}
             className="text-2xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
           >
             Pass me a note
@@ -1368,6 +1430,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: ANIMATION_TOKENS.delay.medium }}
+            data-disco-motion="shimmy"
+            style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
             className="font-hand text-sm md:text-xl text-[var(--c-ink)] opacity-60 mt-0.5 md:mt-2 hidden md:block"
           >
             Ask me anything ~

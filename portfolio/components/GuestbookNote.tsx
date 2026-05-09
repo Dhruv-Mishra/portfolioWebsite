@@ -110,7 +110,7 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
         )}
       >
         {/* Message body */}
-        <p className="whitespace-pre-wrap break-words leading-relaxed pr-2">
+        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed pr-2">
           {entry.message}
         </p>
 
@@ -137,7 +137,8 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
         {/* Signature (bottom-right) */}
         <span
           id={signatureId}
-          className="absolute bottom-2 right-4 font-hand italic text-xs opacity-50"
+          title={entry.name || 'Anonymous'}
+          className="absolute bottom-2 right-4 max-w-[65%] truncate text-right font-hand italic text-xs opacity-50"
         >
           — {entry.name || 'Anonymous'}
         </span>

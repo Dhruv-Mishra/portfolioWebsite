@@ -14,7 +14,11 @@ export default function Home() {
 
       <div className="relative">
         {/* Coffee Cup - Positioned relative to text */}
-        <div className="absolute -top-8 -right-8 md:-top-12 md:-right-10 opacity-90 rotate-12 pointer-events-none z-10">
+        <div
+          data-disco-motion="bob"
+          style={{ '--disco-motion-delay': '60ms' } as CSSProperties}
+          className="absolute -top-8 -right-8 md:-top-12 md:-right-10 opacity-90 rotate-12 pointer-events-none z-10"
+        >
           <Coffee className="text-amber-800/40 w-12 h-12 md:w-20 md:h-20" />
         </div>
 
@@ -34,6 +38,17 @@ export default function Home() {
         >
           {APP_VERSION}
         </div>
+
+        <Link
+          href="/guestbook"
+          data-disco-motion="bob"
+          style={{ '--disco-motion-delay': '240ms' } as CSSProperties}
+          className="animate-hero-badge animate-hero-badge-mirror absolute -bottom-4 left-2 md:-left-16 inline-flex items-center gap-1.5 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100 px-3 py-1 font-mono text-xs shadow-md transition-transform duration-200 hover:rotate-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+          aria-label="Sign Dhruv's sketchbook guestbook"
+        >
+          <PenLine size={12} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+          <span>guestbook</span>
+        </Link>
       </div>
 
       {/* Subtitle - CSS animation */}
@@ -52,11 +67,19 @@ export default function Home() {
       </p>
 
       {/* The Terminal */}
-      <div className="w-full max-w-2xl mt-8 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative">
+      <div
+        data-disco-motion="breath"
+        style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
+        className="w-full max-w-2xl mt-8 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative"
+      >
         <HomeTerminalIsland />
 
         {/* Interaction Hint (Desktop Only) */}
-        <div className="hidden 2xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none">
+        <div
+          data-disco-motion="wiggle"
+          style={{ '--disco-motion-delay': '360ms' } as CSSProperties}
+          className="hidden 2xl:block absolute -left-72 top-20 w-64 -rotate-6 opacity-90 pointer-events-none"
+        >
           <div className="font-hand text-4xl text-[var(--d-blue)] mb-2 text-center font-bold tracking-wide">
             Psst... type something!
           </div>

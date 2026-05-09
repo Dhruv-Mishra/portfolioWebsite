@@ -10,8 +10,12 @@ import { describe, it, expect } from 'vitest';
 import { handleDisco } from '@/lib/sudoCommands';
 import {
   ACTION_REGISTRY,
+  DISCO_ACTION_LABEL,
   VALID_THEME_ACTIONS,
   getActionFallbackReply,
+  getFollowupActions,
+  getInitialChatSuggestions,
+  getPromotedFollowupActions,
 } from '@/lib/actions';
 
 describe('public `disco` command', () => {
@@ -48,12 +52,28 @@ describe('chat themeAction: disco / disco-off', () => {
 
   it('ACTION_REGISTRY exposes disco engage + exit entries', () => {
     const labels = ACTION_REGISTRY.map(a => a.label);
-    expect(labels).toContain('Engage disco mode');
+    expect(labels).toContain(DISCO_ACTION_LABEL);
     expect(labels).toContain('Exit disco mode');
   });
 
   it('getActionFallbackReply returns a reply for disco / disco-off', () => {
     expect(getActionFallbackReply({ themeAction: 'disco' })).toMatch(/disco/i);
     expect(getActionFallbackReply({ themeAction: 'disco-off' })).toMatch(/exit/i);
+  });
+
+  it('promotes the disco chip into fresh initial chat suggestions', () => {
+    const suggestions = getInitialChatSuggestions(false);
+    expect(suggestions.base).toContain(DISCO_ACTION_LABEL);
+  });
+
+  it('does not suggest engaging disco while disco is already active', () => {
+    const suggestions = getInitialChatSuggestions(true);
+    expect(suggestions.base).not.toContain(DISCO_ACTION_LABEL);
+    expect(getPromotedFollowupActions(getFollowupActions(), { discoActive: true })).not.toContain(DISCO_ACTION_LABEL);
+  });
+
+  it('orders disco first for follow-up action promotion when available', () => {
+    const actions = getPromotedFollowupActions(getFollowupActions(), { discoActive: false });
+    expect(actions[0]).toBe(DISCO_ACTION_LABEL);
   });
 });

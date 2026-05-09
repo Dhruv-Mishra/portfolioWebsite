@@ -348,8 +348,15 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   }
 
   .animate-hero-badge {
+    --hero-badge-x: 20px;
+    --hero-badge-rotate: 12deg;
     animation: heroBadgeIn 0.4s ease-out 0.5s forwards;
     opacity: 0;
+  }
+
+  .animate-hero-badge-mirror {
+    --hero-badge-x: -20px;
+    --hero-badge-rotate: -12deg;
   }
 
   @keyframes heroTitleIn {
@@ -378,12 +385,12 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   @keyframes heroBadgeIn {
     from {
       opacity: 0;
-      transform: translateX(20px) rotate(12deg);
+      transform: translateX(var(--hero-badge-x, 20px)) rotate(var(--hero-badge-rotate, 12deg));
     }
 
     to {
       opacity: 1;
-      transform: translateX(0) rotate(12deg);
+      transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg));
     }
   }
 
@@ -1667,6 +1674,16 @@ html[data-disco="on"] main {
 html[data-disco="on"] input:focus,
 html[data-disco="on"] textarea:focus {
   /* Focused form inputs must stay still so the user can aim at the caret. */
+  animation: none !important;
+}
+html[data-disco="on"] [data-disco-chat-page]:has(input:focus),
+html[data-disco="on"] [data-disco-chat-page]:has(textarea:focus),
+html[data-disco="on"] [data-disco-chat-shell]:has(input:focus),
+html[data-disco="on"] [data-disco-chat-shell]:has(textarea:focus),
+html[data-disco="on"] [data-disco-chat-input-bar]:has(input:focus),
+html[data-disco="on"] [data-disco-chat-input-bar]:has(textarea:focus),
+html[data-disco="on"] [data-disco-chat-input]:has(input:focus),
+html[data-disco="on"] [data-disco-chat-input]:has(textarea:focus) {
   animation: none !important;
 }
 html[data-disco="on"] .custom-cursor,

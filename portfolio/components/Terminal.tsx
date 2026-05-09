@@ -110,6 +110,7 @@ export default function Terminal() {
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [hasInteracted, setHasInteracted] = useState(false);
+    const [isInputFocused, setIsInputFocused] = useState(false);
 
     // Inline prompt subscription. When non-null, the next Enter-press is
     // routed to the prompt's `onSubmit` instead of the command registry.
@@ -152,7 +153,8 @@ export default function Terminal() {
     // Stops automatically the moment the user types anything (overlay unmounts).
     // Also disabled while a prompt (password/username) is active so the
     // placeholder doesn't distract from the request being made.
-    const placeholderRef = useTerminalPlaceholder(!input && activePrompt === null);
+    const isPlaceholderActive = !input && !isInputFocused && activePrompt === null;
+    const placeholderRef = useTerminalPlaceholder(isPlaceholderActive);
 
     const warmCommandRegistry = React.useCallback(() => {
         void getCommandRegistry().catch(() => {});
@@ -342,6 +344,7 @@ export default function Terminal() {
     // viewport. Works for both iOS Safari and Android Chrome since scrollIntoView
     // walks all scrollable ancestors.
     const handleInputFocus = React.useCallback(() => {
+        setIsInputFocused(true);
         if (!hasInteracted) setHasInteracted(true);
         warmCommandRegistry();
         if (typeof window === 'undefined') return;
@@ -350,6 +353,10 @@ export default function Terminal() {
             inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 320);
     }, [hasInteracted, warmCommandRegistry]);
+
+    const handleInputBlur = React.useCallback(() => {
+        setIsInputFocused(false);
+    }, []);
 
     const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
         // During an inline prompt, disable command history + tab-complete —
@@ -472,6 +479,7 @@ export default function Terminal() {
                                     onChange={(e) => updateInput(e.target.value)}
                                     onKeyDown={handleKeyDownReal}
                                     onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
                                     className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
                                     autoComplete="new-password"
                                     aria-label={`Terminal prompt: ${activePrompt.id}`}
@@ -493,6 +501,7 @@ export default function Terminal() {
                                     onChange={(e) => updateInput(e.target.value)}
                                     onKeyDown={handleKeyDownReal}
                                     onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
                                     className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
                                     autoComplete="off"
                                     aria-label={activePrompt ? `Terminal prompt: ${activePrompt.id}` : "Terminal Command Input"}
@@ -503,7 +512,7 @@ export default function Terminal() {
                                     autoCorrect={activePrompt ? 'off' : undefined}
                                 />
                             )}
-                            {!input && !activePrompt && (
+                            {isPlaceholderActive && (
                                 <span
                                     ref={placeholderRef}
                                     aria-hidden="true"

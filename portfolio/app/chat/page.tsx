@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import StickyNoteChat from '@/components/StickyNoteChat';
 import { stickerBus } from '@/lib/stickerBus';
 
@@ -38,7 +38,12 @@ export default function ChatPage() {
     // so we clear the full pulltab height (--c-nav-tab-pt + --c-nav-tab-py +
     // breathing room). Desktop tabs live off to the right edge — a small
     // pt-6 there is enough.
-    <div className="h-full max-w-3xl mx-auto flex flex-col pt-[calc(var(--c-nav-tab-pt)+var(--c-nav-tab-py)+0.5rem)] md:pt-6">
+    <div
+      data-disco-chat-page
+      data-disco-motion="breath"
+      style={{ '--disco-motion-delay': '140ms' } as CSSProperties}
+      className="h-full max-w-3xl mx-auto flex flex-col pt-[calc(var(--c-nav-tab-pt)+var(--c-nav-tab-py)+0.5rem)] md:pt-6"
+    >
       <StickyNoteChat />
     </div>
   );

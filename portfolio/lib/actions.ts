@@ -29,6 +29,9 @@ type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
 const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);
 
+export const DISCO_ACTION_LABEL = 'Engage disco mode';
+export const DISCO_EXPLAINER_LABEL = "What's disco mode?";
+
 const NAVIGATION_REPLIES: Record<NavigationPath, string> = {
   '/': 'Taking you back to the home page ~',
   '/about': 'Opening the about page ~',
@@ -98,7 +101,7 @@ export const ACTION_REGISTRY: ActionDef[] = [
     themeAction: 'toggle',
   },
   {
-    label: 'Engage disco mode',
+    label: DISCO_ACTION_LABEL,
     themeAction: 'disco',
   },
   {
@@ -201,6 +204,51 @@ export function getFollowupActions(): string[] {
     .map(a => a.label);
 }
 
+export interface DiscoSuggestionOptions {
+  discoActive?: boolean;
+  exclude?: readonly string[];
+  lastUserText?: string;
+}
+
+function normalizeSuggestionText(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+export function getInitialChatSuggestions(discoActive = false): { base: string[]; extra: string[] } {
+  if (discoActive) {
+    return {
+      base: INITIAL_SUGGESTIONS.slice(0, 2),
+      extra: INITIAL_SUGGESTIONS.slice(2),
+    };
+  }
+
+  return {
+    base: [INITIAL_SUGGESTIONS[0], DISCO_ACTION_LABEL],
+    extra: INITIAL_SUGGESTIONS.slice(1).filter(suggestion => suggestion !== DISCO_EXPLAINER_LABEL),
+  };
+}
+
+export function getPromotedFollowupActions(
+  actions: readonly string[],
+  options: DiscoSuggestionOptions = {},
+): string[] {
+  const excluded = new Set(options.exclude?.map(normalizeSuggestionText) ?? []);
+  const lastUserText = options.lastUserText ? normalizeSuggestionText(options.lastUserText) : '';
+  if (lastUserText) excluded.add(lastUserText);
+
+  const candidates = actions.filter(action => {
+    if (excluded.has(normalizeSuggestionText(action))) return false;
+    if (options.discoActive && action === DISCO_ACTION_LABEL) return false;
+    return true;
+  });
+
+  if (!options.discoActive && candidates.includes(DISCO_ACTION_LABEL)) {
+    return [DISCO_ACTION_LABEL, ...candidates.filter(action => action !== DISCO_ACTION_LABEL)];
+  }
+
+  return candidates;
+}
+
 /** Conversational followup suggestions (not actions — sent to LLM) */
 export const FOLLOWUP_CONVERSATIONAL = [
   "What projects have you worked on?",
@@ -213,7 +261,7 @@ export const FOLLOWUP_CONVERSATIONAL = [
   "What are your hobbies?",
   "Tell me about your PC build",
   "What games do you play?",
-  "What's disco mode?",
+  DISCO_EXPLAINER_LABEL,
 ] as const;
 
 /** Initial suggestions shown before any conversation */
@@ -221,7 +269,7 @@ export const INITIAL_SUGGESTIONS = [
   "What do you work on at Microsoft?",
   "What's your tech stack?",
   "Tell me about Jarvis",
-  "What's disco mode?",
+  DISCO_EXPLAINER_LABEL,
   "What's the Escape the Matrix puzzle?",
   "Report a bug",
 ] as const;

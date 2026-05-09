@@ -369,7 +369,9 @@ export const GUESTBOOK_NOTE_BORDER = 'border-yellow-400/30' as const;
 
 /** Guestbook limits and pagination tokens */
 export const GUESTBOOK_LIMITS = {
+  minMessageLength: 5,
   maxMessageLength: 300,
+  minNameLength: 2,
   maxNameLength: 40,
   notesPerPage: 40,
   entranceStaggerMs: 40,

@@ -63,20 +63,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate message.
-    const message = asString(body.message).trim().slice(0, GUESTBOOK_LIMITS.maxMessageLength);
-    if (!message || message.length < 5) {
-      return Response.json({ error: 'Message must be at least 5 characters.' }, { status: 400 });
+    const message = asString(body.message).trim();
+    if (!message || message.length < GUESTBOOK_LIMITS.minMessageLength) {
+      return Response.json({ error: `Message must be at least ${GUESTBOOK_LIMITS.minMessageLength} characters.` }, { status: 400 });
     }
     if (message.length > GUESTBOOK_LIMITS.maxMessageLength) {
-      return Response.json({ error: 'Message too long.' }, { status: 400 });
+      return Response.json({ error: `Message must be ${GUESTBOOK_LIMITS.maxMessageLength} characters or fewer.` }, { status: 400 });
     }
     if (URL_PATTERN.test(message)) {
       return Response.json({ error: 'Links are not allowed in guestbook entries.' }, { status: 400 });
     }
 
     // Validate name.
-    const rawName = asString(body.name).trim().slice(0, GUESTBOOK_LIMITS.maxNameLength);
-    const name = rawName.replace(/\r?\n/g, ' ').replace(/^@+/, '').trim();
+    const rawNameInput = asString(body.name).trim();
+    if (rawNameInput.length > GUESTBOOK_LIMITS.maxNameLength) {
+      return Response.json({ error: `Name must be ${GUESTBOOK_LIMITS.maxNameLength} characters or fewer.` }, { status: 400 });
+    }
+    const name = rawNameInput.replace(/\r?\n/g, ' ').replace(/^@+/, '').trim();
+    if (name && name.length < GUESTBOOK_LIMITS.minNameLength) {
+      return Response.json({ error: `Name must be at least ${GUESTBOOK_LIMITS.minNameLength} characters, or leave it blank.` }, { status: 400 });
+    }
     if (name && URL_PATTERN.test(name)) {
       return Response.json({ error: 'Links are not allowed in guestbook entries.' }, { status: 400 });
     }

@@ -14,6 +14,7 @@ import { ClearButton } from '@/components/ui/ClearButton';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
+import { addPendingGuestbookEntry } from '@/lib/guestbookPending';
 import {
   ANIMATION_TOKENS,
   GUESTBOOK_ANIMATION,
@@ -83,7 +84,8 @@ export default function GuestbookForm() {
 
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value.slice(0, GUESTBOOK_LIMITS.maxNameLength));
-  }, []);
+    if (inlineError) setInlineError('');
+  }, [inlineError]);
 
   // Live-merge speech transcript into the message field while listening.
   useEffect(() => {
@@ -118,9 +120,16 @@ export default function GuestbookForm() {
     if (state === 'submitting' || state === 'flying') return;
 
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || trimmedMessage.length < 5) {
+    if (!trimmedMessage || trimmedMessage.length < GUESTBOOK_LIMITS.minMessageLength) {
       warning();
-      setInlineError('Add at least 5 characters before pinning.');
+      setInlineError(`Add at least ${GUESTBOOK_LIMITS.minMessageLength} characters before pinning.`);
+      return;
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName && trimmedName.length < GUESTBOOK_LIMITS.minNameLength) {
+      warning();
+      setInlineError(`Use at least ${GUESTBOOK_LIMITS.minNameLength} characters for your name, or leave it blank.`);
       return;
     }
 
@@ -135,7 +144,7 @@ export default function GuestbookForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: trimmedMessage,
-          name: name.trim() || undefined,
+          name: trimmedName || undefined,
           website,
         }),
       });
@@ -145,7 +154,7 @@ export default function GuestbookForm() {
       if (!res.ok) {
         const copy = res.status === 429
           ? (data.error ?? 'Whoa, let Dhruv catch up. Try again in a bit.')
-          : 'the pin fell out — try again ~';
+          : (data.error ?? 'the pin fell out — try again ~');
         warning();
         setState('error');
         setErrorMsg(copy);
@@ -155,6 +164,7 @@ export default function GuestbookForm() {
       // Fly-to-wall animation, then toast, then fresh form.
       success();
       soundManager.play('guestbook-submit');
+      addPendingGuestbookEntry({ message: trimmedMessage, name: trimmedName });
       setState('flying');
       setShowToast(true);
 
@@ -290,6 +300,7 @@ export default function GuestbookForm() {
               value={name}
               onChange={handleNameChange}
               placeholder="your name (optional)"
+              minLength={GUESTBOOK_LIMITS.minNameLength}
               maxLength={GUESTBOOK_LIMITS.maxNameLength}
               disabled={isDisabled}
               autoComplete="name"

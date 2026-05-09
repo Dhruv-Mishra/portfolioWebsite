@@ -20,9 +20,9 @@ export interface GuestbookEntry {
 
 /** Client → server POST body shape for /api/guestbook. */
 export interface GuestbookSubmission {
-  /** Required message (5–300 chars after trim). */
+  /** Required message (configured min/max chars after trim). */
   message: string;
-  /** Optional signer name (≤40 chars after trim). */
+  /** Optional signer name (configured min/max chars after trim when present). */
   name?: string;
   /** Honeypot — must be empty on real submissions. Non-empty → silent 200. */
   website?: string;

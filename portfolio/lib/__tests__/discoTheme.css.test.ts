@@ -17,7 +17,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const CSS_PATH = path.resolve(__dirname, '../../app/globals.css');
+const STICKY_NOTE_CHAT_PATH = path.resolve(__dirname, '../../components/StickyNoteChat.tsx');
+const PROJECTS_PAGE_PATH = path.resolve(__dirname, '../../app/projects/page.tsx');
 const CSS = fs.readFileSync(CSS_PATH, 'utf8');
+const STICKY_NOTE_CHAT = fs.readFileSync(STICKY_NOTE_CHAT_PATH, 'utf8');
+const PROJECTS_PAGE = fs.readFileSync(PROJECTS_PAGE_PATH, 'utf8');
 
 describe('globals.css disco theme', () => {
   it('defines the [data-disco="on"] selector', () => {
@@ -81,6 +85,15 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/@keyframes\s+disco-wiggle/);
     expect(CSS).toMatch(/@keyframes\s+disco-shimmy/);
     expect(CSS).toMatch(/@keyframes\s+disco-breath/);
+  });
+
+  it('chat sway composes with Framer Motion transforms', () => {
+    const chatSwayBlock = CSS.match(/@keyframes\s+disco-chat-sway\s*\{[\s\S]*?\n\}/)?.[0] ?? '';
+
+    expect(chatSwayBlock).toMatch(/translate:\s*4px\s+0/);
+    expect(chatSwayBlock).toMatch(/rotate:\s*2deg/);
+    expect(chatSwayBlock).not.toMatch(/transform:/);
+    expect(CSS).toMatch(/@supports\s+not\s+\(translate:\s*1px\)\s*\{[\s\S]*?@keyframes\s+disco-chat-sway/);
   });
 
   it('binding spine goes transparent in disco so the body gradient bleeds through', () => {
@@ -235,5 +248,51 @@ describe('globals.css disco theme', () => {
     );
     // The keyframe is still defined (unchanged).
     expect(CSS).toMatch(/@keyframes\s+disco-card-hue\s*\{/);
+  });
+
+  it('uses deterministic message-id phase offsets for chat notes', () => {
+    expect(STICKY_NOTE_CHAT).toMatch(/function getMessageDiscoStyle\(messageId: string\): DiscoMotionStyle/);
+    expect(STICKY_NOTE_CHAT).toMatch(/const hash = getStableHash\(messageId\)/);
+    expect(STICKY_NOTE_CHAT).toMatch(/'--disco-motion-delay': getNegativeDiscoDelay\(mixHash\(hash,/);
+    expect(STICKY_NOTE_CHAT).toMatch(/'--disco-card-delay': getNegativeDiscoDelay\(mixHash\(hash,/);
+    expect(STICKY_NOTE_CHAT).toMatch(/style=\{discoStyle\}/);
+
+    const helperBlock = STICKY_NOTE_CHAT.match(/function getMessageDiscoStyle[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(helperBlock).not.toMatch(/Math\.random|Date\.now|requestAnimationFrame|setInterval/);
+  });
+
+  it('uses hoisted deterministic phase offsets for project cards', () => {
+    expect(PROJECTS_PAGE).toMatch(/const CARD_STYLES = PROJECTS\.map/);
+    expect(PROJECTS_PAGE).toMatch(/cardDesktop: getCardDiscoStyle\(i, CARD_SHADOW\)/);
+    expect(PROJECTS_PAGE).toMatch(/cardMobile: getCardDiscoStyle\(i, CARD_SHADOW_MOBILE\)/);
+    expect(PROJECTS_PAGE).toMatch(/'--disco-motion-delay': getIndexedDiscoDelay\(index, PROJECT_WIGGLE_PERIOD_MS,/);
+    expect(PROJECTS_PAGE).toMatch(/'--disco-card-delay': getIndexedDiscoDelay\(index, PROJECT_CARD_HUE_PERIOD_MS,/);
+    expect(PROJECTS_PAGE).toMatch(/style=\{isMobile \? styles\.cardMobile : styles\.cardDesktop\}/);
+
+    const helperBlock = PROJECTS_PAGE.match(/function getIndexedDiscoDelay[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(helperBlock).not.toMatch(/Math\.random|Date\.now|requestAnimationFrame|setInterval/);
+  });
+
+  it('project card dance consumes custom phase offsets instead of nth-child buckets', () => {
+    const cardBlock = CSS.match(/html\[data-disco="on"\]\s+\.group\\\/card\s*\{[\s\S]*?\}/);
+    expect(cardBlock).toBeTruthy();
+    expect(cardBlock?.[0]).toMatch(/animation-delay:\s*var\(--disco-motion-delay,\s*0ms\)/);
+    expect(CSS).not.toContain('.grid > div:nth-child(3n+2) .group\\/card');
+    expect(CSS).not.toContain('.grid > div:nth-child(3n+3) .group\\/card');
+  });
+
+  it('chat hue phase is custom-delayed and remains desktop-only', () => {
+    const chatSelector = 'html[data-disco="on"] .bg-\\[var\\(--note-user\\)\\],';
+    const chatBlockStart = CSS.indexOf(chatSelector);
+    expect(chatBlockStart).toBeGreaterThanOrEqual(0);
+    const chatBaseBlock = CSS.slice(chatBlockStart, CSS.indexOf('\n}', chatBlockStart) + 2);
+
+    expect(chatBaseBlock).toContain('animation: disco-chat-sway 900ms ease-in-out infinite;');
+    expect(chatBaseBlock).toContain('animation-delay: var(--disco-motion-delay, 0ms);');
+    expect(chatBaseBlock).not.toContain('disco-card-hue');
+    expect(CSS).toMatch(
+      /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)\s*\{[\s\S]*?\.bg-\\\[var\\\(--note-user\\\)\\\][\s\S]*?disco-card-hue[\s\S]*?animation-delay:\s*var\(--disco-motion-delay,\s*0ms\),\s*var\(--disco-card-delay,\s*0ms\)/,
+    );
+    expect(CSS).not.toMatch(/\.bg-\\\[var\\\(--note-ai\\\)\\\]\s*\{\s*animation-delay:\s*180ms,\s*0ms/);
   });
 });

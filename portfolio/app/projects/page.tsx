@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type CSSProperties } from 'react';
 import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
@@ -26,6 +26,29 @@ const CARD_SHADOW_MOBILE = { boxShadow: '2px 4px 10px rgba(0,0,0,0.08)' } as con
 const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
 const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
 const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
+const PROJECT_WIGGLE_PERIOD_MS = 1400;
+const PROJECT_CARD_HUE_PERIOD_MS = 6000;
+
+type DiscoCardStyle = CSSProperties & {
+    '--disco-motion-delay': string;
+    '--disco-card-delay': string;
+};
+
+function getIndexedDiscoDelay(index: number, periodMs: number, salt: number): string {
+    let hash = (Math.imul(index + 1, 0x9e3779b1) ^ salt) >>> 0;
+    hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+    hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+    const offsetMs = (((hash ^ (hash >>> 16)) >>> 0) % (periodMs - 1)) + 1;
+    return `-${offsetMs}ms`;
+}
+
+function getCardDiscoStyle(index: number, shadowStyle: CSSProperties): DiscoCardStyle {
+    return {
+        ...shadowStyle,
+        '--disco-motion-delay': getIndexedDiscoDelay(index, PROJECT_WIGGLE_PERIOD_MS, 0x2c1b3c6d),
+        '--disco-card-delay': getIndexedDiscoDelay(index, PROJECT_CARD_HUE_PERIOD_MS, 0x8f1bbcdc),
+    };
+}
 
 /** Hoisted — avoids re-allocation per render for every card */
 const CARD_CLIP_STYLE = {
@@ -53,6 +76,8 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
         photo: { transform: `rotate(${photoRotate}deg)` } as const,
         clipClass: `absolute -top-4 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm` as const,
         clipStyle: { left: `${CLIP_OFFSETS[i % 7]}px`, transform: `rotate(${CLIP_ROTATIONS[i % 7]}deg)` } as const,
+        cardDesktop: getCardDiscoStyle(i, CARD_SHADOW),
+        cardMobile: getCardDiscoStyle(i, CARD_SHADOW_MOBILE),
     };
 });
 
@@ -136,7 +161,7 @@ export default function Projects() {
                             whileHover={isMobile ? undefined : CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
-                            style={isMobile ? CARD_SHADOW_MOBILE : CARD_SHADOW}
+                            style={isMobile ? styles.cardMobile : styles.cardDesktop}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div

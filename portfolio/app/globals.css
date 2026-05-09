@@ -1443,14 +1443,22 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
 }
 
 /* 2c) chat-sway — combined slight rotate + horizontal translation for chat
-   bubbles. Rotate uses standalone `rotate:` so it composes with framer/inline
-   transforms; translate runs as the keyframe's `transform`. Amplitude kept
-   tight (±2deg / ±4px) so message text remains readable. */
+   bubbles. Uses standalone `translate` + `rotate` so the dance composes with
+   Framer Motion's inline transform on each sticky note instead of flattening
+   its resting rotation. Amplitude stays tight so message text remains readable. */
 @keyframes disco-chat-sway {
-  0%, 100% { transform: translateX(0);    rotate: 0deg; }
-  25%      { transform: translateX(4px);  rotate: 2deg; }
-  50%      { transform: translateX(0);    rotate: 0deg; }
-  75%      { transform: translateX(-4px); rotate: -2deg; }
+  0%, 100% { translate: 0 0;    rotate: 0deg; }
+  25%      { translate: 4px 0;  rotate: 2deg; }
+  50%      { translate: 0 0;    rotate: 0deg; }
+  75%      { translate: -4px 0; rotate: -2deg; }
+}
+@supports not (translate: 1px) {
+  @keyframes disco-chat-sway {
+    0%, 100% { transform: translateX(0);    rotate: 0deg; }
+    25%      { transform: translateX(4px);  rotate: 2deg; }
+    50%      { transform: translateX(0);    rotate: 0deg; }
+    75%      { transform: translateX(-4px); rotate: -2deg; }
+  }
 }
 
 /* 3) breath — slow scale pulse, for LARGE surfaces (terminal shell,
@@ -1528,12 +1536,12 @@ html[data-disco="on"] .group\/card {
 @supports not (rotate: 1deg) {
   html[data-disco="on"] .group\/card {
     animation: disco-wiggle 1400ms ease-in-out infinite;
+    animation-delay: var(--disco-motion-delay, 0ms);
     will-change: transform;
   }
 }
-/* Stagger consecutive project tiles so the dance reads as a wave not a stomp. */
-html[data-disco="on"] .grid > div:nth-child(3n+2) .group\/card { animation-delay: 150ms; }
-html[data-disco="on"] .grid > div:nth-child(3n+3) .group\/card { animation-delay: 300ms; }
+/* Project tile phase offsets come from hoisted per-card CSS variables so the
+   dance starts distributed without DOM-position buckets. */
 
 /* Guestbook notes — the outer article wrapper already animates an entrance
    via `.animate-wall-note-in`. We only apply disco motion to the INNER
@@ -1614,18 +1622,24 @@ html[data-disco="on"] .animate-page-sheet {
 }
 
 /* Chat bubbles — target StickyNote rendered elements via their
-   note-user / note-ai background-color hooks. Shimmy left-right with 180ms
-   stagger between user + AI so the thread doesn't pulse in unison. */
+   note-user / note-ai background-color hooks. Each rendered note provides
+   deterministic negative phase offsets so the thread doesn't pulse in unison. */
 html[data-disco="on"] .bg-\[var\(--note-user\)\],
 html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
-  animation-name: disco-chat-sway, disco-card-hue;
-  animation-duration: 900ms, 6s;
-  animation-iteration-count: infinite, infinite;
-  animation-timing-function: ease-in-out, linear;
+  animation: disco-chat-sway 900ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform, rotate;
 }
-html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
-  animation-delay: 180ms, 0ms;
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-disco="on"] .bg-\[var\(--note-user\)\],
+  html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
+    animation-name: disco-chat-sway, disco-card-hue;
+    animation-duration: 900ms, 6s;
+    animation-iteration-count: infinite, infinite;
+    animation-timing-function: ease-in-out, linear;
+    animation-delay: var(--disco-motion-delay, 0ms), var(--disco-card-delay, 0ms);
+  }
 }
 
 /* Buttons site-wide — tight soft bounce on everything that's a <button>

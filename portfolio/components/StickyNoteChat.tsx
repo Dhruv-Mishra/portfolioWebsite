@@ -295,7 +295,10 @@ const SUGGESTION_STYLE_DISCO = {
   backgroundColor: '#fbcfe8',
 } as const;
 
-type DiscoMotionStyle = CSSProperties & { '--disco-motion-delay'?: string };
+type DiscoMotionStyle = CSSProperties & {
+  '--disco-motion-delay'?: string;
+  '--disco-card-delay'?: string;
+};
 
 function getSuggestionStyle(isDisco: boolean, isAction: boolean | undefined, index: number): DiscoMotionStyle {
   const style: DiscoMotionStyle = {
@@ -351,12 +354,42 @@ const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
 const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
 const SEND_BUTTON_TAP = { scale: 0.9 } as const;
 
-function getNoteRotation(messageId: string, isUser: boolean): number {
+const CHAT_SWAY_PERIOD_MS = 900;
+const CARD_HUE_PERIOD_MS = 6000;
+
+function getStableHash(value: string): number {
   let hash = 0;
 
-  for (let index = 0; index < messageId.length; index++) {
-    hash = (hash * 31 + messageId.charCodeAt(index)) >>> 0;
+  for (let index = 0; index < value.length; index++) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
   }
+
+  return hash;
+}
+
+function mixHash(hash: number, salt: number): number {
+  let mixed = (hash ^ salt) >>> 0;
+  mixed = Math.imul(mixed ^ (mixed >>> 16), 0x7feb352d);
+  mixed = Math.imul(mixed ^ (mixed >>> 15), 0x846ca68b);
+  return (mixed ^ (mixed >>> 16)) >>> 0;
+}
+
+function getNegativeDiscoDelay(hash: number, periodMs: number): string {
+  const offsetMs = (hash % (periodMs - 1)) + 1;
+  return `-${offsetMs}ms`;
+}
+
+function getMessageDiscoStyle(messageId: string): DiscoMotionStyle {
+  const hash = getStableHash(messageId);
+
+  return {
+    '--disco-motion-delay': getNegativeDiscoDelay(mixHash(hash, 0x9e3779b1), CHAT_SWAY_PERIOD_MS),
+    '--disco-card-delay': getNegativeDiscoDelay(mixHash(hash, 0x85ebca6b), CARD_HUE_PERIOD_MS),
+  };
+}
+
+function getNoteRotation(messageId: string, isUser: boolean): number {
+  const hash = getStableHash(messageId);
 
   const normalized = (hash % 1000) / 1000;
   const rotation = NOTE_ROTATION.minDeg + normalized * NOTE_ROTATION.rangeDeg;
@@ -496,6 +529,7 @@ const StickyNote = memo(function StickyNote({
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug);
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
+  const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
   const { displayedText, isFiller: isDisplayingFiller } = useTypewriter(
@@ -520,6 +554,7 @@ const StickyNote = memo(function StickyNote({
          the site-wide selector on .bg-[var(--note-user)] / .bg-[var(--note-ai)].
          data-disco-motion is redundant here but documents the intent. */
       data-disco-motion="shimmy"
+      style={discoStyle}
       className={cn(
         "relative max-w-[90%] sm:max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
         isUser

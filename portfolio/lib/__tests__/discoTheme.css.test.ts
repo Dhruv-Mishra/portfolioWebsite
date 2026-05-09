@@ -101,6 +101,15 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/\[data-disco-motion="breath"\]/);
   });
 
+  it('does not disable opt-in disco motion inside reduced-motion media queries', () => {
+    const reducedMotionBlocks = [...CSS.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/g)]
+      .map(match => match[0])
+      .join('\n');
+
+    expect(reducedMotionBlocks).not.toMatch(/\[data-disco-motion=/);
+    expect(reducedMotionBlocks).not.toMatch(/html\[data-disco="on"\]/);
+  });
+
   it('defines anti-pattern overrides — main / focused inputs never dance', () => {
     // Explicit anti-pattern rules — must be present so readability is preserved.
     expect(CSS).toMatch(/html\[data-disco="on"\]\s+main[\s\S]*?animation:\s*none/);
@@ -145,6 +154,16 @@ describe('globals.css disco theme', () => {
       /html\[data-disco="on"\]\s+h1,\s*\n?\s*html\[data-disco="on"\]\s+h2,\s*\n?\s*html\[data-disco="on"\]\s+h3\s*\{[\s\S]*?\}/,
     );
     expect(headingBlock?.[0]).toMatch(/animation:\s*disco-heading-color/);
+  });
+
+  it('composes disco heading color with heading motion variants', () => {
+    const headingMotionBlock = CSS.match(
+      /html\[data-disco="on"\]\s+:is\(h1, h2, h3\)\[data-disco-motion="wiggle"\]\s*\{[\s\S]*?\}/,
+    );
+
+    expect(headingMotionBlock).toBeTruthy();
+    expect(headingMotionBlock?.[0]).toMatch(/disco-heading-color/);
+    expect(headingMotionBlock?.[0]).toMatch(/disco-spin-prop/);
   });
 
   it('disco headings force nested strong/span/em to inherit the disco color', () => {

@@ -1673,19 +1673,7 @@ html[data-disco="on"] main {
 }
 html[data-disco="on"] input:focus,
 html[data-disco="on"] textarea:focus {
-  /* Focused form inputs must stay still so the user can aim at the caret. */
-  animation: none !important;
-}
-html[data-disco="on"] [data-disco-chat-page]:has(input:focus),
-html[data-disco="on"] [data-disco-chat-page]:has(textarea:focus),
-html[data-disco="on"] [data-disco-chat-shell]:has(input:focus),
-html[data-disco="on"] [data-disco-chat-shell]:has(textarea:focus),
-html[data-disco="on"] [data-disco-chat-input-bar]:has(input:focus),
-html[data-disco="on"] [data-disco-chat-input-bar]:has(textarea:focus),
-html[data-disco="on"] [data-disco-chat-input]:has(input:focus),
-html[data-disco="on"] [data-disco-chat-input]:has(textarea:focus),
-html[data-disco="on"] [data-disco-home-terminal]:has(input:focus),
-html[data-disco="on"] [data-disco-home-terminal]:has(textarea:focus) {
+  /* Keep the raw control itself stable; the opt-in disco wrapper may still dance. */
   animation: none !important;
 }
 html[data-disco="on"] .custom-cursor,
@@ -1836,6 +1824,49 @@ html[data-disco="on"].dark h3 {
     0 1px 0 rgba(0, 0, 0, 0.5),
     0 0 14px rgba(255, 255, 255, 0.15);
 }
+
+/* Headings need BOTH color cycling and movement. The plain heading rule above
+   owns the `animation` shorthand for color, so it would otherwise overwrite the
+   generic `[data-disco-motion]` dance on the homepage and chat headings. These
+   more-specific opt-in rules compose the two tracks explicitly. */
+html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="wiggle"] {
+  animation:
+    disco-heading-color 6s linear infinite,
+    disco-spin-prop 1200ms ease-in-out infinite;
+  animation-delay: 0ms, var(--disco-motion-delay, 0ms);
+  transform-origin: center;
+  will-change: color, rotate;
+}
+html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="shimmy"] {
+  animation:
+    disco-heading-color 6s linear infinite,
+    disco-shimmy 800ms ease-in-out infinite;
+  animation-delay: 0ms, var(--disco-motion-delay, 0ms);
+  will-change: color, transform;
+}
+html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="breath"] {
+  animation:
+    disco-heading-color 6s linear infinite,
+    disco-breath 2000ms ease-in-out infinite;
+  animation-delay: 0ms, var(--disco-motion-delay, 0ms);
+  will-change: color, transform;
+}
+html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="bob"] {
+  animation:
+    disco-heading-color 6s linear infinite,
+    disco-bob 1100ms ease-in-out infinite;
+  animation-delay: 0ms, var(--disco-motion-delay, 0ms);
+  will-change: color, transform;
+}
+@supports not (rotate: 1deg) {
+  html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="wiggle"] {
+    animation:
+      disco-heading-color 6s linear infinite,
+      disco-wiggle 1200ms ease-in-out infinite;
+    animation-delay: 0ms, var(--disco-motion-delay, 0ms);
+    will-change: color, transform;
+  }
+}
 @keyframes disco-heading-color {
   0%   { color: #dc2626; }
   14%  { color: #ea580c; }
@@ -1885,27 +1916,9 @@ html[data-disco="on"] [data-social-sidebar] > *:nth-child(3) { --disco-motion-de
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(4) { --disco-motion-delay: 330ms; }
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-delay: 440ms; }
 
-/* Reduced motion: opt the *amplified* / *extra* disco motions out.
-   The original disco rules (kept above) intentionally keep playing because
-   disco is opt-in; the additional homepage choreography is purely
-   decorative and respects user preference. We disable only the new
-   motion keyframes (wiggle/shimmy/breath/bob attached via
-   `data-disco-motion`) and the social-sidebar bob added here. */
-@media (prefers-reduced-motion: reduce) {
-  html[data-disco="on"] [data-disco-motion="wiggle"],
-  html[data-disco="on"] [data-disco-motion="shimmy"],
-  html[data-disco="on"] [data-disco-motion="breath"],
-  html[data-disco="on"] [data-disco-motion="bob"],
-  html[data-disco="on"] [data-social-sidebar] > * {
-    animation: none !important;
-  }
-}
-
-/* Disco: reduced-motion — intentionally IGNORED for disco since it's an
-   opt-in easter egg. Regular site animations still honor prefers-reduced-motion
-   via their own selectors above; only disco-specific animations keep playing.
-   We do keep the superuser shimmer honoring reduced-motion because that is
-   NOT disco-gated. */
+/* Reduced motion: disco is an explicit opt-in easter egg, so its motion is
+   intentionally NOT disabled here. This block remains only for non-disco
+   shimmer cleanup that is not controlled by the user's disco-mode choice. */
 @media (prefers-reduced-motion: reduce) {
   .sticker-card--superuser::after {
     animation: none;

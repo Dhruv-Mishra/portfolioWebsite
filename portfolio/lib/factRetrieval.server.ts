@@ -78,6 +78,8 @@ export interface RetrievalOptions {
 }
 
 const DEFAULT_LIMIT = 8;
+const PC_BUILD_FACT_ID = 'personal-pc-build';
+const PC_SPECS_QUERY_PATTERN = /\b(pc|computer|desktop|rig|specs?|gpu|cpu|ram|memory|hardware|overclock|overclocking|3080|13600kf|ddr5)\b/i;
 
 // ── Math helpers ────────────────────────────────────────────────────
 
@@ -284,6 +286,11 @@ export async function retrieveRelevantFacts(
 ): Promise<Fact[]> {
   const limit = options.limit ?? DEFAULT_LIMIT;
   if (LOADED.facts.length === 0) return [];
+
+  if (PC_SPECS_QUERY_PATTERN.test(query)) {
+    const pcFact = LOADED.facts.find((fact) => fact.id === PC_BUILD_FACT_ID);
+    if (pcFact) return [pcFact];
+  }
 
   const { anchors, rankable } = partitionFacts(LOADED.facts);
   const anchorSlice = [...anchors].sort((left, right) => {

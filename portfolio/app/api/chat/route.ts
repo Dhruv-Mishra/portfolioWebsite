@@ -51,7 +51,7 @@ const GROQ_SAMPLING: {
 } = {
   temperature: 0.7,
   topP: 0.9,
-  maxCompletionTokens: 800,
+  maxCompletionTokens: 400,
   stop: ['\n\n\n', '\nUser:', '\nAssistant:'],
 };
 
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
     // The conditional block (off-topic / UI / terminal / matrix overrides,
     // recent UI actions, retrieved facts) is emitted as a separate system
     // message, and only when non-empty.
-    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized);
+    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized, { factLimit: 6 });
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),

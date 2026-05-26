@@ -4,7 +4,7 @@
 // same code path that runs inside /api/chat.
 import { describe, it, expect } from 'vitest';
 
-import { buildDhruvSystemPrompt, PROMPT_BLOCKS_FOR_TESTING } from '@/lib/chatContext.server';
+import { buildDhruvSystemPrompt, buildDhruvSystemPromptParts, PROMPT_BLOCKS_FOR_TESTING } from '@/lib/chatContext.server';
 
 describe('end-to-end system prompt assembly', () => {
   it('returns a prompt that includes real facts retrieved from the bundle', async () => {
@@ -14,6 +14,20 @@ describe('end-to-end system prompt assembly', () => {
     expect(prompt).toContain('Relevant facts:');
     // cropio fact text should be pulled in via semantic/lexical retrieval.
     expect(prompt).toMatch(/Cropio/i);
+  });
+
+  it('retrieves exact PC specs without unrelated project context for hardware questions', async () => {
+    const { conditional } = await buildDhruvSystemPromptParts([
+      { role: 'user', content: 'what are your PC specs?' },
+    ]);
+
+    expect(conditional).toContain('Relevant facts:');
+    expect(conditional).toContain('RTX 3080 Ti');
+    expect(conditional).toContain('i5-13600KF');
+    expect(conditional).toContain('6400 MHz CL32');
+    expect(conditional).not.toContain('Cropio');
+    expect(conditional).not.toContain(PROMPT_BLOCKS_FOR_TESTING.UI_ACTION_BLOCK);
+    expect(conditional).not.toContain(PROMPT_BLOCKS_FOR_TESTING.TERMINAL_RULES_BLOCK);
   });
 
   it('simple "hi" prompt is meaningfully shorter than a heavy-signal prompt', async () => {

@@ -26,7 +26,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "Tell me about Cropio",
-    "Cropio is a precision-agriculture platform I built that turns satellite imagery and weather data into actionable insights for farmers — crop health scoring, irrigation timing, yield forecasting. The fun part was the data pipeline: pulling Sentinel-2 tiles, computing NDVI/EVI indices at scale, and surfacing it through a dashboard a non-technical farmer can actually read. Want me to open the project card?",
+    "Cropio is an AI portrait-cropping tool I built for clean, social-ready profile images. It focuses on face-aware framing and fast, practical output rather than making people manually fiddle with crop boxes. Want me to open the project card?",
   ],
   [
     "What's the Escape the Matrix puzzle?",

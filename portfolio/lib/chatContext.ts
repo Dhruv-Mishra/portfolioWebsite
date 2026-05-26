@@ -50,7 +50,7 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['hobbies', 'free time', 'outside work', 'about you', 'yourself', 'who are you'],
     messages: [
-      "Got a bit distracted — I'm into gym, chess, and PC overclocking (3080 Ti, 5.5GHz i5, DDR5 tuned to 6400MHz). The about page has the full story!",
+      "Got a bit distracted. I'm into gym, chess, gaming, longevity research, and PC hardware rabbit holes. The about page has the full story!",
       "Sorry, thoughts went sideways. I was Immortal 2 in Valorant, play modded Minecraft on Azure, and love Witcher 3. Traveled to EU, Singapore, Vietnam, US too — about page has more ~",
       "Mind blanked for a sec. I'm into gym, chess, gaming, longevity research, and PC hardware rabbit holes. More on the about page!",
     ],
@@ -85,11 +85,10 @@ export function getContextualFallback(userPrompt: string): string {
 }
 
 export const CHAT_CONFIG = {
-  // Bounds the legacy fallback provider's reply. ~600 words is well above
-  // the 20-60 word target from STYLE_BLOCK, leaving generous headroom for
-  // legitimate longer answers while bounding any runaway generation. Mirrors
-  // the Groq primary provider's max_completion_tokens; keep them in lockstep.
-  maxTokens: 800,
+  // Bounds the legacy fallback provider's reply. Still well above the 20-70
+  // word target from STYLE_BLOCK, but low enough to discourage rambling.
+  // Mirrors the Groq primary provider's max_completion_tokens; keep in lockstep.
+  maxTokens: 400,
   // Sharp but not deterministic. Lower than the prior 0.6 felt flat;
   // 0.7 + topP 0.9 matches the primary Groq sampling for behavior parity.
   temperature: 0.7,

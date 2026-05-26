@@ -149,6 +149,16 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(ids).toContain('site-experience-timeline');
   });
 
+  it('force-includes exact PC build facts for hardware/spec queries', async () => {
+    const facts = await retrieveRelevantFacts('what are your pc specs?', { limit: 6 });
+    const pcFact = facts.find((fact) => fact.id === 'personal-pc-build');
+
+    expect(pcFact).toBeDefined();
+    expect(pcFact?.text).toContain('RTX 3080 Ti');
+    expect(pcFact?.text).toContain('i5-13600KF');
+    expect(pcFact?.text).toContain('6400 MHz CL32');
+  });
+
   it('respects custom limit', async () => {
     const facts = await retrieveRelevantFacts('microsoft work', { limit: 3 });
     expect(facts.length).toBeLessThanOrEqual(3);

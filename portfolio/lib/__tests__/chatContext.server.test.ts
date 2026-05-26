@@ -58,6 +58,15 @@ describe('buildDhruvSystemPrompt — always-on blocks', () => {
     expect(prompt).toContain(NEVER_INVENT_BLOCK);
   });
 
+  it('carries strict brevity, relevance, and PC-spec grounding rules', async () => {
+    const prompt = await build([{ role: 'user', content: 'what are your pc specs?' }]);
+
+    expect(prompt).toContain('Default: 1-3 sentences, 20-70 words');
+    expect(prompt).toContain('Stay relevant: use only the facts needed for this turn');
+    expect(prompt).toContain('PC hardware/specs are exact-fact only');
+    expect(prompt).toContain('Never infer from hobbies, gaming, deployment VM specs');
+  });
+
   it('always appends the relevant facts block', async () => {
     const prompt = await build([{ role: 'user', content: 'hi' }]);
     expect(prompt).toContain('Relevant facts:');

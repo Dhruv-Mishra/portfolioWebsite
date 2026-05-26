@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMem
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { Send, Eraser, Zap } from 'lucide-react';
+import { Eraser, Loader2, Pause, Play, Send, Volume2, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -25,6 +25,7 @@ import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
 import { ClearButton } from '@/components/ui/ClearButton';
 import { Modal } from '@/components/ui/Modal';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { useTtsPlayback, type TtsPlaybackStatus } from '@/hooks/useTtsPlayback';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
@@ -39,6 +40,7 @@ import {
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
 import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -516,15 +518,93 @@ function MatrixAwareAssistantText({
   return <span>{text}</span>;
 }
 
+function canSpeakAssistantMessage(message: ChatMessage): boolean {
+  const restoredMatrixReveal = extractRevealedKey(message.content) && /^hello\s+dhruv/i.test(message.content);
+
+  return message.role === 'assistant' &&
+    message.id !== 'welcome' &&
+    !message.isFiller &&
+    !message.oracleEmitted &&
+    !message.matrixInterceptKind &&
+    message.content !== 'Only root should know that.' &&
+    !restoredMatrixReveal &&
+    message.content.trim().length > 0;
+}
+
+function getSpeakButtonCopy(status: TtsPlaybackStatus, isActive: boolean): { ariaLabel: string; title: string } {
+  if (!isActive) {
+    return { ariaLabel: 'Play assistant response', title: 'Play response' };
+  }
+
+  if (status === 'loading') return { ariaLabel: 'Cancel spoken response', title: 'Cancel voice' };
+  if (status === 'playing') return { ariaLabel: 'Pause assistant response', title: 'Pause response' };
+  if (status === 'paused') return { ariaLabel: 'Resume assistant response', title: 'Resume response' };
+  if (status === 'error') return { ariaLabel: 'Retry assistant response voice', title: 'Try voice again' };
+
+  return { ariaLabel: 'Play assistant response', title: 'Play response' };
+}
+
+const SpeakResponseButton = memo(function SpeakResponseButton({
+  isActive,
+  onClick,
+  status,
+}: {
+  isActive: boolean;
+  onClick: () => void;
+  status: TtsPlaybackStatus;
+}) {
+  const busy = isActive && status === 'loading';
+  const pressed = isActive && (status === 'playing' || status === 'paused');
+  const copy = getSpeakButtonCopy(status, isActive);
+
+  const icon = (() => {
+    if (busy) return <Loader2 size={13} className="animate-spin" aria-hidden="true" />;
+    if (isActive && status === 'playing') return <Pause size={13} aria-hidden="true" />;
+    if (isActive && status === 'paused') return <Play size={13} aria-hidden="true" />;
+    return <Volume2 size={13} aria-hidden="true" />;
+  })();
+
+  return (
+    <Tooltip label={copy.title}>
+      <button
+        type="button"
+        aria-busy={busy || undefined}
+        aria-label={copy.ariaLabel}
+        aria-pressed={pressed}
+        onClick={onClick}
+        title={copy.title}
+        className={cn(
+          'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors',
+          'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
+          isActive && status === 'error'
+            ? 'border-rose-500/30 bg-rose-100/40 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300'
+            : pressed
+              ? 'border-[var(--note-ai-ink)]/25 bg-[var(--note-ai-ink)]/10 text-[var(--note-ai-ink)]'
+              : 'border-[var(--note-ai-ink)]/15 bg-[var(--note-ai-ink)]/5 text-[var(--note-ai-ink)]/55 hover:text-[var(--note-ai-ink)] hover:bg-[var(--note-ai-ink)]/10',
+          busy && 'cursor-progress opacity-70',
+        )}
+      >
+        {icon}
+      </button>
+    </Tooltip>
+  );
+});
+
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
   isLoading = false,
+  isTtsActive = false,
+  onSpeak,
   onTypewriterDone,
+  ttsStatus = 'idle',
 }: {
   message: ChatMessage;
   isLoading?: boolean;
+  isTtsActive?: boolean;
+  onSpeak?: (message: ChatMessage) => void;
   onTypewriterDone?: () => void;
+  ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug);
@@ -540,6 +620,7 @@ const StickyNote = memo(function StickyNote({
     onTypewriterDone,
   );
   const showPencil = !isUser && isLoading;
+  const canSpeak = canSpeakAssistantMessage(message) && !isDisplayingFiller;
 
   return (
     <m.div
@@ -581,8 +662,18 @@ const StickyNote = memo(function StickyNote({
         style={isUser ? FOLD_STYLE_USER : FOLD_STYLE_AI}
       />
 
+      {canSpeak && onSpeak ? (
+        <div className="absolute right-2 top-2 z-10">
+          <SpeakResponseButton
+            isActive={isTtsActive}
+            status={ttsStatus}
+            onClick={() => onSpeak(message)}
+          />
+        </div>
+      ) : null}
+
       {/* Message content — rendered inline so the note grows naturally with typewritten text */}
-      <div className="relative">
+      <div className={cn("relative", canSpeak && "pr-8")}>
         <div className={cn(
           "whitespace-pre-wrap break-words leading-relaxed",
           // Filler text: same color, just faded + italic to distinguish from final response
@@ -1059,6 +1150,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
+  const {
+    activeMessageId: ttsActiveMessageId,
+    error: ttsPlaybackError,
+    status: ttsPlaybackStatus,
+    stop: stopTtsPlayback,
+    toggle: toggleTtsPlayback,
+  } = useTtsPlayback();
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
@@ -1378,13 +1476,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
+    stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
     sendMessage(text);
-  }, [sendMessage, submit]);
+  }, [sendMessage, stopTtsPlayback, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
+    stopTtsPlayback();
     selection();
     soundManager.play('chat-send');
     // Pre-baked initial suggestions short-circuit the API. Only applies on
@@ -1399,7 +1499,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       }
     }
     sendMessage(text);
-  }, [selection, sendMessage, sendCanned, messages]);
+  }, [selection, sendMessage, sendCanned, messages, stopTtsPlayback]);
+
+  const handleSpeakMessage = useCallback((message: ChatMessage) => {
+    void toggleTtsPlayback(message.id, message.content);
+  }, [toggleTtsPlayback]);
 
   const handleClearDesk = useCallback(() => {
     if (navigationTimeoutRef.current !== null) {
@@ -1407,6 +1511,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       navigationTimeoutRef.current = null;
     }
     clear();
+    stopTtsPlayback();
     clearMessages();
     const initialSuggestions = getInitialChatSuggestions(discoActive);
     setBaseSuggestions(initialSuggestions.base);
@@ -1417,7 +1522,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     pendingActionsRef.current.clear();
     handledActionsRef.current.clear();
     setSelectedProjectSlug(null);
-  }, [clear, clearMessages, discoActive]);
+  }, [clear, clearMessages, discoActive, stopTtsPlayback]);
 
   const handleCloseProjectModal = useCallback(() => {
     closePanel();
@@ -1444,6 +1549,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
     >
       {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
+      <div className="sr-only" aria-live="polite">
+        {ttsPlaybackStatus === 'loading' ? 'Loading spoken response.' : null}
+        {ttsPlaybackStatus === 'playing' ? 'Playing assistant response.' : null}
+        {ttsPlaybackStatus === 'paused' ? 'Assistant response paused.' : null}
+        {ttsPlaybackStatus === 'error' ? (ttsPlaybackError ?? 'Could not play assistant response.') : null}
+      </div>
       {/* ─── Header ─── */}
       {!compact ? (
         <div
@@ -1508,7 +1619,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               <StickyNote
                 message={msg}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                isTtsActive={ttsActiveMessageId === msg.id}
+                onSpeak={handleSpeakMessage}
                 onTypewriterDone={msg.role === 'assistant' && !msg.isOld ? () => handleTypewriterDone(msg.id) : undefined}
+                ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
               />
             </div>
           );

@@ -4,7 +4,8 @@ import { adaptTextForKokoroTts } from '@/lib/ttsPrompts';
 
 describe('adaptTextForKokoroTts', () => {
   it('keeps visual names speakable without mutating source text elsewhere', () => {
-    expect(adaptTextForKokoroTts('Dhruv uses Next.js and Node.js.')).toBe('Dhroov uses Next J S and Node J S.');
+    expect(adaptTextForKokoroTts('Dhruv Mishra uses Next.js and Node.js.')).toBe('Dhroove. Misshra. uses Next J S and Node J S.');
+    expect(adaptTextForKokoroTts('Mishra built it.')).toBe('Misshra built it.');
   });
 
   it('removes markdown and expands symbol-heavy tech tokens', () => {

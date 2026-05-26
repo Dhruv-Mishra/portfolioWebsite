@@ -4,7 +4,9 @@ export const KOKORO_TTS_LLM_RULES = `Speech-safe reply text:
 - Expand tech names naturally when useful, e.g. Next.js as Next J S, Node.js as Node J S, C++ as C plus plus.`;
 
 export const KOKORO_TTS_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bDhruv\b/g, 'Dhroov'],
+  [/\bDhruv\s+Mishra\b/gi, 'Dhroove. Misshra.'],
+  [/\bDhruv\b/gi, 'Dhroove'],
+  [/\bMishra\b/gi, 'Misshra'],
   [/\bNext\.js\b/gi, 'Next J S'],
   [/\bNode\.js\b/gi, 'Node J S'],
   [/\bReact\.js\b/gi, 'React J S'],

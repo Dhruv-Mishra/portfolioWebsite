@@ -330,7 +330,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
         sampleRate,
         speed: 1,
         textHash: cacheKey,
-        voice: 'af_heart',
+        voice: 'am_puck',
       });
     }
     finishPlaybackIfDone(playbackId);

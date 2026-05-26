@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 
   const dtype = pick(process.env.LOCAL_TTS_DTYPE, ALLOWED_DTYPES, 'q4') as KokoroDtype;
   const device = pick(process.env.LOCAL_TTS_DEVICE, ALLOWED_DEVICES, 'cpu') as KokoroDevice;
-  const voice = pick(process.env.LOCAL_TTS_VOICE, ALLOWED_VOICES, 'af_heart') as KokoroVoice;
+  const voice = pick(process.env.LOCAL_TTS_VOICE, ALLOWED_VOICES, 'am_puck') as KokoroVoice;
   const text = resolveText();
 
   console.log('[tts:smoke] Loading Kokoro...', { device, dtype, model: MODEL_ID, voice });

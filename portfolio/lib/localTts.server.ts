@@ -376,7 +376,7 @@ async function loadOptimizedTts(settings: LocalTtsSettings): Promise<KokoroTtsLi
 
   return {
     async generate(text, options = {}) {
-      const voice = options.voice ?? 'af_heart';
+      const voice = options.voice ?? 'am_puck';
       const speed = options.speed ?? DEFAULT_SPEED;
       const phonemes = await phonemizeForKokoro(text, voice);
       const { input_ids: inputIds } = tokenizer(phonemes, { truncation: true });
@@ -440,7 +440,7 @@ async function loadLocalTts(): Promise<KokoroTtsLike> {
 export async function preloadLocalTts(): Promise<void> {
   const settings = getSettings();
   const tts = await loadLocalTts();
-  await tts.generate('Ready.', { speed: DEFAULT_SPEED, voice: 'af_heart' });
+  await tts.generate('Ready.', { speed: DEFAULT_SPEED, voice: 'am_puck' });
   console.info('[local-tts] Warmed Kokoro TTS', {
     device: settings.device,
     dtype: settings.dtype,
@@ -560,7 +560,7 @@ export function splitTextForLocalTts(text: string): string[] {
 export function resolveLocalTtsOptions(input: { speed?: unknown; voice?: unknown }): LocalTtsOptions {
   const voice = typeof input.voice === 'string' && (ALLOWED_VOICES as readonly string[]).includes(input.voice)
     ? input.voice as LocalTtsVoice
-    : 'af_heart';
+    : 'am_puck';
   const speed = typeof input.speed === 'number' ? clampSpeed(input.speed) : DEFAULT_SPEED;
 
   return { speed, voice };

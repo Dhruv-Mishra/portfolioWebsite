@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
+import { clearTtsAudioCache, pruneTtsAudioCache } from '@/lib/ttsAudioCache';
 import { hasActionExecution, type ActionExecution } from '@/lib/actions';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
@@ -286,6 +287,7 @@ function saveMessages(messages: ChatMessage[]) {
       .map(({ isOld: _isOld, isFiller: _isFiller, oracleEmitted: _oracleEmitted, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
+    void pruneTtsAudioCache(toSave.map(message => message.id));
   } catch {
     // localStorage full or unavailable — silently fail
   }
@@ -934,6 +936,7 @@ export function useStickyChat(): UseStickyChat {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CHAT_CONFIG.storageKey);
       localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);
+      void clearTtsAudioCache();
     }
   }, [clearOracleTimers]);
 

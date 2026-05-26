@@ -13,6 +13,7 @@ import {
   synthesizeLocalTts,
 } from '@/lib/localTts.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { adaptTextForKokoroTts } from '@/lib/ttsPrompts';
 import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
@@ -71,7 +72,19 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
   return body;
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(request: NextRequest): Promise<Response> {
+  const originError = validateOrigin(request, { requireOrigin: true });
+  if (originError) return originError;
+
+  const ip = getClientIP(request);
+  const { limited, retryAfter } = ttsRateLimiter.check(ip);
+  if (limited) {
+    return Response.json(
+      { error: `Rate limited. Try again in ${retryAfter} seconds.` },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+    );
+  }
+
   try {
     await preloadLocalTts();
     return Response.json({
@@ -114,10 +127,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const text = typeof body.text === 'string' ? body.text.trim() : '';
-  if (!text) {
+  const rawText = typeof body.text === 'string' ? body.text.trim() : '';
+  if (!rawText) {
     return Response.json({ error: 'Text is required' }, { status: 400 });
   }
+
+  const text = adaptTextForKokoroTts(rawText);
 
   const options = resolveLocalTtsOptions(body);
   const chunks = splitTextForLocalTts(text);

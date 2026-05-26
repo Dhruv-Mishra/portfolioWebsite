@@ -44,4 +44,6 @@ scripts/          embeddings and deployment helpers
 - Local TTS lives at `/api/tts` and runs Kokoro ONNX through `kokoro-js` + native `onnxruntime-node` on the Node runtime.
 - Default low-latency CPU settings for the 4 ARM vCPU Oracle VM are `LOCAL_TTS_DTYPE=q4`, `LOCAL_TTS_DEVICE=cpu`, `LOCAL_TTS_INTRA_OP_THREADS=1`, `LOCAL_TTS_INTER_OP_THREADS=1`, `LOCAL_TTS_CONCURRENCY=1`, and `LOCAL_TTS_OPTIMIZED_LOADER=0`.
 - `/api/tts` returns 24 kHz mono PCM16 WAV by default. Streaming mode uses same-origin REST POST with `Accept: application/x-ndjson` or `{ "stream": true }`, emitting base64 `pcm_s16le` chunks.
+- Assistant response playback uses the streaming `/api/tts` path and caches completed message audio chunks in IndexedDB. Clearing chat clears the generated-audio cache too.
+- Kokoro-specific spoken-text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
 - For production nginx, disable buffering on `/api/tts` just like `/api/chat`: `proxy_buffering off; proxy_cache off; proxy_read_timeout 120s;`.

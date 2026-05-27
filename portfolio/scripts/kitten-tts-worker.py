@@ -197,13 +197,13 @@ class KittenWorker:
         started_at = time.perf_counter()
         with contextlib.redirect_stdout(sys.stderr):
             try:
-                audio = model.generate(text or "Ready.", **kwargs)
+                audio = model.generate(text, **kwargs)
             except TypeError as exc:
                 if "speed" not in kwargs or "speed" not in str(exc):
                     raise
                 kwargs.pop("speed", None)
                 speed_applied = False
-                audio = model.generate(text or "Ready.", **kwargs)
+                audio = model.generate(text, **kwargs)
 
         sample_rate = SAMPLE_RATE
         if isinstance(audio, tuple):
@@ -233,7 +233,6 @@ class KittenWorker:
 def handle_request(worker: KittenWorker, request: dict[str, Any]) -> dict[str, Any]:
     request_id = str(request.get("id", ""))
     request_type = request.get("type")
-    text = str(request.get("text") or "Ready.")
     voice = str(request.get("voice") or DEFAULT_VOICE)
 
     try:
@@ -241,8 +240,12 @@ def handle_request(worker: KittenWorker, request: dict[str, Any]) -> dict[str, A
     except (TypeError, ValueError):
         speed = 1.0
 
-    if request_type not in {"preload", "synthesize"}:
+    if request_type != "synthesize":
         return {"id": request_id, "type": "error", "message": "Unknown request type."}
+
+    text = str(request.get("text") or "").strip()
+    if not text:
+        return {"id": request_id, "type": "error", "message": "Text is required."}
 
     result = worker.synthesize(text, voice, speed)
     return {"id": request_id, "type": "result", **result}

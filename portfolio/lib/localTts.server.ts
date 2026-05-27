@@ -12,7 +12,7 @@ const MODEL_ID = process.env.LOCAL_TTS_MODEL_ID ?? 'KittenML/kitten-tts-nano-0.1
 const DEFAULT_CACHE_DIR = path.join(process.cwd(), '.cache', 'kitten-tts');
 const WORKER_RELATIVE_PATH = path.join('scripts', 'kitten-tts-worker.py');
 const SAMPLE_RATE = 24_000;
-const DEFAULT_CHUNK_CHARS = 160;
+const DEFAULT_CHUNK_CHARS = 120;
 const MAX_CHUNK_CHARS = 320;
 const MAX_TEXT_CHARS = 1_200;
 const DEFAULT_SPEED = 1;
@@ -87,6 +87,19 @@ export interface LocalTtsSettings {
   voice: LocalTtsVoice;
   voicesPath: string | null;
   workerScript: string;
+}
+
+export interface PublicLocalTtsSettings {
+  cacheMode: 'cache-first' | 'offline';
+  chunkChars: number;
+  concurrency: number;
+  defaultSpeed: number;
+  defaultVoice: LocalTtsVoice;
+  maxQueue: number;
+  maxTextChars: number;
+  modelId: string;
+  provider: 'kitten-tts';
+  sampleRate: number;
 }
 
 class TtsQueueFullError extends Error {
@@ -227,6 +240,27 @@ export function getLocalTtsSettings(): LocalTtsSettings {
   return getSettings();
 }
 
+function getLocalTtsCacheMode(): PublicLocalTtsSettings['cacheMode'] {
+  return process.env.LOCAL_TTS_OFFLINE === '1' || process.env.HF_HUB_OFFLINE === '1'
+    ? 'offline'
+    : 'cache-first';
+}
+
+export function getPublicLocalTtsSettings(): PublicLocalTtsSettings {
+  return {
+    cacheMode: getLocalTtsCacheMode(),
+    chunkChars: getEnvInt('LOCAL_TTS_CHUNK_CHARS', DEFAULT_CHUNK_CHARS, 80, MAX_CHUNK_CHARS),
+    concurrency: getEnvInt('LOCAL_TTS_CONCURRENCY', 1, 1, 2),
+    defaultSpeed: getConfiguredSpeed(),
+    defaultVoice: getConfiguredVoice(),
+    maxQueue: getEnvInt('LOCAL_TTS_MAX_QUEUE', 4, 0, 16),
+    maxTextChars: getEnvInt('LOCAL_TTS_MAX_TEXT_CHARS', MAX_TEXT_CHARS, 80, 4_000),
+    modelId: MODEL_ID,
+    provider: PROVIDER,
+    sampleRate: SAMPLE_RATE,
+  };
+}
+
 function configureCpuRuntime(settings: LocalTtsSettings): void {
   const intraOpThreads = String(settings.intraOpThreads);
   process.env.OMP_NUM_THREADS ??= intraOpThreads;
@@ -288,12 +322,9 @@ class KittenTtsWorkerClient {
     });
   }
 
-  preload(options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
-    return this.sendRequest({ type: 'preload', voice: options.voice, speed: options.speed }, signal);
-  }
-
-  synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
-    return this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
+  async synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
+    const message = await this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
+    return message;
   }
 
   private handleStdoutLine(line: string): void {
@@ -341,7 +372,7 @@ class KittenTtsWorkerClient {
   }
 
   private sendRequest(
-    request: { speed: number; text?: string; type: 'preload' | 'synthesize'; voice: LocalTtsVoice },
+    request: { speed: number; text: string; type: 'synthesize'; voice: LocalTtsVoice },
     signal?: AbortSignal,
   ): Promise<WorkerResultMessage> {
     if (this.closed) {
@@ -404,19 +435,6 @@ async function loadLocalTts(): Promise<KittenTtsWorkerClient> {
   });
 
   return workerPromise;
-}
-
-export async function preloadLocalTts(): Promise<void> {
-  const settings = getSettings();
-  const worker = await loadLocalTts();
-  await worker.preload({ speed: settings.speed, voice: settings.voice });
-  console.info('[local-tts] Warmed KittenTTS worker', {
-    intraOpThreads: settings.intraOpThreads,
-    modelId: settings.modelId,
-    pythonExecutable: settings.pythonExecutable,
-    speed: settings.speed,
-    voice: settings.voice,
-  });
 }
 
 function releaseTtsSlot(): void {

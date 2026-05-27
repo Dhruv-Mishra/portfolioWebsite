@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   encodePcm16,
   getLocalTtsQueueState,
-  getLocalTtsSettings,
+  getPublicLocalTtsSettings,
   isTtsRequestAbortedError,
   isTtsQueueFullError,
-  preloadLocalTts,
   resolveLocalTtsOptions,
   runWithLocalTtsSlot,
   splitTextForLocalTts,
@@ -86,11 +85,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    await preloadLocalTts();
     return Response.json({
       ok: true,
       queue: getLocalTtsQueueState(),
-      settings: getLocalTtsSettings(),
+      settings: getPublicLocalTtsSettings(),
     }, {
       headers: { 'Cache-Control': 'no-store' },
     });
@@ -159,7 +157,6 @@ export async function POST(request: NextRequest): Promise<Response> {
                 durationMs: chunk.durationMs,
                 index: chunk.index,
                 sampleRate: chunk.sampleRate,
-                text: chunk.text,
                 type: 'chunk',
               }));
             }

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createTtsAudioCacheKey,
+  createTtsAudioTextHash,
   getCachedTtsAudio,
   putCachedTtsAudio,
   type CachedTtsAudio,
 } from '@/lib/ttsAudioCache';
+import { adaptTextForSpeech } from '@/lib/ttsPrompts';
 
 export type TtsPlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
@@ -269,7 +271,8 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
 
   const streamAndCacheAudio = useCallback(async (
     messageId: string,
-    text: string,
+    requestText: string,
+    spokenText: string,
     cacheKey: string,
     abortController: AbortController,
     playbackId: number,
@@ -278,7 +281,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     if (playbackIdRef.current !== playbackId) return;
 
     const response = await fetch('/api/tts', {
-      body: JSON.stringify({ stream: true, text, ...TTS_REQUEST_OPTIONS }),
+      body: JSON.stringify({ stream: true, text: requestText, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
       headers: {
         Accept: 'application/x-ndjson',
@@ -289,7 +292,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     });
     if (!response.ok) throw new Error(`TTS request failed with ${response.status}`);
     if (!response.body) {
-      await playWavFallback(messageId, text, abortController, playbackId);
+      await playWavFallback(messageId, requestText, abortController, playbackId);
       return;
     }
 
@@ -353,7 +356,8 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
         messageId,
         sampleRate,
         speed: DEFAULT_TTS_SPEED,
-        textHash: cacheKey,
+        spokenText,
+        textHash: createTtsAudioTextHash(spokenText),
         voice: DEFAULT_TTS_VOICE,
       });
     }
@@ -401,16 +405,21 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     const abortController = new AbortController();
     abortRef.current = abortController;
     const playbackId = playbackIdRef.current;
-    const cacheKey = createTtsAudioCacheKey(messageId, trimmedText, TTS_REQUEST_OPTIONS);
+    const spokenText = adaptTextForSpeech(trimmedText);
+    if (!spokenText) {
+      setState(INITIAL_STATE);
+      return;
+    }
+    const cacheKey = createTtsAudioCacheKey(spokenText, TTS_REQUEST_OPTIONS);
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
 
     try {
-      const cached = await getCachedTtsAudio(cacheKey);
+      const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
       if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
       if (cached) {
         await playCachedAudio(cached, messageId, playbackId);
       } else {
-        await streamAndCacheAudio(messageId, trimmedText, cacheKey, abortController, playbackId);
+        await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
       }
     } catch (error) {
       if (abortController.signal.aborted) return;

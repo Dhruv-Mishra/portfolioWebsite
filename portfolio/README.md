@@ -19,7 +19,7 @@ Open http://localhost:3000.
 | `npm run lint` | Run ESLint |
 | `npm test` | Run the Vitest suite |
 | `npm run test:watch` | Run Vitest in watch mode |
-| `npm run tts:smoke` | Load local Kokoro TTS and write `tmp/local-tts-smoke.wav` |
+| `npm run tts:smoke` | Load local KittenTTS and write `tmp/local-tts-smoke.wav` |
 | `npm run build:embeddings` | Regenerate `lib/facts.embeddings.json` |
 | `npm run prepare` | Install git hooks |
 
@@ -41,9 +41,14 @@ scripts/          embeddings and deployment helpers
 - Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
 - Guestbook, feedback, and notes flows are GitHub-backed.
 - `npm run build` triggers embeddings generation unless skipped via env.
-- Local TTS lives at `/api/tts` and runs Kokoro ONNX through `kokoro-js` + native `onnxruntime-node` on the Node runtime.
-- Default low-latency CPU settings for the 4 ARM vCPU Oracle VM are `LOCAL_TTS_DTYPE=q4`, `LOCAL_TTS_DEVICE=cpu`, `LOCAL_TTS_INTRA_OP_THREADS=1`, `LOCAL_TTS_INTER_OP_THREADS=1`, `LOCAL_TTS_CONCURRENCY=1`, and `LOCAL_TTS_OPTIMIZED_LOADER=0`.
+- Local TTS lives at `/api/tts` and runs KittenTTS nano 0.1 through a warmed server-side Python worker. Install Python deps with `pip install -r requirements-tts.txt`, and install native eSpeak NG for phonemization.
+- On Windows, install eSpeak NG and restart the dev server. If phonemizer cannot auto-detect it, set `LOCAL_TTS_ESPEAK_LIBRARY` to the full `libespeak-ng.dll` path, for example `C:\Program Files\eSpeak NG\libespeak-ng.dll`.
+- The worker uses `LOCAL_TTS_PYTHON` when set, otherwise it auto-prefers a workspace `.venv` before falling back to `python` / `python3`.
+- The model stays server-side by design. On first use, the worker downloads KittenTTS ONNX assets into `LOCAL_TTS_CACHE_DIR`; synthesis runs locally after that. The Hugging Face unauthenticated warning is only about first download/cache access. Set `HF_TOKEN` for higher Hub limits, set `LOCAL_TTS_OFFLINE=1` after the files are cached, or set `LOCAL_TTS_MODEL_PATH` + `LOCAL_TTS_VOICES_PATH` for fully pinned local files.
+- Default low-latency CPU settings for the 4 ARM vCPU Oracle VM are `LOCAL_TTS_INTRA_OP_THREADS=1`, `LOCAL_TTS_INTER_OP_THREADS=1`, `LOCAL_TTS_CONCURRENCY=1`, `LOCAL_TTS_MAX_QUEUE=4`, and `LOCAL_TTS_CACHE_DIR=/var/cache/portfolio/kitten-tts`.
+- Voice/speed defaults are `expr-voice-5-m` and `1`. Prefer setting `NEXT_PUBLIC_TTS_VOICE` and `NEXT_PUBLIC_TTS_SPEED` in `.env.local` before build so browser requests and cache keys match the server. `LOCAL_TTS_VOICE` and `LOCAL_TTS_SPEED` can override server-only defaults for non-browser/API callers. Allowed voices are `expr-voice-2-m`, `expr-voice-2-f`, `expr-voice-3-m`, `expr-voice-3-f`, `expr-voice-4-m`, `expr-voice-4-f`, `expr-voice-5-m`, and `expr-voice-5-f`. Speed is clamped to `0.85` through `1.15`.
+- In production systemd, prefer `CacheDirectory=portfolio/kitten-tts`. If you manually manage `/var/cache/portfolio/kitten-tts`, also grant it through `ReadWritePaths` when `ProtectSystem=strict` is enabled.
 - `/api/tts` returns 24 kHz mono PCM16 WAV by default. Streaming mode uses same-origin REST POST with `Accept: application/x-ndjson` or `{ "stream": true }`, emitting base64 `pcm_s16le` chunks.
 - Assistant response playback uses the streaming `/api/tts` path and caches completed message audio chunks in IndexedDB. Clearing chat clears the generated-audio cache too.
-- Kokoro-specific spoken-text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
+- Speech-safe text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
 - For production nginx, disable buffering on `/api/tts` just like `/api/chat`: `proxy_buffering off; proxy_cache off; proxy_read_timeout 120s;`.

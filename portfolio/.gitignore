@@ -13,6 +13,11 @@
 # testing
 /coverage
 
+# local TTS runtime artifacts
+/.cache/
+__pycache__/
+/tmp/local-tts-smoke.wav
+
 # next.js
 /.next/
 /out/

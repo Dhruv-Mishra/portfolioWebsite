@@ -13,7 +13,7 @@ import {
   synthesizeLocalTts,
 } from '@/lib/localTts.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
-import { adaptTextForKokoroTts } from '@/lib/ttsPrompts';
+import { adaptTextForSpeech } from '@/lib/ttsPrompts';
 import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Text is required' }, { status: 400 });
   }
 
-  const text = adaptTextForKokoroTts(rawText);
+  const text = adaptTextForSpeech(rawText);
 
   const options = resolveLocalTtsOptions(body);
   const chunks = splitTextForLocalTts(text);

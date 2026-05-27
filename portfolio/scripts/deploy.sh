@@ -746,6 +746,7 @@ User=${SERVICE_USER}
 WorkingDirectory=${DEPLOY_CURRENT_LINK}
 
 # Environment — file lives inside the release, injected at deploy time
+Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
 EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -771,7 +772,8 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=${DEPLOY_ROOT}
+CacheDirectory=${SERVICE_NAME}/kitten-tts
+ReadWritePaths=${DEPLOY_ROOT} /var/cache/${SERVICE_NAME}/kitten-tts
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -1343,6 +1345,7 @@ Wants=network.target
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${LEGACY_STANDALONE_DIR}
+Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
 EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -1363,7 +1366,8 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=${PROJECT_ROOT}
+CacheDirectory=${SERVICE_NAME}/kitten-tts
+ReadWritePaths=${PROJECT_ROOT} /var/cache/${SERVICE_NAME}/kitten-tts
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true

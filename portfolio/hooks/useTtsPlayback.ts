@@ -38,6 +38,30 @@ const INITIAL_STATE: TtsPlaybackState = {
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
 const SCHEDULE_AHEAD_SECONDS = 0.035;
+const ALLOWED_TTS_VOICES = [
+  'expr-voice-2-m',
+  'expr-voice-2-f',
+  'expr-voice-3-m',
+  'expr-voice-3-f',
+  'expr-voice-4-m',
+  'expr-voice-4-f',
+  'expr-voice-5-m',
+  'expr-voice-5-f',
+] as const;
+const DEFAULT_TTS_SPEED = getClientTtsSpeed();
+const DEFAULT_TTS_VOICE = getClientTtsVoice();
+const TTS_REQUEST_OPTIONS = { speed: DEFAULT_TTS_SPEED, voice: DEFAULT_TTS_VOICE } as const;
+
+function getClientTtsVoice(): string {
+  const voice = process.env.NEXT_PUBLIC_TTS_VOICE;
+  return voice && (ALLOWED_TTS_VOICES as readonly string[]).includes(voice) ? voice : 'expr-voice-5-m';
+}
+
+function getClientTtsSpeed(): number {
+  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1');
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(1.15, Math.max(0.85, parsed));
+}
 
 function base64ToArrayBuffer(value: string): ArrayBuffer {
   const binary = atob(value);
@@ -203,7 +227,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
 
   const playWavFallback = useCallback(async (messageId: string, text: string, abortController: AbortController, playbackId: number) => {
     const response = await fetch('/api/tts', {
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       method: 'POST',
@@ -254,7 +278,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     if (playbackIdRef.current !== playbackId) return;
 
     const response = await fetch('/api/tts', {
-      body: JSON.stringify({ stream: true, text }),
+      body: JSON.stringify({ stream: true, text, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
       headers: {
         Accept: 'application/x-ndjson',
@@ -328,9 +352,9 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
         codec,
         messageId,
         sampleRate,
-        speed: 1,
+        speed: DEFAULT_TTS_SPEED,
         textHash: cacheKey,
-        voice: 'am_puck',
+        voice: DEFAULT_TTS_VOICE,
       });
     }
     finishPlaybackIfDone(playbackId);
@@ -377,7 +401,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     const abortController = new AbortController();
     abortRef.current = abortController;
     const playbackId = playbackIdRef.current;
-    const cacheKey = createTtsAudioCacheKey(messageId, trimmedText);
+    const cacheKey = createTtsAudioCacheKey(messageId, trimmedText, TTS_REQUEST_OPTIONS);
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
 
     try {

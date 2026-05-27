@@ -1,9 +1,10 @@
-export const KOKORO_TTS_LLM_RULES = `Speech-safe reply text:
-- Write plain prose that also sounds natural if read aloud by Kokoro TTS.
+export const TTS_LLM_RULES = `Speech-safe reply text:
+- Write plain prose that also sounds natural if read aloud by KittenTTS / fast local TTS.
+- Prefer short, speech-safe replies; keep sentences compact so streaming audio starts quickly.
 - Avoid raw URLs, markdown tables, code fences, emoji, symbol-heavy shorthand, and decorative punctuation.
 - Expand tech names naturally when useful, e.g. Next.js as Next J S, Node.js as Node J S, C++ as C plus plus.`;
 
-export const KOKORO_TTS_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+export const TTS_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bDhruv\s+Mishra\b/gi, 'Dhroove. Misshra.'],
   [/\bDhruv\b/gi, 'Dhroove'],
   [/\bMishra\b/gi, 'Misshra'],
@@ -43,10 +44,10 @@ function simplifyLinks(text: string): string {
     .replace(/\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b/gi, ' email address ');
 }
 
-export function adaptTextForKokoroTts(text: string): string {
+export function adaptTextForSpeech(text: string): string {
   let spoken = simplifyLinks(stripMarkdown(text));
 
-  for (const [pattern, replacement] of KOKORO_TTS_REPLACEMENTS) {
+  for (const [pattern, replacement] of TTS_REPLACEMENTS) {
     spoken = spoken.replace(pattern, replacement);
   }
 

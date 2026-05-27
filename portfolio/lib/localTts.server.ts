@@ -1,133 +1,59 @@
 import 'server-only';
 
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 
-import { phonemize } from 'phonemizer';
-
-const MODEL_ID = process.env.LOCAL_TTS_MODEL_ID ?? 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const DEFAULT_CACHE_DIR = path.join(process.cwd(), '.cache', 'kokoro-tts');
+const PROVIDER = 'kitten-tts';
+const MODEL_ID = process.env.LOCAL_TTS_MODEL_ID ?? 'KittenML/kitten-tts-nano-0.1';
+const DEFAULT_CACHE_DIR = path.join(process.cwd(), '.cache', 'kitten-tts');
+const WORKER_RELATIVE_PATH = path.join('scripts', 'kitten-tts-worker.py');
 const SAMPLE_RATE = 24_000;
 const DEFAULT_CHUNK_CHARS = 160;
 const MAX_CHUNK_CHARS = 320;
 const MAX_TEXT_CHARS = 1_200;
 const DEFAULT_SPEED = 1;
-const MIN_SPEED = 0.75;
-const MAX_SPEED = 1.25;
+const MIN_SPEED = 0.85;
+const MAX_SPEED = 1.15;
+const DEFAULT_VOICE = 'expr-voice-5-m';
 
-const ALLOWED_DTYPES = ['q8', 'fp32', 'fp16', 'q4', 'q4f16'] as const;
-const ALLOWED_DEVICES = ['cpu', 'wasm'] as const;
 const ALLOWED_VOICES = [
-  'af_heart',
-  'af_alloy',
-  'af_aoede',
-  'af_bella',
-  'af_jessica',
-  'af_kore',
-  'af_nicole',
-  'af_nova',
-  'af_river',
-  'af_sarah',
-  'af_sky',
-  'am_adam',
-  'am_echo',
-  'am_eric',
-  'am_fenrir',
-  'am_liam',
-  'am_michael',
-  'am_onyx',
-  'am_puck',
-  'am_santa',
-  'bf_alice',
-  'bf_emma',
-  'bf_isabella',
-  'bf_lily',
-  'bm_daniel',
-  'bm_fable',
-  'bm_george',
-  'bm_lewis',
+  'expr-voice-2-m',
+  'expr-voice-2-f',
+  'expr-voice-3-m',
+  'expr-voice-3-f',
+  'expr-voice-4-m',
+  'expr-voice-4-f',
+  'expr-voice-5-m',
+  'expr-voice-5-f',
 ] as const;
 
-type LocalTtsDtype = (typeof ALLOWED_DTYPES)[number];
-type LocalTtsDevice = (typeof ALLOWED_DEVICES)[number];
 export type LocalTtsVoice = (typeof ALLOWED_VOICES)[number];
 
-interface RawAudioLike {
-  audio: Float32Array;
-  sampling_rate: number;
+interface WorkerResultMessage {
+  audioBase64: string;
+  audioSeconds?: number;
+  durationMs?: number;
+  id: string;
+  sampleRate: number;
+  speedApplied?: boolean;
+  type: 'result';
 }
 
-interface KokoroTtsLike {
-  generate(text: string, options?: { voice?: LocalTtsVoice; speed?: number }): Promise<RawAudioLike>;
+interface WorkerErrorMessage {
+  id: string;
+  message?: string;
+  type: 'error';
 }
 
-interface TensorLike {
-  data: unknown;
-  dims: number[];
-}
+type WorkerResponseMessage = WorkerResultMessage | WorkerErrorMessage;
 
-interface TensorConstructor {
-  new (type: 'float32', data: Float32Array | number[], dims: number[]): TensorLike;
-}
-
-interface OptimizedModel {
-  (inputs: Record<string, TensorLike>): Promise<{ waveform: { data: Float32Array } }>;
-}
-
-interface OptimizedTokenizer {
-  (text: string, options?: { truncation?: boolean }): { input_ids: TensorLike };
-}
-
-interface KokoroModule {
-  KokoroTTS: {
-    new (model: never, tokenizer: never): KokoroTtsLike;
-    from_pretrained(
-      modelId: string,
-      options?: {
-        dtype?: LocalTtsDtype;
-        device?: LocalTtsDevice;
-        progress_callback?: ((progress: unknown) => void) | null;
-      },
-    ): Promise<KokoroTtsLike>;
-  };
-}
-
-interface TransformersRuntime {
-  env?: {
-    allowLocalModels?: boolean;
-    allowRemoteModels?: boolean;
-    cacheDir?: string;
-    logLevel?: number;
-    useFSCache?: boolean;
-  };
-  AutoTokenizer: {
-    from_pretrained(modelId: string, options?: TransformersLoadOptions): Promise<OptimizedTokenizer>;
-  };
-  StyleTextToSpeech2Model: {
-    from_pretrained(modelId: string, options?: TransformersLoadOptions): Promise<OptimizedModel>;
-  };
-  Tensor: TensorConstructor;
-}
-
-interface TransformersLoadOptions {
-  cache_dir?: string;
-  device?: LocalTtsDevice;
-  dtype?: LocalTtsDtype;
-  progress_callback?: ((progress: unknown) => void) | null;
-  session_options?: OnnxSessionOptions;
-}
-
-interface OnnxSessionOptions {
-  enableCpuMemArena: boolean;
-  enableMemPattern: boolean;
-  executionMode: 'sequential';
-  graphOptimizationLevel: 'all';
-  interOpNumThreads: number;
-  intraOpNumThreads: number;
-  logSeverityLevel: number;
+interface PendingWorkerRequest {
+  reject: (error: Error) => void;
+  resolve: (result: WorkerResultMessage) => void;
 }
 
 export interface LocalTtsOptions {
@@ -147,14 +73,20 @@ export interface LocalTtsSettings {
   cacheDir: string;
   chunkChars: number;
   concurrency: number;
-  device: LocalTtsDevice;
-  dtype: LocalTtsDtype;
+  espeakLibrary: string | null;
   interOpThreads: number;
   intraOpThreads: number;
   maxQueue: number;
   maxTextChars: number;
   modelId: string;
-  optimizedLoader: boolean;
+  modelPath: string | null;
+  provider: 'kitten-tts';
+  pythonExecutable: string;
+  sampleRate: number;
+  speed: number;
+  voice: LocalTtsVoice;
+  voicesPath: string | null;
+  workerScript: string;
 }
 
 class TtsQueueFullError extends Error {
@@ -168,6 +100,13 @@ class TtsRequestAbortedError extends Error {
   constructor() {
     super('Local TTS request was cancelled.');
     this.name = 'TtsRequestAbortedError';
+  }
+}
+
+class TtsWorkerUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TtsWorkerUnavailableError';
   }
 }
 
@@ -194,13 +133,24 @@ function getEnvInt(name: string, fallback: number, min: number, max: number): nu
   return Math.min(max, Math.max(min, parsed));
 }
 
-function getEnvChoice<const T extends readonly string[]>(name: string, allowed: T, fallback: T[number]): T[number] {
-  const raw = process.env[name];
-  if (raw && (allowed as readonly string[]).includes(raw)) {
-    return raw as T[number];
-  }
+function getEnvFloat(names: readonly string[], fallback: number, min: number, max: number): number {
+  const raw = names.map(name => process.env[name]).find(Boolean);
+  if (!raw) return fallback;
 
-  return fallback;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function getConfiguredVoice(): LocalTtsVoice {
+  const raw = process.env.LOCAL_TTS_VOICE ?? process.env.NEXT_PUBLIC_TTS_VOICE;
+  return raw && (ALLOWED_VOICES as readonly string[]).includes(raw)
+    ? raw as LocalTtsVoice
+    : DEFAULT_VOICE;
+}
+
+function getConfiguredSpeed(): number {
+  return getEnvFloat(['LOCAL_TTS_SPEED', 'NEXT_PUBLIC_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
 }
 
 function getCpuCount(): number {
@@ -211,6 +161,36 @@ function getDefaultIntraOpThreads(): number {
   return 1;
 }
 
+function getDefaultPythonExecutable(): string {
+  const venvPython = process.platform === 'win32'
+    ? path.join('Scripts', 'python.exe')
+    : path.join('bin', 'python');
+  const candidates = [
+    path.join(process.cwd(), '.venv', venvPython),
+    path.join(process.cwd(), '..', '.venv', venvPython),
+  ];
+
+  const workspacePython = candidates.find(candidate => existsSync(candidate));
+  if (workspacePython) return workspacePython;
+
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+function getPythonExecutable(): string {
+  return process.env.LOCAL_TTS_PYTHON?.trim() || getDefaultPythonExecutable();
+}
+
+function resolveWorkerScript(): string {
+  const serverDir = process.argv[1] ? path.dirname(process.argv[1]) : process.cwd();
+  const candidates = [
+    path.join(process.cwd(), WORKER_RELATIVE_PATH),
+    path.join(process.cwd(), '.next', 'standalone', WORKER_RELATIVE_PATH),
+    path.join(serverDir, WORKER_RELATIVE_PATH),
+  ];
+
+  return candidates.find(candidate => existsSync(candidate)) ?? candidates[0];
+}
+
 function clampSpeed(speed: number): number {
   if (!Number.isFinite(speed)) return DEFAULT_SPEED;
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed));
@@ -219,19 +199,27 @@ function clampSpeed(speed: number): number {
 function getSettings(): LocalTtsSettings {
   const cpuCount = getCpuCount();
   const intraOpThreads = getEnvInt('LOCAL_TTS_INTRA_OP_THREADS', getDefaultIntraOpThreads(), 1, cpuCount);
+  const speed = getConfiguredSpeed();
+  const voice = getConfiguredVoice();
 
   return {
     cacheDir: process.env.LOCAL_TTS_CACHE_DIR ?? DEFAULT_CACHE_DIR,
     chunkChars: getEnvInt('LOCAL_TTS_CHUNK_CHARS', DEFAULT_CHUNK_CHARS, 80, MAX_CHUNK_CHARS),
     concurrency: getEnvInt('LOCAL_TTS_CONCURRENCY', 1, 1, 2),
-    device: getEnvChoice('LOCAL_TTS_DEVICE', ALLOWED_DEVICES, 'cpu'),
-    dtype: getEnvChoice('LOCAL_TTS_DTYPE', ALLOWED_DTYPES, 'q4'),
+    espeakLibrary: process.env.LOCAL_TTS_ESPEAK_LIBRARY ?? null,
     interOpThreads: getEnvInt('LOCAL_TTS_INTER_OP_THREADS', 1, 1, 2),
     intraOpThreads,
     maxQueue: getEnvInt('LOCAL_TTS_MAX_QUEUE', 4, 0, 16),
     maxTextChars: getEnvInt('LOCAL_TTS_MAX_TEXT_CHARS', MAX_TEXT_CHARS, 80, 4_000),
     modelId: MODEL_ID,
-    optimizedLoader: process.env.LOCAL_TTS_OPTIMIZED_LOADER === '1',
+    modelPath: process.env.LOCAL_TTS_MODEL_PATH ?? process.env.KITTEN_TTS_MODEL_PATH ?? null,
+    provider: PROVIDER,
+    pythonExecutable: getPythonExecutable(),
+    sampleRate: SAMPLE_RATE,
+    speed,
+    voice,
+    voicesPath: process.env.LOCAL_TTS_VOICES_PATH ?? null,
+    workerScript: resolveWorkerScript(),
   };
 }
 
@@ -251,200 +239,183 @@ function configureCpuRuntime(settings: LocalTtsSettings): void {
   process.env.UV_THREADPOOL_SIZE ??= String(Math.max(4, settings.intraOpThreads));
 }
 
-function getOnnxSessionOptions(settings: LocalTtsSettings): OnnxSessionOptions {
+function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
   return {
-    enableCpuMemArena: true,
-    enableMemPattern: true,
-    executionMode: 'sequential',
-    graphOptimizationLevel: 'all',
-    interOpNumThreads: settings.interOpThreads,
-    intraOpNumThreads: settings.intraOpThreads,
-    logSeverityLevel: 3,
+    ...process.env,
+    HF_HOME: process.env.HF_HOME ?? settings.cacheDir,
+    HF_HUB_DISABLE_SYMLINKS_WARNING: process.env.HF_HUB_DISABLE_SYMLINKS_WARNING ?? '1',
+    KITTEN_TTS_MODEL: process.env.KITTEN_TTS_MODEL ?? settings.modelId,
+    LOCAL_TTS_CACHE_DIR: settings.cacheDir,
+    LOCAL_TTS_ESPEAK_LIBRARY: settings.espeakLibrary ?? process.env.LOCAL_TTS_ESPEAK_LIBRARY,
+    LOCAL_TTS_INTER_OP_THREADS: String(settings.interOpThreads),
+    LOCAL_TTS_INTRA_OP_THREADS: String(settings.intraOpThreads),
+    LOCAL_TTS_MODEL_ID: settings.modelId,
+    LOCAL_TTS_MODEL_PATH: settings.modelPath ?? process.env.LOCAL_TTS_MODEL_PATH,
+    LOCAL_TTS_VOICES_PATH: settings.voicesPath ?? process.env.LOCAL_TTS_VOICES_PATH,
+    OMP_NUM_THREADS: process.env.OMP_NUM_THREADS ?? String(settings.intraOpThreads),
+    ONNX_NUM_THREADS: process.env.ONNX_NUM_THREADS ?? String(settings.intraOpThreads),
+    OPENBLAS_NUM_THREADS: process.env.OPENBLAS_NUM_THREADS ?? '1',
+    MKL_NUM_THREADS: process.env.MKL_NUM_THREADS ?? '1',
+    VECLIB_MAXIMUM_THREADS: process.env.VECLIB_MAXIMUM_THREADS ?? '1',
+    NUMEXPR_NUM_THREADS: process.env.NUMEXPR_NUM_THREADS ?? '1',
+    OMP_WAIT_POLICY: process.env.OMP_WAIT_POLICY ?? 'PASSIVE',
   };
 }
 
-async function importKokoro(): Promise<KokoroModule> {
-  return await import('kokoro-js') as KokoroModule;
-}
+class KittenTtsWorkerClient {
+  private child: ChildProcessWithoutNullStreams;
+  private closed = false;
+  private nextRequestId = 0;
+  private pending = new Map<string, PendingWorkerRequest>();
 
-async function importKokoroTransformers(): Promise<TransformersRuntime> {
-  const relativeBundle = path.join(
-    'node_modules',
-    'kokoro-js',
-    'node_modules',
-    '@huggingface',
-    'transformers',
-    'dist',
-    'transformers.node.cjs',
-  );
-  const serverDir = process.argv[1] ? path.dirname(process.argv[1]) : process.cwd();
-  const candidates = [
-    path.join(process.cwd(), relativeBundle),
-    path.join(process.cwd(), '.next', 'standalone', relativeBundle),
-    path.join(serverDir, relativeBundle),
-  ];
-  const transformersBundle = candidates.find(candidate => path.isAbsolute(candidate) && existsSync(candidate));
+  constructor(settings: LocalTtsSettings) {
+    this.child = spawn(settings.pythonExecutable, ['-u', settings.workerScript], {
+      cwd: process.cwd(),
+      env: createWorkerEnv(settings),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
-  if (!transformersBundle) {
-    throw new Error('Unable to resolve kokoro-js nested Transformers.js bundle.');
+    const stdout = readline.createInterface({ input: this.child.stdout });
+    stdout.on('line', line => this.handleStdoutLine(line));
+    this.child.stderr.on('data', chunk => {
+      const message = String(chunk).trim();
+      if (message) console.warn('[local-tts:worker]', message);
+    });
+    this.child.on('error', error => this.handleExit(error));
+    this.child.on('exit', (code, signal) => {
+      const detail = signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`;
+      this.handleExit(new TtsWorkerUnavailableError(`Local TTS worker exited with ${detail}.`));
+    });
   }
 
-  const nativeRequire = createRequire(path.join(process.cwd(), 'local-tts-loader.cjs'));
-  return nativeRequire(transformersBundle) as TransformersRuntime;
-}
+  preload(options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
+    return this.sendRequest({ type: 'preload', voice: options.voice, speed: options.speed }, signal);
+  }
 
-const voiceCache = new Map<LocalTtsVoice, Promise<Float32Array>>();
+  synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
+    return this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
+  }
 
-function normalizeForPhonemizer(text: string): string {
-  return text
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+  private handleStdoutLine(line: string): void {
+    if (!line.trim()) return;
 
-async function phonemizeForKokoro(text: string, voice: LocalTtsVoice): Promise<string> {
-  const language = voice.startsWith('af_') || voice.startsWith('am_') ? 'en-us' : 'en';
-  const phonemes = (await phonemize(normalizeForPhonemizer(text), language)).join(' ');
-
-  return phonemes
-    .replace(/kəkˈoːɹoʊ/g, 'kˈoʊkəɹoʊ')
-    .replace(/kəkˈɔːɹəʊ/g, 'kˈəʊkəɹəʊ')
-    .replace(/ʲ/g, 'j')
-    .replace(/r/g, 'ɹ')
-    .replace(/x/g, 'k')
-    .replace(/ɬ/g, 'l')
-    .trim();
-}
-
-function getVoicePathCandidates(voice: LocalTtsVoice): string[] {
-  const relativeVoicePath = path.join('node_modules', 'kokoro-js', 'voices', `${voice}.bin`);
-  const serverDir = process.argv[1] ? path.dirname(process.argv[1]) : process.cwd();
-
-  return [
-    path.join(process.cwd(), relativeVoicePath),
-    path.join(process.cwd(), '.next', 'standalone', relativeVoicePath),
-    path.join(serverDir, relativeVoicePath),
-  ];
-}
-
-async function loadVoiceVector(voice: LocalTtsVoice): Promise<Float32Array> {
-  const existing = voiceCache.get(voice);
-  if (existing) return existing;
-
-  const promise = (async () => {
-    const voicePath = getVoicePathCandidates(voice).find(candidate => existsSync(candidate));
-    if (!voicePath) {
-      throw new Error(`Unable to resolve Kokoro voice file for ${voice}.`);
+    let message: WorkerResponseMessage;
+    try {
+      message = JSON.parse(line) as WorkerResponseMessage;
+    } catch {
+      this.handleExit(new TtsWorkerUnavailableError('Local TTS worker emitted invalid JSON.'));
+      return;
     }
 
-    const buffer = await readFile(voicePath);
-    const view = new Float32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
-    return new Float32Array(view);
-  })();
+    const pending = this.pending.get(message.id);
+    if (!pending) return;
+    this.pending.delete(message.id);
 
-  voiceCache.set(voice, promise);
-  return promise;
-}
+    if (message.type === 'error') {
+      pending.reject(new TtsWorkerUnavailableError(message.message ?? 'Local TTS worker failed.'));
+      return;
+    }
 
-async function loadOptimizedTts(settings: LocalTtsSettings): Promise<KokoroTtsLike> {
-  const transformers = await importKokoroTransformers();
-
-  if (transformers.env) {
-    transformers.env.allowLocalModels = true;
-    transformers.env.allowRemoteModels = true;
-    transformers.env.cacheDir = settings.cacheDir;
-    transformers.env.logLevel = 40;
-    transformers.env.useFSCache = true;
+    pending.resolve(message);
   }
 
-  const loadOptions: TransformersLoadOptions = {
-    cache_dir: settings.cacheDir,
-    device: settings.device,
-    dtype: settings.dtype,
-    progress_callback: null,
-    session_options: getOnnxSessionOptions(settings),
-  };
+  private handleExit(error: Error): void {
+    if (this.closed) return;
+    this.closed = true;
 
-  const [model, tokenizer] = await Promise.all([
-    transformers.StyleTextToSpeech2Model.from_pretrained(settings.modelId, loadOptions),
-    transformers.AutoTokenizer.from_pretrained(settings.modelId, {
-      cache_dir: settings.cacheDir,
-      progress_callback: null,
-    }),
-  ]);
+    try {
+      if (!this.child.killed) this.child.kill();
+    } catch {
+      // The process may already be gone by the time an exit/error path races in.
+    }
 
-  return {
-    async generate(text, options = {}) {
-      const voice = options.voice ?? 'am_puck';
-      const speed = options.speed ?? DEFAULT_SPEED;
-      const phonemes = await phonemizeForKokoro(text, voice);
-      const { input_ids: inputIds } = tokenizer(phonemes, { truncation: true });
-      const tokenLength = inputIds.dims.at(-1) ?? 0;
-      const styleOffset = 256 * Math.min(Math.max(tokenLength - 2, 0), 509);
-      const voiceVector = await loadVoiceVector(voice);
-      const style = voiceVector.slice(styleOffset, styleOffset + 256);
-      const { waveform } = await model({
-        input_ids: inputIds,
-        speed: new transformers.Tensor('float32', [speed], [1]),
-        style: new transformers.Tensor('float32', style, [1, 256]),
+    for (const pending of this.pending.values()) {
+      pending.reject(error);
+    }
+    this.pending.clear();
+
+    if (activeWorker === this) {
+      activeWorker = null;
+      workerPromise = null;
+    }
+  }
+
+  private sendRequest(
+    request: { speed: number; text?: string; type: 'preload' | 'synthesize'; voice: LocalTtsVoice },
+    signal?: AbortSignal,
+  ): Promise<WorkerResultMessage> {
+    if (this.closed) {
+      return Promise.reject(new TtsWorkerUnavailableError('Local TTS worker is not running.'));
+    }
+
+    throwIfAborted(signal);
+    const id = String(++this.nextRequestId);
+
+    return new Promise<WorkerResultMessage>((resolve, reject) => {
+      const abortRequest = () => {
+        this.pending.delete(id);
+        this.handleExit(new TtsRequestAbortedError());
+        reject(new TtsRequestAbortedError());
+      };
+      const cleanup = () => signal?.removeEventListener('abort', abortRequest);
+
+      this.pending.set(id, {
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
+        resolve: (result) => {
+          cleanup();
+          resolve(result);
+        },
       });
 
-      return {
-        audio: waveform.data,
-        sampling_rate: SAMPLE_RATE,
-      };
-    },
-  };
+      signal?.addEventListener('abort', abortRequest, { once: true });
+      const payload = `${JSON.stringify({ id, ...request })}\n`;
+      this.child.stdin.write(payload, (error) => {
+        if (!error) return;
+        this.pending.delete(id);
+        cleanup();
+        reject(new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`));
+      });
+    });
+  }
 }
 
-async function loadFallbackTts(settings: LocalTtsSettings): Promise<KokoroTtsLike> {
-  const kokoro = await importKokoro();
-  return await kokoro.KokoroTTS.from_pretrained(settings.modelId, {
-    device: settings.device,
-    dtype: settings.dtype,
-    progress_callback: null,
-  });
-}
-
-let ttsPromise: Promise<KokoroTtsLike> | null = null;
+let workerPromise: Promise<KittenTtsWorkerClient> | null = null;
+let activeWorker: KittenTtsWorkerClient | null = null;
 let activeJobs = 0;
 let queuedJobs = 0;
 const waiters: Array<() => void> = [];
 
-async function loadLocalTts(): Promise<KokoroTtsLike> {
-  if (ttsPromise) return ttsPromise;
+async function loadLocalTts(): Promise<KittenTtsWorkerClient> {
+  if (workerPromise) return workerPromise;
 
-  ttsPromise = (async () => {
+  workerPromise = (async () => {
     const settings = getSettings();
     configureCpuRuntime(settings);
     await mkdir(settings.cacheDir, { recursive: true });
-
-    if (settings.optimizedLoader) {
-      try {
-        return await loadOptimizedTts(settings);
-      } catch (error) {
-        console.warn('[local-tts] Optimized loader failed; falling back to kokoro-js defaults.', error);
-      }
-    }
-
-    return await loadFallbackTts(settings);
-  })().catch((error) => {
-    ttsPromise = null;
+    const worker = new KittenTtsWorkerClient(settings);
+    activeWorker = worker;
+    return worker;
+  })().catch((error: unknown) => {
+    workerPromise = null;
     throw error;
   });
 
-  return ttsPromise;
+  return workerPromise;
 }
 
 export async function preloadLocalTts(): Promise<void> {
   const settings = getSettings();
-  const tts = await loadLocalTts();
-  await tts.generate('Ready.', { speed: DEFAULT_SPEED, voice: 'am_puck' });
-  console.info('[local-tts] Warmed Kokoro TTS', {
-    device: settings.device,
-    dtype: settings.dtype,
+  const worker = await loadLocalTts();
+  await worker.preload({ speed: settings.speed, voice: settings.voice });
+  console.info('[local-tts] Warmed KittenTTS worker', {
     intraOpThreads: settings.intraOpThreads,
+    modelId: settings.modelId,
+    pythonExecutable: settings.pythonExecutable,
+    speed: settings.speed,
+    voice: settings.voice,
   });
 }
 
@@ -558,12 +529,49 @@ export function splitTextForLocalTts(text: string): string[] {
 }
 
 export function resolveLocalTtsOptions(input: { speed?: unknown; voice?: unknown }): LocalTtsOptions {
+  const settings = getSettings();
   const voice = typeof input.voice === 'string' && (ALLOWED_VOICES as readonly string[]).includes(input.voice)
     ? input.voice as LocalTtsVoice
-    : 'am_puck';
-  const speed = typeof input.speed === 'number' ? clampSpeed(input.speed) : DEFAULT_SPEED;
+    : settings.voice;
+  const speed = typeof input.speed === 'number' ? clampSpeed(input.speed) : settings.speed;
 
   return { speed, voice };
+}
+
+function decodeFloat32Base64(audioBase64: string): Float32Array {
+  const buffer = Buffer.from(audioBase64, 'base64');
+  const sampleCount = Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
+  const view = new Float32Array(buffer.buffer, buffer.byteOffset, sampleCount);
+  return new Float32Array(view);
+}
+
+function applyLinearSpeedTransform(samples: Float32Array, speed: number): Float32Array {
+  const clampedSpeed = clampSpeed(speed);
+  if (samples.length === 0 || Math.abs(clampedSpeed - DEFAULT_SPEED) < 0.001) {
+    return samples;
+  }
+
+  const outputLength = Math.max(1, Math.round(samples.length / clampedSpeed));
+  const output = new Float32Array(outputLength);
+
+  for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
+    const sourcePosition = outputIndex * clampedSpeed;
+    const lowerIndex = Math.floor(sourcePosition);
+    const upperIndex = Math.min(samples.length - 1, lowerIndex + 1);
+    const fraction = sourcePosition - lowerIndex;
+    const lower = samples[Math.min(samples.length - 1, lowerIndex)];
+    const upper = samples[upperIndex];
+    output[outputIndex] = lower + ((upper - lower) * fraction);
+  }
+
+  return output;
+}
+
+function normalizeWorkerAudio(result: WorkerResultMessage, speed: number): { audio: Float32Array; sampleRate: number } {
+  const decoded = decodeFloat32Base64(result.audioBase64);
+  const sampleRate = result.sampleRate || SAMPLE_RATE;
+  const audio = result.speedApplied === false ? applyLinearSpeedTransform(decoded, speed) : decoded;
+  return { audio, sampleRate };
 }
 
 function concatFloat32(chunks: Float32Array[]): Float32Array {
@@ -619,14 +627,14 @@ export async function synthesizeLocalTts(text: string, options: LocalTtsOptions,
   }
 
   throwIfAborted(signal);
-  const tts = await loadLocalTts();
+  const worker = await loadLocalTts();
   const audioChunks: Float32Array[] = [];
 
   for (const chunk of chunks) {
     throwIfAborted(signal);
-    const audio = await tts.generate(chunk, options);
+    const result = await worker.synthesize(chunk, options, signal);
     throwIfAborted(signal);
-    audioChunks.push(audio.audio);
+    audioChunks.push(normalizeWorkerAudio(result, options.speed).audio);
   }
 
   return encodePcm16Wav(concatFloat32(audioChunks), SAMPLE_RATE);
@@ -635,18 +643,19 @@ export async function synthesizeLocalTts(text: string, options: LocalTtsOptions,
 export async function* streamLocalTts(text: string, options: LocalTtsOptions, signal?: AbortSignal): AsyncGenerator<LocalTtsChunk> {
   const chunks = splitTextForLocalTts(text);
   throwIfAborted(signal);
-  const tts = await loadLocalTts();
+  const worker = await loadLocalTts();
 
   for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
     throwIfAborted(signal);
     const startedAt = performance.now();
-    const audio = await tts.generate(chunks[chunkIndex], options);
+    const result = await worker.synthesize(chunks[chunkIndex], options, signal);
+    const audio = normalizeWorkerAudio(result, options.speed);
     throwIfAborted(signal);
     yield {
       audio: audio.audio,
       durationMs: Math.round(performance.now() - startedAt),
       index: chunkIndex,
-      sampleRate: audio.sampling_rate || SAMPLE_RATE,
+      sampleRate: audio.sampleRate,
       text: chunks[chunkIndex],
     };
   }

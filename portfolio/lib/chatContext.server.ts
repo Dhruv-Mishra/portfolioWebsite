@@ -15,7 +15,7 @@ import 'server-only';
 
 import type { ActionExecution } from '@/lib/actions';
 import { getRelevantFactContext } from '@/lib/factRetrieval.server';
-import { KOKORO_TTS_LLM_RULES } from '@/lib/ttsPrompts';
+import { TTS_LLM_RULES } from '@/lib/ttsPrompts';
 
 // ── Prompt blocks ───────────────────────────────────────────────────
 //
@@ -283,7 +283,7 @@ export interface SystemPromptParts {
  * The cache-friendly stable prefix. Exposed for testing — must NEVER be
  * mutated per turn; any change here invalidates upstream prompt caches.
  */
-export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, KOKORO_TTS_LLM_RULES, NEVER_INVENT_BLOCK].join('\n\n');
+export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, TTS_LLM_RULES, NEVER_INVENT_BLOCK].join('\n\n');
 
 /**
  * Assemble the system prompt as two parts (stable prefix + conditional

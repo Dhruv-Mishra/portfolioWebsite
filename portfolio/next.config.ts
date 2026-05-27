@@ -51,10 +51,6 @@ const BUILD_ID = resolveBuildId();
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
-  // Keep native ONNX runtime packages external to the server bundle. Kokoro TTS
-  // loads onnxruntime-node dynamically so the Linux arm64 binary can be traced
-  // and shipped with the standalone deployment instead of being webpacked.
-  serverExternalPackages: ['kokoro-js', 'onnxruntime-node', 'phonemizer'],
   // File-trace the standalone bundle against this file's dir. Without this,
   // Next.js autodetects from the nearest lockfile which can miss monorepo roots.
   outputFileTracingRoot: CONFIG_DIR,
@@ -72,8 +68,8 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     '/api/tts': [
-      './node_modules/kokoro-js/**',
-      './node_modules/kokoro-js/node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/**',
+      './scripts/kitten-tts-worker.py',
+      './requirements-tts.txt',
     ],
   },
   // Pin workspace root so Next.js never auto-detects from a stray parent lockfile.

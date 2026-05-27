@@ -3,11 +3,33 @@
 const DB_NAME = 'dhruv-tts-audio-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'message-audio';
-const CACHE_VERSION = 'v3';
-const DEFAULT_VOICE = 'am_puck';
-const DEFAULT_SPEED = 1;
+const CACHE_VERSION = 'v4';
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
+
+const ALLOWED_TTS_VOICES = [
+  'expr-voice-2-m',
+  'expr-voice-2-f',
+  'expr-voice-3-m',
+  'expr-voice-3-f',
+  'expr-voice-4-m',
+  'expr-voice-4-f',
+  'expr-voice-5-m',
+  'expr-voice-5-f',
+] as const;
+const DEFAULT_VOICE = getDefaultTtsVoice();
+const DEFAULT_SPEED = getDefaultTtsSpeed();
+
+function getDefaultTtsVoice(): string {
+  const voice = process.env.NEXT_PUBLIC_TTS_VOICE;
+  return voice && (ALLOWED_TTS_VOICES as readonly string[]).includes(voice) ? voice : 'expr-voice-5-m';
+}
+
+function getDefaultTtsSpeed(): number {
+  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1');
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(1.15, Math.max(0.85, parsed));
+}
 
 export interface CachedTtsAudio {
   byteLength: number;

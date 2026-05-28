@@ -38,7 +38,9 @@ docker run --rm --env-file .env.local \
 	portfolio:local
 ```
 
-Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The deploy workflow publishes one GHCR image per commit and deploys the immutable digest to every VM, while artifact mode remains available as a fallback.
+Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The deploy workflow publishes one GHCR image per commit, waits on the `staging` GitHub Environment approval, deploys the immutable digest to the staging site, smoke-tests `staging.whoisdhruv.com`, then waits on the `production` Environment approval before promoting the same digest to production VMs. Artifact mode remains available as a fallback.
+
+For staging, configure `/etc/deploy/sites/portfolio-staging.conf` on the VM and add GitHub secrets `STAGING_SERVER_HOST`, `STAGING_SERVER_USERNAME`, `STAGING_SERVER_SSH_KEY`, and `STAGING_SERVER_PORT`. Configure required reviewers on the `staging` and `production` GitHub Environments to make the approvals block the same workflow run.
 
 ## Structure
 

@@ -399,6 +399,7 @@ jobs:
             TARBALL="/tmp/portfolio-${SHA}.tar.gz"
             STAGING="/tmp/portfolio-stage-${SHA}"
             DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
+            DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
 
             DEPLOY_OK=0
@@ -454,10 +455,26 @@ jobs:
               fi
 
               echo "Invoking image deploy script"
+              set +e
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx || { echo "deploy.sh image mode failed"; exit 1; }
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1
+                deploy_status=$?
               else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" || { echo "deploy.sh image mode failed"; exit 1; }
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1
+                deploy_status=$?
+              fi
+              set -e
+              cat "$DEPLOY_CMD_LOG" || true
+              if [ "$deploy_status" -ne 0 ]; then
+                echo "deploy.sh image mode failed with status $deploy_status"
+                latest_log=$(sudo find "/var/log/${SITE}-deploy" -name 'deploy-*.log' -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)
+                if [ -n "$latest_log" ]; then
+                  echo "Latest deploy log: $latest_log"
+                  sudo tail -n 160 "$latest_log" || true
+                else
+                  echo "No deploy log found under /var/log/${SITE}-deploy"
+                fi
+                exit "$deploy_status"
               fi
             else
               echo "Checking artifact tarball at $TARBALL"
@@ -480,10 +497,26 @@ jobs:
               sudo chmod +x "$STAGING/.deploy/deploy.sh"
 
               echo "Invoking artifact deploy script"
+              set +e
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx || { echo "deploy.sh artifact mode failed"; exit 1; }
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1
+                deploy_status=$?
               else
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" || { echo "deploy.sh artifact mode failed"; exit 1; }
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1
+                deploy_status=$?
+              fi
+              set -e
+              cat "$DEPLOY_CMD_LOG" || true
+              if [ "$deploy_status" -ne 0 ]; then
+                echo "deploy.sh artifact mode failed with status $deploy_status"
+                latest_log=$(sudo find "/var/log/${SITE}-deploy" -name 'deploy-*.log' -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)
+                if [ -n "$latest_log" ]; then
+                  echo "Latest deploy log: $latest_log"
+                  sudo tail -n 160 "$latest_log" || true
+                else
+                  echo "No deploy log found under /var/log/${SITE}-deploy"
+                fi
+                exit "$deploy_status"
               fi
             fi
 

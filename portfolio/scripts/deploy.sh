@@ -170,8 +170,12 @@ readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
 # On 1-GB VMs with ~200MB per release, keep it tight.
 readonly RELEASE_RETENTION_COUNT="${RELEASE_RETENTION_COUNT:-2}"
 
-# Required env vars
-IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS-}"
+# Required env vars. Keep this safe for staging configs that intentionally set
+# REQUIRED_ENV_VARS="" to allow either Groq-first or legacy LLM_* providers.
+REQUIRED_ENV_ARRAY=()
+if [[ -n "${REQUIRED_ENV_VARS-}" ]]; then
+    IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS}"
+fi
 
 #===============================================================================
 # DERIVED CONSTANTS — ARTIFACT LAYOUT

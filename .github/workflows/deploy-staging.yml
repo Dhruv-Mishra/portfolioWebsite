@@ -418,9 +418,9 @@ jobs:
               echo "Image: ${IMAGE_REF}"
             fi
 
-            EXTRA_FLAGS=""
+            EXTRA_FLAGS=()
             if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-              EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
+              EXTRA_FLAGS+=("--skip-nginx")
             fi
 
             if [ "$DEPLOY_MODE" = "image" ]; then
@@ -447,7 +447,7 @@ jobs:
                 --image "$IMAGE_REF" \
                 --sha "$SHA" \
                 --site "$SITE" \
-                $EXTRA_FLAGS
+                "${EXTRA_FLAGS[@]}"
             else
               [ -f "$TARBALL" ] || { echo "Tarball missing at $TARBALL"; exit 1; }
               sudo rm -rf "$STAGING"
@@ -461,7 +461,7 @@ jobs:
                 --release-dir "$STAGING" \
                 --sha "$SHA" \
                 --site "$SITE" \
-                $EXTRA_FLAGS
+                "${EXTRA_FLAGS[@]}"
             fi
 
             DEPLOY_OK=1

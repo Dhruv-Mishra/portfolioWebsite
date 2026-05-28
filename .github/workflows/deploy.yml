@@ -507,9 +507,9 @@ jobs:
             # Optional pass-throughs. Currently only skip_nginx is exposed as
             # a workflow input — the other legacy flags (skip_git/deps/build,
             # force) are meaningless in artifact mode.
-            EXTRA_FLAGS=""
+            EXTRA_FLAGS=()
             if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-              EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
+              EXTRA_FLAGS+=("--skip-nginx")
             fi
 
             if [ "$DEPLOY_MODE" = "image" ]; then
@@ -536,7 +536,7 @@ jobs:
                 --image "$IMAGE_REF" \
                 --sha "$SHA" \
                 --site "$SITE" \
-                $EXTRA_FLAGS
+                "${EXTRA_FLAGS[@]}"
             else
               [ -f "$TARBALL" ] || { echo "❌ Tarball missing at $TARBALL"; exit 1; }
 
@@ -558,7 +558,7 @@ jobs:
                 --release-dir "$STAGING" \
                 --sha "$SHA" \
                 --site "$SITE" \
-                $EXTRA_FLAGS
+                "${EXTRA_FLAGS[@]}"
             fi
 
             DEPLOY_OK=1

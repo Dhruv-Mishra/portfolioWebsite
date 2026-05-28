@@ -1,0 +1,532 @@
+name: Deploy Portfolio Staging
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_site:
+        description: 'Staging site config name (matches /etc/deploy/sites/<name>.conf)'
+        required: false
+        default: portfolio-staging
+        type: string
+      skip_nginx:
+        description: 'Skip nginx config update & reload'
+        required: false
+        default: false
+        type: boolean
+      deploy_mode:
+        description: 'Deployment mode'
+        required: false
+        default: image
+        type: choice
+        options:
+          - image
+          - artifact
+
+  push:
+    branches:
+      - deployed/staging
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
+      - '.github/agents/**'
+      - '.github/instructions/**'
+      - 'LICENSE'
+      - 'ResumeBuilder/**'
+
+concurrency:
+  group: deploy-staging-${{ inputs.staging_site || 'portfolio-staging' }}
+  cancel-in-progress: false
+
+env:
+  STAGING_DOMAIN: staging.whoisdhruv.com
+  NODE_VERSION: '22'
+  CI_NPM_VERSION: '10.9.8'
+  DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  NEXT_PUBLIC_GA_ID: ''
+  NEXT_PUBLIC_ENABLE_ANALYTICS: 'false'
+  NEXT_PUBLIC_ENABLE_ERROR_TRACKING: 'false'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  guard-staging-ref:
+    name: Guard staging ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Require experimental branch for staging deploys
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/deployed/staging" ]; then
+            echo "::error::Staging deploys must run from refs/heads/deployed/staging, not ${{ github.ref }}"
+            exit 1
+          fi
+
+  build:
+    name: Build staging artifact and image
+    needs: guard-staging-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      image: ${{ steps.image-meta.outputs.image }}
+      image_digest: ${{ steps.docker-build.outputs.digest }}
+      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: portfolio/.next/cache
+          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
+            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
+
+      - name: Install dependencies
+        working-directory: portfolio
+        env:
+          SKIP_EMBEDDINGS_BUILD: '1'
+        run: |
+          npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
+
+          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
+            "${npm_cmd[@]}" ci --dry-run
+            exit 1
+          fi
+          "${npm_cmd[@]}" ci
+
+      - name: Lint
+        working-directory: portfolio
+        run: npm run lint
+
+      - name: Test
+        working-directory: portfolio
+        run: npm test
+
+      - name: Build Next.js (standalone)
+        working-directory: portfolio
+        env:
+          SKIP_EMBEDDINGS_BUILD: '1'
+          NEXT_BUILD_ID: ${{ github.sha }}
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: npm run build
+
+      - name: Assemble standalone bundle
+        working-directory: portfolio
+        run: |
+          set -euo pipefail
+
+          cp -r .next/static .next/standalone/.next/
+          cp -r public        .next/standalone/
+
+          mkdir -p .next/standalone/.deploy
+          cp scripts/deploy.sh          .next/standalone/.deploy/
+          cp nginx-cloudflare.conf      .next/standalone/.deploy/
+          chmod +x .next/standalone/.deploy/deploy.sh
+
+          cat > .next/standalone/.deploy/meta.json <<META
+          {
+            "sha": "${{ github.sha }}",
+            "ref": "${{ github.ref }}",
+            "actor": "${{ github.actor }}",
+            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "run_id": "${{ github.run_id }}",
+            "run_number": "${{ github.run_number }}"
+          }
+          META
+
+          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
+          ls -lh ../portfolio-${{ github.sha }}.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-bundle
+          path: portfolio-${{ github.sha }}.tar.gz
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Resolve image name
+        id: image-meta
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: env.DEPLOY_MODE == 'image'
+        id: docker-build
+        uses: docker/build-push-action@v6
+        with:
+          context: portfolio
+          file: portfolio/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.image-meta.outputs.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            NEXT_BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
+            NEXT_PUBLIC_SITE_URL=https://${{ env.STAGING_DOMAIN }}
+            NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
+            NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
+            NEXT_PUBLIC_TTS_VOICE=expr-voice-5-m
+            NEXT_PUBLIC_TTS_SPEED=1
+
+      - name: Build summary
+        run: |
+          SIZE=$(ls -l portfolio-${{ github.sha }}.tar.gz | awk '{print $5}')
+          SIZE_MB=$(( SIZE / 1024 / 1024 ))
+          echo "## Staging build complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | portfolio-${{ github.sha }}.tar.gz |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
+            echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Image | skipped (artifact deploy mode) |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "| Size | ${SIZE_MB} MB |" >> $GITHUB_STEP_SUMMARY
+
+  preflight-staging:
+    name: Preflight ${{ matrix.server.name }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    strategy:
+      fail-fast: false
+      matrix:
+        server:
+          - name: staging-1
+            environment: production-1
+            host_secret: SERVER_HOST_1
+            user_secret: SERVER_USERNAME_1
+            key_secret: SERVER_SSH_KEY_1
+            port_secret: SERVER_PORT_1
+          - name: staging-2
+            environment: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+          - name: staging-3
+            environment: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+
+    environment:
+      name: ${{ matrix.server.environment }}
+
+    steps:
+      - name: Validate staging SSH secrets
+        run: |
+          missing=0
+          if [ -z "${{ secrets[matrix.server.host_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.host_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.user_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.user_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.key_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.key_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.port_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.port_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ "$missing" = "1" ]; then
+            exit 1
+          fi
+
+  deploy-staging:
+    name: Deploy to ${{ matrix.server.name }}
+    needs:
+      - build
+      - preflight-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        server:
+          - name: staging-1
+            environment: production-1
+            host_secret: SERVER_HOST_1
+            user_secret: SERVER_USERNAME_1
+            key_secret: SERVER_SSH_KEY_1
+            port_secret: SERVER_PORT_1
+            ghcr_secret: GHCR_READ_TOKEN
+          - name: staging-2
+            environment: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+            ghcr_secret: GHCR_READ_TOKEN
+          - name: staging-3
+            environment: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+            ghcr_secret: GHCR_READ_TOKEN
+
+    environment:
+      name: ${{ matrix.server.environment }}
+
+    steps:
+      - name: Staging deployment started (${{ matrix.server.name }})
+        run: |
+          echo "## Staging deployment — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Site | ${{ inputs.staging_site || 'portfolio-staging' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | https://${{ env.STAGING_DOMAIN }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | ${{ env.DEPLOY_MODE }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Download build artifact
+        if: env.DEPLOY_MODE == 'artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: portfolio-bundle
+
+      - name: Copy artifact to staging VM
+        if: env.DEPLOY_MODE == 'artifact'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          source: portfolio-${{ github.sha }}.tar.gz
+          target: /tmp/
+          timeout: 60s
+          command_timeout: 3m
+
+      - name: Checkout deploy kit
+        if: env.DEPLOY_MODE == 'image'
+        uses: actions/checkout@v4
+
+      - name: Package deploy kit
+        if: env.DEPLOY_MODE == 'image'
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-kit
+          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
+          cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
+          tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
+
+      - name: Copy deploy kit to staging VM
+        if: env.DEPLOY_MODE == 'image'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          source: portfolio-deploy-kit-${{ github.sha }}.tar.gz
+          target: /tmp/
+          timeout: 60s
+          command_timeout: 3m
+
+      - name: Deploy on ${{ matrix.server.name }}
+        id: deploy
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_OWNER: ${{ github.repository_owner }}
+          GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          script_stop: true
+          command_timeout: 20m
+          envs: GHCR_OWNER,GHCR_READ_TOKEN
+          script: |
+            set -euo pipefail
+
+            SHA="${{ github.sha }}"
+            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
+            DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
+            TARBALL="/tmp/portfolio-${SHA}.tar.gz"
+            STAGING="/tmp/portfolio-stage-${SHA}"
+            DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
+            IMAGE_REF="${{ needs.build.outputs.image_ref }}"
+
+            DEPLOY_OK=0
+            cleanup_staging() {
+              sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ "$DEPLOY_OK" = "1" ]; then
+                sudo rm -f "$TARBALL" 2>/dev/null || true
+                sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
+              fi
+            }
+            trap cleanup_staging EXIT
+
+            echo "Deploying ${DEPLOY_MODE} staging to ${{ matrix.server.name }}"
+            echo "SHA:  ${SHA}"
+            echo "Site: ${SITE}"
+            if [ "$DEPLOY_MODE" = "image" ]; then
+              echo "Image: ${IMAGE_REF}"
+            fi
+
+            EXTRA_FLAGS=""
+            if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
+            fi
+
+            if [ "$DEPLOY_MODE" = "image" ]; then
+              [ -f "$DEPLOY_KIT" ] || { echo "Deploy kit missing at $DEPLOY_KIT"; exit 1; }
+              case "$IMAGE_REF" in
+                *@sha256:*) ;;
+                *) echo "Image digest missing from build job: $IMAGE_REF"; exit 1 ;;
+              esac
+
+              sudo rm -rf "$STAGING"
+              sudo mkdir -p "$STAGING"
+              sudo tar xzf "$DEPLOY_KIT" -C "$STAGING"
+              [ -f "$STAGING/deploy.sh" ] || { echo "deploy.sh missing — deploy kit corrupt"; exit 1; }
+              [ -f "$STAGING/nginx-cloudflare.conf" ] || { echo "nginx template missing — deploy kit corrupt"; exit 1; }
+              [ -f "$STAGING/portfolio.conf.example" ] || { echo "config examples missing — deploy kit corrupt"; exit 1; }
+              sudo chmod +x "$STAGING/deploy.sh"
+
+              if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
+                  -u "$GHCR_OWNER" --password-stdin
+              fi
+
+              sudo bash "$STAGING/deploy.sh" \
+                --image "$IMAGE_REF" \
+                --sha "$SHA" \
+                --site "$SITE" \
+                $EXTRA_FLAGS
+            else
+              [ -f "$TARBALL" ] || { echo "Tarball missing at $TARBALL"; exit 1; }
+              sudo rm -rf "$STAGING"
+              sudo mkdir -p "$STAGING"
+              sudo tar xzf "$TARBALL" -C "$STAGING"
+              [ -f "$STAGING/server.js" ] || { echo "server.js missing — artifact corrupt"; exit 1; }
+              [ -f "$STAGING/.deploy/deploy.sh" ] || { echo ".deploy/deploy.sh missing — artifact corrupt"; exit 1; }
+              sudo chmod +x "$STAGING/.deploy/deploy.sh"
+
+              sudo bash "$STAGING/.deploy/deploy.sh" \
+                --release-dir "$STAGING" \
+                --sha "$SHA" \
+                --site "$SITE" \
+                $EXTRA_FLAGS
+            fi
+
+            DEPLOY_OK=1
+            echo "Staging deployment completed on ${{ matrix.server.name }}"
+
+      - name: Verify staging deployment (${{ matrix.server.name }})
+        if: success()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+
+            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
+            SITE_CONF="/etc/deploy/sites/${SITE}.conf"
+
+            SVC_NAME="$SITE"
+            SVC_PORT="3010"
+            if [ -f "$SITE_CONF" ]; then
+              SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "$SITE")
+              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF"  | cut -d= -f2 | tr -d '"' || echo "3010")
+            fi
+
+            if ! sudo systemctl is-active --quiet "$SVC_NAME"; then
+              echo "${SVC_NAME}.service is NOT running"
+              sudo journalctl -u "$SVC_NAME" --no-pager -n 20
+              exit 1
+            fi
+
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
+              "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Staging returned HTTP $HTTP_CODE on :$SVC_PORT"
+              exit 1
+            fi
+
+            if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
+              if ! sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
+                echo "Docker container is not running: $SVC_NAME"
+                sudo docker ps -a --filter "name=^/${SVC_NAME}$"
+                exit 1
+              fi
+            fi
+
+            echo "Staging verified on ${{ matrix.server.name }}: $SVC_NAME on :$SVC_PORT"
+
+      - name: Staging deployment success (${{ matrix.server.name }})
+        if: success()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ${{ matrix.server.name }}: staging success" >> $GITHUB_STEP_SUMMARY
+
+  smoke-staging:
+    name: Smoke staging through Cloudflare
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Smoke staging URL
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 --max-time 10 \
+            "https://${{ env.STAGING_DOMAIN }}/" >/dev/null
+          echo "Staging Cloudflare URL responded: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY

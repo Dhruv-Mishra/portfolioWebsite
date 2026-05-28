@@ -579,6 +579,27 @@ jobs:
     steps:
       - name: Smoke staging URL
         run: |
-          curl -fsS --retry 3 --retry-delay 2 --max-time 10 \
-            "https://${{ env.STAGING_DOMAIN }}/" >/dev/null
+          headers_file="$(mktemp)"
+          body_file="$(mktemp)"
+          status="$(curl -sS -L --retry 3 --retry-delay 2 --max-time 15 \
+            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
+            -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+            -H "Cache-Control: no-cache" \
+            -D "$headers_file" \
+            -o "$body_file" \
+            -w "%{http_code}" \
+            "https://${{ env.STAGING_DOMAIN }}/" || echo "000")"
+
+          echo "Staging smoke HTTP status: $status"
+          echo "Response headers:"
+          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|location:|content-type:|cache-control:)' "$headers_file" || true
+
+          if [ "$status" != "200" ]; then
+            echo "Response body preview:"
+            head -c 1600 "$body_file" || true
+            echo ""
+            echo "::error::staging.whoisdhruv.com returned HTTP $status"
+            exit 1
+          fi
+
           echo "Staging Cloudflare URL responded: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY

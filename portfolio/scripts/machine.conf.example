@@ -79,3 +79,8 @@ BUILD_HEAP_MB=512
 #   1 OCPU:  5  (slightly deprioritized vs sshd/nginx at nice 0)
 #   4 vCPU:  0  (normal priority — plenty of CPU)
 SERVICE_NICE=5
+
+# ── Docker Image Mode Notes ─────────────────────────────────────────────────
+# Image deployments mirror MEMORY_MAX_MB, MEMORY_HIGH_MB, CPU_QUOTA_PERCENT,
+# NODE_HEAP_MB, and SERVICE_NICE into docker run flags. Docker itself must be
+# installed on the VM; use scripts/bootstrap-docker-vm.sh on fresh Ubuntu hosts.

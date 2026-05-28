@@ -23,6 +23,23 @@ Open http://localhost:3000.
 | `npm run build:embeddings` | Regenerate `lib/facts.embeddings.json` |
 | `npm run prepare` | Install git hooks |
 
+## Container Image
+
+Production image builds use [Dockerfile](Dockerfile) and keep the same Next.js standalone contract as the VM artifact deploy. The image includes the Node standalone server, static assets, deploy/nginx templates, Python, KittenTTS dependencies, and eSpeak NG.
+
+```bash
+docker build \
+	--build-arg NEXT_BUILD_ID=$(git rev-parse HEAD) \
+	-t portfolio:local .
+
+docker run --rm --env-file .env.local \
+	-p 127.0.0.1:3000:3000 \
+	-v portfolio-tts-cache:/var/cache/portfolio/kitten-tts \
+	portfolio:local
+```
+
+Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The deploy workflow publishes one GHCR image per commit and deploys the immutable digest to every VM, while artifact mode remains available as a fallback.
+
 ## Structure
 
 ```text

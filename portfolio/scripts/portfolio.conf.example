@@ -18,7 +18,16 @@ DOMAIN="whoisdhruv.com"
 SERVICE_NAME="portfolio"
 NEXTJS_PORT=3000
 
+# ── Docker / Image Deployments ───────────────────────────────────────────────
+# Image mode runs one container per site behind host nginx. The workflow passes
+# the immutable image digest via deploy.sh --image, so this is only the local
+# container name and cache ownership policy.
+DOCKER_CONTAINER_NAME="portfolio"
+DOCKER_CACHE_UID=1000
+DOCKER_CACHE_GID=1000
+
 # ── Repository Paths ─────────────────────────────────────────────────────────
+# These are only required for legacy VM-build mode and first-run env migration.
 # GIT_ROOT:     Root of the cloned git repository
 # PROJECT_ROOT: The Next.js project directory (may be nested in the repo)
 GIT_ROOT="/home/ubuntu/portfolioWebsite"
@@ -38,7 +47,10 @@ NGINX_CONF_TEMPLATE="nginx-cloudflare.conf"
 
 # ── Required Environment Variables ───────────────────────────────────────────
 # Comma-separated. Deploy script validates these exist in .env.local.
-REQUIRED_ENV_VARS="LLM_API_KEY,LLM_BASE_URL,LLM_MODEL"
+# Leave empty to support either Groq-first (`GROQ_API_KEY`) or legacy
+# OpenAI-compatible (`LLM_*`) chat configs. Set this to a comma-separated list
+# if you want deploys to fail fast when specific runtime secrets are absent.
+REQUIRED_ENV_VARS=""
 
 # ── Backups & Logs ───────────────────────────────────────────────────────────
 BACKUP_RETENTION_DAYS=7

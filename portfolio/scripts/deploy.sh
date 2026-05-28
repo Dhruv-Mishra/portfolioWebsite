@@ -9,24 +9,35 @@
 #                         --release-dir /path/to/release \
 #                         --sha <git-sha> \
 #                         --site portfolio                        (artifact mode)
+#                sudo bash /tmp/deploy-kit/deploy.sh \
+#                         --image ghcr.io/owner/repo@sha256:... \
+#                         --sha <git-sha> \
+#                         --site portfolio                        (image mode)
 #
 #   DESCRIPTION: Production deployment for a Next.js website.
 #                Supports two modes:
 #
-#                1. ARTIFACT MODE (--release-dir / --sha):
+#                1. IMAGE MODE (--image / --sha):
+#                   Pulls an immutable Docker image, extracts nginx-visible
+#                   static assets from that image into /opt/portfolio/current,
+#                   and runs the app container under systemd. This is the
+#                   containerized production path for new VMs.
+#
+#                2. ARTIFACT MODE (--release-dir / --sha):
 #                   A pre-built standalone bundle is already on disk (shipped
 #                   via GitHub Actions artifact + scp). Skips git / npm / build
 #                   entirely. Uses /opt/portfolio/{config,releases,current}
 #                   layout with atomic symlink swap and health-check-gated
-#                   rollback. This is the production path.
+#                   rollback. Kept as a non-Docker fallback.
 #
-#                2. LEGACY MODE (no --release-dir):
+#                3. LEGACY MODE (no --release-dir / --image):
 #                   Full git pull + npm ci + next build on the VM. Kept as a
 #                   safety net for emergency recovery; not the normal path.
 #
 #       OPTIONS:
 #                --release-dir DIR   [artifact] Path to extracted bundle
-#                --sha SHA           [artifact] Git SHA identifying this build
+#                --image IMAGE       [image]    Immutable Docker image ref
+#                --sha SHA           [image/artifact] Git SHA identifying this build
 #                --site NAME         Site config to use (default: portfolio)
 #                --skip-git          [legacy]   Skip git pull
 #                --skip-deps         [legacy]   Skip npm ci
@@ -116,6 +127,11 @@ readonly SSL_KEY="${SSL_KEY:?SSL_KEY not set in ${SITE_CONF}}"
 # System user
 readonly SERVICE_USER="${MACHINE_USER:-ubuntu}"
 
+# Docker image mode
+readonly DOCKER_CONTAINER_NAME="${DOCKER_CONTAINER_NAME:-${SERVICE_NAME}}"
+readonly DOCKER_CACHE_UID="${DOCKER_CACHE_UID:-1000}"
+readonly DOCKER_CACHE_GID="${DOCKER_CACHE_GID:-1000}"
+
 # Node.js runtime
 readonly NODE_HEAP_MB="${NODE_HEAP_MB:-350}"
 readonly BUILD_HEAP_MB="${BUILD_HEAP_MB:-512}"
@@ -155,7 +171,7 @@ readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
 readonly RELEASE_RETENTION_COUNT="${RELEASE_RETENTION_COUNT:-2}"
 
 # Required env vars
-IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS:-LLM_API_KEY,LLM_BASE_URL,LLM_MODEL}"
+IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS-}"
 
 #===============================================================================
 # DERIVED CONSTANTS — ARTIFACT LAYOUT
@@ -196,9 +212,10 @@ readonly NC='\033[0m'
 # MUTABLE STATE
 #===============================================================================
 
-MODE="legacy"              # "artifact" | "legacy"
-RELEASE_DIR=""             # set in artifact mode
-RELEASE_SHA=""             # set in artifact mode
+MODE="legacy"              # "artifact" | "image" | "legacy"
+RELEASE_DIR=""             # set in image/artifact mode
+RELEASE_SHA=""             # set in image/artifact mode
+DOCKER_IMAGE=""             # set in image mode
 
 SKIP_GIT=false
 SKIP_DEPS=false
@@ -214,6 +231,7 @@ ROLLBACK_PREV_SHA=""
 ROLLBACK_SYSTEMD_ACTIVATED=false
 ROLLBACK_SYMLINK_FLIPPED=false
 ROLLBACK_NGINX_ACTIVATED=false
+ROLLBACK_PREV_DOCKER_IMAGE=""
 
 # Staging files (written before atomic activation)
 STAGED_SYSTEMD_UNIT=""
@@ -255,6 +273,9 @@ log_separator() {
 show_help() {
     cat << 'EOF'
 Usage:
+    Image mode (containerized production path — invoked by deploy.yml):
+        sudo bash <kit>/deploy.sh --image <image-ref> --sha <sha> --site <name>
+
   Artifact mode (production path — invoked by deploy.yml from within the tarball):
     sudo bash <release>/.deploy/deploy.sh --release-dir <release> --sha <sha> --site <name>
 
@@ -263,7 +284,8 @@ Usage:
 
 OPTIONS
   --release-dir DIR   Artifact mode: path to extracted standalone bundle
-  --sha SHA           Artifact mode: git SHA identifying this build
+    --image IMAGE       Image mode: immutable Docker image ref or digest
+    --sha SHA           Image/artifact mode: git SHA identifying this build
   --site NAME         Site config in /etc/deploy/sites/ (default: portfolio)
   --skip-git          (legacy) Skip git pull
   --skip-deps         (legacy) Skip npm ci
@@ -276,7 +298,7 @@ CONFIGURATION
   Machine config: /etc/deploy/machine.conf
   Site config:    /etc/deploy/sites/<name>.conf
 
-LAYOUT (artifact mode)
+LAYOUT (image/artifact mode)
   /opt/<service>/config/.env.local       — secrets, survives deploys
   /opt/<service>/releases/<sha>/         — one dir per release, auto-trimmed
   /opt/<service>/current -> releases/X   — atomic symlink flipped at deploy time
@@ -310,6 +332,18 @@ parse_arguments() {
                 fi
                 shift 2
                 ;;
+            --image)
+                DOCKER_IMAGE="${2:-}"
+                if [[ -z "${DOCKER_IMAGE}" ]] || [[ "${DOCKER_IMAGE}" == --* ]]; then
+                    log ERROR "--image requires an image reference"
+                    exit 1
+                fi
+                if [[ "${DOCKER_IMAGE}" != *@sha256:* ]]; then
+                    log ERROR "--image must be an immutable digest ref (expected repo@sha256:..., got: ${DOCKER_IMAGE})"
+                    exit 1
+                fi
+                shift 2
+                ;;
             --skip-git)   SKIP_GIT=true;   shift ;;
             --skip-deps)  SKIP_DEPS=true;  shift ;;
             --skip-build) SKIP_BUILD=true; shift ;;
@@ -322,8 +356,19 @@ parse_arguments() {
         esac
     done
 
-    # Dispatch: artifact mode iff --release-dir given
-    if [[ -n "${RELEASE_DIR}" ]]; then
+    if [[ -n "${RELEASE_DIR}" ]] && [[ -n "${DOCKER_IMAGE}" ]]; then
+        log ERROR "Use either --release-dir or --image, not both"
+        exit 1
+    fi
+
+    # Dispatch: image mode iff --image given; artifact mode iff --release-dir given
+    if [[ -n "${DOCKER_IMAGE}" ]]; then
+        MODE="image"
+        if [[ -z "${RELEASE_SHA}" ]]; then
+            log ERROR "--image requires --sha"
+            exit 1
+        fi
+    elif [[ -n "${RELEASE_DIR}" ]]; then
         MODE="artifact"
         if [[ -z "${RELEASE_SHA}" ]]; then
             log ERROR "--release-dir requires --sha"
@@ -355,7 +400,7 @@ cleanup() {
         log_separator
         log ERROR "Deployment failed (exit ${exit_code}). Log: ${LOG_FILE}"
 
-        if [[ "${MODE}" == "artifact" ]]; then
+        if [[ "${MODE}" == "artifact" ]] || [[ "${MODE}" == "image" ]]; then
             rollback_artifact
         else
             rollback_legacy_nginx
@@ -450,6 +495,8 @@ check_dependencies() {
     local deps=("nginx" "systemctl" "curl" "sed" "flock")
     if [[ "${MODE}" == "legacy" ]]; then
         deps+=("git" "node" "npm" "nice" "ionice")
+    elif [[ "${MODE}" == "image" ]]; then
+        deps+=("docker" "awk")
     fi
 
     local missing=()
@@ -461,6 +508,10 @@ check_dependencies() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         log ERROR "Missing: ${missing[*]}"
+        exit 1
+    fi
+    if [[ "${MODE}" == "image" ]] && ! docker info &>/dev/null; then
+        log ERROR "Docker is installed but the daemon is not reachable"
         exit 1
     fi
     log SUCCESS "All dependencies present"
@@ -644,9 +695,12 @@ validate_env_file() {
     # so `# FOO=old` in a comment doesn't falsely satisfy FOO.
     local missing=()
     local non_comment
+    local required_count=0
     non_comment=$(grep -vE '^[[:space:]]*(#|$)' "${DEPLOY_ENV_FILE}" || true)
     for var in "${REQUIRED_ENV_ARRAY[@]}"; do
         var="$(echo "${var}" | xargs)"
+        [[ -z "${var}" ]] && continue
+        required_count=$((required_count + 1))
         if ! echo "${non_comment}" | cut -d= -f1 | grep -qxF "${var}"; then
             missing+=("${var}")
         fi
@@ -671,7 +725,7 @@ validate_env_file() {
         exit 1
     fi
 
-    log SUCCESS ".env.local valid (${#REQUIRED_ENV_ARRAY[@]} required vars, systemd-compatible)"
+    log SUCCESS ".env.local valid (${required_count} required vars, systemd-compatible)"
 }
 
 record_previous_release() {
@@ -689,37 +743,182 @@ stage_release() {
     log STEP "Staging release ${RELEASE_SHA}..."
 
     local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    local current_target=""
+    local target_real=""
 
-    # If the same SHA was already deployed (rerun of failed job), wipe & redo
+    current_target=$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
     if [[ -d "${target}" ]]; then
-        log WARN "Release ${RELEASE_SHA} already on disk — wiping & redeploying"
-        rm -rf "${target}"
+        target_real=$(readlink -f "${target}" 2>/dev/null || true)
     fi
 
-    mkdir -p "${target}"
+    if [[ -n "${current_target}" ]] && [[ -n "${target_real}" ]] && [[ "${current_target}" == "${target_real}" ]]; then
+        if [[ ! -f "${target}/server.js" ]]; then
+            log ERROR "Release ${RELEASE_SHA} is already active but does not contain server.js"
+            log ERROR "Refusing artifact same-SHA reuse; the active release is likely an image-mode static release. Deploy a new SHA or drain/remove it manually."
+            exit 1
+        fi
+        log WARN "Release ${RELEASE_SHA} is already active — reusing existing staged files"
+        return 0
+    fi
 
-    # Copy the extracted bundle. Target is already empty (rm -rf + mkdir above),
-    # so cp -a is sufficient — preserves permissions, symlinks, timestamps.
+    local staging="${DEPLOY_RELEASES_DIR}/.${RELEASE_SHA}.staging.$$"
+    rm -rf "${staging}"
+    mkdir -p "${staging}"
+
+    if [[ -d "${target}" ]]; then
+        log WARN "Release ${RELEASE_SHA} already on disk but is not active — replacing after staging succeeds"
+    fi
+
+    # Copy the extracted bundle into a temp dir first so a failed copy never
+    # leaves a half-populated release at the final SHA path.
     # Avoids depending on rsync, which isn't in Ubuntu minimal cloud images.
-    cp -a "${RELEASE_DIR}/." "${target}/"
+    cp -a "${RELEASE_DIR}/." "${staging}/"
 
     # Copy the production .env.local into the release (systemd reads it from here)
-    cp "${DEPLOY_ENV_FILE}" "${target}/.env.local"
-    chmod 600 "${target}/.env.local"
+    cp "${DEPLOY_ENV_FILE}" "${staging}/.env.local"
+    chmod 600 "${staging}/.env.local"
 
     # Fix ownership: service user owns the bundle
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${target}"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${staging}"
 
     # Ensure nginx (www-data) can traverse to read static files.
     # /opt/portfolio is not home-restricted but set +x defensively in case
     # parent dirs have 700 perms.
-    chmod o+x "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}" "${target}" 2>/dev/null || true
-    [[ -d "${target}/.next/static" ]] && chmod -R o+rX "${target}/.next/static" 2>/dev/null || true
-    [[ -d "${target}/public" ]] && chmod -R o+rX "${target}/public" 2>/dev/null || true
+    chmod o+x "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}" "${staging}" 2>/dev/null || true
+    [[ -d "${staging}/.next/static" ]] && chmod -R o+rX "${staging}/.next/static" 2>/dev/null || true
+    [[ -d "${staging}/public" ]] && chmod -R o+rX "${staging}/public" 2>/dev/null || true
+
+    rm -rf "${target}"
+    mv "${staging}" "${target}"
 
     local file_count
     file_count=$(find "${target}" -type f | wc -l)
     log SUCCESS "Staged ${file_count} files to ${target}"
+}
+
+stage_image_release() {
+    log STEP "Staging image release ${RELEASE_SHA}..."
+
+    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    local staging="${DEPLOY_RELEASES_DIR}/.${RELEASE_SHA}.staging.$$"
+    local extract_container="${SERVICE_NAME}-extract-$$"
+    local current_target=""
+    local target_real=""
+
+    current_target=$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+    if [[ -d "${target}" ]]; then
+        target_real=$(readlink -f "${target}" 2>/dev/null || true)
+    fi
+
+    if [[ -n "${current_target}" ]] && [[ -n "${target_real}" ]] && [[ "${current_target}" == "${target_real}" ]]; then
+        local current_image=""
+        if [[ -f "${target}/.deploy/meta.json" ]]; then
+            current_image=$(sed -n 's/.*"image": "\([^"]*\)".*/\1/p' "${target}/.deploy/meta.json" | head -1)
+        fi
+        if [[ "${current_image}" == "${DOCKER_IMAGE}" ]]; then
+            RELEASE_DIR="${target}"
+            log WARN "Image release ${RELEASE_SHA} is already active with the same digest — reusing existing static files"
+            return 0
+        fi
+        log ERROR "Active release ${RELEASE_SHA} already exists with a different image digest"
+        log ERROR "Current: ${current_image:-unknown}"
+        log ERROR "Requested: ${DOCKER_IMAGE}"
+        log ERROR "Refusing to replace the live same-SHA release in place; deploy a new SHA or drain/remove the old release manually."
+        exit 1
+    fi
+
+    rm -rf "${staging}"
+    mkdir -p "${staging}/.next"
+    if [[ -d "${target}" ]]; then
+        log WARN "Release ${RELEASE_SHA} already on disk but is not active — replacing after staging succeeds"
+    fi
+
+    log INFO "Pulling image: ${DOCKER_IMAGE}"
+    docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+
+    docker rm -f "${extract_container}" >/dev/null 2>&1 || true
+    # shellcheck disable=SC2064
+    trap "docker rm -f '${extract_container}' >/dev/null 2>&1 || true" RETURN
+
+    docker create --name "${extract_container}" "${DOCKER_IMAGE}" >/dev/null
+
+    docker cp "${extract_container}:/app/.next/static" "${staging}/.next/" \
+        || { log ERROR "Could not extract .next/static from image"; exit 1; }
+    docker cp "${extract_container}:/app/public" "${staging}/" \
+        || { log ERROR "Could not extract public/ from image"; exit 1; }
+    docker cp "${extract_container}:/app/.deploy" "${staging}/" \
+        || { log ERROR "Could not extract .deploy/ from image"; exit 1; }
+
+    docker rm -f "${extract_container}" >/dev/null 2>&1 || true
+    trap - RETURN
+
+    cat > "${staging}/.deploy/meta.json" << META
+{
+  "sha": "${RELEASE_SHA}",
+  "image": "${DOCKER_IMAGE}",
+  "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+META
+
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" "${staging}"
+    chmod o+x "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}" "${staging}" 2>/dev/null || true
+    chmod -R o+rX "${staging}/.next/static" "${staging}/public" 2>/dev/null || true
+
+    rm -rf "${target}"
+    mv "${staging}" "${target}"
+
+    local file_count
+    file_count=$(find "${target}" -type f | wc -l)
+    RELEASE_DIR="${target}"
+    log SUCCESS "Staged ${file_count} static/deploy files from image to ${target}"
+}
+
+record_previous_docker_image() {
+    ROLLBACK_PREV_DOCKER_IMAGE="$(docker inspect --format '{{.Config.Image}}' "${DOCKER_CONTAINER_NAME}" 2>/dev/null || true)"
+    if [[ -n "${ROLLBACK_PREV_DOCKER_IMAGE}" ]]; then
+        log DEBUG "Previous Docker image: ${ROLLBACK_PREV_DOCKER_IMAGE}"
+    fi
+}
+
+prune_docker_images() {
+    if [[ "${MODE}" != "image" ]]; then
+        return 0
+    fi
+
+    log STEP "Pruning old Docker images for ${SERVICE_NAME}..."
+
+    local repository="${DOCKER_IMAGE%@*}"
+    repository="${repository%:*}"
+    if [[ -z "${repository}" ]]; then
+        log WARN "Could not infer Docker repository for pruning"
+        return 0
+    fi
+
+    local current_id=""
+    current_id="$(docker image inspect --format '{{.Id}}' "${DOCKER_IMAGE}" 2>/dev/null || true)"
+    local previous_id=""
+    if [[ -n "${ROLLBACK_PREV_DOCKER_IMAGE}" ]]; then
+        previous_id="$(docker image inspect --format '{{.Id}}' "${ROLLBACK_PREV_DOCKER_IMAGE}" 2>/dev/null || true)"
+    fi
+
+    mapfile -t image_ids < <(
+        docker images --format '{{.Repository}} {{.ID}}' \
+            | awk -v repo="${repository}" '$1 == repo { print $2 }' \
+            | sort -u
+    )
+
+    local removed=0
+    local image_id
+    for image_id in "${image_ids[@]}"; do
+        if [[ -z "${image_id}" ]] || [[ "${image_id}" == "${current_id}" ]] || [[ "${image_id}" == "${previous_id}" ]]; then
+            continue
+        fi
+        if docker rmi "${image_id}" >/dev/null 2>&1; then
+            removed=$((removed + 1))
+        fi
+    done
+
+    log SUCCESS "Docker image prune complete (${removed} old ${repository} image(s) removed)"
 }
 
 #===============================================================================
@@ -798,6 +997,82 @@ UNIT
     log SUCCESS "systemd unit staged at ${STAGED_SYSTEMD_UNIT}"
 }
 
+docker_cpu_quota() {
+    awk "BEGIN { printf \"%.2f\", ${CPU_QUOTA_PERCENT}/100 }"
+}
+
+prepare_docker_systemd_unit() {
+    log STEP "Preparing Docker systemd unit (staged)..."
+
+    local docker_bin
+    docker_bin=$(command -v docker)
+    local docker_cpus
+    docker_cpus=$(docker_cpu_quota)
+    local tts_cache_dir="/var/cache/${SERVICE_NAME}/kitten-tts"
+
+    mkdir -p "${tts_cache_dir}"
+    chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${tts_cache_dir}" 2>/dev/null || true
+    chmod 775 "${tts_cache_dir}" 2>/dev/null || true
+
+    STAGED_SYSTEMD_UNIT="$(mktemp "/tmp/${SERVICE_NAME}.service.XXXXXX")"
+
+    cat > "${STAGED_SYSTEMD_UNIT}" << UNIT
+[Unit]
+Description=Next.js Docker container — ${DOMAIN}
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=${DEPLOY_CURRENT_LINK}
+
+ExecStartPre=-${docker_bin} rm -f ${DOCKER_CONTAINER_NAME}
+ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
+  --env-file ${DEPLOY_ENV_FILE} \
+  --env NODE_ENV=production \
+  --env PORT=${NEXTJS_PORT} \
+  --env HOSTNAME=0.0.0.0 \
+  --env NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} \
+  --env LOCAL_TTS_CACHE_DIR=${tts_cache_dir} \
+  --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
+  --volume ${tts_cache_dir}:${tts_cache_dir} \
+  --memory ${MEMORY_MAX_MB}m \
+  --memory-reservation ${MEMORY_HIGH_MB}m \
+  --cpus ${docker_cpus} \
+  --label com.whoisdhruv.service=${SERVICE_NAME} \
+  --label com.whoisdhruv.sha=${RELEASE_SHA} \
+  ${DOCKER_IMAGE}
+ExecStop=${docker_bin} stop -t 15 ${DOCKER_CONTAINER_NAME}
+ExecStopPost=-${docker_bin} rm -f ${DOCKER_CONTAINER_NAME}
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=90
+TimeoutStopSec=30
+
+# Docker owns the container cgroup; resource controls are applied through
+# docker run flags above so they follow the app process, not just docker CLI.
+OOMScoreAdjust=500
+Nice=${SERVICE_NICE}
+NoNewPrivileges=true
+PrivateTmp=true
+KillMode=process
+
+# ── Logging ──
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=${SERVICE_NAME}
+LogRateLimitIntervalSec=30
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    chmod 644 "${STAGED_SYSTEMD_UNIT}"
+    log SUCCESS "Docker systemd unit staged at ${STAGED_SYSTEMD_UNIT}"
+}
+
 backup_existing_systemd() {
     if [[ -f "${SYSTEMD_UNIT}" ]]; then
         ROLLBACK_SYSTEMD_BACKUP="${BACKUP_DIR}/systemd-${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
@@ -830,17 +1105,44 @@ ensure_nginx_zones() {
 
     log STEP "Ensuring nginx rate-limit zones exist..."
 
-    if grep -rqE '^\s*limit_req_zone[^;]+zone=(api|general)' /etc/nginx/ 2>/dev/null; then
+    local global_has_api=false
+    local global_has_general=false
+    local file_has_api=false
+    local file_has_general=false
+
+    if grep -rqE '^[[:space:]]*limit_req_zone[^;]+zone=api:' /etc/nginx/ 2>/dev/null; then
+        global_has_api=true
+    fi
+    if grep -rqE '^[[:space:]]*limit_req_zone[^;]+zone=general:' /etc/nginx/ 2>/dev/null; then
+        global_has_general=true
+    fi
+
+    if [[ -f "${NGINX_ZONES_CONF}" ]]; then
+        if grep -qE '^[[:space:]]*limit_req_zone[^;]+zone=api:' "${NGINX_ZONES_CONF}" 2>/dev/null; then
+            file_has_api=true
+        fi
+        if grep -qE '^[[:space:]]*limit_req_zone[^;]+zone=general:' "${NGINX_ZONES_CONF}" 2>/dev/null; then
+            file_has_general=true
+        fi
+    fi
+
+    if [[ "${global_has_api}" == "true" ]] && [[ "${global_has_general}" == "true" ]]; then
         log DEBUG "limit_req_zone api/general already defined — skipping"
         return 0
     fi
 
-    cat > "${NGINX_ZONES_CONF}" << 'ZONES'
+    {
+        cat << 'ZONES'
 # Rate-limit zones (shared across all server blocks).
 # Defined in http{} via conf.d/ auto-include.
-limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
-limit_req_zone $binary_remote_addr zone=general:10m rate=120r/m;
 ZONES
+        if [[ "${file_has_api}" == "true" ]] || [[ "${global_has_api}" != "true" ]]; then
+            printf '%s\n' 'limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;'
+        fi
+        if [[ "${file_has_general}" == "true" ]] || [[ "${global_has_general}" != "true" ]]; then
+            printf '%s\n' 'limit_req_zone $binary_remote_addr zone=general:10m rate=120r/m;'
+        fi
+    } > "${NGINX_ZONES_CONF}"
     chmod 644 "${NGINX_ZONES_CONF}"
     log SUCCESS "Wrote ${NGINX_ZONES_CONF}"
 }
@@ -980,6 +1282,8 @@ activate_nginx_config() {
         log DEBUG "Created enabled-site symlink: ${symlink}"
     fi
 
+    ROLLBACK_NGINX_ACTIVATED=true
+
     # Proxy cache dir
     mkdir -p "/var/cache/nginx/${SERVICE_NAME}"
     chown www-data:www-data "/var/cache/nginx/${SERVICE_NAME}"
@@ -987,10 +1291,14 @@ activate_nginx_config() {
     # Re-test with the live config now in place (belt & suspenders)
     if ! nginx -t &>/dev/null; then
         log ERROR "nginx -t failed at activation time (should not happen — validated earlier)"
+        if [[ -n "${ROLLBACK_NGINX_BACKUP}" ]] && [[ -f "${ROLLBACK_NGINX_BACKUP}" ]]; then
+            cp "${ROLLBACK_NGINX_BACKUP}" "${NGINX_ACTIVE_CONF}" || true
+        else
+            rm -f "${NGINX_ACTIVE_CONF}" "${symlink}" || true
+        fi
         exit 1
     fi
 
-    ROLLBACK_NGINX_ACTIVATED=true
     log SUCCESS "nginx config activated (reload deferred until after service up)"
 }
 
@@ -1206,6 +1514,60 @@ artifact_deploy() {
     cleanup_orphaned_legacy || log WARN "legacy cleanup had issues (non-fatal)"
 
     # Final health check
+    health_check
+}
+
+image_deploy() {
+    log INFO "Mode: image (sha=${RELEASE_SHA}, image=${DOCKER_IMAGE})"
+
+    check_ssl_certs
+
+    # Bootstrap /opt/<service>/ on first run (or no-op if already set up)
+    first_run_bootstrap
+    validate_env_file
+    record_previous_release
+    record_previous_docker_image
+
+    # Pull image and extract nginx-visible static assets/deploy template.
+    stage_image_release
+
+    # Prepare staged configs from files extracted from the exact image digest.
+    prepare_docker_systemd_unit
+    prepare_nginx_config
+
+    ensure_nginx_zones
+    validate_staged_nginx
+
+    backup_existing_systemd
+    backup_existing_nginx
+
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        log DEBUG "Stopping ${SERVICE_NAME}..."
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        sleep 2
+    fi
+    docker rm -f "${DOCKER_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    kill_orphaned_processes
+
+    activate_systemd_unit
+    atomic_symlink_swap
+    activate_nginx_config
+
+    if ! start_service; then
+        log ERROR "Containerized service did not come up healthy"
+        exit 1
+    fi
+
+    if ! reload_nginx; then
+        log WARN "nginx reload failed — new container is up, but nginx config was not reloaded."
+        log WARN "Investigate manually: sudo nginx -t && sudo systemctl reload nginx"
+    fi
+
+    trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
+    prune_docker_images || log WARN "Docker image pruning had issues (non-fatal)"
+    update_deploy_symlink
+    cleanup_orphaned_legacy || log WARN "legacy cleanup had issues (non-fatal)"
+
     health_check
 }
 
@@ -1517,6 +1879,12 @@ print_summary() {
         echo -e "  ${CYAN}•${NC} SHA:       ${RELEASE_SHA}"
         echo -e "  ${CYAN}•${NC} Current:   ${DEPLOY_CURRENT_LINK} → $(readlink ${DEPLOY_CURRENT_LINK} 2>/dev/null || echo '?')"
         echo -e "  ${CYAN}•${NC} Releases:  $(find ${DEPLOY_RELEASES_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l) on disk"
+    elif [[ "${MODE}" == "image" ]]; then
+        echo -e "  ${CYAN}•${NC} SHA:       ${RELEASE_SHA}"
+        echo -e "  ${CYAN}•${NC} Image:     ${DOCKER_IMAGE}"
+        echo -e "  ${CYAN}•${NC} Container: ${DOCKER_CONTAINER_NAME}"
+        echo -e "  ${CYAN}•${NC} Current:   ${DEPLOY_CURRENT_LINK} → $(readlink ${DEPLOY_CURRENT_LINK} 2>/dev/null || echo '?')"
+        echo -e "  ${CYAN}•${NC} Releases:  $(find ${DEPLOY_RELEASES_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l) on disk"
     fi
     echo -e "  ${CYAN}•${NC} Service:   ${SERVICE_NAME}.service (port ${NEXTJS_PORT}, heap=${NODE_HEAP_MB}MB)"
     echo -e "  ${CYAN}•${NC} Log:       ${LOG_FILE}"
@@ -1561,6 +1929,8 @@ main() {
     # Mode dispatch
     if [[ "${MODE}" == "artifact" ]]; then
         artifact_deploy
+    elif [[ "${MODE}" == "image" ]]; then
+        image_deploy
     else
         legacy_deploy
     fi

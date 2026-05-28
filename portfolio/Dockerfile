@@ -8,6 +8,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     SKIP_EMBEDDINGS_BUILD=1
 
 COPY package.json package-lock.json ./
+COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 RUN npm ci
 
 FROM deps AS builder

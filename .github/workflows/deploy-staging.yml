@@ -419,18 +419,20 @@ jobs:
             fi
 
             if [ "$DEPLOY_MODE" = "image" ]; then
+              echo "Checking deploy kit at $DEPLOY_KIT"
               if [ ! -f "$DEPLOY_KIT" ]; then
                 echo "Deploy kit missing at $DEPLOY_KIT"
                 exit 1
               fi
-              if ! printf '%s' "$IMAGE_REF" | grep -q '@sha256:'; then
+              if [ "${IMAGE_REF#*@sha256:}" = "$IMAGE_REF" ]; then
                 echo "Image digest missing from build job: $IMAGE_REF"
                 exit 1
               fi
 
-              sudo rm -rf "$STAGING"
-              sudo mkdir -p "$STAGING"
-              sudo tar xzf "$DEPLOY_KIT" -C "$STAGING"
+              echo "Extracting deploy kit to $STAGING"
+              sudo rm -rf "$STAGING" || { echo "failed to remove old staging dir"; exit 1; }
+              sudo mkdir -p "$STAGING" || { echo "failed to create staging dir"; exit 1; }
+              sudo tar xzf "$DEPLOY_KIT" -C "$STAGING" || { echo "failed to extract deploy kit"; exit 1; }
               if [ ! -f "$STAGING/deploy.sh" ]; then
                 echo "deploy.sh missing - deploy kit corrupt"
                 exit 1
@@ -446,23 +448,27 @@ jobs:
               sudo chmod +x "$STAGING/deploy.sh"
 
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+                echo "Logging in to GHCR"
                 printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
-                  -u "$GHCR_OWNER" --password-stdin
+                  -u "$GHCR_OWNER" --password-stdin || { echo "GHCR login failed"; exit 1; }
               fi
 
+              echo "Invoking image deploy script"
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx || { echo "deploy.sh image mode failed"; exit 1; }
               else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE"
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" || { echo "deploy.sh image mode failed"; exit 1; }
               fi
             else
+              echo "Checking artifact tarball at $TARBALL"
               if [ ! -f "$TARBALL" ]; then
                 echo "Tarball missing at $TARBALL"
                 exit 1
               fi
-              sudo rm -rf "$STAGING"
-              sudo mkdir -p "$STAGING"
-              sudo tar xzf "$TARBALL" -C "$STAGING"
+              echo "Extracting artifact to $STAGING"
+              sudo rm -rf "$STAGING" || { echo "failed to remove old staging dir"; exit 1; }
+              sudo mkdir -p "$STAGING" || { echo "failed to create staging dir"; exit 1; }
+              sudo tar xzf "$TARBALL" -C "$STAGING" || { echo "failed to extract artifact"; exit 1; }
               if [ ! -f "$STAGING/server.js" ]; then
                 echo "server.js missing - artifact corrupt"
                 exit 1
@@ -473,10 +479,11 @@ jobs:
               fi
               sudo chmod +x "$STAGING/.deploy/deploy.sh"
 
+              echo "Invoking artifact deploy script"
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx || { echo "deploy.sh artifact mode failed"; exit 1; }
               else
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE"
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" || { echo "deploy.sh artifact mode failed"; exit 1; }
               fi
             fi
 

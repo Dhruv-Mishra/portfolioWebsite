@@ -1,15 +1,22 @@
-name: Deploy Portfolio
+name: Deploy Portfolio Production
+
+permissions:
+  contents: read
+  packages: write
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Architecture: build-once-deploy-many
 #
 #   build job (ubuntu-latest, once)
 #     └── npm ci → lint → test → next build → assemble standalone →
-#         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside
+#         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside →
+#         build/push ghcr.io image tagged by the same SHA
 #
-#   deploy job (matrix, 3 VMs in parallel, needs: build)
-#     └── download artifact → scp tarball to VM → ssh extract →
-#         invoke deploy.sh from WITHIN the artifact → health-check
+#   approve-production job (manual GitHub Environment gate, needs: build)
+#     └── waits for human approval before production mutation
+#
+#   deploy-production job (matrix, serial VMs, needs: approve-production)
+#     └── deploys the immutable image digest/artifact to production
 #
 # Why bundle deploy.sh inside the artifact:
 #   - Single-commit self-bootstrapping: the first push with this new workflow
@@ -18,17 +25,18 @@ name: Deploy Portfolio
 #   - Hermetic reproducibility: deploy.sh version is always locked to bundle
 #     version. Impossible for them to drift.
 #
-# Why no arch matrix:
-#   - sharp has been disabled (images.unoptimized=true in next.config.ts).
-#   - The resulting standalone bundle is pure JavaScript + pre-optimized
-#     webp assets, portable across arm64/x86_64 Linux VMs.
+# Why multi-platform image publishing:
+#   - The Next.js standalone bundle is still pure JavaScript at runtime, but
+#     the container now includes Python/eSpeak for local TTS.
+#   - Buildx publishes linux/amd64 and linux/arm64 variants so fresh VMs can
+#     pull the same immutable digest regardless of CPU architecture.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   workflow_dispatch:
     inputs:
       site:
-        description: 'Site config name (matches /etc/deploy/sites/<name>.conf)'
+        description: 'Production site config name (matches /etc/deploy/sites/<name>.conf)'
         required: false
         default: portfolio
         type: string
@@ -37,10 +45,18 @@ on:
         required: false
         default: false
         type: boolean
+      deploy_mode:
+        description: 'Deployment mode'
+        required: false
+        default: image
+        type: choice
+        options:
+          - image
+          - artifact
 
   push:
     branches:
-      - master
+      - deployed/production
     paths-ignore:
       - '**.md'
       - '.github/dependabot.yml'
@@ -50,25 +66,47 @@ on:
       - 'ResumeBuilder/**'
 
 concurrency:
-  group: deploy-${{ inputs.site || 'portfolio' }}
+  group: deploy-production-${{ inputs.site || 'portfolio' }}
   cancel-in-progress: false
 
 env:
   DOMAIN: whoisdhruv.com
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
+  DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  NEXT_PUBLIC_GA_ID: ''
+  NEXT_PUBLIC_ENABLE_ANALYTICS: 'false'
+  NEXT_PUBLIC_ENABLE_ERROR_TRACKING: 'false'
   # Suppress the anonymous telemetry banner from Next.js builds; we don't act
   # on it and it pollutes CI logs.
   NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
+  guard-production-ref:
+    name: Guard production ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Require deployed/production for production deploys
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
+            echo "::error::Production deploys must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
   # ───────────────────────────────────────────────────────────────────────────
   # BUILD — runs once on ubuntu-latest, produces a single artifact
   # ───────────────────────────────────────────────────────────────────────────
   build:
-    name: Build artifact
+    name: Build artifact and image
+    needs: guard-production-ref
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
+    outputs:
+      image: ${{ steps.image-meta.outputs.image }}
+      image_digest: ${{ steps.docker-build.outputs.digest }}
+      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
 
     steps:
       - name: Checkout
@@ -173,6 +211,52 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      - name: Resolve image name
+        id: image-meta
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: env.DEPLOY_MODE == 'image'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: env.DEPLOY_MODE == 'image'
+        id: docker-build
+        uses: docker/build-push-action@v6
+        with:
+          context: portfolio
+          file: portfolio/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.image-meta.outputs.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            NEXT_BUILD_ID=${{ github.sha }}
+            NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
+            NEXT_PUBLIC_SITE_URL=https://${{ env.DOMAIN }}
+            NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
+            NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
+            NEXT_PUBLIC_TTS_VOICE=expr-voice-5-m
+            NEXT_PUBLIC_TTS_SPEED=1
+
       - name: Build summary
         run: |
           SIZE=$(ls -l portfolio-${{ github.sha }}.tar.gz | awk '{print $5}')
@@ -183,20 +267,111 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Artifact | portfolio-${{ github.sha }}.tar.gz |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
+            echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Image | skipped (artifact deploy mode) |" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "| Size | ${SIZE_MB} MB |" >> $GITHUB_STEP_SUMMARY
           echo "| Node | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
 
   # ───────────────────────────────────────────────────────────────────────────
-  # DEPLOY — parallel matrix across all VMs, consumes the build artifact
+  # PRODUCTION APPROVAL — same workflow run, same immutable build
   # ───────────────────────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to ${{ matrix.server.name }}
+  approve-production:
+    name: Approve production promotion
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
+
+    environment:
+      name: production
+      url: https://${{ env.DOMAIN }}
+
+    steps:
+      - name: Production promotion approved
+        run: |
+          echo "## ✅ Production promotion approved" >> $GITHUB_STEP_SUMMARY
+          echo "Production deploy approved." >> $GITHUB_STEP_SUMMARY
+          echo "SHA: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
+            echo "Image: ${{ needs.build.outputs.image_ref }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PRODUCTION PREFLIGHT — validate all origins before any production mutation
+  # ───────────────────────────────────────────────────────────────────────────
+  preflight-production:
+    name: Preflight ${{ matrix.server.name }}
+    needs: approve-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
 
     strategy:
       fail-fast: false
+      matrix:
+        server:
+          - name: production-1
+            host_secret: SERVER_HOST_1
+            user_secret: SERVER_USERNAME_1
+            key_secret: SERVER_SSH_KEY_1
+            port_secret: SERVER_PORT_1
+          - name: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+          - name: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+
+    environment:
+      name: ${{ matrix.server.name }}
+
+    steps:
+      - name: Validate production SSH secrets
+        run: |
+          missing=0
+          if [ -z "${{ secrets[matrix.server.host_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.host_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.user_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.user_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.key_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.key_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ -z "${{ secrets[matrix.server.port_secret] }}" ]; then
+            echo "::error::Secret ${{ matrix.server.port_secret }} not configured for ${{ matrix.server.name }}"
+            missing=1
+          fi
+          if [ "$missing" = "1" ]; then
+            exit 1
+          fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # DEPLOY — serial matrix across all VMs, consumes the build artifact/image
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to ${{ matrix.server.name }}
+    needs:
+      - build
+      - preflight-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # Activate one origin at a time. This keeps Cloudflare's origin set from
+      # flipping all VMs at once, and stops queued origins if an earlier deploy
+      # fails. If a later origin fails after an earlier one succeeded, rerun the
+      # last known-good SHA or drain origins in Cloudflare before retrying.
+      fail-fast: true
+      max-parallel: 1
       matrix:
         server:
           - name: production-1
@@ -231,23 +406,16 @@ jobs:
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Site | ${{ inputs.site || 'portfolio' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mode | artifact |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check server secrets exist
-        run: |
-          if [ -z "${{ secrets[matrix.server.host_secret] }}" ]; then
-            echo "::warning::Secret ${{ matrix.server.host_secret }} not configured — skipping ${{ matrix.server.name }}"
-            echo "SKIP_SERVER=true" >> $GITHUB_ENV
-          fi
+          echo "| Mode | ${{ env.DEPLOY_MODE }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Download build artifact
-        if: env.SKIP_SERVER != 'true'
+        if: env.DEPLOY_MODE == 'artifact'
         uses: actions/download-artifact@v4
         with:
           name: portfolio-bundle
 
       - name: Copy artifact to VM
-        if: env.SKIP_SERVER != 'true'
+        if: env.DEPLOY_MODE == 'artifact'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
@@ -259,24 +427,58 @@ jobs:
           timeout: 60s
           command_timeout: 3m
 
+      - name: Checkout deploy kit
+        if: env.DEPLOY_MODE == 'image'
+        uses: actions/checkout@v4
+
+      - name: Package deploy kit
+        if: env.DEPLOY_MODE == 'image'
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-kit
+          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
+          cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
+          tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
+
+      - name: Copy deploy kit to VM
+        if: env.DEPLOY_MODE == 'image'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          source: portfolio-deploy-kit-${{ github.sha }}.tar.gz
+          target: /tmp/
+          timeout: 60s
+          command_timeout: 3m
+
       - name: Deploy on ${{ matrix.server.name }}
-        if: env.SKIP_SERVER != 'true'
         id: deploy
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_OWNER: ${{ github.repository_owner }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           script_stop: true
-          command_timeout: 5m
+          command_timeout: 20m
+          envs: GHCR_OWNER,GHCR_READ_TOKEN
           script: |
             set -euo pipefail
 
             SHA="${{ github.sha }}"
             SITE="${{ inputs.site || 'portfolio' }}"
+            DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
             TARBALL="/tmp/portfolio-${SHA}.tar.gz"
             STAGING="/tmp/portfolio-stage-${SHA}"
+            DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
+            IMAGE_REF="${{ needs.build.outputs.image_ref }}"
 
             # Cleanup trap — always remove staging, and remove tarball on success.
             # (On failure, keep tarball at /tmp for forensics; it'll age out
@@ -286,28 +488,21 @@ jobs:
               sudo rm -rf "$STAGING" 2>/dev/null || true
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
+                sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
               fi
             }
             trap cleanup_staging EXIT
 
-            echo "🚀 Artifact deploy to ${{ matrix.server.name }}"
+            echo "🚀 ${DEPLOY_MODE} deploy to ${{ matrix.server.name }}"
             echo "   SHA:  ${SHA}"
             echo "   Site: ${SITE}"
+            if [ "$DEPLOY_MODE" = "image" ]; then
+              echo "   Image: ${IMAGE_REF}"
+              if [ -z "${GHCR_READ_TOKEN:-}" ]; then
+                echo "   GHCR: no GHCR_READ_TOKEN provided; docker pull must work with existing VM credentials or a public package"
+              fi
+            fi
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-            [ -f "$TARBALL" ] || { echo "❌ Tarball missing at $TARBALL"; exit 1; }
-
-            # Extract into staging dir. Using rm -rf + mkdir -p covers the case
-            # where a prior failed deploy left behind a half-extracted staging.
-            sudo rm -rf "$STAGING"
-            sudo mkdir -p "$STAGING"
-            sudo tar xzf "$TARBALL" -C "$STAGING"
-
-            # Sanity: must contain both the bundle and the deploy scripts.
-            [ -f "$STAGING/server.js" ] || { echo "❌ server.js missing — artifact corrupt"; exit 1; }
-            [ -f "$STAGING/.deploy/deploy.sh" ] || { echo "❌ .deploy/deploy.sh missing — artifact corrupt"; exit 1; }
-
-            sudo chmod +x "$STAGING/.deploy/deploy.sh"
 
             # Optional pass-throughs. Currently only skip_nginx is exposed as
             # a workflow input — the other legacy flags (skip_git/deps/build,
@@ -317,21 +512,61 @@ jobs:
               EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
             fi
 
-            # Invoke the deploy.sh that shipped with THIS build. The script
-            # handles first-run bootstrap (creating /opt/portfolio/ if needed,
-            # migrating .env.local from the legacy location, etc).
-            sudo bash "$STAGING/.deploy/deploy.sh" \
-              --release-dir "$STAGING" \
-              --sha "$SHA" \
-              --site "$SITE" \
-              $EXTRA_FLAGS
+            if [ "$DEPLOY_MODE" = "image" ]; then
+              [ -f "$DEPLOY_KIT" ] || { echo "❌ Deploy kit missing at $DEPLOY_KIT"; exit 1; }
+              case "$IMAGE_REF" in
+                *@sha256:*) ;;
+                *) echo "❌ Image digest missing from build job: $IMAGE_REF"; exit 1 ;;
+              esac
+
+              sudo rm -rf "$STAGING"
+              sudo mkdir -p "$STAGING"
+              sudo tar xzf "$DEPLOY_KIT" -C "$STAGING"
+              [ -f "$STAGING/deploy.sh" ] || { echo "❌ deploy.sh missing — deploy kit corrupt"; exit 1; }
+              [ -f "$STAGING/nginx-cloudflare.conf" ] || { echo "❌ nginx template missing — deploy kit corrupt"; exit 1; }
+              [ -f "$STAGING/portfolio.conf.example" ] || { echo "❌ config examples missing — deploy kit corrupt"; exit 1; }
+              sudo chmod +x "$STAGING/deploy.sh"
+
+              if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
+                  -u "$GHCR_OWNER" --password-stdin
+              fi
+
+              sudo bash "$STAGING/deploy.sh" \
+                --image "$IMAGE_REF" \
+                --sha "$SHA" \
+                --site "$SITE" \
+                $EXTRA_FLAGS
+            else
+              [ -f "$TARBALL" ] || { echo "❌ Tarball missing at $TARBALL"; exit 1; }
+
+              # Extract into staging dir. Using rm -rf + mkdir -p covers the case
+              # where a prior failed deploy left behind a half-extracted staging.
+              sudo rm -rf "$STAGING"
+              sudo mkdir -p "$STAGING"
+              sudo tar xzf "$TARBALL" -C "$STAGING"
+
+              # Sanity: must contain both the bundle and the deploy scripts.
+              [ -f "$STAGING/server.js" ] || { echo "❌ server.js missing — artifact corrupt"; exit 1; }
+              [ -f "$STAGING/.deploy/deploy.sh" ] || { echo "❌ .deploy/deploy.sh missing — artifact corrupt"; exit 1; }
+              sudo chmod +x "$STAGING/.deploy/deploy.sh"
+
+              # Invoke the deploy.sh that shipped with THIS build. The script
+              # handles first-run bootstrap (creating /opt/portfolio/ if needed,
+              # migrating .env.local from the legacy location, etc).
+              sudo bash "$STAGING/.deploy/deploy.sh" \
+                --release-dir "$STAGING" \
+                --sha "$SHA" \
+                --site "$SITE" \
+                $EXTRA_FLAGS
+            fi
 
             DEPLOY_OK=1
             echo ""
             echo "✅ ${{ matrix.server.name }}: Deployment completed!"
 
       - name: Verify Deployment (${{ matrix.server.name }})
-        if: success() && env.SKIP_SERVER != 'true'
+        if: success()
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
@@ -394,6 +629,18 @@ jobs:
               echo "📦 Releases on disk: $RELEASE_COUNT"
             fi
 
+            if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
+              if sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
+                RUNNING_IMAGE=$(sudo docker inspect --format '{{.Config.Image}}' "$SVC_NAME" 2>/dev/null || true)
+                echo "✅ Docker container running: $SVC_NAME"
+                echo "🐳 Image: $RUNNING_IMAGE"
+              else
+                echo "❌ Docker container is not running: $SVC_NAME"
+                sudo docker ps -a --filter "name=^/${SVC_NAME}$"
+                exit 1
+              fi
+            fi
+
             # Resource snapshot
             echo ""
             echo "📊 Disk:"
@@ -403,17 +650,11 @@ jobs:
             free -h | awk '/Swap:/{print "   Swap: "$3" used / "$2" total"}'
 
       - name: Deployment Success (${{ matrix.server.name }})
-        if: success() && env.SKIP_SERVER != 'true'
+        if: success()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ✅ ${{ matrix.server.name }}: Success" >> $GITHUB_STEP_SUMMARY
           echo "🌐 [https://${{ env.DOMAIN }}](https://${{ env.DOMAIN }})" >> $GITHUB_STEP_SUMMARY
-
-      - name: Server Skipped (${{ matrix.server.name }})
-        if: env.SKIP_SERVER == 'true'
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ⏭️ ${{ matrix.server.name }}: Skipped (secrets not configured)" >> $GITHUB_STEP_SUMMARY
 
       - name: Deployment Failed (${{ matrix.server.name }})
         if: failure()
@@ -428,7 +669,9 @@ jobs:
           echo "3. Journal:         \`sudo journalctl -u ${SITE} --no-pager -n 80\`" >> $GITHUB_STEP_SUMMARY
           echo "4. Current release: \`ls -la /opt/${SITE}/current\`" >> $GITHUB_STEP_SUMMARY
           echo "5. Release history: \`ls -lt /opt/${SITE}/releases/\`" >> $GITHUB_STEP_SUMMARY
-          echo "6. nginx test:      \`sudo nginx -t\`" >> $GITHUB_STEP_SUMMARY
+          echo "6. Container:       \`sudo docker ps -a --filter name=${SITE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "7. nginx test:      \`sudo nginx -t\`" >> $GITHUB_STEP_SUMMARY
+          echo "Note: if /etc/deploy/sites/${SITE}.conf sets SERVICE_NAME to a different value, replace ${SITE} in the commands above with that service name." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Rollback (if the automatic rollback didn't fire):**" >> $GITHUB_STEP_SUMMARY
           echo "Re-run the workflow on the last known-good SHA — the deploy script will flip the symlink back to that release dir if it's still on disk." >> $GITHUB_STEP_SUMMARY

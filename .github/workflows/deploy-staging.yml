@@ -387,7 +387,9 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
-          script_stop: true
+          # Keep this false so our script can capture deploy.sh failures,
+          # print the deploy log, then exit with the captured status.
+          script_stop: false
           command_timeout: 20m
           envs: GHCR_OWNER,GHCR_READ_TOKEN
           script: |

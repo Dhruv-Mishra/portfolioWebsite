@@ -455,15 +455,12 @@ jobs:
               fi
 
               echo "Invoking image deploy script"
-              set +e
+              deploy_status=0
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1
-                deploy_status=$?
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1
-                deploy_status=$?
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               fi
-              set -e
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
                 echo "deploy.sh image mode failed with status $deploy_status"
@@ -497,15 +494,12 @@ jobs:
               sudo chmod +x "$STAGING/.deploy/deploy.sh"
 
               echo "Invoking artifact deploy script"
-              set +e
+              deploy_status=0
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1
-                deploy_status=$?
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               else
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1
-                deploy_status=$?
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               fi
-              set -e
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
                 echo "deploy.sh artifact mode failed with status $deploy_status"

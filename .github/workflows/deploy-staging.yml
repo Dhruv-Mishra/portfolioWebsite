@@ -418,24 +418,31 @@ jobs:
               echo "Image: ${IMAGE_REF}"
             fi
 
-            EXTRA_FLAGS=()
-            if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-              EXTRA_FLAGS+=("--skip-nginx")
-            fi
-
             if [ "$DEPLOY_MODE" = "image" ]; then
-              [ -f "$DEPLOY_KIT" ] || { echo "Deploy kit missing at $DEPLOY_KIT"; exit 1; }
-              case "$IMAGE_REF" in
-                *@sha256:*) ;;
-                *) echo "Image digest missing from build job: $IMAGE_REF"; exit 1 ;;
-              esac
+              if [ ! -f "$DEPLOY_KIT" ]; then
+                echo "Deploy kit missing at $DEPLOY_KIT"
+                exit 1
+              fi
+              if ! printf '%s' "$IMAGE_REF" | grep -q '@sha256:'; then
+                echo "Image digest missing from build job: $IMAGE_REF"
+                exit 1
+              fi
 
               sudo rm -rf "$STAGING"
               sudo mkdir -p "$STAGING"
               sudo tar xzf "$DEPLOY_KIT" -C "$STAGING"
-              [ -f "$STAGING/deploy.sh" ] || { echo "deploy.sh missing — deploy kit corrupt"; exit 1; }
-              [ -f "$STAGING/nginx-cloudflare.conf" ] || { echo "nginx template missing — deploy kit corrupt"; exit 1; }
-              [ -f "$STAGING/portfolio.conf.example" ] || { echo "config examples missing — deploy kit corrupt"; exit 1; }
+              if [ ! -f "$STAGING/deploy.sh" ]; then
+                echo "deploy.sh missing - deploy kit corrupt"
+                exit 1
+              fi
+              if [ ! -f "$STAGING/nginx-cloudflare.conf" ]; then
+                echo "nginx template missing - deploy kit corrupt"
+                exit 1
+              fi
+              if [ ! -f "$STAGING/portfolio.conf.example" ]; then
+                echo "config examples missing - deploy kit corrupt"
+                exit 1
+              fi
               sudo chmod +x "$STAGING/deploy.sh"
 
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
@@ -443,25 +450,34 @@ jobs:
                   -u "$GHCR_OWNER" --password-stdin
               fi
 
-              sudo bash "$STAGING/deploy.sh" \
-                --image "$IMAGE_REF" \
-                --sha "$SHA" \
-                --site "$SITE" \
-                "${EXTRA_FLAGS[@]}"
+              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx
+              else
+                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE"
+              fi
             else
-              [ -f "$TARBALL" ] || { echo "Tarball missing at $TARBALL"; exit 1; }
+              if [ ! -f "$TARBALL" ]; then
+                echo "Tarball missing at $TARBALL"
+                exit 1
+              fi
               sudo rm -rf "$STAGING"
               sudo mkdir -p "$STAGING"
               sudo tar xzf "$TARBALL" -C "$STAGING"
-              [ -f "$STAGING/server.js" ] || { echo "server.js missing — artifact corrupt"; exit 1; }
-              [ -f "$STAGING/.deploy/deploy.sh" ] || { echo ".deploy/deploy.sh missing — artifact corrupt"; exit 1; }
+              if [ ! -f "$STAGING/server.js" ]; then
+                echo "server.js missing - artifact corrupt"
+                exit 1
+              fi
+              if [ ! -f "$STAGING/.deploy/deploy.sh" ]; then
+                echo ".deploy/deploy.sh missing - artifact corrupt"
+                exit 1
+              fi
               sudo chmod +x "$STAGING/.deploy/deploy.sh"
 
-              sudo bash "$STAGING/.deploy/deploy.sh" \
-                --release-dir "$STAGING" \
-                --sha "$SHA" \
-                --site "$SITE" \
-                "${EXTRA_FLAGS[@]}"
+              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx
+              else
+                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE"
+              fi
             fi
 
             DEPLOY_OK=1

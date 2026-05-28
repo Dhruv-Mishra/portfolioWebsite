@@ -1,4 +1,4 @@
-name: Deploy Portfolio
+name: Deploy Portfolio Production
 
 permissions:
   contents: read
@@ -12,14 +12,11 @@ permissions:
 #         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside →
 #         build/push ghcr.io image tagged by the same SHA
 #
-#   deploy-staging job (manual GitHub Environment gate, needs: build)
-#     └── deploy the exact image/artifact build to staging/dogfood first
-#
-#   approve-production job (manual GitHub Environment gate, needs: staging)
-#     └── waits for human approval after staging has been tested
+#   approve-production job (manual GitHub Environment gate, needs: build)
+#     └── waits for human approval before production mutation
 #
 #   deploy-production job (matrix, serial VMs, needs: approve-production)
-#     └── promotes the exact same immutable image digest/artifact to production
+#     └── deploys the immutable image digest/artifact to production
 #
 # Why bundle deploy.sh inside the artifact:
 #   - Single-commit self-bootstrapping: the first push with this new workflow
@@ -43,11 +40,6 @@ on:
         required: false
         default: portfolio
         type: string
-      staging_site:
-        description: 'Staging site config name (matches /etc/deploy/sites/<name>.conf)'
-        required: false
-        default: portfolio-staging
-        type: string
       skip_nginx:
         description: 'Skip nginx config update & reload'
         required: false
@@ -64,7 +56,7 @@ on:
 
   push:
     branches:
-      - master
+      - deployed/production
     paths-ignore:
       - '**.md'
       - '.github/dependabot.yml'
@@ -74,12 +66,11 @@ on:
       - 'ResumeBuilder/**'
 
 concurrency:
-  group: deploy-${{ inputs.site || 'portfolio' }}
+  group: deploy-production-${{ inputs.site || 'portfolio' }}
   cancel-in-progress: false
 
 env:
   DOMAIN: whoisdhruv.com
-  STAGING_DOMAIN: staging.whoisdhruv.com
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
   DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
@@ -91,11 +82,25 @@ env:
   NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
+  guard-production-ref:
+    name: Guard production ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Require deployed/production for production deploys
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
+            echo "::error::Production deploys must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
   # ───────────────────────────────────────────────────────────────────────────
   # BUILD — runs once on ubuntu-latest, produces a single artifact
   # ───────────────────────────────────────────────────────────────────────────
   build:
     name: Build artifact and image
+    needs: guard-production-ref
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -271,281 +276,11 @@ jobs:
           echo "| Node | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
 
   # ───────────────────────────────────────────────────────────────────────────
-  # STAGING — manual gate, deploys the exact build before production promotion
-  # ───────────────────────────────────────────────────────────────────────────
-  deploy-staging:
-    name: Deploy to staging
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    strategy:
-      fail-fast: true
-      matrix:
-        server:
-          - name: staging
-            host_secret: STAGING_SERVER_HOST
-            user_secret: STAGING_SERVER_USERNAME
-            key_secret: STAGING_SERVER_SSH_KEY
-            port_secret: STAGING_SERVER_PORT
-            ghcr_secret: GHCR_READ_TOKEN
-
-    environment:
-      name: ${{ matrix.server.name }}
-      url: https://${{ env.STAGING_DOMAIN }}
-
-    steps:
-      - name: Staging deployment started
-        run: |
-          echo "## 🧪 Staging deployment" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | staging |" >> $GITHUB_STEP_SUMMARY
-          echo "| Site | ${{ inputs.staging_site || 'portfolio-staging' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| URL | https://${{ env.STAGING_DOMAIN }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mode | ${{ env.DEPLOY_MODE }} |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Validate staging SSH secrets
-        run: |
-          missing=0
-          if [ -z "${{ secrets[matrix.server.host_secret] }}" ]; then
-            echo "::error::Secret ${{ matrix.server.host_secret }} not configured for staging"
-            missing=1
-          fi
-          if [ -z "${{ secrets[matrix.server.user_secret] }}" ]; then
-            echo "::error::Secret ${{ matrix.server.user_secret }} not configured for staging"
-            missing=1
-          fi
-          if [ -z "${{ secrets[matrix.server.key_secret] }}" ]; then
-            echo "::error::Secret ${{ matrix.server.key_secret }} not configured for staging"
-            missing=1
-          fi
-          if [ -z "${{ secrets[matrix.server.port_secret] }}" ]; then
-            echo "::error::Secret ${{ matrix.server.port_secret }} not configured for staging"
-            missing=1
-          fi
-          if [ "$missing" = "1" ]; then
-            exit 1
-          fi
-
-      - name: Download build artifact
-        if: env.DEPLOY_MODE == 'artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: portfolio-bundle
-
-      - name: Copy artifact to staging VM
-        if: env.DEPLOY_MODE == 'artifact'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets[matrix.server.host_secret] }}
-          username: ${{ secrets[matrix.server.user_secret] }}
-          key: ${{ secrets[matrix.server.key_secret] }}
-          port: ${{ secrets[matrix.server.port_secret] }}
-          source: portfolio-${{ github.sha }}.tar.gz
-          target: /tmp/
-          timeout: 60s
-          command_timeout: 3m
-
-      - name: Checkout deploy kit
-        if: env.DEPLOY_MODE == 'image'
-        uses: actions/checkout@v4
-
-      - name: Package deploy kit
-        if: env.DEPLOY_MODE == 'image'
-        run: |
-          set -euo pipefail
-          mkdir -p deploy-kit
-          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
-          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
-          cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
-          cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
-          tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
-
-      - name: Copy deploy kit to staging VM
-        if: env.DEPLOY_MODE == 'image'
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets[matrix.server.host_secret] }}
-          username: ${{ secrets[matrix.server.user_secret] }}
-          key: ${{ secrets[matrix.server.key_secret] }}
-          port: ${{ secrets[matrix.server.port_secret] }}
-          source: portfolio-deploy-kit-${{ github.sha }}.tar.gz
-          target: /tmp/
-          timeout: 60s
-          command_timeout: 3m
-
-      - name: Deploy on staging
-        id: deploy
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GHCR_OWNER: ${{ github.repository_owner }}
-          GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
-        with:
-          host: ${{ secrets[matrix.server.host_secret] }}
-          username: ${{ secrets[matrix.server.user_secret] }}
-          key: ${{ secrets[matrix.server.key_secret] }}
-          port: ${{ secrets[matrix.server.port_secret] }}
-          script_stop: true
-          command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN
-          script: |
-            set -euo pipefail
-
-            SHA="${{ github.sha }}"
-            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
-            DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
-            TARBALL="/tmp/portfolio-${SHA}.tar.gz"
-            STAGING="/tmp/portfolio-stage-${SHA}"
-            DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
-            IMAGE_REF="${{ needs.build.outputs.image_ref }}"
-
-            DEPLOY_OK=0
-            cleanup_staging() {
-              sudo rm -rf "$STAGING" 2>/dev/null || true
-              if [ "$DEPLOY_OK" = "1" ]; then
-                sudo rm -f "$TARBALL" 2>/dev/null || true
-                sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
-              fi
-            }
-            trap cleanup_staging EXIT
-
-            echo "🚀 ${DEPLOY_MODE} deploy to staging"
-            echo "   SHA:  ${SHA}"
-            echo "   Site: ${SITE}"
-            if [ "$DEPLOY_MODE" = "image" ]; then
-              echo "   Image: ${IMAGE_REF}"
-            fi
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-            EXTRA_FLAGS=""
-            if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-              EXTRA_FLAGS="$EXTRA_FLAGS --skip-nginx"
-            fi
-
-            if [ "$DEPLOY_MODE" = "image" ]; then
-              [ -f "$DEPLOY_KIT" ] || { echo "❌ Deploy kit missing at $DEPLOY_KIT"; exit 1; }
-              case "$IMAGE_REF" in
-                *@sha256:*) ;;
-                *) echo "❌ Image digest missing from build job: $IMAGE_REF"; exit 1 ;;
-              esac
-
-              sudo rm -rf "$STAGING"
-              sudo mkdir -p "$STAGING"
-              sudo tar xzf "$DEPLOY_KIT" -C "$STAGING"
-              [ -f "$STAGING/deploy.sh" ] || { echo "❌ deploy.sh missing — deploy kit corrupt"; exit 1; }
-              [ -f "$STAGING/nginx-cloudflare.conf" ] || { echo "❌ nginx template missing — deploy kit corrupt"; exit 1; }
-              [ -f "$STAGING/portfolio.conf.example" ] || { echo "❌ config examples missing — deploy kit corrupt"; exit 1; }
-              sudo chmod +x "$STAGING/deploy.sh"
-
-              if [ -n "${GHCR_READ_TOKEN:-}" ]; then
-                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
-                  -u "$GHCR_OWNER" --password-stdin
-              fi
-
-              sudo bash "$STAGING/deploy.sh" \
-                --image "$IMAGE_REF" \
-                --sha "$SHA" \
-                --site "$SITE" \
-                $EXTRA_FLAGS
-            else
-              [ -f "$TARBALL" ] || { echo "❌ Tarball missing at $TARBALL"; exit 1; }
-              sudo rm -rf "$STAGING"
-              sudo mkdir -p "$STAGING"
-              sudo tar xzf "$TARBALL" -C "$STAGING"
-              [ -f "$STAGING/server.js" ] || { echo "❌ server.js missing — artifact corrupt"; exit 1; }
-              [ -f "$STAGING/.deploy/deploy.sh" ] || { echo "❌ .deploy/deploy.sh missing — artifact corrupt"; exit 1; }
-              sudo chmod +x "$STAGING/.deploy/deploy.sh"
-
-              sudo bash "$STAGING/.deploy/deploy.sh" \
-                --release-dir "$STAGING" \
-                --sha "$SHA" \
-                --site "$SITE" \
-                $EXTRA_FLAGS
-            fi
-
-            DEPLOY_OK=1
-            echo ""
-            echo "✅ Staging deployment completed!"
-
-      - name: Verify staging deployment
-        if: success()
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets[matrix.server.host_secret] }}
-          username: ${{ secrets[matrix.server.user_secret] }}
-          key: ${{ secrets[matrix.server.key_secret] }}
-          port: ${{ secrets[matrix.server.port_secret] }}
-          command_timeout: 2m
-          script: |
-            set -euo pipefail
-
-            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
-            SITE_CONF="/etc/deploy/sites/${SITE}.conf"
-
-            SVC_NAME="$SITE"
-            SVC_PORT="3001"
-            if [ -f "$SITE_CONF" ]; then
-              SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "$SITE")
-              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF"  | cut -d= -f2 | tr -d '"' || echo "3001")
-            fi
-
-            echo "🔍 Post-deploy verification for $SVC_NAME"
-            if ! sudo systemctl is-active --quiet "$SVC_NAME"; then
-              echo "❌ ${SVC_NAME}.service is NOT running"
-              sudo journalctl -u "$SVC_NAME" --no-pager -n 20
-              exit 1
-            fi
-            echo "✅ ${SVC_NAME}.service is running"
-
-            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
-              "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
-            if [ "$HTTP_CODE" != "200" ]; then
-              echo "❌ Staging returned HTTP $HTTP_CODE on :$SVC_PORT"
-              exit 1
-            fi
-            echo "✅ Staging responding (HTTP $HTTP_CODE on :$SVC_PORT)"
-
-            if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
-              if ! sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
-                echo "❌ Docker container is not running: $SVC_NAME"
-                sudo docker ps -a --filter "name=^/${SVC_NAME}$"
-                exit 1
-              fi
-              echo "✅ Docker container running: $SVC_NAME"
-            fi
-
-      - name: Smoke staging through Cloudflare
-        if: success()
-        run: |
-          curl -fsS --retry 3 --retry-delay 2 --max-time 10 \
-            "https://${{ env.STAGING_DOMAIN }}/" >/dev/null
-          echo "✅ Staging Cloudflare URL responded" >> $GITHUB_STEP_SUMMARY
-
-      - name: Staging deployment success
-        if: success()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ✅ Staging: Success" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 [https://${{ env.STAGING_DOMAIN }}](https://${{ env.STAGING_DOMAIN }})" >> $GITHUB_STEP_SUMMARY
-
-      - name: Staging deployment failed
-        if: failure()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## ❌ Staging: Failed" >> $GITHUB_STEP_SUMMARY
-          echo "Production approval/deploy will not start until staging succeeds." >> $GITHUB_STEP_SUMMARY
-
-  # ───────────────────────────────────────────────────────────────────────────
   # PRODUCTION APPROVAL — same workflow run, same immutable build
   # ───────────────────────────────────────────────────────────────────────────
   approve-production:
     name: Approve production promotion
-    needs:
-      - build
-      - deploy-staging
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -557,7 +292,7 @@ jobs:
       - name: Production promotion approved
         run: |
           echo "## ✅ Production promotion approved" >> $GITHUB_STEP_SUMMARY
-          echo "Promoting the same build from staging to production." >> $GITHUB_STEP_SUMMARY
+          echo "Production deploy approved." >> $GITHUB_STEP_SUMMARY
           echo "SHA: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
             echo "Image: ${{ needs.build.outputs.image_ref }}" >> $GITHUB_STEP_SUMMARY

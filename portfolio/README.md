@@ -38,9 +38,9 @@ docker run --rm --env-file .env.local \
 	portfolio:local
 ```
 
-Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The deploy workflow publishes one GHCR image per commit, waits on the `staging` GitHub Environment approval, deploys the immutable digest to the staging site, smoke-tests `staging.whoisdhruv.com`, then waits on the `production` Environment approval before promoting the same digest to production VMs. Artifact mode remains available as a fallback.
+Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The staging workflow builds and deploys container images from the `deployed/staging` branch to `staging.whoisdhruv.com`; the production workflow remains separate and deploys from `deployed/production` after the `production` GitHub Environment approval. Artifact mode remains available as a fallback.
 
-For staging, configure `/etc/deploy/sites/portfolio-staging.conf` on the VM and add GitHub secrets `STAGING_SERVER_HOST`, `STAGING_SERVER_USERNAME`, `STAGING_SERVER_SSH_KEY`, and `STAGING_SERVER_PORT`. Configure required reviewers on the `staging` and `production` GitHub Environments to make the approvals block the same workflow run.
+For staging, configure `/etc/deploy/sites/portfolio-staging.conf` on each VM. The staging workflow reuses the existing VM secrets `SERVER_HOST_1`, `SERVER_USERNAME_1`, `SERVER_SSH_KEY_1`, `SERVER_PORT_1` through `_3`. Add `GHCR_READ_TOKEN` if the GHCR package is private or the VMs are not already logged in. Keep required reviewers on the `production` GitHub Environment; use the separate staging branch/workflow for dogfood deploys.
 
 ## Structure
 

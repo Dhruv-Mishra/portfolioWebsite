@@ -311,7 +311,7 @@ jobs:
               sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$ENV_FILE"
             }
 
-            [ -f "$CONF" ] || fail "missing staging site config: $CONF"
+            sudo test -f "$CONF" || fail "missing staging site config: $CONF"
             [ "$CONF" != "$PROD_CONF" ] || fail "staging config path resolves to production config"
 
             actual_domain="$(read_conf DOMAIN)"
@@ -616,7 +616,7 @@ jobs:
               sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$SITE_CONF"
             }
 
-            [ -f "$SITE_CONF" ] || fail "missing staging site config: $SITE_CONF"
+            sudo test -f "$SITE_CONF" || fail "missing staging site config: $SITE_CONF"
 
             SVC_NAME="$(read_conf SERVICE_NAME)"
             SVC_PORT="$(read_conf NEXTJS_PORT)"

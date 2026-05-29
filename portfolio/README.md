@@ -40,7 +40,7 @@ docker run --rm --env-file .env.local \
 
 Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The staging workflow builds and deploys container images from the `deployed/staging` branch to `staging.whoisdhruv.com`; the production workflow remains separate and deploys from `deployed/production` after the `production` GitHub Environment approval. Artifact mode remains available as a fallback.
 
-For staging, configure `/etc/deploy/sites/portfolio-staging.conf` on each VM. The staging workflow reuses the existing VM secrets `SERVER_HOST_1`, `SERVER_USERNAME_1`, `SERVER_SSH_KEY_1`, `SERVER_PORT_1` through `_3`. Add `GHCR_READ_TOKEN` if the GHCR package is private or the VMs are not already logged in. Keep required reviewers on the `production` GitHub Environment; use the separate staging branch/workflow for dogfood deploys.
+For staging, each VM must expose a separate `portfolio-staging` site contract: `/etc/deploy/sites/portfolio-staging.conf`, `DOMAIN="staging.whoisdhruv.com"`, `SERVICE_NAME="portfolio-staging"`, `DOCKER_CONTAINER_NAME="portfolio-staging"`, `NEXTJS_PORT=3010`, `GIT_BRANCH="deployed/staging"`, and `/opt/portfolio-staging/config/.env.local` with `NEXT_PUBLIC_SITE_URL` and `SITE_URL` set to `https://staging.whoisdhruv.com`. The staging workflow hard-codes this identity, validates it over SSH before deploy, verifies the deployed SHA on every VM, and treats a Cloudflare bot challenge to the GitHub runner as a warning after VM-local checks have passed. Real non-200 Cloudflare responses still fail the workflow. Add `GHCR_READ_TOKEN` if the GHCR package is private or the VMs are not already logged in.
 
 ## Structure
 

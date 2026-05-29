@@ -7,18 +7,8 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      staging_site:
-        description: 'Staging site config name (matches /etc/deploy/sites/<name>.conf)'
-        required: false
-        default: portfolio-staging
-        type: string
-      skip_nginx:
-        description: 'Skip nginx config update & reload'
-        required: false
-        default: false
-        type: boolean
       deploy_mode:
-        description: 'Deployment mode'
+        description: "Deployment mode"
         required: false
         default: image
         type: choice
@@ -30,26 +20,28 @@ on:
     branches:
       - deployed/staging
     paths-ignore:
-      - '**.md'
-      - '.github/dependabot.yml'
-      - '.github/agents/**'
-      - '.github/instructions/**'
-      - 'LICENSE'
-      - 'ResumeBuilder/**'
+      - "**.md"
+      - ".github/dependabot.yml"
+      - ".github/agents/**"
+      - ".github/instructions/**"
+      - "LICENSE"
+      - "ResumeBuilder/**"
 
 concurrency:
-  group: deploy-staging-${{ inputs.staging_site || 'portfolio-staging' }}
+  group: deploy-staging-portfolio-staging
   cancel-in-progress: false
 
 env:
+  STAGING_SITE: portfolio-staging
   STAGING_DOMAIN: staging.whoisdhruv.com
-  NODE_VERSION: '22'
-  CI_NPM_VERSION: '10.9.8'
+  STAGING_PORT: "3010"
+  NODE_VERSION: "22"
+  CI_NPM_VERSION: "10.9.8"
   DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
-  NEXT_PUBLIC_GA_ID: ''
-  NEXT_PUBLIC_ENABLE_ANALYTICS: 'false'
-  NEXT_PUBLIC_ENABLE_ERROR_TRACKING: 'false'
-  NEXT_TELEMETRY_DISABLED: '1'
+  NEXT_PUBLIC_GA_ID: ""
+  NEXT_PUBLIC_ENABLE_ANALYTICS: "false"
+  NEXT_PUBLIC_ENABLE_ERROR_TRACKING: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
 
 jobs:
   guard-staging-ref:
@@ -83,7 +75,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: portfolio/package-lock.json
 
       - name: Cache Next.js build
@@ -98,7 +90,7 @@ jobs:
       - name: Install dependencies
         working-directory: portfolio
         env:
-          SKIP_EMBEDDINGS_BUILD: '1'
+          SKIP_EMBEDDINGS_BUILD: "1"
         run: |
           npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
 
@@ -120,9 +112,9 @@ jobs:
       - name: Build Next.js (standalone)
         working-directory: portfolio
         env:
-          SKIP_EMBEDDINGS_BUILD: '1'
+          SKIP_EMBEDDINGS_BUILD: "1"
           NEXT_BUILD_ID: ${{ github.sha }}
-          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: npm run build
 
       - name: Assemble standalone bundle
@@ -279,6 +271,77 @@ jobs:
             exit 1
           fi
 
+      - name: Warn when GHCR token is absent
+        if: env.DEPLOY_MODE == 'image'
+        run: |
+          if [ -z "${{ secrets.GHCR_READ_TOKEN }}" ]; then
+            echo "::warning::GHCR_READ_TOKEN is not configured for ${{ matrix.server.name }}. This is only OK if the GHCR package is public or the VM already has pull access."
+          fi
+
+      - name: Validate staging VM contract
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          command_timeout: 3m
+          script: |
+            set -euo pipefail
+
+            SITE="${{ env.STAGING_SITE }}"
+            DOMAIN="${{ env.STAGING_DOMAIN }}"
+            PORT="${{ env.STAGING_PORT }}"
+            CONF="/etc/deploy/sites/${SITE}.conf"
+            PROD_CONF="/etc/deploy/sites/portfolio.conf"
+            ENV_FILE="/opt/${SITE}/config/.env.local"
+
+            fail() {
+              echo "ERROR: $*" >&2
+              exit 1
+            }
+
+            read_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$CONF"
+            }
+
+            read_env() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$ENV_FILE"
+            }
+
+            [ -f "$CONF" ] || fail "missing staging site config: $CONF"
+            [ "$CONF" != "$PROD_CONF" ] || fail "staging config path resolves to production config"
+
+            actual_domain="$(read_conf DOMAIN)"
+            actual_service="$(read_conf SERVICE_NAME)"
+            actual_port="$(read_conf NEXTJS_PORT)"
+            actual_container="$(read_conf DOCKER_CONTAINER_NAME)"
+            actual_branch="$(read_conf GIT_BRANCH)"
+
+            [ "$actual_domain" = "$DOMAIN" ] || fail "DOMAIN must be $DOMAIN, got ${actual_domain:-unset}"
+            [ "$actual_service" = "$SITE" ] || fail "SERVICE_NAME must be $SITE, got ${actual_service:-unset}"
+            [ "$actual_port" = "$PORT" ] || fail "NEXTJS_PORT must be $PORT, got ${actual_port:-unset}"
+            [ -z "$actual_container" ] || [ "$actual_container" = "$SITE" ] || fail "DOCKER_CONTAINER_NAME must be $SITE, got $actual_container"
+            [ "$actual_branch" = "deployed/staging" ] || fail "GIT_BRANCH must be deployed/staging, got ${actual_branch:-unset}"
+
+            sudo test -f "$ENV_FILE" || fail "missing staging env file: $ENV_FILE"
+            next_public_site_url="$(read_env NEXT_PUBLIC_SITE_URL)"
+            site_url="$(read_env SITE_URL)"
+            [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got ${next_public_site_url:-unset}"
+            [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got ${site_url:-unset}"
+            command -v docker >/dev/null 2>&1 || fail "docker is not installed"
+            sudo docker info >/dev/null || fail "docker daemon is not reachable"
+            command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
+            sudo nginx -t
+
+            if ss -tln "sport = :${PORT}" 2>/dev/null | grep -q LISTEN; then
+              sudo systemctl is-active --quiet "$SITE" || fail "port ${PORT} is in use, but ${SITE}.service is not active"
+            fi
+
+            echo "Staging VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}"
+
   deploy-staging:
     name: Deploy to ${{ matrix.server.name }}
     needs:
@@ -324,7 +387,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Site | ${{ inputs.staging_site || 'portfolio-staging' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site | ${{ env.STAGING_SITE }} |" >> $GITHUB_STEP_SUMMARY
           echo "| URL | https://${{ env.STAGING_DOMAIN }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Mode | ${{ env.DEPLOY_MODE }} |" >> $GITHUB_STEP_SUMMARY
@@ -396,17 +459,23 @@ jobs:
             set -euo pipefail
 
             SHA="${{ github.sha }}"
-            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
+            SITE="${{ env.STAGING_SITE }}"
+            EXPECTED_DOMAIN="${{ env.STAGING_DOMAIN }}"
+            EXPECTED_PORT="${{ env.STAGING_PORT }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
             TARBALL="/tmp/portfolio-${SHA}.tar.gz"
             STAGING="/tmp/portfolio-stage-${SHA}"
             DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
             DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
+            DOCKER_CONFIG_DIR=""
 
             DEPLOY_OK=0
             cleanup_staging() {
               sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ -n "$DOCKER_CONFIG_DIR" ]; then
+                sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
                 sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
@@ -419,6 +488,11 @@ jobs:
             echo "Site: ${SITE}"
             if [ "$DEPLOY_MODE" = "image" ]; then
               echo "Image: ${IMAGE_REF}"
+            fi
+
+            if [ "$SITE" != "portfolio-staging" ] || [ "$EXPECTED_PORT" != "3010" ] || [ "$EXPECTED_DOMAIN" != "staging.whoisdhruv.com" ]; then
+              echo "Refusing unsafe staging deploy identity: site=${SITE}, domain=${EXPECTED_DOMAIN}, port=${EXPECTED_PORT}"
+              exit 1
             fi
 
             if [ "$DEPLOY_MODE" = "image" ]; then
@@ -450,19 +524,18 @@ jobs:
               fi
               sudo chmod +x "$STAGING/deploy.sh"
 
+              DOCKER_CONFIG_DIR="$(mktemp -d)"
+              sudo chmod 700 "$DOCKER_CONFIG_DIR"
+
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
                 echo "Logging in to GHCR"
-                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
+                printf '%s' "$GHCR_READ_TOKEN" | sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" docker login ghcr.io \
                   -u "$GHCR_OWNER" --password-stdin || { echo "GHCR login failed"; exit 1; }
               fi
 
               echo "Invoking image deploy script"
               deploy_status=0
-              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              fi
+              sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
                 echo "deploy.sh image mode failed with status $deploy_status"
@@ -497,11 +570,7 @@ jobs:
 
               echo "Invoking artifact deploy script"
               deploy_status=0
-              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              else
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              fi
+              sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
                 echo "deploy.sh artifact mode failed with status $deploy_status"
@@ -531,15 +600,31 @@ jobs:
           script: |
             set -euo pipefail
 
-            SITE="${{ inputs.staging_site || 'portfolio-staging' }}"
+            SITE="${{ env.STAGING_SITE }}"
+            EXPECTED_DOMAIN="${{ env.STAGING_DOMAIN }}"
+            EXPECTED_PORT="${{ env.STAGING_PORT }}"
             SITE_CONF="/etc/deploy/sites/${SITE}.conf"
+            META_FILE="/opt/${SITE}/current/.deploy/meta.json"
 
-            SVC_NAME="$SITE"
-            SVC_PORT="3010"
-            if [ -f "$SITE_CONF" ]; then
-              SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "$SITE")
-              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF"  | cut -d= -f2 | tr -d '"' || echo "3010")
-            fi
+            fail() {
+              echo "ERROR: $*" >&2
+              exit 1
+            }
+
+            read_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$SITE_CONF"
+            }
+
+            [ -f "$SITE_CONF" ] || fail "missing staging site config: $SITE_CONF"
+
+            SVC_NAME="$(read_conf SERVICE_NAME)"
+            SVC_PORT="$(read_conf NEXTJS_PORT)"
+            SVC_DOMAIN="$(read_conf DOMAIN)"
+
+            [ "$SVC_NAME" = "$SITE" ] || fail "SERVICE_NAME must be $SITE, got ${SVC_NAME:-unset}"
+            [ "$SVC_PORT" = "$EXPECTED_PORT" ] || fail "NEXTJS_PORT must be $EXPECTED_PORT, got ${SVC_PORT:-unset}"
+            [ "$SVC_DOMAIN" = "$EXPECTED_DOMAIN" ] || fail "DOMAIN must be $EXPECTED_DOMAIN, got ${SVC_DOMAIN:-unset}"
 
             if ! sudo systemctl is-active --quiet "$SVC_NAME"; then
               echo "${SVC_NAME}.service is NOT running"
@@ -560,6 +645,13 @@ jobs:
                 sudo docker ps -a --filter "name=^/${SVC_NAME}$"
                 exit 1
               fi
+            fi
+
+            sudo test -f "$META_FILE" || fail "missing deploy metadata: $META_FILE"
+            if ! sudo grep -q '"sha": "${{ github.sha }}"' "$META_FILE"; then
+              echo "Deploy metadata does not match this workflow SHA (${{ github.sha }}):"
+              sudo cat "$META_FILE" || true
+              exit 1
             fi
 
             echo "Staging verified on ${{ matrix.server.name }}: $SVC_NAME on :$SVC_PORT"
@@ -592,9 +684,21 @@ jobs:
 
           echo "Staging smoke HTTP status: $status"
           echo "Response headers:"
-          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|location:|content-type:|cache-control:)' "$headers_file" || true
+          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|cf-mitigated:|location:|content-type:|cache-control:)' "$headers_file" || true
+
+          challenge=false
+          if grep -qiE '^cf-mitigated:[[:space:]]*challenge' "$headers_file" \
+            || grep -qi '<title>Just a moment' "$body_file" \
+            || grep -qi 'challenges.cloudflare.com' "$body_file"; then
+            challenge=true
+          fi
 
           if [ "$status" != "200" ]; then
+            if [ "$status" = "403" ] && [ "$challenge" = "true" ]; then
+              echo "::warning::Cloudflare returned a bot challenge to the GitHub runner. VM-local deploy verification passed, so this is treated as an edge security challenge rather than a failed deploy."
+              echo "Staging Cloudflare URL reached Cloudflare but challenged the GitHub runner: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
             echo "Response body preview:"
             head -c 1600 "$body_file" || true
             echo ""

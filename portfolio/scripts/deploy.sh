@@ -106,6 +106,11 @@ readonly DOMAIN="${DOMAIN:?DOMAIN not set in ${SITE_CONF}}"
 readonly SERVICE_NAME="${SERVICE_NAME:?SERVICE_NAME not set in ${SITE_CONF}}"
 readonly NEXTJS_PORT="${NEXTJS_PORT:?NEXTJS_PORT not set in ${SITE_CONF}}"
 
+readonly STAGING_SITE_NAME="portfolio-staging"
+readonly STAGING_DOMAIN="staging.whoisdhruv.com"
+readonly STAGING_PORT="3010"
+readonly STAGING_BRANCH="deployed/staging"
+
 # Validate SERVICE_NAME format (used in systemd unit names, nginx configs, paths)
 if ! [[ "${SERVICE_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "ERROR: SERVICE_NAME must be alphanumeric with dashes/underscores (got: ${SERVICE_NAME})"
@@ -559,6 +564,46 @@ check_ssl_certs() {
     log SUCCESS "SSL OK"
 }
 
+is_staging_site() {
+    [[ "${SITE_NAME}" == "${STAGING_SITE_NAME}" ]] \
+        || [[ "${SERVICE_NAME}" == "${STAGING_SITE_NAME}" ]] \
+        || [[ "${DOMAIN}" == "${STAGING_DOMAIN}" ]]
+}
+
+validate_site_contract() {
+    log STEP "Validating site deployment contract..."
+
+    if ! is_staging_site; then
+        log SUCCESS "Site contract OK: ${SITE_NAME} (${DOMAIN}) on :${NEXTJS_PORT}"
+        return 0
+    fi
+
+    local failures=()
+    [[ "${SITE_NAME}" == "${STAGING_SITE_NAME}" ]] \
+        || failures+=("--site must be ${STAGING_SITE_NAME} (got ${SITE_NAME})")
+    [[ "${SERVICE_NAME}" == "${STAGING_SITE_NAME}" ]] \
+        || failures+=("SERVICE_NAME must be ${STAGING_SITE_NAME} (got ${SERVICE_NAME})")
+    [[ "${DOCKER_CONTAINER_NAME}" == "${STAGING_SITE_NAME}" ]] \
+        || failures+=("DOCKER_CONTAINER_NAME must be ${STAGING_SITE_NAME} (got ${DOCKER_CONTAINER_NAME})")
+    [[ "${DOMAIN}" == "${STAGING_DOMAIN}" ]] \
+        || failures+=("DOMAIN must be ${STAGING_DOMAIN} (got ${DOMAIN})")
+    [[ "${NEXTJS_PORT}" == "${STAGING_PORT}" ]] \
+        || failures+=("NEXTJS_PORT must be ${STAGING_PORT} (got ${NEXTJS_PORT})")
+    [[ "${GIT_BRANCH}" == "${STAGING_BRANCH}" ]] \
+        || failures+=("GIT_BRANCH must be ${STAGING_BRANCH} (got ${GIT_BRANCH})")
+
+    if [[ ${#failures[@]} -gt 0 ]]; then
+        log ERROR "Refusing staging deploy because the site config is not isolated:"
+        local failure
+        for failure in "${failures[@]}"; do
+            log ERROR "  - ${failure}"
+        done
+        exit 1
+    fi
+
+    log SUCCESS "Staging contract OK: ${SERVICE_NAME} (${DOMAIN}) on :${NEXTJS_PORT}"
+}
+
 setup_directories() {
     mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
     chmod 755 "${LOG_DIR}" "${BACKUP_DIR}"
@@ -664,6 +709,12 @@ first_run_bootstrap() {
 
     # Migrate .env.local from legacy location if we don't have one yet
     if [[ ! -f "${DEPLOY_ENV_FILE}" ]]; then
+        if is_staging_site; then
+            log ERROR "No staging .env.local found at ${DEPLOY_ENV_FILE}"
+            log ERROR "Create an explicit staging env file; refusing to migrate any legacy/production env into staging."
+            exit 1
+        fi
+
         local src=""
         if [[ -f "${LEGACY_ENV_FILE}" ]]; then
             src="${LEGACY_ENV_FILE}"
@@ -730,6 +781,36 @@ validate_env_file() {
     fi
 
     log SUCCESS ".env.local valid (${required_count} required vars, systemd-compatible)"
+}
+
+env_file_value() {
+    local key="$1"
+    awk -F= -v k="${key}" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "${DEPLOY_ENV_FILE}"
+}
+
+validate_staging_env_contract() {
+    if ! is_staging_site; then
+        return 0
+    fi
+
+    log STEP "Validating staging runtime env contract..."
+
+    local expected_url="https://${STAGING_DOMAIN}"
+    local next_public_site_url
+    local site_url
+    next_public_site_url="$(env_file_value NEXT_PUBLIC_SITE_URL)"
+    site_url="$(env_file_value SITE_URL)"
+
+    if [[ "${next_public_site_url}" != "${expected_url}" ]]; then
+        log ERROR "NEXT_PUBLIC_SITE_URL must be ${expected_url} for staging (got ${next_public_site_url:-unset})"
+        exit 1
+    fi
+    if [[ "${site_url}" != "${expected_url}" ]]; then
+        log ERROR "SITE_URL must be ${expected_url} for staging (got ${site_url:-unset})"
+        exit 1
+    fi
+
+    log SUCCESS "Staging env contract OK"
 }
 
 record_previous_release() {
@@ -1439,6 +1520,7 @@ artifact_deploy() {
     # Bootstrap /opt/<service>/ on first run (or no-op if already set up)
     first_run_bootstrap
     validate_env_file
+    validate_staging_env_contract
     record_previous_release
 
     # Stage new release on disk (does NOT activate yet)
@@ -1503,9 +1585,14 @@ artifact_deploy() {
     # Service is up on the new release. Now reload nginx to adopt the new
     # config. If reload fails: the new service is already serving traffic
     # via the still-running old nginx (which keeps routing to 127.0.0.1:PORT
-    # as before — the upstream has not changed). Reload failure is fixable
-    # out-of-band; DO NOT trigger full rollback here.
+    # as before — the upstream has not changed). For production this remains
+    # fixable out-of-band; for staging, fail so the workflow cannot report a
+    # stale nginx route as healthy.
     if ! reload_nginx; then
+        if is_staging_site; then
+            log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
+            exit 1
+        fi
         log WARN "nginx reload failed — new service is up and serving, but nginx"
         log WARN "config was not reloaded. Investigate manually:"
         log WARN "  sudo nginx -t && sudo systemctl reload nginx"
@@ -1529,6 +1616,7 @@ image_deploy() {
     # Bootstrap /opt/<service>/ on first run (or no-op if already set up)
     first_run_bootstrap
     validate_env_file
+    validate_staging_env_contract
     record_previous_release
     record_previous_docker_image
 
@@ -1563,6 +1651,10 @@ image_deploy() {
     fi
 
     if ! reload_nginx; then
+        if is_staging_site; then
+            log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
+            exit 1
+        fi
         log WARN "nginx reload failed — new container is up, but nginx config was not reloaded."
         log WARN "Investigate manually: sudo nginx -t && sudo systemctl reload nginx"
     fi
@@ -1926,6 +2018,7 @@ main() {
 
     # Shared preflight
     check_root
+    validate_site_contract
     check_dependencies
     check_disk_space
     cleanup_old_artifacts

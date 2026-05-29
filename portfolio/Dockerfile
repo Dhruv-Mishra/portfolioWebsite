@@ -41,7 +41,8 @@ RUN if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
 
 RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && cp -r .next/standalone/. /app/standalone/ \
-    && cp -r .next/static /app/standalone/.next/static \
+    && rm -rf /app/standalone/.next/static \
+    && cp -r .next/static /app/standalone/.next/ \
     && cp -r public /app/standalone/public \
     && cp scripts/deploy.sh /app/standalone/.deploy/deploy.sh \
     && cp scripts/machine.conf.example /app/standalone/.deploy/machine.conf.example \

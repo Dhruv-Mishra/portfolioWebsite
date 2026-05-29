@@ -183,7 +183,7 @@ jobs:
           context: portfolio
           file: portfolio/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: |
             ${{ steps.image-meta.outputs.image }}:${{ github.sha }}
           labels: |
@@ -310,6 +310,12 @@ jobs:
               local key="$1"
               sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$ENV_FILE"
             }
+
+            vm_arch="$(uname -m)"
+            case "$vm_arch" in
+              aarch64|arm64) ;;
+              *) fail "staging image is currently published as linux/arm64 only to avoid multi-platform Next.js chunk drift; ${{ matrix.server.name }} is ${vm_arch}" ;;
+            esac
 
             sudo test -f "$CONF" || fail "missing staging site config: $CONF"
             [ "$CONF" != "$PROD_CONF" ] || fail "staging config path resolves to production config"
@@ -639,6 +645,37 @@ jobs:
               exit 1
             fi
 
+            HTML_FILE="$(mktemp)"
+            ASSET_FILE="$(mktemp)"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
+
+            curl -sk --max-time 10 -H "Host: ${SVC_DOMAIN}" \
+              "https://127.0.0.1/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
+            grep -oE "/_next/static/[^\"' <)]*" "$HTML_FILE" \
+              | sed 's/[\\?].*$//' \
+              | sort -u > "$ASSET_FILE" || true
+
+            ASSET_COUNT="$(wc -l < "$ASSET_FILE" | tr -d ' ')"
+            if [ "$ASSET_COUNT" = "0" ]; then
+              echo "No /_next/static assets found in local nginx HTML"
+              exit 1
+            fi
+
+            missing_assets=0
+            while IFS= read -r asset; do
+              [ -n "$asset" ] || continue
+              asset_code="$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
+                -H "Host: ${SVC_DOMAIN}" "https://127.0.0.1${asset}" 2>/dev/null || echo "000")"
+              if [ "$asset_code" != "200" ]; then
+                echo "Static asset failed through local nginx: $asset -> $asset_code"
+                missing_assets=1
+              fi
+            done < "$ASSET_FILE"
+            if [ "$missing_assets" != "0" ]; then
+              exit 1
+            fi
+            echo "Verified $ASSET_COUNT local nginx static assets for $SVC_NAME"
+
             if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
               if ! sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
                 echo "Docker container is not running: $SVC_NAME"
@@ -673,6 +710,9 @@ jobs:
         run: |
           headers_file="$(mktemp)"
           body_file="$(mktemp)"
+          asset_file=""
+          trap 'rm -f "$headers_file" "$body_file" ${asset_file:+"$asset_file"}' EXIT
+
           status="$(curl -sS -L --retry 3 --retry-delay 2 --max-time 15 \
             -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
             -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
@@ -703,6 +743,33 @@ jobs:
             head -c 1600 "$body_file" || true
             echo ""
             echo "::error::staging.whoisdhruv.com returned HTTP $status"
+            exit 1
+          fi
+
+          asset_file="$(mktemp)"
+          grep -oE "/_next/static/[^\"' <)]*" "$body_file" \
+            | sed 's/[\\?].*$//' \
+            | sort -u > "$asset_file" || true
+
+          asset_count="$(wc -l < "$asset_file" | tr -d ' ')"
+          if [ "$asset_count" = "0" ]; then
+            echo "::error::No /_next/static assets found in staging HTML"
+            exit 1
+          fi
+
+          missing_assets=0
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            asset_status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+              -H "Cache-Control: no-cache" \
+              "https://${{ env.STAGING_DOMAIN }}${asset}" 2>/dev/null || echo "000")"
+            if [ "$asset_status" != "200" ]; then
+              echo "Static asset failed through Cloudflare: $asset -> $asset_status"
+              missing_assets=1
+            fi
+          done < "$asset_file"
+          if [ "$missing_assets" != "0" ]; then
+            echo "::error::One or more staging static assets returned non-200"
             exit 1
           fi
 

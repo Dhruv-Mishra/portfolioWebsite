@@ -1442,6 +1442,21 @@ reload_nginx() {
     log SUCCESS "nginx reloaded"
 }
 
+clear_nginx_proxy_cache() {
+    if [[ "${SKIP_NGINX}" == "true" ]]; then
+        return 0
+    fi
+
+    local cache_dir="/var/cache/nginx/${SERVICE_NAME}"
+    if [[ ! -d "${cache_dir}" ]]; then
+        return 0
+    fi
+
+    log STEP "Clearing nginx proxy cache for ${SERVICE_NAME}..."
+    find "${cache_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+    log SUCCESS "nginx proxy cache cleared"
+}
+
 #===============================================================================
 # ARTIFACT MODE — post-deploy housekeeping
 #===============================================================================
@@ -1572,6 +1587,7 @@ artifact_deploy() {
     # Activate NEW nginx config (references DEPLOY_CURRENT_LINK, which now
     # points at the new release). Not reloaded yet — just staged to disk.
     activate_nginx_config
+    clear_nginx_proxy_cache
 
     # Start service. If this fails, cleanup() rolls back symlink + systemd.
     # nginx stays on whatever config was active at entry (config file is
@@ -1644,6 +1660,7 @@ image_deploy() {
     activate_systemd_unit
     atomic_symlink_swap
     activate_nginx_config
+    clear_nginx_proxy_cache
 
     if ! start_service; then
         log ERROR "Containerized service did not come up healthy"

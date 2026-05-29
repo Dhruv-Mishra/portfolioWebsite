@@ -231,8 +231,11 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     const response = await fetch('/api/tts', {
       body: JSON.stringify({ text, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       method: 'POST',
+      mode: 'same-origin',
+      referrerPolicy: 'strict-origin-when-cross-origin',
       signal: abortController.signal,
     });
     if (!response.ok) throw new Error(`TTS request failed with ${response.status}`);
@@ -283,11 +286,14 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     const response = await fetch('/api/tts', {
       body: JSON.stringify({ stream: true, text: requestText, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
+      credentials: 'same-origin',
       headers: {
         Accept: 'application/x-ndjson',
         'Content-Type': 'application/json',
       },
       method: 'POST',
+      mode: 'same-origin',
+      referrerPolicy: 'strict-origin-when-cross-origin',
       signal: abortController.signal,
     });
     if (!response.ok) throw new Error(`TTS request failed with ${response.status}`);
@@ -414,6 +420,9 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
 
     try {
+      await ensureAudioContext();
+      if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
+
       const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
       if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
       if (cached) {
@@ -431,7 +440,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     } finally {
       if (abortRef.current === abortController) abortRef.current = null;
     }
-  }, [cleanup, playCachedAudio, state.activeMessageId, state.status, streamAndCacheAudio]);
+  }, [cleanup, ensureAudioContext, playCachedAudio, state.activeMessageId, state.status, streamAndCacheAudio]);
 
   useEffect(() => () => {
     cleanup(false);

@@ -20,6 +20,8 @@ ARG NEXT_PUBLIC_ENABLE_ANALYTICS
 ARG NEXT_PUBLIC_ENABLE_ERROR_TRACKING
 ARG NEXT_PUBLIC_TTS_VOICE
 ARG NEXT_PUBLIC_TTS_SPEED
+ARG NEXT_BUILD_FLAGS=""
+ARG BROWSERSLIST_QUERY=""
 
 ENV NEXT_BUILD_ID=${NEXT_BUILD_ID} \
     NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID} \
@@ -31,7 +33,11 @@ ENV NEXT_BUILD_ID=${NEXT_BUILD_ID} \
     NODE_OPTIONS=--max-old-space-size=4096
 
 COPY . .
-RUN npm run build
+RUN if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
+            BROWSERSLIST="${BROWSERSLIST_QUERY}" npm run build -- ${NEXT_BUILD_FLAGS}; \
+        else \
+            npm run build; \
+        fi
 
 RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && cp -r .next/standalone/. /app/standalone/ \

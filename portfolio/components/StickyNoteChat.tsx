@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMem
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { Eraser, Loader2, Pause, Play, Send, Volume2, Zap } from 'lucide-react';
+import { Eraser, Loader2, Pause, Play, RotateCcw, Send, Volume2, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -25,7 +25,12 @@ import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
 import { ClearButton } from '@/components/ui/ClearButton';
 import { Modal } from '@/components/ui/Modal';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
-import { useTtsPlayback, type TtsPlaybackStatus } from '@/hooks/useTtsPlayback';
+import {
+  TTS_PLAYBACK_SPEEDS,
+  useTtsPlayback,
+  type TtsPlaybackSpeed,
+  type TtsPlaybackStatus,
+} from '@/hooks/useTtsPlayback';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
@@ -47,6 +52,11 @@ const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), 
 /** Delay (ms) before executing page navigation after action confirmation */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
 const CLIENT_TTS_CONSENT_KEY = 'tts-client-speech-consent-v1';
+
+function getNextTtsPlaybackSpeed(current: TtsPlaybackSpeed): TtsPlaybackSpeed {
+  const currentIndex = TTS_PLAYBACK_SPEEDS.indexOf(current);
+  return TTS_PLAYBACK_SPEEDS[(currentIndex + 1) % TTS_PLAYBACK_SPEEDS.length];
+}
 
 function readClientTtsConsent(): boolean {
   if (typeof window === 'undefined') return false;
@@ -606,20 +616,79 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
   );
 });
 
+const SpeakControlsTray = memo(function SpeakControlsTray({
+  isLoading,
+  onCycleSpeed,
+  onRestart,
+  playbackSpeed,
+}: {
+  isLoading: boolean;
+  onCycleSpeed: () => void;
+  onRestart: () => void;
+  playbackSpeed: TtsPlaybackSpeed;
+}) {
+  return (
+    <div
+      className={cn(
+        'mt-1 flex w-7 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm',
+      )}
+    >
+      <Tooltip label={`Voice speed ${playbackSpeed}x`}>
+        <button
+          type="button"
+          aria-label={`Voice speed ${playbackSpeed}x. Change speed`}
+          onClick={onCycleSpeed}
+          className={cn(
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border font-hand text-[10px] font-bold transition-colors',
+            'border-[var(--note-ai-ink)]/35 bg-[var(--note-ai-ink)]/15 text-[var(--note-ai-ink)] hover:bg-[var(--note-ai-ink)]/20',
+            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
+          )}
+        >
+          {playbackSpeed}x
+        </button>
+      </Tooltip>
+      <Tooltip label="Restart response">
+        <button
+          type="button"
+          aria-label="Restart spoken response"
+          onClick={onRestart}
+          disabled={isLoading}
+          className={cn(
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--note-ai-ink)]/15 bg-[var(--c-paper)]/45 text-[var(--note-ai-ink)]/65 transition-colors',
+            'hover:bg-[var(--note-ai-ink)]/10 hover:text-[var(--note-ai-ink)]',
+            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
+            isLoading && 'cursor-progress opacity-50',
+          )}
+        >
+          <RotateCcw size={13} aria-hidden="true" />
+        </button>
+      </Tooltip>
+    </div>
+  );
+});
+
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
   isLoading = false,
   isTtsActive = false,
   onSpeak,
+  onTtsRestart,
+  onTtsSpeedChange,
   onTypewriterDone,
+  showTtsControls = false,
+  ttsPlaybackSpeed = 1,
   ttsStatus = 'idle',
 }: {
   message: ChatMessage;
   isLoading?: boolean;
   isTtsActive?: boolean;
   onSpeak?: (message: ChatMessage) => void;
+  onTtsRestart?: (message: ChatMessage) => void;
+  onTtsSpeedChange?: (message: ChatMessage) => void;
   onTypewriterDone?: () => void;
+  showTtsControls?: boolean;
+  ttsPlaybackSpeed?: TtsPlaybackSpeed;
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
@@ -685,6 +754,14 @@ const StickyNote = memo(function StickyNote({
             status={ttsStatus}
             onClick={() => onSpeak(message)}
           />
+          {showTtsControls && onTtsRestart && onTtsSpeedChange ? (
+            <SpeakControlsTray
+              isLoading={ttsStatus === 'loading'}
+              playbackSpeed={ttsPlaybackSpeed}
+              onCycleSpeed={() => onTtsSpeedChange(message)}
+              onRestart={() => onTtsRestart(message)}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -1172,6 +1249,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     activeMessageId: ttsActiveMessageId,
     clientSpeechSupported,
     error: ttsPlaybackError,
+    playbackSpeed: ttsPlaybackSpeed,
+    restart: restartTtsPlayback,
+    setPlaybackSpeed: setTtsPlaybackSpeed,
     status: ttsPlaybackStatus,
     stop: stopTtsPlayback,
     toggle: toggleTtsPlayback,
@@ -1182,6 +1262,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [readyForAssistantId, setReadyForAssistantId] = useState<string | null>('welcome');
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
+  const [ttsControlsMessageId, setTtsControlsMessageId] = useState<string | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
   const matrixEscaped = useMatrixEscaped();
@@ -1528,17 +1609,29 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     writeClientTtsConsent();
     setClientTtsConsent(true);
     setPendingTtsMessage(null);
+    setTtsControlsMessageId(message.id);
     void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: true });
   }, [toggleTtsPlayback]);
 
   const handleSpeakMessage = useCallback((message: ChatMessage) => {
     const isActiveMessage = ttsActiveMessageId === message.id && ttsPlaybackStatus !== 'idle';
+    setTtsControlsMessageId(message.id);
     if (clientSpeechSupported && !clientTtsConsent && !isActiveMessage) {
       setPendingTtsMessage(message);
       return;
     }
     void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: clientTtsConsent });
   }, [clientSpeechSupported, clientTtsConsent, toggleTtsPlayback, ttsActiveMessageId, ttsPlaybackStatus]);
+
+  const handleTtsRestart = useCallback((message: ChatMessage) => {
+    setTtsControlsMessageId(message.id);
+    void restartTtsPlayback(message.id, message.content, { preferClientSpeech: clientTtsConsent });
+  }, [clientTtsConsent, restartTtsPlayback]);
+
+  const handleTtsSpeedChange = useCallback((message: ChatMessage) => {
+    setTtsPlaybackSpeed(getNextTtsPlaybackSpeed(ttsPlaybackSpeed));
+    setTtsControlsMessageId(message.id);
+  }, [setTtsPlaybackSpeed, ttsPlaybackSpeed]);
 
   const handleClearDesk = useCallback(() => {
     if (navigationTimeoutRef.current !== null) {
@@ -1674,7 +1767,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
                 isTtsActive={ttsActiveMessageId === msg.id}
                 onSpeak={handleSpeakMessage}
+                onTtsRestart={handleTtsRestart}
+                onTtsSpeedChange={handleTtsSpeedChange}
                 onTypewriterDone={msg.role === 'assistant' && !msg.isOld ? () => handleTypewriterDone(msg.id) : undefined}
+                showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
+                ttsPlaybackSpeed={ttsPlaybackSpeed}
                 ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
               />
             </div>

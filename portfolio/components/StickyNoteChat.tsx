@@ -46,6 +46,22 @@ const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), 
 
 /** Delay (ms) before executing page navigation after action confirmation */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
+const CLIENT_TTS_CONSENT_KEY = 'tts-client-speech-consent-v1';
+
+function readClientTtsConsent(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(CLIENT_TTS_CONSENT_KEY) === 'accepted';
+  } catch {
+    return false;
+  }
+}
+
+function writeClientTtsConsent(): void {
+  try {
+    window.localStorage.setItem(CLIENT_TTS_CONSENT_KEY, 'accepted');
+  } catch { /* no-op */ }
+}
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
 // Supports erase→type transitions for filler text swaps and filler→real response.
@@ -1150,13 +1166,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
+  const [clientTtsConsent, setClientTtsConsent] = useState(false);
+  const [pendingTtsMessage, setPendingTtsMessage] = useState<ChatMessage | null>(null);
   const {
     activeMessageId: ttsActiveMessageId,
+    clientSpeechSupported,
     error: ttsPlaybackError,
     status: ttsPlaybackStatus,
     stop: stopTtsPlayback,
     toggle: toggleTtsPlayback,
-  } = useTtsPlayback();
+  } = useTtsPlayback({ preferClientSpeech: clientTtsConsent });
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
@@ -1179,6 +1198,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const hasInitializedSuggestionsRef = useRef(false);
   const completedAssistantHapticRef = useRef<string | null>(null);
   const lastErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setClientTtsConsent(readClientTtsConsent());
+  }, []);
 
   useEffect(() => {
     for (const message of messages) {
@@ -1501,9 +1524,21 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     sendMessage(text);
   }, [selection, sendMessage, sendCanned, messages, stopTtsPlayback]);
 
-  const handleSpeakMessage = useCallback((message: ChatMessage) => {
-    void toggleTtsPlayback(message.id, message.content);
+  const speakWithClientTts = useCallback((message: ChatMessage) => {
+    writeClientTtsConsent();
+    setClientTtsConsent(true);
+    setPendingTtsMessage(null);
+    void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: true });
   }, [toggleTtsPlayback]);
+
+  const handleSpeakMessage = useCallback((message: ChatMessage) => {
+    const isActiveMessage = ttsActiveMessageId === message.id && ttsPlaybackStatus !== 'idle';
+    if (clientSpeechSupported && !clientTtsConsent && !isActiveMessage) {
+      setPendingTtsMessage(message);
+      return;
+    }
+    void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: clientTtsConsent });
+  }, [clientSpeechSupported, clientTtsConsent, toggleTtsPlayback, ttsActiveMessageId, ttsPlaybackStatus]);
 
   const handleClearDesk = useCallback(() => {
     if (navigationTimeoutRef.current !== null) {
@@ -1549,6 +1584,24 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
     >
       {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
+      <Modal
+        isOpen={pendingTtsMessage !== null}
+        onClose={() => setPendingTtsMessage(null)}
+        ariaLabelledBy="tts-confirm-title"
+        className="w-[min(92vw,420px)] bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60 rounded-lg shadow-xl p-5 md:p-6 mt-[20vh] md:mt-[18vh]"
+      >
+        {pendingTtsMessage && (
+          <ConfirmContent
+            titleId="tts-confirm-title"
+            title="Enable Client-Side Speech?"
+            body="Spoken replies will prefer your browser's local speech engine so they start faster and avoid the server TTS queue. Natural client-side voice models can require a one-time download around 25 MB when enabled; cached audio stays in this browser. Voice quality still depends on your device and browser."
+            confirmLabel="Enable speech"
+            confirmTone="primary"
+            onCancel={() => setPendingTtsMessage(null)}
+            onConfirm={() => speakWithClientTts(pendingTtsMessage)}
+          />
+        )}
+      </Modal>
       <div className="sr-only" aria-live="polite">
         {ttsPlaybackStatus === 'loading' ? 'Loading spoken response.' : null}
         {ttsPlaybackStatus === 'playing' ? 'Playing assistant response.' : null}

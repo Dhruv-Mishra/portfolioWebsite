@@ -31,7 +31,7 @@ describe('/api/tts security', () => {
       cacheMode: 'cache-first',
       chunkChars: 120,
       concurrency: 1,
-      defaultSpeed: 1,
+      defaultSpeed: 1.08,
       defaultVoice: 'expr-voice-5-m',
       modelId: 'KittenML/kitten-tts-nano-0.1',
       provider: 'kitten-tts',

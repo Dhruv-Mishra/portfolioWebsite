@@ -26,8 +26,8 @@ function getDefaultTtsVoice(): string {
 }
 
 function getDefaultTtsSpeed(): number {
-  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1');
-  if (!Number.isFinite(parsed)) return 1;
+  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1.08');
+  if (!Number.isFinite(parsed)) return 1.08;
   return Math.min(1.15, Math.max(0.85, parsed));
 }
 

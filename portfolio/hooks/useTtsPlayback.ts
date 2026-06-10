@@ -27,8 +27,17 @@ interface TtsStreamMessage {
 }
 
 interface UseTtsPlaybackResult extends TtsPlaybackState {
+  clientSpeechSupported: boolean;
   stop: () => void;
-  toggle: (messageId: string, text: string) => Promise<void>;
+  toggle: (messageId: string, text: string, options?: TtsPlaybackToggleOptions) => Promise<void>;
+}
+
+interface TtsPlaybackToggleOptions {
+  preferClientSpeech?: boolean;
+}
+
+interface UseTtsPlaybackOptions {
+  preferClientSpeech?: boolean;
 }
 
 const INITIAL_STATE: TtsPlaybackState = {
@@ -39,7 +48,9 @@ const INITIAL_STATE: TtsPlaybackState = {
 
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
+const BROWSER_TTS_CHUNK_CHARS = 180;
 const SCHEDULE_AHEAD_SECONDS = 0.035;
+const BROWSER_TTS_VOICE_HINTS = ['natural', 'premium', 'google', 'microsoft', 'samantha', 'daniel', 'alex'];
 const ALLOWED_TTS_VOICES = [
   'expr-voice-2-m',
   'expr-voice-2-f',
@@ -60,9 +71,60 @@ function getClientTtsVoice(): string {
 }
 
 function getClientTtsSpeed(): number {
-  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1');
-  if (!Number.isFinite(parsed)) return 1;
+  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1.08');
+  if (!Number.isFinite(parsed)) return 1.08;
   return Math.min(1.15, Math.max(0.85, parsed));
+}
+
+function getSpeechSynthesis(): SpeechSynthesis | null {
+  if (typeof window === 'undefined') return null;
+  return window.speechSynthesis ?? null;
+}
+
+function getSpeechSynthesisUtteranceCtor(): typeof SpeechSynthesisUtterance | null {
+  if (typeof window === 'undefined') return null;
+  return window.SpeechSynthesisUtterance ?? null;
+}
+
+function splitTextForBrowserSpeech(text: string): string[] {
+  const chunks: string[] = [];
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map(sentence => sentence.trim())
+    .filter(Boolean);
+
+  for (const sentence of sentences.length > 0 ? sentences : [text.trim()]) {
+    if (sentence.length <= BROWSER_TTS_CHUNK_CHARS) {
+      chunks.push(sentence);
+      continue;
+    }
+
+    let remaining = sentence;
+    while (remaining.length > BROWSER_TTS_CHUNK_CHARS) {
+      const breakAt = Math.max(
+        remaining.lastIndexOf(',', BROWSER_TTS_CHUNK_CHARS),
+        remaining.lastIndexOf(';', BROWSER_TTS_CHUNK_CHARS),
+        remaining.lastIndexOf(' ', BROWSER_TTS_CHUNK_CHARS),
+      );
+      const index = breakAt > 40 ? breakAt : BROWSER_TTS_CHUNK_CHARS;
+      chunks.push(remaining.slice(0, index).trim());
+      remaining = remaining.slice(index).trim();
+    }
+    if (remaining) chunks.push(remaining);
+  }
+
+  return chunks;
+}
+
+function pickBrowserSpeechVoice(voices: readonly SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+  const englishVoices = voices.filter(voice => voice.lang.toLowerCase().startsWith('en'));
+  const candidates = englishVoices.length > 0 ? englishVoices : voices;
+  return candidates.find((voice) => {
+    const name = voice.name.toLowerCase();
+    return BROWSER_TTS_VOICE_HINTS.some(hint => name.includes(hint));
+  }) ?? candidates[0] ?? null;
 }
 
 function base64ToArrayBuffer(value: string): ArrayBuffer {
@@ -94,13 +156,17 @@ function getAudioContextConstructor(): typeof AudioContext | null {
   return audioWindow.AudioContext ?? audioWindow.webkitAudioContext ?? null;
 }
 
-export function useTtsPlayback(): UseTtsPlaybackResult {
+export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOptions = {}): UseTtsPlaybackResult {
   const [state, setState] = useState<TtsPlaybackState>(INITIAL_STATE);
+  const [clientSpeechSupported, setClientSpeechSupported] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const browserSpeechCancelRef = useRef<(() => void) | null>(null);
+  const browserUtterancesRef = useRef<SpeechSynthesisUtterance[]>([]);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const fallbackObjectUrlRef = useRef<string | null>(null);
   const pendingSourcesRef = useRef(0);
+  const playbackModeRef = useRef<'browser' | 'stream' | 'wav' | null>(null);
   const playbackIdRef = useRef(0);
   const scheduledUntilRef = useRef(0);
   const sourceRefs = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -110,6 +176,17 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    const synth = getSpeechSynthesis();
+    const supported = !!synth && !!getSpeechSynthesisUtteranceCtor();
+    setClientSpeechSupported(supported);
+    if (!synth || !supported) return;
+
+    const handleVoicesChanged = () => setClientSpeechSupported(true);
+    synth.addEventListener('voiceschanged', handleVoicesChanged);
+    return () => synth.removeEventListener('voiceschanged', handleVoicesChanged);
+  }, []);
 
   const releaseFallbackObjectUrl = useCallback(() => {
     if (!fallbackObjectUrlRef.current) return;
@@ -136,6 +213,23 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     streamDoneRef.current = false;
     pendingSourcesRef.current = 0;
     scheduledUntilRef.current = 0;
+
+    const cancelBrowserSpeech = browserSpeechCancelRef.current;
+    browserSpeechCancelRef.current = null;
+
+    browserUtterancesRef.current.forEach((utterance) => {
+      utterance.onend = null;
+      utterance.onerror = null;
+      utterance.onpause = null;
+      utterance.onresume = null;
+      utterance.onstart = null;
+    });
+    browserUtterancesRef.current = [];
+    if (playbackModeRef.current === 'browser') {
+      getSpeechSynthesis()?.cancel();
+      cancelBrowserSpeech?.();
+    }
+    playbackModeRef.current = null;
 
     sourceRefs.current.forEach((source) => {
       source.onended = null;
@@ -212,6 +306,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     await ensureAudioContext();
     if (playbackIdRef.current !== playbackId) return;
 
+    playbackModeRef.current = 'stream';
     streamDoneRef.current = false;
     for (const chunk of cached.chunks) {
       if (playbackIdRef.current !== playbackId) return;
@@ -228,6 +323,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
   }, [ensureAudioContext, finishPlaybackIfDone, schedulePcmChunk]);
 
   const playWavFallback = useCallback(async (messageId: string, text: string, abortController: AbortController, playbackId: number) => {
+    playbackModeRef.current = 'wav';
     const response = await fetch('/api/tts', {
       body: JSON.stringify({ text, ...TTS_REQUEST_OPTIONS }),
       cache: 'no-store',
@@ -282,6 +378,8 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
   ) => {
     await ensureAudioContext();
     if (playbackIdRef.current !== playbackId) return;
+
+    playbackModeRef.current = 'stream';
 
     const response = await fetch('/api/tts', {
       body: JSON.stringify({ stream: true, text: requestText, ...TTS_REQUEST_OPTIONS }),
@@ -370,13 +468,94 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     finishPlaybackIfDone(playbackId);
   }, [ensureAudioContext, finishPlaybackIfDone, playWavFallback, schedulePcmChunk]);
 
-  const toggle = useCallback(async (messageId: string, text: string) => {
+  const playBrowserSpeech = useCallback(async (messageId: string, spokenText: string, playbackId: number) => {
+    const synth = getSpeechSynthesis();
+    const Utterance = getSpeechSynthesisUtteranceCtor();
+    if (!synth || !Utterance) {
+      throw new Error('Browser speech is not supported.');
+    }
+
+    const chunks = splitTextForBrowserSpeech(spokenText);
+    if (chunks.length === 0) {
+      throw new Error('Text is empty after normalization.');
+    }
+
+    synth.cancel();
+    playbackModeRef.current = 'browser';
+    streamDoneRef.current = true;
+
+    const voice = pickBrowserSpeechVoice(synth.getVoices());
+    const utterances = chunks.map((chunk) => {
+      const utterance = new Utterance(chunk);
+      utterance.lang = voice?.lang ?? 'en-US';
+      utterance.pitch = 1;
+      utterance.rate = DEFAULT_TTS_SPEED;
+      utterance.volume = 1;
+      if (voice) utterance.voice = voice;
+      return utterance;
+    });
+
+    browserUtterancesRef.current = utterances;
+    setState({ activeMessageId: messageId, error: null, status: 'playing' });
+
+    await new Promise<void>((resolve, reject) => {
+      let finished = false;
+      let completed = 0;
+      const settle = (callback: () => void) => {
+        if (finished) return;
+        finished = true;
+        browserSpeechCancelRef.current = null;
+        browserUtterancesRef.current = [];
+        if (playbackModeRef.current === 'browser') playbackModeRef.current = null;
+        callback();
+      };
+
+      browserSpeechCancelRef.current = () => settle(resolve);
+
+      utterances.forEach((utterance) => {
+        utterance.onend = () => {
+          completed += 1;
+          if (completed !== utterances.length) return;
+          if (playbackIdRef.current === playbackId) setState(INITIAL_STATE);
+          settle(resolve);
+        };
+        utterance.onerror = (event) => {
+          if (playbackIdRef.current !== playbackId || event.error === 'canceled' || event.error === 'interrupted') {
+            settle(resolve);
+            return;
+          }
+          settle(() => reject(new Error(`Browser speech failed: ${event.error}`)));
+        };
+        utterance.onpause = () => {
+          if (playbackIdRef.current === playbackId) {
+            setState({ activeMessageId: messageId, error: null, status: 'paused' });
+          }
+        };
+        utterance.onresume = () => {
+          if (playbackIdRef.current === playbackId) {
+            setState({ activeMessageId: messageId, error: null, status: 'playing' });
+          }
+        };
+      });
+
+      try {
+        utterances.forEach(utterance => synth.speak(utterance));
+      } catch (error) {
+        settle(() => reject(error instanceof Error ? error : new Error('Browser speech failed.')));
+      }
+    });
+  }, []);
+
+  const toggle = useCallback(async (messageId: string, text: string, options?: TtsPlaybackToggleOptions) => {
     const trimmedText = text.trim();
     if (!trimmedText) return;
 
     if (state.activeMessageId === messageId && state.status === 'playing') {
+      const synth = getSpeechSynthesis();
       const context = audioContextRef.current;
-      if (context && context.state === 'running') {
+      if (playbackModeRef.current === 'browser' && synth?.speaking) {
+        synth.pause();
+      } else if (context && context.state === 'running') {
         await context.suspend();
       } else {
         fallbackAudioRef.current?.pause();
@@ -394,8 +573,11 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
 
     if (state.activeMessageId === messageId && state.status === 'paused') {
       try {
+        const synth = getSpeechSynthesis();
         const context = audioContextRef.current;
-        if (context && context.state === 'suspended') {
+        if (playbackModeRef.current === 'browser' && synth?.paused) {
+          synth.resume();
+        } else if (context && context.state === 'suspended') {
           await context.resume();
         } else {
           await fallbackAudioRef.current?.play();
@@ -420,13 +602,19 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
 
     try {
-      await ensureAudioContext();
       if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
 
       const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
       if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
       if (cached) {
         await playCachedAudio(cached, messageId, playbackId);
+      } else if ((options?.preferClientSpeech ?? preferClientSpeech) && clientSpeechSupported) {
+        try {
+          await playBrowserSpeech(messageId, spokenText, playbackId);
+        } catch {
+          if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
+          await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
+        }
       } else {
         await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
       }
@@ -440,7 +628,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
     } finally {
       if (abortRef.current === abortController) abortRef.current = null;
     }
-  }, [cleanup, ensureAudioContext, playCachedAudio, state.activeMessageId, state.status, streamAndCacheAudio]);
+  }, [cleanup, clientSpeechSupported, playBrowserSpeech, playCachedAudio, preferClientSpeech, state.activeMessageId, state.status, streamAndCacheAudio]);
 
   useEffect(() => () => {
     cleanup(false);
@@ -448,6 +636,7 @@ export function useTtsPlayback(): UseTtsPlaybackResult {
 
   return {
     ...state,
+    clientSpeechSupported,
     stop,
     toggle,
   };

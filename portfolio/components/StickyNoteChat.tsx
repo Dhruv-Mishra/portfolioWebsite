@@ -574,13 +574,15 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
   isActive,
   onClick,
   status,
+  unframed = false,
 }: {
   isActive: boolean;
   onClick: () => void;
   status: TtsPlaybackStatus;
+  unframed?: boolean;
 }) {
   const busy = isActive && status === 'loading';
-  const pressed = isActive && (status === 'playing' || status === 'paused');
+  const pressed = isActive && status === 'playing';
   const copy = getSpeakButtonCopy(status, isActive);
 
   const icon = (() => {
@@ -602,6 +604,7 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
         className={cn(
           'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors',
           'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
+          unframed && 'border-transparent bg-transparent',
           isActive && status === 'error'
             ? 'border-rose-500/30 bg-rose-100/40 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300'
             : pressed
@@ -620,19 +623,33 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
   isLoading,
   onCycleSpeed,
   onRestart,
+  onSpeak,
   playbackSpeed,
+  speakIsActive,
+  status,
 }: {
   isLoading: boolean;
   onCycleSpeed: () => void;
   onRestart: () => void;
+  onSpeak: () => void;
   playbackSpeed: TtsPlaybackSpeed;
+  speakIsActive: boolean;
+  status: TtsPlaybackStatus;
 }) {
   return (
     <div
+      role="group"
+      aria-label="Spoken response controls"
       className={cn(
-        'mt-1 flex w-7 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm',
+        'flex w-9 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm',
       )}
     >
+      <SpeakResponseButton
+        isActive={speakIsActive}
+        status={status}
+        onClick={onSpeak}
+        unframed
+      />
       <Tooltip label={`Voice speed ${playbackSpeed}x`}>
         <button
           type="button"
@@ -749,19 +766,23 @@ const StickyNote = memo(function StickyNote({
 
       {canSpeak && onSpeak ? (
         <div className="absolute right-2 top-2 z-10">
-          <SpeakResponseButton
-            isActive={isTtsActive}
-            status={ttsStatus}
-            onClick={() => onSpeak(message)}
-          />
           {showTtsControls && onTtsRestart && onTtsSpeedChange ? (
             <SpeakControlsTray
               isLoading={ttsStatus === 'loading'}
               playbackSpeed={ttsPlaybackSpeed}
               onCycleSpeed={() => onTtsSpeedChange(message)}
               onRestart={() => onTtsRestart(message)}
+              onSpeak={() => onSpeak(message)}
+              speakIsActive={isTtsActive}
+              status={ttsStatus}
             />
-          ) : null}
+          ) : (
+            <SpeakResponseButton
+              isActive={isTtsActive}
+              status={ttsStatus}
+              onClick={() => onSpeak(message)}
+            />
+          )}
         </div>
       ) : null}
 

@@ -33,8 +33,11 @@ ENV NEXT_BUILD_ID=${NEXT_BUILD_ID} \
     NODE_OPTIONS=--max-old-space-size=4096
 
 COPY . .
-RUN if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
-            BROWSERSLIST="${BROWSERSLIST_QUERY}" npm run build -- ${NEXT_BUILD_FLAGS}; \
+RUN if [ -n "${BROWSERSLIST_QUERY}" ]; then \
+            export BROWSERSLIST="${BROWSERSLIST_QUERY}"; \
+        fi; \
+        if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
+            npm run build -- ${NEXT_BUILD_FLAGS}; \
         else \
             npm run build; \
         fi

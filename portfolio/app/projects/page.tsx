@@ -144,8 +144,8 @@ export default function Projects() {
                                 ...CARD_SPRING,
                             }}
                         >
-                        {/* Inner hover/tap layer — always animates regardless of reduced-motion */}
-                        <MotionConfig reducedMotion="never">
+                        {/* Inner hover/tap layer — honor reduced-motion while keeping normal hover polish. */}
+                        <MotionConfig reducedMotion="user">
                         <m.div
                             data-clickable
                             role="button"
@@ -202,8 +202,8 @@ export default function Projects() {
                                                     alt={`${proj.name} project screenshot`}
                                                     fill
                                                     sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                    loading={i < 3 ? "eager" : "lazy"}
-                                                    priority={i < 3}
+                                                    loading={i === 0 ? "eager" : "lazy"}
+                                                    priority={i === 0}
                                                     placeholder="blur"
                                                     blurDataURL={proj.blurDataURL}
                                                     className={`object-cover sepia-[.2] md:group-hover/card:sepia-0 ${proj.imageClassName || ''}`}

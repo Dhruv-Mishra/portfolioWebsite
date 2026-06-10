@@ -1,25 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { m, AnimatePresence } from 'framer-motion';
-import { Trash2, X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
-import { WavyUnderline } from '@/components/ui/WavyUnderline';
-import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { Z_INDEX } from '@/lib/designTokens';
 
-// Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
-const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
+const MiniChatPanel = dynamic(() => import('./MiniChatPanel'), {
+  ssr: false,
+  loading: () => null,
+});
 
 // Hoisted style and animation constants — avoids re-allocation per render
-const CHAT_PANEL_STYLE = { transform: 'rotate(-0.5deg)' } as const;
 const FAB_BUTTON_STYLE = { transform: 'rotate(3deg)' } as const;
-const GENTLE_SPRING_TRANSITION = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.gentle };
-const FAB_ANIMATE = { opacity: 1, scale: 1, transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy } };
 
 // Sketchbook-themed sticky note + pencil doodle icon
 function StickyNoteDoodle() {
@@ -40,9 +34,17 @@ function StickyNoteDoodle() {
   );
 }
 
+function CloseDoodle() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M6 6.5c3.5 3 7.5 7 12 11" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M18 6.5c-3.8 3.7-7.8 7.5-12 11" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function MiniChat() {
   const pathname = usePathname();
-  const { closePanel, navigate, openPanel } = useAppHaptics();
   const [isOpen, setIsOpen] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -51,30 +53,22 @@ export default function MiniChat() {
     setHasMounted(true);
   }, []);
 
-  // Close the mini-chat when the user navigates to a different page
+  // Close the mini-chat when the user navigates to a different page.
   useEffect(() => {
-    if (isOpen) {
-      setIsOpen(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to pathname changes, not isOpen
+    setIsOpen(false);
   }, [pathname]);
 
-  const handleClose = useCallback(() => {
-    closePanel();
-    setIsOpen(false);
-  }, [closePanel]);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
   const handleToggle = useCallback(() => {
     setIsOpen(prev => {
-      if (prev) {
-        closePanel();
-      } else {
-        openPanel();
+      const nextIsOpen = !prev;
+      if (nextIsOpen) {
         stickerBus.emit('note-passer');
       }
-      return !prev;
+      return nextIsOpen;
     });
-  }, [closePanel, openPanel]);
+  }, []);
 
   // Don't show on /chat page (or any nested /chat/* route)
   if (pathname?.startsWith('/chat')) return null;
@@ -85,97 +79,28 @@ export default function MiniChat() {
       className="fixed right-4 md:right-20 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
       style={{ zIndex: Z_INDEX.nav }}
     >
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <m.button
-              type="button"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: ANIMATION_TOKENS.duration.fast }}
-              className="fixed inset-0 -z-10 cursor-default bg-transparent"
-              aria-label="Close quick chat"
-              onClick={handleClose}
-            />
-            <m.div
-              initial={INTERACTION_TOKENS.entrance.popIn.initial}
-              animate={INTERACTION_TOKENS.entrance.popIn.animate}
-              exit={INTERACTION_TOKENS.exit.popOut}
-              transition={GENTLE_SPRING_TRANSITION}
-              /* Disco: the open panel gets a slow scale-breath. The animation
-                 is keyed by the data-disco-motion selector in globals.css. */
-              data-disco-motion="breath"
-              className={cn(
-                "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-lg md:shadow-2xl overflow-hidden",
-                // Mobile: full screen overlay
-                "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
-                "max-w-[var(--c-chat-max-w)]",
-              )}
-              style={CHAT_PANEL_STYLE}
-            >
-              {/* Chat content — full height, controls are inside StickyNoteChat */}
-              <div className="h-full relative">
-                <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]" style={{ willChange: 'backdrop-filter' }}>
-                  <div className="pr-16">
-                    <div className="font-hand text-xl font-bold leading-none text-[var(--c-heading)]">
-                      Quick chat
-                    </div>
-                    <div className="mt-1 font-hand text-sm text-[var(--c-ink)]/60">
-                      Pass me a note without leaving the page.
-                    </div>
-                    <WavyUnderline className="!mt-1.5 opacity-45" />
-                  </div>
-                </div>
-
-                {/* Expand + dismiss buttons overlaid top-right */}
-                <div className="absolute top-2 right-2 z-30 flex items-center gap-1">
-                  <Link
-                    href="/chat"
-                    onClick={navigate}
-                    className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
-                    title="Open full chat"
-                  >
-                    <ExternalLink size={14} />
-                  </Link>
-                  <button
-                    onClick={handleClose}
-                    className="p-1 text-[var(--c-ink)] opacity-40 hover:opacity-80 transition-opacity"
-                    title="Close quick chat"
-                    aria-label="Close quick chat"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <div className="h-full pt-16">
-                  <StickyNoteChat compact />
-                </div>
-              </div>
-            </m.div>
-          </>
-        )}
-      </AnimatePresence>
+      {isOpen ? <MiniChatPanel onClose={handleClose} /> : null}
 
       {/* Floating sticky note button */}
-      <m.button
+      <button
         onClick={handleToggle}
-        whileHover={INTERACTION_TOKENS.hover.scaleUp}
-        whileTap={INTERACTION_TOKENS.tap.press}
-        initial={{ opacity: 0, scale: 0 }}
-        animate={FAB_ANIMATE}
         className={cn(
-          "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-colors",
+          "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95",
           isOpen
             ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
             : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",
         )}
         title="Ask Dhruv"
         aria-label="Open quick chat"
+        aria-expanded={isOpen}
         style={FAB_BUTTON_STYLE}
         data-disco-bounce="4"
+        data-clickable
       >
         {isOpen ? (
-          <X size={22} className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110" strokeWidth={2.4} />
+          <span className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110">
+            <CloseDoodle />
+          </span>
         ) : (
           <>
             <StickyNoteDoodle />
@@ -183,7 +108,7 @@ export default function MiniChat() {
             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
           </>
         )}
-      </m.button>
+      </button>
     </div>
   );
 }

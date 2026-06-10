@@ -39,12 +39,16 @@ export default function ChatPage() {
     // breathing room). Desktop tabs live off to the right edge — a small
     // pt-6 there is enough.
     <div
-      data-disco-chat-page
-      data-disco-motion="breath"
-      style={{ '--disco-motion-delay': '140ms' } as CSSProperties}
-      className="h-full max-w-3xl mx-auto flex flex-col pt-[calc(var(--c-nav-tab-pt)+var(--c-nav-tab-py)+0.5rem)] md:pt-6"
+      className="-mx-3 -my-6 h-[calc(100%+3rem)] overflow-hidden sm:-mx-5 sm:-my-8 sm:h-[calc(100%+4rem)] md:-m-12 md:h-[calc(100%+6rem)]"
     >
-      <StickyNoteChat />
+      <div
+        data-disco-chat-page
+        data-disco-motion="breath"
+        style={{ '--disco-motion-delay': '140ms' } as CSSProperties}
+        className="h-full max-w-3xl mx-auto flex flex-col pt-[calc(var(--c-nav-tab-pt)+var(--c-nav-tab-py)+0.5rem)] md:pt-6"
+      >
+        <StickyNoteChat />
+      </div>
     </div>
   );
 }

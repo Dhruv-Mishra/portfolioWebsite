@@ -15,6 +15,9 @@ const EVENT_NAME = 'sticker:earn';
 
 type EarnDetail = { id: StickerId };
 
+let listenerCount = 0;
+let pendingEarns: StickerId[] = [];
+
 function isSsr(): boolean {
   return typeof window === 'undefined';
 }
@@ -24,6 +27,9 @@ export const stickerBus = {
   emit(id: StickerId): void {
     if (isSsr()) return;
     try {
+      if (listenerCount === 0) {
+        pendingEarns = [...pendingEarns.slice(-24), id];
+      }
       window.dispatchEvent(new CustomEvent<EarnDetail>(EVENT_NAME, { detail: { id } }));
     } catch {
       /* ignore — CustomEvent unsupported or detached window */
@@ -41,7 +47,18 @@ export const stickerBus = {
       if (!detail || typeof detail.id !== 'string') return;
       fn({ type: 'earn', id: detail.id as StickerId });
     };
+    listenerCount += 1;
     window.addEventListener(EVENT_NAME, handler);
-    return () => window.removeEventListener(EVENT_NAME, handler);
+    if (pendingEarns.length > 0) {
+      const queued = pendingEarns;
+      pendingEarns = [];
+      for (const id of queued) {
+        fn({ type: 'earn', id });
+      }
+    }
+    return () => {
+      listenerCount = Math.max(0, listenerCount - 1);
+      window.removeEventListener(EVENT_NAME, handler);
+    };
   },
 };

@@ -7,6 +7,12 @@ import { LAYOUT_TOKENS } from "@/lib/designTokens";
 
 const MiniChat = dynamic(() => import("@/components/MiniChat"), { ssr: false });
 const SketchbookCursorLoader = dynamic(() => import("@/components/SketchbookCursorLoader"), { ssr: false });
+const StickerToastListener = dynamic(() => import("@/components/StickerToastListener"), { ssr: false });
+const StickerGlanceBadge = dynamic(() => import("@/components/StickerGlanceBadge"), { ssr: false });
+const SuperuserToastController = dynamic(() => import("@/components/superuser/SuperuserToastController"), { ssr: false });
+const MatrixNotesEntryButton = dynamic(() => import("@/components/matrix/MatrixNotesEntryButton"), { ssr: false });
+const EscapeToastListener = dynamic(() => import("@/components/matrix/EscapeToastListener"), { ssr: false });
+const AssetPrefetchController = dynamic(() => import("@/components/AssetPrefetchController"), { ssr: false });
 
 export default function DeferredEnhancements() {
     const pathname = usePathname();
@@ -45,6 +51,12 @@ export default function DeferredEnhancements() {
 
     return (
         <>
+            <StickerToastListener />
+            <StickerGlanceBadge />
+            <SuperuserToastController />
+            <MatrixNotesEntryButton />
+            <EscapeToastListener />
+            <AssetPrefetchController />
             {isDesktop ? <SketchbookCursorLoader /> : null}
             {pathname !== "/chat" ? <MiniChat /> : null}
         </>

@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
-import AssetPrefetchController from '@/components/AssetPrefetchController';
 
 /**
  * EagerEnhancements — a tiny, always-mounted client component that boots the
@@ -24,9 +23,9 @@ import AssetPrefetchController from '@/components/AssetPrefetchController';
  * chunks are never fetched either. Trackers stay eager on all viewports
  * because they work without a keyboard (page tracking always).
  *
- * Asset prefetch: `AssetPrefetchController` schedules the non-critical
- * asset warmup (sound buffers + superuser-gated chunks) on the first user
- * gesture via `requestIdleCallback`. Lives here so it mounts once, early.
+ * Superuser-only asset prefetching lives in `DeferredEnhancements`, so the
+ * default path does not subscribe to that store or fetch warmup logic before
+ * the page is interactive.
  */
 
 const CommandPaletteProvider = dynamic(
@@ -44,22 +43,11 @@ const ShortcutsHint = dynamic(
   { ssr: false, loading: () => null },
 );
 
-// Agent D modules — eager-mounted so visited-page tracking is live from the
-// first paint. The toast listener + glance badge are also eager-mounted so
-// a sticker earned within the first few seconds doesn't silently queue with
-// no UI to display it.
+// Agent D tracker — eager-mounted so visited-page tracking is live from the
+// first paint. Sticker toasts/badges are deferred; stickerBus buffers early
+// earns until the deferred listener lands.
 const VisitedPagesTrackerMount = dynamic(
   () => import('@/components/VisitedPagesTrackerMount'),
-  { ssr: false, loading: () => null },
-);
-
-const StickerToastListener = dynamic(
-  () => import('@/components/StickerToastListener'),
-  { ssr: false, loading: () => null },
-);
-
-const StickerGlanceBadge = dynamic(
-  () => import('@/components/StickerGlanceBadge'),
   { ssr: false, loading: () => null },
 );
 
@@ -92,33 +80,6 @@ const ClickSoundListener = dynamic(
   { ssr: false, loading: () => null },
 );
 
-// SuperuserToastController — sitewide reveal toast mounted globally. The
-// controller itself is tiny (reads hasSuperuser + earnedAt + revealedAt via
-// narrow hooks) and only dynamically imports the heavy toast body when the
-// user actually earns superuser. Users who never unlock pay ~nothing.
-const SuperuserToastController = dynamic(
-  () => import('@/components/superuser/SuperuserToastController'),
-  { ssr: false, loading: () => null },
-);
-
-// MatrixNotesEntryButton — site-wide affordance that takes unlocked users
-// directly to /matrix-notes without re-escaping. Component itself gates on
-// `matrixEscaped` so locked users render nothing from the module.
-const MatrixNotesEntryButton = dynamic(
-  () => import('@/components/matrix/MatrixNotesEntryButton'),
-  { ssr: false, loading: () => null },
-);
-
-// EscapeToastListener — global listener for the Escape-the-Matrix
-// achievement toast. Auto-fires on home mount when the user has escaped
-// (detection lives inside the listener so a dynamic-chunk race between
-// emitter and subscriber can't drop the event). Also subscribes to the
-// matrixToastBus for explicit / future-flow triggers.
-const EscapeToastListener = dynamic(
-  () => import('@/components/matrix/EscapeToastListener'),
-  { ssr: false, loading: () => null },
-);
-
 // AdminPrefsController — mirrors admin-prefs store into <html data-pref-*>
 // attributes so CSS selectors toggle visual treatments.
 const AdminPrefsController = dynamic(
@@ -131,16 +92,10 @@ export default function EagerEnhancements() {
   return (
     <>
       <VisitedPagesTrackerMount />
-      <StickerToastListener />
-      <StickerGlanceBadge />
       <DiscoFlagController />
       <SoundRouteListener />
       <ClickSoundListener />
-      <SuperuserToastController />
-      <MatrixNotesEntryButton />
-      <EscapeToastListener />
       <AdminPrefsController />
-      <AssetPrefetchController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

@@ -20,7 +20,7 @@ export function ThemeProvider({
     return (
         <NextThemesProvider {...props}>
             <LazyMotion features={loadDomAnimationFeatures} strict>
-                <MotionConfig reducedMotion="never">
+                <MotionConfig reducedMotion="user">
                     {children}
                 </MotionConfig>
             </LazyMotion>

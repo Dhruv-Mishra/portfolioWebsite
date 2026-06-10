@@ -20,8 +20,9 @@ function readPref(): VoiceBackendPref {
 /**
  * React hook for the user's voice-backend preference.
  * Default is `'native'` (instant, no model download). Toggling to
- * `'whisper'` persists in localStorage and triggers a background preload
- * of the Transformers.js model so the next mic tap uses Whisper.
+ * `'whisper'` persists in localStorage. The Transformers.js model is loaded
+ * on the next mic tap so opting in never fetches the optional voice stack
+ * before the user actually records.
  */
 export function useVoiceBackendPref(): {
   pref: VoiceBackendPref;
@@ -50,12 +51,6 @@ export function useVoiceBackendPref(): {
     try {
       window.dispatchEvent(new Event(EVENT_NAME));
     } catch { /* no-op */ }
-    // Kick off background model preload when opting into Whisper.
-    if (next === 'whisper') {
-      void import('@/lib/whisperWorkerClient')
-        .then(({ preloadWhisperWorker }) => preloadWhisperWorker())
-        .catch(() => false);
-    }
   }, []);
 
   const togglePref = useCallback(() => {

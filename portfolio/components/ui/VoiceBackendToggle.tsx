@@ -24,7 +24,7 @@ interface VoiceBackendToggleProps {
 
 /**
  * Tiny "HD" pill toggle next to the mic button. Lights up when the user
- * has opted into the offline Whisper backend. First tap triggers a
+ * has opted into the offline Whisper backend. The next mic use triggers a
  * one-time ~35MB model download (multilingual whisper-tiny); cached in
  * IndexedDB afterwards. Subsequent sessions are instant.
  */
@@ -46,7 +46,7 @@ export function VoiceBackendToggle({
     ? `Loading HD voice model… ${Math.round(loadProgress * 100)}%`
     : active
       ? 'HD voice (offline Whisper) — tap to switch back to native'
-      : 'Multilingual offline transcription (one-time ~35MB download)';
+      : 'Multilingual offline transcription (downloads on first mic use)';
 
   return (
     <Tooltip label={title}>

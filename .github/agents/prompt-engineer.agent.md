@@ -21,12 +21,12 @@ This repository is a **Next.js 16 portfolio website** ("Dhruv's Sketchbook") bui
 - **Tailwind CSS 4** (zero-config with `@theme` blocks, CSS custom properties for theming)
 - **Framer Motion** for animations
 - **ESLint 9** (flat config with `eslint-config-next`)
+- **Vitest 4** for the existing unit/smoke test suite
 - **npm** as package manager
-- **No test framework** currently configured
 - Path alias: `@/*` maps to project root
 - Key directories: `app/` (pages + API routes), `components/`, `hooks/`, `lib/`, `context/`, `public/`
 - Design system: "sketchbook" aesthetic with light/dark themes, handwritten fonts (Patrick Hand), monospace (Fira Code)
-- Deployed via GitHub Actions to a self-hosted server with nginx
+- Deployed via GitHub Actions to Linux VMs behind Cloudflare and nginx; staging uses Docker from `deployed/staging`
 
 ---
 

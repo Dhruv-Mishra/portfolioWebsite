@@ -16,19 +16,22 @@ You are the **documentation specialist** in the multi-agent workflow. You ensure
 
 This repository is a **Next.js 16 portfolio website** with existing documentation:
 
-- **README.md** — Standard Next.js create-next-app template (basic getting started)
-- **projectContext.md** — Comprehensive project documentation covering architecture, components, theming, best practices, debugging notes, and roadmap
-- **ICONS_README.md** — Icon asset documentation
-- **Inline comments** — Descriptive file-level comments, inline comments for non-obvious logic, emoji separators in CSS
+- **README.md** — Concise public project overview with current screenshots
+- **portfolio/README.md** — Package-level commands, runtime notes, and deployment contracts
+- **portfolio/projectContext.md** — Short current architecture context for agents
+- **AGENTS.md files** — Directory-level editing guidance for future agents
+- **Runtime markdown** — `portfolio/content/facts/**/*.md` and `portfolio/app/*.md` route directories are product content, not generic docs
 
 ### Documentation Conventions Detected
 
 - **Markdown** for all documentation files
-- **projectContext.md** serves as the primary project knowledge base
+- **README.md** stays human-readable and bloat-free
+- **portfolio/projectContext.md** stays short and current
+- **AGENTS.md** files carry agent-facing rules close to the files they govern
 - **CSS comments** use styled separators: `/* ─── Section Name ─── */`
 - **Inline code comments** explain "why" not "what"
 - **No CHANGELOG** currently exists
-- **No API documentation** for the API routes
+- **No separate API reference** currently exists for API routes
 
 ---
 

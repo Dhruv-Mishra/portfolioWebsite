@@ -22,9 +22,9 @@ This repository is a **Next.js 16 portfolio website** built with:
 - **Framer Motion** for animations
 - **ESLint 9** (flat config, `eslint-config-next`)
 - **npm** as package manager
-- **No test framework** currently (if tests are needed, recommend adding Vitest + React Testing Library)
+- **Vitest 4** configured under `portfolio/`; run `npm --prefix portfolio run test` from the repo root
 - Path alias: `@/*` maps to project root
-- GitHub Actions CI/CD deploying to self-hosted server
+- GitHub Actions CI/CD deploying to Linux VMs behind Cloudflare and nginx; staging uses Docker from `deployed/staging`
 
 ---
 

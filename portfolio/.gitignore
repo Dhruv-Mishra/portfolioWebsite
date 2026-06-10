@@ -15,6 +15,7 @@
 
 # local TTS runtime artifacts
 /.cache/
+/tmp/
 __pycache__/
 /tmp/local-tts-smoke.wav
 
@@ -49,7 +50,19 @@ next-env.d.ts
 scripts/deploy.local.conf
 
 #other
+/build-output.txt
 *.md
+# Keep project docs and agent customization tracked even though most ad-hoc
+# package Markdown is ignored by default.
+!README.md
+!projectContext.md
+!public/ICONS_README.md
+!**/README.md
+!**/AGENTS.md
+!**/*.agent.md
+!**/*.instructions.md
+!**/*.prompt.md
+!**/SKILL.md
 # …except the RAG fact corpus — these power the build-time embeddings pipeline.
 !content/facts/**/*.md
 # …and except the LLM-crawler markdown route handlers (per llmstxt.org).

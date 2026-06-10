@@ -101,7 +101,9 @@ All agents in this workflow operate under these principles:
 - Tailwind CSS 4 (CSS custom properties theming)
 - Framer Motion 12 (animations)
 - ESLint 9 (flat config)
+- Vitest 4 (existing test suite under `portfolio/lib/__tests__`)
 - npm
+- Linux VM deployment behind Cloudflare and Nginx; staging uses Docker from `deployed/staging`
 
 ### Key Conventions
 - PascalCase components, camelCase functions, SCREAMING_SNAKE_CASE constants
@@ -112,8 +114,8 @@ All agents in this workflow operate under these principles:
 - Light/dark theme support via CSS custom properties
 - `h-[100dvh]` for viewport height
 
-### No Test Framework Yet
-If tests are required, set up Vitest + React Testing Library. The project currently has no test infrastructure.
+### Testing
+Vitest is configured for the app. Run `npm --prefix portfolio run test` from the workspace root, or `npm test` from `portfolio/`. Add React Testing Library only when component-level tests are introduced.
 
 ---
 

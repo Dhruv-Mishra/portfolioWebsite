@@ -21,8 +21,8 @@ This repository is a **Next.js 16 portfolio website** with:
 - **Tailwind CSS 4** (PostCSS plugin, `@theme` blocks, CSS custom properties for light/dark theming)
 - **Framer Motion 12** for animations (spring physics, page transitions, hover effects)
 - **ESLint 9** (flat config, `eslint-config-next`)
-- **No test framework** (if testing decisions arise, recommend Vitest + React Testing Library)
-- Deployment: standalone output → self-hosted server via GitHub Actions + nginx
+- **Vitest 4** for the existing logic and smoke test suite; add React Testing Library only when component tests are introduced
+- Deployment: standalone output to Linux VMs behind Cloudflare and nginx; staging uses Docker from `deployed/staging`
 - Performance priorities: LCP optimization (CSS animations for hero), image optimization (AVIF/WebP), bundle splitting, `content-visibility` for deferred rendering
 - Design system: "sketchbook" aesthetic with graph paper backgrounds, torn-tape effects, custom cursors, doodle elements
 

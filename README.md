@@ -1,41 +1,40 @@
 # Dhruv's Sketchbook
 
-The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style portfolio built with Next.js, with an interactive terminal, grounded AI chat, project and resume pages, a public guestbook, sticker progress, and a few intentionally undisclosed extras.
+The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style portfolio with an interactive terminal, grounded AI chat, project pages, resume content, stickers, and a public guestbook.
+
+- Production: [whoisdhruv.com](https://whoisdhruv.com)
+- Staging: [staging.whoisdhruv.com](https://staging.whoisdhruv.com)
+
+## Screenshots
+
+| Home | Projects |
+|---|---|
+| ![Home page with terminal](docs/screenshots/home-desktop.png) | ![Projects page](docs/screenshots/projects-desktop.png) |
+
+| Chat |
+|---|
+| ![Mobile chat page](docs/screenshots/chat-mobile.png) |
 
 ## What Ships
 
-- Hand-drawn UI with light and dark themes, custom cursor, motion, and responsive layouts.
-- Interactive terminal with route commands, file-style content, shortcuts, and unlockable behavior.
-- AI chat backed by a local fact corpus plus build-time embeddings.
+- Sketchbook UI with light and dark themes, motion, responsive layouts, and custom interaction details.
+- Terminal-driven navigation with route commands and file-style content.
+- AI chat grounded by a local fact corpus and build-time embeddings.
 - Public pages for about, projects, resume, chat, guestbook, and stickers.
-- Machine-readable surfaces for AI crawlers and markdown consumers: `llms.txt`, `llms-full.txt`, `index.md`, `about.md`, `projects.md`, and `resume.md`.
+- Machine-readable routes for AI crawlers and markdown consumers.
 
-Some routes and behaviors are intentionally left out of the README to preserve the discovery part of the site.
+Some routes and behaviors stay out of the README so the site keeps its discovery layer.
 
 ## Stack
 
 - Next.js 16 App Router with standalone output
-- React 19 and TypeScript 5
-- Tailwind CSS 4 and Framer Motion 12
+- React 19, TypeScript 5, Tailwind CSS 4, Framer Motion 12
 - Groq-first chat runtime with OpenAI-compatible fallback support
 - GitHub-backed guestbook, feedback, and notes workflows
 - ESLint 9 and Vitest 4
+- Linux VMs behind Cloudflare and Nginx; Docker is active in staging and available for production migration
 
-## Project Layout
-
-```text
-portfolio/
-├── app/              # routes, metadata, and API handlers
-├── components/       # UI, terminal, chat, guestbook, stickers, layout
-├── content/facts/    # markdown fact corpus used by chat retrieval
-├── context/          # React providers
-├── hooks/            # client hooks for sound, stickers, chat, mobile, etc.
-├── lib/              # command registry, retrieval, integrations, utilities
-├── public/           # static assets
-└── scripts/          # embeddings build and deployment helpers
-```
-
-## Local Development
+## Run Locally
 
 From the repo root:
 
@@ -44,40 +43,24 @@ npm install
 npm run dev
 ```
 
-The root `package.json` proxies `dev`, `build`, `start`, and `lint` into `portfolio/`, so you can work from either directory.
+The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, `build`, `start`, and `lint`; run tests with `npm --prefix portfolio run test`.
 
-## Scripts
+## Useful Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start the Next.js dev server from the repo root |
-| `npm run build` | Production build from the repo root |
-| `npm run start` | Start the production server from the repo root |
-| `npm run lint` | Run ESLint from the repo root |
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` | Build the production app |
+| `npm run start` | Start the production server |
+| `npm run lint` | Run ESLint |
 | `npm --prefix portfolio run test` | Run the Vitest suite |
-| `npm --prefix portfolio run test:watch` | Run Vitest in watch mode |
-| `npm --prefix portfolio run build:embeddings` | Regenerate `lib/facts.embeddings.json` |
-
-## Environment
-
-Only configure what you need for the features you want to run.
-
-| Group | Variables |
-|---|---|
-| Public site config | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_GA_ID` |
-| Chat provider | `GROQ_API_KEY`, `GROQ_MODEL` |
-| OpenAI-compatible fallback | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_ENABLE_FALLBACK_MODEL`, `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` |
-| Suggestions models | `LLM_SUGGESTIONS_MODEL`, `LLM_FALLBACK_SUGGESTIONS_MODEL` |
-| Embeddings | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_MODE`, `SKIP_EMBEDDINGS_BUILD` |
-| GitHub-backed content | `GITHUB_GUESTBOOK_TOKEN`, `GITHUB_GUESTBOOK_REPO`, `GITHUB_FEEDBACK_TOKEN`, `GITHUB_FEEDBACK_REPO`, `GITHUB_MATRIX_NOTES_TOKEN`, `GITHUB_MATRIX_NOTES_REPO` |
-| Access and API controls | `ADMIN_UNLOCK_SECRET`, `ALLOWED_ORIGINS`, `CHAT_HISTORY_SIGNING_SECRET`, `LOG_RAW` |
 
 ## Deployment
 
-Production uses Next.js standalone output behind Cloudflare and Nginx. GitHub Actions builds the artifact once, then deploys it in parallel to the configured VMs; `portfolio/scripts/deploy.sh` is the per-machine entry point used by that flow.
+- Staging deploys from `deployed/staging` to [staging.whoisdhruv.com](https://staging.whoisdhruv.com) using Docker image deploys on Linux VMs.
+- Production lives at [whoisdhruv.com](https://whoisdhruv.com). The production source branch is `master`; the checked-in GitHub Actions deploy workflow currently promotes from `deployed/production` after the production environment gate.
+- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
 
-## Notes
+## For Agents
 
-- Guestbook submissions are moderated through GitHub Issues, not a database.
-- The chat API returns JSON responses and uses retrieval over the local fact corpus for grounding.
-- `npm run build` in `portfolio/` runs `prebuild`, which regenerates embeddings unless explicitly skipped.
+Start with [AGENTS.md](AGENTS.md), then read the nearest directory-level `AGENTS.md` before editing files in that area. Keep runtime markdown routes and the fact corpus unless the task explicitly changes public/RAG content.

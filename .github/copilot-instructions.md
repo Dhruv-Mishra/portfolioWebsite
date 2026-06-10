@@ -10,6 +10,7 @@ This is **Dhruv's Sketchbook** — a Next.js 16 portfolio website with a creativ
 - Tailwind CSS 4 (CSS custom properties for theming)
 - Framer Motion 12 (animations)
 - ESLint 9 (flat config, eslint-config-next)
+- Vitest 4 (tests under `portfolio/lib/__tests__`)
 - npm package manager
 
 ---
@@ -123,3 +124,10 @@ portfolio/
 - `npm run dev` — Development server
 - `npm run build` — Production build
 - `npm run lint` — ESLint
+- `npm --prefix portfolio run test` — Vitest suite
+
+## Deployment
+
+- Staging: `deployed/staging`, Docker image deploys, `staging.whoisdhruv.com`, service `portfolio-staging`, port `3010`.
+- Production: `whoisdhruv.com`; the production source branch is `master`, while the checked-in production workflow promotes from `deployed/production` after the production environment gate.
+- Runtime: Linux VMs behind Cloudflare and Nginx, running Next.js standalone output. Docker is active in staging and available for production migration.

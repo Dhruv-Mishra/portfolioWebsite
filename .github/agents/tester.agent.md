@@ -18,36 +18,15 @@ This repository is a **Next.js 16 portfolio website** with:
 
 - **Next.js 16** (App Router, server and client components)
 - **React 19** with TypeScript 5 (strict mode)
-- **No existing test framework** — if tests are needed, set up Vitest + React Testing Library
+- **Vitest 4** configured under `portfolio/`, with existing tests in `lib/__tests__`
 - **ESLint 9** for static analysis
 - **npm** as package manager
 
-### If Setting Up Testing (first-time only):
+### Current Test Setup
 
-If the project does not yet have a test framework configured, recommend and configure:
-
-1. **Vitest** — Fast, Vite-native test runner (excellent Next.js compatibility)
-2. **@testing-library/react** — Component testing with user-centric queries
-3. **@testing-library/jest-dom** — Custom DOM matchers
-4. **@testing-library/user-event** — User interaction simulation
-5. **jsdom** — Browser environment for component tests
-
-Add to `package.json`:
-```json
-{
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
-  }
-}
-```
-
-Create `vitest.config.ts` at project root with:
-- React plugin for JSX transform
-- Path alias resolution (`@/*`)
-- jsdom environment
-- Setup file for testing-library matchers
+- From the repo root, run `npm --prefix portfolio run test`.
+- From `portfolio/`, run `npm test` or `npm run test:watch`.
+- Add React Testing Library, jsdom, and related DOM matchers only when component tests are intentionally introduced.
 
 ---
 
@@ -83,6 +62,7 @@ Create `vitest.config.ts` at project root with:
 ## Test File Conventions
 
 - Test files: `__tests__/ComponentName.test.tsx` or `ComponentName.test.tsx` co-located with source
+- Existing logic tests live in `lib/__tests__/*.test.ts`
 - Test utilities: `__tests__/utils/` or `test/utils/`
 - Use descriptive test names: `it('renders the navigation tabs in correct order')`
 - Group related tests with `describe` blocks

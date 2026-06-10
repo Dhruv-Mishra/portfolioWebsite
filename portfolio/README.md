@@ -1,6 +1,6 @@
 # portfolio
 
-This directory contains the Next.js app for [whoisdhruv.com](https://whoisdhruv.com). The root [README](../README.md) is the main project overview; this file is the quick package-level reference.
+This directory contains the Next.js app for [whoisdhruv.com](https://whoisdhruv.com). The root [README](../README.md) is the public overview; this file is the package-level reference for local work, runtime notes, and deployment contracts.
 
 ## Commands
 
@@ -38,7 +38,14 @@ docker run --rm --env-file .env.local \
 	portfolio:local
 ```
 
-Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The staging workflow builds and deploys container images from the `deployed/staging` branch to `staging.whoisdhruv.com`; the production workflow remains separate and deploys from `deployed/production` after the `production` GitHub Environment approval. Artifact mode remains available as a fallback.
+Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The runtime target is Linux VMs behind Cloudflare and Nginx, running the Next.js standalone server. Docker is the default staging deploy path and may move fully into production; artifact mode remains available as a fallback.
+
+## Deployment Environments
+
+| Environment | Branch / workflow | Domain | Runtime |
+|---|---|---|---|
+| Staging | `deployed/staging` | `staging.whoisdhruv.com` | Docker image deploy to `portfolio-staging` |
+| Production | `master` source; current deploy workflow promotes from `deployed/production` | `whoisdhruv.com` | Linux VMs, Next.js standalone, Docker/image support |
 
 For staging, each VM must expose a separate `portfolio-staging` site contract: `/etc/deploy/sites/portfolio-staging.conf`, `DOMAIN="staging.whoisdhruv.com"`, `SERVICE_NAME="portfolio-staging"`, `DOCKER_CONTAINER_NAME="portfolio-staging"`, `NEXTJS_PORT=3010`, `GIT_BRANCH="deployed/staging"`, and `/opt/portfolio-staging/config/.env.local` with `NEXT_PUBLIC_SITE_URL` and `SITE_URL` set to `https://staging.whoisdhruv.com`. The staging workflow hard-codes this identity, validates it over SSH before deploy, verifies the deployed SHA on every VM, and treats a Cloudflare bot challenge to the GitHub runner as a warning after VM-local checks have passed. Real non-200 Cloudflare responses still fail the workflow. Add `GHCR_READ_TOKEN` if the GHCR package is private or the VMs are not already logged in.
 
@@ -59,6 +66,7 @@ scripts/          embeddings and deployment helpers
 
 ## Runtime Notes
 
+- Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
 - Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
 - Guestbook, feedback, and notes flows are GitHub-backed.
 - `npm run build` triggers embeddings generation unless skipped via env.

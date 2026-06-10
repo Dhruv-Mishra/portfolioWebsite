@@ -1,81 +1,44 @@
-# Project Context: Dhruv's Sketchbook Portfolio
+# Project Context: Dhruv's Sketchbook
 
-## 1. Project Overview
-A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with developer-centric tools. The user experience is "inside" a spiral-bound notebook where code meets creativity.
+This is the working context for agents editing the app in this directory. Keep it current and short; use the nearest `AGENTS.md` for directory-specific rules.
 
-### Core Metaphor
--   **The "Paper"**: Textured background (Graph paper in Light Mode, Blackboard/Slate in Dark Mode) using CSS-based patterns.
--   **The "Tools"**:
-    -   **Cursor**: Custom pencil/chalk SVG that leaves a fading trail (canvas-based).
-    -   **Terminal**: A persistent, interactive command-line interface that acts as the primary power-user navigation.
-    -   **Sticky Notes**: Specific yellow shades for project management aesthetics.
+## Product Shape
 
-## 2. Technology Stack & Architecture
--   **Framework**: Next.js 16 (App Router) + Turbopack.
--   **Styling**: Tailwind CSS v4.
-    -   **Config**: Zero-config `@theme` blocks in `app/globals.css`.
-    -   **Theming**: `next-themes` (attribute="class") managing CSS variables (`--c-paper`, `--note-yellow`).
--   **State Management**: React Context (`TerminalContext`) for command history/output persistence.
--   **Animation**: `framer-motion` for page transitions, doodle parallax, and UI interactions.
--   **Deployment**: Static Export compatible (for low-resource environments).
+Dhruv's Sketchbook is a Next.js portfolio that feels like a notebook/desk surface rather than a generic SaaS page. The main surfaces are home, about, projects, resume, chat, guestbook, stickers, and machine-readable markdown routes.
 
-## 3. Key Components & Implementation Details
+Core interaction ideas:
 
-### A. Layout System (`SketchbookLayout.tsx`)
--   **Responsive**: Uses `h-[100dvh]` (Dynamic Viewport Height) to solve mobile browser scroll issues.
--   **Structure**: Spiral binding (CSS/SVG) fixed to the left + Main "Paper" area.
--   **Parallax**: `framer-motion` mapped to mouse position (dampened springs) for subtle depth.
--   **Mobile**: Optimized to ensure full scrollability of content while keeping decorations subtle.
+- A sketchbook layout with paper/grid styling, light and dark themes, motion, custom cursor behavior, and responsive mobile treatment.
+- A terminal as a power-user navigation layer and content surface.
+- A grounded chat experience backed by local facts and embeddings.
+- GitHub-backed guestbook, feedback, and notes flows.
 
-### B. Theming & Aesthetics
--   **Light Mode**:
-    -   Bg: `#fdfbf7` (Warm Paper).
-    -   Ink: `#2d2a2e` (Dark Charcoal).
-    -   Notes: `#fff9c4` (Post-it Yellow).
-    -   Text Contrast: High-performance highlights forced to `#000000` via JS-driven inline styles for maximum readability.
--   **Dark Mode**:
-    -   Bg: `#1a1a1a` (Matte Black/Slate).
-    -   Ink: `#e5e5e5` (Chalk White).
-    -   Notes: `#222222` (Dark Cardstock).
-    -   Text Contrast: Forced to `#ffffff`.
--   **Toggle Logic**: `ThemeToggle.tsx` uses `resolvedTheme` to handle "System" preference correctly without icon mismatch.
+## Current Stack
 
-### C. Persistent Terminal (`TerminalContext.tsx`)
--   **Global State**: History and Output persist across page navigation.
--   **Commands**: `help`, `about`, `projects`, `resume`, `clear`.
--   **Mobile UX**: Auto-focus disabled on mobile to prevent virtual keyboard conflict during scrolling.
+- Next.js 16 App Router with standalone output.
+- React 19, TypeScript 5 strict mode, Tailwind CSS 4, Framer Motion 12.
+- ESLint 9 and Vitest 4.
+- Groq-first LLM runtime with OpenAI-compatible fallback providers.
+- Linux VMs behind Cloudflare and Nginx. Staging uses Docker images; production currently has image/artifact support and may move further toward Docker.
 
-### D. Navigation
--   **Desktop**: Tabs on top-right, animated "hanging" effect.
--   **Mobile**: Tabs centered, lowered significantly (`y: -5px` active) to ensure touch targets are fully visible and not cut off by the browser chrome.
+## Runtime Content
 
-### E. Pages
--   **Home**: Intro + Terminal.
-    -   **Credits**: "Dhruv" links to LinkedIn. Bio highlights "High-Performance Systems" at Microsoft.
--   **Projects**: Grid of Polaroid-style cards.
-    -   **Interaction**: Random rotations, tape effects, handwritten descriptions.
-    -   **Recent Fix**: Removed red margin lines for a cleaner look.
--   **Resume**:
-    -   **Desktop**: Embedded PDF (`<object>`).
-    -   **Mobile**: Clean "Download/Open" card to avoid unresponsive embed issues.
+Do not treat these as disposable docs:
 
-## 4. Best Practices & Rules
-1.  **Mobile First**: Always test scroll behavior and touch targets. Use `100dvh` for full-screen containers.
-2.  **Performance**:
-    -   Use CSS variables for theming where possible.
-    -   Use `transition-none` for critical contrast elements to prevent "ghosting" during theme switches.
-    -   Keep bundle size low (removed unused libs, static export).
-3.  **Aesthetics**:
-    -   **Imperfection**: Use slight rotations (`rotate-1`, `-rotate-2`) and handwritten fonts (`Patrick Hand`) to avoid "corporate" stiffness.
-    -   **Contrast**: Ensure text is readable on distinct note backgrounds.
+- `content/facts/**/*.md` feeds chat retrieval and build-time embeddings.
+- `app/*.md` route directories serve public markdown content such as `about.md`, `projects.md`, and `llms.txt` variants.
+- `lib/facts.embeddings.json` is committed so deploys can reuse embeddings when no API key is configured.
 
-## 5. Recent Refinements (Debugging Log)
--   **Theme Toggle Bug**: Fixed by using `resolvedTheme` instead of `theme`.
--   **Mobile Scroll**: Fixed by switching `h-screen` (which ignores browser chrome) to `h-[100dvh]` + `overflow-y-auto`.
--   **Contrast**: Enforced pure black/white text for bio highlights using inline JS styles to bypass CSS specificity issues.
--   **Assets**: Updated Bloom Filter project link to official repository.
+## Deployment Summary
 
-## 6. Future Roadmap
--   [ ] **Sound Effects**: Audio feedback for typing/drawing.
--   [ ] **Project Details**: Expand card into full case study page.
--   [ ] **Blog/Notebook**: A section for markdown articles rendered as "handwritten" journal entries.
+- Staging: `deployed/staging`, `staging.whoisdhruv.com`, Docker image deploys, `portfolio-staging`, port `3010`.
+- Production: `whoisdhruv.com`; the production source branch is `master`, while the checked-in production GitHub Actions deploy workflow is guarded on `deployed/production` after the production environment approval.
+- Cloudflare handles the edge. Nginx and the Next.js standalone server run on the VM origin.
+
+## Editing Rules
+
+- Server components by default; add `"use client"` only for browser state, effects, events, or client-only libraries.
+- Use `@/*` imports, `cn()` for conditional class names, and the local CSS variable theme system.
+- Preserve light/dark mode and mobile behavior for UI changes. Prefer `h-[100dvh]` for viewport-height surfaces.
+- Keep hidden routes, unlock conditions, and private behavior out of public docs.
+- Run `npm run lint` and `npm --prefix portfolio run test` when changes touch app code, runtime logic, or agent/test guidance.

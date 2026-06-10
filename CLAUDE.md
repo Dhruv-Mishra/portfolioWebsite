@@ -10,6 +10,7 @@ This is **Dhruv's Sketchbook** — a Next.js 16 portfolio website with a creativ
 - Tailwind CSS 4 (CSS custom properties for theming)
 - Framer Motion 12 (animations)
 - ESLint 9 (flat config)
+- Vitest 4 (tests under `portfolio/lib/__tests__`)
 - npm package manager
 
 ---
@@ -117,8 +118,16 @@ portfolio/
 - `npm run build` — Production build (automatically runs `prebuild` → `build:embeddings`)
 - `npm run start` — Start production server
 - `npm run lint` — Run ESLint
-- `npm test` — Run the vitest suite
+- `npm --prefix portfolio run test` — Run the Vitest suite from the repo root
 - `npm run build:embeddings` — Regenerate `lib/facts.embeddings.json` from `content/facts/**`. Runs automatically as a `prebuild` hook on `npm run build`.
+
+---
+
+## Deployment
+
+- Staging deploys from `deployed/staging` to `staging.whoisdhruv.com` using Docker image deploys on Linux VMs.
+- Production lives at `whoisdhruv.com`. The production source branch is `master`; the checked-in GitHub Actions deploy workflow currently promotes from `deployed/production` after the production environment gate.
+- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin. Docker is active in staging and available for production migration.
 
 ---
 

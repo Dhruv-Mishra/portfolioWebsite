@@ -1,5 +1,8 @@
 /ResumeBuilder
 .TEMP/
+.playwright-mcp/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Workspace-root lockfile should never exist — the root package.json declares
 # no dependencies (it's just a scripts wrapper). A stray lockfile here tricks

@@ -20,7 +20,14 @@ on:
     branches:
       - deployed/staging
     paths-ignore:
-      - "**.md"
+      - "README.md"
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - "StagingDeploymentPrompt.md"
+      - "docs/**"
+      - "portfolio/README.md"
+      - "portfolio/projectContext.md"
+      - "portfolio/**/AGENTS.md"
       - ".github/dependabot.yml"
       - ".github/agents/**"
       - ".github/instructions/**"

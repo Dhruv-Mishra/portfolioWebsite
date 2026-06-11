@@ -441,7 +441,7 @@ export default function Terminal() {
                 <div className="relative">
                 <div
                     ref={scrollRef}
-                    className="p-4 md:p-6 h-[var(--c-terminal-h)] min-h-[var(--c-terminal-min-h)] md:h-[clamp(var(--c-terminal-min-h),45dvh,var(--c-terminal-h-md))] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white"
+                    className="p-4 md:p-6 h-[var(--c-terminal-h)] min-h-[var(--c-terminal-min-h)] md:h-[var(--c-terminal-h-md)] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white"
                     onClick={() => {
                         // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
                         if (typeof window !== 'undefined' && window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) {

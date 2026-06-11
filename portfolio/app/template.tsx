@@ -10,7 +10,7 @@
 export default function Template({ children }: { children: React.ReactNode }) {
     return (
         <div
-            className="h-full min-h-full min-w-0 max-w-full animate-page-template-in overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12"
+            className="h-full min-h-full min-w-0 max-w-full animate-page-template-in overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar"
         >
             {children}
         </div>

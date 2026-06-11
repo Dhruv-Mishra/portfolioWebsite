@@ -19,7 +19,7 @@ Core interaction ideas:
 - React 19, TypeScript 5 strict mode, Tailwind CSS 4, Framer Motion 12.
 - ESLint 9 and Vitest 4.
 - Groq-first LLM runtime with OpenAI-compatible fallback providers.
-- Linux VMs behind Cloudflare and Nginx. Staging uses Docker images; production currently has image/artifact support and may move further toward Docker.
+- Linux VMs behind Cloudflare and Nginx. Staging and production use Docker image deploys; artifact mode remains available as a fallback.
 
 ## Runtime Content
 
@@ -32,7 +32,7 @@ Do not treat these as disposable docs:
 ## Deployment Summary
 
 - Staging: `deployed/staging`, `staging.whoisdhruv.com`, Docker image deploys, `portfolio-staging`, port `3010`.
-- Production: `whoisdhruv.com`; the production source branch is `master`, while the checked-in production GitHub Actions deploy workflow is guarded on `deployed/production` after the production environment approval.
+- Production: `whoisdhruv.com`; the production GitHub Actions deploy workflow is guarded on `deployed/production` after the production environment approval. `dev/lkg` is the primary development branch.
 - Cloudflare handles the edge. Nginx and the Next.js standalone server run on the VM origin.
 
 ## Editing Rules

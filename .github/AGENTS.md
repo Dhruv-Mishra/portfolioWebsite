@@ -11,7 +11,7 @@ Scope: GitHub workflows, repository instructions, and agent definitions.
 ## Workflow Notes
 
 - Staging deploys are guarded to `deployed/staging`.
-- Production deploy workflow is guarded to `deployed/production`, even though `master` is the production source branch documented for humans.
+- Production deploy workflow is guarded to `deployed/production`; `dev/lkg` is the primary development branch.
 - Avoid secrets, VM hostnames, SSH details, and Cloudflare credentials in tracked docs.
 
 ## Agent Definition Notes

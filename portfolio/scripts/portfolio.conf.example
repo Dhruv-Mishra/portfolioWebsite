@@ -34,8 +34,12 @@ GIT_ROOT="/home/ubuntu/portfolioWebsite"
 PROJECT_ROOT="/home/ubuntu/portfolioWebsite/portfolio"
 
 # ── Git ──────────────────────────────────────────────────────────────────────
-GIT_BRANCH="master"
+GIT_BRANCH="deployed/production"
 GIT_REMOTE="origin"
+
+# Keep at least 3 releases so the manual rollback workflow has one extra
+# retained target beyond the immediate previous release.
+RELEASE_RETENTION_COUNT=3
 
 # ── SSL (Cloudflare Origin Certificate) ──────────────────────────────────────
 SSL_CERT="/etc/ssl/cloudflare/whoisdhruv.com.pem"

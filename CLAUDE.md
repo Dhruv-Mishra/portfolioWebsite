@@ -126,8 +126,8 @@ portfolio/
 ## Deployment
 
 - Staging deploys from `deployed/staging` to `staging.whoisdhruv.com` using Docker image deploys on Linux VMs.
-- Production lives at `whoisdhruv.com`. The production source branch is `master`; the checked-in GitHub Actions deploy workflow currently promotes from `deployed/production` after the production environment gate.
-- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin. Docker is active in staging and available for production migration.
+- Production lives at `whoisdhruv.com`. `deployed/production` is the production deployment branch, and `dev/lkg` is the primary development branch.
+- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin. Docker image mode is the default deploy path for staging and production.
 
 ---
 

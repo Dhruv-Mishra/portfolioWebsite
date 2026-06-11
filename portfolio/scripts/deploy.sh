@@ -43,6 +43,8 @@
 #                --skip-deps         [legacy]   Skip npm ci
 #                --skip-build        [legacy]   Skip npm ci + next build
 #                --skip-nginx        Skip nginx config update
+#                --rollback          Roll back to the newest previous release
+#                --rollback-to SHA   Roll back to a specific retained release
 #                --force             [legacy]   Deploy with uncommitted changes
 #                --help              Show help
 #
@@ -110,6 +112,10 @@ readonly STAGING_SITE_NAME="portfolio-staging"
 readonly STAGING_DOMAIN="staging.whoisdhruv.com"
 readonly STAGING_PORT="3010"
 readonly STAGING_BRANCH="deployed/staging"
+readonly PRODUCTION_SITE_NAME="portfolio"
+readonly PRODUCTION_DOMAIN="whoisdhruv.com"
+readonly PRODUCTION_PORT="3000"
+readonly PRODUCTION_BRANCH="deployed/production"
 
 # Validate SERVICE_NAME format (used in systemd unit names, nginx configs, paths)
 if ! [[ "${SERVICE_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -122,7 +128,7 @@ readonly GIT_ROOT="${GIT_ROOT:?GIT_ROOT not set in ${SITE_CONF}}"
 readonly PROJECT_ROOT="${PROJECT_ROOT:?PROJECT_ROOT not set in ${SITE_CONF}}"
 
 # Git
-readonly GIT_BRANCH="${GIT_BRANCH:-master}"
+readonly GIT_BRANCH="${GIT_BRANCH:-deployed/production}"
 readonly GIT_REMOTE="${GIT_REMOTE:-origin}"
 
 # SSL
@@ -225,6 +231,7 @@ MODE="legacy"              # "artifact" | "image" | "legacy"
 RELEASE_DIR=""             # set in image/artifact mode
 RELEASE_SHA=""             # set in image/artifact mode
 DOCKER_IMAGE=""             # set in image mode
+ROLLBACK_TARGET_SHA=""      # set in rollback mode when a specific target is requested
 
 SKIP_GIT=false
 SKIP_DEPS=false
@@ -300,6 +307,8 @@ OPTIONS
   --skip-deps         (legacy) Skip npm ci
   --skip-build        (legacy) Skip npm ci + next build
   --skip-nginx        Skip nginx config update & reload
+    --rollback          Roll back to the newest previous retained release
+    --rollback-to SHA   Roll back to a specific retained release SHA
   --force             (legacy) Deploy even with uncommitted changes
   --help, -h          Show this help
 
@@ -353,6 +362,19 @@ parse_arguments() {
                 fi
                 shift 2
                 ;;
+            --rollback)
+                MODE="rollback"
+                shift
+                ;;
+            --rollback-to)
+                MODE="rollback"
+                ROLLBACK_TARGET_SHA="${2:-}"
+                if [[ -z "${ROLLBACK_TARGET_SHA}" ]] || [[ "${ROLLBACK_TARGET_SHA}" == --* ]]; then
+                    log ERROR "--rollback-to requires a release SHA"
+                    exit 1
+                fi
+                shift 2
+                ;;
             --skip-git)   SKIP_GIT=true;   shift ;;
             --skip-deps)  SKIP_DEPS=true;  shift ;;
             --skip-build) SKIP_BUILD=true; shift ;;
@@ -370,8 +392,17 @@ parse_arguments() {
         exit 1
     fi
 
+    if [[ "${MODE}" == "rollback" ]]; then
+        if [[ -n "${RELEASE_DIR}" ]] || [[ -n "${DOCKER_IMAGE}" ]] || [[ -n "${RELEASE_SHA}" ]]; then
+            log ERROR "Rollback mode cannot be combined with --release-dir, --image, or --sha"
+            exit 1
+        fi
+        if [[ -n "${ROLLBACK_TARGET_SHA}" ]] && ! [[ "${ROLLBACK_TARGET_SHA}" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            log ERROR "--rollback-to must be a 7-40 character hexadecimal SHA"
+            exit 1
+        fi
     # Dispatch: image mode iff --image given; artifact mode iff --release-dir given
-    if [[ -n "${DOCKER_IMAGE}" ]]; then
+    elif [[ -n "${DOCKER_IMAGE}" ]]; then
         MODE="image"
         if [[ -z "${RELEASE_SHA}" ]]; then
             log ERROR "--image requires --sha"
@@ -409,7 +440,7 @@ cleanup() {
         log_separator
         log ERROR "Deployment failed (exit ${exit_code}). Log: ${LOG_FILE}"
 
-        if [[ "${MODE}" == "artifact" ]] || [[ "${MODE}" == "image" ]]; then
+        if [[ "${MODE}" == "artifact" ]] || [[ "${MODE}" == "image" ]] || [[ "${MODE}" == "rollback" ]]; then
             rollback_artifact
         else
             rollback_legacy_nginx
@@ -506,6 +537,8 @@ check_dependencies() {
         deps+=("git" "node" "npm" "nice" "ionice")
     elif [[ "${MODE}" == "image" ]]; then
         deps+=("docker" "awk")
+    elif [[ "${MODE}" == "rollback" ]]; then
+        deps+=("awk")
     fi
 
     local missing=()
@@ -570,11 +603,103 @@ is_staging_site() {
         || [[ "${DOMAIN}" == "${STAGING_DOMAIN}" ]]
 }
 
+is_production_site() {
+    [[ "${SITE_NAME}" == "${PRODUCTION_SITE_NAME}" ]] \
+        || [[ "${SERVICE_NAME}" == "${PRODUCTION_SITE_NAME}" ]] \
+        || [[ "${DOMAIN}" == "${PRODUCTION_DOMAIN}" ]]
+}
+
+validate_production_port_owner() {
+    if ! is_production_site || is_staging_site; then
+        return 0
+    fi
+
+    log STEP "Validating production port ownership..."
+
+    local pids
+    pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
+        | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+
+    if [[ -z "${pids}" ]]; then
+        log SUCCESS "Port ${NEXTJS_PORT} is free"
+        return 0
+    fi
+
+    local main_pid=""
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        main_pid=$(systemctl show -p MainPID --value "${SERVICE_NAME}" 2>/dev/null || true)
+    fi
+
+    local docker_pid=""
+    local docker_container_id=""
+    if command -v docker &>/dev/null; then
+        docker_pid=$(docker inspect --format '{{.State.Pid}}' "${DOCKER_CONTAINER_NAME}" 2>/dev/null || true)
+        docker_container_id=$(docker inspect --format '{{.Id}}' "${DOCKER_CONTAINER_NAME}" 2>/dev/null || true)
+    fi
+    local docker_container_id_short="${docker_container_id:0:12}"
+
+    local pid
+    for pid in ${pids}; do
+        if [[ -n "${main_pid}" ]] && [[ "${main_pid}" != "0" ]] && [[ "${pid}" == "${main_pid}" ]]; then
+            continue
+        fi
+        if [[ -n "${docker_pid}" ]] && [[ "${docker_pid}" != "0" ]] && [[ "${pid}" == "${docker_pid}" ]]; then
+            continue
+        fi
+
+        local cgroup=""
+        cgroup=$(cat "/proc/${pid}/cgroup" 2>/dev/null || true)
+        if echo "${cgroup}" | grep -qE "/system.slice/${SERVICE_NAME}\.service"; then
+            continue
+        fi
+        if [[ -n "${docker_container_id}" ]] && echo "${cgroup}" | grep -qE "(${docker_container_id}|${docker_container_id_short})"; then
+            continue
+        fi
+
+        local command=""
+        command=$(ps -p "${pid}" -o comm= 2>/dev/null || true)
+        log ERROR "Port ${NEXTJS_PORT} is owned by unknown PID ${pid} (${command:-unknown}), not ${SERVICE_NAME}.service or ${DOCKER_CONTAINER_NAME}."
+        log ERROR "Stop or migrate the unknown listener before deploying. Refusing to kill it automatically."
+        exit 1
+    done
+
+    log SUCCESS "Port ${NEXTJS_PORT} listener belongs to ${SERVICE_NAME}"
+}
+
 validate_site_contract() {
     log STEP "Validating site deployment contract..."
 
-    if ! is_staging_site; then
+    if ! is_staging_site && ! is_production_site; then
         log SUCCESS "Site contract OK: ${SITE_NAME} (${DOMAIN}) on :${NEXTJS_PORT}"
+        return 0
+    fi
+
+    if is_production_site && ! is_staging_site; then
+        local failures=()
+        [[ "${SITE_NAME}" == "${PRODUCTION_SITE_NAME}" ]] \
+            || failures+=("--site must be ${PRODUCTION_SITE_NAME} (got ${SITE_NAME})")
+        [[ "${SERVICE_NAME}" == "${PRODUCTION_SITE_NAME}" ]] \
+            || failures+=("SERVICE_NAME must be ${PRODUCTION_SITE_NAME} (got ${SERVICE_NAME})")
+        [[ "${DOCKER_CONTAINER_NAME}" == "${PRODUCTION_SITE_NAME}" ]] \
+            || failures+=("DOCKER_CONTAINER_NAME must be ${PRODUCTION_SITE_NAME} (got ${DOCKER_CONTAINER_NAME})")
+        [[ "${DOMAIN}" == "${PRODUCTION_DOMAIN}" ]] \
+            || failures+=("DOMAIN must be ${PRODUCTION_DOMAIN} (got ${DOMAIN})")
+        [[ "${NEXTJS_PORT}" == "${PRODUCTION_PORT}" ]] \
+            || failures+=("NEXTJS_PORT must be ${PRODUCTION_PORT} (got ${NEXTJS_PORT})")
+        [[ "${GIT_BRANCH}" == "${PRODUCTION_BRANCH}" ]] \
+            || failures+=("GIT_BRANCH must be ${PRODUCTION_BRANCH} (got ${GIT_BRANCH})")
+
+        if [[ ${#failures[@]} -gt 0 ]]; then
+            log ERROR "Refusing production deploy because the site config is not the production contract:"
+            local failure
+            for failure in "${failures[@]}"; do
+                log ERROR "  - ${failure}"
+            done
+            exit 1
+        fi
+
+        validate_production_port_owner
+        log SUCCESS "Production contract OK: ${SERVICE_NAME} (${DOMAIN}) on :${NEXTJS_PORT}"
         return 0
     fi
 
@@ -1685,6 +1810,175 @@ image_deploy() {
 }
 
 #===============================================================================
+# ROLLBACK MODE — restore a retained image/artifact release
+#===============================================================================
+
+current_release_sha() {
+    if [[ ! -L "${DEPLOY_CURRENT_LINK}" ]]; then
+        return 0
+    fi
+
+    local current_target
+    current_target=$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+    [[ -n "${current_target}" ]] && basename "${current_target}"
+}
+
+resolve_rollback_release() {
+    local current_sha="$1"
+
+    if [[ -n "${ROLLBACK_TARGET_SHA}" ]]; then
+        local matches=()
+        mapfile -t matches < <(
+            find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d \
+                -name "${ROLLBACK_TARGET_SHA}*" -printf '%f\n' 2>/dev/null | sort
+        )
+
+        if [[ ${#matches[@]} -eq 0 ]]; then
+            log ERROR "Rollback target not found under ${DEPLOY_RELEASES_DIR}: ${ROLLBACK_TARGET_SHA}"
+            exit 1
+        fi
+        if [[ ${#matches[@]} -gt 1 ]]; then
+            log ERROR "Rollback target ${ROLLBACK_TARGET_SHA} is ambiguous: ${matches[*]}"
+            exit 1
+        fi
+        echo "${matches[0]}"
+        return 0
+    fi
+
+    local candidates=()
+    mapfile -t candidates < <(
+        find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' \
+            -printf '%T@ %f\n' 2>/dev/null | sort -rn | awk '{print $2}'
+    )
+
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [[ -n "${candidate}" ]] && [[ "${candidate}" != "${current_sha}" ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+
+    log ERROR "No previous retained release found under ${DEPLOY_RELEASES_DIR}"
+    exit 1
+}
+
+release_meta_value() {
+    local release_dir="$1"
+    local key="$2"
+    local meta_file="${release_dir}/.deploy/meta.json"
+
+    [[ -f "${meta_file}" ]] || return 0
+    sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "${meta_file}" | head -1
+}
+
+rollback_deploy() {
+    log INFO "Mode: rollback (site=${SITE_NAME})"
+
+    check_ssl_certs
+
+    [[ -d "${DEPLOY_RELEASES_DIR}" ]] || {
+        log ERROR "Release directory not found: ${DEPLOY_RELEASES_DIR}"
+        exit 1
+    }
+
+    validate_env_file
+    validate_staging_env_contract
+
+    local current_sha
+    current_sha="$(current_release_sha)"
+    if [[ -z "${current_sha}" ]]; then
+        log ERROR "No active release symlink found at ${DEPLOY_CURRENT_LINK}"
+        exit 1
+    fi
+
+    local target_sha
+    target_sha="$(resolve_rollback_release "${current_sha}")"
+    if [[ "${target_sha}" == "${current_sha}" ]]; then
+        log ERROR "Rollback target is already active: ${target_sha}"
+        exit 1
+    fi
+
+    RELEASE_SHA="${target_sha}"
+    RELEASE_DIR="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    ROLLBACK_PREV_SHA="${current_sha}"
+
+    [[ -d "${RELEASE_DIR}" ]] || {
+        log ERROR "Rollback release directory missing: ${RELEASE_DIR}"
+        exit 1
+    }
+    [[ -f "${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}" ]] || {
+        log ERROR "Rollback release is missing nginx template: ${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}"
+        exit 1
+    }
+
+    log INFO "Rollback target: ${current_sha} -> ${RELEASE_SHA}"
+
+    local target_image
+    target_image="$(release_meta_value "${RELEASE_DIR}" image)"
+    if [[ -n "${target_image}" ]]; then
+        if [[ "${target_image}" != *@sha256:* ]]; then
+            log ERROR "Rollback image must be an immutable digest ref, got: ${target_image}"
+            exit 1
+        fi
+        if ! command -v docker &>/dev/null; then
+            log ERROR "Docker is required to roll back image release ${RELEASE_SHA}"
+            exit 1
+        fi
+        if ! docker info &>/dev/null; then
+            log ERROR "Docker daemon is not reachable"
+            exit 1
+        fi
+
+        DOCKER_IMAGE="${target_image}"
+        log INFO "Pulling rollback image: ${DOCKER_IMAGE}"
+        docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+        prepare_docker_systemd_unit
+    else
+        [[ -f "${RELEASE_DIR}/server.js" ]] || {
+            log ERROR "Rollback release is neither an image release nor an artifact release with server.js: ${RELEASE_DIR}"
+            exit 1
+        }
+        prepare_systemd_unit
+    fi
+
+    prepare_nginx_config
+    ensure_nginx_zones
+    validate_staged_nginx
+
+    backup_existing_systemd
+    backup_existing_nginx
+
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        log DEBUG "Stopping ${SERVICE_NAME} before rollback..."
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        sleep 2
+    fi
+    if command -v docker &>/dev/null; then
+        docker rm -f "${DOCKER_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    fi
+    kill_orphaned_processes
+
+    activate_systemd_unit
+    atomic_symlink_swap
+    activate_nginx_config
+    clear_nginx_proxy_cache
+
+    if ! start_service; then
+        log ERROR "Rollback target did not come up healthy"
+        exit 1
+    fi
+
+    if ! reload_nginx; then
+        log ERROR "nginx reload failed during rollback"
+        exit 1
+    fi
+
+    update_deploy_symlink
+    health_check
+}
+
+#===============================================================================
 # LEGACY MODE — git pull + build on VM (safety net; NOT the production path)
 #===============================================================================
 
@@ -1992,9 +2286,11 @@ print_summary() {
         echo -e "  ${CYAN}•${NC} SHA:       ${RELEASE_SHA}"
         echo -e "  ${CYAN}•${NC} Current:   ${DEPLOY_CURRENT_LINK} → $(readlink ${DEPLOY_CURRENT_LINK} 2>/dev/null || echo '?')"
         echo -e "  ${CYAN}•${NC} Releases:  $(find ${DEPLOY_RELEASES_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l) on disk"
-    elif [[ "${MODE}" == "image" ]]; then
+    elif [[ "${MODE}" == "image" ]] || [[ "${MODE}" == "rollback" ]]; then
         echo -e "  ${CYAN}•${NC} SHA:       ${RELEASE_SHA}"
-        echo -e "  ${CYAN}•${NC} Image:     ${DOCKER_IMAGE}"
+        if [[ -n "${DOCKER_IMAGE}" ]]; then
+            echo -e "  ${CYAN}•${NC} Image:     ${DOCKER_IMAGE}"
+        fi
         echo -e "  ${CYAN}•${NC} Container: ${DOCKER_CONTAINER_NAME}"
         echo -e "  ${CYAN}•${NC} Current:   ${DEPLOY_CURRENT_LINK} → $(readlink ${DEPLOY_CURRENT_LINK} 2>/dev/null || echo '?')"
         echo -e "  ${CYAN}•${NC} Releases:  $(find ${DEPLOY_RELEASES_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l) on disk"
@@ -2045,6 +2341,8 @@ main() {
         artifact_deploy
     elif [[ "${MODE}" == "image" ]]; then
         image_deploy
+    elif [[ "${MODE}" == "rollback" ]]; then
+        rollback_deploy
     else
         legacy_deploy
     fi

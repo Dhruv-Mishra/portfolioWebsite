@@ -129,5 +129,5 @@ portfolio/
 ## Deployment
 
 - Staging: `deployed/staging`, Docker image deploys, `staging.whoisdhruv.com`, service `portfolio-staging`, port `3010`.
-- Production: `whoisdhruv.com`; the production source branch is `master`, while the checked-in production workflow promotes from `deployed/production` after the production environment gate.
-- Runtime: Linux VMs behind Cloudflare and Nginx, running Next.js standalone output. Docker is active in staging and available for production migration.
+- Production: `whoisdhruv.com`; `deployed/production` is the production deployment branch, and `dev/lkg` is the primary development branch.
+- Runtime: Linux VMs behind Cloudflare and Nginx, running Next.js standalone output. Docker image mode is the default deploy path for staging and production.

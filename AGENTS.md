@@ -19,8 +19,8 @@ Scope: the whole repository.
 ## Deployment Facts
 
 - Staging uses `deployed/staging`, Docker image deploys, `staging.whoisdhruv.com`, service `portfolio-staging`, and port `3010`.
-- Production lives at `whoisdhruv.com`. The production source branch is `master`; the current checked-in production deploy workflow promotes from `deployed/production` after the production environment gate.
-- Runtime is Linux VMs behind Cloudflare and Nginx, running Next.js standalone output. Docker is active in staging and available for production migration.
+- Production lives at `whoisdhruv.com`. The production deploy branch is `deployed/production`; `dev/lkg` is the primary development branch.
+- Runtime is Linux VMs behind Cloudflare and Nginx, running Next.js standalone output. Docker image mode is the default deploy path for staging and production.
 
 ## Cleanup Rules
 

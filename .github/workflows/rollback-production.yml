@@ -1,0 +1,222 @@
+name: Rollback Portfolio Production
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_to_sha:
+        description: "Optional retained release SHA. Leave blank to use newest previous release per VM."
+        required: false
+        default: ""
+        type: string
+      site:
+        description: "Production site config name"
+        required: false
+        default: portfolio
+        type: string
+
+concurrency:
+  group: rollback-production-${{ inputs.site || 'portfolio' }}
+  cancel-in-progress: false
+
+env:
+  DOMAIN: whoisdhruv.com
+
+jobs:
+  guard-production-ref:
+    name: Guard production ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Require deployed/production for rollback
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
+            echo "::error::Production rollback must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
+  approve-rollback:
+    name: Approve production rollback
+    needs: guard-production-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+      url: https://${{ env.DOMAIN }}
+    steps:
+      - name: Rollback approved
+        run: echo "Production rollback approved."
+
+  rollback-production:
+    name: Roll back ${{ matrix.server.name }}
+    needs: approve-rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        server:
+          - name: production-1
+            host_secret: SERVER_HOST_1
+            user_secret: SERVER_USERNAME_1
+            key_secret: SERVER_SSH_KEY_1
+            port_secret: SERVER_PORT_1
+          - name: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+          - name: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+
+    environment:
+      name: ${{ matrix.server.name }}
+      url: https://${{ env.DOMAIN }}
+
+    steps:
+      - name: Validate rollback inputs
+        env:
+          SITE: ${{ inputs.site || 'portfolio' }}
+          ROLLBACK_TO_SHA: ${{ inputs.rollback_to_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$SITE" != "portfolio" ]; then
+            echo "::error::Production rollback only supports site=portfolio. Got: $SITE"
+            exit 1
+          fi
+          if [ -n "$ROLLBACK_TO_SHA" ] && ! [[ "$ROLLBACK_TO_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+            echo "::error::rollback_to_sha must be blank or a 7-40 character hexadecimal SHA."
+            exit 1
+          fi
+
+      - name: Checkout deploy kit
+        uses: actions/checkout@v4
+        with:
+          ref: deployed/production
+
+      - name: Package deploy kit
+        run: |
+          set -euo pipefail
+          mkdir -p deploy-kit
+          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          tar czf portfolio-rollback-kit-${{ github.run_id }}.tar.gz -C deploy-kit .
+
+      - name: Copy rollback kit to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          source: portfolio-rollback-kit-${{ github.run_id }}.tar.gz
+          target: /tmp/
+          timeout: 60s
+          command_timeout: 3m
+
+      - name: Roll back on ${{ matrix.server.name }}
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SITE: ${{ inputs.site || 'portfolio' }}
+          REQUESTED_SHA: ${{ inputs.rollback_to_sha }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          command_timeout: 15m
+          envs: SITE,REQUESTED_SHA,GHCR_OWNER,GHCR_READ_TOKEN
+          script: |
+            set -euo pipefail
+
+            if [ "$SITE" != "portfolio" ]; then
+              echo "ERROR: rollback site must be portfolio"
+              exit 1
+            fi
+            if [ -n "$REQUESTED_SHA" ] && ! [[ "$REQUESTED_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+              echo "ERROR: invalid rollback target: $REQUESTED_SHA"
+              exit 1
+            fi
+
+            KIT="/tmp/portfolio-rollback-kit-${{ github.run_id }}.tar.gz"
+            STAGING="/tmp/portfolio-rollback-kit-${{ github.run_id }}"
+            LOG="/tmp/${SITE}-rollback-${{ github.run_id }}.log"
+            sudo rm -rf "$STAGING"
+            sudo mkdir -p "$STAGING"
+            sudo tar xzf "$KIT" -C "$STAGING"
+            sudo chmod +x "$STAGING/deploy.sh"
+
+            DOCKER_CONFIG_DIR=""
+            cleanup() {
+              sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ -n "$DOCKER_CONFIG_DIR" ]; then
+                sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
+            }
+            trap cleanup EXIT
+
+            DOCKER_CONFIG_DIR="$(mktemp -d)"
+            sudo chmod 700 "$DOCKER_CONFIG_DIR"
+            if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+              printf '%s' "$GHCR_READ_TOKEN" | sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" docker login ghcr.io \
+                -u "$GHCR_OWNER" --password-stdin
+            fi
+
+            if [ -n "$REQUESTED_SHA" ]; then
+              rollback_args=(--site "$SITE" --rollback-to "$REQUESTED_SHA")
+            else
+              rollback_args=(--site "$SITE" --rollback)
+            fi
+
+            rollback_status=0
+            sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" "${rollback_args[@]}" > "$LOG" 2>&1 || rollback_status=$?
+            cat "$LOG" || true
+            if [ "$rollback_status" -ne 0 ]; then
+              latest_log=$(sudo find "/var/log/${SITE}-deploy" -name 'deploy-*.log' -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)
+              if [ -n "$latest_log" ]; then
+                echo "Latest deploy log: $latest_log"
+                sudo tail -n 160 "$latest_log" || true
+              fi
+              exit "$rollback_status"
+            fi
+
+      - name: Verify rollback on ${{ matrix.server.name }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          command_timeout: 2m
+          script: |
+            set -euo pipefail
+            SITE="${{ inputs.site || 'portfolio' }}"
+            SITE_CONF="/etc/deploy/sites/${SITE}.conf"
+            PORT="3000"
+            if sudo test -f "$SITE_CONF"; then
+              PORT="$(sudo awk -F= '$1 == "NEXTJS_PORT" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$SITE_CONF")"
+            fi
+            sudo systemctl is-active --quiet "$SITE"
+            sudo nginx -t
+            curl -sf -o /dev/null --max-time 5 "http://127.0.0.1:${PORT}/"
+            if sudo test -f "/opt/${SITE}/current/.deploy/meta.json" && sudo grep -q '"image"' "/opt/${SITE}/current/.deploy/meta.json"; then
+              sudo docker ps --format '{{.Names}}' | grep -qx "$SITE"
+            fi
+            CURRENT_SHA="$(basename "$(readlink -f "/opt/${SITE}/current")")"
+            echo "Rollback verified on ${{ matrix.server.name }}: $CURRENT_SHA"
+
+      - name: Rollback summary
+        run: |
+          echo "## ${{ matrix.server.name }} rollback complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Requested target: \`${{ inputs.rollback_to_sha || 'newest previous retained release' }}\`" >> "$GITHUB_STEP_SUMMARY"

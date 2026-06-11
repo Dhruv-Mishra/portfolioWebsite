@@ -361,6 +361,117 @@ jobs:
             exit 1
           fi
 
+      - name: Warn when GHCR token is absent
+        if: env.DEPLOY_MODE == 'image'
+        run: |
+          if [ -z "${{ secrets.GHCR_READ_TOKEN }}" ]; then
+            echo "::warning::GHCR_READ_TOKEN is not configured for ${{ matrix.server.name }}. This is only OK if the GHCR package is public or the VM already has pull access."
+          fi
+
+      - name: Validate production VM contract
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets[matrix.server.host_secret] }}
+          username: ${{ secrets[matrix.server.user_secret] }}
+          key: ${{ secrets[matrix.server.key_secret] }}
+          port: ${{ secrets[matrix.server.port_secret] }}
+          command_timeout: 3m
+          script: |
+            set -euo pipefail
+
+            SITE="${{ inputs.site || 'portfolio' }}"
+            DOMAIN="${{ env.DOMAIN }}"
+            PORT="3000"
+            CONF="/etc/deploy/sites/${SITE}.conf"
+
+            fail() {
+              echo "ERROR: $*" >&2
+              exit 1
+            }
+
+            read_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$CONF"
+            }
+
+            read_env() {
+              local env_file="$1"
+              local key="$2"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$env_file"
+            }
+
+            [ "$SITE" = "portfolio" ] || fail "production site must be portfolio, got $SITE"
+            sudo test -f "$CONF" || fail "missing production site config: $CONF"
+
+            actual_domain="$(read_conf DOMAIN)"
+            actual_service="$(read_conf SERVICE_NAME)"
+            actual_port="$(read_conf NEXTJS_PORT)"
+            actual_container="$(read_conf DOCKER_CONTAINER_NAME)"
+            actual_branch="$(read_conf GIT_BRANCH)"
+            project_root="$(read_conf PROJECT_ROOT)"
+            env_file="/opt/${actual_service:-portfolio}/config/.env.local"
+            legacy_env_file="${project_root:-/home/ubuntu/portfolioWebsite/portfolio}/.env.local"
+
+            [ "$actual_domain" = "$DOMAIN" ] || fail "DOMAIN must be $DOMAIN, got ${actual_domain:-unset}"
+            [ "$actual_service" = "portfolio" ] || fail "SERVICE_NAME must be portfolio, got ${actual_service:-unset}"
+            [ "$actual_port" = "$PORT" ] || fail "NEXTJS_PORT must be $PORT, got ${actual_port:-unset}"
+            [ -z "$actual_container" ] || [ "$actual_container" = "portfolio" ] || fail "DOCKER_CONTAINER_NAME must be portfolio, got $actual_container"
+            [ "$actual_branch" = "deployed/production" ] || fail "GIT_BRANCH must be deployed/production, got ${actual_branch:-unset}"
+
+            runtime_env=""
+            if sudo test -f "$env_file"; then
+              runtime_env="$env_file"
+            elif sudo test -f "$legacy_env_file"; then
+              runtime_env="$legacy_env_file"
+              echo "Using legacy env for first-run migration check: $legacy_env_file"
+            else
+              fail "missing production env file: $env_file (or legacy $legacy_env_file)"
+            fi
+
+            next_public_site_url="$(read_env "$runtime_env" NEXT_PUBLIC_SITE_URL)"
+            site_url="$(read_env "$runtime_env" SITE_URL)"
+            if [ -n "$next_public_site_url" ]; then
+              [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got $next_public_site_url"
+            fi
+            if [ -n "$site_url" ]; then
+              [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got $site_url"
+            fi
+
+            command -v docker >/dev/null 2>&1 || fail "docker is not installed"
+            sudo docker info >/dev/null || fail "docker daemon is not reachable"
+            command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
+            sudo nginx -t
+
+            if ss -tln "sport = :${PORT}" 2>/dev/null | grep -q LISTEN; then
+              pids="$(sudo ss -tlnp "sport = :${PORT}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u || true)"
+              main_pid=""
+              if sudo systemctl is-active --quiet portfolio; then
+                main_pid="$(sudo systemctl show -p MainPID --value portfolio 2>/dev/null || true)"
+              fi
+              docker_pid="$(sudo docker inspect --format '{{.State.Pid}}' portfolio 2>/dev/null || true)"
+              docker_id="$(sudo docker inspect --format '{{.Id}}' portfolio 2>/dev/null || true)"
+              docker_id_short="${docker_id:0:12}"
+              for pid in $pids; do
+                if [ -n "$main_pid" ] && [ "$main_pid" != "0" ] && [ "$pid" = "$main_pid" ]; then
+                  continue
+                fi
+                if [ -n "$docker_pid" ] && [ "$docker_pid" != "0" ] && [ "$pid" = "$docker_pid" ]; then
+                  continue
+                fi
+                cgroup="$(sudo cat "/proc/${pid}/cgroup" 2>/dev/null || true)"
+                if echo "$cgroup" | grep -qE '/system.slice/portfolio\.service'; then
+                  continue
+                fi
+                if [ -n "$docker_id" ] && echo "$cgroup" | grep -qE "(${docker_id}|${docker_id_short})"; then
+                  continue
+                fi
+                fail "port ${PORT} is already in use by unknown PID ${pid}. Stop or migrate the unknown listener before deploying."
+              done
+              echo "Port ${PORT} ownership OK; deploy.sh may restart portfolio."
+            fi
+
+            echo "Production VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}"
+
   # ───────────────────────────────────────────────────────────────────────────
   # DEPLOY — serial matrix across all VMs, consumes the build artifact/image
   # ───────────────────────────────────────────────────────────────────────────

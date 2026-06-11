@@ -1,0 +1,114 @@
+name: Promote Staging to Production
+
+permissions:
+  actions: write
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: "Deployment mode for the production deploy workflow"
+        required: false
+        default: image
+        type: choice
+        options:
+          - image
+          - artifact
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+env:
+  SOURCE_BRANCH: deployed/staging
+  TARGET_BRANCH: deployed/production
+
+jobs:
+  approve-promotion:
+    name: Approve production branch promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+      url: https://whoisdhruv.com
+    steps:
+      - name: Promotion approved
+        run: echo "Production branch promotion approved."
+
+  promote:
+    name: Move deployed/production
+    needs: approve-promotion
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Fast-forward production branch
+        id: promote
+        env:
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" || true
+          git fetch origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" || true
+
+          if ! git rev-parse --verify --quiet "origin/${SOURCE_BRANCH}" >/dev/null; then
+            echo "::error::Source branch does not exist on origin: ${SOURCE_BRANCH}"
+            exit 1
+          fi
+
+          source_sha="$(git rev-parse "origin/${SOURCE_BRANCH}")"
+          if git rev-parse --verify --quiet "origin/${TARGET_BRANCH}" >/dev/null; then
+            target_sha="$(git rev-parse "origin/${TARGET_BRANCH}")"
+            if [ "$source_sha" = "$target_sha" ]; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+              echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+              echo "deployed/production already points at ${source_sha}."
+              exit 0
+            fi
+            if ! git merge-base --is-ancestor "$target_sha" "$source_sha"; then
+              echo "::error::Refusing non-fast-forward promotion. Production must be an ancestor of staging."
+              echo "Current ${TARGET_BRANCH}: ${target_sha}"
+              echo "Requested ${SOURCE_BRANCH}: ${source_sha}"
+              exit 1
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git push origin "${source_sha}:refs/heads/${TARGET_BRANCH}"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch production deploy workflow
+        if: steps.promote.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+          TARGET_BRANCH: ${{ steps.promote.outputs.target_branch }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy.yml --ref "$TARGET_BRANCH" -f "deploy_mode=${DEPLOY_MODE}" -f site=portfolio -f skip_nginx=false
+
+      - name: Promotion summary
+        run: |
+          echo "## Production promotion" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Source | \`${{ env.SOURCE_BRANCH }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Target | \`${{ env.TARGET_BRANCH }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SHA | \`${{ steps.promote.outputs.source_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Changed | \`${{ steps.promote.outputs.changed }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Deploy workflow | \`deploy.yml\` |" >> "$GITHUB_STEP_SUMMARY"

@@ -38,18 +38,21 @@ docker run --rm --env-file .env.local \
 	portfolio:local
 ```
 
-Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The runtime target is Linux VMs behind Cloudflare and Nginx, running the Next.js standalone server. Docker is the default staging deploy path and may move fully into production; artifact mode remains available as a fallback.
+Fresh Ubuntu VMs can be prepared for image deploys with [scripts/bootstrap-docker-vm.sh](scripts/bootstrap-docker-vm.sh). The runtime target is Linux VMs behind Cloudflare and Nginx, running the Next.js standalone server. Docker image mode is the default staging and production deploy path; artifact mode remains available as a fallback.
 
 ## Deployment Environments
 
 | Environment | Branch / workflow | Domain | Runtime |
 |---|---|---|---|
+| Development | `dev/lkg` | local | Primary branch for reviewed source changes |
 | Staging | `deployed/staging` | `staging.whoisdhruv.com` | Docker image deploy to `portfolio-staging` |
-| Production | `master` source; current deploy workflow promotes from `deployed/production` | `whoisdhruv.com` | Linux VMs, Next.js standalone, Docker/image support |
+| Production | `deployed/production` | `whoisdhruv.com` | Docker image deploy to `portfolio` |
 
 For staging, each VM must expose a separate `portfolio-staging` site contract: `/etc/deploy/sites/portfolio-staging.conf`, `DOMAIN="staging.whoisdhruv.com"`, `SERVICE_NAME="portfolio-staging"`, `DOCKER_CONTAINER_NAME="portfolio-staging"`, `NEXTJS_PORT=3010`, `GIT_BRANCH="deployed/staging"`, and `/opt/portfolio-staging/config/.env.local` with `NEXT_PUBLIC_SITE_URL` and `SITE_URL` set to `https://staging.whoisdhruv.com`. The staging workflow hard-codes this identity, validates it over SSH before deploy, verifies the deployed SHA on every VM, and treats a Cloudflare bot challenge to the GitHub runner as a warning after VM-local checks have passed. Real non-200 Cloudflare responses still fail the workflow. Add `GHCR_READ_TOKEN` if the GHCR package is private or the VMs are not already logged in.
 
 Staging image deploys publish both `linux/amd64` and `linux/arm64` images because the staging VM fleet is mixed architecture. Deploy builds use `next build --webpack` instead of Turbopack so both platform images emit the same HTML-referenced `/_next/static` graph, and the workflow verifies those assets through both local nginx and Cloudflare.
+
+Promotion is branch-based: run `Promote dev/lkg to Staging` to fast-forward `deployed/staging`, then run `Promote Staging to Production` to fast-forward `deployed/production`. The promotion workflows use `GITHUB_TOKEN` and explicitly dispatch the matching deploy workflow so they do not double-trigger deploys. Direct human pushes to either deployed branch still trigger the matching deploy workflow. Use `Rollback Portfolio Production` to restore the newest previous retained production release, or provide a retained release SHA.
 
 ## Structure
 

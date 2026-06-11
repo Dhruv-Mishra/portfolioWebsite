@@ -32,7 +32,7 @@ Some routes and behaviors stay out of the README so the site keeps its discovery
 - Groq-first chat runtime with OpenAI-compatible fallback support
 - GitHub-backed guestbook, feedback, and notes workflows
 - ESLint 9 and Vitest 4
-- Linux VMs behind Cloudflare and Nginx; Docker is active in staging and available for production migration
+- Linux VMs behind Cloudflare and Nginx; Docker image deploys for staging and production
 
 ## Run Locally
 
@@ -57,8 +57,10 @@ The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, 
 
 ## Deployment
 
-- Staging deploys from `deployed/staging` to [staging.whoisdhruv.com](https://staging.whoisdhruv.com) using Docker image deploys on Linux VMs.
-- Production lives at [whoisdhruv.com](https://whoisdhruv.com). The production source branch is `master`; the checked-in GitHub Actions deploy workflow currently promotes from `deployed/production` after the production environment gate.
+- `dev/lkg` is the primary development branch for reviewed changes.
+- `deployed/staging` is the staging deployment branch; direct pushes deploy to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
+- `deployed/production` is the production deployment branch; direct pushes deploy to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
+- Manual promotion workflows move `dev/lkg` to `deployed/staging`, then `deployed/staging` to `deployed/production`.
 - Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
 
 ## For Agents

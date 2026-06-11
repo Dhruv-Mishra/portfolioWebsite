@@ -624,12 +624,15 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         startTimer = null;
       };
 
-      const settle = (callback: () => void) => {
+      const settle = (callback: () => void, cancelQueuedSpeech = false) => {
         if (finished) return;
         finished = true;
         clearStartTimer();
         clearRestartTimer();
         detachCurrent();
+        if (cancelQueuedSpeech) {
+          try { synth.cancel(); } catch { /* no-op */ }
+        }
         browserSpeechCancelRef.current = null;
         browserSpeechRestartRef.current = null;
         if (playbackModeRef.current === 'browser') playbackModeRef.current = null;
@@ -662,7 +665,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         clearStartTimer();
         startTimer = setTimeout(() => {
           if (finished || playbackIdRef.current !== playbackId) return;
-          settle(() => reject(new Error('Browser speech did not start. Try generated voice instead.')));
+          settle(() => reject(new Error('Browser speech did not start. Try generated voice instead.')), true);
         }, BROWSER_TTS_START_TIMEOUT_MS);
 
         utterance.onstart = () => {
@@ -682,7 +685,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
             return;
           }
           clearStartTimer();
-          settle(() => reject(new Error(`Browser speech failed: ${event.error}`)));
+          settle(() => reject(new Error(`Browser speech failed: ${event.error}`)), true);
         };
         utterance.onpause = () => {
           if (playbackIdRef.current === playbackId) {
@@ -698,11 +701,11 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         try {
           synth.speak(utterance);
         } catch (error) {
-          settle(() => reject(error instanceof Error ? error : new Error('Browser speech failed.')));
+          settle(() => reject(error instanceof Error ? error : new Error('Browser speech failed.')), true);
         }
       };
 
-      browserSpeechCancelRef.current = () => settle(resolve);
+      browserSpeechCancelRef.current = () => settle(resolve, true);
       browserSpeechRestartRef.current = () => {
         if (finished || playbackIdRef.current !== playbackId) return;
         detachCurrent();

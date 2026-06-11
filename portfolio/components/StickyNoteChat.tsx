@@ -1279,7 +1279,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, sendCanned, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, sendHardcoded, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
@@ -1402,6 +1402,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     ];
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
+    if (lastAssistant.clientOnly) {
+      committedExtrasForIdRef.current = lastAssistant.id;
+      setExtraSuggestions([
+        ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !hardcoded.includes(s)), 1),
+        ...pickFollowupAction(followupActions, { discoActive, exclude: hardcoded }),
+      ]);
+      return;
+    }
     // Fire background LLM request for 2 contextual suggestions
     fetchSuggestions();
   }, [messages, isLoading, fetchSuggestions, followupActions, discoActive]);
@@ -1623,27 +1631,26 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
+    if (sendHardcoded(text, getSuggestionResponse(text))) {
+      return;
+    }
     sendMessage(text);
-  }, [sendMessage, stopTtsPlayback, submit]);
+  }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
     hasHadInteractionRef.current = true;
     stopTtsPlayback();
     selection();
     soundManager.play('chat-send');
-    // Pre-baked initial suggestions short-circuit the API. Only applies on
-    // the very first interaction (no prior user messages) so subsequent
-    // free-form turns always go through the live model.
-    const hasPriorUser = messages.some(m => m.role === 'user');
-    if (!hasPriorUser) {
-      const canned = getSuggestionResponse(text);
-      if (canned) {
-        sendCanned(text, canned);
-        return;
-      }
+    // Hardcoded suggestions and exact action labels short-circuit all chat
+    // APIs so deterministic chips keep working even when staging backends are
+    // unavailable or origin/rate-limit checks reject live requests.
+    const canned = getSuggestionResponse(text);
+    if (sendHardcoded(text, canned)) {
+      return;
     }
     sendMessage(text);
-  }, [selection, sendMessage, sendCanned, messages, stopTtsPlayback]);
+  }, [selection, sendMessage, sendHardcoded, stopTtsPlayback]);
 
   const speakWithClientTts = useCallback((message: ChatMessage) => {
     writeClientTtsConsent();

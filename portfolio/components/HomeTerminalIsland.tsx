@@ -5,7 +5,7 @@ import { TerminalProvider } from "@/context/TerminalContext";
 
 const Terminal = dynamic(() => import("@/components/Terminal"), {
   loading: () => (
-    <div className="h-[var(--c-terminal-h-md)] animate-pulse rounded-lg border-2 border-dashed border-gray-300 bg-gray-800/10" />
+    <div className="h-[clamp(var(--c-terminal-min-h),45dvh,var(--c-terminal-h-md))] animate-pulse rounded-lg border-2 border-dashed border-gray-300 bg-gray-800/10" />
   ),
   ssr: false,
 });

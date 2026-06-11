@@ -34,6 +34,7 @@ const firaCode = localFont({
   weight: "400",
   style: "normal",
   variable: "--font-code",
+  preload: false,
   display: "optional", // Fira Code is secondary (monospace only) — don't block render
 });
 

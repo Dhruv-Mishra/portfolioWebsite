@@ -104,8 +104,8 @@ export interface UseVoiceInputResult {
   /** Which backend is actually in use (resolved after first start). */
   backend: ResolvedBackend;
   /**
-   * Live `AnalyserNode` while the whisper backend is recording. `null` for
-   * the native backend (no MediaStream available) and when not listening.
+    * Live `AnalyserNode` while the whisper backend is recording. `null` for
+    * the native backend (Web Speech does not expose its stream) and when not listening.
    * Consumers can read frequency/time-domain data for waveform rendering.
    */
   analyser: AnalyserNode | null;
@@ -182,30 +182,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
-  // Parallel analyser stream for the NATIVE backend. Web Speech doesn't
-  // expose its captured MediaStream, so we open a second silent capture
-  // purely for waveform visualisation. Browsers reuse the existing mic
-  // permission, so this does not trigger a second prompt.
-  const nativeStreamRef = useRef<MediaStream | null>(null);
-  const nativeAudioCtxRef = useRef<AudioContext | null>(null);
-  const nativeSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const nativeStartTokenRef = useRef(0);
-
   const teardownAnalyser = useCallback(() => {
     try { sourceNodeRef.current?.disconnect(); } catch { /* no-op */ }
     sourceNodeRef.current = null;
     const ctx = audioCtxRef.current;
     audioCtxRef.current = null;
-    try { nativeSourceRef.current?.disconnect(); } catch { /* no-op */ }
-    nativeSourceRef.current = null;
-    const nctx = nativeAudioCtxRef.current;
-    nativeAudioCtxRef.current = null;
     setAnalyser(null);
     if (ctx && ctx.state !== 'closed') {
       void ctx.close().catch(() => {});
-    }
-    if (nctx && nctx.state !== 'closed') {
-      void nctx.close().catch(() => {});
     }
   }, []);
 
@@ -215,47 +199,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       try { t.stop(); } catch { /* no-op */ }
     });
     streamRef.current = null;
-    nativeStreamRef.current?.getTracks().forEach((t) => {
-      try { t.stop(); } catch { /* no-op */ }
-    });
-    nativeStreamRef.current = null;
   }, [teardownAnalyser]);
-
-  // Spin up a parallel analyser for the native backend.
-  const startNativeAnalyser = useCallback(async () => {
-    if (typeof window === 'undefined') return;
-    if (!navigator?.mediaDevices?.getUserMedia) return;
-    const AudioCtx =
-      (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const token = ++nativeStartTokenRef.current;
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      return; // mic blocked / not available — fallback bars will render
-    }
-    if (token !== nativeStartTokenRef.current) {
-      // Superseded by another start/stop while awaiting.
-      stream.getTracks().forEach((t) => { try { t.stop(); } catch { /* no-op */ } });
-      return;
-    }
-    nativeStreamRef.current = stream;
-    try {
-      const actx = new AudioCtx();
-      const src = actx.createMediaStreamSource(stream);
-      const an = actx.createAnalyser();
-      an.fftSize = 256;
-      an.smoothingTimeConstant = 0.7;
-      src.connect(an);
-      nativeAudioCtxRef.current = actx;
-      nativeSourceRef.current = src;
-      setAnalyser(an);
-    } catch {
-      /* no-op — waveform is non-essential */
-    }
-  }, []);
 
   const startWhisper = useCallback(async () => {
     setWhisperError(null);
@@ -405,17 +349,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     stopMediaTracks();
   }, [stopMediaTracks]);
 
-  // Tear down the parallel native analyser stream as soon as the native
-  // recogniser ends (whether by user stop or browser auto-end). The
-  // whisper backend manages its own teardown via `recorder.onstop`.
-  useEffect(() => {
-    if (resolvedBackend !== 'native') return;
-    if (native.isListening) return;
-    if (!nativeStreamRef.current && !nativeAudioCtxRef.current) return;
-    nativeStartTokenRef.current++;
-    stopMediaTracks();
-  }, [resolvedBackend, native.isListening, stopMediaTracks]);
-
   // Public API — route to the active backend.
   // `auto` defaults to native for instant first-tap UX; only upgrades to
   // Whisper once the model has finished its background preload.
@@ -428,16 +361,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     if (useNative) {
       setResolvedBackend('native');
       native.start();
-      void startNativeAnalyser();
     } else {
       void startWhisper();
     }
-  }, [useNative, native, startWhisper, startNativeAnalyser]);
+  }, [useNative, native, startWhisper]);
 
   const stop = useCallback(() => {
     if (resolvedBackend === 'whisper') stopWhisper();
     else {
-      nativeStartTokenRef.current++;
       native.stop();
       stopMediaTracks();
     }
@@ -446,7 +377,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const reset = useCallback(() => {
     if (resolvedBackend === 'whisper') resetWhisper();
     else {
-      nativeStartTokenRef.current++;
       stopMediaTracks();
     }
     native.reset();
@@ -480,9 +410,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     loadProgress: 0,
     error: native.error || whisperError,
     backend: resolvedBackend,
-    // Same `analyser` state is shared by both backends — populated by
-    // either the whisper recorder pipeline or the native parallel stream.
-    analyser,
+    analyser: null,
     start, stop, reset,
   };
 }

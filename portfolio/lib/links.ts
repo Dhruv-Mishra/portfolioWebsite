@@ -31,25 +31,3 @@ export const SITE = {
   name: 'Dhruv Mishra',
   title: "Dhruv's Sketchbook",
 } as const;
-
-/**
- * Flat link map used by the chat OPEN tag parser and terminal commands.
- * Keys are short identifiers used in [[OPEN:key]] tags.
- */
-export const OPEN_LINK_KEYS: Record<string, string> = {
-  github: PERSONAL_LINKS.github,
-  linkedin: PERSONAL_LINKS.linkedin,
-  codeforces: PERSONAL_LINKS.codeforces,
-  cphistory: PERSONAL_LINKS.cpHistory,
-  email: PERSONAL_LINKS.email,
-  phone: PERSONAL_LINKS.phone,
-  resume: PERSONAL_LINKS.resume,
-  'project-fluentui': PROJECT_LINKS.fluentui,
-  'project-cropio': PROJECT_LINKS.cropio,
-  'project-courseevaluator': PROJECT_LINKS.courseEvaluator,
-  'project-ivc': PROJECT_LINKS.ivc,
-  'project-portfolio': PROJECT_LINKS.portfolio,
-  'project-recommender': PROJECT_LINKS.recommender,
-  'project-atomvault': PROJECT_LINKS.atomvault,
-  'project-bloomfilter': PROJECT_LINKS.bloomfilter,
-} as const;

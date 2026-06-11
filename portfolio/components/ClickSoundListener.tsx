@@ -63,6 +63,9 @@ export default function ClickSoundListener(): null {
       if (warmed) return;
       warmed = true;
       soundManager.primeOnGesture();
+      document.removeEventListener('pointerdown', prime, { capture: true });
+      document.removeEventListener('touchstart', prime, { capture: true });
+      document.removeEventListener('keydown', prime, { capture: true });
     };
     const primeOpts: AddEventListenerOptions = { capture: true, passive: true };
     document.addEventListener('pointerdown', prime, primeOpts);

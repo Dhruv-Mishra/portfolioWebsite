@@ -16,7 +16,7 @@ const AssetPrefetchController = dynamic(() => import("@/components/AssetPrefetch
 
 export default function DeferredEnhancements() {
     const pathname = usePathname();
-    const [isReady, setIsReady] = useState(false);
+    const [mountStage, setMountStage] = useState(0);
     const [isDesktop, setIsDesktop] = useState(false);
 
     useEffect(() => {
@@ -24,15 +24,27 @@ export default function DeferredEnhancements() {
             requestIdleCallback?: typeof window.requestIdleCallback;
             cancelIdleCallback?: typeof window.cancelIdleCallback;
         };
-        const start = () => setIsReady(true);
+        const timers = new Set<number>();
+        const idleIds = new Set<number>();
+        const schedule = (stage: number, delay: number, timeout: number) => {
+            const run = () => setMountStage((current) => Math.max(current, stage));
+            if (runtimeWindow.requestIdleCallback) {
+                const idleId = runtimeWindow.requestIdleCallback(run, { timeout });
+                idleIds.add(idleId);
+                return;
+            }
+            const timerId = runtimeWindow.setTimeout(run, delay);
+            timers.add(timerId);
+        };
 
-        if (runtimeWindow.requestIdleCallback) {
-            const idleId = runtimeWindow.requestIdleCallback(start, { timeout: 1500 });
-            return () => runtimeWindow.cancelIdleCallback?.(idleId);
-        }
+        schedule(1, 450, 900);
+        schedule(2, 900, 1600);
+        schedule(3, 1400, 2400);
 
-        const timeoutId = runtimeWindow.setTimeout(start, 900);
-        return () => runtimeWindow.clearTimeout(timeoutId);
+        return () => {
+            idleIds.forEach((idleId) => runtimeWindow.cancelIdleCallback?.(idleId));
+            timers.forEach((timerId) => runtimeWindow.clearTimeout(timerId));
+        };
     }, []);
 
     useEffect(() => {
@@ -45,20 +57,24 @@ export default function DeferredEnhancements() {
         return () => mediaQuery.removeEventListener("change", syncDesktopState);
     }, []);
 
-    if (!isReady) {
+    if (mountStage === 0) {
         return null;
     }
 
     return (
         <>
-            <StickerToastListener />
-            <StickerGlanceBadge />
-            <SuperuserToastController />
-            <MatrixNotesEntryButton />
-            <EscapeToastListener />
-            <AssetPrefetchController />
             {isDesktop ? <SketchbookCursorLoader /> : null}
-            {pathname !== "/chat" ? <MiniChat /> : null}
+            <StickerToastListener />
+            <EscapeToastListener />
+            {mountStage >= 2 ? (
+                <>
+                    <StickerGlanceBadge />
+                    <SuperuserToastController />
+                    <MatrixNotesEntryButton />
+                </>
+            ) : null}
+            {mountStage >= 3 ? <AssetPrefetchController /> : null}
+            {mountStage >= 2 && pathname !== "/chat" ? <MiniChat /> : null}
         </>
     );
 }

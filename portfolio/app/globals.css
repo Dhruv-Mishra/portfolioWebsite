@@ -491,11 +491,11 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 }
 
-/* Cursor handling: hide native cursor on desktop so the custom pencil/chalk shows.
+/* Cursor handling: hide native cursor only after the custom cursor is mounted.
    Must use * selector because Tailwind v4 preflight sets cursor: default on *,
    which overrides inherited cursor: none from body. */
-@media (min-width: 768px) {
-  * {
+@media (hover: hover) and (pointer: fine) {
+  html[data-custom-cursor="ready"] * {
     cursor: none !important;
   }
 }

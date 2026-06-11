@@ -315,11 +315,6 @@ export const PROJECT_TOKENS = {
   viewportMargin: '-50px',
 } as const;
 
-/** Social sidebar interaction tokens */
-export const SOCIAL_INTERACTION = {
-  hoverRotations: [3, -4, 2, -3, 4, -2],
-} as const;
-
 /** Note rotation config */
 export const NOTE_ROTATION = {
   minDeg: 0.5,
@@ -334,19 +329,6 @@ export const NOTE_ENTRANCE = {
   aiX: 50,
   aiRotateOffset: -5,
   oldNoteOpacity: 0.7,
-} as const;
-
-/** Ellipsis typing indicator config */
-export const ELLIPSIS_CONFIG = {
-  animate: {
-    y: [0, -7, 0, 0],
-    scale: [1, 1.35, 1, 1],
-    opacity: [0.35, 1, 0.35, 0.35],
-  },
-  duration: 1.2,
-  delays: [0, 0.16, 0.32],
-  dotSize: '5px',
-  gap: '3px',
 } as const;
 
 /** Chat nav tab spring positions */
@@ -411,24 +393,3 @@ export const STICKER_TIMING = {
   resumeReadThresholdMs: 10000,
 } as const;
 
-/**
- * Applies the size scale by setting the data-size attribute on <html>.
- * CSS custom properties are defined in globals.css and switched via
- * [data-size="small"] / [data-size="large"] selectors.
- * Medium is the default (:root), so removing the attribute restores it.
- */
-export function applySizeTokens(size: SizeScale): void {
-  const root = document.documentElement;
-  if (size === 'medium') {
-    delete root.dataset.size;
-  } else {
-    root.dataset.size = size;
-  }
-}
-
-/**
- * Removes the size scale attribute, reverting to medium defaults.
- */
-export function removeSizeTokens(): void {
-  delete document.documentElement.dataset.size;
-}

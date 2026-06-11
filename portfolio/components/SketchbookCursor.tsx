@@ -13,6 +13,11 @@ const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
 // Hoisted cursor inner-div transform styles — avoids object allocation per render
 const CURSOR_TRANSFORM_DARK = { transform: 'translate(0, 0)' } as const;
 const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
+const MAX_TRAIL_DPR = 1.5;
+
+function getTrailDpr(): number {
+    return Math.min(window.devicePixelRatio || 1, MAX_TRAIL_DPR);
+}
 
 export default function SketchbookCursor() {
     const cursorRef = useRef<HTMLDivElement>(null);
@@ -55,11 +60,12 @@ export default function SketchbookCursor() {
         lastMoveTime.current = Date.now(); // Initialize on mount
         if (!mounted) return;
 
-        // Don't run on mobile
-        if (window.matchMedia(`(max-width: ${LAYOUT_TOKENS.mobileBreakpoint - 1}px)`).matches) return;
+        const canUseCustomCursor = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        if (!canUseCustomCursor) return;
 
         const ring = ringRef.current;
-        dprRef.current = window.devicePixelRatio || 1;
+        dprRef.current = getTrailDpr();
+        document.documentElement.dataset.customCursor = 'ready';
 
         // ─── Wake the rAF loop if it's sleeping ───
         const wakeLoop = () => {
@@ -147,23 +153,24 @@ export default function SketchbookCursor() {
         const handleHideCursor = () => setCursorVisible(false);
         const handleShowCursor = () => setCursorVisible(true);
 
+        const resizeCanvas = () => {
+            if (!canvasRef.current) return;
+            const dpr = getTrailDpr();
+            dprRef.current = dpr;
+            canvasRef.current.width = window.innerWidth * dpr;
+            canvasRef.current.height = window.innerHeight * dpr;
+            canvasRef.current.style.width = window.innerWidth + 'px';
+            canvasRef.current.style.height = window.innerHeight + 'px';
+            const ctx = canvasRef.current.getContext('2d');
+            // setTransform resets the matrix before applying scale — prevents
+            // compounding on repeated resize calls (ctx.scale would compound).
+            ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+        };
+
         let resizeTimer: ReturnType<typeof setTimeout>;
         const handleResize = () => {
             clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(() => {
-                if (canvasRef.current) {
-                    const dpr = window.devicePixelRatio || 1;
-                    dprRef.current = dpr;
-                    canvasRef.current.width = window.innerWidth * dpr;
-                    canvasRef.current.height = window.innerHeight * dpr;
-                    canvasRef.current.style.width = window.innerWidth + 'px';
-                    canvasRef.current.style.height = window.innerHeight + 'px';
-                    const ctx = canvasRef.current.getContext('2d');
-                    // setTransform resets the matrix before applying scale — prevents
-                    // compounding on repeated resize calls (ctx.scale would compound).
-                    ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
-                }
-            }, TIMING_TOKENS.resizeDebounce);
+            resizeTimer = setTimeout(resizeCanvas, TIMING_TOKENS.resizeDebounce);
         };
 
         window.addEventListener('mousemove', moveCursor, { passive: true });
@@ -174,8 +181,7 @@ export default function SketchbookCursor() {
         window.addEventListener('sketchbook:showCursor', handleShowCursor);
         window.addEventListener('resize', handleResize, { passive: true });
 
-        // Initial resize
-        handleResize();
+        resizeCanvas();
 
         // Canvas Drawing Loop — self-stopping: sleeps when idle, woken by mousemove
         const canvas = canvasRef.current;
@@ -270,6 +276,9 @@ export default function SketchbookCursor() {
             window.removeEventListener('resize', handleResize);
             clearTimeout(resizeTimer);
             if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+            if (document.documentElement.dataset.customCursor === 'ready') {
+                delete document.documentElement.dataset.customCursor;
+            }
         };
     }, [cursorHoverRaw, cursorOpacity, mouseX, mouseY, mounted]); // isVisible tracked via ref to avoid effect restart
 

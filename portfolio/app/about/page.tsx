@@ -142,7 +142,7 @@ export default function About() {
 
                         {/* Typewriter CTA to chat */}
                         <div className="mt-8 pt-4 border-t-2 border-gray-400/20">
-                            <Link href="/chat" className="group block">
+                            <Link href="/chat" prefetch={false} className="group block">
                                 <div className="flex items-start gap-3">
                                     {/* Doodle chat icon */}
                                     <div className="shrink-0 mt-1 text-gray-400 group-hover:text-indigo-600 transition-colors">

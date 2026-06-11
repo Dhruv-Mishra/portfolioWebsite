@@ -43,6 +43,7 @@ export default function Home() {
 
         <Link
           href="/guestbook"
+          prefetch={false}
           className="animate-hero-badge animate-hero-badge-mirror absolute -bottom-4 left-2 md:-left-16 inline-flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
           aria-label="Sign Dhruv's sketchbook guestbook"
         >
@@ -105,6 +106,7 @@ export default function Home() {
       {/* Passed Note — Chat CTA */}
       <Link
         href="/chat"
+        prefetch={false}
         data-disco-motion="wiggle"
         style={{ '--disco-motion-delay': '420ms' } as CSSProperties}
         className="group mt-6 relative inline-block animate-hero-subtitle"
@@ -141,6 +143,7 @@ export default function Home() {
       {/* Guestbook CTA — coral sibling of the chat CTA */}
       <Link
         href="/guestbook"
+        prefetch={false}
         data-disco-motion="wiggle"
         style={{ '--disco-motion-delay': '560ms' } as CSSProperties}
         className="group mt-4 relative inline-block animate-hero-subtitle"

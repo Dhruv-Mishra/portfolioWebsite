@@ -6,11 +6,17 @@ import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
-const LINKS = [
+interface NavItem {
+    name: string;
+    href: string;
+    prefetch?: false;
+}
+
+const LINKS: NavItem[] = [
     { name: 'Home', href: '/' },
-    { name: 'Projects', href: '/projects' },
+    { name: 'Projects', href: '/projects', prefetch: false },
     { name: 'About', href: '/about' },
-    { name: 'Resume', href: '/resume' },
+    { name: 'Resume', href: '/resume', prefetch: false },
     { name: 'Chat', href: '/chat' },
 ];
 
@@ -59,7 +65,7 @@ const NavTab = React.memo(function NavTab({
     onHoverEnd,
     onPress,
 }: {
-    item: { name: string; href: string };
+    item: NavItem;
     index: number;
     active: boolean;
     hovered: boolean;
@@ -74,6 +80,7 @@ const NavTab = React.memo(function NavTab({
     return (
         <Link
             href={item.href}
+            prefetch={item.prefetch}
             legacyBehavior={false}
             passHref
             onClick={onPress}

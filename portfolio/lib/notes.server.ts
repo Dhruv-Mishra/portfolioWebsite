@@ -214,8 +214,7 @@ export async function getApprovedNotes(kind: NoteKind): Promise<GuestbookEntry[]
           'X-GitHub-Api-Version': GITHUB_API_VERSION,
         },
         signal: controller.signal,
-        // Opt out of fetch cache — `revalidate` on the wall page is the cache boundary.
-        cache: 'no-store',
+        next: { revalidate: 60 },
       },
     );
 

@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatContext';
 import { clearTtsAudioCache, pruneTtsAudioCache } from '@/lib/ttsAudioCache';
-import { hasActionExecution, type ActionExecution } from '@/lib/actions';
+import { getActionFallbackReply, hasActionExecution, resolveExactActionLabel, type ActionExecution } from '@/lib/actions';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import type { ProjectSlug } from '@/lib/projectCatalog';
@@ -32,6 +32,7 @@ export interface ChatMessage {
   timestamp: number;
   isOld?: boolean; // Messages loaded from localStorage
   isFiller?: boolean; // True when showing thinking/filler text (not final response)
+  clientOnly?: boolean; // True when emitted by a deterministic frontend-only path
   navigateTo?: string; // Page path to navigate to
   themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off'; // Theme switch action
   openUrls?: string[]; // External URLs to open in new tabs
@@ -60,7 +61,8 @@ interface UseStickyChat {
   isLoading: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
-  sendCanned: (userText: string, response: string) => void;
+  sendCanned: (userText: string, response: string, action?: ActionExecution | null) => void;
+  sendHardcoded: (userText: string, response: string | null) => boolean;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
@@ -284,7 +286,7 @@ function saveMessages(messages: ChatMessage[]) {
     const toSave = messages
       .filter(m => m.id !== 'welcome')
       // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to omit from saved data
-      .map(({ isOld: _isOld, isFiller: _isFiller, oracleEmitted: _oracleEmitted, ...m }) => m)
+      .map(({ isOld: _isOld, isFiller: _isFiller, clientOnly: _clientOnly, oracleEmitted: _oracleEmitted, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
     void pruneTtsAudioCache(toSave.map(message => message.id));
@@ -947,15 +949,15 @@ export function useStickyChat(): UseStickyChat {
   }, []);
 
   /**
-   * Inject a user message + canned assistant reply locally — bypasses
-   * `/api/chat` entirely. Used by the chat UI to short-circuit hardcoded
-   * initial-suggestion clicks (see `lib/suggestionResponses.ts`).
+  * Inject a user message + canned assistant reply locally — bypasses
+  * `/api/chat` entirely. Used by the chat UI to short-circuit hardcoded
+  * initial-suggestion clicks and exact action labels.
    *
    * No rate limiting, no filler timers, no oracle handoff: this is
    * intentionally a deterministic synchronous path, since the response is
    * baked at build time.
    */
-  const sendCanned = useCallback((userText: string, response: string) => {
+  const sendCanned = useCallback((userText: string, response: string, action?: ActionExecution | null) => {
     if (isLoadingRef.current) return;
     const trimmed = userText.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed) return;
@@ -971,6 +973,12 @@ export function useStickyChat(): UseStickyChat {
       role: 'assistant',
       content: response,
       timestamp: now + 1,
+      clientOnly: true,
+      navigateTo: action?.navigateTo,
+      themeAction: action?.themeAction,
+      openUrls: action?.openUrls,
+      feedbackAction: action?.feedbackAction,
+      projectSlug: action?.projectSlug,
     };
     const next = [...messagesRef.current, userMsg, assistantMsg];
     setMessages(next);
@@ -978,12 +986,23 @@ export function useStickyChat(): UseStickyChat {
     setError(null);
   }, []);
 
+  const sendHardcoded = useCallback((userText: string, response: string | null) => {
+    const action = resolveExactActionLabel(userText);
+    const fallback = action ? getActionFallbackReply(action) : null;
+    const reply = response ?? fallback;
+
+    if (!reply) return false;
+    sendCanned(userText, reply, action);
+    return true;
+  }, [sendCanned]);
+
   return {
     messages,
     isLoading,
     error,
     sendMessage,
     sendCanned,
+    sendHardcoded,
     clearMessages,
     markOpenUrlsFailed,
     rateLimitRemaining,

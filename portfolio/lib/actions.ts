@@ -165,6 +165,29 @@ export function hasActionExecution(action: ActionExecution | null | undefined): 
   );
 }
 
+function normalizeActionLabel(label: string): string {
+  return label.trim().toLowerCase();
+}
+
+export function toActionExecution(action: ActionDef): ActionExecution {
+  return {
+    navigateTo: action.navigateTo,
+    themeAction: action.themeAction,
+    openUrls: action.openUrls ? [...action.openUrls] : undefined,
+    feedbackAction: action.feedbackAction,
+    projectSlug: action.projectSlug,
+  };
+}
+
+export function resolveExactActionLabel(label: string): ActionExecution | null {
+  const normalized = normalizeActionLabel(label);
+  const action = ACTION_REGISTRY.find(entry => normalizeActionLabel(entry.label) === normalized);
+  if (!action) return null;
+
+  const execution = toActionExecution(action);
+  return hasActionExecution(execution) ? execution : null;
+}
+
 export function getActionFallbackReply(action: ActionExecution | null | undefined): string | null {
   if (!action) {
     return null;

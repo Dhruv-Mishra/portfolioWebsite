@@ -16,7 +16,9 @@ import {
   getFollowupActions,
   getInitialChatSuggestions,
   getPromotedFollowupActions,
+  resolveExactActionLabel,
 } from '@/lib/actions';
+import { getCannedSuggestionTexts, getSuggestionResponse } from '@/lib/suggestionResponses';
 
 describe('public `disco` command', () => {
   it('bare `disco` shows a warning but does NOT arm an action', () => {
@@ -75,5 +77,37 @@ describe('chat themeAction: disco / disco-off', () => {
   it('orders disco first for follow-up action promotion when available', () => {
     const actions = getPromotedFollowupActions(getFollowupActions(), { discoActive: false });
     expect(actions[0]).toBe(DISCO_ACTION_LABEL);
+  });
+
+  it('resolves exact action chips on the client without chat API routing', () => {
+    expect(resolveExactActionLabel(DISCO_ACTION_LABEL)?.themeAction).toBe('disco');
+    expect(resolveExactActionLabel('Exit disco mode')?.themeAction).toBe('disco-off');
+    expect(resolveExactActionLabel('Report a bug')?.feedbackAction).toBe(true);
+    expect(resolveExactActionLabel('Show me Jarvis Voice Agent')?.projectSlug).toBe('jarvis-voice-agent');
+    expect(resolveExactActionLabel('Open your GitHub profile')?.openUrls?.[0]).toContain('github.com/Dhruv-Mishra');
+    expect(resolveExactActionLabel('What do you work on at Microsoft?')).toBeNull();
+  });
+
+  it('keeps every non-action hardcoded suggestion answerable on the client', () => {
+    const exactActions = new Set(ACTION_REGISTRY.map(action => action.label));
+    const canned = new Set(getCannedSuggestionTexts());
+    const hardcodedSuggestions = new Set([
+      ...getInitialChatSuggestions(false).base,
+      ...getInitialChatSuggestions(false).extra,
+      ...getInitialChatSuggestions(true).base,
+      ...getInitialChatSuggestions(true).extra,
+      ...getFollowupActions(),
+    ]);
+
+    for (const suggestion of hardcodedSuggestions) {
+      expect(
+        exactActions.has(suggestion) || canned.has(suggestion),
+        `"${suggestion}" should resolve as either a local action or canned local reply`,
+      ).toBe(true);
+    }
+
+    for (const text of canned) {
+      expect(getSuggestionResponse(text), `"${text}" should have a non-empty canned response`).toEqual(expect.any(String));
+    }
   });
 });

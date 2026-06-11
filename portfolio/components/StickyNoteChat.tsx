@@ -695,6 +695,7 @@ const StickyNote = memo(function StickyNote({
   onTypewriterDone,
   showTtsControls = false,
   ttsPlaybackSpeed = 1,
+  ttsPlaybackError = null,
   ttsStatus = 'idle',
 }: {
   message: ChatMessage;
@@ -706,6 +707,7 @@ const StickyNote = memo(function StickyNote({
   onTypewriterDone?: () => void;
   showTtsControls?: boolean;
   ttsPlaybackSpeed?: TtsPlaybackSpeed;
+  ttsPlaybackError?: string | null;
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
@@ -802,6 +804,11 @@ const StickyNote = memo(function StickyNote({
             <MatrixAwareAssistantText message={message} displayedText={displayedText} />
           )}
         </div>
+        {!isUser && isTtsActive && ttsStatus === 'error' && ttsPlaybackError ? (
+          <p className="mt-2 font-sans text-xs leading-snug text-rose-700 dark:text-rose-300" role="status">
+            {ttsPlaybackError}
+          </p>
+        ) : null}
       </div>
 
       {/* Typing ellipsis — shows from note spawn until generation/typewriting finishes */}
@@ -957,7 +964,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
-  const { pref: voicePref, togglePref: toggleVoicePref } = useVoiceBackendPref();
+  const { pref: voicePref, setPref: setVoicePref, togglePref: toggleVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
   const baseInputRef = useRef('');
   // Confirmation modal state — lifted into the input area so both the
@@ -1011,6 +1018,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const handleMicToggle = useCallback(() => {
     if (speech.isListening) {
       speech.stop();
+      return;
+    }
+    if (speech.requiresLocalTranscription) {
+      setConfirmKind('enableLocal');
       return;
     }
     baseInputRef.current = input;
@@ -1112,12 +1123,20 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   onClick={handleMicToggle}
                   disabled={isLoading}
                   size={compact ? 12 : 14}
+                  title={speech.requiresLocalTranscription ? 'Enable Local Transcription to dictate on this browser' : undefined}
                 />
               </>
             )}
             </div>
           </div>
         )}
+        {speech.requiresLocalTranscription || speech.error ? (
+          <div className="mb-1 px-2 text-right font-hand text-[11px] leading-tight text-[var(--c-ink)]/65" aria-live="polite">
+            {speech.requiresLocalTranscription
+              ? 'This browser needs Local Transcription for the mic.'
+              : speech.error}
+          </div>
+        ) : null}
 
         {/* The input "sticky note" — symmetric vertical padding (top = bottom). */}
         <m.div
@@ -1247,7 +1266,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             onCancel={() => setConfirmKind(null)}
             onConfirm={() => {
               setConfirmKind(null);
-              toggleVoicePref();
+              setVoicePref('whisper');
             }}
           />
         )}
@@ -1793,6 +1812,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 onTypewriterDone={msg.role === 'assistant' && !msg.isOld ? () => handleTypewriterDone(msg.id) : undefined}
                 showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
                 ttsPlaybackSpeed={ttsPlaybackSpeed}
+                ttsPlaybackError={ttsPlaybackError}
                 ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
               />
             </div>

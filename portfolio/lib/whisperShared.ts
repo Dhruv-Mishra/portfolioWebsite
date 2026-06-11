@@ -10,6 +10,11 @@ export type WhisperProgress = {
   total?: number;
 };
 
+type WebAudioWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+  webkitOfflineAudioContext?: typeof OfflineAudioContext;
+};
+
 const LOG_RAW =
   typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_LOG_RAW === 'true';
 
@@ -41,9 +46,7 @@ export function beacon(event: string, detail?: Record<string, unknown>): void {
  */
 export async function blobToWhisperAudio(blob: Blob): Promise<Float32Array> {
   const arrayBuffer = await blob.arrayBuffer();
-  const AudioCtx =
-    (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ||
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const AudioCtx = getAudioContextConstructor();
   if (!AudioCtx) throw new Error('Web Audio API not supported');
 
   const ctx = new AudioCtx();
@@ -56,7 +59,9 @@ export async function blobToWhisperAudio(blob: Blob): Promise<Float32Array> {
 
   const targetRate = 16000;
   const length = Math.max(1, Math.ceil(decoded.duration * targetRate));
-  const offline = new OfflineAudioContext(1, length, targetRate);
+  const OfflineAudioCtx = getOfflineAudioContextConstructor();
+  if (!OfflineAudioCtx) throw new Error('Offline audio rendering is not supported');
+  const offline = new OfflineAudioCtx(1, length, targetRate);
   const src = offline.createBufferSource();
   src.buffer = decoded;
   src.connect(offline.destination);
@@ -74,6 +79,26 @@ export async function blobToWhisperAudio(blob: Blob): Promise<Float32Array> {
     for (let i = 0; i < samples.length; i++) samples[i] *= gain;
   }
   return samples;
+}
+
+export function getAudioContextConstructor(): typeof AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  const audioWindow = window as WebAudioWindow;
+  return audioWindow.AudioContext ?? audioWindow.webkitAudioContext ?? null;
+}
+
+export function getOfflineAudioContextConstructor(): typeof OfflineAudioContext | null {
+  if (typeof window === 'undefined') return null;
+  const audioWindow = window as WebAudioWindow;
+  return audioWindow.OfflineAudioContext ?? audioWindow.webkitOfflineAudioContext ?? null;
+}
+
+export function hasWhisperAudioSupport(): boolean {
+  if (typeof window === 'undefined') return false;
+  return typeof window.MediaRecorder !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    !!getAudioContextConstructor() &&
+    !!getOfflineAudioContextConstructor();
 }
 
 /**

@@ -58,7 +58,7 @@ export default function GuestbookForm() {
   const [formKey, setFormKey] = useState(0); // bump → remount form after success animation
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { pref: voicePref } = useVoiceBackendPref();
+  const { pref: voicePref, setPref: setVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
   const baseMessageRef = useRef('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,10 +110,13 @@ export default function GuestbookForm() {
       speech.stop();
       return;
     }
+    if (speech.requiresLocalTranscription) {
+      setVoicePref('whisper');
+    }
     baseMessageRef.current = message;
     speech.reset();
     speech.start();
-  }, [message, speech]);
+  }, [message, setVoicePref, speech]);
 
   const handleSubmit = useCallback(async (e?: FormEvent<HTMLFormElement>) => {
     if (e) e.preventDefault();
@@ -357,6 +360,7 @@ export default function GuestbookForm() {
                   onClick={handleMicToggle}
                   disabled={isDisabled}
                   size={16}
+                  title={speech.requiresLocalTranscription ? 'Tap to enable Local Transcription for this browser' : undefined}
                 />
               </>
             )}
@@ -379,6 +383,14 @@ export default function GuestbookForm() {
               {state === 'submitting' ? 'Pinning...' : 'Pin to wall'}
             </m.button>
           </div>
+
+          {speech.requiresLocalTranscription || speech.error ? (
+            <p className="mt-2 text-right font-hand text-xs text-[var(--c-ink)]/65" aria-live="polite">
+              {speech.requiresLocalTranscription
+                ? 'This browser needs Local Transcription for the mic.'
+                : speech.error}
+            </p>
+          ) : null}
 
           {/* Error note — coral sticky */}
           {state === 'error' && errorMsg && (

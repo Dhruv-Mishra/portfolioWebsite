@@ -7,6 +7,7 @@ import {
 } from '@/hooks/useSpeechRecognition';
 import {
   blobToWhisperAudio,
+  hasWhisperAudioSupport,
   logVoiceEvent,
   pickAudioMimeType,
   WHISPER_MODEL_ID,
@@ -88,6 +89,12 @@ export interface UseVoiceInputOptions {
 
 export interface UseVoiceInputResult {
   isSupported: boolean;
+  /** Native Web Speech API support. False on iOS Safari/WebKit. */
+  nativeSpeechSupported: boolean;
+  /** Browser primitives needed for local Whisper transcription. */
+  localTranscriptionSupported: boolean;
+  /** True when the selected native backend cannot run and local transcription is the viable path. */
+  requiresLocalTranscription: boolean;
   /** True while actively recording / listening. */
   isListening: boolean;
   /** True while the Whisper model is downloading on first use. */
@@ -129,15 +136,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   // mic must be a clean user-controlled toggle.
   const native: UseSpeechRecognitionResult = useSpeechRecognition({ lang, silenceMs: 0 });
 
-  // Whisper detection: needs MediaRecorder + getUserMedia.
+  // Whisper detection: needs MediaRecorder + getUserMedia + Web Audio decode/resample.
   const [whisperFeasible, setWhisperFeasible] = useState(false);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const ok =
-      typeof window.MediaRecorder !== 'undefined' &&
-      !!navigator?.mediaDevices?.getUserMedia &&
-      typeof window.AudioContext !== 'undefined';
-    setWhisperFeasible(ok);
+    setWhisperFeasible(hasWhisperAudioSupport());
   }, []);
 
   const wantsWhisper = backend === 'whisper' || (backend === 'auto' && whisperFeasible);
@@ -358,13 +360,16 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     (backend === 'auto' && !isWhisperReady);
 
   const start = useCallback(() => {
-    if (useNative) {
+    if (useNative && native.isSupported) {
       setResolvedBackend('native');
       native.start();
-    } else {
+    } else if (whisperFeasible) {
       void startWhisper();
+    } else {
+      setResolvedBackend(null);
+      setWhisperError(native.error || 'Voice input is not supported in this browser.');
     }
-  }, [useNative, native, startWhisper]);
+  }, [useNative, native, whisperFeasible, startWhisper]);
 
   const stop = useCallback(() => {
     if (resolvedBackend === 'whisper') stopWhisper();
@@ -387,6 +392,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   if (resolvedBackend === 'whisper') {
     return {
       isSupported: true,
+      nativeSpeechSupported: native.isSupported,
+      localTranscriptionSupported: whisperFeasible,
+      requiresLocalTranscription: false,
       isListening: isWhisperListening,
       isLoading,
       isTranscribing,
@@ -401,7 +409,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }
 
   return {
-    isSupported: useNative ? native.isSupported : (whisperFeasible || native.isSupported),
+    isSupported: native.isSupported || whisperFeasible,
+    nativeSpeechSupported: native.isSupported,
+    localTranscriptionSupported: whisperFeasible,
+    requiresLocalTranscription: useNative && !native.isSupported && whisperFeasible,
     isListening: native.isListening,
     isLoading: false,
     isTranscribing: false,

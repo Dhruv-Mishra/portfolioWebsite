@@ -64,6 +64,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const finalRef = useRef('');
+  const lastInterimRef = useRef('');
   const manualStopRef = useRef(false);
 
   useEffect(() => {
@@ -91,13 +92,18 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
 
   const start = useCallback(() => {
     const Ctor = getCtor();
-    if (!Ctor) return;
+    if (!Ctor) {
+      setIsSupported(false);
+      setError('Speech recognition is not supported in this browser.');
+      return;
+    }
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch { /* no-op */ }
     }
 
     setError(null);
     finalRef.current = '';
+    lastInterimRef.current = '';
     setTranscript('');
     setInterimTranscript('');
     manualStopRef.current = false;
@@ -117,6 +123,8 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     };
     rec.onend = () => {
       clearSilenceTimer();
+      const fallbackTranscript = finalRef.current || (manualStopRef.current ? lastInterimRef.current.trim() : '');
+      if (fallbackTranscript) setTranscript(fallbackTranscript);
       setIsListening(false);
       setInterimTranscript('');
       recognitionRef.current = null;
@@ -133,6 +141,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
         }
       }
       setTranscript(finalRef.current);
+      lastInterimRef.current = interim;
       setInterimTranscript(interim);
       armSilenceTimer();
     };

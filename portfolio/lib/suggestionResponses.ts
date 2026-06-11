@@ -76,7 +76,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * Look up a pre-baked response for an EXACT initial-suggestion string.
+ * Look up a pre-baked response for an EXACT hardcoded suggestion string.
  * Returns the canned reply if matched, otherwise null (caller should fall
  * back to the normal /api/chat round-trip).
  */

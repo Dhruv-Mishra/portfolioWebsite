@@ -961,6 +961,10 @@ export function useStickyChat(): UseStickyChat {
     if (isLoadingRef.current) return;
     const trimmed = userText.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed) return;
+    suggestionsAbortRef.current?.abort('hardcoded');
+    suggestionsAbortRef.current = null;
+    setSuggestions([]);
+    setIsSuggestionsLoading(false);
     const now = Date.now();
     const userMsg: ChatMessage = {
       id: generateId(),

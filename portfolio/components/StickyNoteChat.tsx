@@ -1403,6 +1403,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     setBaseSuggestions(hardcoded);
     setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
     if (lastAssistant.clientOnly) {
+      committedExtrasForIdRef.current = lastAssistant.id;
       setExtraSuggestions([
         ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !hardcoded.includes(s)), 1),
         ...pickFollowupAction(followupActions, { discoActive, exclude: hardcoded }),

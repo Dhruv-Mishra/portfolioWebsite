@@ -451,6 +451,11 @@ jobs:
               docker_pid="$(sudo docker inspect --format '{{.State.Pid}}' portfolio 2>/dev/null || true)"
               docker_id="$(sudo docker inspect --format '{{.Id}}' portfolio 2>/dev/null || true)"
               docker_id_short="${docker_id:0:12}"
+              docker_port_output="$(sudo docker port portfolio "${PORT}/tcp" 2>/dev/null || true)"
+              docker_port_matches="false"
+              if echo "$docker_port_output" | grep -qE "(^|:)${PORT}$"; then
+                docker_port_matches="true"
+              fi
               for pid in $pids; do
                 if [ -n "$main_pid" ] && [ "$main_pid" != "0" ] && [ "$pid" = "$main_pid" ]; then
                   continue
@@ -463,6 +468,10 @@ jobs:
                   continue
                 fi
                 if [ -n "$docker_id" ] && echo "$cgroup" | grep -qE "(${docker_id}|${docker_id_short})"; then
+                  continue
+                fi
+                command="$(sudo ps -p "$pid" -o comm= 2>/dev/null || true)"
+                if [ "$docker_port_matches" = "true" ] && [ "$command" = "docker-proxy" ]; then
                   continue
                 fi
                 fail "port ${PORT} is already in use by unknown PID ${pid}. Stop or migrate the unknown listener before deploying."

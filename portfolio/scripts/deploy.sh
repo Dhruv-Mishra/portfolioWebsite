@@ -616,6 +616,11 @@ validate_production_port_owner() {
 
     log STEP "Validating production port ownership..."
 
+    if ! command -v ss &>/dev/null; then
+        log ERROR "Cannot validate production port ownership because ss is not installed"
+        exit 1
+    fi
+
     local pids
     pids=$(ss -tlnp "sport = :${NEXTJS_PORT}" 2>/dev/null \
         | grep -oP 'pid=\K[0-9]+' | sort -u || true)
@@ -632,9 +637,15 @@ validate_production_port_owner() {
 
     local docker_pid=""
     local docker_container_id=""
+    local docker_port_output=""
+    local docker_port_matches=false
     if command -v docker &>/dev/null; then
         docker_pid=$(docker inspect --format '{{.State.Pid}}' "${DOCKER_CONTAINER_NAME}" 2>/dev/null || true)
         docker_container_id=$(docker inspect --format '{{.Id}}' "${DOCKER_CONTAINER_NAME}" 2>/dev/null || true)
+        docker_port_output=$(docker port "${DOCKER_CONTAINER_NAME}" "${NEXTJS_PORT}/tcp" 2>/dev/null || true)
+        if echo "${docker_port_output}" | grep -qE "(^|:)${NEXTJS_PORT}$"; then
+            docker_port_matches=true
+        fi
     fi
     local docker_container_id_short="${docker_container_id:0:12}"
 
@@ -658,6 +669,10 @@ validate_production_port_owner() {
 
         local command=""
         command=$(ps -p "${pid}" -o comm= 2>/dev/null || true)
+        if [[ "${docker_port_matches}" == "true" ]] && [[ "${command}" == "docker-proxy" ]]; then
+            continue
+        fi
+
         log ERROR "Port ${NEXTJS_PORT} is owned by unknown PID ${pid} (${command:-unknown}), not ${SERVICE_NAME}.service or ${DOCKER_CONTAINER_NAME}."
         log ERROR "Stop or migrate the unknown listener before deploying. Refusing to kill it automatically."
         exit 1

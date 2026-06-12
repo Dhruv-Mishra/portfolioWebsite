@@ -35,7 +35,7 @@ export const KEYBINDINGS: Keybinding[] = [
   { id: 'nav-stickers', keys: ['g', 's'], label: 'Go to Stickers', group: 'Navigate' },
 
   // ── Actions ─────────────────────────────────────────────────────
-  { id: 'action-palette', keys: ['⌘', 'K'], label: 'Open Command Palette', group: 'Actions' },
+  { id: 'action-palette', keys: ['Ctrl/⌘ K'], label: 'Open Command Palette', group: 'Actions' },
   { id: 'action-theme', keys: ['t'], label: 'Toggle Theme', group: 'Actions' },
   { id: 'action-shortcuts', keys: ['?'], label: 'Show Shortcuts', group: 'Actions' },
 

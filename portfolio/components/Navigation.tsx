@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
@@ -17,7 +17,7 @@ const LINKS: NavItem[] = [
     { name: 'Projects', href: '/projects', prefetch: false },
     { name: 'About', href: '/about' },
     { name: 'Resume', href: '/resume', prefetch: false },
-    { name: 'Chat', href: '/chat' },
+    { name: 'Chat', href: '/chat', prefetch: false },
 ];
 
 const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
@@ -25,13 +25,33 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
 
+interface NetworkInformationLike {
+    effectiveType?: string;
+    saveData?: boolean;
+}
+
+interface NavigatorWithConnection extends Navigator {
+    connection?: NetworkInformationLike;
+}
+
+function shouldIntentPrefetch() {
+    const connection = (navigator as NavigatorWithConnection).connection;
+    if (connection?.saveData) return false;
+    return connection?.effectiveType !== '2g' && connection?.effectiveType !== 'slow-2g';
+}
+
 export default function Navigation() {
     const pathname = usePathname();
+    const router = useRouter();
     const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
     const onHoverEnd = useCallback(() => setHoveredTab(null), []);
+    const onIntentPrefetch = useCallback((href: string) => {
+        if (!shouldIntentPrefetch()) return;
+        router.prefetch(href);
+    }, [router]);
 
     return (
         <nav
@@ -48,6 +68,7 @@ export default function Navigation() {
                     hovered={hoveredTab === item.name}
                     onHoverStart={onHoverStart}
                     onHoverEnd={onHoverEnd}
+                    onIntentPrefetch={onIntentPrefetch}
                     onPress={navigate}
                 />
             ))}
@@ -63,6 +84,7 @@ const NavTab = React.memo(function NavTab({
     hovered,
     onHoverStart,
     onHoverEnd,
+    onIntentPrefetch,
     onPress,
 }: {
     item: NavItem;
@@ -71,6 +93,7 @@ const NavTab = React.memo(function NavTab({
     hovered: boolean;
     onHoverStart: (name: string) => void;
     onHoverEnd: () => void;
+    onIntentPrefetch: (href: string) => void;
     onPress: () => void;
 }) {
     const colorKey = COLOR_ORDER[index % COLOR_ORDER.length];
@@ -84,6 +107,8 @@ const NavTab = React.memo(function NavTab({
             legacyBehavior={false}
             passHref
             onClick={onPress}
+            onFocus={() => onIntentPrefetch(item.href)}
+            onTouchStart={() => onIntentPrefetch(item.href)}
             // Focus-visible ring lives on the anchor (the natural focus target)
             // rather than the inner clip-pathed div, so the ring is never cut
             // off by the tab's jagged bottom edge and keyboard users can reach
@@ -91,7 +116,10 @@ const NavTab = React.memo(function NavTab({
             className="rounded-b-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
         >
             <div
-                onMouseEnter={() => onHoverStart(item.name)}
+                onMouseEnter={() => {
+                    onHoverStart(item.name);
+                    onIntentPrefetch(item.href);
+                }}
                 onMouseLeave={onHoverEnd}
                 className={cn(
                     `animate-nav-tab animate-nav-tab-${index + 1}`,

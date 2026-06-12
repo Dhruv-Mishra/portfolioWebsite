@@ -85,7 +85,7 @@ export default function MiniChat() {
       <button
         onClick={handleToggle}
         className={cn(
-          "group relative w-[var(--c-fab-size)] h-[var(--c-fab-size)] md:w-[var(--c-fab-size-md)] md:h-[var(--c-fab-size-md)] rounded shadow-lg flex items-center justify-center transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95",
+          "group relative h-[max(var(--c-fab-size),44px)] w-[max(var(--c-fab-size),44px)] md:h-[max(var(--c-fab-size-md),44px)] md:w-[max(var(--c-fab-size-md),44px)] rounded shadow-lg flex items-center justify-center transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-95",
           isOpen
             ? "bg-[var(--note-ai)] text-[var(--note-ai-ink)]"
             : "bg-[var(--note-user)] text-amber-700 dark:text-amber-300",

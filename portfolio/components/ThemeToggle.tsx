@@ -19,7 +19,7 @@ export function ThemeToggle() {
     }, []);
 
     if (!mounted) {
-        return <div className="w-10 h-10" />; // Prevent layout shift
+        return <div className="h-11 w-11" />; // Prevent layout shift
     }
 
     const handleClick = () => {
@@ -41,8 +41,9 @@ export function ThemeToggle() {
     return (
         <Tooltip label={tooltipLabel}>
         <button
+            type="button"
             onClick={handleClick}
-            className="relative p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
             aria-label={ariaLabel}
             data-disco-bounce="1"
         >

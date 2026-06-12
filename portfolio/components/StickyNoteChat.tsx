@@ -602,7 +602,7 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
         onClick={onClick}
         title={copy.title}
         className={cn(
-          'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors',
+          'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors md:h-7 md:w-7',
           'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
           unframed && 'border-transparent bg-transparent',
           isActive && status === 'error'
@@ -641,7 +641,7 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
       role="group"
       aria-label="Spoken response controls"
       className={cn(
-        'flex w-9 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm',
+        'flex w-12 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm md:w-9',
       )}
     >
       <SpeakResponseButton
@@ -656,7 +656,7 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
           aria-label={`Voice speed ${playbackSpeed}x. Change speed`}
           onClick={onCycleSpeed}
           className={cn(
-            'inline-flex h-7 w-7 items-center justify-center rounded-full border font-hand text-[10px] font-bold transition-colors',
+            'inline-flex h-10 w-10 items-center justify-center rounded-full border font-hand text-[10px] font-bold transition-colors md:h-7 md:w-7',
             'border-[var(--note-ai-ink)]/35 bg-[var(--note-ai-ink)]/15 text-[var(--note-ai-ink)] hover:bg-[var(--note-ai-ink)]/20',
             'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
           )}
@@ -671,7 +671,7 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
           onClick={onRestart}
           disabled={isLoading}
           className={cn(
-            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--note-ai-ink)]/15 bg-[var(--c-paper)]/45 text-[var(--note-ai-ink)]/65 transition-colors',
+            'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--note-ai-ink)]/15 bg-[var(--c-paper)]/45 text-[var(--note-ai-ink)]/65 transition-colors md:h-7 md:w-7',
             'hover:bg-[var(--note-ai-ink)]/10 hover:text-[var(--note-ai-ink)]',
             'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
             isLoading && 'cursor-progress opacity-50',
@@ -1078,7 +1078,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               data-disco-motion="shimmy"
               data-disco-chat-input-bar
               className={cn(
-                'flex items-center gap-3 md:gap-4 rounded-full px-2.5 py-1 md:px-3 md:py-1.5',
+                'flex max-w-full flex-wrap items-center justify-end gap-2 rounded-full px-2.5 py-1.5 md:gap-4 md:px-3 md:py-1.5',
                 // Translucent paper background — reads on both light and
                 // dark themes via the --c-paper / --c-ink tokens, then
                 // softened with /60 + backdrop-blur so messages bleed
@@ -1092,8 +1092,9 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             >
             {hasMessages && (
               <button
+                type="button"
                 onClick={() => setConfirmKind('clear')}
-                className="flex items-center gap-1 text-[11px] md:text-xs font-hand font-bold text-[var(--c-ink)]/70 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200 px-1.5 py-0.5 rounded whitespace-nowrap"
+                className="flex min-h-10 items-center gap-1 rounded px-2 text-[11px] font-hand font-bold text-[var(--c-ink)]/70 transition-colors duration-200 hover:text-red-600 dark:hover:text-red-400 md:min-h-8 md:px-1.5 md:text-xs"
                 title="Clear chat history"
               >
                 <Eraser size={12} />
@@ -1151,8 +1152,8 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           )}
           style={INPUT_NOTE_DISCO_STYLE}
         >
-          <div className="flex items-end gap-1.5 md:gap-2" onClick={() => inputRef.current?.focus()}>
-            <div className="relative flex-1 min-h-[22px] md:min-h-[28px]">
+          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
+            <div className="relative flex-1 min-h-[44px]">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -1165,7 +1166,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   // Auto-grow textarea: rows=1 baseline; useLayoutEffect
                   // measures scrollHeight and applies inline height up to
                   // ~3-4 lines, then internal overflow-y kicks in.
-                  "w-full bg-transparent resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
+                  "w-full min-h-[44px] bg-transparent py-2.5 resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
                   // Placeholder text uses the SAME font-size as typed text;
                   // greyer color is applied via the overlay span below
                   // (the textarea's native placeholder is unused on
@@ -1183,7 +1184,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   ref={placeholderRef}
                   aria-hidden
                   className={cn(
-                    "absolute left-0 top-0 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
+                    "absolute left-0 top-2.5 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
                     compact ? "text-base" : "text-base md:text-lg",
                   )}
                 />
@@ -1216,12 +1217,13 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 ancillary mic / voice / clear-chat controls were moved to
                 the toolbar above to declutter the input row. */}
             <m.button
+              type="button"
               whileHover={SEND_BUTTON_HOVER}
               whileTap={SEND_BUTTON_TAP}
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               className={cn(
-                "p-1 md:p-1.5 rounded-full transition-colors shrink-0",
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-0 transition-colors",
                 input.trim() && !isLoading
                   ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
                   : "text-gray-400 dark:text-gray-600",

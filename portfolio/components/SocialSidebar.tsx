@@ -67,13 +67,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
-                // Responsive sizing: 36px on narrow phones (iPhone SE 320px, iPhone 12 mini 375px)
-                // where horizontal space is tight; grows to 44px from `sm:` (≥640px) to meet
-                // Apple HIG's recommended touch target. A 36px tap target on a 320px viewport
-                // still respects the WCAG 2.2 24×24 minimum and leaves the row inside the
-                // content column minus the binding spine. Focus ring added for keyboard users
-                // navigating via external keyboard on iPad Safari.
-                className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
                 title={social.name}
                 aria-label={social.name}
             >
@@ -88,7 +82,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleClick}
-            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group hover:scale-110`}
+            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
             title={social.name}
             aria-label={social.name}
             style={{ animationDelay: `${0.5 + ((index || 0) * 0.1)}s` }}
@@ -116,25 +110,25 @@ const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
  * gradient) stuck around because the old handler only flipped the
  * `next-themes` preference without touching `discoActive`.
  *
- * Visual placeholder dimensions are unchanged — the pre-mount
- * `w-9 h-9 sm:w-11 sm:h-11` shell keeps the neighbouring social icons
- * from shuffling on hydrate.
+ * Visual placeholder dimensions are unchanged — the pre-mount `w-11 h-11`
+ * shell keeps the neighbouring social icons from shuffling on hydrate.
  */
 const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
     const { setTheme, resolvedTheme } = useTheme();
     const discoActive = useDiscoActive();
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
-    if (!mounted) return <div className="w-9 h-9 sm:w-11 sm:h-11" />;
+    if (!mounted) return <div className="h-11 w-11 shrink-0" />;
     const isDark = resolvedTheme === 'dark';
     const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';
     return (
         <button
+            type="button"
             onClick={() => {
                 onPress();
                 runThemeToggle({ discoActive, isDark, setTheme });
             }}
-            className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            className="flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             title={ariaLabel}
             aria-label={ariaLabel}
             data-disco-bounce="1"
@@ -200,7 +194,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {!hideMobileBar && (
             <div
                 data-social-sidebar
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex items-center gap-1 sm:gap-1.5 bg-[var(--c-paper)] px-2 sm:px-3 py-1.5 sm:py-2 rounded-full shadow-md border-2 border-dashed border-[var(--c-grid)]/50 max-w-[calc(100vw-var(--c-binding-w)-1rem)]"
+                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex max-w-[calc(100vw-var(--c-binding-w)-1rem)] items-center gap-0.5 overflow-x-auto rounded-full border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] px-1 py-1 shadow-md scrollbar-hidden sm:gap-1 sm:px-2 sm:py-1.5"
                 role="complementary"
                 aria-label="Social media links"
                 style={{ zIndex: Z_INDEX.sidebar }}
@@ -215,11 +209,12 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 {/* Feedback button (replaces CP History on mobile) */}
                 {onFeedbackClick && (
                     <button
+                        type="button"
                         onClick={() => {
                             openPanel();
                             onFeedbackClick();
                         }}
-                        className="flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
                         title="Send feedback"
                         aria-label="Open feedback form"
                     >

@@ -59,21 +59,21 @@ export function VoiceBackendToggle({
       aria-label={active ? 'Disable HD voice (Whisper)' : 'Enable HD voice (Whisper, ~35MB one-time download)'}
       title={title}
       className={cn(
-        'group relative inline-flex items-center shrink-0 select-none',
-        'rounded-full font-hand font-bold tracking-wide',
-        'border-2 border-dashed transition-colors duration-200',
+        'group relative inline-flex min-h-[44px] min-w-[44px] shrink-0 select-none items-center justify-center rounded-full font-hand font-bold tracking-wide transition-colors duration-200',
         'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60',
-        // Sketchbook switch — paper background w/ ink border, knob slides
-        // when active. Sized for ≥36px tap target on mobile via outer hit
-        // (the parent flex `gap-2` absorbs spacing) without bloating
-        // visual footprint.
-        compact ? 'h-4 w-8 px-0.5' : 'h-5 w-10 px-0.5',
-        active
-          ? 'bg-amber-200/70 border-amber-700/70 dark:bg-amber-500/30 dark:border-amber-400/70'
-          : 'bg-[var(--c-paper)] border-[var(--c-ink)]/30 hover:border-[var(--c-ink)]/55',
         className,
       )}
     >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'relative inline-flex items-center rounded-full border-2 border-dashed px-0.5 transition-colors duration-200',
+          compact ? 'h-5 w-10' : 'h-6 w-12',
+          active
+            ? 'bg-amber-200/70 border-amber-700/70 dark:bg-amber-500/30 dark:border-amber-400/70'
+            : 'bg-[var(--c-paper)] border-[var(--c-ink)]/30 group-hover:border-[var(--c-ink)]/55',
+        )}
+      >
       {/* Loading spinner overlays the knob position when downloading the
           Whisper model so the user sees something is happening. */}
       {showLoading && (
@@ -92,12 +92,13 @@ export function VoiceBackendToggle({
         aria-hidden="true"
         className={cn(
           'inline-block rounded-full shadow-sm transition-transform duration-200 ease-out',
-          compact ? 'h-2.5 w-2.5' : 'h-3 w-3',
+          compact ? 'h-3 w-3' : 'h-3.5 w-3.5',
           active
-            ? (compact ? 'translate-x-[16px] bg-amber-700 dark:bg-amber-300' : 'translate-x-[20px] bg-amber-700 dark:bg-amber-300')
+            ? (compact ? 'translate-x-[20px] bg-amber-700 dark:bg-amber-300' : 'translate-x-[24px] bg-amber-700 dark:bg-amber-300')
             : 'translate-x-0 bg-[var(--c-ink)]/40',
         )}
       />
+      </span>
     </button>
     {/* Tiny caption clarifies what the switch controls — a 'HD' pill
         on its own gives users no idea what they're toggling. */}

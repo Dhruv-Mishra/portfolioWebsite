@@ -254,7 +254,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
           </h2>
         </div>
 
-        <div className="flex max-w-full gap-2 overflow-x-auto overflow-y-visible pb-1 scrollbar-hidden" aria-label="Timeline filters">
+        <div className="flex max-w-full flex-wrap gap-2 overflow-visible pb-0 md:flex-nowrap md:overflow-x-auto md:overflow-y-visible md:pb-1 md:scrollbar-hidden" aria-label="Timeline filters">
           {FILTER_OPTIONS.map((option) => {
             const isSelected = selectedFilter === option.id;
             const Icon = option.icon;
@@ -265,7 +265,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                 type="button"
                 onClick={() => selectFilter(option.id)}
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-[7px] border px-2.5 py-1.5 text-sm font-hand transition-[background-color,border-color,color,transform,box-shadow]',
+                  'inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-[7px] border px-3.5 py-2 text-sm font-hand transition-[background-color,border-color,color,transform,box-shadow]',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35',
                   isSelected
                     ? 'border-[var(--c-ink)]/45 bg-[var(--note-paper)] text-[var(--c-ink)] shadow-[2px_2px_0_color-mix(in_srgb,var(--c-ink)_18%,transparent)] -rotate-1'
@@ -273,7 +273,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                 )}
                 aria-pressed={isSelected}
               >
-                <Icon aria-hidden="true" className="size-3.5" strokeWidth={1.9} />
+                <Icon aria-hidden="true" className="size-4" strokeWidth={1.9} />
                 <span>{option.label}</span>
               </button>
             );

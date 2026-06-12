@@ -30,16 +30,20 @@ const CommandPalette = dynamic(() => import('@/components/CommandPalette'), {
 export default function CommandPaletteProvider() {
   const [isOpen, setIsOpen] = useState(false);
 
-  // ── Global (⌘|Ctrl)+K listener ────────────────────────────────
+  // ── Global (Ctrl/⌘)+K listener ────────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handler = (e: KeyboardEvent) => {
-      // Match ⌘K on macOS and Ctrl+K elsewhere. Guard against Shift+Ctrl+K etc.
-      const isK = e.key === 'k' || e.key === 'K';
+      const target = e.target as HTMLElement | null;
+      const isEditableTarget = target?.isContentEditable || target?.matches('input, textarea, select');
+      if (isEditableTarget || e.isComposing) return;
+
+      // Match Cmd+K on macOS and Ctrl+K elsewhere. Leave Shift/Alt variants
+      // to the browser/devtools and other application shortcuts.
+      const isK = e.key.toLowerCase() === 'k' || e.code === 'KeyK';
       if (!isK) return;
       if (!(e.metaKey || e.ctrlKey)) return;
-      // Don't hijack browser-native Ctrl+Shift+K (developer tools / search).
-      if (e.altKey) return;
+      if (e.altKey || e.shiftKey) return;
       e.preventDefault();
       setIsOpen((open) => !open);
     };

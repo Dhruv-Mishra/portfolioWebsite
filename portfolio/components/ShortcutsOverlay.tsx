@@ -286,8 +286,7 @@ function ShortcutsOverlay({ isOpen, onClose }: ShortcutsOverlayProps) {
                   <Kbd>Esc</Kbd>
                   <span>to close</span>
                   <span aria-hidden="true" className="px-0.5">·</span>
-                  <Kbd>⌘</Kbd>
-                  <Kbd>K</Kbd>
+                  <Kbd>Ctrl/⌘ K</Kbd>
                   <span>for the palette</span>
                 </p>
               </div>

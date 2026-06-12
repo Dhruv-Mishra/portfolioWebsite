@@ -1094,7 +1094,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               <button
                 type="button"
                 onClick={() => setConfirmKind('clear')}
-                className="flex min-h-10 items-center gap-1 rounded px-2 text-[11px] font-hand font-bold text-[var(--c-ink)]/70 transition-colors duration-200 hover:text-red-600 dark:hover:text-red-400 md:min-h-8 md:px-1.5 md:text-xs"
+                className="flex min-h-[44px] items-center gap-1 rounded px-2 text-[11px] font-hand font-bold text-[var(--c-ink)]/70 transition-colors duration-200 hover:text-red-600 dark:hover:text-red-400 md:px-1.5 md:text-xs"
                 title="Clear chat history"
               >
                 <Eraser size={12} />

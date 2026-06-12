@@ -29,8 +29,12 @@ export default function DeferredEnhancements() {
         const schedule = (stage: number, delay: number, timeout: number) => {
             const run = () => setMountStage((current) => Math.max(current, stage));
             if (runtimeWindow.requestIdleCallback) {
-                const idleId = runtimeWindow.requestIdleCallback(run, { timeout });
-                idleIds.add(idleId);
+                const timerId = runtimeWindow.setTimeout(() => {
+                    timers.delete(timerId);
+                    const idleId = runtimeWindow.requestIdleCallback?.(run, { timeout });
+                    if (idleId !== undefined) idleIds.add(idleId);
+                }, delay);
+                timers.add(timerId);
                 return;
             }
             const timerId = runtimeWindow.setTimeout(run, delay);

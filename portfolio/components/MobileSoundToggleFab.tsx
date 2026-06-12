@@ -92,7 +92,7 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
       animate={FAB_ANIMATE}
       className={cn(
         'md:hidden fixed',
-        'w-[var(--c-fab-size)] h-[var(--c-fab-size)] rounded-full',
+        'h-[max(var(--c-fab-size),44px)] w-[max(var(--c-fab-size),44px)] rounded-full',
         'flex items-center justify-center shadow-lg',
         'bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60',
         'transition-colors duration-200',

@@ -93,7 +93,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Fluent UI Android',
     desc: (
       <>
-        A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. It offers a robust collection of <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">official Fluent design</span> tokens, <em>typography styles</em>, and custom controls, ensuring <span className="underline decoration-dotted decoration-gray-400">seamless integration</span> with the Microsoft ecosystem.
+        A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. I managed its release lifecycle as <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">sole owner</span> across 10 releases for <em>10+ partner teams</em>, including Copilot, Office, Outlook, OneDrive, and Teams.
       </>
     ),
     lang: 'Kotlin / Java',
@@ -103,14 +103,14 @@ export const PROJECTS: ProjectRecord[] = [
     blurDataURL: BLUR.fluentUI,
     icon: Smartphone,
     label: 'Android Lib',
-    stack: ['Kotlin', 'Java', 'Android SDK', 'Design Systems', 'Clean Architecture', 'API Design'],
+    stack: ['Kotlin', 'Java', 'Android SDK', 'Jetpack Compose', 'XML', 'Gradle', 'Maven'],
     role: 'Android',
     year: '2024',
     duration: '6 months',
     highlights: [
-      'Contributed to the official Microsoft Fluent UI Android library used by 100M+ users',
-      'Implemented custom Fluent design tokens and typography system',
-      'Worked closely with designers on the Microsoft 365 design system',
+      'Managed the release lifecycle as sole owner across 10 releases',
+      'Supported 10+ partner teams including Copilot, Office, Outlook, OneDrive, and Teams',
+      'Worked across Kotlin, Java, Jetpack Compose, XML, Gradle, and Maven',
     ],
   },
   {
@@ -118,7 +118,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Hybrid Recommender',
     desc: (
       <>
-        A smart <span className="underline decoration-wavy decoration-pink-400">movie recommendation engine</span> for <strong>family movie nights</strong>. It balances <em>individual preferences</em> with <span className="bg-purple-100 dark:bg-purple-900/50 px-1 rounded">group dynamics</span> and <span className="underline decoration-double decoration-purple-400">age-appropriateness ratings</span>, ensuring everyone finds something enjoyable together.
+        A context-aware <span className="underline decoration-wavy decoration-pink-400">movie recommendation engine</span> that integrates <strong>collaborative</strong>, <span className="bg-purple-100 dark:bg-purple-900/50 px-1 rounded">content-based</span>, and demographic filtering to solve the <em>cold-start problem</em> and personalize content for diverse user groups.
       </>
     ),
     lang: 'Python / ML',
@@ -128,14 +128,14 @@ export const PROJECTS: ProjectRecord[] = [
     blurDataURL: BLUR.recommender,
     icon: Film,
     label: 'Movie Night',
-    stack: ['Python', 'Scikit-Learn', 'Collaborative Filtering', 'ML System Design'],
+    stack: ['Python', 'Scikit-Learn', 'Pandas', 'SVD', 'TensorFlow'],
     role: 'Machine Learning',
     year: '2023',
     duration: '3 months',
     highlights: [
-      'Hybrid engine combining collaborative and content-based filtering',
-      'Age-appropriateness scoring for family-safe recommendations',
-      'Group preference balancing algorithm for multi-user sessions',
+      'Hybrid engine combining collaborative, content-based, and demographic filtering',
+      'Designed to solve the cold-start problem in recommendation systems',
+      'Personalizes content for diverse user groups',
     ],
   },
   {
@@ -143,7 +143,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Personal Portfolio',
     desc: (
       <>
-        A <strong>high-performance</strong> portfolio website built with <span className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">AI-powered chat</span>, and a <span className="italic">hand-drawn aesthetic</span>. <span className="underline decoration-wavy decoration-indigo-400">Georedundant</span> — hosted on multiple VMs across the globe with a traffic manager and separate <span className="font-semibold">GitHub Actions</span> deployment pipelines. Runs on combined infrastructure from <span className="text-orange-600 dark:text-orange-400 font-semibold">Oracle Cloud</span>, <span className="text-blue-600 dark:text-blue-400 font-semibold">GCP</span>, and <span className="text-sky-600 dark:text-sky-400 font-semibold">Azure</span> — entirely free, only paying for the domain. Live at <a href="https://whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded ring-1 ring-indigo-300/60 dark:ring-indigo-700/60 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-800/70 hover:ring-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">whoisdhruv.com&nbsp;↗</a>.
+        A <strong>high-performance</strong> portfolio website built with <span className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">AI-powered chat</span>, and a <span className="italic">hand-drawn aesthetic</span>. Runs across <span className="underline decoration-wavy decoration-indigo-400">multi-cloud VMs</span> on <span className="text-sky-600 dark:text-sky-400 font-semibold">Azure</span>, <span className="text-blue-600 dark:text-blue-400 font-semibold">GCP</span>, and <span className="text-orange-600 dark:text-orange-400 font-semibold">Oracle Cloud</span> with a custom traffic manager, distributed backend, Cloudflare edge caching, Nginx reverse proxies, and parallel <span className="font-semibold">GitHub Actions</span> CI/CD. Live at <a href="https://whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded ring-1 ring-indigo-300/60 dark:ring-indigo-700/60 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-800/70 hover:ring-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">whoisdhruv.com&nbsp;↗</a>.
       </>
     ),
     lang: 'Next.js / TypeScript',
@@ -153,14 +153,14 @@ export const PROJECTS: ProjectRecord[] = [
     blurDataURL: BLUR.portfolio,
     icon: Globe,
     label: 'This Website',
-    stack: ['Next.js', 'TypeScript', 'TailwindCSS', 'Framer Motion', 'Performance Optimization'],
+    stack: ['Next.js', 'React', 'TypeScript', 'Tailwind CSS', 'Azure', 'GCP', 'Oracle Cloud', 'Nginx'],
     role: 'Full Stack',
     year: '2025',
     duration: 'Ongoing',
     highlights: [
       'Hand-drawn sketchbook aesthetic with custom pencil/chalk cursor',
       'AI-powered chat and interactive terminal built from scratch',
-      'Georedundant deployment across Oracle Cloud, GCP, and Azure',
+      'Multi-cloud VMs across Azure, GCP, and Oracle Cloud with custom traffic management',
     ],
   },
   {

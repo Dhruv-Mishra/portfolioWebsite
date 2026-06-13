@@ -10,12 +10,16 @@
 
 const RESPONSES: ReadonlyMap<string, string> = new Map([
   [
+    "Tell me about your AI work",
+    "I think of my work as AI-forward software engineering: practical agents, production systems, and tools that actually do useful work. Jarvis is the clearest example: a voice-to-voice AI agent that can operate websites through tool calling. Cropio is a smaller AI tool for portrait framing, and this portfolio has its own retrieval-backed chat and action layer. At Microsoft, the same taste shows up as performance, reliability, and infrastructure work at serious scale.",
+  ],
+  [
     "What do you work on at Microsoft?",
-    "I'm a Software Engineer at Microsoft, working across Android and backend platforms used by millions of people. Day to day that means profiling cold starts, tuning UI pipelines, fixing scaling bottlenecks, and shaving real milliseconds off systems where every ms matters. Less glamorous than it sounds, more satisfying than it looks ~",
+    "I'm a Software Engineer at Microsoft working across AI-forward software engineering, performance-critical product experiences, and production infrastructure. Day to day that means making systems faster, cheaper, more reliable, and easier to operate at scale. The resume has the concrete proof points; the short version is practical engineering where every ms and every incident path matters ~",
   ],
   [
     "What's your tech stack?",
-    "Daily drivers: TypeScript, C#, Kotlin, Python, and a healthy amount of C++ when I'm in CP mode. On the web side I lean on Next.js, React, Tailwind, and Framer Motion (this site is the proof). Backend leans Node.js, MySQL, and Azure. For Android: Jetpack Compose with Hilt for DI. I care more about choosing the right tool than collecting them ^_^",
+    "Daily drivers: TypeScript, Python, C#, C++, Kotlin, Java, and SQL depending on the job. On the AI/web side I lean on LLM tool calling, RAG, Next.js, React, Tailwind, Node.js, and cloud infrastructure. I still have deep mobile/platform experience, but the bigger pattern is choosing the right tool for reliable software that ships ^_^",
   ],
   [
     "Tell me about Jarvis",
@@ -35,7 +39,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What projects have you worked on?",
-    "A few favorites: Jarvis, a voice-to-voice agent that can operate websites; Cropio, an AI portrait cropper; Fluent UI Android, the Microsoft 365 Android component library I owned; Course Evaluator, IVC Vital Checkup, AtomVault, a hybrid recommender, this portfolio, and my Counting Bloom Filter research. The projects page has the full wall, but those are the ones I usually point people at first ~",
+    "A few favorites: Jarvis, a voice-to-voice AI agent that can operate websites; Cropio, an AI portrait cropper; this portfolio with retrieval-backed chat and actions; Course Evaluator, IVC Vital Checkup, AtomVault, a hybrid recommender, Fluent UI Android, and my Counting Bloom Filter research. The projects page has the full wall, but those are the ones I usually point people at first ~",
   ],
   [
     "How does Cropio work?",
@@ -55,7 +59,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What do you enjoy most about your work?",
-    "I like work where performance and reliability are not abstract virtues. At Microsoft that means systems used at serious scale: profiling slow paths, making infrastructure cheaper, hardening enterprise flows, and building tools that reduce operational pain. The fun part is making something boring in production because the engineering underneath is solid.",
+    "I like work where intelligence, performance, and reliability meet real users. The fun part is building tools that feel useful, then making the underlying systems fast, cheap, observable, and boring in production. That taste shows up in my AI side projects and in Microsoft-scale performance and infrastructure work.",
   ],
   [
     "Tell me about your research",

@@ -293,7 +293,7 @@ export const FOLLOWUP_CONVERSATIONAL = [
 
 /** Initial suggestions shown before any conversation */
 export const INITIAL_SUGGESTIONS = [
-  "What do you work on at Microsoft?",
+  "Tell me about your AI work",
   "What's your tech stack?",
   "Tell me about Jarvis",
   DISCO_EXPLAINER_LABEL,

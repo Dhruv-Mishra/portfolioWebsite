@@ -6,18 +6,18 @@ import ExperienceTimeline from '@/components/ExperienceTimeline';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { experienceTimelineEntries } from '@/lib/experienceTimeline';
-import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import { PERSONAL_LINKS } from '@/lib/links';
 
 export const revalidate = 3600;
 
 const CAREER_SNAPSHOT = [
     {
         label: 'Microsoft',
-        value: 'M365 Shell, identity, encryption, 7B+ daily hits',
+        value: 'AI-forward software, production systems, infrastructure',
     },
     {
         label: 'ML systems',
-        value: 'growIndigo crop pipeline from 80% to 93% accuracy',
+        value: 'growIndigo workflow time down 80%, accuracy to 93%+',
     },
     {
         label: 'IIIT Delhi',
@@ -118,16 +118,16 @@ export default function About() {
                                 Hey, I&apos;m <a href={PERSONAL_LINKS.linkedin} target="_blank" rel="noopener noreferrer" className="font-bold bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">Dhruv</a> 👋
                             </p>
                             <p>
-                                I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong> on the M365 Shell Team, building and optimizing systems that need to be fast, reliable, and <span className="italic">boring</span> in production.
+                                I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong> working across <span className="underline decoration-wavy decoration-blue-400">AI-forward software engineering</span> and production systems that need to be fast, reliable, and <span className="italic">boring</span> in production.
                             </p>
                             <p>
-                                Our Shell service handles <span className="underline decoration-wavy decoration-blue-400">identity and user data</span> at massive scale — <strong className="text-emerald-700">7 billion+ hits per day</strong>. I work with <span className="underline decoration-wavy decoration-green-400">C++ and C#</span> on enterprise encryption flows, cutting infrastructure costs and driving <span className="underline decoration-wavy decoration-purple-400">AI workflow adoption</span> across the service.
+                                I like building <span className="underline decoration-wavy decoration-green-400">practical AI tools</span>, high-performance product experiences, and reliable infrastructure. Recent Microsoft proof points include <strong className="text-emerald-700">7 billion+ daily backend hits</strong>, $240K/year verified savings, and a 99% faster critical loading path.
                             </p>
                             <p>
-                                I&apos;m fluent in <span className="font-bold text-cyan-700">C++</span>, <span className="font-bold text-blue-700">C#</span>, <span className="font-bold text-sky-600">TypeScript</span>, <span className="font-bold text-yellow-700">Python</span>, and <span className="font-bold text-orange-700">Java</span>. Previously worked on <a href={PROJECT_LINKS.fluentui} target="_blank" rel="noopener noreferrer" className="bg-blue-200 hover:bg-blue-300 px-1.5 py-0.5 rounded text-blue-800 transition-[background-color,transform] inline-block hover:-rotate-2">Fluent UI Android</a> (Kotlin/Compose). I enjoy deep dives into performance, distributed systems, and infrastructure that quietly does its job well.
+                                I work across <span className="font-bold text-sky-600">TypeScript</span>, <span className="font-bold text-yellow-700">Python</span>, <span className="font-bold text-blue-700">C#</span>, <span className="font-bold text-cyan-700">C++</span>, <span className="font-bold text-cyan-700">Kotlin</span>, and <span className="font-bold text-orange-700">Java</span>. My work ranges from AI agents and web systems to platform engineering, distributed systems, and infrastructure that quietly does its job well.
                             </p>
                             <p>
-                                I&apos;m an active <span className="underline decoration-wavy decoration-rose-400">open source contributor</span> and love collaborating on work that pushes boundaries. Outside code, I&apos;m into <span className="italic">strength training</span>, <span className="italic">PC overclocking</span>, <span className="italic">chess</span>, and following the latest in <span className="italic">AI and longevity research</span>.
+                                I&apos;m an active <span className="underline decoration-wavy decoration-rose-400">open source contributor</span> and love collaborating on work that pushes boundaries. Outside code, I&apos;m into <span className="italic">strength training</span>, <span className="italic">PC overclocking</span>, <span className="italic">chess</span>, and following the latest in <span className="italic">AI systems and longevity research</span>.
                             </p>
                             <p>
                                 I graduated with <strong className="text-gray-900">Honors in CSAM</strong> from <a href="https://www.linkedin.com/in/dhruv-mishra-id/details/education/" target="_blank" rel="noopener noreferrer" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">IIIT Delhi</a>, and spend time honing my skills through <a href={PERSONAL_LINKS.codeforces} target="_blank" rel="noopener noreferrer" className="bg-emerald-200 hover:bg-emerald-300 px-1.5 py-0.5 rounded text-emerald-800 transition-[background-color,transform] inline-block hover:-rotate-2">competitive programming</a>.

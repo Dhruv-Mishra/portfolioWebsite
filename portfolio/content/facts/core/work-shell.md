@@ -1,9 +1,9 @@
 ---
 id: core-work-shell
-tags: [microsoft, m365, shell, work, job, encryption, cpp, csharp, infra, cost, identity, pdf, office, ipc]
+tags: [microsoft, ai, software engineering, work, job, production systems, distributed systems, performance, infrastructure, reliability, cloud, system design, office mobile, shellservice]
 priority: 10
 anchor: true
 category: core
 ---
 
-Current role: Software Engineer at Microsoft on the M365 Shell Team (since June 2024, Noida, India). The Shell service handles identity and user data at 7B+ hits per day. I work with C++ and C# on enterprise encryption flows, including PDF encryption for Office docs across Word, Excel, and PowerPoint — sandboxed via a secure C# proxy + IPC architecture talking to Azure Rights Management. Cut infrastructure COGS by $240,000 annually by optimizing VM Scale Sets, log retention/replication, and Redis/Cosmos configurations. Also designed autonomous LLM + MCP server workflows for the Identity Management Service to automate internal platform tasks and accelerate incident mitigation.
+Current role: Software Engineer at Microsoft (since June 2024, Noida, India), working across AI-forward software engineering, production systems, performance engineering, infrastructure efficiency, and reliability at scale. Resume-level proof points include a 99% faster critical loading path, $240,000 in verified annualized infrastructure savings, systems operating at 7B+ daily backend hits, 100% security compliance ownership, and release ownership across 10 cycles for 10+ partner teams.

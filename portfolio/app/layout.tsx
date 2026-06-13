@@ -46,7 +46,7 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "@id": `${SITE.url}/#website`,
       "url": SITE.url,
       "name": "Dhruv Mishra Portfolio",
-      "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+      "description": "AI-forward software engineer at Microsoft building practical AI tools, high-performance systems, and reliable production infrastructure.",
       "publisher": { "@id": "https://whoisdhruv.com/#person" }
     },
     {
@@ -56,6 +56,8 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "url": SITE.url,
       "jobTitle": "Software Engineer",
       "worksFor": { "@type": "Organization", "name": "Microsoft" },
+      "description": "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and performance-critical infrastructure.",
+      "knowsAbout": ["AI agents", "LLM tooling", "voice AI", "production systems", "distributed systems", "performance optimization", "cloud infrastructure"],
       "sameAs": [PERSONAL_LINKS.linkedin, PERSONAL_LINKS.github]
     }
   ]
@@ -85,9 +87,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Dhruv Mishra | Software Engineer",
-  description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems. Expert in performance optimization, competitive programming, and building production-ready solutions.",
-  keywords: ["Dhruv Mishra", "Software Engineer", "Microsoft", "Android Developer", "Performance Optimization", "Distributed Systems", "Competitive Programming", "Full Stack Developer"],
+  title: "Dhruv Mishra | AI & Software Engineer",
+  description: "Software Engineer at Microsoft working across AI-forward software engineering, high-performance systems, and production infrastructure. Builds voice agents, AI tools, distributed backends, and reliable cloud systems.",
+  keywords: ["Dhruv Mishra", "AI Software Engineer", "Software Engineer at Microsoft", "AI Agents", "Voice AI", "LLM Tooling", "Multimodal AI", "Production Systems", "Distributed Systems", "Performance Optimization", "Cloud Infrastructure", "Full Stack Developer", "Competitive Programming"],
   authors: [{ name: SITE.name, url: PERSONAL_LINKS.linkedin }],
   creator: "Dhruv Mishra",
   publisher: "Dhruv Mishra",
@@ -109,8 +111,8 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: SITE.url,
-    title: "Dhruv Mishra | Software Engineer",
-    description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+    title: "Dhruv Mishra | AI & Software Engineer",
+    description: "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and reliable cloud infrastructure.",
     siteName: "Dhruv Mishra Portfolio",
     images: [
       {
@@ -130,8 +132,8 @@ export const metadata: Metadata = {
     // `summary_large_image` so Twitter renders the icon in the small square
     // card slot it was designed for instead of stretching/cropping.
     card: 'summary',
-    title: "Dhruv Mishra | Software Engineer",
-    description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+    title: "Dhruv Mishra | AI & Software Engineer",
+    description: "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and reliable cloud infrastructure.",
     images: ['/icon-512.png'],
   },
   robots: {

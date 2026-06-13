@@ -2,13 +2,13 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About | Dhruv Mishra',
-  description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft on the M365 Shell Team. Background in high-performance systems, Android development, and competitive programming.',
+  description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft working across AI-forward software engineering, production systems, infrastructure optimization, and competitive programming.',
   alternates: {
     canonical: '/about',
   },
   openGraph: {
     title: 'About | Dhruv Mishra',
-    description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft on the M365 Shell Team.',
+    description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft working across AI and software engineering.',
     url: 'https://whoisdhruv.com/about',
   },
 };

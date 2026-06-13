@@ -239,7 +239,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             <div className="space-y-2">
                 <p>Hey, I&apos;m <strong className="text-emerald-400">Dhruv</strong> 👋</p>
                 <p>I build and optimize software systems that need to be fast, reliable, and boring in production.</p>
-                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong> working across Office Android performance, Fluent UI Android releases, ShellService infrastructure at 7B+ hits/day, and Android security compliance.</p>
+                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong> working across AI-forward software engineering, production systems, and performance-critical infrastructure.</p>
                 <p>I come from a strong CS background, enjoy competitive programming, and love optimizing things — from code to PC hardware.</p>
             </div>
         )

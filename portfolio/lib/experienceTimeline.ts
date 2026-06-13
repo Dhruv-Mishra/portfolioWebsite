@@ -41,7 +41,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
       height: 24,
       sizes: '(max-width: 640px) 88px, 112px',
     },
-    summary: 'Optimizing Office Mobile performance, ShellService infrastructure, Android security compliance, and Fluent UI Android releases.',
+    summary: 'Working across AI-forward software engineering, performance-critical product experiences, and reliable production infrastructure.',
     impact: '99% faster Excel Compose shimmer loading, $240K/year ShellService savings, 7B+ daily backend hits supported, and about 500ms faster Office Mobile file opens.',
     highlights: [
       'Revamped Excel Compose Shimmer loading with UI-thread warmup sequences, baseline profiles, and optimized XML/Compose interactions, cutting component load time from 300ms to 3ms.',

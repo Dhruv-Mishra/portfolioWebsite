@@ -4,6 +4,10 @@
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# dependencies
+node_modules/
+**/node_modules/
+
 # Workspace-root lockfile should never exist — the root package.json declares
 # no dependencies (it's just a scripts wrapper). A stray lockfile here tricks
 # Next.js's workspace-root auto-detection into emitting .next/standalone/ to

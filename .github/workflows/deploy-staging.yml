@@ -39,6 +39,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   STAGING_SITE: portfolio-staging
   STAGING_DOMAIN: staging.whoisdhruv.com
   STAGING_PORT: "3010"
@@ -654,8 +655,8 @@ jobs:
             ASSET_FILE="$(mktemp)"
             trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
 
-            curl -sk --max-time 10 -H "Host: ${SVC_DOMAIN}" \
-              "https://127.0.0.1/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
+            curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+              "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
             grep -oE "/_next/static/[^\"' <)]*" "$HTML_FILE" \
               | sed 's/[\\?].*$//' \
               | sort -u > "$ASSET_FILE" || true
@@ -671,7 +672,7 @@ jobs:
             while IFS= read -r asset; do
               [ -n "$asset" ] || continue
               asset_code="$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
-                -H "Host: ${SVC_DOMAIN}" "https://127.0.0.1${asset}" 2>/dev/null || echo "000")"
+                --resolve "${SVC_DOMAIN}:443:127.0.0.1" "https://${SVC_DOMAIN}${asset}" 2>/dev/null || echo "000")"
               if [ "$asset_code" != "200" ]; then
                 echo "Static asset failed through local nginx: $asset -> $asset_code"
                 if [ "$diagnosed_missing" = "0" ]; then

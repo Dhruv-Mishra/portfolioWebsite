@@ -80,6 +80,32 @@ done
 readonly SITE_NAME="${_SITE_NAME}"
 readonly SITE_CONF="/etc/deploy/sites/${SITE_NAME}.conf"
 
+migrate_legacy_production_branch_config() {
+    if [[ "${SITE_NAME}" != "portfolio" ]] || [[ ! -f "${SITE_CONF}" ]]; then
+        return 0
+    fi
+    if [[ "$(id -u)" -ne 0 ]]; then
+        return 0
+    fi
+
+    local branch=""
+    branch=$(awk -F= '$1 == "GIT_BRANCH" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "${SITE_CONF}" 2>/dev/null || true)
+    if [[ "${branch}" != "master" ]]; then
+        return 0
+    fi
+
+    local backup="${SITE_CONF}.bak.$(date -u +%Y%m%d%H%M%S)"
+    echo "Migrating legacy production GIT_BRANCH=master to deployed/production in ${SITE_CONF} (backup: ${backup})"
+    cp "${SITE_CONF}" "${backup}"
+    if grep -q '^GIT_BRANCH=' "${SITE_CONF}"; then
+        sed -i 's|^GIT_BRANCH=.*|GIT_BRANCH="deployed/production"|' "${SITE_CONF}"
+    else
+        printf '\nGIT_BRANCH="deployed/production"\n' >> "${SITE_CONF}"
+    fi
+}
+
+migrate_legacy_production_branch_config
+
 # Load machine config
 if [[ -f "${MACHINE_CONF}" ]]; then
     # shellcheck source=/dev/null

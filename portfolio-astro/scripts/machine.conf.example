@@ -1,0 +1,86 @@
+# /etc/deploy/machine.conf — Machine-level deployment configuration
+# Shared across ALL sites hosted on this VM. Created once per machine.
+#
+# Install:
+#   sudo mkdir -p /etc/deploy/sites
+#   sudo cp machine.conf.example /etc/deploy/machine.conf
+#   sudo chmod 600 /etc/deploy/machine.conf
+#   # Then edit values for your VM.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# REFERENCE: Recommended values by machine size
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# ┌──────────────────────────┬────────────────┬──────────────────────────────┐
+# │ Setting                  │ 1 OCPU / 1 GB  │ 4 ARM vCPU / 24 GB (2 sites) │
+# │                          │   (1 site)     │   (per site values)          │
+# ├──────────────────────────┼────────────────┼──────────────────────────────┤
+# │ NODE_HEAP_MB             │ 350            │ 2048                         │
+# │ MEMORY_HIGH_MB           │ 400            │ 4096                         │
+# │ MEMORY_MAX_MB            │ 500            │ 6144                         │
+# │ CPU_QUOTA_PERCENT        │ 90             │ 180                          │
+# │ BUILD_NICE               │ 15             │ 10                           │
+# │ BUILD_IONICE_CLASS       │ 3              │ 2                            │
+# │ BUILD_HEAP_MB            │ 512            │ 4096                         │
+# │ SERVICE_NICE             │ 5              │ 0                            │
+# └──────────────────────────┴────────────────┴──────────────────────────────┘
+#
+# Notes:
+#   - Oracle ARM "1 OCPU" = 1 physical core = 1 vCPU. Total capacity = 100%.
+#   - Oracle ARM "4 OCPU" = 4 physical cores = 4 vCPU. Total capacity = 400%.
+#   - For 2 sites on 4 vCPU / 24 GB: give each site 180% CPU (leaves 40% for OS).
+#     Each site gets 2 GB heap + 6 GB max process memory. Leaves ~12 GB for OS/cache.
+#   - For 1 site on 1 OCPU / 1 GB: keep everything small. 350 MB heap, 500 MB max.
+#     CPU at 90% (leaves 10% for sshd, nginx, earlyoom).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── System User ──────────────────────────────────────────────────────────────
+# Non-root user that owns project files and runs services.
+MACHINE_USER="ubuntu"
+
+# ── Node.js Runtime (per site) ───────────────────────────────────────────────
+# V8 heap limit in MB. Tune based on available RAM and number of sites.
+#   1 GB RAM, 1 site   → 350
+#   1 GB RAM, 2 sites  → 200 each
+#   24 GB RAM, 1 site  → 4096
+#   24 GB RAM, 2 sites → 2048 each
+NODE_HEAP_MB=350
+
+# ── systemd Resource Limits (per site) ───────────────────────────────────────
+# MemoryHigh: soft limit — kernel starts throttling/reclaiming above this
+# MemoryMax: hard limit — OOM kill above this
+#   1 GB RAM, 1 site   → 400 / 500
+#   24 GB RAM, 2 sites → 4096 / 6144 each
+MEMORY_HIGH_MB=400
+MEMORY_MAX_MB=500
+
+# CPU quota as % of ALL CPUs.
+#   1 OCPU             = 100% total → 90% for 1 site (leaves headroom for OS)
+#   4 ARM vCPU         = 400% total → 180% each for 2 sites (leaves 40% for OS)
+#   NOTE: On 1 OCPU, NEVER set this above 90%. sshd/nginx/earlyoom need CPU too.
+CPU_QUOTA_PERCENT=90
+
+# ── Build Priority ───────────────────────────────────────────────────────────
+# nice: 0–19 (higher = lower priority).
+#   1 OCPU:  15 (low priority — don't starve the running site during deploy)
+#   4 vCPU:  10 (moderate — plenty of CPU headroom)
+BUILD_NICE=15
+# ionice class: 1=realtime, 2=best-effort, 3=idle.
+#   1 OCPU:  3 (idle — builds only use leftover I/O)
+#   4 vCPU:  2 (best-effort — disk is not the bottleneck with 24 GB RAM)
+BUILD_IONICE_CLASS=3
+# Max V8 heap during build (MB).
+#   1 GB RAM:  512 (uses swap if needed, but won't OOM)
+#   24 GB RAM: 4096 (fast builds, no swapping)
+BUILD_HEAP_MB=512
+
+# ── Service Priority ────────────────────────────────────────────────────────
+# nice value for the running service process (0–19).
+#   1 OCPU:  5  (slightly deprioritized vs sshd/nginx at nice 0)
+#   4 vCPU:  0  (normal priority — plenty of CPU)
+SERVICE_NICE=5
+
+# ── Docker Image Mode Notes ─────────────────────────────────────────────────
+# Image deployments mirror MEMORY_MAX_MB, MEMORY_HIGH_MB, CPU_QUOTA_PERCENT,
+# NODE_HEAP_MB, and SERVICE_NICE into docker run flags. Docker itself must be
+# installed on the VM; use scripts/bootstrap-docker-vm.sh on fresh Ubuntu hosts.

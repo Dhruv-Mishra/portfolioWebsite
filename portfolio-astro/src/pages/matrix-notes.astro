@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import MatrixNotesRoute from '@/components/routes/MatrixNotesRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/matrix-notes">
+  <MatrixNotesRoute client:load />
+</BaseLayout>

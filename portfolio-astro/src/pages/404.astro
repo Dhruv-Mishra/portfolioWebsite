@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import NotFoundRoute from '@/components/routes/NotFoundRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/404">
+  <NotFoundRoute client:load />
+</BaseLayout>

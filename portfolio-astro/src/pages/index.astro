@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import HomeRoute from '@/components/routes/HomeRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/">
+  <HomeRoute client:load />
+</BaseLayout>

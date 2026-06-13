@@ -1,0 +1,388 @@
+"use client";
+
+/**
+ * Sticker Drawer — the achievement album page.
+ *
+ * Structure:
+ *   - Header: hand-lettered title + WavyUnderline + subtitle.
+ *   - SuperuserBanner (only when earned): premium gold-foil hero card at
+ *     the top, taller/wider than a grid cell. The inline superuser tile
+ *     is NOT appended to the grid anymore — the banner owns the celebration.
+ *   - Progress card: tiny tilted taped index card showing `{unlocked}/{total} pinned`.
+ *   - Empty / first-sticker caption above the grid.
+ *   - Grid: 2/3/4/5 columns across breakpoints, each cell a <StickerCard>.
+ *
+ * On mount:
+ *   - markAlbumSeen() dismisses the badge pulse.
+ *
+ * Perf note: Cards use pure CSS animations (`sticker-card`, `sticker-card--unlocked`,
+ * `sticker-card--locked`) defined in app/globals.css. The banner uses
+ * framer-motion for its one-shot reveal animation and CSS keyframes for the
+ * persistent shimmer (see `.superuser-banner__card::after`).
+ */
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
+import { useMatrixEscaped, useMatrixEscapedAt, useStickers } from '@/hooks/useStickers';
+import { useAdminPrefs, setAdminPref } from '@/hooks/useAdminPrefs';
+import { TapeStrip } from '@/components/ui/TapeStrip';
+import { WavyUnderline } from '@/components/ui/WavyUnderline';
+import { cn } from '@/lib/utils';
+import { STICKER_TOKENS } from '@/lib/designTokens';
+import SuperuserBanner from '@/components/SuperuserBanner';
+import EscapeBanner from '@/components/matrix/EscapeBanner';
+
+export default function StickerDrawerPage() {
+  const { unlocked, total, unlockedAt, markAlbumSeen, hasSuperuser } = useStickers();
+  const hasEscaped = useMatrixEscaped();
+  const escapedAt = useMatrixEscapedAt();
+  const announcedSuperuserRef = useRef(false);
+  // Fresh-reveal glow: show the pulsing ring once when the user lands on the
+  // /stickers page while the escape flag is still "fresh" (no prior album
+  // visit since the escape). Once the album is marked seen (the effect
+  // below), the glow doesn't retrigger on subsequent mounts.
+  const [escapeGlow, setEscapeGlow] = useState<boolean>(false);
+  useEffect(() => {
+    if (!hasEscaped) return;
+    // The `markAlbumSeen()` in the mount effect below will flush; fire the
+    // glow only on the first mount after hasEscaped becomes true.
+    setEscapeGlow(true);
+    const t = window.setTimeout(() => setEscapeGlow(false), 2600);
+    return () => window.clearTimeout(t);
+  }, [hasEscaped]);
+
+  // Mark album seen on mount so the glance badge stops pulsing.
+  useEffect(() => {
+    markAlbumSeen();
+  }, [markAlbumSeen]);
+
+  // Build the unlocked-id lookup set once per change — O(1) membership per card.
+  const unlockedSet = useMemo(() => new Set<StickerId>(unlocked), [unlocked]);
+
+  // Sort: unlocked regular stickers first (by when earned), then locked
+  // regulars (roster order). The Superuser sticker is promoted to
+  // `SuperuserBanner` above the grid — no inline tile here to avoid
+  // duplicating the celebration.
+  const ordered = useMemo<ReadonlyArray<StickerEntry>>(() => {
+    const unlockedEntries = STICKER_ROSTER.filter((s) => unlockedSet.has(s.id)).sort(
+      (a, b) => (unlockedAt[a.id] ?? 0) - (unlockedAt[b.id] ?? 0),
+    );
+    const lockedEntries = STICKER_ROSTER.filter((s) => !unlockedSet.has(s.id));
+    return [...unlockedEntries, ...lockedEntries];
+  }, [unlockedSet, unlockedAt]);
+
+  // Regular-only unlocked count (hidden superuser excluded from the ratio).
+  const unlockedCount = unlocked.filter((id) => id !== SUPERUSER_STICKER.id).length;
+
+  // Caption copy — shifts based on progress.
+  let caption: string;
+  if (unlockedCount === 0) {
+    caption = 'no stickers yet — go explore!';
+  } else if (unlockedCount === 1) {
+    caption = 'nice, your first one! keep going.';
+  } else if (unlockedCount === total) {
+    caption = 'you collected them all ~';
+  } else {
+    caption = `${total - unlockedCount} still waiting to be found ~`;
+  }
+
+  // Announce superuser to screen readers the first time it appears.
+  useEffect(() => {
+    if (hasSuperuser && !announcedSuperuserRef.current) {
+      announcedSuperuserRef.current = true;
+    }
+  }, [hasSuperuser]);
+
+  return (
+    <main className="min-h-[100dvh] pt-12 md:pt-16 pb-16 px-4 md:px-8 relative z-10">
+      <div className="max-w-6xl mx-auto">
+        {/* ─── Header ─── */}
+        <header className="text-center mb-6 md:mb-8">
+          <h1 className="text-4xl md:text-6xl font-hand font-bold text-[var(--c-heading)] inline-block">
+            The Sticker Drawer
+          </h1>
+          <WavyUnderline className="max-w-[360px] mx-auto" />
+          <p className="mt-2 font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60">
+            Collect them by poking around ~
+          </p>
+        </header>
+
+        {/* ─── Escape-the-Matrix banner — rarest achievement, top placement ─── */}
+        {hasEscaped ? (
+          <div className="mt-6 md:mt-8">
+            <EscapeBanner escapedAt={escapedAt || undefined} showGlow={escapeGlow} />
+          </div>
+        ) : null}
+
+        {/* ─── Superuser banner — shown only once every regular sticker is collected ─── */}
+        {hasSuperuser ? (
+          <div className="mt-6 md:mt-8">
+            <SuperuserBanner earnedAt={unlockedAt[SUPERUSER_STICKER.id]} />
+          </div>
+        ) : null}
+
+        {/* ─── Progress pill ─── */}
+        <div className="mt-6 md:mt-8">
+          <ProgressCard unlockedCount={unlockedCount} total={total} />
+        </div>
+
+        {/* ─── Progress caption ─── */}
+        <p className="mt-6 md:mt-8 text-center font-hand italic text-lg md:text-xl text-[var(--c-ink)] opacity-50">
+          {caption}
+        </p>
+
+        {/* Superuser live-region announcement — once, polite. */}
+        <div role="status" aria-live="polite" className="sr-only">
+          {hasSuperuser ? 'You earned the Superuser sticker. Sudo terminal access unlocked.' : ''}
+        </div>
+
+        {/* ─── Sticker settings strip — tucked above the grid ─── */}
+        <StickerSettingsStrip />
+
+        {/* ─── Grid ─── */}
+        <section
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8 mt-6 md:mt-8"
+          aria-label="Sticker collection"
+        >
+          {ordered.map((sticker, index) => (
+            <StickerCard
+              key={sticker.id}
+              sticker={sticker}
+              unlocked={unlockedSet.has(sticker.id)}
+              index={index}
+            />
+          ))}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+// ─── Progress card ──────────────────────────────────────────────────────
+interface ProgressCardProps {
+  unlockedCount: number;
+  total: number;
+}
+
+const ProgressCard = memo(function ProgressCard({ unlockedCount, total }: ProgressCardProps) {
+  const pct = total === 0 ? 0 : Math.round((unlockedCount / total) * 100);
+  return (
+    <div className="flex justify-center">
+      <div
+        className="relative bg-[var(--note-user)] border border-yellow-300/40 dark:border-yellow-400/20 rounded-sm shadow-md px-6 py-3 pt-4 font-hand rotate-[-1deg]"
+      >
+        <TapeStrip size="sm" />
+        <p className="text-center text-lg md:text-xl font-bold text-[var(--c-heading)]">
+          <span className="text-2xl md:text-3xl">{unlockedCount}</span>
+          <span className="opacity-60 mx-0.5">/</span>
+          <span className="text-2xl md:text-3xl">{total}</span>
+          <span className="ml-2 opacity-70 text-sm md:text-base">pinned</span>
+        </p>
+        <p className="text-center text-xs text-[var(--c-ink)]/50 mt-0.5">
+          {pct}% of the drawer
+        </p>
+      </div>
+    </div>
+  );
+});
+
+// ─── Individual sticker card ────────────────────────────────────────────
+interface StickerCardProps {
+  sticker: StickerEntry;
+  unlocked: boolean;
+  index: number;
+}
+
+/**
+ * Stagger cap: identical in shape to the previous framer delay progression
+ * (index * ~30ms, capped so the 12th card doesn't wait half a second).
+ */
+const ENTRANCE_STAGGER_MS = 30;
+const ENTRANCE_STAGGER_CAP_MS = 300;
+
+function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
+  const hash = useMemo(() => hashStickerId(sticker.id), [sticker.id]);
+  const rotate = useMemo(() => rotationForId(sticker.id), [sticker.id]);
+
+  // Hash-staggered idle-float tempo. Matches the old framer values byte-for-byte:
+  //   floatDuration = 2.8..4.0s  (2.8 + (hash % 120)/100)
+  //   floatDelay    = 0..1s      ((hash % 100)/100)
+  const floatDuration = useMemo(() => `${(2.8 + (hash % 120) / 100).toFixed(2)}s`, [hash]);
+  const floatDelay = useMemo(() => `${((hash % 100) / 100).toFixed(2)}s`, [hash]);
+  const entranceDelay = useMemo(
+    () => `${Math.min(index * ENTRANCE_STAGGER_MS, ENTRANCE_STAGGER_CAP_MS)}ms`,
+    [index],
+  );
+
+  const cardStyle = useMemo<CSSProperties>(
+    () => ({
+      '--card-rotate': `${rotate}deg`,
+      '--card-float-dur': floatDuration,
+      '--card-float-delay': floatDelay,
+      '--card-entrance-delay': entranceDelay,
+    } as CSSProperties),
+    [rotate, floatDuration, floatDelay, entranceDelay],
+  );
+
+  const isSuperuser = sticker.id === 'superuser';
+  return (
+    <article
+      className={cn(
+        'group relative border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand',
+        'sticker-card',
+        unlocked ? 'sticker-card--unlocked' : 'sticker-card--locked',
+        isSuperuser && unlocked && 'sticker-card--superuser',
+        !isSuperuser && 'bg-[var(--c-paper)]',
+      )}
+      style={cardStyle}
+      aria-label={unlocked ? sticker.label : 'Locked sticker — keep exploring'}
+    >
+      <TapeStrip size="sm" />
+
+      {/* Locked badge — subtle "??" at top-right */}
+      {!unlocked && (
+        <span
+          aria-hidden="true"
+          className="absolute top-1 right-2 font-hand italic text-xs text-[var(--c-ink)] opacity-30 select-none"
+        >
+          ??
+        </span>
+      )}
+
+      {/* Sticker SVG */}
+      <div
+        className={cn(
+          'mt-2 mb-2 transition-[filter,opacity] duration-300',
+          !unlocked && 'grayscale opacity-35',
+        )}
+      >
+        <StickerSvg id={sticker.id as StickerId} size={STICKER_TOKENS.size.card} />
+      </div>
+
+      {/* Label */}
+      <h2
+        className={cn(
+          'font-bold text-[var(--c-heading)] text-base md:text-lg leading-tight',
+          !unlocked && 'opacity-50',
+        )}
+      >
+        {unlocked ? (
+          sticker.label
+        ) : (
+          <span aria-hidden="true">???</span>
+        )}
+      </h2>
+
+      {/* Description / hint — 2-line clamp */}
+      <p
+        className={cn(
+          'text-xs md:text-sm mt-1 text-[var(--c-ink)]/70 leading-snug line-clamp-2',
+          !unlocked && 'italic text-[var(--c-ink)]/50',
+        )}
+      >
+        {unlocked ? sticker.description : sticker.hint}
+      </p>
+    </article>
+  );
+}
+
+/**
+ * Custom comparator — store updates re-render the parent but we only want the
+ * card to re-render when its own identity, lock state, or index changes.
+ */
+const StickerCard = memo(StickerCardImpl, (prev, next) =>
+  prev.unlocked === next.unlocked &&
+  prev.sticker.id === next.sticker.id &&
+  prev.index === next.index,
+);
+
+// ─── Sticker settings strip ─────────────────────────────────────────────
+// Always-expanded sketchbook card. Two paper-style toggles. Persists via
+// `useAdminPrefs` (localStorage key `dhruv-admin-prefs`).
+function StickerSettingsStrip() {
+  const { stickersEnabled, stickerToastsEnabled } = useAdminPrefs();
+  return (
+    <section
+      aria-label="Sticker settings"
+      className="mt-8 md:mt-10 mb-2 mx-auto max-w-lg rounded-md border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)]/70 px-5 py-4 font-hand text-[var(--c-ink)] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+    >
+      <header className="flex items-baseline gap-2 mb-3">
+        <h2 className="text-lg md:text-xl font-bold text-[var(--c-heading)]">
+          Sticker settings
+        </h2>
+        <span className="text-xs md:text-sm text-[var(--c-ink)]/55 italic">
+          (saved in your browser)
+        </span>
+      </header>
+      <div className="space-y-2.5 text-base md:text-lg">
+        <SketchToggle
+          label="Earn stickers as I explore"
+          checked={stickersEnabled}
+          onChange={(v) => setAdminPref('stickersEnabled', v)}
+        />
+        <SketchToggle
+          label="Show pop-up when I earn one"
+          hint="off by default — turn on if you like the celebration"
+          checked={stickerToastsEnabled}
+          disabled={!stickersEnabled}
+          onChange={(v) => setAdminPref('stickerToastsEnabled', v)}
+        />
+      </div>
+    </section>
+  );
+}
+
+interface SketchToggleProps {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}
+
+function SketchToggle({ label, hint, checked, disabled, onChange }: SketchToggleProps) {
+  return (
+    <label
+      className={cn(
+        'flex items-center justify-between gap-4 rounded-sm border border-dashed border-[var(--c-ink)]/25 bg-[var(--c-paper)]/60 px-3 py-2 transition-colors',
+        disabled
+          ? 'cursor-not-allowed opacity-55'
+          : 'cursor-pointer hover:bg-[var(--c-paper)]/90',
+      )}
+    >
+      {/* Hidden input first so the visible track can be its `peer` for focus styling. */}
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={label}
+      />
+      <span className="flex-1 min-w-0">
+        <span className="block leading-tight">{label}</span>
+        {hint ? (
+          <span className="block text-xs md:text-sm text-[var(--c-ink)]/55 italic mt-0.5">
+            {hint}
+          </span>
+        ) : null}
+      </span>
+      <span
+        aria-hidden
+        className={cn(
+          'relative inline-flex w-12 h-6 rounded-full border-2 border-dashed shrink-0 transition-colors',
+          'peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-[var(--c-heading)]/60 peer-focus-visible:ring-offset-[var(--c-paper)]',
+          checked
+            ? 'bg-[var(--c-heading)]/25 border-[var(--c-heading)]/70'
+            : 'bg-[var(--c-paper)] border-[var(--c-ink)]/40',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-[1px] inline-block w-4 h-4 rounded-full bg-[var(--c-ink)] shadow-sm transition-transform duration-200',
+            checked ? 'translate-x-[26px]' : 'translate-x-[2px]',
+          )}
+        />
+      </span>
+    </label>
+  );
+}

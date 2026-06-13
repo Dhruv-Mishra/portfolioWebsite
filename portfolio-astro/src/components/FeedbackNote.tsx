@@ -1,0 +1,439 @@
+"use client";
+
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { m } from 'framer-motion';
+import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { useAppHaptics } from '@/lib/haptics';
+import { soundManager } from '@/lib/soundManager';
+import { stickerBus } from '@/lib/stickerBus';
+import { cn } from '@/lib/utils';
+import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
+import { Modal } from '@/components/ui/Modal';
+import { TapeStrip } from '@/components/ui/TapeStrip';
+import { WavyUnderline } from '@/components/ui/WavyUnderline';
+import { TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+
+// ─── Types ──────────────────────────────────────────────────────────────
+type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
+type FeedbackState = 'idle' | 'submitting' | 'success' | 'error';
+
+// Hoisted — avoids re-allocation per render
+const SPIRAL_HOLES = Array.from({ length: LAYOUT_TOKENS.feedbackSpiralHoles });
+const SPIRAL_HOLE_SHADOW = { boxShadow: SHADOW_TOKENS.spiralHole } as const;
+
+const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; bg: string; classes: string; placeholder: string }[] = [
+  { id: 'bug', label: 'Bug', icon: Bug, bg: FEEDBACK_COLORS.bug.bg, classes: `${FEEDBACK_COLORS.bug.text} ${FEEDBACK_COLORS.bug.border}`, placeholder: "What went wrong? Where did it happen?" },
+  { id: 'idea', label: 'Idea', icon: Lightbulb, bg: FEEDBACK_COLORS.idea.bg, classes: `${FEEDBACK_COLORS.idea.text} ${FEEDBACK_COLORS.idea.border}`, placeholder: "What would make this site better?" },
+  { id: 'kudos', label: 'Kudos', icon: Heart, bg: FEEDBACK_COLORS.kudos.bg, classes: `${FEEDBACK_COLORS.kudos.text} ${FEEDBACK_COLORS.kudos.border}`, placeholder: "What do you like about this site?" },
+  { id: 'other', label: 'Other', icon: MessageSquare, bg: FEEDBACK_COLORS.other.bg, classes: `${FEEDBACK_COLORS.other.text} ${FEEDBACK_COLORS.other.border}`, placeholder: "What's on your mind?" },
+];
+
+const MAX_MESSAGE_LENGTH = LAYOUT_TOKENS.maxMessageLength;
+const FEEDBACK_DRAFT_KEY = 'dhruv-feedback-draft';
+
+/** Hoisted textarea style — lined notebook effect. Avoids re-allocation per render. */
+const TEXTAREA_LINED_STYLE = {
+  backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, var(--c-grid) 23px, var(--c-grid) 24px)',
+  backgroundAttachment: 'local',
+  backgroundPosition: '0 26px',
+  lineHeight: '24px',
+  paddingTop: '26px',
+} as const;
+
+// ─── Paper Airplane fly-away animation ──────────────────────────────────
+const AIRPLANE_INITIAL = { opacity: 0, scale: 0.5, y: 0, x: 0, rotate: 0 };
+const AIRPLANE_ANIMATE = {
+  opacity: [0, 1, 1, 0],
+  scale: [0.5, 1.2, 1, 0.8],
+  y: [0, -10, -60, -120],
+  x: [0, 5, 30, 80],
+  rotate: [0, -10, -20, -45],
+};
+const AIRPLANE_TRANSITION = { duration: 1.2, ease: 'easeOut' as const };
+
+/** Hoisted spring for category tab buttons */
+const CATEGORY_TAB_SPRING = { type: 'spring' as const, stiffness: 400, damping: 25 };
+
+const PaperAirplaneSuccess = () => (
+  <m.div
+    initial={AIRPLANE_INITIAL}
+    animate={AIRPLANE_ANIMATE}
+    transition={AIRPLANE_TRANSITION}
+    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl pointer-events-none z-30"
+  >
+    ✈️
+  </m.div>
+);
+
+// ═════════════════════════════════════════════════
+// ─── Main Feedback Modal ────────────────────────
+// ═════════════════════════════════════════════════
+interface FeedbackNoteProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
+  const { clear, closePanel, error: errorHaptic, selection, submit, success, warning } = useAppHaptics();
+  const [category, setCategory] = useState<FeedbackCategory>('bug');
+  const [message, setMessage] = useState('');
+  const [contact, setContact] = useState('');
+  const [state, setState] = useState<FeedbackState>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathname = usePathname();
+  const { resolvedTheme } = useTheme();
+
+  // Load draft from localStorage on mount (validated)
+  useEffect(() => {
+    try {
+      const draft = localStorage.getItem(FEEDBACK_DRAFT_KEY);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (typeof parsed.message === 'string') setMessage(parsed.message);
+        if (parsed.category && CATEGORIES.some(c => c.id === parsed.category)) {
+          setCategory(parsed.category);
+        }
+        if (typeof parsed.contact === 'string') setContact(parsed.contact);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Save draft to localStorage when message or category changes (debounced)
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        if (message || category !== 'bug' || contact) {
+          localStorage.setItem(FEEDBACK_DRAFT_KEY, JSON.stringify({ message, category, contact }));
+        } else {
+          localStorage.removeItem(FEEDBACK_DRAFT_KEY);
+        }
+      } catch { /* ignore */ }
+    }, TIMING_TOKENS.draftSaveDebounce);
+    return () => clearTimeout(id);
+  }, [message, category, contact]);
+
+  const clearDraft = useCallback(() => {
+    setMessage('');
+    setContact('');
+    setCategory('bug');
+    try { localStorage.removeItem(FEEDBACK_DRAFT_KEY); } catch { /* ignore */ }
+  }, []);
+
+  // Focus textarea when opened
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      setTimeout(() => textareaRef.current?.focus(), TIMING_TOKENS.focusDelay);
+    }
+  }, [isOpen]);
+
+  // Reset form when opened
+  useEffect(() => {
+    if (isOpen) {
+      setState('idle');
+      setErrorMsg('');
+    }
+  }, [isOpen]);
+
+  // Prevent dismissal during submission
+  const handleClose = useCallback(() => {
+    if (state === 'submitting') return;
+    closePanel();
+    onClose();
+  }, [closePanel, state, onClose]);
+
+  // Note: Escape key, body scroll lock, and focus trap are handled by the shared Modal shell.
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+    };
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (state === 'submitting') return;
+
+    const trimmed = message.trim();
+    if (!trimmed || trimmed.length < 5) {
+      warning();
+      setErrorMsg('Please write at least 5 characters.');
+      return;
+    }
+
+    // Client-side rate limit
+    if (!rateLimiter.check('feedback', RATE_LIMITS.FEEDBACK)) {
+      const remaining = rateLimiter.getRemainingTime('feedback', RATE_LIMITS.FEEDBACK);
+      warning();
+      setErrorMsg(`Too many submissions. Try again in ${remaining} seconds.`);
+      return;
+    }
+
+    submit();
+    setState('submitting');
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category,
+          message: trimmed,
+          contact: contact.trim() || undefined,
+          page: pathname,
+          theme: resolvedTheme || 'unknown',
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+          userAgent: navigator.userAgent.slice(0, 200),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+
+      setState('success');
+  success();
+      soundManager.play('feedback-sent');
+      stickerBus.emit('note-sender');
+      clearDraft();
+      // Auto-close after success
+      successTimeoutRef.current = setTimeout(() => {
+        onClose();
+        // Reset state after close animation
+        resetTimeoutRef.current = setTimeout(() => setState('idle'), TIMING_TOKENS.closeResetDelay);
+      }, TIMING_TOKENS.successAutoClose);
+    } catch (err) {
+      setState('error');
+      errorHaptic();
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
+    }
+  }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft, errorHaptic, submit, success, warning]);
+
+  const handleCategorySelect = useCallback((nextCategory: FeedbackCategory) => {
+    selection();
+    setCategory(nextCategory);
+  }, [selection]);
+
+  const handleClearDraft = useCallback(() => {
+    clear();
+    clearDraft();
+  }, [clear, clearDraft]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  }, [handleSubmit]);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      className={cn(
+        "md:w-[var(--c-feedback-w)] max-w-[var(--c-feedback-w)]",
+        "my-[var(--c-modal-top)] md:my-[var(--c-modal-top-md)]",
+        "bg-[var(--note-user)] shadow-xl",
+        "font-hand",
+      )}
+      ariaLabelledBy="feedback-heading"
+    >
+            {/* Tape strip */}
+            <TapeStrip size="md" />
+
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              className="absolute top-1 right-1 z-30 rounded-full p-3 text-rose-600/70 hover:bg-rose-50/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200 hover:scale-110 hover:rotate-6"
+              aria-label="Close feedback note"
+            >
+              <X size={18} strokeWidth={2.4} />
+            </button>
+
+            {/* Content */}
+            <div className="p-4 pt-7 pb-4 md:p-5 md:pt-9 md:pb-5">
+              {/* Success state */}
+              {state === 'success' ? (
+                <m.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center py-8 relative"
+                  role="status"
+                  aria-live="assertive"
+                >
+                  <PaperAirplaneSuccess />
+                  <CheckCircle size={40} className="mx-auto text-green-600 dark:text-green-400 mb-3" />
+                  <p className="text-xl font-bold text-[var(--c-heading)]">Note sent!</p>
+                  <p className="text-sm text-[var(--c-ink)] opacity-60 mt-1">Thanks for the feedback ~</p>
+                </m.div>
+              ) : (
+                <>
+                  {/* Heading */}
+                  <h2 id="feedback-heading" className="text-2xl md:text-3xl font-bold text-[var(--c-heading)] text-center mb-1">
+                    Scribble me some feedback
+                  </h2>
+                  <WavyUnderline />
+
+                  {/* Category tabs */}
+                  <div className="flex justify-center gap-2 mt-3 mb-3" role="tablist" aria-label="Feedback category">
+                    {CATEGORIES.map((cat) => {
+                      const active = category === cat.id;
+                      return (
+                        <m.button
+                          key={cat.id}
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => handleCategorySelect(cat.id)}
+                          animate={{ scale: active ? 1.08 : 1 }}
+                          transition={CATEGORY_TAB_SPRING}
+                          className={cn(
+                            "px-4 py-2 rounded-full border-2 font-hand font-bold text-sm min-h-[44px]",
+                            cat.classes,
+                            active
+                              ? "shadow-md opacity-100 border-[var(--c-grid)]/50"
+                              : "opacity-50 hover:opacity-80 border-transparent",
+                          )}
+                          style={{ backgroundColor: cat.bg }}
+                        >
+                          <cat.icon size={14} className="inline mr-1 -mt-0.5" />
+                          {cat.label}
+                        </m.button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Text area with spiral notepad */}
+                  <div className="relative">
+                    {/* Spiral binding holes */}
+                    <div className="absolute top-0 left-0 right-0 h-6 bg-[var(--c-paper)] border-2 border-b-0 border-[var(--c-grid)]/30 rounded-t-md z-10 flex items-center justify-evenly px-2">
+                      {SPIRAL_HOLES.map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-2.5 h-2.5 flex-shrink-0 rounded-full border-2 border-[var(--c-grid)]/40 bg-[var(--c-paper)]"
+                          style={SPIRAL_HOLE_SHADOW}
+                        />
+                      ))}
+                    </div>
+                    <textarea
+                      ref={textareaRef}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                      onKeyDown={handleKeyDown}
+                      placeholder={CATEGORIES.find(c => c.id === category)?.placeholder ?? "What's on your mind?"}
+                      rows={12}
+                      disabled={state === 'submitting'}
+                      aria-label="Feedback message"
+                      className={cn(
+                        "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
+                        "px-3 pb-3 font-hand text-sm md:text-base text-[var(--c-ink)]",
+                        "placeholder:text-[var(--c-ink)]/30",
+                        "focus:outline-none focus:border-[var(--c-grid)]/60",
+                        "resize-none transition-colors",
+                        "disabled:opacity-50",
+                      )}
+                      style={TEXTAREA_LINED_STYLE}
+                    />
+                    {/* Character count */}
+                    <span className="absolute bottom-2 right-3 text-xs text-[var(--c-ink)] opacity-30 font-code" role="status" aria-live="polite">
+                      {message.length}/{MAX_MESSAGE_LENGTH}
+                    </span>
+                  </div>
+
+                  {/* Optional contact field */}
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={contact}
+                      onChange={(e) => setContact(e.target.value.slice(0, LAYOUT_TOKENS.contactMaxLength))}
+                      placeholder="Name / email / socials (optional)"
+                      disabled={state === 'submitting'}
+                      aria-label="Contact information (optional)"
+                      className={cn(
+                        "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
+                        "px-3 py-2 font-hand text-sm text-[var(--c-ink)]",
+                        "placeholder:text-[var(--c-ink)]/30",
+                        "focus:outline-none focus:border-[var(--c-grid)]/60",
+                        "transition-colors",
+                        "disabled:opacity-50",
+                      )}
+                    />
+                  </div>
+
+                  {/* Action bar: page info, clear, send */}
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <p className="text-xs text-[var(--c-ink)] opacity-30 truncate mr-2">
+                      {pathname} &middot; {resolvedTheme} &middot; Ctrl+Enter
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {message.length > 0 && (
+                        <m.button
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={handleClearDraft}
+                          className={cn(
+                            "flex items-center gap-1 px-2.5 py-1.5 rounded-md",
+                            "border-2 border-dashed border-[var(--c-grid)]/40",
+                            "text-[var(--c-ink)] opacity-50 hover:opacity-80",
+                            "font-hand text-sm transition-opacity",
+                          )}
+                          title="Clear text"
+                        >
+                          <Trash2 size={13} />
+                          Clear
+                        </m.button>
+                      )}
+                      <m.button
+                        whileHover={{ scale: 1.05, rotate: -1 }}
+                        whileTap={{ scale: 0.92 }}
+                        onClick={handleSubmit}
+                        disabled={!message.trim() || state === 'submitting'}
+                        className={cn(
+                          "flex items-center gap-1.5 px-4 py-1.5 rounded-md",
+                          "bg-[var(--c-ink)] text-[var(--c-paper)]",
+                          "font-hand font-bold text-sm",
+                          "shadow-sm transition-opacity",
+                          "disabled:opacity-30 disabled:cursor-not-allowed",
+                          state === 'submitting' && "animate-pulse",
+                        )}
+                      >
+                        <Send size={14} />
+                        {state === 'submitting' ? 'Sending...' : 'Send'}
+                      </m.button>
+                    </div>
+                  </div>
+
+                  {/* Error message */}
+                  {errorMsg && (
+                    <m.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      role="alert"
+                      className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400 mt-1"
+                    >
+                      <AlertTriangle size={14} />
+                      {errorMsg}
+                    </m.p>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Folded corner */}
+            <div
+              className="absolute bottom-0 right-0 w-[20px] h-[20px] pointer-events-none"
+              style={{
+                background: GRADIENT_TOKENS.foldCorner,
+              }}
+            />
+    </Modal>
+  );
+}

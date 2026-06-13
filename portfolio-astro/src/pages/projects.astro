@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ProjectsRoute from '@/components/routes/ProjectsRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/projects">
+  <ProjectsRoute client:load />
+</BaseLayout>

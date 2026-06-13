@@ -1,0 +1,15 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import GuestbookRoute from '@/components/routes/GuestbookRoute';
+import { getApprovedEntries } from '@/lib/guestbook.server';
+
+export const prerender = false;
+
+const rawPage = Number.parseInt(Astro.url.searchParams.get('page') ?? '1', 10);
+const currentPage = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
+const entries = await getApprovedEntries();
+---
+
+<BaseLayout pathname="/guestbook">
+  <GuestbookRoute client:load entries={entries} currentPage={currentPage} />
+</BaseLayout>

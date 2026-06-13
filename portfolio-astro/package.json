@@ -1,0 +1,44 @@
+{
+  "name": "portfolio-astro",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "check": "astro check",
+    "lint": "astro check",
+    "preview": "astro preview",
+    "start": "node ./dist/entry.mjs",
+    "build:embeddings": "tsx scripts/build-embeddings.ts",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/node": "^10.1.4",
+    "@astrojs/react": "^5.0.7",
+    "@astrojs/sitemap": "^3.7.3",
+    "@huggingface/transformers": "^4.2.0",
+    "@tailwindcss/vite": "^4.3.1",
+    "astro": "^6.4.6",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.40.0",
+    "groq-sdk": "^1.2.1",
+    "lucide-react": "^0.562.0",
+    "openai": "^6.42.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.1",
+    "web-haptics": "^0.0.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

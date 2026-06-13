@@ -1,0 +1,344 @@
+"use client";
+import { useEffect, useState, useRef } from 'react';
+import { m, useMotionValue, useSpring } from 'framer-motion';
+import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { useTheme } from 'next-themes';
+
+// Trail point with timestamp for time-based aging (framerate-independent)
+interface TrailPoint { x: number; y: number; t: number }
+
+// Pre-allocated ring buffer for trail points — zero GC pressure
+const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
+
+// Hoisted cursor inner-div transform styles — avoids object allocation per render
+const CURSOR_TRANSFORM_DARK = { transform: 'translate(0, 0)' } as const;
+const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
+const MAX_TRAIL_DPR = 1.5;
+
+function getTrailDpr(): number {
+    return Math.min(window.devicePixelRatio || 1, MAX_TRAIL_DPR);
+}
+
+export default function SketchbookCursor() {
+    const cursorRef = useRef<HTMLDivElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const isHoveringLinkRef = useRef(false);
+    const { resolvedTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    // Use a ref to access the latest theme inside the animation loop without restarting it
+    const themeRef = useRef(resolvedTheme);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        themeRef.current = resolvedTheme;
+    }, [resolvedTheme]);
+
+    // Motion values for cursor — zero re-renders, proper Framer Motion composition
+    const mouseX = useMotionValue(-100);
+    const mouseY = useMotionValue(-100);
+    const cursorRotate = useMotionValue(0);
+    const cursorOpacity = useMotionValue(1);
+
+    // Clickable-element scale — spring-animated for smooth bounce
+    const cursorHoverRaw = useMotionValue(1);
+    const cursorHoverScale = useSpring(cursorHoverRaw, { stiffness: 500, damping: 20 });
+
+    // Ring buffer for trail points — fixed-size, no allocations during render
+    const ringRef = useRef<TrailPoint[]>(new Array(MAX_POINTS));
+    const headRef = useRef(0);  // next write index
+    const tailRef = useRef(0);  // oldest live index
+    const lastMoveTime = useRef(0);
+    const isVisibleRef = useRef(true);
+    const rafIdRef = useRef<number>(0);   // 0 = stopped
+    const dprRef = useRef(1);             // cached devicePixelRatio
+
+    useEffect(() => {
+        lastMoveTime.current = Date.now(); // Initialize on mount
+        if (!mounted) return;
+
+        const canUseCustomCursor = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        if (!canUseCustomCursor) return;
+
+        const ring = ringRef.current;
+        dprRef.current = getTrailDpr();
+        document.documentElement.dataset.customCursor = 'ready';
+
+        // ─── Wake the rAF loop if it's sleeping ───
+        const wakeLoop = () => {
+            if (rafIdRef.current === 0) {
+                rafIdRef.current = requestAnimationFrame(renderTrail);
+            }
+        };
+
+        // checkHover merged into mousemove — avoids a separate 'mouseover' event listener
+        // that fires on every element boundary crossing in the DOM
+        let lastHoverTarget: EventTarget | null = null;
+        const checkHover = (e: MouseEvent) => {
+            // Skip if target hasn't changed (most common case during mouse movement)
+            if (e.target === lastHoverTarget) return;
+            lastHoverTarget = e.target;
+            const target = e.target as HTMLElement;
+            // Check for links, buttons, inputs, or elements with data-clickable
+            const hovering = !!(target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                target.closest('a') || target.closest('button') || target.closest('[data-clickable]'));
+            if (hovering !== isHoveringLinkRef.current) {
+                isHoveringLinkRef.current = hovering;
+                // Motion values — no React re-render, no CSS transition conflict
+                cursorHoverRaw.set(hovering ? 1.3 : 1);
+            }
+        };
+
+        const moveCursor = (e: MouseEvent) => {
+            mouseX.set(e.clientX);
+            mouseY.set(e.clientY);
+            checkHover(e);
+            const now = performance.now();
+            lastMoveTime.current = now;
+
+            // Distance-based throttling against last written point
+            const prevIdx = (headRef.current - 1 + MAX_POINTS) % MAX_POINTS;
+            const prev = headRef.current !== tailRef.current ? ring[prevIdx] : null;
+            const dx = prev ? e.clientX - prev.x : Infinity;
+            const dy = prev ? e.clientY - prev.y : Infinity;
+            const dist2 = dx * dx + dy * dy; // avoid sqrt
+
+            // Min 5px (25 sq), Max 80px (6400 sq)
+            if (dist2 > LAYOUT_TOKENS.cursorMinDist2 && dist2 < LAYOUT_TOKENS.cursorMaxDist2) {
+                const idx = headRef.current;
+                // Reuse or create point object in ring slot
+                if (ring[idx]) {
+                    ring[idx].x = e.clientX;
+                    ring[idx].y = e.clientY;
+                    ring[idx].t = now;
+                } else {
+                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
+                }
+                headRef.current = (idx + 1) % MAX_POINTS;
+                // If head catches tail, advance tail (drop oldest point)
+                if (headRef.current === tailRef.current) {
+                    tailRef.current = (tailRef.current + 1) % MAX_POINTS;
+                }
+            } else if (dist2 >= LAYOUT_TOKENS.cursorMaxDist2) {
+                // Large jump — clear trail, start fresh
+                tailRef.current = headRef.current;
+                const idx = headRef.current;
+                if (ring[idx]) {
+                    ring[idx].x = e.clientX;
+                    ring[idx].y = e.clientY;
+                    ring[idx].t = now;
+                } else {
+                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
+                }
+                headRef.current = (idx + 1) % MAX_POINTS;
+            }
+
+            // Ensure the render loop is running whenever the mouse moves
+            wakeLoop();
+        };
+
+        // Motion values for visibility — no React state / re-render
+        const setCursorVisible = (visible: boolean) => {
+            isVisibleRef.current = visible;
+            cursorOpacity.set(visible ? 1 : 0);
+            if (!visible) cursorHoverRaw.set(1);
+        };
+        const handleMouseLeave = () => setCursorVisible(false);
+        const handleMouseEnter = () => setCursorVisible(true);
+
+        // Custom events for explicit control (e.g., from Resume page to hide cursor over interactive PDF)
+        const handleHideCursor = () => setCursorVisible(false);
+        const handleShowCursor = () => setCursorVisible(true);
+
+        const resizeCanvas = () => {
+            if (!canvasRef.current) return;
+            const dpr = getTrailDpr();
+            dprRef.current = dpr;
+            canvasRef.current.width = window.innerWidth * dpr;
+            canvasRef.current.height = window.innerHeight * dpr;
+            canvasRef.current.style.width = window.innerWidth + 'px';
+            canvasRef.current.style.height = window.innerHeight + 'px';
+            const ctx = canvasRef.current.getContext('2d');
+            // setTransform resets the matrix before applying scale — prevents
+            // compounding on repeated resize calls (ctx.scale would compound).
+            ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+        };
+
+        let resizeTimer: ReturnType<typeof setTimeout>;
+        const handleResize = () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(resizeCanvas, TIMING_TOKENS.resizeDebounce);
+        };
+
+        window.addEventListener('mousemove', moveCursor, { passive: true });
+        // Use single listener on document (captures mouseleave from window too)
+        document.addEventListener('mouseleave', handleMouseLeave);
+        document.addEventListener('mouseenter', handleMouseEnter);
+        window.addEventListener('sketchbook:hideCursor', handleHideCursor);
+        window.addEventListener('sketchbook:showCursor', handleShowCursor);
+        window.addEventListener('resize', handleResize, { passive: true });
+
+        resizeCanvas();
+
+        // Canvas Drawing Loop — self-stopping: sleeps when idle, woken by mousemove
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d', { alpha: true });
+
+        // Trail lifetime in ms — time-based so it's framerate-independent
+        const TRAIL_LIFE_DARK = TIMING_TOKENS.trailLifeDark;    // chalk: very short trail
+        const TRAIL_LIFE_LIGHT = TIMING_TOKENS.trailLifeLight;   // pencil: short trail
+
+        const renderTrail = () => {
+            rafIdRef.current = 0; // mark as not-scheduled until we re-schedule below
+            if (!canvas || !ctx) return;
+
+            const now = performance.now();
+            let tail = tailRef.current;
+            const head = headRef.current;
+
+            const dpr = dprRef.current;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+            const isDark = themeRef.current === 'dark';
+            const trailLife = isDark ? TRAIL_LIFE_DARK : TRAIL_LIFE_LIGHT;
+
+            // Expire old points from tail
+            while (tail !== head) {
+                if (now - ring[tail].t > trailLife) {
+                    tail = (tail + 1) % MAX_POINTS;
+                } else {
+                    break;
+                }
+            }
+            tailRef.current = tail;
+
+            // Single-path draw: 1 beginPath + 1 stroke = 1 GPU draw call
+            const count = (head - tail + MAX_POINTS) % MAX_POINTS;
+            if (count > 1) {
+                ctx.beginPath();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (isDark) {
+                    ctx.strokeStyle = CURSOR_TRAIL.dark.color;
+                    ctx.lineWidth = CURSOR_TRAIL.dark.lineWidth;
+                } else {
+                    ctx.strokeStyle = CURSOR_TRAIL.light.color;
+                    ctx.lineWidth = CURSOR_TRAIL.light.lineWidth;
+                }
+
+                // Start from oldest live point
+                const p0 = ring[tail];
+                ctx.moveTo(p0.x, p0.y);
+
+                let i = (tail + 1) % MAX_POINTS;
+                let prev = p0;
+
+                while (i !== head) {
+                    const pt = ring[i];
+                    // Quadratic bezier through midpoints for smooth curves
+                    const mx = (prev.x + pt.x) * 0.5;
+                    const my = (prev.y + pt.y) * 0.5;
+                    ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+                    prev = pt;
+                    i = (i + 1) % MAX_POINTS;
+                }
+                // Final segment to last point
+                ctx.lineTo(prev.x, prev.y);
+                ctx.stroke();
+            }
+
+            // Self-stop: if trail is empty and cursor idle, let the loop sleep.
+            // The next mousemove will call wakeLoop() to restart it.
+            const activePoints = (head - tail + MAX_POINTS) % MAX_POINTS;
+            if (activePoints === 0 && now - lastMoveTime.current > TIMING_TOKENS.cursorIdleThreshold) {
+                // Loop stops — zero CPU while idle
+                return;
+            }
+
+            rafIdRef.current = requestAnimationFrame(renderTrail);
+        };
+
+        // Start the loop (will self-stop once idle)
+        wakeLoop();
+
+        return () => {
+            window.removeEventListener('mousemove', moveCursor);
+            document.removeEventListener('mouseleave', handleMouseLeave);
+            document.removeEventListener('mouseenter', handleMouseEnter);
+            window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
+            window.removeEventListener('sketchbook:showCursor', handleShowCursor);
+            window.removeEventListener('resize', handleResize);
+            clearTimeout(resizeTimer);
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+            if (document.documentElement.dataset.customCursor === 'ready') {
+                delete document.documentElement.dataset.customCursor;
+            }
+        };
+    }, [cursorHoverRaw, cursorOpacity, mouseX, mouseY, mounted]); // isVisible tracked via ref to avoid effect restart
+
+    if (!mounted) return null;
+
+    return (
+        <div className="pointer-events-none fixed inset-0 overflow-hidden hidden md:block" style={{ zIndex: Z_INDEX.cursor }}>
+            {/* Trail Canvas */}
+            <canvas
+                ref={canvasRef}
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+            />
+
+            {/* Cursor Item (Pencil or Chalk) */}
+            <m.div
+                ref={cursorRef}
+                style={{
+                    x: mouseX,
+                    y: mouseY,
+                    rotate: cursorRotate,
+                    opacity: cursorOpacity,
+                    scale: cursorHoverScale,
+                }}
+                className="absolute top-0 left-0"
+            >
+                <div className="w-[var(--c-cursor-size)] md:w-[var(--c-cursor-size-md)] h-[var(--c-cursor-size)] md:h-[var(--c-cursor-size-md)]" style={resolvedTheme === 'dark' ? CURSOR_TRANSFORM_DARK : CURSOR_TRANSFORM_LIGHT}>
+                    {resolvedTheme === 'dark' ? (
+                        /* Chalk Stick SVG */
+                        <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            {/* Chalk Tip (Worn/Jagged) */}
+                            <path d="M0 0 L2.5 7.5 L7.5 2.5 Z" fill="#d1d5db" />
+                            {/* Main Chalk Body */}
+                            <path d="M2.5 7.5 L7.5 2.5 L28.5 23.5 L23.5 28.5 Z" fill="#e5e7eb" />
+                            {/* Chalk Dust Texture */}
+                            <path d="M5 7 L7 5 L9 7 L7 9 Z" fill="#d1d5db" />
+                            <path d="M10 10 L11 9 L25 23 L24 24 Z" fill="white" fillOpacity="0.4" />
+                            {/* Back End */}
+                            <path d="M23.5 28.5 L28.5 23.5 L31 26 L26 31 Z" fill="#9ca3af" />
+                            <path d="M26 31 L31 26 L30.5 25.5 L25.5 30.5 Z" fill="#6b7280" />
+                        </svg>
+                    ) : (
+                        /* Pencil SVG */
+                        <svg className="absolute top-0 left-0" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            {/* Graphite Tip */}
+                            <path d="M0 0 L3.5 8.5 L8.5 3.5 Z" fill="#1f2937" />
+                            {/* Wood Section */}
+                            <path d="M3.5 8.5 L8.5 3.5 L12 7 L7 12 Z" fill="#fde68a" />
+                            {/* Main Body (Yellow) */}
+                            <path d="M7 12 L12 7 L26 21 L21 26 Z" fill="#fbbf24" stroke="#d97706" strokeWidth="0.5" />
+                            {/* Highlight */}
+                            <path d="M9 10 L10 9 L24 23 L23 24 Z" fill="white" fillOpacity="0.4" />
+                            {/* Ferrule (Metal) */}
+                            <path d="M21 26 L26 21 L29 24 L24 29 Z" fill="#9ca3af" stroke="#4b5563" strokeWidth="0.5" />
+                            {/* Eraser */}
+                            <path d="M24 29 L29 24 L33 28 L28 33 Z" fill="#f87171" stroke="#dc2626" strokeWidth="0.5" />
+                        </svg>
+                    )}
+                </div>
+            </m.div>
+        </div>
+    );
+}

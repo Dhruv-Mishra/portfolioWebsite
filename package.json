@@ -2,9 +2,17 @@
   "name": "dhruvwebsite-workspace",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix portfolio run dev",
-    "build": "npm --prefix portfolio run build",
-    "start": "npm --prefix portfolio run start",
-    "lint": "npm --prefix portfolio run lint"
+    "dev": "npm --prefix portfolio-astro run dev",
+    "build": "npm --prefix portfolio-astro run build",
+    "start": "npm --prefix portfolio-astro run start",
+    "lint": "npm --prefix portfolio-astro run lint",
+    "check": "npm --prefix portfolio-astro run check",
+    "next:dev": "npm --prefix portfolio run dev",
+    "next:build": "npm --prefix portfolio run build",
+    "next:lint": "npm --prefix portfolio run lint",
+    "next:test": "npm --prefix portfolio run test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.100.0"
   }
 }

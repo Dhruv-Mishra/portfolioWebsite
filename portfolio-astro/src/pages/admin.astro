@@ -1,0 +1,17 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminRoute from '@/components/routes/AdminRoute';
+import { ADMIN_COOKIE_NAME, verifyAdminToken } from '@/lib/adminAuth.server';
+
+export const prerender = false;
+
+const token = Astro.cookies.get(ADMIN_COOKIE_NAME)?.value;
+const isAuthorized = verifyAdminToken(token);
+if (!isAuthorized) {
+  Astro.response.status = 404;
+}
+---
+
+<BaseLayout pathname="/admin">
+  <AdminRoute client:load isAuthorized={isAuthorized} />
+</BaseLayout>

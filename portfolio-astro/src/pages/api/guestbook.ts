@@ -1,0 +1,143 @@
+import type { APIRoute } from 'astro';
+import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { validateOrigin } from '@/lib/validateOrigin';
+import { createPendingIssue, resolveGuestbookRepo, resolveGuestbookToken } from '@/lib/guestbook.server';
+import { parseIssueBody, type GuestbookEntry } from '@/lib/guestbook';
+import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
+
+export const prerender = false;
+
+const guestbookRateLimiter = createServerRateLimiter({
+  maxRequests: 3,
+  windowMs: 600_000,
+  maxTrackedIPs: 200,
+  cleanupInterval: 30,
+});
+const MAX_GUESTBOOK_BODY_BYTES = 4_000;
+
+const URL_PATTERN = /(?:https?:\/\/|www\.)/i;
+
+interface SubmissionBody {
+  message?: unknown;
+  name?: unknown;
+  website?: unknown;
+}
+
+interface GitHubIssueSummary {
+  number: number;
+  body: string | null;
+  created_at: string;
+}
+
+const LIST_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=3600',
+  'CDN-Cache-Control': 'public, s-maxage=600, stale-while-revalidate=3600',
+};
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    const originError = validateOrigin(request, { requireOrigin: true });
+    if (originError) return originError;
+
+    const ip = getClientIP(request);
+    const { limited, retryAfter } = guestbookRateLimiter.check(ip);
+    if (limited) {
+      return Response.json(
+        { error: `Whoa, let Dhruv catch up. Try again in ${retryAfter}s.` },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+      );
+    }
+
+    const contentLength = Number(request.headers.get('content-length'));
+    if (!Number.isFinite(contentLength)) {
+      return Response.json({ error: 'Content-Length header required' }, { status: 411 });
+    }
+    if (contentLength > MAX_GUESTBOOK_BODY_BYTES) {
+      return Response.json({ error: 'Request body is too large' }, { status: 413 });
+    }
+
+    const body = await request.json().catch(() => ({})) as SubmissionBody;
+    if (asString(body.website).trim().length > 0) return Response.json({ success: true });
+
+    const message = asString(body.message).trim();
+    if (!message || message.length < GUESTBOOK_LIMITS.minMessageLength) {
+      return Response.json({ error: `Message must be at least ${GUESTBOOK_LIMITS.minMessageLength} characters.` }, { status: 400 });
+    }
+    if (message.length > GUESTBOOK_LIMITS.maxMessageLength) {
+      return Response.json({ error: `Message must be ${GUESTBOOK_LIMITS.maxMessageLength} characters or fewer.` }, { status: 400 });
+    }
+    if (URL_PATTERN.test(message)) return Response.json({ error: 'Links are not allowed in guestbook entries.' }, { status: 400 });
+
+    const rawNameInput = asString(body.name).trim();
+    if (rawNameInput.length > GUESTBOOK_LIMITS.maxNameLength) {
+      return Response.json({ error: `Name must be ${GUESTBOOK_LIMITS.maxNameLength} characters or fewer.` }, { status: 400 });
+    }
+    const name = rawNameInput.replace(/\r?\n/g, ' ').replace(/^@+/, '').trim();
+    if (name && name.length < GUESTBOOK_LIMITS.minNameLength) {
+      return Response.json({ error: `Name must be at least ${GUESTBOOK_LIMITS.minNameLength} characters, or leave it blank.` }, { status: 400 });
+    }
+    if (name && URL_PATTERN.test(name)) return Response.json({ error: 'Links are not allowed in guestbook entries.' }, { status: 400 });
+
+    if (!resolveGuestbookRepo() || !resolveGuestbookToken()) {
+      console.error('[guestbook] Missing GITHUB_GUESTBOOK_TOKEN/REPO (or fallback FEEDBACK_*) env vars');
+      return Response.json({ error: 'Guestbook not configured' }, { status: 500 });
+    }
+
+    try {
+      await createPendingIssue({ message, name, ip });
+    } catch (error) {
+      console.error('[guestbook] createPendingIssue failed:', error);
+      return Response.json({ error: 'The pin fell out - try again.' }, { status: 502 });
+    }
+
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error('[guestbook] POST error:', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
+};
+
+export const GET: APIRoute = async () => {
+  const repo = resolveGuestbookRepo();
+  const token = resolveGuestbookToken();
+  if (!repo || !token) return Response.json({ error: 'Guestbook not configured' }, { status: 500 });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/issues?labels=guestbook-approved&state=open&per_page=50&sort=created&direction=desc`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      console.error(`[guestbook] GitHub list failed (${res.status})`);
+      return Response.json({ error: 'Failed to load guestbook entries.' }, { status: 502 });
+    }
+
+    const issues = await res.json() as GitHubIssueSummary[];
+    const entries: GuestbookEntry[] = issues.map((issue) => {
+      const { message, name } = parseIssueBody(issue.body ?? '');
+      return { id: issue.number, message, name, createdAt: issue.created_at };
+    });
+
+    return Response.json({ entries }, { headers: LIST_CACHE_HEADERS });
+  } catch (error) {
+    console.error('[guestbook] GET error:', error);
+    return Response.json({ error: 'Failed to load guestbook entries.' }, { status: 502 });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};

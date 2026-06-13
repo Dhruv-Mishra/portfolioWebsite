@@ -14,7 +14,6 @@ on:
         type: choice
         options:
           - image
-          - artifact
 
   push:
     branches:
@@ -44,7 +43,7 @@ env:
   STAGING_PORT: "3010"
   NODE_VERSION: "22"
   CI_NPM_VERSION: "10.9.8"
-  DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  DEPLOY_MODE: image
   DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
   NEXT_PUBLIC_GA_ID: ""
   NEXT_PUBLIC_ENABLE_ANALYTICS: "false"
@@ -84,62 +83,60 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: portfolio/package-lock.json
+          cache-dependency-path: portfolio-astro/package-lock.json
 
-      - name: Cache Next.js build
+      - name: Cache Astro build
         uses: actions/cache@v4
         with:
-          path: portfolio/.next/cache
-          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
+          path: portfolio-astro/.astro/cache
+          key: astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio-astro/package-lock.json') }}-${{ hashFiles('portfolio-astro/src/**/*.[jt]s', 'portfolio-astro/src/**/*.[jt]sx', 'portfolio-astro/src/**/*.astro', 'portfolio-astro/src/**/*.css', 'portfolio-astro/astro.config.mjs') }}
           restore-keys: |
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
+            astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio-astro/package-lock.json') }}-
+            astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
-        working-directory: portfolio
+        working-directory: portfolio-astro
         env:
           SKIP_EMBEDDINGS_BUILD: "1"
         run: |
           npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
 
           if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio-astro && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
             "${npm_cmd[@]}" ci --dry-run
             exit 1
           fi
           "${npm_cmd[@]}" ci
 
-      - name: Lint
-        working-directory: portfolio
-        run: npm run lint
+      - name: Check
+        working-directory: portfolio-astro
+        run: npm run check
 
-      - name: Test
-        working-directory: portfolio
-        run: npm test
-
-      - name: Build Next.js (standalone)
-        working-directory: portfolio
+      - name: Build Astro Node app
+        working-directory: portfolio-astro
         env:
           SKIP_EMBEDDINGS_BUILD: "1"
-          NEXT_BUILD_ID: ${{ github.sha }}
           NODE_OPTIONS: "--max-old-space-size=4096"
           BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
-        run: npm run build -- --webpack
+        run: npm run build
 
-      - name: Assemble standalone bundle
-        working-directory: portfolio
+      - name: Assemble Astro bundle
+        working-directory: portfolio-astro
         run: |
           set -euo pipefail
 
-          cp -r .next/static .next/standalone/.next/
-          cp -r public        .next/standalone/
+          rm -rf dist-package
+          mkdir -p dist-package/.deploy dist-package/scripts
+          cp -r dist dist-package/
+          cp scripts/kitten-tts-worker.py dist-package/scripts/kitten-tts-worker.py
 
-          mkdir -p .next/standalone/.deploy
-          cp scripts/deploy.sh          .next/standalone/.deploy/
-          cp nginx-cloudflare.conf      .next/standalone/.deploy/
-          chmod +x .next/standalone/.deploy/deploy.sh
+          cp scripts/deploy.sh          dist-package/.deploy/
+          cp nginx-cloudflare.conf      dist-package/.deploy/
+          cp scripts/machine.conf.example dist-package/.deploy/
+          cp scripts/portfolio.conf.example dist-package/.deploy/
+          chmod +x dist-package/.deploy/deploy.sh
 
-          cat > .next/standalone/.deploy/meta.json <<META
+          cat > dist-package/.deploy/meta.json <<META
           {
             "sha": "${{ github.sha }}",
             "ref": "${{ github.ref }}",
@@ -150,7 +147,7 @@ jobs:
           }
           META
 
-          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
+          tar czf ../portfolio-${{ github.sha }}.tar.gz -C dist-package .
           ls -lh ../portfolio-${{ github.sha }}.tar.gz
 
       - name: Upload artifact
@@ -189,8 +186,8 @@ jobs:
         id: docker-build
         uses: docker/build-push-action@v6
         with:
-          context: portfolio
-          file: portfolio/Dockerfile
+          context: portfolio-astro
+          file: portfolio-astro/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
@@ -199,14 +196,12 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
             NEXT_PUBLIC_SITE_URL=https://${{ env.STAGING_DOMAIN }}
             NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
             NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
             NEXT_PUBLIC_TTS_VOICE=expr-voice-5-m
             NEXT_PUBLIC_TTS_SPEED=1
-            NEXT_BUILD_FLAGS=--webpack
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 
       - name: Build summary
@@ -431,10 +426,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p deploy-kit
-          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
-          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
-          cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
-          cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
+          cp portfolio-astro/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio-astro/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          cp portfolio-astro/scripts/machine.conf.example deploy-kit/machine.conf.example
+          cp portfolio-astro/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
           tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
 
       - name: Copy deploy kit to staging VM
@@ -569,8 +564,8 @@ jobs:
               sudo rm -rf "$STAGING" || { echo "failed to remove old staging dir"; exit 1; }
               sudo mkdir -p "$STAGING" || { echo "failed to create staging dir"; exit 1; }
               sudo tar xzf "$TARBALL" -C "$STAGING" || { echo "failed to extract artifact"; exit 1; }
-              if [ ! -f "$STAGING/server.js" ]; then
-                echo "server.js missing - artifact corrupt"
+              if [ ! -f "$STAGING/dist/entry.mjs" ]; then
+                echo "dist/entry.mjs missing - artifact corrupt"
                 exit 1
               fi
               if [ ! -f "$STAGING/.deploy/deploy.sh" ]; then
@@ -656,13 +651,13 @@ jobs:
 
             curl -sk --max-time 10 -H "Host: ${SVC_DOMAIN}" \
               "https://127.0.0.1/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
-            grep -oE "/_next/static/[^\"' <)]*" "$HTML_FILE" \
+            grep -oE "/_astro/[^\"' <)]*" "$HTML_FILE" \
               | sed 's/[\\?].*$//' \
               | sort -u > "$ASSET_FILE" || true
 
             ASSET_COUNT="$(wc -l < "$ASSET_FILE" | tr -d ' ')"
             if [ "$ASSET_COUNT" = "0" ]; then
-              echo "No /_next/static assets found in local nginx HTML"
+              echo "No /_astro assets found in local nginx HTML"
               exit 1
             fi
 
@@ -675,16 +670,16 @@ jobs:
               if [ "$asset_code" != "200" ]; then
                 echo "Static asset failed through local nginx: $asset -> $asset_code"
                 if [ "$diagnosed_missing" = "0" ]; then
-                  relative_asset="${asset#/_next/static/}"
-                  expected_file="/opt/${SITE}/current/.next/static/${relative_asset}"
+                  relative_asset="${asset#/_astro/}"
+                  expected_file="/opt/${SITE}/current/dist/client/_astro/${relative_asset}"
                   if sudo test -f "$expected_file"; then
                     echo "Asset exists on disk but nginx did not serve it: $expected_file"
                     sudo stat -c 'mode=%a owner=%U group=%G path=%n' "$expected_file" || true
                     sudo namei -l "$expected_file" || true
                   else
                     echo "Asset missing on disk: $expected_file"
-                    echo "Sample files under /opt/${SITE}/current/.next/static:"
-                    sudo find "/opt/${SITE}/current/.next/static" -maxdepth 3 -type f | sort | head -40 || true
+                    echo "Sample files under /opt/${SITE}/current/dist/client/_astro:"
+                    sudo find "/opt/${SITE}/current/dist/client/_astro" -maxdepth 3 -type f | sort | head -40 || true
                   fi
                   diagnosed_missing=1
                 fi
@@ -767,13 +762,13 @@ jobs:
           fi
 
           asset_file="$(mktemp)"
-          grep -oE "/_next/static/[^\"' <)]*" "$body_file" \
+          grep -oE "/_astro/[^\"' <)]*" "$body_file" \
             | sed 's/[\\?].*$//' \
             | sort -u > "$asset_file" || true
 
           asset_count="$(wc -l < "$asset_file" | tr -d ' ')"
           if [ "$asset_count" = "0" ]; then
-            echo "::error::No /_next/static assets found in staging HTML"
+            echo "::error::No /_astro assets found in staging HTML"
             exit 1
           fi
 

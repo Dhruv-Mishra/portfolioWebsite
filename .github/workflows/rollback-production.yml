@@ -106,8 +106,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p deploy-kit
-          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
-          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          cp portfolio-astro/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio-astro/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
           tar czf portfolio-rollback-kit-${{ github.run_id }}.tar.gz -C deploy-kit .
 
       - name: Copy rollback kit to VM

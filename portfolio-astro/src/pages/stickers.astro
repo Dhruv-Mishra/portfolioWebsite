@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import StickersRoute from '@/components/routes/StickersRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/stickers">
+  <StickersRoute client:load />
+</BaseLayout>

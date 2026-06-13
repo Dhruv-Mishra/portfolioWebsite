@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ResumeRoute from '@/components/routes/ResumeRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/resume">
+  <ResumeRoute client:load />
+</BaseLayout>

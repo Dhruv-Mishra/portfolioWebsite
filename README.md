@@ -27,11 +27,11 @@ Some routes and behaviors stay out of the README so the site keeps its discovery
 
 ## Stack
 
-- Next.js 16 App Router with standalone output
-- React 19, TypeScript 5, Tailwind CSS 4, Framer Motion 12
+- Astro Node with React 19 route islands
+- TypeScript, Tailwind CSS 4, Framer Motion 12
 - Groq-first chat runtime with OpenAI-compatible fallback support
 - GitHub-backed guestbook, feedback, and notes workflows
-- ESLint 9 and Vitest 4
+- Astro check plus the retained Next/Vitest comparison suite
 - Linux VMs behind Cloudflare and Nginx; Docker image deploys for staging and production
 
 ## Run Locally
@@ -43,17 +43,17 @@ npm install
 npm run dev
 ```
 
-The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, `build`, `start`, and `lint`; run tests with `npm --prefix portfolio run test`.
+The migrated Astro app lives in [portfolio-astro](portfolio-astro). The root `package.json` proxies `dev`, `build`, `start`, and `lint` there. The previous Next app remains in [portfolio](portfolio) for comparison through the root `next:*` scripts.
 
 ## Useful Commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start the Next.js dev server |
-| `npm run build` | Build the production app |
-| `npm run start` | Start the production server |
-| `npm run lint` | Run ESLint |
-| `npm --prefix portfolio run test` | Run the Vitest suite |
+| `npm run dev` | Start the Astro dev server |
+| `npm run build` | Build the Astro Node app |
+| `npm run start` | Start the built Astro server |
+| `npm run lint` | Run Astro check |
+| `npm run next:test` | Run the retained Next/Vitest comparison suite |
 
 ## Deployment
 
@@ -61,7 +61,7 @@ The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, 
 - `deployed/staging` is the staging deployment branch; direct pushes deploy to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
 - `deployed/production` is the production deployment branch; direct pushes deploy to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
 - Manual promotion workflows move `dev/lkg` to `deployed/staging`, then `deployed/staging` to `deployed/production`.
-- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
+- Cloudflare sits at the edge, with Nginx and the Astro Node server on the VM origin. Local TTS remains VM-backed for this phase.
 
 ## For Agents
 

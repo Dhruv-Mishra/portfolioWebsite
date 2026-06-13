@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AboutRoute from '@/components/routes/AboutRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/about">
+  <AboutRoute client:load />
+</BaseLayout>

@@ -1,0 +1,10 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ChatRoute from '@/components/routes/ChatRoute';
+
+export const prerender = true;
+---
+
+<BaseLayout pathname="/chat">
+  <ChatRoute client:load />
+</BaseLayout>

@@ -1,0 +1,54 @@
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { SHADOW_TOKENS } from '@/lib/designTokens';
+import DeferredResumePdf from '@/components/DeferredResumePdf';
+
+export const revalidate = 3600;
+
+export default function ResumePage() {
+    return (
+        <main className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+            {/* The Resume "Paper" */}
+            <div
+                className="animate-page-sheet relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+                style={{
+                    height: '92dvh',
+                    transform: 'rotate(-1deg)',
+                    boxShadow: SHADOW_TOKENS.resume
+                }}
+            >
+                {/* Tape - Top Left */}
+                <div className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+
+                {/* Tape - Top Right */}
+                <div className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+
+                {/* Tape - Bottom Center */}
+                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+
+                <div className="w-full h-full bg-white relative z-10 overflow-hidden">
+                    <div className="w-full h-full relative">
+                        <div className="hidden md:flex absolute left-4 bottom-4 z-20 pointer-events-none rounded-lg border border-yellow-200/70 bg-yellow-50/90 px-4 py-2 text-sm font-hand text-gray-700 shadow-md backdrop-blur-sm">
+                            Scroll to browse the embedded PDF, or open it in a new tab for the smoothest reading experience.
+                        </div>
+
+                        <DeferredResumePdf />
+                    </div>
+
+                    {/* External Link Overlay - Left on mobile, Right on desktop */}
+                    <a
+                        href="/resources/resume.pdf"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute top-2 left-2 md:top-4 md:left-auto md:right-4 z-30 group"
+                        title="Open PDF in new tab"
+                    >
+                        <div className="bg-yellow-100 text-gray-800 px-3 py-1.5 md:px-5 md:py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-[transform] font-hand font-bold flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
+                            <span>Open PDF</span>
+                            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </main>
+    );
+}

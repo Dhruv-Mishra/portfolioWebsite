@@ -8,7 +8,7 @@ permissions:
 # Architecture: build-once-deploy-many
 #
 #   build job (ubuntu-latest, once)
-#     └── npm ci → lint → test → next build → assemble standalone →
+#     └── npm ci → check → astro build → assemble Astro bundle →
 #         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside →
 #         build/push ghcr.io image tagged by the same SHA
 #
@@ -26,7 +26,7 @@ permissions:
 #     version. Impossible for them to drift.
 #
 # Why multi-platform image publishing:
-#   - The Next.js standalone bundle is still pure JavaScript at runtime, but
+#   - The Astro Node bundle is still JavaScript at runtime, but
 #     the container now includes Python/eSpeak for local TTS.
 #   - Buildx publishes linux/amd64 and linux/arm64 variants so fresh VMs can
 #     pull the same immutable digest regardless of CPU architecture.
@@ -52,7 +52,6 @@ on:
         type: choice
         options:
           - image
-          - artifact
 
   push:
     branches:
@@ -80,11 +79,11 @@ env:
   DOMAIN: whoisdhruv.com
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
-  DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  DEPLOY_MODE: image
   NEXT_PUBLIC_GA_ID: ''
   NEXT_PUBLIC_ENABLE_ANALYTICS: 'false'
   NEXT_PUBLIC_ENABLE_ERROR_TRACKING: 'false'
-  # Suppress the anonymous telemetry banner from Next.js builds; we don't act
+  # Suppress anonymous framework telemetry banners; we don't act
   # on it and it pollutes CI logs.
   NEXT_TELEMETRY_DISABLED: '1'
 
@@ -124,23 +123,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: portfolio/package-lock.json
+          cache-dependency-path: portfolio-astro/package-lock.json
 
-      # Restore Turbopack/webpack incremental cache. Hashes lockfile + source
-      # so a dependency change or any code change misses, but pure CI re-runs
-      # of the same commit (e.g. retry after flaky deploy) hit warm and shave
-      # ~30-50% off the Next.js compile step.
-      - name: Cache Next.js build
+      - name: Cache Astro build
         uses: actions/cache@v4
         with:
-          path: portfolio/.next/cache
-          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
+          path: portfolio-astro/.astro/cache
+          key: astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio-astro/package-lock.json') }}-${{ hashFiles('portfolio-astro/src/**/*.[jt]s', 'portfolio-astro/src/**/*.[jt]sx', 'portfolio-astro/src/**/*.astro', 'portfolio-astro/src/**/*.css', 'portfolio-astro/astro.config.mjs') }}
           restore-keys: |
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
+            astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio-astro/package-lock.json') }}-
+            astro-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
-        working-directory: portfolio
+        working-directory: portfolio-astro
         # SKIP_EMBEDDINGS_BUILD=1 tells the prebuild hook to reuse the committed
         # lib/facts.embeddings.json rather than hitting the embeddings API.
         # Avoids needing LLM_API_KEY as an Actions secret.
@@ -155,46 +150,43 @@ jobs:
           npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
 
           if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio-astro && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
             "${npm_cmd[@]}" ci --dry-run
             exit 1
           fi
           "${npm_cmd[@]}" ci
 
-      - name: Lint
-        working-directory: portfolio
-        run: npm run lint
+      - name: Check
+        working-directory: portfolio-astro
+        run: npm run check
 
-      - name: Test
-        working-directory: portfolio
-        run: npm test
-
-      - name: Build Next.js (standalone)
-        working-directory: portfolio
+      - name: Build Astro Node app
+        working-directory: portfolio-astro
         env:
           SKIP_EMBEDDINGS_BUILD: '1'
-          NEXT_BUILD_ID: ${{ github.sha }}
           NODE_OPTIONS: '--max-old-space-size=4096'
         run: npm run build
 
-      - name: Assemble standalone bundle
-        working-directory: portfolio
+      - name: Assemble Astro bundle
+        working-directory: portfolio-astro
         run: |
           set -euo pipefail
 
-          # Next.js standalone omits static/ and public/ — copy them in
-          cp -r .next/static .next/standalone/.next/
-          cp -r public        .next/standalone/
+          rm -rf dist-package
+          mkdir -p dist-package/.deploy dist-package/scripts
+          cp -r dist dist-package/
+          cp scripts/kitten-tts-worker.py dist-package/scripts/kitten-tts-worker.py
 
           # Ship deploy.sh + nginx template INSIDE the artifact at .deploy/
           # so the VM can invoke it directly without a separate git pull.
-          mkdir -p .next/standalone/.deploy
-          cp scripts/deploy.sh          .next/standalone/.deploy/
-          cp nginx-cloudflare.conf      .next/standalone/.deploy/
-          chmod +x .next/standalone/.deploy/deploy.sh
+          cp scripts/deploy.sh          dist-package/.deploy/
+          cp nginx-cloudflare.conf      dist-package/.deploy/
+          cp scripts/machine.conf.example dist-package/.deploy/
+          cp scripts/portfolio.conf.example dist-package/.deploy/
+          chmod +x dist-package/.deploy/deploy.sh
 
           # Build metadata — useful for forensics if a deploy goes sideways
-          cat > .next/standalone/.deploy/meta.json <<META
+          cat > dist-package/.deploy/meta.json <<META
           {
             "sha": "${{ github.sha }}",
             "ref": "${{ github.ref }}",
@@ -206,7 +198,7 @@ jobs:
           META
 
           # Package. Contents extract to the root of whatever dir you untar into.
-          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
+          tar czf ../portfolio-${{ github.sha }}.tar.gz -C dist-package .
 
           ls -lh ../portfolio-${{ github.sha }}.tar.gz
 
@@ -246,8 +238,8 @@ jobs:
         id: docker-build
         uses: docker/build-push-action@v6
         with:
-          context: portfolio
-          file: portfolio/Dockerfile
+          context: portfolio-astro
+          file: portfolio-astro/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
@@ -256,7 +248,6 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
             NEXT_PUBLIC_SITE_URL=https://${{ env.DOMAIN }}
             NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
@@ -563,10 +554,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p deploy-kit
-          cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
-          cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
-          cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
-          cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
+          cp portfolio-astro/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio-astro/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
+          cp portfolio-astro/scripts/machine.conf.example deploy-kit/machine.conf.example
+          cp portfolio-astro/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
           tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
 
       - name: Copy deploy kit to VM
@@ -705,8 +696,8 @@ jobs:
               sudo tar xzf "$TARBALL" -C "$STAGING" || { echo "failed to extract artifact"; exit 1; }
 
               # Sanity: must contain both the bundle and the deploy scripts.
-              if [ ! -f "$STAGING/server.js" ]; then
-                echo "server.js missing - artifact corrupt"
+              if [ ! -f "$STAGING/dist/entry.mjs" ]; then
+                echo "dist/entry.mjs missing - artifact corrupt"
                 exit 1
               fi
               if [ ! -f "$STAGING/.deploy/deploy.sh" ]; then
@@ -777,13 +768,13 @@ jobs:
               exit 1
             fi
 
-            # Next.js HTTP health
+            # Astro HTTP health
             HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
               "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Next.js responding (HTTP $HTTP_CODE on :$SVC_PORT)"
+              echo "✅ Astro responding (HTTP $HTTP_CODE on :$SVC_PORT)"
             else
-              echo "⚠️  Next.js returned HTTP $HTTP_CODE (expected 200)"
+              echo "⚠️  Astro returned HTTP $HTTP_CODE (expected 200)"
             fi
 
             # nginx health

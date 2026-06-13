@@ -21,6 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   SOURCE_BRANCH: deployed/staging
   TARGET_BRANCH: deployed/production
 

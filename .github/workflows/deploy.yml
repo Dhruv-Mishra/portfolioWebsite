@@ -77,10 +77,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   DOMAIN: whoisdhruv.com
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
   DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
   NEXT_PUBLIC_GA_ID: ''
   NEXT_PUBLIC_ENABLE_ANALYTICS: 'false'
   NEXT_PUBLIC_ENABLE_ERROR_TRACKING: 'false'
@@ -175,7 +177,8 @@ jobs:
           SKIP_EMBEDDINGS_BUILD: '1'
           NEXT_BUILD_ID: ${{ github.sha }}
           NODE_OPTIONS: '--max-old-space-size=4096'
-        run: npm run build
+          BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
+        run: npm run build -- --webpack
 
       - name: Assemble standalone bundle
         working-directory: portfolio
@@ -263,6 +266,8 @@ jobs:
             NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
             NEXT_PUBLIC_TTS_VOICE=expr-voice-5-m
             NEXT_PUBLIC_TTS_SPEED=1
+            NEXT_BUILD_FLAGS=--webpack
+            BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 
       - name: Build summary
         run: |
@@ -416,6 +421,18 @@ jobs:
             [ "$actual_service" = "portfolio" ] || fail "SERVICE_NAME must be portfolio, got ${actual_service:-unset}"
             [ "$actual_port" = "$PORT" ] || fail "NEXTJS_PORT must be $PORT, got ${actual_port:-unset}"
             [ -z "$actual_container" ] || [ "$actual_container" = "portfolio" ] || fail "DOCKER_CONTAINER_NAME must be portfolio, got $actual_container"
+
+            if [ "$actual_branch" = "master" ]; then
+              backup="${CONF}.bak.$(date -u +%Y%m%d%H%M%S)"
+              echo "Migrating legacy production GIT_BRANCH=master to deployed/production in $CONF (backup: $backup)"
+              sudo cp "$CONF" "$backup"
+              if sudo grep -q '^GIT_BRANCH=' "$CONF"; then
+                sudo sed -i 's|^GIT_BRANCH=.*|GIT_BRANCH="deployed/production"|' "$CONF"
+              else
+                printf '\nGIT_BRANCH="deployed/production"\n' | sudo tee -a "$CONF" >/dev/null
+              fi
+              actual_branch="$(read_conf GIT_BRANCH)"
+            fi
             [ "$actual_branch" = "deployed/production" ] || fail "GIT_BRANCH must be deployed/production, got ${actual_branch:-unset}"
 
             runtime_env=""
@@ -609,6 +626,7 @@ jobs:
             DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
             DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
+            DOCKER_CONFIG_DIR=""
 
             # Cleanup trap — always remove staging, and remove tarball on success.
             # (On failure, keep tarball at /tmp for forensics; it'll age out
@@ -616,6 +634,9 @@ jobs:
             DEPLOY_OK=0
             cleanup_staging() {
               sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ -n "$DOCKER_CONFIG_DIR" ]; then
+                sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
                 sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
@@ -667,17 +688,23 @@ jobs:
               sudo chmod +x "$STAGING/deploy.sh"
 
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+                DOCKER_CONFIG_DIR="$(mktemp -d)"
+                sudo chmod 700 "$DOCKER_CONFIG_DIR"
                 echo "Logging in to GHCR"
-                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
+                printf '%s' "$GHCR_READ_TOKEN" | sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" docker login ghcr.io \
                   -u "$GHCR_OWNER" --password-stdin || { echo "GHCR login failed"; exit 1; }
               fi
 
               echo "Invoking image deploy script"
               deploy_status=0
+              deploy_args=(--image "$IMAGE_REF" --sha "$SHA" --site "$SITE")
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
+                deploy_args+=(--skip-nginx)
+              fi
+              if [ -n "$DOCKER_CONFIG_DIR" ]; then
+                sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" "${deploy_args[@]}" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
+                sudo bash "$STAGING/deploy.sh" "${deploy_args[@]}" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               fi
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
@@ -756,23 +783,38 @@ jobs:
             set -euo pipefail
 
             SITE="${{ inputs.site || 'portfolio' }}"
+            EXPECTED_DOMAIN="${{ env.DOMAIN }}"
             SITE_CONF="/etc/deploy/sites/${SITE}.conf"
+            DEPLOY_ROOT="/opt/${SITE}"
 
-            SVC_NAME="portfolio"
-            SVC_PORT="3000"
-            if [ -f "$SITE_CONF" ]; then
-              SVC_NAME=$(grep '^SERVICE_NAME=' "$SITE_CONF" | cut -d= -f2 | tr -d '"' || echo "portfolio")
-              SVC_PORT=$(grep '^NEXTJS_PORT=' "$SITE_CONF"  | cut -d= -f2 | tr -d '"' || echo "3000")
-            fi
+            fail() {
+              echo "ERROR: $*" >&2
+              exit 1
+            }
 
-            echo "🔍 Post-deploy verification for $SVC_NAME"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            read_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$SITE_CONF"
+            }
+
+            [ "$SITE" = "portfolio" ] || fail "production site must be portfolio, got $SITE"
+            sudo test -f "$SITE_CONF" || fail "missing production site config: $SITE_CONF"
+
+            SVC_NAME="$(read_conf SERVICE_NAME)"
+            SVC_PORT="$(read_conf NEXTJS_PORT)"
+            SVC_DOMAIN="$(read_conf DOMAIN)"
+
+            [ "$SVC_NAME" = "portfolio" ] || fail "SERVICE_NAME must be portfolio, got ${SVC_NAME:-unset}"
+            [ "$SVC_PORT" = "3000" ] || fail "NEXTJS_PORT must be 3000, got ${SVC_PORT:-unset}"
+            [ "$SVC_DOMAIN" = "$EXPECTED_DOMAIN" ] || fail "DOMAIN must be $EXPECTED_DOMAIN, got ${SVC_DOMAIN:-unset}"
+
+            echo "Post-deploy verification for $SVC_NAME"
 
             # systemd health
             if sudo systemctl is-active --quiet "$SVC_NAME"; then
-              echo "✅ ${SVC_NAME}.service is running"
+              echo "${SVC_NAME}.service is running"
             else
-              echo "❌ ${SVC_NAME}.service is NOT running"
+              echo "${SVC_NAME}.service is NOT running"
               sudo journalctl -u "$SVC_NAME" --no-pager -n 20
               exit 1
             fi
@@ -781,39 +823,93 @@ jobs:
             HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 5 \
               "http://127.0.0.1:${SVC_PORT}/" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Next.js responding (HTTP $HTTP_CODE on :$SVC_PORT)"
+              echo "Next.js responding (HTTP $HTTP_CODE on :$SVC_PORT)"
             else
-              echo "⚠️  Next.js returned HTTP $HTTP_CODE (expected 200)"
+              echo "Next.js returned HTTP $HTTP_CODE on :$SVC_PORT"
+              exit 1
             fi
 
             # nginx health
             if sudo systemctl is-active --quiet nginx; then
-              echo "✅ nginx is running"
+              echo "nginx is running"
             else
-              echo "❌ nginx is NOT running"
+              echo "nginx is NOT running"
               exit 1
             fi
 
-            # Verify current release matches the deployed SHA
-            DEPLOY_ROOT="/opt/${SVC_NAME}"
-            if [ -L "$DEPLOY_ROOT/current" ]; then
-              CURRENT_SHA=$(basename "$(readlink -f "$DEPLOY_ROOT/current")")
-              if [ "$CURRENT_SHA" = "${{ github.sha }}" ]; then
-                echo "✅ current → ${CURRENT_SHA:0:12} (matches deployed SHA)"
-              else
-                echo "⚠️  current → ${CURRENT_SHA} but deployed SHA is ${{ github.sha }}"
+            HTML_FILE="$(mktemp)"
+            ASSET_FILE="$(mktemp)"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
+
+            curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+              "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
+            grep -oE "/_next/static/[^\"' <)]*" "$HTML_FILE" \
+              | sed 's/[\\?].*$//' \
+              | sort -u > "$ASSET_FILE" || true
+
+            ASSET_COUNT="$(wc -l < "$ASSET_FILE" | tr -d ' ')"
+            if [ "$ASSET_COUNT" = "0" ]; then
+              echo "No /_next/static assets found in local nginx HTML"
+              exit 1
+            fi
+
+            missing_assets=0
+            diagnosed_missing=0
+            while IFS= read -r asset; do
+              [ -n "$asset" ] || continue
+              asset_code="$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 \
+                --resolve "${SVC_DOMAIN}:443:127.0.0.1" "https://${SVC_DOMAIN}${asset}" 2>/dev/null || echo "000")"
+              if [ "$asset_code" != "200" ]; then
+                echo "Static asset failed through local nginx: $asset -> $asset_code"
+                if [ "$diagnosed_missing" = "0" ]; then
+                  relative_asset="${asset#/_next/static/}"
+                  expected_file="${DEPLOY_ROOT}/current/.next/static/${relative_asset}"
+                  if sudo test -f "$expected_file"; then
+                    echo "Asset exists on disk but nginx did not serve it: $expected_file"
+                    sudo stat -c 'mode=%a owner=%U group=%G path=%n' "$expected_file" || true
+                    sudo namei -l "$expected_file" || true
+                  else
+                    echo "Asset missing on disk: $expected_file"
+                    echo "Sample files under ${DEPLOY_ROOT}/current/.next/static:"
+                    sudo find "${DEPLOY_ROOT}/current/.next/static" -maxdepth 3 -type f | sort | head -40 || true
+                  fi
+                  diagnosed_missing=1
+                fi
+                missing_assets=1
               fi
-              RELEASE_COUNT=$(find "$DEPLOY_ROOT/releases" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
-              echo "📦 Releases on disk: $RELEASE_COUNT"
+            done < "$ASSET_FILE"
+            if [ "$missing_assets" != "0" ]; then
+              exit 1
+            fi
+            echo "Verified $ASSET_COUNT local nginx static assets for $SVC_NAME"
+
+            # Verify current release matches the deployed SHA
+            sudo test -L "$DEPLOY_ROOT/current" || fail "missing current symlink: $DEPLOY_ROOT/current"
+            CURRENT_SHA=$(basename "$(sudo readlink -f "$DEPLOY_ROOT/current")")
+            if [ "$CURRENT_SHA" = "${{ github.sha }}" ]; then
+              echo "current -> ${CURRENT_SHA:0:12} (matches deployed SHA)"
+            else
+              echo "current -> ${CURRENT_SHA} but deployed SHA is ${{ github.sha }}"
+              exit 1
+            fi
+            RELEASE_COUNT=$(sudo find "$DEPLOY_ROOT/releases" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+            echo "Releases on disk: $RELEASE_COUNT"
+
+            META_FILE="$DEPLOY_ROOT/current/.deploy/meta.json"
+            sudo test -f "$META_FILE" || fail "missing deploy metadata: $META_FILE"
+            if ! sudo grep -q '"sha": "${{ github.sha }}"' "$META_FILE"; then
+              echo "Deploy metadata does not match this workflow SHA (${{ github.sha }}):"
+              sudo cat "$META_FILE" || true
+              exit 1
             fi
 
             if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
               if sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
                 RUNNING_IMAGE=$(sudo docker inspect --format '{{.Config.Image}}' "$SVC_NAME" 2>/dev/null || true)
-                echo "✅ Docker container running: $SVC_NAME"
-                echo "🐳 Image: $RUNNING_IMAGE"
+                echo "Docker container running: $SVC_NAME"
+                echo "Image: $RUNNING_IMAGE"
               else
-                echo "❌ Docker container is not running: $SVC_NAME"
+                echo "Docker container is not running: $SVC_NAME"
                 sudo docker ps -a --filter "name=^/${SVC_NAME}$"
                 exit 1
               fi

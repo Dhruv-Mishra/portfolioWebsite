@@ -1,12 +1,12 @@
 ---
 id: resume-skills
-tags: [skills, languages, typescript, cpp, csharp, kotlin, python, sql, java, javascript, frameworks, android, jetpack compose, xml, gradle, maven, react, next.js, tailwind, opencv, scikit, devops, git, npm, azure, gcp, nginx, cloudflare, mcp, llm, rag, embeddings, cryptography, system design, distributed systems, ci/cd, cloud, rest apis, databases, machine learning]
+tags: [skills, languages, kotlin, java, csharp, cpp, python, typescript, sql, javascript, kql, c, bash, powershell, android, jetpack compose, xml, gradle, maven, react, next.js, git, cloud infrastructure, ci/cd, npm, system design, distributed systems, data structures, algorithms, databases, machine learning]
 priority: 7
 category: resume
 ---
 
-Languages: TypeScript, C++, C#, Kotlin, Python, SQL, Java, JavaScript.
+Languages: Kotlin, Java, C#, C++, Python, TypeScript, SQL, JavaScript, KQL, C, Bash, PowerShell.
 
-Frameworks and tools: Android (Jetpack Compose, XML, Gradle, Maven), React, Next.js, Tailwind CSS, OpenCV, Scikit-Learn, DevOps, Git, NPM, Azure, GCP, Nginx, Cloudflare, MCP, LLM Tooling, RAG, Embeddings, Cryptography.
+Technologies: Android (Jetpack Compose, XML, Gradle, Maven), React, Next.js, Git, Cloud Infrastructure, CI/CD, NPM.
 
-Core concepts: System Design, Distributed Systems, CI/CD, Cloud Infrastructure, REST APIs, Databases, Machine Learning.
+Concepts: System Design, Distributed Systems, Data Structures & Algorithms, CI/CD, Databases, Machine Learning.

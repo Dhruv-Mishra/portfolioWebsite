@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Resume | Dhruv Mishra',
-  description: 'View the resume of Dhruv Mishra — Software Engineer at Microsoft with expertise in C++, C#, distributed systems, and performance optimization.',
+  description: 'View the resume of Dhruv Mishra — Software Engineer at Microsoft with expertise in Office Android performance, Fluent UI Android, distributed systems, and infrastructure optimization.',
   alternates: {
     canonical: '/resume',
   },

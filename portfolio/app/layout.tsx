@@ -46,7 +46,7 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "@id": `${SITE.url}/#website`,
       "url": SITE.url,
       "name": "Dhruv Mishra Portfolio",
-      "description": "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+      "description": "Software Engineer at Microsoft specializing in Office Android performance, Fluent UI Android, distributed systems, and infrastructure optimization.",
       "publisher": { "@id": "https://whoisdhruv.com/#person" }
     },
     {
@@ -86,8 +86,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Dhruv Mishra | Software Engineer",
-  description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems. Expert in performance optimization, competitive programming, and building production-ready solutions.",
-  keywords: ["Dhruv Mishra", "Software Engineer", "Microsoft", "Android Developer", "Performance Optimization", "Distributed Systems", "Competitive Programming", "Full Stack Developer"],
+  description: "Software Engineer at Microsoft specializing in Office Android performance, Fluent UI Android, distributed systems, and infrastructure optimization. Expert in performance optimization, competitive programming, and production-ready systems.",
+  keywords: ["Dhruv Mishra", "Software Engineer", "Microsoft", "Office Android", "Fluent UI Android", "Performance Optimization", "Distributed Systems", "Competitive Programming", "Full Stack Developer"],
   authors: [{ name: SITE.name, url: PERSONAL_LINKS.linkedin }],
   creator: "Dhruv Mishra",
   publisher: "Dhruv Mishra",
@@ -110,7 +110,7 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE.url,
     title: "Dhruv Mishra | Software Engineer",
-    description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+    description: "Software Engineer at Microsoft specializing in Office Android performance, Fluent UI Android, distributed systems, and infrastructure optimization.",
     siteName: "Dhruv Mishra Portfolio",
     images: [
       {
@@ -131,7 +131,7 @@ export const metadata: Metadata = {
     // card slot it was designed for instead of stretching/cropping.
     card: 'summary',
     title: "Dhruv Mishra | Software Engineer",
-    description: "Software Engineer at Microsoft specializing in high-performance systems, Android development, and distributed systems.",
+    description: "Software Engineer at Microsoft specializing in Office Android performance, Fluent UI Android, distributed systems, and infrastructure optimization.",
     images: ['/icon-512.png'],
   },
   robots: {

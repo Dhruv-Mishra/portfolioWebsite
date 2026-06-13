@@ -59,7 +59,7 @@ function buildExperienceTimelineMarkdown(): string {
   }).join('\n\n');
 }
 
-const SUMMARY = `Dhruv Mishra — Software Engineer at Microsoft (M365 Shell). CS & Applied Math, IIIT Delhi. Codeforces Expert. Builds high-performance, production-grade systems across Android, distributed services, and developer tooling.`;
+const SUMMARY = `Dhruv Mishra — Software Engineer at Microsoft. CS & Applied Math, IIIT Delhi. Codeforces Expert. Builds high-performance, production-grade systems across Office Android, Fluent UI Android, distributed services, and developer tooling.`;
 
 /**
  * /llms.txt — curated index per llmstxt.org spec. Lists the canonical .md

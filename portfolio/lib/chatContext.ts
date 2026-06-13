@@ -28,23 +28,23 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
     messages: [
       "Got a bit scrambled there — I've built Jarvis (voice-to-voice agent that operates websites via Gemini Live), shipped Fluent UI Android (in Outlook/Teams), built Cropio as an AI portrait cropper, and did Bloom Filter research with a 300% throughput gain. Projects page has the full list!",
       "Sorry, lost my thread for a sec. I've built an NLP course evaluator, a contactless vital-checkup system with OpenCV, a hybrid movie recommender, and more — check the projects page ~",
-      "My notes got mixed up. At Microsoft I shipped Fluent UI Android and M365 Shell encryption at 7B+ hits/day — the projects page has everything!",
+      "My notes got mixed up. At Microsoft I've owned Fluent UI Android releases, sped up Excel Compose shimmer by 99%, and optimized ShellService infra at 7B+ hits/day — projects page has the broader list!",
     ],
   },
   {
     keywords: ['resume', 'cv', 'experience', 'education', 'skills', 'background', 'hire', 'hiring'],
     messages: [
-      "A little foggy right now — but quick version: Microsoft M365 Shell Team, cut infra COGS by $240K/year, FHL hackathon winner. IIIT Delhi, 8.96 GPA. Resume page has the rest!",
-      "Bit scattered, sorry. I'm at Microsoft doing C++/C# at 7B+ hits/day scale, previously shipped Fluent UI Android. The resume page has the details ~",
+      "A little foggy right now — but quick version: Microsoft Software Engineer, 99% faster Excel Compose shimmer, $240K/year ShellService savings, FHL winner. IIIT Delhi, 8.96 GPA. Resume page has the rest!",
+      "Bit scattered, sorry. I'm at Microsoft working across Office Android performance, Fluent UI Android, and ShellService infra at 7B+ hits/day scale. The resume page has the details ~",
       "Brain glitch there. IIIT Delhi CS & Applied Math grad, Codeforces Expert (max 1703), Code Jam Global Rank 291, currently at Microsoft — resume page has it all!",
     ],
   },
   {
     keywords: ['tech', 'stack', 'react', 'nextjs', 'typescript', 'rust', 'programming', 'coding', 'language', 'framework'],
     messages: [
-      "Got a bit turned around — I use C++ and C# at Microsoft, Python/TypeScript on the side, and did a lot of Kotlin/Android (Compose, Hilt) before. Cropio uses Next.js plus FastAPI, and this site runs Next.js 16 + Tailwind v4. Ask me again!",
-      "Head's in a muddle. C++ is my favorite — also fluent in C#, TypeScript, Python, Java, and Kotlin. Comfortable with Azure, MySQL, and distributed systems. Try again in a sec!",
-      "Lost the thread there. My stack is C++/C# at work, Next.js + TypeScript for web, Python for ML, and previously a lot of Kotlin for Android. Give it another shot ~",
+      "Got a bit turned around — I use Kotlin, Java, C#, C++, Python, TypeScript, SQL, JavaScript, KQL, C, Bash, and PowerShell. This site runs Next.js 16 + Tailwind v4. Ask me again!",
+      "Head's in a muddle. My resume stack includes Android with Compose/XML/Gradle/Maven, React, Next.js, Git, cloud infrastructure, CI/CD, and NPM. Try again in a sec!",
+      "Lost the thread there. My stack spans Office Android, Fluent UI Android, distributed systems, data structures, databases, and ML. Give it another shot ~",
     ],
   },
   {

@@ -38,6 +38,8 @@ describe('signal detection', () => {
   it('hasActionIntent catches UI verbs and link keywords', () => {
     expect(hasActionIntent('open my github')).toBe(true);
     expect(hasActionIntent('switch to dark mode')).toBe(true);
+    expect(hasActionIntent('turn off disco mode')).toBe(true);
+    expect(hasActionIntent('disco mode off')).toBe(true);
     expect(hasActionIntent('show me your resume')).toBe(true);
     expect(hasActionIntent('what do you do at microsoft')).toBe(false);
   });

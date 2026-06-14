@@ -303,6 +303,30 @@ function resolveNavigation(input: string): ActionResolution | null {
 }
 
 function resolveTheme(input: string): ActionResolution | null {
+  const isDiscoOffRequest =
+    /\b(?:turn|switch|shut|take)\s+off\s+(?:the\s+)?disco(?:\s+mode)?\b/i.test(input) ||
+    /\b(?:turn|switch|shut)\s+(?:the\s+)?disco(?:\s+mode)?\s+off\b/i.test(input) ||
+    /\b(?:exit|leave|stop|disable|end|close|cancel)\s+(?:the\s+)?disco(?:\s+mode)?\b/i.test(input) ||
+    /\bno\s+more\s+disco(?:\s+mode)?\b/i.test(input) ||
+    /\bdisco(?:\s+mode)?\s+(?:off|stop|disabled?|exit)\b/i.test(input);
+
+  if (isDiscoOffRequest) {
+    const action: ActionExecution = { themeAction: 'disco-off' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Exiting disco mode ~' };
+  }
+
+  const isDiscoOnRequest =
+    /\b(?:turn|switch)\s+on\s+(?:the\s+)?disco(?:\s+mode)?\b/i.test(input) ||
+    /\b(?:turn|switch)\s+(?:the\s+)?disco(?:\s+mode)?\s+on\b/i.test(input) ||
+    /\bswitch\s+to\s+(?:the\s+)?disco(?:\s+mode)?\b/i.test(input) ||
+    /\b(?:engage|start|enable)\s+(?:the\s+)?disco(?:\s+mode)?\b/i.test(input) ||
+    /\bdisco(?:\s+mode)?\s+(?:on|start|enabled?)\b/i.test(input);
+
+  if (isDiscoOnRequest) {
+    const action: ActionExecution = { themeAction: 'disco' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Engaging disco mode ~' };
+  }
+
   if (/\btoggle\b/i.test(input) && /\btheme\b/i.test(input)) {
     const action: ActionExecution = { themeAction: 'toggle' };
     return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Toggling the theme ~' };

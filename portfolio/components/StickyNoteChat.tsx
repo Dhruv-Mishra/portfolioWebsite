@@ -37,6 +37,7 @@ import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT
 import {
   ACTION_REGISTRY,
   DISCO_ACTION_LABEL,
+  DISCO_EXIT_ACTION_LABEL,
   FOLLOWUP_CONVERSATIONAL,
   getFollowupActions,
   getInitialChatSuggestions,
@@ -312,10 +313,8 @@ const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 // Static rotation styles hoisted to module scope to avoid re-creating objects per render
 const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
 const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
-// Disco "Engage disco mode" chip — vivid candy-palette gradient that mirrors
-// the disco-on body background (pink → fuchsia → cyan → amber). Always shown
-// in disco colors regardless of light/dark theme so the chip telegraphs what
-// it does. Border is fuchsia for max contrast against the pink stops.
+// Disco mode chips use a vivid candy-palette gradient that mirrors the disco
+// body background. Always shown in disco colors so the chip telegraphs what it does.
 const SUGGESTION_STYLE_DISCO = {
   transform: 'rotate(-1deg)',
   backgroundImage:
@@ -342,13 +341,13 @@ function pickFollowupAction(
 ): string[] {
   const candidates = getPromotedFollowupActions(actions, options);
   if (candidates.length === 0) return [];
-  if (candidates[0] === DISCO_ACTION_LABEL) return [DISCO_ACTION_LABEL];
+  if (candidates[0] === DISCO_ACTION_LABEL || candidates[0] === DISCO_EXIT_ACTION_LABEL) return [candidates[0]];
   return pickRandom(candidates, 1);
 }
 
 function filterUnavailableSuggestions(suggestions: readonly string[], discoActive: boolean): string[] {
-  if (!discoActive) return [...suggestions];
-  return suggestions.filter(suggestion => suggestion !== DISCO_ACTION_LABEL);
+  const unavailable = discoActive ? DISCO_ACTION_LABEL : DISCO_EXIT_ACTION_LABEL;
+  return suggestions.filter(suggestion => suggestion !== unavailable);
 }
 
 // RateLimitNote animation constants
@@ -426,7 +425,7 @@ function getNoteRotation(messageId: string, isUser: boolean): number {
 
 const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
-  const isDisco = Boolean(isAction && text === DISCO_ACTION_LABEL);
+  const isDisco = Boolean(isAction && (text === DISCO_ACTION_LABEL || text === DISCO_EXIT_ACTION_LABEL));
   const suggestionStyle = getSuggestionStyle(isDisco, isAction, index);
   return (
   <m.button
@@ -1439,9 +1438,21 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [isSuggestionsLoading, llmSuggestions, baseSuggestions, followupActions, discoActive]);
 
   useEffect(() => {
-    if (!discoActive) return;
-    setBaseSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL));
-    setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL));
+    if (discoActive) {
+      setBaseSuggestions(current => {
+        const available = current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL);
+        return [DISCO_EXIT_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length || 2));
+      });
+      setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL));
+      return;
+    }
+
+    setBaseSuggestions(current => {
+      const available = current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL);
+      if (current.length === 0) return available;
+      return [DISCO_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length));
+    });
+    setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL));
   }, [discoActive]);
 
   // Gate suggestion visibility: hide during loading, show when typewriter signals completion.

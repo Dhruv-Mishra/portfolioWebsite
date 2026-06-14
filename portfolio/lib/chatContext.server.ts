@@ -165,6 +165,8 @@ const OFF_TOPIC_PATTERNS: readonly RegExp[] = [
 
 const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(open|show|pull up|bring up|take me|go to|navigate|visit|switch|toggle|turn on|dark mode|light mode)\b/i,
+  /\b(?:turn off|exit|leave|stop|disable|end|cancel)\s+(?:the\s+)?disco(?:\s+mode)?\b/i,
+  /\bdisco(?:\s+mode)?\s+(?:on|off|start|stop|exit|enabled?|disabled?)\b/i,
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
   // offer to open the relevant project modal.

@@ -11,6 +11,7 @@ import { handleDisco } from '@/lib/sudoCommands';
 import {
   ACTION_REGISTRY,
   DISCO_ACTION_LABEL,
+  DISCO_EXIT_ACTION_LABEL,
   VALID_THEME_ACTIONS,
   getActionFallbackReply,
   getFollowupActions,
@@ -55,7 +56,7 @@ describe('chat themeAction: disco / disco-off', () => {
   it('ACTION_REGISTRY exposes disco engage + exit entries', () => {
     const labels = ACTION_REGISTRY.map(a => a.label);
     expect(labels).toContain(DISCO_ACTION_LABEL);
-    expect(labels).toContain('Exit disco mode');
+    expect(labels).toContain(DISCO_EXIT_ACTION_LABEL);
   });
 
   it('getActionFallbackReply returns a reply for disco / disco-off', () => {
@@ -70,18 +71,22 @@ describe('chat themeAction: disco / disco-off', () => {
 
   it('does not suggest engaging disco while disco is already active', () => {
     const suggestions = getInitialChatSuggestions(true);
+    expect(suggestions.base).toContain(DISCO_EXIT_ACTION_LABEL);
     expect(suggestions.base).not.toContain(DISCO_ACTION_LABEL);
-    expect(getPromotedFollowupActions(getFollowupActions(), { discoActive: true })).not.toContain(DISCO_ACTION_LABEL);
+    const activeActions = getPromotedFollowupActions(getFollowupActions(), { discoActive: true });
+    expect(activeActions[0]).toBe(DISCO_EXIT_ACTION_LABEL);
+    expect(activeActions).not.toContain(DISCO_ACTION_LABEL);
   });
 
   it('orders disco first for follow-up action promotion when available', () => {
     const actions = getPromotedFollowupActions(getFollowupActions(), { discoActive: false });
     expect(actions[0]).toBe(DISCO_ACTION_LABEL);
+    expect(actions).not.toContain(DISCO_EXIT_ACTION_LABEL);
   });
 
   it('resolves exact action chips on the client without chat API routing', () => {
     expect(resolveExactActionLabel(DISCO_ACTION_LABEL)?.themeAction).toBe('disco');
-    expect(resolveExactActionLabel('Exit disco mode')?.themeAction).toBe('disco-off');
+    expect(resolveExactActionLabel(DISCO_EXIT_ACTION_LABEL)?.themeAction).toBe('disco-off');
     expect(resolveExactActionLabel('Report a bug')?.feedbackAction).toBe(true);
     expect(resolveExactActionLabel('Show me Jarvis Voice Agent')?.projectSlug).toBe('jarvis-voice-agent');
     expect(resolveExactActionLabel('Open your GitHub profile')?.openUrls?.[0]).toContain('github.com/Dhruv-Mishra');

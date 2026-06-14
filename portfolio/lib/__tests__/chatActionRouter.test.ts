@@ -53,6 +53,8 @@ describe('resolveChatIntent — exact action labels', () => {
     check('Switch to dark mode', { kind: 'action', themeAction: 'dark' });
     check('Switch to light mode', { kind: 'action', themeAction: 'light' });
     check('Toggle the theme', { kind: 'action', themeAction: 'toggle' });
+    check('Engage disco mode', { kind: 'action', themeAction: 'disco' });
+    check('Exit disco mode', { kind: 'action', themeAction: 'disco-off' });
     check('Report a bug', { kind: 'action', feedbackAction: true });
     check('Show me your portfolio', { kind: 'action', navigateTo: '/projects' });
     check('Show me your experience timeline', { kind: 'action', navigateTo: '/about' });
@@ -71,6 +73,15 @@ describe('resolveChatIntent — theme intents', () => {
     check('flip to dark mode', { kind: 'action', themeAction: 'dark' });
     check('go dark', { kind: 'action', themeAction: 'dark' });
     check('toggle the theme', { kind: 'action', themeAction: 'toggle' });
+    check('turn on disco mode', { kind: 'action', themeAction: 'disco' });
+    check('turn disco mode on', { kind: 'action', themeAction: 'disco' });
+    check('switch to disco mode', { kind: 'action', themeAction: 'disco' });
+    check('engage disco', { kind: 'action', themeAction: 'disco' });
+    check('turn disco mode off', { kind: 'action', themeAction: 'disco-off' });
+    check('turn off disco mode', { kind: 'action', themeAction: 'disco-off' });
+    check('exit disco', { kind: 'action', themeAction: 'disco-off' });
+    check('stop the disco mode', { kind: 'action', themeAction: 'disco-off' });
+    check('no more disco', { kind: 'action', themeAction: 'disco-off' });
   });
 
   it('does NOT trigger on casual mentions of dark/light', () => {
@@ -80,6 +91,7 @@ describe('resolveChatIntent — theme intents', () => {
     check('make it a dark comedy', { kind: 'null' });
     check('turn on the kitchen lights', { kind: 'null' });
     check('a bright light appeared', { kind: 'null' });
+    check('tell me about disco mode', { kind: 'null' });
   });
 });
 

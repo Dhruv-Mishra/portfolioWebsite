@@ -30,6 +30,7 @@ const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);
 
 export const DISCO_ACTION_LABEL = 'Engage disco mode';
+export const DISCO_EXIT_ACTION_LABEL = 'Exit disco mode';
 export const DISCO_EXPLAINER_LABEL = "What's disco mode?";
 
 const NAVIGATION_REPLIES: Record<NavigationPath, string> = {
@@ -105,7 +106,7 @@ export const ACTION_REGISTRY: ActionDef[] = [
     themeAction: 'disco',
   },
   {
-    label: 'Exit disco mode',
+    label: DISCO_EXIT_ACTION_LABEL,
     themeAction: 'disco-off',
   },
   {
@@ -220,14 +221,13 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
 /**
  * Get followup action labels for suggestion chips.
- * Light / dark / toggle / disco-off theme actions are excluded (UI already
- * exposes those via the theme toggle), but `disco` is allowed through so the
- * chat surfaces a hardcoded "Engage disco mode" chip with disco-themed
- * styling — see SuggestionStrip in StickyNoteChat.tsx.
+ * Light / dark / toggle theme actions are excluded (UI already exposes those
+ * via the theme toggle), but disco enter/exit actions are allowed through so
+ * chat can surface a state-aware hardcoded disco chip.
  */
 export function getFollowupActions(): string[] {
   return ACTION_REGISTRY
-    .filter(a => !a.themeAction || a.themeAction === 'disco')
+    .filter(a => !a.themeAction || a.themeAction === 'disco' || a.themeAction === 'disco-off')
     .map(a => a.label);
 }
 
@@ -244,8 +244,8 @@ function normalizeSuggestionText(text: string): string {
 export function getInitialChatSuggestions(discoActive = false): { base: string[]; extra: string[] } {
   if (discoActive) {
     return {
-      base: INITIAL_SUGGESTIONS.slice(0, 2),
-      extra: INITIAL_SUGGESTIONS.slice(2),
+      base: [INITIAL_SUGGESTIONS[0], DISCO_EXIT_ACTION_LABEL],
+      extra: INITIAL_SUGGESTIONS.slice(1),
     };
   }
 
@@ -266,8 +266,13 @@ export function getPromotedFollowupActions(
   const candidates = actions.filter(action => {
     if (excluded.has(normalizeSuggestionText(action))) return false;
     if (options.discoActive && action === DISCO_ACTION_LABEL) return false;
+    if (!options.discoActive && action === DISCO_EXIT_ACTION_LABEL) return false;
     return true;
   });
+
+  if (options.discoActive && candidates.includes(DISCO_EXIT_ACTION_LABEL)) {
+    return [DISCO_EXIT_ACTION_LABEL, ...candidates.filter(action => action !== DISCO_EXIT_ACTION_LABEL)];
+  }
 
   if (!options.discoActive && candidates.includes(DISCO_ACTION_LABEL)) {
     return [DISCO_ACTION_LABEL, ...candidates.filter(action => action !== DISCO_ACTION_LABEL)];

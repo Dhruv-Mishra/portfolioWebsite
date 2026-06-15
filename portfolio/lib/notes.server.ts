@@ -32,26 +32,13 @@ import 'server-only';
  *     `lib/guestbook.ts` handles both.
  */
 
-import { createHash } from 'crypto';
-
 import { GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { hashClientIP } from '@/lib/ipHash.server';
 import { parseIssueBody, type GuestbookEntry } from '@/lib/guestbook';
 import { sanitizeMarkdown } from '@/lib/markdownEscape';
 
 /** Note kind discriminator. Controls label names + env var lookup. */
 export type NoteKind = 'guestbook' | 'matrix';
-
-/**
- * Privacy-preserving IP hash — SHA-256 with a server-side salt so the
- * resulting digest cannot be reversed via a precomputed IPv4 rainbow table.
- * Salt comes from `IP_HASH_SALT` env when set; otherwise falls back to a
- * hard-coded constant. TODO: provision a unique `IP_HASH_SALT` per
- * deployment so digests are not portable across environments.
- */
-function hashIP(ip: string): string {
-  const salt = process.env.IP_HASH_SALT ?? 'sketchbook-default-ip-salt-v1';
-  return createHash('sha256').update(salt).update(':').update(ip).digest('hex').slice(0, 16);
-}
 
 /**
  * Resolve the GitHub repo for the given note kind. Falls back to the
@@ -142,7 +129,7 @@ export async function createPendingNoteIssue({
     '<details><summary>Metadata</summary>',
     '',
     `**Submitted:** ${new Date().toISOString()}`,
-    `**IP (hashed):** ${hashIP(ip)}`,
+    `**IP (hashed):** ${hashClientIP(ip)}`,
     `**Kind:** ${kind}`,
     '',
     '</details>',

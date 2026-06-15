@@ -72,7 +72,10 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request, { requireOrigin: true });
+  const originError = validateOrigin(request, {
+    allowFetchMetadataFallback: true,
+    requireOrigin: true,
+  });
   if (originError) return originError;
 
   const ip = getClientIP(request);

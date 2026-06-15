@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 import { parseSuggestionResponse } from '@/lib/chatSanitization';
 import { LLM_SUGGESTIONS_TIMEOUT_MS, RATE_LIMIT_CONFIG, LLM_SUGGESTIONS_PARAMS, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
 import { createProviderClient, getSuggestionsProviders, type LLMProvider } from '@/lib/llmProviders.server';
+import { readSizedJsonBody } from '@/lib/requestGuards.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
@@ -57,22 +58,14 @@ export async function POST(request: NextRequest) {
       return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
     }
 
-    const contentLength = Number(request.headers.get('content-length'));
-    // Strict: missing/NaN content-length means the request might use chunked
-    // encoding to bypass the body cap. Reject with 411 Length Required.
-    if (!Number.isFinite(contentLength)) {
-      return Response.json({ suggestions: [] }, { status: 411 });
+    const parsedBody = await readSizedJsonBody<{ messages?: unknown }>(
+      request,
+      MAX_SUGGESTIONS_BODY_BYTES,
+    );
+    if (!parsedBody.ok) {
+      return Response.json({ suggestions: [] }, { status: parsedBody.response.status });
     }
-    if (contentLength > MAX_SUGGESTIONS_BODY_BYTES) {
-      return Response.json({ suggestions: [] }, { status: 413 });
-    }
-
-    let body: { messages?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return Response.json({ suggestions: [] }, { status: 400 });
-    }
+    const body = parsedBody.body;
 
     // Validate messages shape: must be an array of {role: 'user'|'assistant', content}.
     // System/tool roles are blocked here so a hostile caller cannot inject

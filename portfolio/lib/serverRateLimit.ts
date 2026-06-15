@@ -78,7 +78,18 @@ export function createServerRateLimiter(config: RateLimitConfig) {
  * Extract client IP from a Next.js request, checking forwarded headers.
  */
 export function getClientIP(request: { headers: { get(name: string): string | null } }): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
+  const cloudflareIp = request.headers.get('cf-connecting-ip')?.trim();
+  if (cloudflareIp) return cloudflareIp;
+
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+
+  if (process.env.TRUST_X_FORWARDED_FOR === 'true') {
+    const forwardedFor = request.headers.get('x-forwarded-for')
+      ?.split(',')[0]
+      ?.trim();
+    if (forwardedFor) return forwardedFor;
+  }
+
+  return 'unknown';
 }

@@ -609,6 +609,7 @@ jobs:
             DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
             DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
+            DOCKER_CONFIG_DIR=""
 
             # Cleanup trap — always remove staging, and remove tarball on success.
             # (On failure, keep tarball at /tmp for forensics; it'll age out
@@ -616,6 +617,9 @@ jobs:
             DEPLOY_OK=0
             cleanup_staging() {
               sudo rm -rf "$STAGING" 2>/dev/null || true
+              if [ -n "$DOCKER_CONFIG_DIR" ]; then
+                sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
                 sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
@@ -629,7 +633,7 @@ jobs:
             if [ "$DEPLOY_MODE" = "image" ]; then
               echo "   Image: ${IMAGE_REF}"
               if [ -z "${GHCR_READ_TOKEN:-}" ]; then
-                echo "   GHCR: no GHCR_READ_TOKEN provided; docker pull must work with existing VM credentials or a public package"
+                echo "   GHCR: no GHCR_READ_TOKEN provided; docker pull must work as a public package"
               fi
             fi
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -666,18 +670,21 @@ jobs:
               fi
               sudo chmod +x "$STAGING/deploy.sh"
 
+              DOCKER_CONFIG_DIR="$(mktemp -d)"
+              sudo chmod 700 "$DOCKER_CONFIG_DIR"
+
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
                 echo "Logging in to GHCR"
-                printf '%s' "$GHCR_READ_TOKEN" | sudo docker login ghcr.io \
+                printf '%s' "$GHCR_READ_TOKEN" | sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" docker login ghcr.io \
                   -u "$GHCR_OWNER" --password-stdin || { echo "GHCR login failed"; exit 1; }
               fi
 
               echo "Invoking image deploy script"
               deploy_status=0
               if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
+                sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               else
-                sudo bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
+                sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" --image "$IMAGE_REF" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               fi
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then

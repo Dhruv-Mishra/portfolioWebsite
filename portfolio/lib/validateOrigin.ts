@@ -52,12 +52,17 @@ const ALLOWED_ORIGINS: ReadonlySet<string> = new Set(
 export interface ValidateOriginOptions {
   /**
    * When true (recommended for write/state-changing endpoints), requests with
-   * NO `Origin` header are rejected unless `Sec-Fetch-Site: same-origin` is
-   * present. This blocks scripted abuse from non-browser tooling that strips
-   * the Origin header. When false, header-less requests are allowed for
-   * compatibility with curl/cron/server-to-server callers (read-only routes).
+    * NO `Origin` header are rejected. When false, header-less requests are
+    * allowed for compatibility with curl/cron/server-to-server callers
+    * (read-only routes).
    */
   requireOrigin?: boolean;
+  /**
+   * Permit `Sec-Fetch-Site: same-origin` when Origin is absent. Use this only
+   * for read-only browser endpoints; non-browser clients can forge Fetch
+   * Metadata, so write/cost endpoints should require a real Origin header.
+   */
+  allowFetchMetadataFallback?: boolean;
 }
 
 /**
@@ -72,9 +77,10 @@ export interface ValidateOriginOptions {
  *
  * Policy (`requireOrigin: true` — write/state-changing endpoints):
  * - Origin present & in allowed set → allow
- * - Origin absent BUT `Sec-Fetch-Site: same-origin` → allow (modern browsers
- *   strip Origin on certain same-origin requests but always send Sec-Fetch-Site)
  * - Anything else → block (403)
+ *
+ * Policy (`allowFetchMetadataFallback: true` — read-only browser endpoints):
+ * - Origin absent BUT `Sec-Fetch-Site: same-origin` → allow
  */
 export function validateOrigin(
   request: Request,
@@ -82,6 +88,7 @@ export function validateOrigin(
 ): Response | null {
   const origin = request.headers.get('origin');
   const requireOrigin = options.requireOrigin === true;
+  const allowFetchMetadataFallback = options.allowFetchMetadataFallback === true;
 
   if (origin) {
     if (ALLOWED_ORIGINS.has(origin)) return null;
@@ -91,9 +98,7 @@ export function validateOrigin(
   // No Origin header.
   if (!requireOrigin) return null;
 
-  // Strict mode: accept Sec-Fetch-Site: same-origin as a fallback for
-  // browser-initiated same-origin requests that omit Origin.
-  if (request.headers.get('sec-fetch-site') === 'same-origin') return null;
+  if (allowFetchMetadataFallback && request.headers.get('sec-fetch-site') === 'same-origin') return null;
 
   return Response.json({ error: 'Forbidden' }, { status: 403 });
 }

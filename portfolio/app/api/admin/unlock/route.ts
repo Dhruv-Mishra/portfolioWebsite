@@ -3,8 +3,9 @@
  *
  * Accepts `{ username, password }` from the terminal's `sudo admin` login
  * sequence. If credentials match the puzzle's known values, mints an
- * HMAC-signed token and returns it — both as an httpOnly cookie AND in
- * the JSON body so the terminal can mirror it into sessionStorage.
+ * HMAC-signed token and returns it as an httpOnly cookie. The response body
+ * only says `{ ok: true }`; the terminal stores a non-auth sentinel so any
+ * future XSS cannot steal the real bearer token from sessionStorage.
  *
  * This is intentionally a "puzzle" gate, not a real auth system — the
  * username + password are hardcoded client-visible puzzle content. The
@@ -14,6 +15,7 @@
 import { NextRequest } from 'next/server';
 import { ADMIN_COOKIE_NAME, issueAdminToken } from '@/lib/adminAuth.server';
 import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/matrixPuzzle';
+import { readSizedJsonBody } from '@/lib/requestGuards.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
@@ -27,6 +29,7 @@ const adminRateLimiter = createServerRateLimiter({
 });
 
 const TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60; // 8h matches adminAuth.server.ts window
+const MAX_ADMIN_UNLOCK_BODY_BYTES = 1_024;
 
 function timingSafeStringEqual(a: string, b: string): boolean {
   if (a.length !== b.length) {
@@ -59,12 +62,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  let body: { username?: unknown; password?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: 'Invalid body' }, { status: 400 });
-  }
+  const parsedBody = await readSizedJsonBody<{ username?: unknown; password?: unknown }>(
+    request,
+    MAX_ADMIN_UNLOCK_BODY_BYTES,
+  );
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.body;
 
   const username = typeof body.username === 'string' ? body.username : '';
   const password = typeof body.password === 'string' ? body.password : '';
@@ -83,10 +86,16 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Authentication failure' }, { status: 401 });
   }
 
-  const token = issueAdminToken();
+  let token: string;
+  try {
+    token = issueAdminToken();
+  } catch (error) {
+    console.error('[admin] Unable to issue admin token:', error);
+    return Response.json({ error: 'Admin auth is not configured' }, { status: 503 });
+  }
 
   return new Response(
-    JSON.stringify({ ok: true, token }),
+    JSON.stringify({ ok: true }),
     {
       status: 200,
       headers: {

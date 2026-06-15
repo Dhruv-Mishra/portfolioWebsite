@@ -1,14 +1,16 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
-import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
+import { hashClientIP } from '@/lib/ipHash.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { readSizedJsonBody } from '@/lib/requestGuards.server';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { sanitizeMarkdown } from '@/lib/markdownEscape';
 
 export const runtime = 'nodejs';
 
 const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
+const MAX_FEEDBACK_BODY_BYTES = 8_192;
 
 // ─── Validation ─────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
@@ -62,7 +64,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Feedback service is not configured' }, { status: 500 });
     }
 
-    const body: FeedbackBody = await request.json().catch(() => null) as FeedbackBody;
+    const parsedBody = await readSizedJsonBody<FeedbackBody>(request, MAX_FEEDBACK_BODY_BYTES);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
     if (!body || typeof body !== 'object') {
       return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -83,10 +87,10 @@ export async function POST(request: NextRequest) {
     const title = `[${TITLE_PREFIX[body.category]}] ${sanitizedMessage.slice(0, 60)}${sanitizedMessage.length > 60 ? '...' : ''}`;
 
     const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
-    const page = sanitizeMarkdown(String(body.page || 'Unknown'));
-    const theme = sanitizeMarkdown(String(body.theme || 'Unknown'));
-    const viewport = sanitizeMarkdown(String(body.viewport || 'Unknown'));
-    const userAgent = sanitizeMarkdown(String(body.userAgent || 'Unknown'));
+    const page = sanitizeMarkdown(String(body.page || 'Unknown').slice(0, 240));
+    const theme = sanitizeMarkdown(String(body.theme || 'Unknown').slice(0, 80));
+    const viewport = sanitizeMarkdown(String(body.viewport || 'Unknown').slice(0, 80));
+    const userAgent = sanitizeMarkdown(String(body.userAgent || 'Unknown').slice(0, 240));
 
     const metadataLines = [
       `**Category:** ${TITLE_PREFIX[body.category]}`,
@@ -96,7 +100,7 @@ export async function POST(request: NextRequest) {
       `**Viewport:** ${viewport}`,
       `**User Agent:** ${userAgent}`,
       `**Submitted:** ${new Date().toISOString()}`,
-      `**IP (hashed):** ${hashIP(ip)}`,
+      `**IP (hashed):** ${hashClientIP(ip)}`,
     ];
 
     const issueBody = [
@@ -166,14 +170,4 @@ export async function POST(request: NextRequest) {
     console.error('Feedback API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-/** Privacy-preserving IP hash — SHA-256 with a server-side salt so the
- * resulting digest cannot be reversed via a precomputed IPv4 rainbow table.
- * Salt comes from `IP_HASH_SALT` env when set; otherwise falls back to a
- * hard-coded constant. TODO: provision a unique `IP_HASH_SALT` per
- * deployment so digests are not portable across environments. */
-function hashIP(ip: string): string {
-  const salt = process.env.IP_HASH_SALT ?? 'sketchbook-default-ip-salt-v1';
-  return createHash('sha256').update(salt).update(':').update(ip).digest('hex').slice(0, 16);
 }

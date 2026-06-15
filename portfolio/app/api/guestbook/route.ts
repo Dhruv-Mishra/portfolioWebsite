@@ -7,6 +7,7 @@
 import { NextRequest } from 'next/server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
+import { readSizedJsonBody } from '@/lib/requestGuards.server';
 import { validateOrigin } from '@/lib/validateOrigin';
 import {
   createPendingIssue,
@@ -25,6 +26,7 @@ const guestbookRateLimiter = createServerRateLimiter({
   maxTrackedIPs: 200,
   cleanupInterval: 30,
 });
+const MAX_GUESTBOOK_BODY_BYTES = 2_048;
 
 // ─── Validation helpers ─────────────────────────────────────────────────
 const URL_PATTERN = /(?:https?:\/\/|www\.)/i;
@@ -55,7 +57,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SubmissionBody = await request.json().catch(() => ({}));
+    const parsedBody = await readSizedJsonBody<SubmissionBody>(request, MAX_GUESTBOOK_BODY_BYTES);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
 
     // Honeypot — non-empty `website` → silent success (bot signature).
     if (asString(body.website).trim().length > 0) {

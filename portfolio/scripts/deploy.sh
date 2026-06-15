@@ -181,12 +181,16 @@ readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
 # On 1-GB VMs with ~200MB per release, keep it tight.
 readonly RELEASE_RETENTION_COUNT="${RELEASE_RETENTION_COUNT:-2}"
 
-# Required env vars. Keep this safe for staging configs that intentionally set
-# REQUIRED_ENV_VARS="" to allow either Groq-first or legacy LLM_* providers.
+# Required env vars. Site configs can add vars through REQUIRED_ENV_VARS; the
+# runtime security secrets below are always required because production-mode
+# route handlers fail closed when they are absent.
 REQUIRED_ENV_ARRAY=()
 if [[ -n "${REQUIRED_ENV_VARS-}" ]]; then
     IFS=',' read -ra REQUIRED_ENV_ARRAY <<< "${REQUIRED_ENV_VARS}"
 fi
+for security_var in ADMIN_UNLOCK_SECRET CHAT_HISTORY_SIGNING_SECRET IP_HASH_SALT; do
+    REQUIRED_ENV_ARRAY+=("${security_var}")
+done
 
 #===============================================================================
 # DERIVED CONSTANTS — ARTIFACT LAYOUT
@@ -1174,7 +1178,7 @@ Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
 EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
-Environment=HOSTNAME=0.0.0.0
+Environment=HOSTNAME=127.0.0.1
 Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}"
 
 ExecStart=${node_bin} server.js
@@ -1265,6 +1269,12 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
   --memory ${MEMORY_MAX_MB}m \
   --memory-reservation ${MEMORY_HIGH_MB}m \
   --cpus ${docker_cpus} \
+    --cap-drop=ALL \
+    --security-opt no-new-privileges:true \
+    --pids-limit 256 \
+    --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --tmpfs /app/.next/cache:rw,nosuid,nodev,size=64m \
   --label com.whoisdhruv.service=${SERVICE_NAME} \
   --label com.whoisdhruv.sha=${RELEASE_SHA} \
   ${DOCKER_IMAGE}
@@ -2133,7 +2143,7 @@ Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
 EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
-Environment=HOSTNAME=0.0.0.0
+Environment=HOSTNAME=127.0.0.1
 Environment=NODE_OPTIONS="--max-old-space-size=${NODE_HEAP_MB}"
 ExecStart=${node_bin} server.js
 Restart=on-failure

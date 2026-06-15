@@ -7,9 +7,15 @@ import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTranspor
 const SIGNATURE_VERSION = 1;
 
 function getSigningSecret(): string {
-  return process.env.CHAT_HISTORY_SIGNING_SECRET
-    || process.env.LLM_API_KEY
-    || process.env.LLM_FALLBACK_API_KEY
+  const dedicatedSecret = process.env.CHAT_HISTORY_SIGNING_SECRET?.trim();
+  if (dedicatedSecret) return dedicatedSecret;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CHAT_HISTORY_SIGNING_SECRET is required in production');
+  }
+
+  return process.env.LLM_API_KEY?.trim()
+    || process.env.LLM_FALLBACK_API_KEY?.trim()
     || 'development-chat-history-secret';
 }
 
@@ -66,7 +72,12 @@ export function verifyAssistantMessage(message: ClientChatMessage): SanitizedCha
   }
 
   const normalizedAction = normalizeAction(message.action);
-  const expected = signAssistantMessage(message.content, normalizedAction);
+  let expected: string;
+  try {
+    expected = signAssistantMessage(message.content, normalizedAction);
+  } catch {
+    return null;
+  }
   const provided = Buffer.from(message.signature, 'utf8');
   const expectedBuffer = Buffer.from(expected, 'utf8');
 

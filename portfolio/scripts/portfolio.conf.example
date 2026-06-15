@@ -54,7 +54,7 @@ NGINX_CONF_TEMPLATE="nginx-cloudflare.conf"
 # Leave empty to support either Groq-first (`GROQ_API_KEY`) or legacy
 # OpenAI-compatible (`LLM_*`) chat configs. Set this to a comma-separated list
 # if you want deploys to fail fast when specific runtime secrets are absent.
-REQUIRED_ENV_VARS=""
+REQUIRED_ENV_VARS="ADMIN_UNLOCK_SECRET,CHAT_HISTORY_SIGNING_SECRET,IP_HASH_SALT"
 
 # ── Backups & Logs ───────────────────────────────────────────────────────────
 BACKUP_RETENTION_DAYS=7

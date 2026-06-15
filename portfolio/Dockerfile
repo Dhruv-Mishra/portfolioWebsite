@@ -63,6 +63,7 @@ ENV NODE_ENV=production \
     LOCAL_TTS_PYTHON=/opt/tts-venv/bin/python \
     LOCAL_TTS_CACHE_DIR=/var/cache/portfolio/kitten-tts \
     PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1
 
 RUN apt-get update \

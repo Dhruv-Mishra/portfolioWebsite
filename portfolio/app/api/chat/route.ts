@@ -129,8 +129,9 @@ function createFallbackResponse(latestUserMessage: string, reason?: string) {
     'X-Chat-Fallback': 'localStatic',
   };
   if (reason) {
-    // Truncate hard so we never leak full error bodies / keys to the client.
-    headers['X-Chat-Fallback-Reason'] = reason.replace(/[\r\n]+/g, ' ').slice(0, 300);
+    headers['X-Chat-Fallback-Reason'] = process.env.NODE_ENV === 'production'
+      ? 'provider_unavailable'
+      : reason.replace(/[\r\n]+/g, ' ').slice(0, 300);
   }
   return Response.json({
     reply,

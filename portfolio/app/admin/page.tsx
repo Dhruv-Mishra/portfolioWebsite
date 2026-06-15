@@ -16,8 +16,11 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 import { ADMIN_COOKIE_NAME, verifyAdminToken } from '@/lib/adminAuth.server';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: '404 Not Found | Dhruv Mishra',
@@ -39,7 +42,7 @@ export const metadata: Metadata = {
 // Dynamically import the console body so the chunk isn't tree-attached to
 // any other entry. SSR is enabled because we want the shell to be stable
 // even when JS is slow, but the console only runs for verified users.
-const AdminConsole = dynamic(() => import('@/components/admin/AdminConsole'));
+const AdminConsole = nextDynamic(() => import('@/components/admin/AdminConsole'));
 
 export default async function AdminPage(): Promise<React.ReactElement> {
   // `cookies()` is async in Next.js 15+/16. Await before touching it.

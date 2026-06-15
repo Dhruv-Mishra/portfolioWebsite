@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readSizedJsonBody } from '@/lib/requestGuards.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
@@ -50,17 +51,11 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
-  const contentLength = Number(req.headers.get('content-length'));
-  if (!Number.isFinite(contentLength) || contentLength > MAX_VOICE_BODY_BYTES) {
-    return new NextResponse(null, { status: 413 });
+  const parsedBody = await readSizedJsonBody<VoiceLogPayload>(req, MAX_VOICE_BODY_BYTES);
+  if (!parsedBody.ok) {
+    return new NextResponse(null, { status: parsedBody.response.status });
   }
-
-  let payload: VoiceLogPayload = {};
-  try {
-    payload = (await req.json()) as VoiceLogPayload;
-  } catch {
-    /* ignore malformed beacon */
-  }
+  const payload = parsedBody.body;
   const event = typeof payload.event === 'string' ? payload.event : 'unknown';
   console.log(`[voice] ${event}`, payload.detail ?? '');
   return new NextResponse(null, { status: 204 });

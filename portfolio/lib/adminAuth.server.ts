@@ -19,9 +19,9 @@ import 'server-only';
  *   can't linger for weeks.
  *
  * SECRET
- *   Reads `ADMIN_UNLOCK_SECRET`. Falls back to `CHAT_HISTORY_SIGNING_SECRET`
- *   (or the legacy `LLM_API_KEY`) so dev/staging never crashes. In prod
- *   we log a warning if the dedicated secret isn't set.
+ *   Reads `ADMIN_UNLOCK_SECRET`. Production fails closed if the dedicated
+ *   secret is missing; development/test can fall back so local puzzle work
+ *   stays convenient.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -31,11 +31,17 @@ const TOKEN_VALIDITY_MS = 8 * 60 * 60 * 1000; // 8h
 const SECRET_FALLBACK = 'development-admin-unlock-secret';
 
 function getAdminSecret(): string {
+  const dedicatedSecret = process.env.ADMIN_UNLOCK_SECRET?.trim();
+  if (dedicatedSecret) return dedicatedSecret;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_UNLOCK_SECRET is required in production');
+  }
+
   return (
-    process.env.ADMIN_UNLOCK_SECRET
-    || process.env.CHAT_HISTORY_SIGNING_SECRET
-    || process.env.LLM_API_KEY
-    || process.env.LLM_FALLBACK_API_KEY
+    process.env.CHAT_HISTORY_SIGNING_SECRET?.trim()
+    || process.env.LLM_API_KEY?.trim()
+    || process.env.LLM_FALLBACK_API_KEY?.trim()
     || SECRET_FALLBACK
   );
 }
@@ -79,7 +85,12 @@ export function verifyAdminToken(token: string | null | undefined): boolean {
   if (issuedAt > now + 60_000) return false; // future-dated tokens (clock skew allowance: 1 min)
   if (now - issuedAt > TOKEN_VALIDITY_MS) return false;
 
-  const expected = sign(issuedAt);
+  let expected: string;
+  try {
+    expected = sign(issuedAt);
+  } catch {
+    return false;
+  }
   const expectedBuf = Buffer.from(expected, 'utf8');
   const providedBuf = Buffer.from(providedSig, 'utf8');
   if (expectedBuf.length !== providedBuf.length) return false;

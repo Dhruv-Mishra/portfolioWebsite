@@ -48,6 +48,28 @@ function resolveBuildId(): string {
 
 const BUILD_ID = resolveBuildId();
 
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://v2.jokeapi.dev https://static.cloudflareinsights.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://www.google-analytics.com https://v2.jokeapi.dev https://analytics.google.com https://region1.google-analytics.com https://cloudflareinsights.com https://huggingface.co https://cdn-lfs.huggingface.co https://*.hf.co",
+  "worker-src 'self' blob:",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+const BASE_SECURITY_HEADERS = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'Content-Security-Policy', value: CONTENT_SECURITY_POLICY },
+] as const;
+
 const nextConfig: NextConfig = {
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
@@ -130,15 +152,27 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
+        headers: [...BASE_SECURITY_HEADERS],
+      },
+      {
+        source: '/admin',
         headers: [
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          ...BASE_SECURITY_HEADERS,
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
+        ],
+      },
+      {
+        source: '/admin/:path*',
+        headers: [
+          ...BASE_SECURITY_HEADERS,
+          { key: 'Cache-Control', value: 'private, no-store, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'no-store' },
         ],
       },
       {
         // Static pages: let Cloudflare cache at edge for 1 hour, browsers revalidate
-        source: '/((?!api|_next/static|_next/image|resources).*)',
+        source: '/((?!api|admin|_next/static|_next/image|resources).*)',
         headers: [
           { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },

@@ -1,6 +1,0 @@
-# Targets only modern browsers with native ES2022+ support
-# Removes polyfills for Array.at, Array.flat, Object.fromEntries, etc.
-last 2 Chrome versions
-last 2 Firefox versions
-last 2 Safari versions
-last 2 Edge versions

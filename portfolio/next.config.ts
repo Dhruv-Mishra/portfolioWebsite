@@ -60,10 +60,12 @@ const nextConfig: NextConfig = {
   // regardless of whether they're actually invoked. Excluding them here makes
   // the resulting bundle truly arch-agnostic (pure JS) and ~30MB smaller.
   outputFileTracingExcludes: {
-    '*': [
-      'node_modules/sharp/**',
-      'node_modules/@img/**',
-      'node_modules/@next/swc-*/**',
+    '/*': [
+      './node_modules/sharp/**/*',
+      './node_modules/@img/**/*',
+      './node_modules/@next/swc-*/*',
+      './node_modules/onnxruntime-node/**/*',
+      './.cache/**/*',
     ],
   },
   outputFileTracingIncludes: {
@@ -137,27 +139,12 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Static pages: let Cloudflare cache at edge for 1 hour, browsers revalidate
-        source: '/((?!api|_next/static|_next/image|resources).*)',
+        // Static pages: let Cloudflare cache at edge for 1 hour, browsers revalidate.
+        // Dynamic and cookie-gated routes must retain Next's private/no-store policy.
+        source: '/((?!api|admin|guestbook|matrix-notes|_next/static|_next/image|resources).*)',
         headers: [
           { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },
-        ],
-      },
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            // In dev, edits regenerate chunks but URLs can collide as
-            // Turbopack rewrites bundles incrementally — `immutable` then
-            // pins stale bytes in the browser. Only production builds
-            // emit fully content-addressed, durable hashes worth pinning.
-            value:
-              process.env.NODE_ENV === 'production'
-                ? 'public, max-age=31536000, immutable'
-                : 'no-store, must-revalidate',
-          },
         ],
       },
       {

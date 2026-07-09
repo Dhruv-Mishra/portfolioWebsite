@@ -30,10 +30,12 @@
 
 import { useEffect } from 'react';
 import { soundManager } from '@/lib/soundManager';
+import { getSoundsMutedSync } from '@/hooks/useStickers';
 
 export default function ClickSoundListener(): null {
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    soundManager.setMuted(getSoundsMutedSync());
 
     function shouldFire(target: Element | null): boolean {
       if (!target) return false;

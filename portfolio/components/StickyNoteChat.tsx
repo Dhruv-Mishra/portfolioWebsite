@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo, useMemo, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, memo, useMemo, useSyncExternalStore, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
@@ -53,6 +53,7 @@ const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), 
 /** Delay (ms) before executing page navigation after action confirmation */
 const NAVIGATION_DELAY_MS = TIMING_TOKENS.pauseMedium;
 const CLIENT_TTS_CONSENT_KEY = 'tts-client-speech-consent-v1';
+const CLIENT_TTS_CONSENT_EVENT = 'tts-client-speech-consent:change';
 
 function getNextTtsPlaybackSpeed(current: TtsPlaybackSpeed): TtsPlaybackSpeed {
   const currentIndex = TTS_PLAYBACK_SPEEDS.indexOf(current);
@@ -71,7 +72,17 @@ function readClientTtsConsent(): boolean {
 function writeClientTtsConsent(): void {
   try {
     window.localStorage.setItem(CLIENT_TTS_CONSENT_KEY, 'accepted');
+    window.dispatchEvent(new Event(CLIENT_TTS_CONSENT_EVENT));
   } catch { /* no-op */ }
+}
+
+function subscribeClientTtsConsent(onStoreChange: () => void): () => void {
+  window.addEventListener(CLIENT_TTS_CONSENT_EVENT, onStoreChange);
+  window.addEventListener('storage', onStoreChange);
+  return () => {
+    window.removeEventListener(CLIENT_TTS_CONSENT_EVENT, onStoreChange);
+    window.removeEventListener('storage', onStoreChange);
+  };
 }
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
@@ -87,8 +98,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+  const notifyComplete = useEffectEvent(() => onComplete?.());
   const phaseRef = useRef<TypewriterPhase>('idle');
 
   const isTyping = phase === 'typing' || phase === 'erasing';
@@ -101,6 +111,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
   }, []);
 
   useEffect(() => {
+    if (skip) return;
     const activeRunId = ++runIdRef.current;
 
     const schedule = (callback: () => void, delay: number) => {
@@ -120,7 +131,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
       setPhase('idle');
       phaseRef.current = 'idle';
       timerRef.current = null;
-      if (!finalIsFiller) onCompleteRef.current?.();
+      if (!finalIsFiller) notifyComplete();
     };
 
     const startTyping = (targetText: string, targetIsFiller: boolean, startIndex = 0) => {
@@ -170,13 +181,6 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
       schedule(() => tick(fromText.length), eraseSpeed);
     };
 
-    if (skip) {
-      updateDisplayedText(text);
-      setPhase('idle');
-      phaseRef.current = 'idle';
-      return;
-    }
-
     const currentText = displayedTextRef.current;
 
     if (text === '' && !currentText) {
@@ -201,7 +205,11 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
     };
   }, [text, skip, speed, eraseSpeed, isFiller, clearActiveTimer]);
 
-  return { displayedText, isTyping, isFiller: phase === 'erasing' || isFiller };
+  return {
+    displayedText: skip ? text : displayedText,
+    isTyping: skip ? false : isTyping,
+    isFiller: skip ? isFiller : phase === 'erasing' || isFiller,
+  };
 }
 
 // ─── Typing Ellipsis — bouncing dots with staggered scale wave ───
@@ -1284,7 +1292,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
-  const [clientTtsConsent, setClientTtsConsent] = useState(false);
+  const clientTtsConsent = useSyncExternalStore(
+    subscribeClientTtsConsent,
+    readClientTtsConsent,
+    () => false,
+  );
   const [pendingTtsMessage, setPendingTtsMessage] = useState<ChatMessage | null>(null);
   const {
     activeMessageId: ttsActiveMessageId,
@@ -1303,6 +1315,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [extraSuggestions, setExtraSuggestions] = useState<string[]>([]);
   const [readyForAssistantId, setReadyForAssistantId] = useState<string | null>('welcome');
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<ProjectSlug | null>(null);
+  const [projectModalLoaded, setProjectModalLoaded] = useState(false);
   const [ttsControlsMessageId, setTtsControlsMessageId] = useState<string | null>(null);
 
   const followupActions = useMemo(() => getFollowupActions(), []);
@@ -1316,14 +1329,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const pendingActionsRef = useRef<Map<string, ChatMessage>>(new Map());
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const committedExtrasForIdRef = useRef<string | null>(null);
-  const hasHadInteractionRef = useRef(false);
+  const [hasHadInteraction, setHasHadInteraction] = useState(false);
   const hasInitializedSuggestionsRef = useRef(false);
   const completedAssistantHapticRef = useRef<string | null>(null);
   const lastErrorRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    setClientTtsConsent(readClientTtsConsent());
-  }, []);
 
   useEffect(() => {
     for (const message of messages) {
@@ -1347,35 +1356,39 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   // One-time suggestion initialization after hydration — prevents flash on page return
   useEffect(() => {
     if (hasInitializedSuggestionsRef.current || messages.length === 0) return;
-    hasInitializedSuggestionsRef.current = true;
+    const timer = setTimeout(() => {
+      if (hasInitializedSuggestionsRef.current) return;
+      hasInitializedSuggestionsRef.current = true;
 
-    const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
-    if (lastAssistant?.isOld) {
-      // Returning to chat with history — use cached LLM suggestions if available
-      hasFetchedSuggestionsRef.current = lastAssistant.id;
-      committedExtrasForIdRef.current = lastAssistant.id;
-      const base = [
-        ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
-        ...pickFollowupAction(followupActions, { discoActive }),
-      ];
-      setBaseSuggestions(base);
-      const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
-      if (availableLlmSuggestions.length > 0) {
-        setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
+      const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
+      if (lastAssistant?.isOld) {
+        // Returning to chat with history — use cached LLM suggestions if available
+        hasFetchedSuggestionsRef.current = lastAssistant.id;
+        committedExtrasForIdRef.current = lastAssistant.id;
+        const base = [
+          ...pickRandom(FOLLOWUP_CONVERSATIONAL, 1),
+          ...pickFollowupAction(followupActions, { discoActive }),
+        ];
+        setBaseSuggestions(base);
+        const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
+        if (availableLlmSuggestions.length > 0) {
+          setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
+        } else {
+          setExtraSuggestions([
+            ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
+            ...pickFollowupAction(followupActions, { discoActive, exclude: base }),
+          ]);
+        }
       } else {
-        setExtraSuggestions([
-          ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !base.includes(s)), 1),
-          ...pickFollowupAction(followupActions, { discoActive, exclude: base }),
-        ]);
+        // Fresh visit — show initial suggestions
+        const initialSuggestions = getInitialChatSuggestions(discoActive);
+        setBaseSuggestions(initialSuggestions.base);
+        setExtraSuggestions(initialSuggestions.extra);
       }
-    } else {
-      // Fresh visit — show initial suggestions
-      const initialSuggestions = getInitialChatSuggestions(discoActive);
-      setBaseSuggestions(initialSuggestions.base);
-      setExtraSuggestions(initialSuggestions.extra);
-    }
-    const latestAssistant = messages.findLast(m => m.role === 'assistant');
-    setReadyForAssistantId(latestAssistant?.id ?? 'welcome');
+      const latestAssistant = messages.findLast(m => m.role === 'assistant');
+      setReadyForAssistantId(latestAssistant?.id ?? 'welcome');
+    }, 0);
+    return () => clearTimeout(timer);
   }, [messages, llmSuggestions, followupActions, discoActive]);
 
   // After each NEW assistant response: pick 2 hardcoded + fetch 2 contextual.
@@ -1388,31 +1401,30 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     const lastAssistant = messages.findLast(m => m.role === 'assistant' && m.id !== 'welcome');
     if (!lastAssistant || isLoading || lastAssistant.isOld || lastAssistant.oracleEmitted) return;
     if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
-    hasFetchedSuggestionsRef.current = lastAssistant.id;
-    // New target id — allow exactly one extras commit for this id.
-    committedExtrasForIdRef.current = null;
+    const timer = setTimeout(() => {
+      if (hasFetchedSuggestionsRef.current === lastAssistant.id) return;
+      hasFetchedSuggestionsRef.current = lastAssistant.id;
+      committedExtrasForIdRef.current = null;
 
-    // Exclude the suggestion the user just clicked (= their last message text)
-    const lastUserMsg = messages.findLast(m => m.role === 'user');
-    const lastUserText = lastUserMsg?.content?.toLowerCase() || '';
-
-    // 2 hardcoded suggestions: 1 conversational + 1 action (shown once typewriter finishes)
-    const hardcoded = [
-      ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => s.toLowerCase() !== lastUserText), 1),
-      ...pickFollowupAction(followupActions, { discoActive, lastUserText }),
-    ];
-    setBaseSuggestions(hardcoded);
-    setExtraSuggestions([]); // Clear contextual — will be filled by LLM or fallback
-    if (lastAssistant.clientOnly) {
-      committedExtrasForIdRef.current = lastAssistant.id;
-      setExtraSuggestions([
-        ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !hardcoded.includes(s)), 1),
-        ...pickFollowupAction(followupActions, { discoActive, exclude: hardcoded }),
-      ]);
-      return;
-    }
-    // Fire background LLM request for 2 contextual suggestions
-    fetchSuggestions();
+      const lastUserMsg = messages.findLast(m => m.role === 'user');
+      const lastUserText = lastUserMsg?.content?.toLowerCase() || '';
+      const hardcoded = [
+        ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => s.toLowerCase() !== lastUserText), 1),
+        ...pickFollowupAction(followupActions, { discoActive, lastUserText }),
+      ];
+      setBaseSuggestions(hardcoded);
+      setExtraSuggestions([]);
+      if (lastAssistant.clientOnly) {
+        committedExtrasForIdRef.current = lastAssistant.id;
+        setExtraSuggestions([
+          ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !hardcoded.includes(s)), 1),
+          ...pickFollowupAction(followupActions, { discoActive, exclude: hardcoded }),
+        ]);
+        return;
+      }
+      fetchSuggestions();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [messages, isLoading, fetchSuggestions, followupActions, discoActive]);
 
   // When LLM contextual suggestions arrive (or fail), fill the extra slots.
@@ -1424,35 +1436,41 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     const targetId = hasFetchedSuggestionsRef.current;
     if (isSuggestionsLoading || !targetId) return;
     if (committedExtrasForIdRef.current === targetId) return;
-    committedExtrasForIdRef.current = targetId;
-    const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
-    if (availableLlmSuggestions.length > 0) {
-      setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
-    } else {
-      // LLM failed — fill with 1 conversational + 1 action (different from base)
-      setExtraSuggestions([
-        ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
-        ...pickFollowupAction(followupActions, { discoActive, exclude: baseSuggestions }),
-      ]);
-    }
+    const timer = setTimeout(() => {
+      if (committedExtrasForIdRef.current === targetId) return;
+      committedExtrasForIdRef.current = targetId;
+      const availableLlmSuggestions = filterUnavailableSuggestions(llmSuggestions, discoActive);
+      if (availableLlmSuggestions.length > 0) {
+        setExtraSuggestions(availableLlmSuggestions.slice(0, 2));
+      } else {
+        setExtraSuggestions([
+          ...pickRandom(FOLLOWUP_CONVERSATIONAL.filter(s => !baseSuggestions.includes(s)), 1),
+          ...pickFollowupAction(followupActions, { discoActive, exclude: baseSuggestions }),
+        ]);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [isSuggestionsLoading, llmSuggestions, baseSuggestions, followupActions, discoActive]);
 
   useEffect(() => {
-    if (discoActive) {
+    const timer = setTimeout(() => {
+      if (discoActive) {
+        setBaseSuggestions(current => {
+          const available = current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL);
+          return [DISCO_EXIT_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length || 2));
+        });
+        setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL));
+        return;
+      }
+
       setBaseSuggestions(current => {
         const available = current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL);
-        return [DISCO_EXIT_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length || 2));
+        if (current.length === 0) return available;
+        return [DISCO_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length));
       });
       setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL));
-      return;
-    }
-
-    setBaseSuggestions(current => {
-      const available = current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL);
-      if (current.length === 0) return available;
-      return [DISCO_ACTION_LABEL, ...available].slice(0, Math.max(1, current.length));
-    });
-    setExtraSuggestions(current => current.filter(suggestion => suggestion !== DISCO_ACTION_LABEL && suggestion !== DISCO_EXIT_ACTION_LABEL));
+    }, 0);
+    return () => clearTimeout(timer);
   }, [discoActive]);
 
   // Gate suggestion visibility: hide during loading, show when typewriter signals completion.
@@ -1505,6 +1523,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
     if (action.projectSlug) {
       openPanel();
+      setProjectModalLoaded(true);
       setSelectedProjectSlug(action.projectSlug);
     }
 
@@ -1640,7 +1659,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [messages.length]);
 
   const handleSendFromInput = useCallback((text: string) => {
-    hasHadInteractionRef.current = true;
+    setHasHadInteraction(true);
     stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
@@ -1651,7 +1670,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
 
   const handleSuggestion = useCallback((text: string) => {
-    hasHadInteractionRef.current = true;
+    setHasHadInteraction(true);
     stopTtsPlayback();
     selection();
     soundManager.play('chat-send');
@@ -1667,7 +1686,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const speakWithClientTts = useCallback((message: ChatMessage) => {
     writeClientTtsConsent();
-    setClientTtsConsent(true);
     setPendingTtsMessage(null);
     setTtsControlsMessageId(message.id);
     void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: true });
@@ -1736,7 +1754,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       data-disco-motion={compact ? undefined : 'breath'}
       style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
     >
-      {selectedProjectSlug ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
+      {projectModalLoaded ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       <Modal
         isOpen={pendingTtsMessage !== null}
         onClose={() => setPendingTtsMessage(null)}
@@ -1858,7 +1876,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 {matrixEscaped && (
                   <MatrixEscapeChip
                     onSelect={handleEnterMatrix}
-                    skipEntrance={!hasHadInteractionRef.current}
+                    skipEntrance={!hasHadInteraction}
                   />
                 )}
                 {baseSuggestions.map((q, i) => (
@@ -1868,7 +1886,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     isAction={ACTION_SUGGESTION_SET.has(q)}
                     onSelect={handleSuggestion}
                     index={i}
-                    skipEntrance={!hasHadInteractionRef.current}
+                    skipEntrance={!hasHadInteraction}
                   />
                 ))}
                 <AnimatePresence>
@@ -1879,7 +1897,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                       isAction={ACTION_SUGGESTION_SET.has(q)}
                       onSelect={handleSuggestion}
                       index={i}
-                      skipEntrance={!hasHadInteractionRef.current}
+                      skipEntrance={!hasHadInteraction}
                     />
                   ))}
                 </AnimatePresence>

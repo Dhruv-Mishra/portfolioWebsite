@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 /**
  * Media-query probe for "true" desktop — a device with hover capability and a
@@ -15,16 +15,15 @@ import { useEffect, useState } from 'react';
 const QUERY = '(hover: hover) and (pointer: fine)';
 
 export function useDesktopOnly(): boolean {
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia(QUERY);
-    setIsDesktop(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    const mediaQuery = window.matchMedia(QUERY);
+    mediaQuery.addEventListener('change', onStoreChange);
+    return () => mediaQuery.removeEventListener('change', onStoreChange);
   }, []);
 
-  return isDesktop;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(QUERY).matches,
+    () => false,
+  );
 }

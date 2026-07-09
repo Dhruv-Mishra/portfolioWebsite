@@ -65,6 +65,7 @@ export function getChatProviders(): { primary: LLMProvider | null; fallback: LLM
 }
 
 export function getSuggestionsProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null } {
+  const groq = getGroqProvider(process.env.GROQ_SUGGESTIONS_MODEL);
   const primaryModel = process.env.LLM_SUGGESTIONS_MODEL || process.env.LLM_MODEL;
   const fallbackModel = process.env.LLM_FALLBACK_SUGGESTIONS_MODEL || process.env.LLM_FALLBACK_MODEL;
 
@@ -87,6 +88,10 @@ export function getSuggestionsProviders(): { primary: LLMProvider | null; fallba
         label: fallbackModel,
       }
     : null;
+
+  if (groq) {
+    return { primary: groq, fallback: primary ?? fallback };
+  }
 
   return { primary, fallback };
 }

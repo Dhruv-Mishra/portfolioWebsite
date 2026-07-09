@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { stickerBus } from '@/lib/stickerBus';
@@ -14,6 +14,14 @@ const MiniChatPanel = dynamic(() => import('./MiniChatPanel'), {
 
 // Hoisted style and animation constants — avoids re-allocation per render
 const FAB_BUTTON_STYLE = { transform: 'rotate(3deg)' } as const;
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
+interface MiniChatState {
+  pathname: string;
+  isOpen: boolean;
+}
 
 // Sketchbook-themed sticky note + pencil doodle icon
 function StickyNoteDoodle() {
@@ -45,30 +53,32 @@ function CloseDoodle() {
 
 export default function MiniChat() {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
+  const [chatState, setChatState] = useState<MiniChatState>({ pathname, isOpen: false });
+  const hasMounted = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
-  // Hydration-safe mount
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+  if (chatState.pathname !== pathname) {
+    setChatState({ pathname, isOpen: false });
+  }
 
-  // Close the mini-chat when the user navigates to a different page.
-  useEffect(() => {
-    setIsOpen(false);
+  const isOpen = chatState.pathname === pathname && chatState.isOpen;
+
+  const handleClose = useCallback(() => {
+    setChatState({ pathname, isOpen: false });
   }, [pathname]);
 
-  const handleClose = useCallback(() => setIsOpen(false), []);
-
   const handleToggle = useCallback(() => {
-    setIsOpen(prev => {
-      const nextIsOpen = !prev;
+    setChatState(previousState => {
+      const nextIsOpen = previousState.pathname !== pathname || !previousState.isOpen;
       if (nextIsOpen) {
         stickerBus.emit('note-passer');
       }
-      return nextIsOpen;
+      return { pathname, isOpen: nextIsOpen };
     });
-  }, []);
+  }, [pathname]);
 
   // Don't show on /chat page (or any nested /chat/* route)
   if (pathname?.startsWith('/chat')) return null;

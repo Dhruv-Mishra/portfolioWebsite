@@ -83,11 +83,13 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 
 export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
+    const [hasOpenedProject, setHasOpenedProject] = useState(false);
     const isMobile = useIsMobile();
     const { closePanel, openPanel } = useAppHaptics();
 
     const openProject = useCallback((index: number) => {
         openPanel();
+        setHasOpenedProject(true);
         setSelectedProject(index);
         // Track opened projects — unlock `project-explorer` the first time any
         // project modal is opened. The bus listener (useStickers/unlockSticker)
@@ -98,13 +100,6 @@ export default function Projects() {
             stickerBus.emit('project-explorer');
         }
     }, [openPanel]);
-
-    const handleCardClick = useCallback((e: React.MouseEvent, index: number) => {
-        // Don't open modal if clicking the external link
-        const target = e.target as HTMLElement;
-        if (target.closest('a')) return;
-        openProject(index);
-    }, [openProject]);
 
     const handleCloseModal = useCallback(() => {
         closePanel();
@@ -147,17 +142,6 @@ export default function Projects() {
                         {/* Inner hover/tap layer — honor reduced-motion while keeping normal hover polish. */}
                         <MotionConfig reducedMotion="user">
                         <m.div
-                            data-clickable
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => handleCardClick(e, i)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    openProject(i);
-                                }
-                            }}
-                            aria-label={`View details for ${proj.name}`}
                             whileHover={isMobile ? undefined : CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
@@ -257,7 +241,7 @@ export default function Projects() {
                                     ))}
                                 </div>
 
-                                {/* Expand hint + Link */}
+                                {/* Project actions */}
                                 <div className="pl-6 pb-2 flex items-center justify-between relative z-10">
                                     <a
                                         href={proj.link}
@@ -269,9 +253,15 @@ export default function Projects() {
                                     >
                                         Source <ExternalLink size={16} />
                                     </a>
-                                    <div className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-30 md:group-hover/card:opacity-60 transition-opacity pr-6">
-                                        <Maximize2 size={14} /> Tap to expand
-                                    </div>
+                                    <button
+                                        type="button"
+                                        data-clickable
+                                        onClick={() => openProject(i)}
+                                        aria-label={`View details for ${proj.name}`}
+                                        className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity pr-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                                    >
+                                        <Maximize2 size={14} /> View details
+                                    </button>
                                 </div>
                             </div>
                         </m.div>
@@ -282,10 +272,12 @@ export default function Projects() {
             </div>
 
             {/* Project Detail Modal with Video */}
-            <ProjectModal
-                project={selectedProject !== null ? PROJECTS[selectedProject] : null}
-                onClose={handleCloseModal}
-            />
+            {hasOpenedProject ? (
+                <ProjectModal
+                    project={selectedProject === null ? null : PROJECTS[selectedProject]}
+                    onClose={handleCloseModal}
+                />
+            ) : null}
         </div>
     );
 }

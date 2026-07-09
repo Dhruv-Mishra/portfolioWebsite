@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 // Minimal Web Speech API typings — vendor-prefixed and not in lib.dom for all targets.
 interface SpeechRecognitionAlternative { transcript: string; confidence: number }
@@ -55,7 +55,11 @@ export interface UseSpeechRecognitionResult {
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}): UseSpeechRecognitionResult {
   const { lang, silenceMs = 0 } = options;
 
-  const [isSupported, setIsSupported] = useState(false);
+  const isSupported = useSyncExternalStore(
+    () => () => undefined,
+    () => getCtor() !== null,
+    () => false,
+  );
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -66,10 +70,6 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   const finalRef = useRef('');
   const lastInterimRef = useRef('');
   const manualStopRef = useRef(false);
-
-  useEffect(() => {
-    setIsSupported(getCtor() !== null);
-  }, []);
 
   const clearSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
@@ -93,7 +93,6 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   const start = useCallback(() => {
     const Ctor = getCtor();
     if (!Ctor) {
-      setIsSupported(false);
       setError('Speech recognition is not supported in this browser.');
       return;
     }

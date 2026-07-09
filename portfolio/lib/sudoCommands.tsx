@@ -35,6 +35,7 @@ import {
 import { setActivePrompt, type TerminalPrompt } from '@/lib/terminalPrompts';
 import { unlockAdmin } from '@/lib/adminAuthClient';
 import TerminalDecryptBar from '@/components/TerminalDecryptBar';
+import { beginMatrixNotesEscape } from '@/app/matrix-notes/actions';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 export interface SudoCommandResult {
@@ -379,15 +380,21 @@ function handleMatrix(args: string[]): SudoCommandResult {
       ),
       action: () => {
         if (typeof window === 'undefined') return;
-        // Track that the user kicked off the matrix timer — used by the
-        // puzzle hint + the "disabled escape hint" logic.
-        writeSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix, true);
-        // Pre-warm the matrix overlay chunk on the user-gesture tick so the
-        // first paint doesn't stall on a chunk fetch.
-        void import('@/components/DiscoMatrixOverlay').catch(() => {
-          /* best-effort — DiscoFlagController will retry */
-        });
-        setMatrixActiveImperative(true);
+        void beginMatrixNotesEscape()
+          .catch((error: unknown) => {
+            console.error('[matrix] Failed to begin escape challenge:', error);
+          })
+          .finally(() => {
+            // Track that the user kicked off the matrix timer — used by the
+            // puzzle hint + the "disabled escape hint" logic.
+            writeSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix, true);
+            // Pre-warm the matrix overlay chunk before mounting it so the
+            // first paint doesn't stall on a chunk fetch.
+            void import('@/components/DiscoMatrixOverlay').catch(() => {
+              /* best-effort — DiscoFlagController will retry */
+            });
+            setMatrixActiveImperative(true);
+          });
       },
     };
   }

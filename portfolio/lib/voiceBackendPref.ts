@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 export type VoiceBackendPref = 'native' | 'whisper';
 
@@ -29,12 +29,8 @@ export function useVoiceBackendPref(): {
   setPref: (next: VoiceBackendPref) => void;
   togglePref: () => void;
 } {
-  const [pref, setPrefState] = useState<VoiceBackendPref>('native');
-
-  // Hydrate from localStorage on mount, and listen for cross-component changes.
-  useEffect(() => {
-    setPrefState(readPref());
-    const onChange = () => setPrefState(readPref());
+  const subscribe = useCallback((onStoreChange: () => void) => {
+    const onChange = () => onStoreChange();
     window.addEventListener(EVENT_NAME, onChange);
     window.addEventListener('storage', onChange);
     return () => {
@@ -42,12 +38,12 @@ export function useVoiceBackendPref(): {
       window.removeEventListener('storage', onChange);
     };
   }, []);
+  const pref = useSyncExternalStore<VoiceBackendPref>(subscribe, readPref, () => 'native');
 
   const setPref = useCallback((next: VoiceBackendPref) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, next);
     } catch { /* no-op */ }
-    setPrefState(next);
     try {
       window.dispatchEvent(new Event(EVENT_NAME));
     } catch { /* no-op */ }

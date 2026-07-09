@@ -307,9 +307,15 @@ export function useStickyChat(): UseStickyChat {
   const fillerCleanupRef = useRef<(() => void) | null>(null);
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
   const isLoadingRef = useRef(isLoading);
-  isLoadingRef.current = isLoading;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
 
   // ── Matrix oracle scheduler refs (must be declared BEFORE the unmount
   // effect so the effect's cleanup can close over the same Set reference).
@@ -335,6 +341,7 @@ export function useStickyChat(): UseStickyChat {
 
   // Load from localStorage after mount (hydration-safe)
   useEffect(() => {
+    let suggestionsHydrationTimer: ReturnType<typeof setTimeout> | null = null;
     if (!hasHydrated.current) {
       hasHydrated.current = true;
       const stored = loadMessages();
@@ -356,20 +363,23 @@ export function useStickyChat(): UseStickyChat {
           // Support both formats: { suggestions: [...] } and plain [...]
           const arr = Array.isArray(parsed) ? parsed : parsed?.suggestions;
           if (Array.isArray(arr) && arr.length > 0) {
-            setSuggestions(arr);
+            suggestionsHydrationTimer = setTimeout(() => setSuggestions(arr), 0);
           }
         }
       } catch { /* ignore */ }
     }
+    return () => {
+      if (suggestionsHydrationTimer) clearTimeout(suggestionsHydrationTimer);
+    };
   }, []);
 
   // Save to localStorage when messages change (skip while loading)
   useEffect(() => {
     if (!hasHydrated.current || messages.length === 0) return;
-    if (isLoadingRef.current) return;
+    if (isLoading) return;
     const id = setTimeout(() => saveMessages(messages), TIMING_TOKENS.storageSaveDebounce);
     return () => clearTimeout(id);
-  }, [messages]);
+  }, [isLoading, messages]);
 
   // Fetch LLM-generated suggestions based on conversation context.
   // Skip oracle-emitted (matrix puzzle) messages — same reasoning as the
@@ -498,6 +508,55 @@ export function useStickyChat(): UseStickyChat {
     return estimateTypewriterDuration(prevLine) + ORACLE_MESSAGE_GAP_MS;
   }, []);
 
+  const playOracleTransition = useCallback(
+    (transition: InterrogationTransition): void => {
+      if (transition.kind === 'ask-next') {
+        const { preamble, question } = transition;
+        scheduleOracle(() => {
+          emitFillerLine(preamble);
+        }, 0);
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: question,
+            isFiller: false,
+          });
+        }, oracleStepDelay(preamble));
+        return;
+      }
+
+      if (transition.kind === 'finish-reveal') {
+        const { approval, releasePreamble, revealContent } = transition;
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: approval,
+            isFiller: false,
+          });
+        }, 0);
+        const afterApproval = oracleStepDelay(approval);
+        scheduleOracle(() => {
+          emitFillerLine(releasePreamble);
+        }, afterApproval);
+        const afterRelease = afterApproval + oracleStepDelay(releasePreamble);
+        scheduleOracle(() => {
+          appendOracleMessage({
+            content: revealContent,
+            matrixInterceptKind: 'reveal',
+            isFiller: false,
+          });
+        }, afterRelease);
+        return;
+      }
+
+      scheduleOracle(() => {
+        appendOracleMessage({
+          content: transition.closing,
+          isFiller: false,
+        });
+      }, 0);
+    },
+    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
+  );
+
   /**
    * Play the pre-reveal / pre-interrogation filler pool.
    *
@@ -567,76 +626,6 @@ export function useStickyChat(): UseStickyChat {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
-  );
-
-  /**
-   * Emit the per-transition oracle beats.
-   *
-   *   ask-next       → preamble filler  →  question
-   *   finish-reveal  → approval         →  release preamble  →  key reveal
-   *   finish-hazard  → security-hazard closing line
-   *   finish-invalid → invalid closing line
-   *
-   * Between every streamed oracle message the scheduler waits for the
-   * previous line's typewriter to finish AND adds ORACLE_MESSAGE_GAP_MS
-   * of settle time so the cadence feels deliberate. This applies
-   * uniformly to every branch above.
-   */
-  const playOracleTransition = useCallback(
-    (transition: InterrogationTransition): void => {
-      if (transition.kind === 'ask-next') {
-        const { preamble, question } = transition;
-        scheduleOracle(() => {
-          emitFillerLine(preamble);
-        }, 0);
-        scheduleOracle(() => {
-          appendOracleMessage({
-            content: question,
-            isFiller: false,
-          });
-        }, oracleStepDelay(preamble));
-        return;
-      }
-
-      if (transition.kind === 'finish-reveal') {
-        const { approval, releasePreamble, revealContent } = transition;
-        // Beat 1 — approval line.
-        scheduleOracle(() => {
-          appendOracleMessage({
-            content: approval,
-            isFiller: false,
-          });
-        }, 0);
-        // Beat 2 — release preamble (italic filler treatment).
-        const afterApproval = oracleStepDelay(approval);
-        scheduleOracle(() => {
-          emitFillerLine(releasePreamble);
-        }, afterApproval);
-        // Beat 3 — the actual key reveal, carrying the `reveal` intercept
-        // kind so StickyNoteChat renders the copyable pill.
-        const afterRelease = afterApproval + oracleStepDelay(releasePreamble);
-        scheduleOracle(() => {
-          appendOracleMessage({
-            content: revealContent,
-            matrixInterceptKind: 'reveal',
-            isFiller: false,
-          });
-        }, afterRelease);
-        return;
-      }
-
-      // finish-hazard | finish-invalid — single closing line. No reveal.
-      // startInterrogation / advanceInterrogation already reset the
-      // module-scope state, so a subsequent `sudo give password` starts
-      // the whole flow from scratch.
-      scheduleOracle(() => {
-        appendOracleMessage({
-          content: transition.closing,
-          isFiller: false,
-        });
-      }, 0);
-    },
     [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
   );
 

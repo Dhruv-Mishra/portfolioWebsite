@@ -33,6 +33,33 @@ const CATEGORIES: { id: FeedbackCategory; label: string; icon: typeof Bug; bg: s
 const MAX_MESSAGE_LENGTH = LAYOUT_TOKENS.maxMessageLength;
 const FEEDBACK_DRAFT_KEY = 'dhruv-feedback-draft';
 
+interface FeedbackDraft {
+  category: FeedbackCategory;
+  message: string;
+  contact: string;
+}
+
+function readFeedbackDraft(): FeedbackDraft {
+  const fallback: FeedbackDraft = { category: 'bug', message: '', contact: '' };
+  if (typeof window === 'undefined') return fallback;
+
+  try {
+    const draft = window.localStorage.getItem(FEEDBACK_DRAFT_KEY);
+    if (!draft) return fallback;
+
+    const parsed = JSON.parse(draft) as Record<string, unknown>;
+    return {
+      category: CATEGORIES.some((category) => category.id === parsed.category)
+        ? parsed.category as FeedbackCategory
+        : fallback.category,
+      message: typeof parsed.message === 'string' ? parsed.message : fallback.message,
+      contact: typeof parsed.contact === 'string' ? parsed.contact : fallback.contact,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 /** Hoisted textarea style — lined notebook effect. Avoids re-allocation per render. */
 const TEXTAREA_LINED_STYLE = {
   backgroundImage: 'repeating-linear-gradient(transparent, transparent 23px, var(--c-grid) 23px, var(--c-grid) 24px)',
@@ -77,31 +104,26 @@ interface FeedbackNoteProps {
 
 export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const { clear, closePanel, error: errorHaptic, selection, submit, success, warning } = useAppHaptics();
-  const [category, setCategory] = useState<FeedbackCategory>('bug');
-  const [message, setMessage] = useState('');
-  const [contact, setContact] = useState('');
+  const [initialDraft] = useState(readFeedbackDraft);
+  const [category, setCategory] = useState<FeedbackCategory>(initialDraft.category);
+  const [message, setMessage] = useState(initialDraft.message);
+  const [contact, setContact] = useState(initialDraft.contact);
   const [state, setState] = useState<FeedbackState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
   const { resolvedTheme } = useTheme();
 
-  // Load draft from localStorage on mount (validated)
-  useEffect(() => {
-    try {
-      const draft = localStorage.getItem(FEEDBACK_DRAFT_KEY);
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        if (typeof parsed.message === 'string') setMessage(parsed.message);
-        if (parsed.category && CATEGORIES.some(c => c.id === parsed.category)) {
-          setCategory(parsed.category);
-        }
-        if (typeof parsed.contact === 'string') setContact(parsed.contact);
-      }
-    } catch { /* ignore */ }
-  }, []);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setState('idle');
+      setErrorMsg('');
+    }
+  }
 
   // Save draft to localStorage when message or category changes (debounced)
   useEffect(() => {
@@ -128,14 +150,6 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   useEffect(() => {
     if (isOpen && textareaRef.current) {
       setTimeout(() => textareaRef.current?.focus(), TIMING_TOKENS.focusDelay);
-    }
-  }, [isOpen]);
-
-  // Reset form when opened
-  useEffect(() => {
-    if (isOpen) {
-      setState('idle');
-      setErrorMsg('');
     }
   }, [isOpen]);
 

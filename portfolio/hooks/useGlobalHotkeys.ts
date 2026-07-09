@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { CHORD_ROUTE_MAP, CHORD_WINDOW_MS } from '@/lib/keybindings';
 
@@ -47,14 +47,9 @@ export function useGlobalHotkeys({
   toggleTheme,
   enabled = true,
 }: UseGlobalHotkeysArgs): void {
-  // Refs give the handler a stable identity that still reads the latest props.
-  const routerRef = useRef(router);
-  const openShortcutsRef = useRef(openShortcuts);
-  const toggleThemeRef = useRef(toggleTheme);
-
-  routerRef.current = router;
-  openShortcutsRef.current = openShortcuts;
-  toggleThemeRef.current = toggleTheme;
+  const navigateTo = useEffectEvent((target: string) => router.push(target));
+  const showShortcuts = useEffectEvent(() => openShortcuts());
+  const changeTheme = useEffectEvent(() => toggleTheme());
 
   useEffect(() => {
     if (!enabled) return;
@@ -105,7 +100,7 @@ export function useGlobalHotkeys({
         disarmChord();
         if (target) {
           e.preventDefault();
-          routerRef.current.push(target);
+          navigateTo(target);
           return;
         }
         // No matching route — fall through so keys like `?`, `t`, or another
@@ -117,14 +112,14 @@ export function useGlobalHotkeys({
       if (key === '?') {
         if (!hoverMql.matches) return; // suppressed on touch-only devices
         e.preventDefault();
-        openShortcutsRef.current();
+        showShortcuts();
         return;
       }
 
       // ── `t` → toggle theme ──
       if (key === 't' || key === 'T') {
         e.preventDefault();
-        toggleThemeRef.current();
+        changeTheme();
         return;
       }
 

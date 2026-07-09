@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   useId,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -68,6 +69,10 @@ const MOBILE_EXIT = { opacity: 0, y: '100%' };
 const BACKDROP_TRANSITION = { duration: ANIMATION_TOKENS.duration.normal };
 
 const GROUP_ORDER: CommandGroup[] = ['Navigation', 'Actions', 'Terminal'];
+
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 // ── Row ─────────────────────────────────────────────────────────────
 
@@ -198,24 +203,29 @@ function CommandPalette({
   const { resolvedTheme, setTheme } = useTheme();
   const isMobile = useIsMobile();
 
-  const [mounted, setMounted] = useState(false);
-  const [shouldRender, setShouldRender] = useState(false);
+  const isClient = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
+
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setQuery('');
+      setSelectedIdx(0);
+    }
+  }
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const listboxId = useId();
   const optionIdPrefix = useId();
-
-  // ── Portal + render lifecycle ────────────────────────────────────
-  useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    if (isOpen) setShouldRender(true);
-  }, [isOpen]);
 
   // Distinct "pop" cue on open. Debounced inside the manager so open-close
   // spam doesn't abuse the sound.
@@ -225,10 +235,6 @@ function CommandPalette({
       soundManager.play('command-palette-pop');
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen]);
-
-  const handleExitComplete = useCallback(() => {
-    if (!isOpen) setShouldRender(false);
   }, [isOpen]);
 
   // ── Body scroll lock ─────────────────────────────────────────────
@@ -243,8 +249,6 @@ function CommandPalette({
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement | null;
-      setQuery('');
-      setSelectedIdx(0);
       // Focus the input on next frame so the motion entrance is in-flight.
       const t = setTimeout(() => inputRef.current?.focus(), 40);
       return () => clearTimeout(t);
@@ -274,6 +278,7 @@ function CommandPalette({
 
   // Flat list (for keyboard nav index math) — already in group order from builder.
   const flat = filtered;
+  const activeSelectedIdx = Math.min(selectedIdx, Math.max(0, flat.length - 1));
 
   // Grouped for rendering.
   const grouped = useMemo(() => {
@@ -285,13 +290,6 @@ function CommandPalette({
     for (const e of flat) buckets[e.group].push(e);
     return buckets;
   }, [flat]);
-
-  // Clamp selection when filter changes.
-  useEffect(() => {
-    if (selectedIdx >= flat.length) {
-      setSelectedIdx(Math.max(0, flat.length - 1));
-    }
-  }, [flat.length, selectedIdx]);
 
   // ── Execute ──────────────────────────────────────────────────────
   const executeEntry = useCallback(
@@ -339,7 +337,7 @@ function CommandPalette({
       if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
-        const entry = flat[selectedIdx];
+        const entry = flat[activeSelectedIdx];
         if (entry) executeEntry(entry);
         return;
       }
@@ -351,7 +349,7 @@ function CommandPalette({
       }
       // Let all other keys through so the input captures text normally.
     },
-    [flat, selectedIdx, executeEntry, onClose],
+    [flat, activeSelectedIdx, executeEntry, onClose],
   );
 
   // ── Esc on window (safety net when focus drifts out of input) ──
@@ -370,16 +368,16 @@ function CommandPalette({
   // ── Scroll selected row into view ──────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
-    const entry = flat[selectedIdx];
+    const entry = flat[activeSelectedIdx];
     if (!entry) return;
     const node = document.getElementById(`${optionIdPrefix}-${entry.id}`);
     if (node) node.scrollIntoView({ block: 'nearest' });
-  }, [selectedIdx, flat, isOpen, optionIdPrefix]);
+  }, [activeSelectedIdx, flat, isOpen, optionIdPrefix]);
 
   // ── Renderers ───────────────────────────────────────────────────
-  const activeId = flat[selectedIdx] ? `${optionIdPrefix}-${flat[selectedIdx].id}` : undefined;
+  const activeId = flat[activeSelectedIdx] ? `${optionIdPrefix}-${flat[activeSelectedIdx].id}` : undefined;
 
-  if (!mounted || !shouldRender) return null;
+  if (!isClient) return null;
 
   const cardChrome: ReactNode = (
     <>
@@ -451,7 +449,7 @@ function CommandPalette({
                       key={entry.id}
                       id={id}
                       entry={entry}
-                      selected={idx === selectedIdx}
+                      selected={idx === activeSelectedIdx}
                       onSelect={() => executeEntry(entry)}
                       onHover={() => setSelectedIdx(idx)}
                     />
@@ -478,7 +476,7 @@ function CommandPalette({
   );
 
   return createPortal(
-    <AnimatePresence onExitComplete={handleExitComplete}>
+    <AnimatePresence>
       {isOpen && (
         <>
           {/* Backdrop */}

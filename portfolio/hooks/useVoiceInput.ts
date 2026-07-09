@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   useSpeechRecognition,
   type UseSpeechRecognitionResult,
@@ -137,10 +137,11 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const native: UseSpeechRecognitionResult = useSpeechRecognition({ lang, silenceMs: 0 });
 
   // Whisper detection: needs MediaRecorder + getUserMedia + Web Audio decode/resample.
-  const [whisperFeasible, setWhisperFeasible] = useState(false);
-  useEffect(() => {
-    setWhisperFeasible(hasWhisperAudioSupport());
-  }, []);
+  const whisperFeasible = useSyncExternalStore(
+    () => () => undefined,
+    hasWhisperAudioSupport,
+    () => false,
+  );
 
   const wantsWhisper = backend === 'whisper' || (backend === 'auto' && whisperFeasible);
 

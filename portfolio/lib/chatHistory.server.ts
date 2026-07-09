@@ -7,10 +7,14 @@ import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTranspor
 const SIGNATURE_VERSION = 1;
 
 function getSigningSecret(): string {
-  return process.env.CHAT_HISTORY_SIGNING_SECRET
-    || process.env.LLM_API_KEY
-    || process.env.LLM_FALLBACK_API_KEY
-    || 'development-chat-history-secret';
+  const signingSecret = process.env.CHAT_HISTORY_SIGNING_SECRET?.trim();
+  if (signingSecret) return signingSecret;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('CHAT_HISTORY_SIGNING_SECRET is required in production.');
+  }
+
+  return 'development-chat-history-secret';
 }
 
 function normalizeAction(action: ActionExecution | null | undefined): ActionExecution | null {

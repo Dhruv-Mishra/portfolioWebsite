@@ -9,7 +9,15 @@ import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
-import { LLM_PROVIDER_TIMEOUT_MS, RATE_LIMIT_CONFIG, isRawLogEnabled, stripThinkTags } from '@/lib/llmConfig';
+import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import {
+  LLM_MAIN_RESPONSE_TIMEOUT_MS,
+  LLM_PROVIDER_FALLBACK_RESERVE_MS,
+  LLM_PROVIDER_TIMEOUT_MS,
+  RATE_LIMIT_CONFIG,
+  isRawLogEnabled,
+  stripThinkTags,
+} from '@/lib/llmConfig';
 import { createProviderClient, getChatProviders, type LLMProvider } from '@/lib/llmProviders.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -21,6 +29,13 @@ interface ProviderCallResult {
   reply: string;
   action: ActionExecution | null;
 }
+
+type ProviderFailureCode =
+  | 'invalid-provider-response'
+  | 'provider-error'
+  | 'provider-timeout'
+  | 'request-aborted'
+  | 'server-deadline-exceeded';
 
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
@@ -57,16 +72,6 @@ const GROQ_SAMPLING: {
 
 
 
-
-function getContentLength(request: NextRequest): number | null {
-  const header = request.headers.get('content-length');
-  if (!header) {
-    return null;
-  }
-
-  const parsed = Number(header);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessage[] {
   const sanitized: SanitizedChatMessage[] = [];
@@ -122,15 +127,17 @@ function getOrderedProviders(primary: LLMProvider | null, fallback: LLMProvider 
     });
 }
 
-function createFallbackResponse(latestUserMessage: string, reason?: string) {
+function createFallbackResponse(
+  latestUserMessage: string,
+  reason?: 'all-providers-failed' | 'no-providers-configured' | 'request-aborted' | 'server-deadline-exceeded',
+) {
   const reply = getContextualFallback(latestUserMessage);
   const headers: Record<string, string> = {
     'Cache-Control': 'no-store',
     'X-Chat-Fallback': 'localStatic',
   };
   if (reason) {
-    // Truncate hard so we never leak full error bodies / keys to the client.
-    headers['X-Chat-Fallback-Reason'] = reason.replace(/[\r\n]+/g, ' ').slice(0, 300);
+    headers['X-Chat-Fallback-Reason'] = reason;
   }
   return Response.json({
     reply,
@@ -141,6 +148,14 @@ function createFallbackResponse(latestUserMessage: string, reason?: string) {
 }
 
 export async function POST(request: NextRequest) {
+  const routeDeadlineController = new AbortController();
+  const routeDeadlineAt = Date.now() + LLM_MAIN_RESPONSE_TIMEOUT_MS;
+  const routeDeadlineTimeout = setTimeout(
+    () => routeDeadlineController.abort('server-deadline-exceeded'),
+    LLM_MAIN_RESPONSE_TIMEOUT_MS,
+  );
+  const routeSignal = AbortSignal.any([request.signal, routeDeadlineController.signal]);
+
   try {
     // Block cross-origin requests (prevents LLM credit abuse from other sites)
     const originError = validateOrigin(request, { requireOrigin: true });
@@ -157,22 +172,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contentLength = getContentLength(request);
-    // Strict: missing/NaN content-length means the request might use chunked
-    // encoding to bypass the body cap. Reject with 411 Length Required.
-    if (contentLength === null) {
-      return Response.json({ error: 'Content-Length header required' }, { status: 411 });
-    }
-    if (contentLength > MAX_CHAT_BODY_BYTES) {
-      return Response.json({ error: 'Request body is too large' }, { status: 413 });
-    }
-
     let body: { messages?: ClientChatMessage[] };
     try {
-      body = await request.json() as { messages?: ClientChatMessage[] };
-    } catch {
+      body = await readBoundedJson<{ messages?: ClientChatMessage[] }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
+    } catch (error) {
+      if (error instanceof BoundedJsonError) {
+        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
+      }
+      throw error;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
+
     const userMessages = body.messages;
 
     if (!userMessages || !Array.isArray(userMessages) || userMessages.length === 0) {
@@ -251,14 +263,27 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < providers.length; i += 1) {
       const provider = providers[i];
+      const remainingMs = routeDeadlineAt - Date.now();
+      const fallbackReserveMs = i < providers.length - 1 ? LLM_PROVIDER_FALLBACK_RESERVE_MS : 0;
+      const attemptTimeoutMs = Math.min(
+        LLM_PROVIDER_TIMEOUT_MS,
+        Math.max(0, remainingMs - fallbackReserveMs),
+      );
+      if (routeSignal.aborted) break;
+      if (attemptTimeoutMs <= 0) continue;
+
       try {
-        result = await callProvider(provider, apiMessages);
+        result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
         succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
         break;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown provider failure';
-        providerErrors.push(`${provider.label}: ${message}`);
-        console.warn(`LLM provider failed (${provider.label}): ${message}`);
+        const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
+        providerErrors.push(`${provider.label}: ${code}`);
+        console.warn('LLM provider failed', {
+          provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
+          code,
+          errorName: err instanceof Error ? err.name : 'UnknownError',
+        });
       }
     }
 
@@ -269,7 +294,11 @@ export async function POST(request: NextRequest) {
       });
       return createFallbackResponse(
         latestUserMessage,
-        `all-providers-failed; tried=${providers.map(p => p.label).join(',')}; ${providerErrors.join(' | ')}`,
+        request.signal.aborted
+          ? 'request-aborted'
+          : routeDeadlineController.signal.aborted
+            ? 'server-deadline-exceeded'
+            : 'all-providers-failed',
       );
     }
 
@@ -286,6 +315,8 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('Chat API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
+  } finally {
+    clearTimeout(routeDeadlineTimeout);
   }
 }
 
@@ -296,9 +327,12 @@ export async function POST(request: NextRequest) {
 async function callProvider(
   provider: import('@/lib/llmProviders.server').LLMProvider,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  routeSignal: AbortSignal,
+  timeoutMs: number,
 ): Promise<ProviderCallResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), LLM_PROVIDER_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort('provider-timeout'), timeoutMs);
+  const signal = AbortSignal.any([routeSignal, controller.signal]);
 
   try {
     let rawContent: unknown;
@@ -314,7 +348,7 @@ async function callProvider(
         stop: GROQ_SAMPLING.stop,
         stream: false,
       }, {
-        signal: controller.signal,
+        signal,
       });
       rawContent = completion.choices?.[0]?.message?.content;
     } else {
@@ -334,12 +368,10 @@ async function callProvider(
         stop: GROQ_SAMPLING.stop,
         stream: false,
       }, {
-        signal: controller.signal,
+        signal,
       });
       rawContent = completion.choices?.[0]?.message?.content;
     }
-
-    clearTimeout(timeout);
 
     const rawReply = stripThinkTags(getDeltaText(rawContent));
     const reply = sanitizeAssistantReplyText(rawReply);
@@ -361,10 +393,23 @@ async function callProvider(
       reply,
       action: null,
     };
-  } catch (err) {
+  } finally {
     clearTimeout(timeout);
-    throw err;
   }
+}
+
+function getProviderFailureCode(
+  error: unknown,
+  requestSignal: AbortSignal,
+  routeDeadlineSignal: AbortSignal,
+): ProviderFailureCode {
+  if (requestSignal.aborted) return 'request-aborted';
+  if (routeDeadlineSignal.aborted) return 'server-deadline-exceeded';
+  if (error instanceof Error && error.message === 'Provider returned an empty or invalid reply') {
+    return 'invalid-provider-response';
+  }
+  if (error instanceof Error && error.name === 'AbortError') return 'provider-timeout';
+  return 'provider-error';
 }
 
 function getDeltaText(content: unknown): string {

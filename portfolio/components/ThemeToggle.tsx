@@ -7,16 +7,19 @@ import { useDiscoActive } from "@/hooks/useStickers";
 import { runThemeToggle } from "@/lib/themeToggleAction";
 import { Tooltip } from "@/components/ui/Tooltip";
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 export function ThemeToggle() {
     const { setTheme, resolvedTheme } = useTheme();
     const { toggle } = useAppHaptics();
     const discoActive = useDiscoActive();
-    const [mounted, setMounted] = React.useState(false);
-
-    // useEffect only runs on the client, so now we can safely show the UI
-    React.useEffect(() => {
-        setMounted(true);
-    }, []);
+    const mounted = React.useSyncExternalStore(
+        subscribeToHydration,
+        getClientHydrationSnapshot,
+        getServerHydrationSnapshot,
+    );
 
     if (!mounted) {
         return <div className="h-11 w-11" />; // Prevent layout shift

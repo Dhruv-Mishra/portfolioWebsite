@@ -25,15 +25,11 @@
  */
 
 import {
-  cloneElement,
-  isValidElement,
   useCallback,
   useEffect,
   useId,
   useRef,
   useState,
-  type FocusEvent,
-  type MouseEvent,
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -63,8 +59,8 @@ export function Tooltip({
   const isDesktop = useDesktopOnly();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
+  const [triggerElement, setTriggerElement] = useState<HTMLElement | null>(null);
   const timerRef = useRef<number | null>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
   const id = useId();
 
   const clearTimer = () => {
@@ -74,10 +70,8 @@ export function Tooltip({
     }
   };
 
-  const computeCoords = useCallback((): void => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
+  const computeCoords = useCallback((element: HTMLElement): void => {
+    const rect = element.getBoundingClientRect();
     const margin = 8;
     const wantsTop = side === 'top';
     // Estimated tooltip height (single line ~26px). We'll measure post-mount
@@ -92,11 +86,12 @@ export function Tooltip({
     });
   }, [side]);
 
-  const handleEnter = useCallback(() => {
+  const handleEnter = useCallback((element: HTMLElement) => {
     if (!isDesktop) return;
     clearTimer();
+    setTriggerElement(element);
     timerRef.current = window.setTimeout(() => {
-      computeCoords();
+      computeCoords(element);
       setOpen(true);
     }, delay);
   }, [isDesktop, delay, computeCoords]);
@@ -106,55 +101,39 @@ export function Tooltip({
     setOpen(false);
   }, []);
 
-  const handleFocus = useCallback((e: FocusEvent<HTMLElement>) => {
+  const handleFocus = useCallback((element: HTMLElement) => {
     if (!isDesktop) return;
     // Only show on keyboard focus, not click focus.
-    if (typeof (e.target as HTMLElement).matches === 'function' && !(e.target as HTMLElement).matches(':focus-visible')) return;
+    if (!element.matches(':focus-visible')) return;
     clearTimer();
-    computeCoords();
+    setTriggerElement(element);
+    computeCoords(element);
     setOpen(true);
   }, [isDesktop, computeCoords]);
+
+  useEffect(() => {
+    if (!open || !triggerElement) return;
+    const previousDescription = triggerElement.getAttribute('aria-describedby');
+    triggerElement.setAttribute('aria-describedby', id);
+    return () => {
+      if (previousDescription) triggerElement.setAttribute('aria-describedby', previousDescription);
+      else triggerElement.removeAttribute('aria-describedby');
+    };
+  }, [id, open, triggerElement]);
 
   useEffect(() => () => clearTimer(), []);
 
   // Reposition on scroll/resize while open.
   useEffect(() => {
-    if (!open) return;
-    const onUpdate = () => computeCoords();
+    if (!open || !triggerElement) return;
+    const onUpdate = () => computeCoords(triggerElement);
     window.addEventListener('scroll', onUpdate, true);
     window.addEventListener('resize', onUpdate);
     return () => {
       window.removeEventListener('scroll', onUpdate, true);
       window.removeEventListener('resize', onUpdate);
     };
-  }, [open, computeCoords]);
-
-  if (!isValidElement(children)) return children;
-
-  type TriggerProps = {
-    ref?: (node: HTMLElement | null) => void;
-    onMouseEnter?: (e: MouseEvent) => void;
-    onMouseLeave?: () => void;
-    onFocus?: (e: FocusEvent<HTMLElement>) => void;
-    onBlur?: () => void;
-    'aria-describedby'?: string;
-  };
-  const childProps = (children.props ?? {}) as TriggerProps;
-
-  const child = cloneElement(children as ReactElement<TriggerProps>, {
-    ref: (node: HTMLElement | null) => {
-      triggerRef.current = node;
-      // Forward to any existing ref on the child.
-      const orig = (children as unknown as { ref?: unknown }).ref;
-      if (typeof orig === 'function') (orig as (n: HTMLElement | null) => void)(node);
-      else if (orig && typeof orig === 'object') (orig as { current: HTMLElement | null }).current = node;
-    },
-    onMouseEnter: (e: MouseEvent) => { childProps.onMouseEnter?.(e); handleEnter(); },
-    onMouseLeave: () => { childProps.onMouseLeave?.(); handleLeave(); },
-    onFocus: (e: FocusEvent<HTMLElement>) => { childProps.onFocus?.(e); handleFocus(e); },
-    onBlur: () => { childProps.onBlur?.(); handleLeave(); },
-    'aria-describedby': open ? id : childProps['aria-describedby'],
-  });
+  }, [open, triggerElement, computeCoords]);
 
   if (!isDesktop) return children;
 
@@ -196,7 +175,18 @@ export function Tooltip({
 
   return (
     <>
-      {child}
+      <span
+        className="contents"
+        onMouseEnter={(event) => {
+          const element = (event.target as Element).closest<HTMLElement>('button, a, input, select, textarea, [tabindex]');
+          if (element) handleEnter(element);
+        }}
+        onMouseLeave={handleLeave}
+        onFocus={(event) => handleFocus(event.target as HTMLElement)}
+        onBlur={handleLeave}
+      >
+        {children}
+      </span>
       {portal}
     </>
   );

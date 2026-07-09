@@ -13,6 +13,7 @@
 
 import { NextRequest } from 'next/server';
 import { ADMIN_COOKIE_NAME, issueAdminToken } from '@/lib/adminAuth.server';
+import { BoundedJsonError, readBoundedJson } from '@/lib/boundedJson.server';
 import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/matrixPuzzle';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -27,6 +28,7 @@ const adminRateLimiter = createServerRateLimiter({
 });
 
 const TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60; // 8h matches adminAuth.server.ts window
+const MAX_ADMIN_UNLOCK_BODY_BYTES = 1_000;
 
 function timingSafeStringEqual(a: string, b: string): boolean {
   if (a.length !== b.length) {
@@ -61,8 +63,14 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let body: { username?: unknown; password?: unknown };
   try {
-    body = await request.json();
-  } catch {
+    body = await readBoundedJson<{ username?: unknown; password?: unknown }>(request, MAX_ADMIN_UNLOCK_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof BoundedJsonError) {
+      return Response.json({ error: 'Invalid body' }, { status: error.status });
+    }
+    throw error;
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return Response.json({ error: 'Invalid body' }, { status: 400 });
   }
 

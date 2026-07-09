@@ -7,9 +7,9 @@ export function createInitialTerminalOutput(): React.ReactNode {
             <p>
                 <span className="text-emerald-400">[✓]</span>{' '}
                 <span className="text-white">Portfolio {APP_VERSION} ready.</span>{' '}
-                <span className="text-gray-500">Type</span>{' '}
+                <span className="text-gray-400">Type</span>{' '}
                 <span className="text-emerald-400 font-bold">&apos;help&apos;</span>{' '}
-                <span className="text-gray-500">to explore.</span>
+                <span className="text-gray-400">to explore.</span>
             </p>
         </div>
     );

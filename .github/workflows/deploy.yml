@@ -95,12 +95,31 @@ jobs:
     name: Guard production ref
     runs-on: ubuntu-latest
     timeout-minutes: 1
+    env:
+      CHAT_HISTORY_SIGNING_SECRET: ${{ secrets['CHAT_HISTORY_SIGNING_SECRET'] }}
+      MATRIX_NOTES_ACCESS_SECRET: ${{ secrets['MATRIX_NOTES_ACCESS_SECRET'] }}
 
     steps:
       - name: Require deployed/production for production deploys
         run: |
           if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
             echo "::error::Production deploys must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
+      - name: Preflight required production runtime secrets
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "${CHAT_HISTORY_SIGNING_SECRET:-}" ]; then
+            echo "::error::Required production secret CHAT_HISTORY_SIGNING_SECRET is not configured or is empty"
+            missing=1
+          fi
+          if [ -z "${MATRIX_NOTES_ACCESS_SECRET:-}" ]; then
+            echo "::error::Required production secret MATRIX_NOTES_ACCESS_SECRET is not configured or is empty"
+            missing=1
+          fi
+          if [ "$missing" = "1" ]; then
             exit 1
           fi
 
@@ -167,6 +186,10 @@ jobs:
         working-directory: portfolio
         run: npm run lint
 
+      - name: Typecheck
+        working-directory: portfolio
+        run: npm run typecheck
+
       - name: Test
         working-directory: portfolio
         run: npm test
@@ -179,6 +202,20 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
           BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
         run: npm run build -- --webpack
+
+      - name: Verify portable standalone artifact
+        working-directory: portfolio
+        run: |
+          if find .next/standalone -type d -name '.cache' -print -quit | grep -q .; then
+            echo "::error::Standalone output contains a traced local cache directory"
+            find .next/standalone -type d -name '.cache' -print
+            exit 1
+          fi
+          if find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print -quit | grep -q .; then
+            echo "::error::Standalone output contains a platform-specific native binary"
+            find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print
+            exit 1
+          fi
 
       - name: Assemble standalone bundle
         working-directory: portfolio

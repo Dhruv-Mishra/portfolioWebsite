@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "QA: Vitest baseline",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"--prefix",
+				"portfolio",
+				"run",
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

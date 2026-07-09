@@ -15,6 +15,10 @@ import { runThemeToggle } from '@/lib/themeToggleAction';
 // share exactly one code path. The shared helper owns the cricket/rooster
 // audio call itself.
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 const SOCIALS = [
     {
         name: "GitHub",
@@ -116,8 +120,11 @@ const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
 const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
     const { setTheme, resolvedTheme } = useTheme();
     const discoActive = useDiscoActive();
-    const [mounted, setMounted] = React.useState(false);
-    React.useEffect(() => { setMounted(true); }, []);
+    const mounted = React.useSyncExternalStore(
+        subscribeToHydration,
+        getClientHydrationSnapshot,
+        getServerHydrationSnapshot,
+    );
     if (!mounted) return <div className="h-11 w-11 shrink-0" />;
     const isDark = resolvedTheme === 'dark';
     const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';

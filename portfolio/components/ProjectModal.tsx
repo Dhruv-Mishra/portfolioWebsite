@@ -1,6 +1,6 @@
 "use client";
 import { X, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -84,12 +84,19 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     }, [tap]);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
-    // This avoids the race condition where useEffect runs before Modal's
-    // deferred shouldRender/mounted states have committed the portal to the DOM.
     const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+        const previousVideo = videoRef.current;
+        if (previousVideo && previousVideo !== node) {
+            previousVideo.pause();
+            previousVideo.removeAttribute('src');
+            previousVideo.load();
+        }
+
         videoRef.current = node;
         if (node) {
-            node.muted = true; // always start muted for autoplay compliance
+            setIsMuted(true);
+            setShowPlayButton(false);
+            node.muted = true;
             void node.play()
                 .then(() => setShowPlayButton(false))
                 .catch(() => {
@@ -98,21 +105,6 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 });
         }
     }, []);
-
-    // Reset mute state + cleanup decode buffer when project changes or modal unmounts
-    useEffect(() => {
-        setIsMuted(true); // reset to muted for each new project
-        setShowPlayButton(false);
-        return () => {
-            if (!hasVideo) return;
-            const video = videoRef.current;
-            if (video) {
-                video.pause();
-                video.removeAttribute('src');
-                video.load(); // release decode buffer
-            }
-        };
-    }, [hasVideo, project]);
 
     return (
         <Modal

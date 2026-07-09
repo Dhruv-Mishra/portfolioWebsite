@@ -4,12 +4,15 @@ FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS deps
 
 WORKDIR /app
 
+ARG NPM_VERSION=10.9.8
+
 ENV NEXT_TELEMETRY_DISABLED=1 \
     SKIP_EMBEDDINGS_BUILD=1
 
 COPY package.json package-lock.json ./
 COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
-RUN npm ci
+RUN npm install --global "npm@${NPM_VERSION}" \
+    && npm ci
 
 FROM deps AS builder
 

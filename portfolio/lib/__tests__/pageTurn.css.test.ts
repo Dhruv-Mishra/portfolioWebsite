@@ -21,6 +21,7 @@ describe('page-turn route transition contract', () => {
   it('keeps scrolling on the outer wrapper and animates a full-size inner surface', () => {
     const outerClass = template.match(/return \(\s*<div\s+className="([^"]+)"/)?.[1] ?? '';
     const innerClass = template.match(/<div\s+className="([^"]*animate-page-template-in[^"]*)"/)?.[1] ?? '';
+    const contentClass = template.match(/<div\s+className="([^"]*relative z-0[^"]*)">\s*\{children\}/s)?.[1] ?? '';
 
     expect(outerClass).toBe(
       'h-full min-h-full min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar',
@@ -29,7 +30,10 @@ describe('page-turn route transition contract', () => {
     expect(innerClass).toContain('h-full');
     expect(innerClass).toContain('min-h-full');
     expect(innerClass).toContain('min-w-0');
-    expect(template).toMatch(/animate-page-template-in[^>]*>\s*\{children\}\s*<\/div>/s);
+    expect(innerClass).toContain('isolate');
+    expect(contentClass).toContain('h-full');
+    expect(contentClass).toContain('min-h-full');
+    expect(contentClass).toContain('min-w-0');
   });
 
   it('progressively enhances a safe fade with compositor-only paper-turn geometry', () => {
@@ -76,9 +80,12 @@ describe('page-turn route transition contract', () => {
 
     expect(pseudo).toContain('position: absolute');
     expect(pseudo).toContain('inset: 0');
+    expect(pseudo).toContain('z-index: 1');
     expect(pseudo).toContain('pointer-events: none');
     expect(pseudo).toContain('var(--c-paper)');
     expect(pseudo).toContain('var(--c-ink)');
+    expect(template).toMatch(/isolate animate-page-template-in/);
+    expect(template).toMatch(/relative z-0[^>]*>\s*\{children\}/s);
   });
 
   it('disables the turn and shade for system and explicit reduced motion', () => {

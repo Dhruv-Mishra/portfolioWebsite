@@ -75,6 +75,26 @@ function resolveWhisperLanguage(explicit?: string): string | undefined {
 export type VoiceBackend = 'auto' | 'whisper' | 'native';
 export type ResolvedBackend = 'whisper' | 'native' | null;
 
+export function resolveVoiceBackend(
+  requested: VoiceBackend,
+  capabilities: { nativeSpeechSupported: boolean; whisperFeasible: boolean },
+  whisperReady = false,
+): ResolvedBackend {
+  if (requested === 'native') {
+    return capabilities.nativeSpeechSupported
+      ? 'native'
+      : capabilities.whisperFeasible ? 'whisper' : null;
+  }
+  if (requested === 'whisper') {
+    return capabilities.whisperFeasible
+      ? 'whisper'
+      : capabilities.nativeSpeechSupported ? 'native' : null;
+  }
+  if (capabilities.nativeSpeechSupported && !whisperReady) return 'native';
+  if (capabilities.whisperFeasible) return 'whisper';
+  return capabilities.nativeSpeechSupported ? 'native' : null;
+}
+
 export interface UseVoiceInputOptions {
   /**
    * `native` (default) uses the Web Speech API for an instant, zero-download
@@ -142,8 +162,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     hasWhisperAudioSupport,
     () => false,
   );
-
-  const wantsWhisper = backend === 'whisper' || (backend === 'auto' && whisperFeasible);
 
   // Background Whisper preload for `auto` mode. First session always uses
   // native (instant); once Whisper is cached, subsequent sessions prefer it.
@@ -355,22 +373,22 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   // Public API — route to the active backend.
   // `auto` defaults to native for instant first-tap UX; only upgrades to
   // Whisper once the model has finished its background preload.
-  const useNative =
-    backend === 'native' ||
-    !wantsWhisper ||
-    (backend === 'auto' && !isWhisperReady);
+  const preferredBackend = resolveVoiceBackend(backend, {
+    nativeSpeechSupported: native.isSupported,
+    whisperFeasible,
+  }, isWhisperReady);
 
   const start = useCallback(() => {
-    if (useNative && native.isSupported) {
+    if (preferredBackend === 'native') {
       setResolvedBackend('native');
       native.start();
-    } else if (whisperFeasible) {
+    } else if (preferredBackend === 'whisper') {
       void startWhisper();
     } else {
       setResolvedBackend(null);
       setWhisperError(native.error || 'Voice input is not supported in this browser.');
     }
-  }, [useNative, native, whisperFeasible, startWhisper]);
+  }, [preferredBackend, native, startWhisper]);
 
   const stop = useCallback(() => {
     if (resolvedBackend === 'whisper') stopWhisper();
@@ -413,7 +431,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     isSupported: native.isSupported || whisperFeasible,
     nativeSpeechSupported: native.isSupported,
     localTranscriptionSupported: whisperFeasible,
-    requiresLocalTranscription: useNative && !native.isSupported && whisperFeasible,
+    requiresLocalTranscription:
+      backend !== 'whisper'
+      && preferredBackend === 'whisper'
+      && !native.isSupported,
     isListening: native.isListening,
     isLoading: false,
     isTranscribing: false,

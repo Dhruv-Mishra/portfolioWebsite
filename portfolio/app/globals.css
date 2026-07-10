@@ -2009,9 +2009,8 @@ html[data-disco="on"] [data-social-sidebar] > *:nth-child(3) { --disco-motion-de
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(4) { --disco-motion-delay: 330ms; }
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-delay: 440ms; }
 
-/* Reduced motion: disco is an explicit opt-in easter egg, so its motion is
-   intentionally NOT disabled here. This block remains only for non-disco
-   shimmer cleanup that is not controlled by the user's disco-mode choice. */
+/* Legacy shimmer guard. The shared contract at the end of this file now
+  settles every decorative disco loop for both motion preference paths. */
 @media (prefers-reduced-motion: reduce) {
   .sticker-card--superuser::after {
     animation: none;
@@ -2318,7 +2317,109 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   border-style: solid;
 }
 
+/* Shared reduced-motion contract
+   Both device and explicit preferences settle decorative entrances at their
+   final visual state. Puzzle/auth timing is intentionally outside this list. */
 @layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    html[data-disco="on"] body,
+    html[data-disco="on"] body::before,
+    html[data-disco="on"] body::after,
+    html[data-disco="on"] :where(
+      nav[aria-label="Main navigation"] > a > div,
+      .group\/card,
+      article.animate-wall-note-in > div,
+      .bg-\[var\(--note-user\)\],
+      .bg-\[var\(--note-ai\)\],
+      button[data-clickable],
+      [role="dialog"][aria-label="Command palette"],
+      .bg-binding-bg,
+      .bg-note-paper,
+      .bg-note-yellow,
+      .bg-note-blue,
+      .bg-note-green,
+      .bg-note-purple,
+      .bg-note-orange,
+      .bg-note-gray,
+      h1,
+      h2,
+      h3,
+      [data-social-sidebar] > *
+    ) {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    :where(
+      .animate-hero-title,
+      .animate-hero-subtitle,
+      .animate-hero-badge,
+      .animate-nav-tab,
+      .animate-social-link,
+      .animate-page-sheet,
+      .animate-page-template-in,
+      .animate-theme-icon,
+      .animate-wall-note-in,
+      .animate-listening-bar,
+      .animate-listening-ellipsis,
+      .sticker-card,
+      .sticker-card--superuser::after,
+      .superuser-banner__glow,
+      .superuser-banner__medal,
+      .superuser-banner__card::after,
+      .escape-banner__glow,
+      .escape-banner__medal,
+      .escape-banner__card::after,
+      [data-sticker-toast],
+      [data-superuser-toast],
+      [data-disco-motion],
+      [data-disco-bounce]
+    ) {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+      opacity: 1 !important;
+    }
+
+    .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
+    .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+    .animate-nav-tab { transform: translateY(-25px) !important; }
+    .animate-social-link,
+    .animate-page-sheet { transform: translateY(0) !important; }
+    .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
+    .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+  }
+
+  html[data-motion="reduced"][data-disco="on"] body,
+  html[data-motion="reduced"][data-disco="on"] body::before,
+  html[data-motion="reduced"][data-disco="on"] body::after,
+  html[data-motion="reduced"][data-disco="on"] :where(
+    nav[aria-label="Main navigation"] > a > div,
+    .group\/card,
+    article.animate-wall-note-in > div,
+    .bg-\[var\(--note-user\)\],
+    .bg-\[var\(--note-ai\)\],
+    button[data-clickable],
+    [role="dialog"][aria-label="Command palette"],
+    .bg-binding-bg,
+    .bg-note-paper,
+    .bg-note-yellow,
+    .bg-note-blue,
+    .bg-note-green,
+    .bg-note-purple,
+    .bg-note-orange,
+    .bg-note-gray,
+    h1,
+    h2,
+    h3,
+    [data-social-sidebar] > *
+  ) {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
   html[data-motion="reduced"] :where(
     .animate-hero-title,
     .animate-hero-subtitle,
@@ -2329,7 +2430,16 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .animate-page-template-in,
     .animate-theme-icon,
     .animate-wall-note-in,
+    .animate-listening-bar,
+    .animate-listening-ellipsis,
     .sticker-card,
+    .sticker-card--superuser::after,
+    .superuser-banner__glow,
+    .superuser-banner__medal,
+    .superuser-banner__card::after,
+    .escape-banner__glow,
+    .escape-banner__medal,
+    .escape-banner__card::after,
     [data-sticker-toast],
     [data-superuser-toast],
     [data-disco-motion],
@@ -2338,4 +2448,15 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
+
+  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+    opacity: 1 !important;
+  }
+
+  html[data-motion="reduced"] .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
+  html[data-motion="reduced"] .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+  html[data-motion="reduced"] .animate-nav-tab { transform: translateY(-25px) !important; }
+  html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
+  html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
+  html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
 }

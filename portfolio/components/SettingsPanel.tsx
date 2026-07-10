@@ -238,7 +238,20 @@ export default function SettingsPanel() {
         <div className="mx-auto mt-2 h-1 w-36 -rotate-1 rounded-full bg-amber-400/70" aria-hidden />
       </header>
 
-      <div className="mt-8 border-y-2 border-dashed border-[var(--c-grid)]/45">
+      {!mounted ? (
+        <p className="sr-only" role="status" aria-live="polite">
+          Loading saved settings...
+        </p>
+      ) : null}
+      <div
+        className={cn(
+          'mt-8 border-y-2 border-dashed border-[var(--c-grid)]/45',
+          !mounted && 'invisible',
+        )}
+        aria-busy={!mounted}
+        aria-hidden={!mounted || undefined}
+        inert={!mounted || undefined}
+      >
         <SettingsGroup title="Theme" icon={Palette}>
           <SegmentedChoice
             name="theme"

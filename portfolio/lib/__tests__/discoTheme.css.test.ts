@@ -114,13 +114,17 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/\[data-disco-motion="breath"\]/);
   });
 
-  it('does not disable opt-in disco motion inside reduced-motion media queries', () => {
-    const reducedMotionBlocks = [...CSS.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/g)]
-      .map(match => match[0])
-      .join('\n');
+  it('disables decorative disco motion for device and explicit reduction', () => {
+    const reducedContract = CSS.slice(CSS.lastIndexOf('/* Shared reduced-motion contract'));
 
-    expect(reducedMotionBlocks).not.toMatch(/\[data-disco-motion=/);
-    expect(reducedMotionBlocks).not.toMatch(/html\[data-disco="on"\]/);
+    expect(reducedContract).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(reducedContract).toContain('html[data-motion="reduced"][data-disco="on"]');
+    expect(reducedContract).toContain('[data-disco-motion]');
+    expect(reducedContract).toContain('html[data-disco="on"] body');
+    expect(reducedContract).toContain('.bg-binding-bg');
+    expect(reducedContract).toContain('h1');
+    expect(reducedContract).toMatch(/animation:\s*none\s*!important/);
+    expect(reducedContract).not.toContain('terminal-auth-shake');
   });
 
   it('defines anti-pattern overrides — main / focused inputs never dance', () => {

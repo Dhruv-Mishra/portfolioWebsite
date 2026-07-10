@@ -8,8 +8,10 @@ export default function Template({ children }: { children: React.ReactNode }) {
         <div
             className="h-full min-h-full min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar"
         >
-            <div className="h-full min-h-full min-w-0 animate-page-template-in">
-                {children}
+            <div className="h-full min-h-full min-w-0 isolate animate-page-template-in">
+                <div className="relative z-0 h-full min-h-full min-w-0">
+                    {children}
+                </div>
             </div>
         </div>
     );

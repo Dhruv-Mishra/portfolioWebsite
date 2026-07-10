@@ -1,8 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
 import { buildCommandEntries } from '@/lib/commandRegistry';
 import { TERMINAL_COMMAND_NAME_SET } from '@/lib/terminalCommandNames';
 import { createCommandRegistry } from '@/lib/terminalCommands';
+
+const socialSidebar = fs.readFileSync(
+  path.join(process.cwd(), 'components', 'SocialSidebar.tsx'),
+  'utf8',
+);
 
 describe('settings discovery', () => {
   it('registers a command-palette entry that navigates to settings', () => {
@@ -14,6 +21,7 @@ describe('settings discovery', () => {
       router: { push } as never,
       setTheme: vi.fn(),
       resolvedTheme: 'light',
+      discoActive: false,
       openFeedback: vi.fn(),
       openShortcuts: vi.fn(),
       runTerminalCommand: vi.fn(),
@@ -41,5 +49,14 @@ describe('settings discovery', () => {
     expect(sitemap()).toContainEqual(expect.objectContaining({
       url: 'https://whoisdhruv.com/settings',
     }));
+  });
+
+  it('keeps a 44px settings link in persistent desktop and mobile chrome', () => {
+    expect(socialSidebar).toMatch(/href="\/settings"/);
+    expect(socialSidebar).toMatch(/aria-label="Open settings"/);
+    expect(socialSidebar).toMatch(/<Tooltip label="Settings">/);
+    expect(socialSidebar).toMatch(/<SettingsLink onPress=/);
+    expect(socialSidebar).toMatch(/<SettingsLink isMobile onPress=/);
+    expect(socialSidebar).toMatch(/h-11 w-11/);
   });
 });

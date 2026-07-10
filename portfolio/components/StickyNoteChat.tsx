@@ -47,6 +47,7 @@ import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
 import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -1498,7 +1499,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (action.themeAction) {
       selection();
       if (action.themeAction === 'toggle') {
-        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+        runThemeToggle({
+          discoActive,
+          isDark: resolvedTheme === 'dark',
+          setTheme,
+        });
       } else if (action.themeAction === 'disco') {
         // Pre-warm the heavy disco media chunk on the user-gesture tick
         // so sparkles/spotlights paint without a fetch stall.
@@ -1511,7 +1516,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       } else if (action.themeAction === 'disco-off') {
         setDiscoActiveImperative(false);
       } else {
-        setTheme(action.themeAction);
+        runThemeSelection({
+          discoActive,
+          theme: action.themeAction,
+          setTheme,
+        });
       }
     }
 
@@ -1549,7 +1558,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         router.push(dest);
       }, NAVIGATION_DELAY_MS);
     }
-  }, [externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
+  }, [discoActive, externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
 
   const handleTypewriterDone = useCallback((messageId: string) => {
     setReadyForAssistantId(messageId);

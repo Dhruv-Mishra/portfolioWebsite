@@ -25,7 +25,7 @@ vi.mock('@/lib/soundManager', () => ({
   soundManager: { play: vi.fn() },
 }));
 
-import { runThemeToggle } from '@/lib/themeToggleAction';
+import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { setDiscoActiveImperative } from '@/hooks/useStickers';
 import { stickerBus } from '@/lib/stickerBus';
 import { soundManager } from '@/lib/soundManager';
@@ -79,5 +79,35 @@ describe('runThemeToggle', () => {
     const setTheme = vi.fn();
     runThemeToggle({ discoActive: false, isDark: false, setTheme });
     expect(setTheme).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('runThemeSelection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('exits disco through the shared store mechanism before applying a selection', () => {
+    const setTheme = vi.fn();
+    runThemeSelection({ discoActive: true, theme: 'system', setTheme });
+
+    expect(setDiscoActiveImperative).toHaveBeenCalledWith(false);
+    expect(setTheme).toHaveBeenCalledWith('system');
+  });
+
+  it('reapplies the selected value so choosing the current theme still exits disco', () => {
+    const setTheme = vi.fn();
+    runThemeSelection({ discoActive: true, theme: 'dark', setTheme });
+
+    expect(setDiscoActiveImperative).toHaveBeenCalledWith(false);
+    expect(setTheme).toHaveBeenCalledWith('dark');
+  });
+
+  it('applies light or dark without touching disco when it is inactive', () => {
+    const setTheme = vi.fn();
+    runThemeSelection({ discoActive: false, theme: 'dark', setTheme });
+
+    expect(setDiscoActiveImperative).not.toHaveBeenCalled();
+    expect(setTheme).toHaveBeenCalledWith('dark');
   });
 });

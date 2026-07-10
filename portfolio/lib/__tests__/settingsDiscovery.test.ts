@@ -1,0 +1,45 @@
+import { describe, expect, it, vi } from 'vitest';
+import sitemap from '@/app/sitemap';
+import { buildCommandEntries } from '@/lib/commandRegistry';
+import { TERMINAL_COMMAND_NAME_SET } from '@/lib/terminalCommandNames';
+import { createCommandRegistry } from '@/lib/terminalCommands';
+
+describe('settings discovery', () => {
+  it('registers a command-palette entry that navigates to settings', () => {
+    const entry = buildCommandEntries().find((command) => command.id === 'nav-settings');
+    const push = vi.fn();
+
+    expect(entry?.label).toBe('Settings');
+    entry?.run({
+      router: { push } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      openFeedback: vi.fn(),
+      openShortcuts: vi.fn(),
+      runTerminalCommand: vi.fn(),
+    });
+    expect(push).toHaveBeenCalledWith('/settings');
+  });
+
+  it('includes settings in terminal autocomplete', () => {
+    expect(TERMINAL_COMMAND_NAME_SET.has('settings')).toBe(true);
+  });
+
+  it('registers a terminal settings command with a clean route target', () => {
+    vi.useFakeTimers();
+    const push = vi.fn();
+    const result = createCommandRegistry({ push } as never).settings([]);
+
+    expect(result).toMatchObject({ output: 'Opening site settings...' });
+    if ('action' in result) result.action?.();
+    vi.runAllTimers();
+    expect(push).toHaveBeenCalledWith('/settings');
+    vi.useRealTimers();
+  });
+
+  it('publishes the settings route in the sitemap', () => {
+    expect(sitemap()).toContainEqual(expect.objectContaining({
+      url: 'https://whoisdhruv.com/settings',
+    }));
+  });
+});

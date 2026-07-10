@@ -74,11 +74,9 @@ export function createServerRateLimiter(config: RateLimitConfig) {
   return { check };
 }
 
-/**
- * Extract client IP from a Next.js request, checking forwarded headers.
- */
+/** Extract the client IP normalized by the trusted reverse proxy. */
 export function getClientIP(request: { headers: { get(name: string): string | null } }): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
+  return request.headers.get('x-real-ip')?.trim()
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || 'unknown';
 }

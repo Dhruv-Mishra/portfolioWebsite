@@ -71,18 +71,8 @@ function EscapeToastListenerImpl(): React.ReactElement | null {
     if (!escaped) return;
     if (readSessionFlag(MATRIX_PUZZLE_KEYS.homeToastShown)) return;
     writeSessionFlag(MATRIX_PUZZLE_KEYS.homeToastShown, true);
-    setVisible(true);
-    try {
-      success();
-    } catch {
-      /* haptics best-effort */
-    }
-    try {
-      soundManager.play('sticker-ding');
-    } catch {
-      /* sound best-effort */
-    }
-  }, [pathname, escaped, success]);
+    matrixToastBus.emitEscape();
+  }, [pathname, escaped]);
 
   useEffect(() => {
     if (!visible) return;

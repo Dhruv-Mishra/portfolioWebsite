@@ -28,25 +28,23 @@ function formatTimer(totalSec: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function useElapsedSeconds(active: boolean): number {
+function useElapsedSeconds(): number {
   const [seconds, setSeconds] = useState(0);
-  const startRef = useRef<number | null>(null);
+  const [startedAt] = useState(() => Date.now());
+
   useEffect(() => {
-    if (!active) {
-      startRef.current = null;
-      setSeconds(0);
-      return;
-    }
-    startRef.current = Date.now();
-    setSeconds(0);
     const id = window.setInterval(() => {
-      const start = startRef.current;
-      if (start == null) return;
-      setSeconds(Math.floor((Date.now() - start) / 1000));
+      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
     }, 250);
     return () => window.clearInterval(id);
-  }, [active]);
+  }, [startedAt]);
+
   return seconds;
+}
+
+function ElapsedTimer(): React.ReactElement {
+  const elapsed = useElapsedSeconds();
+  return <>{formatTimer(elapsed)}</>;
 }
 
 interface WaveformProps {
@@ -185,8 +183,6 @@ export function ListeningOverlay({
   analyser,
   className,
 }: ListeningOverlayProps) {
-  const elapsed = useElapsedSeconds(isListening);
-
   return (
     <AnimatePresence>
       {isListening && (
@@ -225,7 +221,7 @@ export function ListeningOverlay({
               className="shrink-0 font-code text-xs md:text-sm tabular-nums text-[var(--c-ink)]/70"
               aria-hidden
             >
-              {formatTimer(elapsed)}
+              <ElapsedTimer />
             </span>
           </div>
 

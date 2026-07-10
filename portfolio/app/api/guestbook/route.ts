@@ -5,6 +5,7 @@
 // `getApprovedEntries()` directly, but this endpoint exists for future use / revalidation).
 
 import { NextRequest } from 'next/server';
+import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -25,6 +26,7 @@ const guestbookRateLimiter = createServerRateLimiter({
   maxTrackedIPs: 200,
   cleanupInterval: 30,
 });
+const MAX_GUESTBOOK_BODY_BYTES = 4_000;
 
 // ─── Validation helpers ─────────────────────────────────────────────────
 const URL_PATTERN = /(?:https?:\/\/|www\.)/i;
@@ -55,7 +57,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SubmissionBody = await request.json().catch(() => ({}));
+    let body: SubmissionBody;
+    try {
+      body = await readBoundedJson<SubmissionBody>(request, MAX_GUESTBOOK_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof BoundedJsonError) {
+        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
+      }
+      throw error;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Honeypot — non-empty `website` → silent success (bot signature).
     if (asString(body.website).trim().length > 0) {

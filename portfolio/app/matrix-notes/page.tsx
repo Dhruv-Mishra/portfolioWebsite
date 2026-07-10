@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
-import { Suspense } from 'react';
-import NotFound from '@/app/not-found';
-import MatrixNotesGate from '@/components/matrix/MatrixNotesGate';
+import { cookies } from 'next/headers';
+import { notFound } from 'next/navigation';
+
+import MatrixNotesWall from '@/components/matrix/MatrixNotesWall';
+import {
+  MATRIX_NOTES_ACCESS_COOKIE,
+  verifyMatrixNotesAccessToken,
+} from '@/lib/matrixNotesAccess.server';
 
 /**
  * `/matrix-notes` — the secret post-escape notes wall.
@@ -12,31 +17,22 @@ import MatrixNotesGate from '@/components/matrix/MatrixNotesGate';
  * ESCAPE THE MATRIX button inside the matrix overlay) must see the site's
  * normal 404 page — indistinguishable from any other invalid URL.
  *
- * Unlock state lives in localStorage (`matrixEscaped` on the sticker store),
- * which is a client-only signal. The server therefore cannot know whether
- * a given visitor is unlocked. Our strategy:
- *
- *   1. The server response is a CLIENT component that renders the site's
- *      normal `NotFound` shell by default. View-source on a locked user's
- *      first load shows nothing but the 404 HTML — no wall content, no
- *      form, no mention of matrix notes.
- *   2. On mount, the client reads `matrixEscaped` from the sticker store.
- *      If locked: the 404 stays. If unlocked: the component fetches
- *      `/api/matrix-notes` and swaps in the notes wall UI.
+ * The real escape flow redeems a short-lived server challenge for a signed,
+ * HttpOnly access cookie. This server component verifies that cookie before
+ * rendering any wall UI and calls `notFound()` for missing, expired, or
+ * forged credentials. Client localStorage and query parameters are never
+ * treated as authorization.
  *
  * LEAK SURFACE CHECKLIST
  *   - Route not listed in `app/sitemap.ts` (verified — do not add).
- *   - No Next.js `<Link>` references to `/matrix-notes` anywhere — entry
- *     point is an imperative `router.push()` from the escape transition.
- *     The post-unlock "open matrix notes" button uses `<Link>` deliberately
- *     because at that point the user already knows.
+ *   - Entry points shown after escape do not grant access; the server cookie
+ *     remains authoritative on every page and API request.
  *   - `robots: { index: false }` on this page so crawlers don't index it.
  *   - No open graph / canonical pointing here.
  *
  * PERFORMANCE
  *   This page's initial bundle cost is zero for anyone who never visits it.
- *   Unlocked users pay: the client gate + a lazy-loaded notes wall chunk
- *   (form + list) fetched only after the localStorage check succeeds.
+ *   Authorized visitors receive the wall only after server verification.
  */
 
 export const metadata: Metadata = {
@@ -58,14 +54,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function MatrixNotesPage() {
-  // `MatrixNotesGate` uses `useSearchParams()`, which Next.js requires to sit
-  // inside a Suspense boundary so the server can pre-render up to the
-  // boundary and stream the rest. The fallback is our normal 404 shell so
-  // locked users who see the suspense placeholder see nothing suspicious.
-  return (
-    <Suspense fallback={<NotFound />}>
-      <MatrixNotesGate />
-    </Suspense>
-  );
+export default async function MatrixNotesPage(): Promise<React.ReactElement> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(MATRIX_NOTES_ACCESS_COOKIE)?.value;
+  if (!verifyMatrixNotesAccessToken(token)) {
+    notFound();
+  }
+
+  return <MatrixNotesWall />;
 }

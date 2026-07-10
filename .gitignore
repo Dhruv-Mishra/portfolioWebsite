@@ -1,8 +1,6 @@
 /ResumeBuilder
 .TEMP/
 .playwright-mcp/
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
 
 # dependencies
 node_modules/

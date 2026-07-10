@@ -6,7 +6,7 @@ export const revalidate = 3600;
 
 export default function ResumePage() {
     return (
-        <main className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+        <div className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <div
                 className="animate-page-sheet relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
@@ -49,6 +49,6 @@ export default function ResumePage() {
                     </a>
                 </div>
             </div>
-        </main>
+        </div>
     );
 }

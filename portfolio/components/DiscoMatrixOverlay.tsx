@@ -61,6 +61,7 @@ import {
 } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
+import { completeMatrixNotesEscape } from '@/app/matrix-notes/actions';
 
 const GLYPHS =
   'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ01Dhruv';
@@ -822,9 +823,18 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
    * fires after a user click but the nav is detached from the gesture).
    * `router.push` is client navigation and isn't subject to that heuristic.
    */
-  const handleEscape = useCallback(() => {
+  const handleEscape = useCallback(async () => {
     if (escapeFiredRef.current) return;
     escapeFiredRef.current = true;
+
+    try {
+      await completeMatrixNotesEscape();
+    } catch (error) {
+      console.error('[matrix] Failed to complete escape challenge:', error);
+      escapeFiredRef.current = false;
+      setDisabledHint('The exit signal fractured. Try the escape again.');
+      return;
+    }
 
     // Flip the flag first so any racing render already sees it.
     setMatrixEscapedImperative(true);

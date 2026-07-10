@@ -140,13 +140,19 @@ export default function Terminal() {
     useEffect(() => {
         if (!activePrompt) return;
         completionSessionRef.current = null;
-        setInput("");
+        const clearInputTimer = window.setTimeout(() => setInput(""), 0);
         // Desktop: focus immediately. Mobile: don't pop the keyboard
         // unsolicited — the user already tapped to trigger the prompt
         // chain, so focus is usually preserved anyway.
+        let focusTimer: number | undefined;
         if (typeof window !== 'undefined' && window.innerWidth >= LAYOUT_TOKENS.mobileBreakpoint) {
-            window.setTimeout(() => inputRef.current?.focus(), 30);
+            focusTimer = window.setTimeout(() => inputRef.current?.focus(), 30);
         }
+
+        return () => {
+            window.clearTimeout(clearInputTimer);
+            if (focusTimer !== undefined) window.clearTimeout(focusTimer);
+        };
     }, [activePrompt]);
 
     // Typewritten placeholder — cycles command hints while the input is empty.
@@ -474,6 +480,8 @@ export default function Terminal() {
                             {activePrompt?.masked ? (
                                 <input
                                     ref={inputRef}
+                                    id="terminal-command-input"
+                                    name="terminal-command"
                                     type="password"
                                     value={input}
                                     onChange={(e) => updateInput(e.target.value)}
@@ -496,6 +504,8 @@ export default function Terminal() {
                             ) : (
                                 <input
                                     ref={inputRef}
+                                    id="terminal-command-input"
+                                    name="terminal-command"
                                     type="text"
                                     value={input}
                                     onChange={(e) => updateInput(e.target.value)}
@@ -517,7 +527,7 @@ export default function Terminal() {
                                     ref={placeholderRef}
                                     aria-hidden="true"
                                     data-terminal-placeholder
-                                    className="pointer-events-none absolute left-0 top-0 right-0 text-gray-500 font-code text-sm md:text-base leading-[inherit] whitespace-nowrap overflow-hidden"
+                                    className="pointer-events-none absolute left-0 top-0 right-0 text-gray-400 font-code text-sm md:text-base leading-[inherit] whitespace-nowrap overflow-hidden"
                                 />
                             )}
                         </div>

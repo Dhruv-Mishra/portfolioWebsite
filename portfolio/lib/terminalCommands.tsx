@@ -518,9 +518,9 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
      * `hesoyam` — hidden GTA San Andreas-style cheat code. Not in `help`.
      * Unlocks every regular sticker (which atomically auto-awards the
      * Superuser sticker via the store), flips on experimental commands,
-     * marks every matrix-puzzle stage as solved, escapes the matrix, and
-     * fire-and-forget signs in to the admin terminal — effectively
-     * granting full sketchbook access in one shot.
+    * marks local matrix-puzzle progress as solved, and fire-and-forget
+    * signs in to the admin terminal. Matrix Notes still requires the real
+    * server-verified escape completion flow.
      */
     hesoyam: () => ({
         output: (
@@ -538,7 +538,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                     <span className="text-gray-500">— all unlocked.</span>
                 </p>
                 <p className="text-gray-400">
-                    Welcome, root. The whole sketchbook just unlocked.{' '}
+                    Welcome, root. The terminal toolkit just unlocked.{' '}
                     <span className="text-gray-500 italic">try `sudo help`.</span>
                 </p>
             </div>
@@ -555,7 +555,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             writeSessionFlag(MATRIX_PUZZLE_KEYS.ranSudoMatrix, true);
             writeSessionFlag(MATRIX_PUZZLE_KEYS.sawAdminTerminalFile, true);
             writeSessionFlag(MATRIX_PUZZLE_KEYS.hasFileContents, true);
-            // 4. Persist matrix-escaped so /matrix-notes is freely reachable.
+            // 4. Preserve local puzzle progression. This is not Matrix Notes
+            //    authorization; only the signed server cookie grants access.
             setMatrixEscapedImperative(true);
             // 5. Fire-and-forget admin sign-in. Credentials are already
             //    client-visible puzzle content (see lib/matrixPuzzle.ts);

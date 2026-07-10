@@ -2,22 +2,18 @@
 //
 // Mirrors the guestbook route but stores entries under the `matrix-notes-*`
 // labels so Dhruv can moderate the two walls independently. The backend
-// (GitHub issues, markdown sanitization, IP hashing, pending → approved
+// (GitHub issues, markdown sanitization, pending → approved
 // label flip) is SHARED with the guestbook via `lib/notes.server.ts` — we
 // only parameterize the `kind` discriminator.
 //
 // Auth gate:
-//   The page at `/matrix-notes` gates VIEW access on the client-side
-//   `matrixEscaped` localStorage flag. This API route does NOT gate POST
-//   access on that flag — there's no server-side signal for it and we
-//   don't want to leak the route's existence via 403s either. Instead we
-//   rely on the same rate-limit + origin-check posture as the guestbook:
-//   POSTs are only accepted from our own origin, rate-limited per IP, and
-//   require passing through the honeypot + length validators. An attacker
-//   who bypasses client gating can still only submit at the guestbook rate
-//   and their submission still requires Dhruv's manual approval to appear.
+//   Both methods verify the signed HttpOnly access cookie before doing any
+//   other work. Unauthorized requests receive an empty 404 so the API does
+//   not reveal whether the hidden route exists. POST retains origin checks,
+//   transient IP rate limiting, honeypot handling, and strict validation.
 
 import { NextRequest } from 'next/server';
+import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import {
@@ -29,6 +25,10 @@ import {
 import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
 import type { GuestbookEntry } from '@/lib/guestbook';
 import { MATRIX_FILLER_NOTES } from '@/lib/matrixFillerNotes';
+import {
+  MATRIX_NOTES_ACCESS_COOKIE,
+  verifyMatrixNotesAccessToken,
+} from '@/lib/matrixNotesAccess.server';
 
 export const runtime = 'nodejs';
 
@@ -41,6 +41,7 @@ const matrixNotesRateLimiter = createServerRateLimiter({
   maxTrackedIPs: 200,
   cleanupInterval: 30,
 });
+const MAX_MATRIX_NOTES_BODY_BYTES = 4_000;
 
 // ─── Validation helpers ─────────────────────────────────────────────────
 const URL_PATTERN = /(?:https?:\/\/|www\.)/i;
@@ -55,9 +56,24 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function hasMatrixNotesAccess(request: NextRequest): boolean {
+  return verifyMatrixNotesAccessToken(
+    request.cookies.get(MATRIX_NOTES_ACCESS_COOKIE)?.value,
+  );
+}
+
+function notFoundResponse(): Response {
+  return new Response(null, {
+    status: 404,
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
+}
+
 // ─── POST /api/matrix-notes — new entry submission ──────────────────────
 export async function POST(request: NextRequest) {
   try {
+    if (!hasMatrixNotesAccess(request)) return notFoundResponse();
+
     const originError = validateOrigin(request, { requireOrigin: true });
     if (originError) return originError;
 
@@ -71,7 +87,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SubmissionBody = await request.json().catch(() => ({}));
+    let body: SubmissionBody;
+    try {
+      body = await readBoundedJson<SubmissionBody>(request, MAX_MATRIX_NOTES_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof BoundedJsonError) {
+        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
+      }
+      throw error;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Honeypot — non-empty `website` → silent success (bot signature).
     if (asString(body.website).trim().length > 0) {
@@ -79,17 +106,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate message. Same shape + limits as the guestbook.
-    const message = asString(body.message)
-      .trim()
-      .slice(0, GUESTBOOK_LIMITS.maxMessageLength);
+    const rawMessage = asString(body.message);
+    if (rawMessage.length > GUESTBOOK_LIMITS.maxMessageLength) {
+      return Response.json({ error: 'Message too long.' }, { status: 400 });
+    }
+    const message = rawMessage.trim();
     if (!message || message.length < 5) {
       return Response.json(
         { error: 'Message must be at least 5 characters.' },
         { status: 400 },
       );
-    }
-    if (message.length > GUESTBOOK_LIMITS.maxMessageLength) {
-      return Response.json({ error: 'Message too long.' }, { status: 400 });
     }
     if (URL_PATTERN.test(message)) {
       return Response.json(
@@ -99,9 +125,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate name.
-    const rawName = asString(body.name)
-      .trim()
-      .slice(0, GUESTBOOK_LIMITS.maxNameLength);
+    const submittedName = asString(body.name);
+    if (submittedName.length > GUESTBOOK_LIMITS.maxNameLength) {
+      return Response.json({ error: 'Name too long.' }, { status: 400 });
+    }
+    const rawName = submittedName.trim();
     const name = rawName.replace(/\r?\n/g, ' ').replace(/^@+/, '').trim();
     if (name && URL_PATTERN.test(name)) {
       return Response.json(
@@ -139,14 +167,15 @@ export async function POST(request: NextRequest) {
 //
 // Returns the approved matrix-notes entries merged with the in-character
 // filler notes (newest first). Used by the `/matrix-notes` page which
-// fetches this client-side AFTER confirming the user is unlocked — we
-// never render the wall HTML on the server so locked users can't view
-// source to find the route.
+// fetches this client-side after the server page verifies access. This
+// endpoint repeats verification so direct listing requests remain denied.
 //
 // Cache: no-store. The wall is low-traffic and the moderator-approved
 // surface should always be fresh. Cloudflare will still honor the
 // Cache-Control header for intermediate caches if we ever add one.
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!hasMatrixNotesAccess(request)) return notFoundResponse();
+
   const repo = resolveNotesRepo('matrix');
   const token = resolveNotesToken('matrix');
   // Env misconfig → return filler only. Better than a 500 that leaks the

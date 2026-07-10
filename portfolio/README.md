@@ -54,6 +54,8 @@ Staging image deploys publish both `linux/amd64` and `linux/arm64` images becaus
 
 Promotion is branch-based: run `Promote dev/lkg to Staging` to fast-forward `deployed/staging`, then run `Promote Staging to Production` to fast-forward `deployed/production`. The promotion workflows use `GITHUB_TOKEN` and explicitly dispatch the matching deploy workflow so they do not double-trigger deploys. Direct human pushes to either deployed branch still trigger the matching deploy workflow. Use `Rollback Portfolio Production` to restore the newest previous retained production release, or provide a retained release SHA.
 
+Runtime signing values use four repository-level Actions secrets: `STAGING_CHAT_HISTORY_SIGNING_SECRET`, `STAGING_MATRIX_NOTES_ACCESS_SECRET`, `PRODUCTION_CHAT_HISTORY_SIGNING_SECRET`, and `PRODUCTION_MATRIX_NOTES_ACCESS_SECRET`. Each deploy validates 64-character hexadecimal values and atomically synchronizes the appropriate pair into every VM's persisted service env file before restart. See [../stepstofollow.md](../stepstofollow.md) for the one-time setup; routine promotions require no manual VM secret updates.
+
 ## Structure
 
 ```text
@@ -71,9 +73,12 @@ scripts/          embeddings and deployment helpers
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
 - Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
-- Guestbook, feedback, and notes flows are GitHub-backed.
+- Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
+- Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
+- Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
 - `npm run build` triggers embeddings generation unless skipped via env.
 - Local TTS lives at `/api/tts` and runs KittenTTS nano 0.1 through a lazy server-side Python worker. GET is status-only; POST is the only synthesis path. Install Python deps with `pip install -r requirements-tts.txt`, and install native eSpeak NG for phonemization.
+- Local TTS caches models under `~/.cache/portfolio/kitten-tts` by default; set `LOCAL_TTS_CACHE_DIR` to override it.
 - On Windows, install eSpeak NG and restart the dev server. If phonemizer cannot auto-detect it, set `LOCAL_TTS_ESPEAK_LIBRARY` to the full `libespeak-ng.dll` path, for example `C:\Program Files\eSpeak NG\libespeak-ng.dll`.
 - The worker uses `LOCAL_TTS_PYTHON` when set, otherwise it auto-prefers a workspace `.venv` before falling back to `python` / `python3`.
 - The model stays server-side by design. On first use, the worker downloads KittenTTS ONNX assets into `LOCAL_TTS_CACHE_DIR`; synthesis runs locally after that. The Hugging Face unauthenticated warning is only about first download/cache access. Set `HF_TOKEN` for higher Hub limits, set `LOCAL_TTS_OFFLINE=1` after the files are cached, or set `LOCAL_TTS_MODEL_PATH` + `LOCAL_TTS_VOICES_PATH` for fully pinned local files.
@@ -84,3 +89,16 @@ scripts/          embeddings and deployment helpers
 - Assistant response playback uses the streaming `/api/tts` path and caches completed spoken text/options in IndexedDB with per-message associations. Clearing chat clears the generated-audio cache too.
 - Speech-safe text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
 - For production nginx, disable buffering on `/api/tts` just like `/api/chat`: `proxy_buffering off; proxy_cache off; proxy_read_timeout 120s;`.
+
+## AI And Retrieval Configuration
+
+| Variable | Purpose |
+|---|---|
+| `GROQ_API_KEY`, `GROQ_MODEL` | Primary chat provider and optional model override |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | OpenAI-compatible fallback provider |
+| `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` | Secondary fallback provider |
+| `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
+| `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |
+| `SKIP_EMBEDDINGS_BUILD=1` | Reuse committed `lib/facts.embeddings.json` |
+
+When no embeddings key is configured and local mode is off, builds reuse the committed embeddings bundle. Public client configuration such as `NEXT_PUBLIC_SITE_URL`, analytics toggles, and analytics IDs must remain safe to expose; provider credentials are server-only.

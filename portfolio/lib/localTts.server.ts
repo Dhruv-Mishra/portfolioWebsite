@@ -9,7 +9,7 @@ import readline from 'node:readline';
 
 const PROVIDER = 'kitten-tts';
 const MODEL_ID = process.env.LOCAL_TTS_MODEL_ID ?? 'KittenML/kitten-tts-nano-0.1';
-const DEFAULT_CACHE_DIR = path.join(process.cwd(), '.cache', 'kitten-tts');
+const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'portfolio', 'kitten-tts');
 const WORKER_RELATIVE_PATH = path.join('scripts', 'kitten-tts-worker.py');
 const SAMPLE_RATE = 24_000;
 const DEFAULT_CHUNK_CHARS = 120;
@@ -52,6 +52,7 @@ interface WorkerErrorMessage {
 type WorkerResponseMessage = WorkerResultMessage | WorkerErrorMessage;
 
 interface PendingWorkerRequest {
+  completeWorkerExecution: () => void;
   reject: (error: Error) => void;
   resolve: (result: WorkerResultMessage) => void;
 }
@@ -110,9 +111,12 @@ class TtsQueueFullError extends Error {
 }
 
 class TtsRequestAbortedError extends Error {
-  constructor() {
+  readonly workerCompletion: Promise<void>;
+
+  constructor(workerCompletion = Promise.resolve()) {
     super('Local TTS request was cancelled.');
     this.name = 'TtsRequestAbortedError';
+    this.workerCompletion = workerCompletion;
   }
 }
 
@@ -341,6 +345,7 @@ class KittenTtsWorkerClient {
     const pending = this.pending.get(message.id);
     if (!pending) return;
     this.pending.delete(message.id);
+    pending.completeWorkerExecution();
 
     if (message.type === 'error') {
       pending.reject(new TtsWorkerUnavailableError(message.message ?? 'Local TTS worker failed.'));
@@ -361,6 +366,7 @@ class KittenTtsWorkerClient {
     }
 
     for (const pending of this.pending.values()) {
+      pending.completeWorkerExecution();
       pending.reject(error);
     }
     this.pending.clear();
@@ -381,16 +387,26 @@ class KittenTtsWorkerClient {
 
     throwIfAborted(signal);
     const id = String(++this.nextRequestId);
+    let completeWorkerExecution: () => void = () => undefined;
+    const workerCompletion = new Promise<void>((resolve) => {
+      completeWorkerExecution = resolve;
+    });
+    let submitted = false;
 
     return new Promise<WorkerResultMessage>((resolve, reject) => {
       const abortRequest = () => {
-        this.pending.delete(id);
-        this.handleExit(new TtsRequestAbortedError());
-        reject(new TtsRequestAbortedError());
+        const pending = this.pending.get(id);
+        if (!pending) return;
+        pending.reject(new TtsRequestAbortedError(workerCompletion));
+        if (!submitted) {
+          this.pending.delete(id);
+          pending.completeWorkerExecution();
+        }
       };
       const cleanup = () => signal?.removeEventListener('abort', abortRequest);
 
       this.pending.set(id, {
+        completeWorkerExecution,
         reject: (error) => {
           cleanup();
           reject(error);
@@ -402,12 +418,20 @@ class KittenTtsWorkerClient {
       });
 
       signal?.addEventListener('abort', abortRequest, { once: true });
+      if (signal?.aborted) {
+        abortRequest();
+        return;
+      }
+
       const payload = `${JSON.stringify({ id, ...request })}\n`;
+      submitted = true;
       this.child.stdin.write(payload, (error) => {
         if (!error) return;
+        const pending = this.pending.get(id);
+        if (!pending) return;
         this.pending.delete(id);
-        cleanup();
-        reject(new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`));
+        pending.completeWorkerExecution();
+        pending.reject(new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`));
       });
     });
   }
@@ -438,9 +462,12 @@ async function loadLocalTts(): Promise<KittenTtsWorkerClient> {
 }
 
 function releaseTtsSlot(): void {
-  activeJobs = Math.max(0, activeJobs - 1);
   const next = waiters.shift();
-  if (next) next();
+  if (next) {
+    next();
+    return;
+  }
+  activeJobs = Math.max(0, activeJobs - 1);
 }
 
 export function getLocalTtsQueueState(): { active: number; queued: number } {
@@ -450,6 +477,7 @@ export function getLocalTtsQueueState(): { active: number; queued: number } {
 export async function runWithLocalTtsSlot<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const settings = getSettings();
   throwIfAborted(signal);
+  let hasSlot = false;
 
   if (activeJobs >= settings.concurrency) {
     if (queuedJobs >= settings.maxQueue) {
@@ -461,6 +489,7 @@ export async function runWithLocalTtsSlot<T>(task: () => Promise<T>, signal?: Ab
       await new Promise<void>((resolve, reject) => {
         const waiter = () => {
           signal?.removeEventListener('abort', abortWaiter);
+          hasSlot = true;
           resolve();
         };
         const abortWaiter = () => {
@@ -475,15 +504,39 @@ export async function runWithLocalTtsSlot<T>(task: () => Promise<T>, signal?: Ab
     } finally {
       queuedJobs = Math.max(0, queuedJobs - 1);
     }
+  } else {
+    activeJobs += 1;
+    hasSlot = true;
   }
 
-  throwIfAborted(signal);
-  activeJobs += 1;
   try {
-    return await task();
-  } finally {
-    releaseTtsSlot();
+    throwIfAborted(signal);
+  } catch (error) {
+    if (hasSlot) releaseTtsSlot();
+    throw error;
   }
+  let taskPromise: Promise<T>;
+  try {
+    taskPromise = task();
+  } catch (error) {
+    releaseTtsSlot();
+    throw error;
+  }
+
+  return taskPromise.then(
+    result => {
+      releaseTtsSlot();
+      return result;
+    },
+    (error: unknown) => {
+      if (isTtsRequestAbortedError(error)) {
+        void error.workerCompletion.then(releaseTtsSlot);
+      } else {
+        releaseTtsSlot();
+      }
+      throw error;
+    },
+  );
 }
 
 function normalizeText(text: string, maxChars: number): string {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { m, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence, usePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { soundManager } from '@/lib/soundManager';
@@ -27,6 +27,125 @@ interface ModalProps {
   /** Tailwind classes for the backdrop overlay.
    *  Default: "bg-black/20 dark:bg-black/40" (light tint) */
   backdropClassName?: string;
+}
+
+const subscribeToClient = () => () => undefined;
+
+interface ModalContentProps extends Omit<ModalProps, 'isOpen'> {
+  modalRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function ModalContent({
+  onClose,
+  children,
+  className,
+  style,
+  ariaLabel,
+  ariaLabelledBy,
+  backdropClassName = "bg-black/20 dark:bg-black/40",
+  modalRef,
+}: ModalContentProps) {
+  const openerRef = useRef<HTMLElement | null>(null);
+  const [isPresent, safeToRemove] = usePresence();
+  const removeFromPresence = useEffectEvent(() => safeToRemove?.());
+
+  useEffect(() => {
+    if (isPresent) return;
+    const exitDelayMs = ANIMATION_TOKENS.duration.normal * 1000 + 100;
+    const timer = window.setTimeout(removeFromPresence, exitDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [isPresent]);
+
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (!modal) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    openerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+
+    const getFocusable = (): HTMLElement[] => Array.from(
+      modal.querySelectorAll<HTMLElement>(focusableSelector),
+    ).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
+
+    document.body.style.overflow = 'hidden';
+    (getFocusable()[0] ?? modal).focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        modal.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+      openerRef.current?.focus();
+    };
+  }, [modalRef, onClose]);
+
+  return (
+    <>
+      <m.div
+        key="modal-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: ANIMATION_TOKENS.duration.normal }}
+        onClick={onClose}
+        className={cn("fixed inset-0", backdropClassName)}
+        style={{ zIndex: Z_INDEX.modal }}
+        aria-hidden="true"
+      />
+
+      <div
+        className="fixed inset-0 overflow-y-auto overscroll-contain"
+        onClick={onClose}
+        style={{ zIndex: Z_INDEX.modal }}
+      >
+        <m.div
+          ref={modalRef}
+          key="modal-card"
+          initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
+          animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
+          exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
+          transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
+          className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
+          style={style}
+          role="dialog"
+          aria-modal="true"
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          tabIndex={-1}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {children}
+        </m.div>
+      </div>
+    </>
+  );
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -56,17 +175,7 @@ export function Modal({
   backdropClassName = "bg-black/20 dark:bg-black/40",
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  // Track whether the portal should remain in the DOM (stays true during exit animation)
-  const [shouldRender, setShouldRender] = useState(false);
-
-  // ── Client-only gate (createPortal needs a DOM target) ──────────────
-  useEffect(() => { setMounted(true); }, []);
-
-  // ── Keep portal alive until exit animation completes ────────────────
-  useEffect(() => {
-    if (isOpen) setShouldRender(true);
-  }, [isOpen]);
+  const isClient = useSyncExternalStore(subscribeToClient, () => true, () => false);
 
   // ── Open / close sound cues ─────────────────────────────────────────
   // `isOpen` transitions are our cue. Skipping the very first mount means
@@ -85,106 +194,24 @@ export function Modal({
     soundManager.play(isOpen ? 'modal-open' : 'modal-close');
   }, [isOpen]);
 
-  const handleExitComplete = useCallback(() => {
-    if (!isOpen) setShouldRender(false);
-  }, [isOpen]);
-
-  // ── Body scroll lock ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
-  }, [isOpen]);
-
-  // ── Escape key ──────────────────────────────────────────────────────
-  const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, handleEscape]);
-
-  // ── Focus trap ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isOpen) return;
-    const modal = modalRef.current;
-    if (!modal) return;
-
-    const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-    const handleTab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const focusable = Array.from(
-        modal.querySelectorAll<HTMLElement>(FOCUSABLE),
-      ).filter((el) => !el.hasAttribute('disabled'));
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleTab);
-    return () => document.removeEventListener('keydown', handleTab);
-  }, [isOpen]);
-
   // ── Render ──────────────────────────────────────────────────────────
-  if (!mounted || !shouldRender) return null;
+  if (!isClient) return null;
 
   return createPortal(
-    <AnimatePresence onExitComplete={handleExitComplete}>
+    <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Backdrop */}
-          <m.div
-            key="modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: ANIMATION_TOKENS.duration.normal }}
-            onClick={onClose}
-            className={cn("fixed inset-0", backdropClassName)}
-            style={{ zIndex: Z_INDEX.modal }}
-            aria-hidden="true"
-          />
-
-          {/* Scrollable viewport wrapper */}
-          <div
-            className="fixed inset-0 overflow-y-auto overscroll-contain"
-            onClick={onClose}
-            style={{ zIndex: Z_INDEX.modal }}
-          >
-            {/* Animated card — will-change-transform promotes to GPU layer */}
-            <m.div
-              ref={modalRef}
-              key="modal-card"
-              initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
-              animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
-              exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
-              transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-              className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
-              style={style}
-              role="dialog"
-              aria-modal="true"
-              aria-label={ariaLabel}
-              aria-labelledby={ariaLabelledBy}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {children}
-            </m.div>
-          </div>
-        </>
+        <ModalContent
+          key="modal-content"
+          modalRef={modalRef}
+          onClose={onClose}
+          className={className}
+          style={style}
+          ariaLabel={ariaLabel}
+          ariaLabelledBy={ariaLabelledBy}
+          backdropClassName={backdropClassName}
+        >
+          {children}
+        </ModalContent>
       )}
     </AnimatePresence>,
     document.body,

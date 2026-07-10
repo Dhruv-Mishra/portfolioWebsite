@@ -125,14 +125,6 @@ export default function TerminalDecryptBar({
   React.useEffect(() => {
     // Already completed in a previous mount — nothing to animate.
     if (completedBarIds.has(id)) {
-      setDone(true);
-      return;
-    }
-
-    if (typeof window === 'undefined') {
-      // SSR: skip animation, go straight to reveal on the first client paint.
-      completedBarIds.add(id);
-      setDone(true);
       return;
     }
 

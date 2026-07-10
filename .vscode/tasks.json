@@ -1,0 +1,20 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "QA: Vitest baseline",
+			"type": "shell",
+			"command": "rtk",
+			"args": [
+				"vitest",
+				"run"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/portfolio"
+			},
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

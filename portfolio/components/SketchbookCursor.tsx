@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { m, useMotionValue, useSpring } from 'framer-motion';
 import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { useTheme } from 'next-themes';
@@ -14,6 +14,9 @@ const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
 const CURSOR_TRANSFORM_DARK = { transform: 'translate(0, 0)' } as const;
 const CURSOR_TRANSFORM_LIGHT = { transform: 'translate(0, 0)' } as const;
 const MAX_TRAIL_DPR = 1.5;
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 function getTrailDpr(): number {
     return Math.min(window.devicePixelRatio || 1, MAX_TRAIL_DPR);
@@ -24,14 +27,14 @@ export default function SketchbookCursor() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const isHoveringLinkRef = useRef(false);
     const { resolvedTheme } = useTheme();
-    const [mounted, setMounted] = useState(false);
+    const mounted = useSyncExternalStore(
+        subscribeToHydration,
+        getClientHydrationSnapshot,
+        getServerHydrationSnapshot,
+    );
 
     // Use a ref to access the latest theme inside the animation loop without restarting it
     const themeRef = useRef(resolvedTheme);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     useEffect(() => {
         themeRef.current = resolvedTheme;

@@ -20,7 +20,7 @@
  * dynamic import fires — i.e., when the user has just earned superuser.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   useSuperuserUnlocked,
   useSuperuserRevealedAt,
@@ -33,59 +33,55 @@ type ToastComponent = ToastModule['default'];
 export default function SuperuserToastController(): React.ReactElement | null {
   const hasSuperuser = useSuperuserUnlocked();
   const revealedAt = useSuperuserRevealedAt();
-  const [earnedAt, setEarnedAt] = useState<number>(0);
 
-  // When superuser becomes true (including on subsequent sessions where the
-  // store hydrates from localStorage), read the earned timestamp once.
-  useEffect(() => {
-    if (!hasSuperuser) {
-      setEarnedAt(0);
-      return;
-    }
-    setEarnedAt(getSuperuserEarnedAtSync());
-  }, [hasSuperuser]);
+  if (!hasSuperuser) return null;
 
-  const shouldShow = hasSuperuser && earnedAt > 0 && earnedAt > revealedAt;
+  return <SuperuserToastSession revealedAt={revealedAt} />;
+}
+
+interface SuperuserToastSessionProps {
+  revealedAt: number;
+}
+
+function SuperuserToastSession({
+  revealedAt,
+}: SuperuserToastSessionProps): React.ReactElement | null {
+  const [reveal] = useState(() => {
+    const earnedAt = getSuperuserEarnedAtSync();
+    return {
+      earnedAt,
+      shouldShow: earnedAt > 0 && earnedAt > revealedAt,
+    };
+  });
+  const [dismissed, setDismissed] = useState(false);
 
   const [Toast, setToast] = useState<ToastComponent | null>(null);
-  const [shouldMount, setShouldMount] = useState<boolean>(false);
 
   // When we should show, dynamically import the heavy component. Keep the
   // chunk resolved across re-renders so if the user re-earns (post-reset)
   // in the same session, the toast shows instantly.
   useEffect(() => {
-    if (!shouldShow) {
-      setShouldMount(false);
-      return;
-    }
-    if (Toast) {
-      setShouldMount(true);
-      return;
-    }
+    if (!reveal.shouldShow || Toast) return;
     let cancelled = false;
     void import('./SuperuserToast').then((mod) => {
       if (cancelled) return;
       setToast(() => mod.default);
-      setShouldMount(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [shouldShow, Toast]);
+  }, [reveal.shouldShow, Toast]);
 
-  if (!shouldMount || !Toast || earnedAt <= 0) return null;
+  const handleDismissed = useCallback(() => {
+    setDismissed(true);
+  }, []);
+
+  if (!reveal.shouldShow || dismissed || !Toast) return null;
 
   return (
     <Toast
-      earnedAt={earnedAt}
-      onDismissed={() => {
-        // The toast itself has already written `superuserRevealedAt` — that
-        // triggers a revealedAt update via the store, which makes shouldShow
-        // false on the next render and unmounts the Toast. We just need a
-        // no-op here to satisfy the callback signature and let the exit
-        // animation complete cleanly.
-        setShouldMount(false);
-      }}
+      earnedAt={reveal.earnedAt}
+      onDismissed={handleDismissed}
     />
   );
 }

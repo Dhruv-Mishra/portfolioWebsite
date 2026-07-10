@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, Fragment, useEffect, useState, useCallback, useRef } from 'react';
+import { memo, useMemo, Fragment, useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -38,6 +38,9 @@ const PAPER_PIN_TRANSITION = {
 const BACKDROP_TRANSITION = { duration: ANIMATION_TOKENS.duration.normal };
 
 const SECTION_ORDER: KeybindingGroup[] = ['Navigate', 'Actions', 'Dismiss'];
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 // ── Chord display ──────────────────────────────────────────────────
 
@@ -115,18 +118,11 @@ interface ShortcutsOverlayProps {
 function ShortcutsOverlay({ isOpen, onClose }: ShortcutsOverlayProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [shouldRender, setShouldRender] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    if (isOpen) setShouldRender(true);
-  }, [isOpen]);
-
-  const handleExitComplete = useCallback(() => {
-    if (!isOpen) setShouldRender(false);
-  }, [isOpen]);
+  const isClient = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
 
   // Body scroll lock while open.
   useEffect(() => {
@@ -171,10 +167,10 @@ function ShortcutsOverlay({ isOpen, onClose }: ShortcutsOverlayProps) {
     return buckets;
   }, []);
 
-  if (!mounted || !shouldRender) return null;
+  if (!isClient) return null;
 
   return createPortal(
-    <AnimatePresence onExitComplete={handleExitComplete}>
+    <AnimatePresence>
       {isOpen && (
         <>
           {/* Backdrop */}

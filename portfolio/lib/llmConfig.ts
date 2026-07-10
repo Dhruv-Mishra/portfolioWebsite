@@ -8,14 +8,23 @@ export const LLM_MAIN_RESPONSE_TIMEOUT_MS = 40_000;
 const LLM_MAIN_RESPONSE_NETWORK_BUFFER_MS = 6_000;
 
 /** Server-side timeout (ms) per main LLM provider before aborting the fetch. */
-export const LLM_PROVIDER_TIMEOUT_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS;
+export const LLM_PROVIDER_TIMEOUT_MS = 28_000;
+
+/** Time reserved inside the main route deadline for an online fallback attempt. */
+export const LLM_PROVIDER_FALLBACK_RESERVE_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS - LLM_PROVIDER_TIMEOUT_MS;
 
 /** Client-side timeout (ms): abort the fetch to /api/chat after this duration. */
 export const LLM_CLIENT_TIMEOUT_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS + LLM_MAIN_RESPONSE_NETWORK_BUFFER_MS;
 
 // ── Secondary timeouts ───────────────────────────────────────────────
-/** Server-side timeout (ms) for suggestion LLM calls. Keep this shorter than main chat. */
-export const LLM_SUGGESTIONS_TIMEOUT_MS = 12_000;
+/** End-to-end suggestions route deadline, below the client's 8 second timeout. */
+export const LLM_SUGGESTIONS_TIMEOUT_MS = 7_000;
+
+/** Maximum time for the primary suggestions provider. */
+export const LLM_SUGGESTIONS_PROVIDER_TIMEOUT_MS = 4_500;
+
+/** Time reserved inside the suggestions deadline for an online fallback attempt. */
+export const LLM_SUGGESTIONS_FALLBACK_RESERVE_MS = LLM_SUGGESTIONS_TIMEOUT_MS - LLM_SUGGESTIONS_PROVIDER_TIMEOUT_MS;
 
 /** External API call timeout, e.g. joke API. */
 export const EXTERNAL_API_TIMEOUT_MS = 5_000;

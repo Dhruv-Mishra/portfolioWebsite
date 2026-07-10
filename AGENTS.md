@@ -9,12 +9,34 @@ Scope: the whole repository.
 - Read the nearest directory-level `AGENTS.md` before editing a file. More specific files override this one.
 - Keep public docs concise. Put operational detail in [portfolio/README.md](portfolio/README.md) or a focused docs file.
 
+## Agent Workflow
+
+- `Lead` (GPT-5.6 Sol, XHIGH intent) owns complex or ambiguous work and the final result.
+- `Builder` (GPT-5.6 Terra, HIGH intent) implements scoped changes end to end.
+- `Fastlane` (GPT-5.6 Luna, HIGH intent) handles bounded research, mechanical work, command output, and verification.
+- Use the fewest agents needed. Keep delegation one level deep by default, pass compact task packets, and serialize writers that share this checkout.
+- Agent files omit restrictive tool allowlists so VS Code supplies its current default tools dynamically. Actual execution remains subject to workspace trust, approval settings, tool availability, and organization policy.
+- Start from a concrete anchor, make focused edits, validate after the first substantive edit, and repair failures before widening scope.
+
+## Token Discipline
+
+- Prefer VS Code search/read/edit tools over terminal equivalents.
+- RTK's global Copilot hook rewrites supported terminal commands automatically, including subagent calls. Still write the `rtk` prefix explicitly so behavior degrades safely when hooks are unavailable.
+- Use specialized adapters when possible: `rtk git ...`, `rtk vitest run`, `rtk lint`, `rtk tsc`, `rtk playwright test`, `rtk rg`, and `rtk read`. Use `rtk npm run ...` when npm lifecycle scripts matter and `rtk test <command>` or `rtk err <command>` as fallbacks.
+- Use `rtk --ultra-compact` only for routine status/list output. Keep normal RTK output for diffs, diagnostics, failures, and anything where exact detail matters.
+- Use direct PowerShell cmdlets when RTK cannot wrap them.
+- Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
+- Do not duplicate project context in agent files. Read the nearest `AGENTS.md` and linked docs on demand.
+- Use subagents when context isolation or independent review is worth the handoff, not as a mandatory pipeline.
+- See [docs/agent-setup.md](docs/agent-setup.md) for model effort, tool, compression, and MCP setup notes.
+
 ## Commands
 
-- `npm run dev` starts the app from the root.
-- `npm run build` builds the app from the root.
-- `npm run lint` runs ESLint from the root.
-- `npm --prefix portfolio run test` runs the Vitest suite.
+- `rtk npm run dev` starts the app from the root.
+- `rtk npm run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
+- `rtk npm run lint` runs ESLint from the root.
+- `rtk npm run typecheck` runs TypeScript checks from the root.
+- From `portfolio/`, `rtk vitest run` runs the canonical suite. For targeted tests, use `rtk vitest run <file> -t "<name>"`.
 
 ## Deployment Facts
 

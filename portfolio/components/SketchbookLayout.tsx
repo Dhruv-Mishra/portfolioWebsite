@@ -52,14 +52,27 @@ const GRID_PATTERN_STYLE = {
 
 export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
     const [feedbackOpen, setFeedbackOpen] = useState(false);
+    const [feedbackLoaded, setFeedbackLoaded] = useState(false);
+    const [showMobileSoundToggle, setShowMobileSoundToggle] = useState(false);
 
     // Listen for 'open-feedback' custom event (from terminal command)
-    const openFeedback = useCallback(() => setFeedbackOpen(true), []);
+    const openFeedback = useCallback(() => {
+        setFeedbackLoaded(true);
+        setFeedbackOpen(true);
+    }, []);
     const closeFeedback = useCallback(() => setFeedbackOpen(false), []);
     useEffect(() => {
         window.addEventListener('open-feedback', openFeedback);
         return () => window.removeEventListener('open-feedback', openFeedback);
     }, [openFeedback]);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const syncVisibility = () => setShowMobileSoundToggle(mediaQuery.matches);
+        syncVisibility();
+        mediaQuery.addEventListener('change', syncVisibility);
+        return () => mediaQuery.removeEventListener('change', syncVisibility);
+    }, []);
 
     return (
         <div className="h-[100dvh] w-full max-w-full bg-paper transition-colors duration-500 relative flex overflow-hidden">
@@ -132,15 +145,13 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
 
                 <SocialSidebar onFeedbackClick={openFeedback} />
 
-                {/* Mobile-only floating sound toggle — stacks above the MiniChat FAB.
-                    Desktop uses the inline SoundToggleButton rendered in the bottom-left
-                    chrome above, so this mount renders nothing on md+ (the component
-                    itself gates on md:hidden). */}
-                <MobileSoundToggleFab />
+                {/* Gate before rendering the dynamic component so desktop visitors do
+                    not download or hydrate the mobile-only control. */}
+                {showMobileSoundToggle ? <MobileSoundToggleFab /> : null}
 
                 {/* Feedback icon (floating bottom-right) + modal */}
                 <FeedbackTabButton onClick={openFeedback} />
-                {feedbackOpen ? <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} /> : null}
+                {feedbackLoaded ? <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} /> : null}
             </div>
         </div>
     );

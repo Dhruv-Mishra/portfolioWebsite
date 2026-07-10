@@ -5,6 +5,7 @@
     "dev": "npm --prefix portfolio run dev",
     "build": "npm --prefix portfolio run build",
     "start": "npm --prefix portfolio run start",
-    "lint": "npm --prefix portfolio run lint"
+    "lint": "npm --prefix portfolio run lint",
+    "typecheck": "npm --prefix portfolio run typecheck"
   }
 }

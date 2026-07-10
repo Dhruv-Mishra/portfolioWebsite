@@ -59,7 +59,6 @@ on:
       - deployed/production
     paths-ignore:
       - 'README.md'
-      - 'CLAUDE.md'
       - 'AGENTS.md'
       - 'StagingDeploymentPrompt.md'
       - 'docs/**'
@@ -95,12 +94,31 @@ jobs:
     name: Guard production ref
     runs-on: ubuntu-latest
     timeout-minutes: 1
+    env:
+      PRODUCTION_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
+      PRODUCTION_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
 
     steps:
       - name: Require deployed/production for production deploys
         run: |
           if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
             echo "::error::Production deploys must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
+      - name: Preflight required production runtime secrets
+        shell: bash
+        run: |
+          missing=0
+          if [[ ! "${PRODUCTION_CHAT_HISTORY_SIGNING_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::PRODUCTION_CHAT_HISTORY_SIGNING_SECRET must be configured as exactly 64 hexadecimal characters"
+            missing=1
+          fi
+          if [[ ! "${PRODUCTION_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::PRODUCTION_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
+            missing=1
+          fi
+          if [ "$missing" = "1" ]; then
             exit 1
           fi
 
@@ -167,6 +185,10 @@ jobs:
         working-directory: portfolio
         run: npm run lint
 
+      - name: Typecheck
+        working-directory: portfolio
+        run: npm run typecheck
+
       - name: Test
         working-directory: portfolio
         run: npm test
@@ -179,6 +201,20 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
           BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
         run: npm run build -- --webpack
+
+      - name: Verify portable standalone artifact
+        working-directory: portfolio
+        run: |
+          if find .next/standalone -type d -name '.cache' -print -quit | grep -q .; then
+            echo "::error::Standalone output contains a traced local cache directory"
+            find .next/standalone -type d -name '.cache' -print
+            exit 1
+          fi
+          if find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print -quit | grep -q .; then
+            echo "::error::Standalone output contains a platform-specific native binary"
+            find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print
+            exit 1
+          fi
 
       - name: Assemble standalone bundle
         working-directory: portfolio
@@ -605,6 +641,8 @@ jobs:
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
+          RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -614,7 +652,7 @@ jobs:
           # print the deploy log, then exit with the captured status.
           script_stop: false
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN
+          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET
           script: |
             set -euo pipefail
 
@@ -627,6 +665,8 @@ jobs:
             DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
             DOCKER_CONFIG_DIR=""
+            RUNTIME_ENV_TEMP=""
+            RUNTIME_ENV_REMOTE_TEMP=""
 
             # Cleanup trap — always remove staging, and remove tarball on success.
             # (On failure, keep tarball at /tmp for forensics; it'll age out
@@ -636,6 +676,12 @@ jobs:
               sudo rm -rf "$STAGING" 2>/dev/null || true
               if [ -n "$DOCKER_CONFIG_DIR" ]; then
                 sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
+              if [ -n "$RUNTIME_ENV_TEMP" ]; then
+                rm -f "$RUNTIME_ENV_TEMP" 2>/dev/null || true
+              fi
+              if [ -n "$RUNTIME_ENV_REMOTE_TEMP" ]; then
+                sudo rm -f "$RUNTIME_ENV_REMOTE_TEMP" 2>/dev/null || true
               fi
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
@@ -654,6 +700,58 @@ jobs:
               fi
             fi
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            sync_runtime_secrets() {
+              local site_conf="/etc/deploy/sites/${SITE}.conf"
+              local env_file="/opt/${SITE}/config/.env.local"
+              local source_env="$env_file"
+              local project_root
+              local legacy_env
+              local env_uid
+              local env_gid
+
+              if [ "$SITE" != "portfolio" ]; then
+                echo "Refusing to synchronize production secrets for unexpected site: $SITE"
+                exit 1
+              fi
+              if [[ ! "${RUNTIME_CHAT_HISTORY_SIGNING_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+                echo "Production chat-history signing secret is missing or malformed"
+                exit 1
+              fi
+              if [[ ! "${RUNTIME_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+                echo "Production Matrix Notes access secret is missing or malformed"
+                exit 1
+              fi
+
+              if ! sudo test -f "$source_env"; then
+                project_root="$(sudo awk -F= '$1 == "PROJECT_ROOT" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$site_conf")"
+                legacy_env="${project_root:-/home/ubuntu/portfolioWebsite/portfolio}/.env.local"
+                if ! sudo test -f "$legacy_env"; then
+                  echo "Production runtime env file is missing: $env_file (or legacy $legacy_env)"
+                  exit 1
+                fi
+                source_env="$legacy_env"
+                sudo install -d -m 750 "$(dirname "$env_file")"
+              fi
+
+              RUNTIME_ENV_TEMP="$(mktemp)"
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET"' \
+                "$source_env" > "$RUNTIME_ENV_TEMP"
+              printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
+              printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
+
+              env_uid="$(sudo stat -c '%u' "$source_env")"
+              env_gid="$(sudo stat -c '%g' "$source_env")"
+              RUNTIME_ENV_REMOTE_TEMP="${env_file}.next.${SHA}.$$"
+              sudo install -m 600 -o "$env_uid" -g "$env_gid" "$RUNTIME_ENV_TEMP" "$RUNTIME_ENV_REMOTE_TEMP"
+              sudo mv -f "$RUNTIME_ENV_REMOTE_TEMP" "$env_file"
+              RUNTIME_ENV_REMOTE_TEMP=""
+              rm -f "$RUNTIME_ENV_TEMP"
+              RUNTIME_ENV_TEMP=""
+              echo "Synchronized production runtime secrets from GitHub Actions"
+            }
+
+            sync_runtime_secrets
 
             # Optional pass-throughs. Currently only skip_nginx is exposed as
             # a workflow input — the other legacy flags (skip_git/deps/build,

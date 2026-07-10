@@ -61,6 +61,7 @@ The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, 
 - `deployed/staging` is the staging deployment branch; direct pushes deploy to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
 - `deployed/production` is the production deployment branch; direct pushes deploy to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
 - Manual promotion workflows move `dev/lkg` to `deployed/staging`, then `deployed/staging` to `deployed/production`.
+- Staging and production runtime signing secrets are stored as distinct repository-level Actions secrets and synchronized to every VM during deployment. Complete the one-time setup in [stepstofollow.md](stepstofollow.md).
 - Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
 
 ## For Agents

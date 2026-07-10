@@ -1,6 +1,6 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
-import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';
+import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -9,6 +9,7 @@ import { sanitizeMarkdown } from '@/lib/markdownEscape';
 export const runtime = 'nodejs';
 
 const feedbackRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.feedback, maxTrackedIPs: 200, cleanupInterval: 30 });
+const MAX_FEEDBACK_BODY_BYTES = 8_000;
 
 // ─── Validation ─────────────────────────────────────────────────────────
 const VALID_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
@@ -33,9 +34,6 @@ interface FeedbackBody {
   message: string;
   contact?: string;
   page?: string;
-  theme?: string;
-  viewport?: string;
-  userAgent?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -54,17 +52,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let body: FeedbackBody;
+    try {
+      body = await readBoundedJson<FeedbackBody>(request, MAX_FEEDBACK_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof BoundedJsonError) {
+        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
+      }
+      throw error;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
     const token = process.env.GITHUB_FEEDBACK_TOKEN;
     const repo = process.env.GITHUB_FEEDBACK_REPO;
 
     if (!token || !repo) {
       console.error('Missing GITHUB_FEEDBACK_TOKEN or GITHUB_FEEDBACK_REPO env vars');
       return Response.json({ error: 'Feedback service is not configured' }, { status: 500 });
-    }
-
-    const body: FeedbackBody = await request.json().catch(() => null) as FeedbackBody;
-    if (!body || typeof body !== 'object') {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     // Validate category
@@ -84,19 +90,10 @@ export async function POST(request: NextRequest) {
 
     const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
     const page = sanitizeMarkdown(String(body.page || 'Unknown'));
-    const theme = sanitizeMarkdown(String(body.theme || 'Unknown'));
-    const viewport = sanitizeMarkdown(String(body.viewport || 'Unknown'));
-    const userAgent = sanitizeMarkdown(String(body.userAgent || 'Unknown'));
 
     const metadataLines = [
-      `**Category:** ${TITLE_PREFIX[body.category]}`,
       ...(contact ? [`**Contact:** ${contact}`] : []),
       `**Page:** ${page}`,
-      `**Theme:** ${theme}`,
-      `**Viewport:** ${viewport}`,
-      `**User Agent:** ${userAgent}`,
-      `**Submitted:** ${new Date().toISOString()}`,
-      `**IP (hashed):** ${hashIP(ip)}`,
     ];
 
     const issueBody = [
@@ -166,14 +163,4 @@ export async function POST(request: NextRequest) {
     console.error('Feedback API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-/** Privacy-preserving IP hash — SHA-256 with a server-side salt so the
- * resulting digest cannot be reversed via a precomputed IPv4 rainbow table.
- * Salt comes from `IP_HASH_SALT` env when set; otherwise falls back to a
- * hard-coded constant. TODO: provision a unique `IP_HASH_SALT` per
- * deployment so digests are not portable across environments. */
-function hashIP(ip: string): string {
-  const salt = process.env.IP_HASH_SALT ?? 'sketchbook-default-ip-salt-v1';
-  return createHash('sha256').update(salt).update(':').update(ip).digest('hex').slice(0, 16);
 }

@@ -45,9 +45,12 @@ export default function StickerDrawerPage() {
     if (!hasEscaped) return;
     // The `markAlbumSeen()` in the mount effect below will flush; fire the
     // glow only on the first mount after hasEscaped becomes true.
-    setEscapeGlow(true);
-    const t = window.setTimeout(() => setEscapeGlow(false), 2600);
-    return () => window.clearTimeout(t);
+    const showTimer = window.setTimeout(() => setEscapeGlow(true), 0);
+    const hideTimer = window.setTimeout(() => setEscapeGlow(false), 2600);
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
   }, [hasEscaped]);
 
   // Mark album seen on mount so the glance badge stops pulsing.
@@ -93,7 +96,7 @@ export default function StickerDrawerPage() {
   }, [hasSuperuser]);
 
   return (
-    <main className="min-h-[100dvh] pt-12 md:pt-16 pb-16 px-4 md:px-8 relative z-10">
+    <div className="min-h-[100dvh] pt-12 md:pt-16 pb-16 px-4 md:px-8 relative z-10">
       <div className="max-w-6xl mx-auto">
         {/* ─── Header ─── */}
         <header className="text-center mb-6 md:mb-8">
@@ -153,7 +156,7 @@ export default function StickerDrawerPage() {
           ))}
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 

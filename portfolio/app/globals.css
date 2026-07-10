@@ -840,13 +840,12 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   50%      { transform: translateY(-3px) rotate(1.5deg); }
 }
 
-/* Reduce-motion: disable the reveal-side motion (glow pulse, medal float,
-   confetti is controlled by JS). Persistent shimmer stays — it's part of
-   the premium treatment and not a motion-cue the user would lose
-   information from silencing. */
+/* Reduce-motion: disable persistent decorative movement. Confetti is
+   controlled separately by JavaScript. */
 @media (prefers-reduced-motion: reduce) {
   .superuser-banner__glow { animation: none; }
   .superuser-banner__medal { animation: none; }
+  .superuser-banner__card::after { animation: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

@@ -3,9 +3,9 @@
 /**
  * MatrixNotesWall — the wall body shown to unlocked users on `/matrix-notes`.
  *
- * Lazy-loaded by `MatrixNotesGate` only after the localStorage unlock check
- * succeeds. Fetches approved entries + filler notes from
- * `/api/matrix-notes` (which merges them server-side) and renders a
+ * Rendered only after the server page verifies the signed access cookie.
+ * Fetches approved entries + filler notes from `/api/matrix-notes`, which
+ * independently verifies the same cookie, and renders a
  * matrix-themed list of note cards plus a submission form.
  *
  * Visual identity: emerald-on-charcoal glyph-rain theme, distinct from the
@@ -37,31 +37,36 @@ type LoadState =
   | { status: 'ready'; entries: GuestbookEntry[] }
   | { status: 'error'; message: string };
 
+type VersionedLoadState = LoadState & { version: number };
+
 /**
  * Small helper — stable date formatting via the existing relative-or-short
  * helper used by the guestbook. `suppressHydrationWarning` is applied at the
- * element level because server HTML here is just the 404 shell; there is no
- * hydration mismatch to guard against, but it's cheap belt-and-suspenders.
+ * element level because relative dates can cross a minute boundary between
+ * server render and hydration.
  */
 function useFetchNotes(version: number): LoadState {
-  const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [state, setState] = useState<VersionedLoadState>({
+    status: 'loading',
+    version,
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: 'loading' });
     fetch('/api/matrix-notes', { credentials: 'same-origin' })
       .then(async (res) => {
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = (await res.json()) as Partial<ListResponse>;
         if (cancelled) return;
         const entries = Array.isArray(data.entries) ? data.entries : [];
-        setState({ status: 'ready', entries });
+        setState({ status: 'ready', entries, version });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         setState({
           status: 'error',
           message: err instanceof Error ? err.message : 'Unknown error',
+          version,
         });
       });
     return () => {
@@ -69,7 +74,7 @@ function useFetchNotes(version: number): LoadState {
     };
   }, [version]);
 
-  return state;
+  return state.version === version ? state : { status: 'loading' };
 }
 
 export default function MatrixNotesWall(): React.ReactElement {

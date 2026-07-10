@@ -9,6 +9,23 @@ type ModalHarnessProps = Omit<React.ComponentProps<typeof Modal>, 'children'> & 
 
 const ModalHarness = Modal as React.ComponentType<ModalHarnessProps>;
 
+function DismissibleModalHarness({ onDismiss }: { onDismiss: () => void }) {
+  const [isOpen, setIsOpen] = React.useState(true);
+
+  return React.createElement(
+    ModalHarness,
+    {
+      isOpen,
+      onClose: () => {
+        onDismiss();
+        setIsOpen(false);
+      },
+      ariaLabel: 'Dismissible dialog',
+    },
+    React.createElement('button', null, 'Close'),
+  );
+}
+
 vi.mock('react-dom', () => ({
   createPortal: (children: React.ReactNode) => children,
 }));
@@ -121,6 +138,50 @@ afterEach(() => {
 });
 
 describe('Modal focus lifecycle', () => {
+  it('dismisses and unmounts on Escape before restoring opener focus', async () => {
+    const documentMock = new FakeDocument();
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: documentMock });
+    Object.defineProperty(globalThis, 'HTMLElement', { configurable: true, value: FakeElement });
+
+    const opener = new FakeElement(documentMock, 'opener');
+    const closeControl = new FakeElement(documentMock, 'close');
+    const modalNode = new FakeModalElement(documentMock, [closeControl]);
+    const onDismiss = vi.fn();
+    documentMock.activeElement = opener;
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        React.createElement(DismissibleModalHarness, { onDismiss }),
+        {
+          createNodeMock: (element) => (
+            (element.props as { role?: string }).role === 'dialog' ? modalNode : null
+          ),
+        },
+      );
+    });
+
+    const renderedDialogs = () => renderer.root.findAll(
+      (node) => node.type === 'div' && node.props.role === 'dialog',
+    );
+
+    expect(renderedDialogs()).toHaveLength(1);
+    expect(documentMock.activeElement).toBe(closeControl);
+    expect(documentMock.body.style.overflow).toBe('hidden');
+
+    await act(async () => {
+      documentMock.dispatchKey('Escape');
+    });
+
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(renderedDialogs()).toHaveLength(0);
+    expect(documentMock.activeElement).toBe(opener);
+    expect(opener.focusCount).toBe(1);
+    expect(documentMock.body.style.overflow).toBe('');
+
+    await act(async () => renderer.unmount());
+  });
+
   it('preserves focus across parent rerenders while using the latest close callback', async () => {
     const documentMock = new FakeDocument();
     Object.defineProperty(globalThis, 'document', { configurable: true, value: documentMock });

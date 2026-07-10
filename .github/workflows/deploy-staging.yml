@@ -21,7 +21,6 @@ on:
       - deployed/staging
     paths-ignore:
       - "README.md"
-      - "CLAUDE.md"
       - "AGENTS.md"
       - "StagingDeploymentPrompt.md"
       - "docs/**"

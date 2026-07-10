@@ -4,13 +4,14 @@
 		{
 			"label": "QA: Vitest baseline",
 			"type": "shell",
-			"command": "npm",
+			"command": "rtk",
 			"args": [
-				"--prefix",
-				"portfolio",
-				"run",
-				"test"
+				"vitest",
+				"run"
 			],
+			"options": {
+				"cwd": "${workspaceFolder}/portfolio"
+			},
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"

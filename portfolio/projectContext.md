@@ -29,6 +29,13 @@ Do not treat these as disposable docs:
 - `app/*.md` route directories serve public markdown content such as `about.md`, `projects.md`, and `llms.txt` variants.
 - `lib/facts.embeddings.json` is committed so deploys can reuse embeddings when no API key is configured.
 
+## Chat Retrieval
+
+1. Markdown facts under `content/facts/**/*.md` define the retrieval corpus and frontmatter metadata.
+2. `scripts/build-embeddings.ts` builds and commits `lib/facts.embeddings.json` for static bundling and credential-free deploy fallback.
+3. `lib/factRetrieval.server.ts` embeds queries, ranks facts in memory, and degrades to priority-ordered anchors if embeddings are unavailable.
+4. `lib/chatContext.server.ts` assembles the stable identity, style, and grounding prompt blocks, adding off-topic, UI-action, or terminal guidance only when the latest message requires it.
+
 ## Deployment Summary
 
 - Staging: `deployed/staging`, `staging.whoisdhruv.com`, Docker image deploys, `portfolio-staging`, port `3010`.

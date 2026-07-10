@@ -17,5 +17,5 @@ Scope: shared utilities, server logic, integrations, command registries, retriev
 
 ## Validation
 
-- Run `npm test` from this directory for logic changes.
-- Run `npm run lint` if imports, types, or route-connected code changed.
+- Run `rtk vitest run` from the app directory for logic changes.
+- Run `rtk lint` if imports, types, or route-connected code changed.

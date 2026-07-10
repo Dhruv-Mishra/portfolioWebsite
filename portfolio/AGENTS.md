@@ -11,11 +11,12 @@ Scope: the Next.js application under this directory.
 
 ## Commands
 
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm test`
-- `npm run test:watch`
+- `rtk npm run dev`
+- `rtk npm run build`
+- `rtk lint`
+- `rtk tsc --noEmit --pretty false`
+- `rtk vitest run`
+- `rtk npm run test:watch`
 
 ## Runtime Content
 
@@ -25,6 +26,6 @@ Scope: the Next.js application under this directory.
 
 ## Validation
 
-- Run `npm run lint` for app code changes.
-- Run `npm test` for logic, API, retrieval, command, or agent/test guidance changes.
-- Use `SKIP_EMBEDDINGS_BUILD=1 npm run build` when validating deploy builds without embedding credentials.
+- Run `rtk lint` for app code changes.
+- Run `rtk vitest run` for logic, API, retrieval, command, or agent/test guidance changes.
+- Use `$env:SKIP_EMBEDDINGS_BUILD='1'; rtk npm run build` when validating deploy builds without embedding credentials on PowerShell.

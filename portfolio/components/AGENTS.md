@@ -17,5 +17,5 @@ Scope: React UI components.
 
 ## Validation
 
-- Run `npm run lint` for component changes.
+- Run `rtk lint` for component changes.
 - Add or update tests only when behavior is shared, stateful, or likely to regress.

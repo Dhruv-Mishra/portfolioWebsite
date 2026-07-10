@@ -87,3 +87,16 @@ scripts/          embeddings and deployment helpers
 - Assistant response playback uses the streaming `/api/tts` path and caches completed spoken text/options in IndexedDB with per-message associations. Clearing chat clears the generated-audio cache too.
 - Speech-safe text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
 - For production nginx, disable buffering on `/api/tts` just like `/api/chat`: `proxy_buffering off; proxy_cache off; proxy_read_timeout 120s;`.
+
+## AI And Retrieval Configuration
+
+| Variable | Purpose |
+|---|---|
+| `GROQ_API_KEY`, `GROQ_MODEL` | Primary chat provider and optional model override |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | OpenAI-compatible fallback provider |
+| `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` | Secondary fallback provider |
+| `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
+| `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |
+| `SKIP_EMBEDDINGS_BUILD=1` | Reuse committed `lib/facts.embeddings.json` |
+
+When no embeddings key is configured and local mode is off, builds reuse the committed embeddings bundle. Public client configuration such as `NEXT_PUBLIC_SITE_URL`, analytics toggles, and analytics IDs must remain safe to expose; provider credentials are server-only.

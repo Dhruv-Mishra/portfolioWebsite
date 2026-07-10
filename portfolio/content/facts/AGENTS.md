@@ -12,5 +12,5 @@ Scope: markdown facts used by chat retrieval and embeddings.
 ## Embeddings
 
 - `lib/facts.embeddings.json` is generated from this corpus and committed for deploy fallback.
-- Run `npm run build:embeddings` when intentionally changing semantic retrieval data and credentials/local mode are available.
+- Run `rtk npm run build:embeddings` when intentionally changing semantic retrieval data and credentials/local mode are available.
 - If credentials are unavailable, set `SKIP_EMBEDDINGS_BUILD=1` for unrelated builds.

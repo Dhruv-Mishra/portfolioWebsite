@@ -2237,3 +2237,25 @@ html:not([data-pref-tape="on"]) [data-tape-strip] {
 html:not([data-pref-sketch="on"]) .sticker-card {
   border-style: solid;
 }
+
+@layer utilities {
+  html[data-motion="reduced"] :where(
+    .animate-hero-title,
+    .animate-hero-subtitle,
+    .animate-hero-badge,
+    .animate-nav-tab,
+    .animate-social-link,
+    .animate-page-sheet,
+    .animate-page-template-in,
+    .animate-theme-icon,
+    .animate-wall-note-in,
+    .sticker-card,
+    [data-sticker-toast],
+    [data-superuser-toast],
+    [data-disco-motion],
+    [data-disco-bounce]
+  ) {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}

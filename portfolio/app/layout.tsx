@@ -63,6 +63,8 @@ const STRUCTURED_DATA_LD = JSON.stringify({
   ]
 });
 
+const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.motionPreference==='reduced'?e.dataset.motion='reduced':delete e.dataset.motion;}catch{const e=document.documentElement;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';delete e.dataset.motion;}})();`;
+
 /**
  * Viewport config — explicit so iOS Safari (a) respects `width=device-width`
  * (preventing the auto-zoom that `<pre>` + ASCII-frame content used to
@@ -157,6 +159,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: SITE_PREFS_BOOTSTRAP }} />
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
         {/*

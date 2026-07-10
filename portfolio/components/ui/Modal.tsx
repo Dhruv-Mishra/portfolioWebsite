@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence, usePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -49,8 +49,15 @@ function ModalContent({
   modalRef,
 }: ModalContentProps) {
   const openerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const [isPresent, safeToRemove] = usePresence();
   const removeFromPresence = useEffectEvent(() => safeToRemove?.());
+
+  const requestClose = useCallback(() => onCloseRef.current(), []);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (isPresent) return;
@@ -78,7 +85,7 @@ function ModalContent({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        requestClose();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -107,7 +114,7 @@ function ModalContent({
       document.body.style.overflow = originalOverflow;
       openerRef.current?.focus();
     };
-  }, [modalRef, onClose]);
+  }, [modalRef, requestClose]);
 
   return (
     <>
@@ -117,7 +124,7 @@ function ModalContent({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: ANIMATION_TOKENS.duration.normal }}
-        onClick={onClose}
+        onClick={requestClose}
         className={cn("fixed inset-0", backdropClassName)}
         style={{ zIndex: Z_INDEX.modal }}
         aria-hidden="true"
@@ -125,7 +132,7 @@ function ModalContent({
 
       <div
         className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
-        onClick={onClose}
+        onClick={requestClose}
         style={{ zIndex: Z_INDEX.modal }}
       >
         <div

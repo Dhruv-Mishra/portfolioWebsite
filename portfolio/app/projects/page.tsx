@@ -156,6 +156,7 @@ export default function Projects() {
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
+                                data-tape-strip
                                 className="absolute -top-4 w-32 h-10 shadow-sm z-20"
                                 style={styles.tape}
                             />

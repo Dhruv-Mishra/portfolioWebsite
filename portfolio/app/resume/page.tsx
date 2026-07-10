@@ -16,13 +16,13 @@ export default function ResumePage() {
                 }}
             >
                 {/* Tape - Top Left */}
-                <div className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Top Right */}
-                <div className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Bottom Center */}
-                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 <div className="w-full h-full bg-white relative z-10 overflow-hidden">
                     <div className="w-full h-full relative">

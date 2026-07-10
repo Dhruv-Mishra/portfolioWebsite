@@ -118,6 +118,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 <div className="relative pt-5">
                     {/* Tape decoration — lives in the top padding, outside the clip path */}
                     <div
+                        data-tape-strip
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-10 shadow-sm z-20"
                         style={TAPE_STYLE_DECOR}
                     />

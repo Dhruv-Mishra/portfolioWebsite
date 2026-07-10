@@ -88,7 +88,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleClick}
-            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
             title={social.name}
             aria-label={social.name}
             style={{ animationDelay: `${0.5 + ((index || 0) * 0.1)}s` }}
@@ -112,7 +112,7 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
             onClick={onPress}
             className={isMobile
                 ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)] text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
-                : "animate-social-link relative flex h-11 w-11 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
+                : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
             title="Settings"
             aria-label="Open settings"
         >
@@ -204,7 +204,8 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {/* Desktop: Vertical sidebar on right */}
             <div
                 data-social-sidebar
-                className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 flex-col gap-6"
+                data-social-sidebar-layout="desktop"
+                className="hidden md:flex fixed right-4 md:right-8 flex-col gap-6"
                 role="complementary"
                 aria-label="Social media links"
                 style={{ zIndex: Z_INDEX.sidebar }}
@@ -213,6 +214,21 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                     <SocialLink key={social.name} social={social} index={i} onPress={externalLink} />
                 ))}
                 <SettingsLink onPress={openPanel} />
+                {onFeedbackClick && (
+                    <button
+                        type="button"
+                        data-social-feedback-short
+                        onClick={() => {
+                            openPanel();
+                            onFeedbackClick();
+                        }}
+                        className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-purple-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                        title="Send feedback"
+                        aria-label="Open feedback form"
+                    >
+                        <MessageSquare size={24} strokeWidth={2.5} className="md:h-7 md:w-7" />
+                    </button>
+                )}
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
@@ -222,6 +238,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {!hideMobileBar && (
             <div
                 data-social-sidebar
+                data-social-sidebar-layout="mobile"
                 className="md:hidden fixed -translate-x-1/2 grid grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
                 role="complementary"
                 aria-label="Social media links"

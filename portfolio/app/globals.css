@@ -477,16 +477,96 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
-  /* Per-navigation page fade. Replaces a previous framer-motion template so
-     the motion runtime is no longer on the critical path of every navigation.
+    /* Per-navigation page transition. The short opacity fallback stays safe
+      while capable browsers progressively enhance it to a paper turn.
      Pure opacity \u2014 no transform \u2014 so it cannot trigger CLS. */
   .animate-page-template-in {
-    animation: pageTemplateIn 0.2s ease-out both;
+    position: relative;
+    animation: pageTemplateFadeIn 140ms ease-out both;
   }
 
-  @keyframes pageTemplateIn {
-    from { opacity: 0; }
+  @keyframes pageTemplateFadeIn {
+    from { opacity: 0.82; }
     to { opacity: 1; }
+  }
+
+  @supports (transform: perspective(1px) rotateY(1deg)) {
+    .animate-page-template-in {
+      --page-turn-angle: -3deg;
+      --page-turn-duration: 300ms;
+      --page-turn-perspective: 72rem;
+      animation: pageTemplateTurnIn var(--page-turn-duration) cubic-bezier(0.22, 0.75, 0.2, 1);
+      transform-origin: left center;
+      backface-visibility: hidden;
+    }
+
+    .animate-page-template-in::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--c-ink) 18%, transparent),
+        color-mix(in srgb, var(--c-paper) 42%, transparent) 7%,
+        transparent 24%,
+        transparent 78%,
+        color-mix(in srgb, var(--c-paper) 24%, transparent) 91%,
+        color-mix(in srgb, var(--c-ink) 7%, transparent)
+      );
+      animation: pageTemplateShadeIn var(--page-turn-duration) ease-out;
+    }
+
+    @keyframes pageTemplateTurnIn {
+      from {
+        opacity: 0.76;
+        transform: perspective(var(--page-turn-perspective)) rotateY(var(--page-turn-angle));
+      }
+
+      to {
+        opacity: 1;
+        transform: perspective(var(--page-turn-perspective)) rotateY(0deg);
+      }
+    }
+
+    @keyframes pageTemplateShadeIn {
+      from { opacity: 0.9; }
+      to { opacity: 0; }
+    }
+
+    @media (min-width: 768px) {
+      .animate-page-template-in {
+        --page-turn-angle: -7deg;
+        --page-turn-duration: 400ms;
+        --page-turn-perspective: 90rem;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-page-template-in {
+      animation: none !important;
+      opacity: 1;
+      transform: none;
+    }
+
+    .animate-page-template-in::after {
+      content: none;
+      animation: none;
+    }
+  }
+
+  html[data-motion="reduced"] .animate-page-template-in {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  html[data-motion="reduced"] .animate-page-template-in::after {
+    content: none;
+    animation: none;
   }
 
 }

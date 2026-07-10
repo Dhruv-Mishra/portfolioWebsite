@@ -15,6 +15,8 @@ interface MicButtonProps {
   isLoading?: boolean;
   /** True while Whisper is post-processing the captured audio. */
   isTranscribing?: boolean;
+  /** True while the browser permission prompt is pending. */
+  isRequestingPermission?: boolean;
   /** First-load model download progress (0-1), shown while `isLoading`. */
   loadProgress?: number;
 }
@@ -37,18 +39,21 @@ export function MicButton({
   title,
   isLoading = false,
   isTranscribing = false,
+  isRequestingPermission = false,
   loadProgress = 0,
 }: MicButtonProps) {
-  const busy = isLoading || isTranscribing;
+  const busy = isLoading || isTranscribing || isRequestingPermission;
 
   const computedTitle = title ?? (
     isTranscribing ? 'Transcribing your audio…' :
+    isRequestingPermission ? 'Waiting for microphone permission…' :
     isLoading ? `Loading voice model… ${Math.round(loadProgress * 100)}%` :
     isListening ? 'Tap to stop' :
     'Tap to dictate'
   );
   const ariaLabel =
     isTranscribing ? 'Transcribing audio' :
+    isRequestingPermission ? 'Waiting for microphone permission' :
     isLoading ? 'Loading voice model' :
     isListening ? 'Stop voice input' :
     'Start voice input';
@@ -58,7 +63,7 @@ export function MicButton({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled || isTranscribing}
+      disabled={disabled || isTranscribing || isRequestingPermission}
       aria-label={ariaLabel}
       aria-pressed={isListening}
       aria-busy={busy || undefined}
@@ -72,7 +77,7 @@ export function MicButton({
           : busy
             ? 'text-[var(--c-ink)]/70 bg-[var(--c-ink)]/5'
             : 'text-[var(--c-ink)]/60 hover:text-[var(--c-ink)] hover:bg-[var(--c-ink)]/5',
-        (disabled || isTranscribing) && 'opacity-60 cursor-not-allowed',
+        (disabled || isTranscribing || isRequestingPermission) && 'opacity-60 cursor-not-allowed',
         className,
       )}
     >

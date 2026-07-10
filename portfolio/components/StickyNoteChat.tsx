@@ -1128,6 +1128,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   isListening={speech.isListening}
                   isLoading={speech.isLoading}
                   isTranscribing={speech.isTranscribing}
+                  isRequestingPermission={speech.isRequestingPermission}
                   loadProgress={speech.loadProgress}
                   onClick={handleMicToggle}
                   disabled={isLoading}

@@ -356,6 +356,7 @@ export default function GuestbookForm() {
                   isListening={speech.isListening}
                   isLoading={speech.isLoading}
                   isTranscribing={speech.isTranscribing}
+                  isRequestingPermission={speech.isRequestingPermission}
                   loadProgress={speech.loadProgress}
                   onClick={handleMicToggle}
                   disabled={isDisabled}

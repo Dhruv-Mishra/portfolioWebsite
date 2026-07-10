@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  formatMicrophoneError,
+  getMicrophonePermissionState,
+  microphoneAccessContext,
+} from '@/lib/microphoneAccess';
 
 // Minimal Web Speech API typings — vendor-prefixed and not in lib.dom for all targets.
 interface SpeechRecognitionAlternative { transcript: string; confidence: number }
@@ -40,6 +45,7 @@ export interface UseSpeechRecognitionOptions {
 export interface UseSpeechRecognitionResult {
   isSupported: boolean;
   isListening: boolean;
+  isRequestingPermission: boolean;
   transcript: string;
   interimTranscript: string;
   error: string | null;
@@ -61,6 +67,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     () => false,
   );
   const [isListening, setIsListening] = useState(false);
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +77,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   const finalRef = useRef('');
   const lastInterimRef = useRef('');
   const manualStopRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const clearSilenceTimer = useCallback(() => {
     if (silenceTimerRef.current) {
@@ -96,9 +104,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
       setError('Speech recognition is not supported in this browser.');
       return;
     }
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort(); } catch { /* no-op */ }
-    }
+    if (recognitionRef.current) return;
 
     setError(null);
     finalRef.current = '';
@@ -106,6 +112,8 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     setTranscript('');
     setInterimTranscript('');
     manualStopRef.current = false;
+    const requestId = ++requestIdRef.current;
+    setIsRequestingPermission(true);
 
     const rec = new Ctor();
     rec.lang = lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US');
@@ -113,15 +121,32 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     rec.interimResults = true;
     rec.maxAlternatives = 1;
 
-    rec.onstart = () => { setIsListening(true); armSilenceTimer(); };
+    rec.onstart = () => {
+      if (recognitionRef.current !== rec) return;
+      setIsRequestingPermission(false);
+      setIsListening(true);
+      armSilenceTimer();
+    };
     rec.onerror = (ev) => {
+      if (recognitionRef.current !== rec) return;
+      setIsRequestingPermission(false);
       // 'no-speech' / 'aborted' are benign; surface others.
       if (ev.error && ev.error !== 'no-speech' && ev.error !== 'aborted') {
-        setError(ev.error);
+        const recognitionError = { error: ev.error, message: ev.message };
+        setError(formatMicrophoneError(recognitionError, microphoneAccessContext()));
+        void getMicrophonePermissionState().then((permissionState) => {
+          if (requestIdRef.current !== requestId) return;
+          setError(formatMicrophoneError(
+            recognitionError,
+            microphoneAccessContext(permissionState),
+          ));
+        });
       }
     };
     rec.onend = () => {
+      if (recognitionRef.current !== rec) return;
       clearSilenceTimer();
+      setIsRequestingPermission(false);
       const fallbackTranscript = finalRef.current || (manualStopRef.current ? lastInterimRef.current.trim() : '');
       if (fallbackTranscript) setTranscript(fallbackTranscript);
       setIsListening(false);
@@ -129,6 +154,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
       recognitionRef.current = null;
     };
     rec.onresult = (ev) => {
+      if (recognitionRef.current !== rec) return;
       let interim = '';
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const result = ev.results[i];
@@ -148,25 +174,49 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     recognitionRef.current = rec;
     try { rec.start(); }
     catch (err) {
-      setError(err instanceof Error ? err.message : 'failed to start');
+      setIsRequestingPermission(false);
+      setError(formatMicrophoneError(err, microphoneAccessContext()));
+      void getMicrophonePermissionState().then((permissionState) => {
+        if (requestIdRef.current !== requestId) return;
+        setError(formatMicrophoneError(err, microphoneAccessContext(permissionState)));
+      });
       recognitionRef.current = null;
       setIsListening(false);
     }
   }, [lang, armSilenceTimer, clearSilenceTimer]);
 
   const reset = useCallback(() => {
+    requestIdRef.current += 1;
+    clearSilenceTimer();
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    try { recognition?.abort(); } catch { /* no-op */ }
     finalRef.current = '';
+    lastInterimRef.current = '';
+    setIsListening(false);
+    setIsRequestingPermission(false);
     setTranscript('');
     setInterimTranscript('');
     setError(null);
-  }, []);
+  }, [clearSilenceTimer]);
 
   // Cleanup on unmount.
   useEffect(() => () => {
+    requestIdRef.current += 1;
     clearSilenceTimer();
     try { recognitionRef.current?.abort(); } catch { /* no-op */ }
     recognitionRef.current = null;
   }, [clearSilenceTimer]);
 
-  return { isSupported, isListening, transcript, interimTranscript, error, start, stop, reset };
+  return {
+    isSupported,
+    isListening,
+    isRequestingPermission,
+    transcript,
+    interimTranscript,
+    error,
+    start,
+    stop,
+    reset,
+  };
 }

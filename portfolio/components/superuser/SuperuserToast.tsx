@@ -29,7 +29,7 @@
  *   - role="alert" + aria-live="assertive" for immediate SR announcement.
  *   - Focusable close button.
  *   - ESC handler.
- *   - Respect prefers-reduced-motion for entrance scale; shimmer stays on.
+ *   - Respect reduced motion for entrance scale and persistent shimmer.
  */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';

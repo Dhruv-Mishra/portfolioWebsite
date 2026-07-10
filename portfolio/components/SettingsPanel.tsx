@@ -171,7 +171,7 @@ function SettingToggle({
 
 function BuildChannelStatus({ info }: { info: BuildChannelInfo | null }) {
   if (!info) {
-    return <p className="font-hand text-base text-[var(--c-ink)]/55">Checking build...</p>;
+    return <p className="flex min-h-11 items-center font-hand text-base text-[var(--c-ink)]/55">Checking build...</p>;
   }
 
   const label = {

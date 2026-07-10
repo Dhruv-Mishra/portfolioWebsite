@@ -29,8 +29,8 @@ interface SuperuserBannerProps {
 /**
  * Detect `prefers-reduced-motion: reduce`. Only used to gate the quiet
  * entrance (fade + small slide up). The persistent shimmer on the card is
- * controlled entirely by CSS and always runs — it's a premium treatment
- * rather than a motion cue.
+ * controlled entirely by CSS, which suppresses it for both reduced-motion
+ * paths.
  */
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);

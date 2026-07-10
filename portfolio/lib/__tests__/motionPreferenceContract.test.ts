@@ -40,7 +40,7 @@ describe('motion preference contract', () => {
     expect(reducedContract).toContain('[data-social-sidebar] > *');
     expect(reducedContract).toMatch(/animation:\s*none\s*!important/);
     expect(reducedContract).toMatch(/opacity:\s*1\s*!important/);
-    expect(reducedContract).toContain('transform: translateY(-25px) !important');
+    expect(reducedContract).not.toMatch(/\.animate-nav-tab\s*\{\s*transform:/);
     expect(reducedContract).not.toContain('terminal-auth-shake');
   });
 

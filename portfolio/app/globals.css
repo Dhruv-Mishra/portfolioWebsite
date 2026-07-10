@@ -812,8 +812,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 /* Diagonal light streak — same idiom as the old sticker-card shimmer but
    larger, slower, and with a higher-contrast peak. Part of the premium
-   feel; does NOT respect reduce-motion (persistent shimmer is a property
-   of the card, not a motion animation the user would find distracting). */
+  feel; both reduced-motion paths suppress the persistent shimmer. */
 .superuser-banner__card::after {
   content: "";
   position: absolute;
@@ -2385,7 +2384,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
 
     .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
     .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
-    .animate-nav-tab { transform: translateY(-25px) !important; }
     .animate-social-link,
     .animate-page-sheet { transform: translateY(0) !important; }
     .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
@@ -2455,7 +2453,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
 
   html[data-motion="reduced"] .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
   html[data-motion="reduced"] .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
-  html[data-motion="reduced"] .animate-nav-tab { transform: translateY(-25px) !important; }
   html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
   html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
   html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }

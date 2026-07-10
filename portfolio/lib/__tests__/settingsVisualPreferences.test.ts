@@ -33,9 +33,10 @@ describe('settings visual preference contracts', () => {
     expect(eagerEnhancements).toContain('<ExperimentalFeaturesController />');
   });
 
-  it('persists and removes the staging handoff after hydration', () => {
+  it('reconciles cross-origin handoffs before preference-driven redirects', () => {
     const controller = readSource('components/ExperimentalFeaturesController.tsx');
-    expect(controller).toContain("setSitePref('experimentalFeatures', true)");
+    expect(controller).toContain('reconcileExperimentalFeatures');
+    expect(controller).toContain("setSitePref('experimentalFeatures', enabled)");
     expect(controller).toContain('window.history.replaceState');
   });
 });

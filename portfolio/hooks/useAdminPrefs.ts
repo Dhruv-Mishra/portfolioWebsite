@@ -122,12 +122,13 @@ function readFromStorage(): AdminPrefs {
   }
 }
 
-function writeToStorage(next: AdminPrefs): void {
-  if (typeof window === 'undefined') return;
+function writeToStorage(next: AdminPrefs): boolean {
+  if (typeof window === 'undefined') return false;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    return true;
   } catch {
-    /* ignore */
+    return false;
   }
 }
 
@@ -183,13 +184,14 @@ function getSnapshot(): AdminPrefs {
 export function setAdminPref<K extends keyof Omit<AdminPrefs, 'version'>>(
   key: K,
   value: AdminPrefs[K],
-): void {
+): boolean {
   initOnce();
-  if (state[key] === value) return;
+  if (state[key] === value) return writeToStorage(state);
   const next: AdminPrefs = { ...state, [key]: value };
   state = next;
-  writeToStorage(next);
+  const persisted = writeToStorage(next);
   emit();
+  return persisted;
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

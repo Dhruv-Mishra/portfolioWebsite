@@ -38,39 +38,33 @@ function toSitePrefs(prefs: AdminPrefs): SitePrefs {
 export function setSitePref<K extends SitePrefKey>(
   key: K,
   value: SitePrefs[K],
-): void;
+): boolean;
 export function setSitePref(
   key: SitePrefKey,
   value: SitePrefs[SitePrefKey],
-): void {
+): boolean {
   if (key === 'motionPreference') {
     if (value === 'system' || value === 'reduced' || value === 'full') {
-      setAdminPref('motionPreference', value);
+      return setAdminPref('motionPreference', value);
     }
-    return;
+    return false;
   }
-  if (typeof value !== 'boolean') return;
+  if (typeof value !== 'boolean') return false;
   switch (key) {
     case 'paperGrain':
-      setAdminPref('paperGrain', value);
-      return;
+      return setAdminPref('paperGrain', value);
     case 'tapeEffects':
-      setAdminPref('tapeEffects', value);
-      return;
+      return setAdminPref('tapeEffects', value);
     case 'sketchOutlines':
-      setAdminPref('sketchOutlines', value);
-      return;
+      return setAdminPref('sketchOutlines', value);
     case 'experimentalFeatures':
-      setAdminPref('experimentalFeatures', value);
-      return;
+      return setAdminPref('experimentalFeatures', value);
     case 'stickersEnabled':
-      setAdminPref('stickersEnabled', value);
-      return;
+      return setAdminPref('stickersEnabled', value);
     case 'stickerToastsEnabled':
-      setAdminPref('stickerToastsEnabled', value);
-      return;
+      return setAdminPref('stickerToastsEnabled', value);
     case 'hapticsEnabled':
-      setAdminPref('hapticsEnabled', value);
+      return setAdminPref('hapticsEnabled', value);
   }
 }
 

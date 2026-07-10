@@ -142,8 +142,30 @@ describe('site preference migration and facade', () => {
     });
     const site = await import('@/hooks/useSitePrefs');
 
-    expect(() => site.setSitePref('experimentalFeatures', true)).not.toThrow();
+    expect(site.setSitePref('experimentalFeatures', true)).toBe(false);
     expect(site.getSitePrefsSnapshot().experimentalFeatures).toBe(true);
+  });
+
+  it('retries a same-value write after storage becomes available', async () => {
+    let storageAvailable = false;
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => null,
+        setItem: (key: string, value: string) => {
+          if (!storageAvailable) throw new DOMException('Storage unavailable');
+          storage.setItem(key, value);
+        },
+      },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+
+    expect(site.setSitePref('experimentalFeatures', true)).toBe(false);
+    storageAvailable = true;
+    expect(site.setSitePref('experimentalFeatures', true)).toBe(true);
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({
+      experimentalFeatures: true,
+    });
   });
 
   it('persists and applies the full-motion override', async () => {

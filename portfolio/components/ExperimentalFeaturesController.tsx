@@ -1,28 +1,31 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { setSitePref, useSitePrefs } from '@/hooks/useSitePrefs';
 import {
-  getExperimentalFeaturesHandoff,
-  redirectToExperimentalFeatures,
+  readExperimentalFeaturesHistoryState,
+  reconcileExperimentalFeatures,
 } from '@/lib/experimentalFeatures';
 
 export default function ExperimentalFeaturesController(): null {
   const { experimentalFeatures } = useSitePrefs();
+  const returnRecoveryHandled = useRef(false);
 
   useEffect(() => {
-    const cleanPath = getExperimentalFeaturesHandoff(window.location);
-    if (cleanPath) {
-      setSitePref('experimentalFeatures', true);
-      window.history.replaceState(window.history.state, '', cleanPath);
-      return;
+    const result = reconcileExperimentalFeatures({
+      enabled: experimentalFeatures,
+      location: window.location,
+      historyState: readExperimentalFeaturesHistoryState(window.history),
+      returnRecoveryHandled: returnRecoveryHandled.current,
+      setEnabled: (enabled) => setSitePref('experimentalFeatures', enabled),
+      replaceHistory: (state, cleanPath) => {
+        window.history.replaceState(state, '', cleanPath);
+      },
+      navigate: (destination) => window.location.assign(destination),
+    });
+    if (result === 'return-handoff' || result === 'return-recovery') {
+      returnRecoveryHandled.current = true;
     }
-
-    redirectToExperimentalFeatures(
-      experimentalFeatures,
-      window.location,
-      (destination) => window.location.assign(destination),
-    );
   }, [experimentalFeatures]);
 
   return null;

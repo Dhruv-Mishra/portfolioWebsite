@@ -26,7 +26,10 @@ import {
   type ThemeSelection,
 } from '@/lib/themeToggleAction';
 import { classifyBuildChannel, type BuildChannelInfo } from '@/lib/buildChannel';
-import { getExperimentalToggleIntent } from '@/lib/experimentalFeatures';
+import {
+  getExperimentalFeaturesReturnUrl,
+  getExperimentalToggleIntent,
+} from '@/lib/experimentalFeatures';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
@@ -174,7 +177,13 @@ function SettingToggle({
   );
 }
 
-function BuildChannelStatus({ info }: { info: BuildChannelInfo | null }) {
+function BuildChannelStatus({
+  info,
+  destinationUrl,
+}: {
+  info: BuildChannelInfo | null;
+  destinationUrl: string | null;
+}) {
   if (!info) {
     return <p className="flex min-h-11 items-center font-hand text-base text-[var(--c-ink)]/55">Checking build...</p>;
   }
@@ -192,9 +201,9 @@ function BuildChannelStatus({ info }: { info: BuildChannelInfo | null }) {
         <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden />
         {label}
       </p>
-      {info.destinationUrl ? (
+      {destinationUrl ? (
         <a
-          href={info.destinationUrl}
+          href={destinationUrl}
           className="inline-flex min-h-11 items-center rounded-sm px-2 text-base font-bold text-blue-700 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 dark:text-blue-300"
         >
           {info.channel === 'production' ? 'Open staging' : 'Return to production'}
@@ -223,6 +232,9 @@ export default function SettingsPanel() {
     getServerHostnameSnapshot,
   );
   const buildInfo = mounted ? classifyBuildChannel(hostname) : null;
+  const buildDestinationUrl = mounted && buildInfo?.channel === 'staging'
+    ? getExperimentalFeaturesReturnUrl(window.location)
+    : buildInfo?.destinationUrl ?? null;
 
   const setBooleanPref = (key: SitePrefKey, checked: boolean) => {
     if (key === 'motionPreference') return;
@@ -373,7 +385,7 @@ export default function SettingsPanel() {
         </SettingsGroup>
 
         <SettingsGroup title="Build channel" icon={GitBranch}>
-          <BuildChannelStatus info={buildInfo} />
+          <BuildChannelStatus info={buildInfo} destinationUrl={buildDestinationUrl} />
         </SettingsGroup>
       </div>
 

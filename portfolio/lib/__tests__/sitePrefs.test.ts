@@ -49,7 +49,7 @@ describe('site preference migration and facade', () => {
     const prefs = internal.getAdminPrefsSnapshot();
 
     expect(prefs).toMatchObject({
-      version: 3,
+      version: 4,
       paperGrain: false,
       tapeEffects: true,
       experimentalCommands: true,
@@ -114,5 +114,24 @@ describe('site preference migration and facade', () => {
       motion: 'reduced',
     });
     expect(dataset).not.toHaveProperty('prefExperimental');
+  });
+
+  it('persists and applies the full-motion override', async () => {
+    const dataset: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { documentElement: { dataset } },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    site.setSitePref('motionPreference', 'full');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({
+      version: 4,
+      motionPreference: 'full',
+    });
+    expect(dataset.motion).toBe('full');
   });
 });

@@ -19,11 +19,16 @@ export function ThemeProvider({
     ...props
 }: React.ComponentProps<typeof NextThemesProvider>) {
     const { motionPreference } = useSitePrefs();
+    const reducedMotion = motionPreference === "reduced"
+        ? "always"
+        : motionPreference === "full"
+            ? "never"
+            : "user";
 
     return (
         <NextThemesProvider {...props}>
             <LazyMotion features={loadDomAnimationFeatures} strict>
-                <MotionConfig reducedMotion={motionPreference === "reduced" ? "always" : "user"}>
+                <MotionConfig reducedMotion={reducedMotion}>
                     {children}
                 </MotionConfig>
             </LazyMotion>

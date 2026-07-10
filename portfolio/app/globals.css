@@ -492,12 +492,13 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
   @supports (transform: perspective(1px) rotateY(1deg)) {
     .animate-page-template-in {
-      --page-turn-angle: -3deg;
-      --page-turn-duration: 300ms;
-      --page-turn-perspective: 72rem;
+      --page-turn-angle: -38deg;
+      --page-turn-duration: 420ms;
+      --page-turn-perspective: 78rem;
       animation: pageTemplateTurnIn var(--page-turn-duration) cubic-bezier(0.22, 0.75, 0.2, 1);
       transform-origin: left center;
       backface-visibility: hidden;
+      transform-style: preserve-3d;
     }
 
     .animate-page-template-in::after {
@@ -521,13 +522,18 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
     @keyframes pageTemplateTurnIn {
       from {
-        opacity: 0.76;
-        transform: perspective(var(--page-turn-perspective)) rotateY(var(--page-turn-angle));
+        opacity: 0.42;
+        transform: perspective(var(--page-turn-perspective)) translateX(-2%) rotateY(var(--page-turn-angle));
+      }
+
+      72% {
+        opacity: 1;
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(1.5deg);
       }
 
       to {
         opacity: 1;
-        transform: perspective(var(--page-turn-perspective)) rotateY(0deg);
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
       }
     }
 
@@ -538,21 +544,21 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
     @media (min-width: 768px) {
       .animate-page-template-in {
-        --page-turn-angle: -7deg;
-        --page-turn-duration: 400ms;
-        --page-turn-perspective: 90rem;
+        --page-turn-angle: -58deg;
+        --page-turn-duration: 520ms;
+        --page-turn-perspective: 100rem;
       }
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .animate-page-template-in {
+    html:not([data-motion="full"]) .animate-page-template-in {
       animation: none !important;
       opacity: 1;
       transform: none;
     }
 
-    .animate-page-template-in::after {
+    html:not([data-motion="full"]) .animate-page-template-in::after {
       content: none;
       animation: none;
     }
@@ -660,8 +666,8 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   animation: listening-ellipsis 1.2s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .animate-listening-bar,
-  .animate-listening-ellipsis { animation: none; }
+  html:not([data-motion="full"]) .animate-listening-bar,
+  html:not([data-motion="full"]) .animate-listening-ellipsis { animation: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -922,9 +928,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 /* Reduce-motion: disable persistent decorative movement. Confetti is
    controlled separately by JavaScript. */
 @media (prefers-reduced-motion: reduce) {
-  .superuser-banner__glow { animation: none; }
-  .superuser-banner__medal { animation: none; }
-  .superuser-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__glow { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__medal { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__card::after { animation: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1093,9 +1099,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .escape-banner__glow { animation: none; }
-  .escape-banner__medal { animation: none; }
-  .escape-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__glow { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__medal { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__card::after { animation: none; }
 }
 
 /* Matrix note card entrance — used on /matrix-notes. Kept separate from
@@ -1110,11 +1116,19 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     transform: translateY(0) scale(1);
   }
 }
+@keyframes matrix-note-reduced-in {
+  from { opacity: 0; transform: none; }
+  to   { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  @keyframes matrix-note-in {
-    from { opacity: 0; transform: none; }
-    to   { opacity: 1; transform: none; }
+  html:not([data-motion="full"]) [data-matrix-note] {
+    animation-name: matrix-note-reduced-in !important;
   }
+}
+
+html[data-motion="reduced"] [data-matrix-note] {
+  animation-name: matrix-note-reduced-in !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -2011,7 +2025,7 @@ html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-de
 /* Legacy shimmer guard. The shared contract at the end of this file now
   settles every decorative disco loop for both motion preference paths. */
 @media (prefers-reduced-motion: reduce) {
-  .sticker-card--superuser::after {
+  html:not([data-motion="full"]) .sticker-card--superuser::after {
     animation: none;
     opacity: 0;
   }
@@ -2042,7 +2056,7 @@ html[data-sudo-rainbow="on"] a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-sudo-rainbow="on"] a {
+  html:not([data-motion="full"])[data-sudo-rainbow="on"] a {
     animation: none;
     text-decoration-color: #a855f7;
   }
@@ -2150,7 +2164,7 @@ html[data-sudo-rainbow="on"] a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .terminal-decrypt-bar__label::after {
+  html:not([data-motion="full"]) .terminal-decrypt-bar__label::after {
     animation: none;
     opacity: 0.8;
   }
@@ -2321,10 +2335,10 @@ html:not([data-pref-sketch="on"]) .sticker-card {
    final visual state. Puzzle/auth timing is intentionally outside this list. */
 @layer utilities {
   @media (prefers-reduced-motion: reduce) {
-    html[data-disco="on"] body,
-    html[data-disco="on"] body::before,
-    html[data-disco="on"] body::after,
-    html[data-disco="on"] :where(
+    html:not([data-motion="full"])[data-disco="on"] body,
+    html:not([data-motion="full"])[data-disco="on"] body::before,
+    html:not([data-motion="full"])[data-disco="on"] body::after,
+    html:not([data-motion="full"])[data-disco="on"] :where(
       nav[aria-label="Main navigation"] > a > div,
       .group\/card,
       article.animate-wall-note-in > div,
@@ -2349,7 +2363,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       transition-duration: 0.01ms !important;
     }
 
-    :where(
+    html:not([data-motion="full"]) :where(
       .animate-hero-title,
       .animate-hero-subtitle,
       .animate-hero-badge,
@@ -2378,16 +2392,16 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       transition-duration: 0.01ms !important;
     }
 
-    :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
       opacity: 1 !important;
     }
 
-    .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
-    .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
-    .animate-social-link,
-    .animate-page-sheet { transform: translateY(0) !important; }
-    .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
-    .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+    html:not([data-motion="full"]) .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
+    html:not([data-motion="full"]) .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+    html:not([data-motion="full"]) .animate-social-link,
+    html:not([data-motion="full"]) .animate-page-sheet { transform: translateY(0) !important; }
+    html:not([data-motion="full"]) .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
+    html:not([data-motion="full"]) .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
   }
 
   html[data-motion="reduced"][data-disco="on"] body,

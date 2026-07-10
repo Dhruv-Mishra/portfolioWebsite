@@ -42,6 +42,7 @@ const THEME_OPTIONS: ReadonlyArray<{ value: ThemeSelection; label: string }> = [
 const MOTION_OPTIONS = [
   { value: 'system', label: 'Follow device' },
   { value: 'reduced', label: 'Reduce motion' },
+  { value: 'full', label: 'Always animate' },
 ] as const;
 
 const VOICE_OPTIONS: ReadonlyArray<{ value: VoiceBackendPref; label: string }> = [
@@ -290,6 +291,9 @@ export default function SettingsPanel() {
             options={MOTION_OPTIONS}
             onChange={(motionPreference) => setPref('motionPreference', motionPreference)}
           />
+          <p className="font-hand text-sm text-[var(--c-ink)]/55">
+            Always animate overrides your device&apos;s reduced-motion preference.
+          </p>
         </SettingsGroup>
 
         <SettingsGroup title="Stickers" icon={Sticker}>

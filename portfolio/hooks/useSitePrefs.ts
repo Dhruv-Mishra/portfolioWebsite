@@ -42,7 +42,7 @@ export function setSitePref(
   value: SitePrefs[SitePrefKey],
 ): void {
   if (key === 'motionPreference') {
-    if (value === 'system' || value === 'reduced') {
+    if (value === 'system' || value === 'reduced' || value === 'full') {
       setAdminPref('motionPreference', value);
     }
     return;

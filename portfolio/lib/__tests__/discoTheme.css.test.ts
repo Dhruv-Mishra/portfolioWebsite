@@ -120,7 +120,8 @@ describe('globals.css disco theme', () => {
     expect(reducedContract).toContain('@media (prefers-reduced-motion: reduce)');
     expect(reducedContract).toContain('html[data-motion="reduced"][data-disco="on"]');
     expect(reducedContract).toContain('[data-disco-motion]');
-    expect(reducedContract).toContain('html[data-disco="on"] body');
+    expect(reducedContract).toContain('[data-disco="on"] body');
+    expect(reducedContract).toContain('html:not([data-motion="full"])');
     expect(reducedContract).toContain('.bg-binding-bg');
     expect(reducedContract).toContain('h1');
     expect(reducedContract).toMatch(/animation:\s*none\s*!important/);

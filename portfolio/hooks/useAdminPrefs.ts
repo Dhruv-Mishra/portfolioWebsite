@@ -31,9 +31,9 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'dhruv-admin-prefs';
-const STORAGE_VERSION = 3 as const;
+const STORAGE_VERSION = 4 as const;
 
-export type MotionPreference = 'system' | 'reduced';
+export type MotionPreference = 'system' | 'reduced' | 'full';
 
 export interface AdminPrefs {
   version: typeof STORAGE_VERSION;
@@ -54,7 +54,7 @@ export interface AdminPrefs {
   stickerToastsEnabled: boolean;
   /** Whether supported touch/pen interactions may emit haptics. */
   hapticsEnabled: boolean;
-  /** `system` follows the OS; `reduced` always reduces nonessential motion. */
+  /** `system` follows the OS; `reduced` always reduces; `full` overrides the OS. */
   motionPreference: MotionPreference;
 }
 
@@ -99,7 +99,10 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
       stickersEnabled: booleanField(parsed, 'stickersEnabled', true),
       stickerToastsEnabled: booleanField(parsed, 'stickerToastsEnabled', false),
       hapticsEnabled: booleanField(parsed, 'hapticsEnabled', true),
-      motionPreference: parsed.motionPreference === 'reduced' ? 'reduced' : 'system',
+      motionPreference:
+        parsed.motionPreference === 'reduced' || parsed.motionPreference === 'full'
+          ? parsed.motionPreference
+          : 'system',
     };
   } catch {
     return defaultPrefs();
@@ -229,8 +232,11 @@ export function applyPrefsToDocument(prefs: AdminPrefs): void {
   else delete root.dataset.prefTape;
   if (prefs.sketchOutlines) root.dataset.prefSketch = 'on';
   else delete root.dataset.prefSketch;
-  if (prefs.motionPreference === 'reduced') root.dataset.motion = 'reduced';
-  else delete root.dataset.motion;
+  if (prefs.motionPreference === 'reduced' || prefs.motionPreference === 'full') {
+    root.dataset.motion = prefs.motionPreference;
+  } else {
+    delete root.dataset.motion;
+  }
 }
 
 /**

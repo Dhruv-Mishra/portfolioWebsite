@@ -44,8 +44,8 @@ import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designToken
  *   - Right edge matches MiniChat (`right-4`).
  */
 const FAB_POSITION_STYLE = {
-  right: '1rem',
-  bottom: 'calc(env(safe-area-inset-bottom, 0px) + 9.5rem)',
+  right: 'max(1rem, env(safe-area-inset-right, 0px))',
+  bottom: 'var(--c-mobile-floating-upper-bottom)',
   transform: 'rotate(-2deg)',
 } as const;
 

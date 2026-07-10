@@ -14,7 +14,7 @@ export const TapeStrip = memo(function TapeStrip({ size = 'sm', className }: Tap
     <div
       data-tape-strip
       className={cn(
-        "absolute left-1/2 -translate-x-1/2 shadow-sm z-20",
+        "pointer-events-none absolute left-1/2 -translate-x-1/2 shadow-sm z-20",
         size === 'sm'
           ? "-top-2 w-16 md:w-24 h-5 md:h-6"
           : "-top-3 w-24 md:w-32 h-7 md:h-9",

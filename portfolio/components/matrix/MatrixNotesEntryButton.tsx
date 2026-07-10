@@ -42,7 +42,7 @@ export default function MatrixNotesEntryButton(): React.ReactElement | null {
       href="/matrix-notes"
       aria-label="Open matrix notes — the secret post-escape wall"
       title="Matrix notes"
-      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] right-4 md:right-6 inline-flex items-center gap-2 min-h-[44px] min-w-[44px] px-3 md:px-4 rounded-full border border-emerald-400/60 bg-black/60 backdrop-blur-[2px] font-code text-[11px] md:text-xs tracking-[0.2em] uppercase text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-[box-shadow,transform,background-color] duration-200 hover:bg-black/75 hover:shadow-[0_0_26px_rgba(16,185,129,0.55)] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 pointer-events-auto"
+      className="fixed bottom-[var(--c-mobile-floating-bottom)] left-[calc(var(--c-binding-w)+max(1rem,env(safe-area-inset-left,0px)))] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1rem)] md:left-auto md:right-6 inline-flex items-center gap-2 min-h-[44px] min-w-[44px] px-3 md:px-4 rounded-full border border-emerald-400/60 bg-black/60 backdrop-blur-[2px] font-code text-[11px] md:text-xs tracking-[0.2em] uppercase text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.35)] transition-[box-shadow,transform,background-color] duration-200 hover:bg-black/75 hover:shadow-[0_0_26px_rgba(16,185,129,0.55)] hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 pointer-events-auto"
       style={{ zIndex: Z_INDEX.nav }}
       prefetch={false}
       data-clickable

@@ -65,6 +65,10 @@
     --c-pill-w: 5px;
     --c-modal-top: 8vh;
     --c-modal-top-md: 12vh;
+    --c-mobile-dock-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+    --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
+    --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 8.25rem);
+    --c-mobile-floating-upper-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);

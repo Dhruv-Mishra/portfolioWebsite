@@ -36,6 +36,7 @@ export default function PageTurnSurface({ children }: { children: React.ReactNod
       key={pathname}
       className={cn(
         'page-turn-surface h-full min-h-full min-w-0 isolate',
+        !pathname.startsWith('/chat') && 'pb-[var(--c-mobile-dock-clearance)] md:pb-0',
         activeTransition && 'animate-page-template-in',
       )}
       data-page-turn-direction={activeTransition?.direction}

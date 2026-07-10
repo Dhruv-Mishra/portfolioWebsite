@@ -265,7 +265,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
             {/* Close button */}
             <button
               onClick={handleClose}
-              className="absolute top-1 right-1 z-30 rounded-full p-3 text-rose-600/70 hover:bg-rose-50/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200 hover:scale-110 hover:rotate-6"
+              className="absolute top-1 right-1 z-30 flex h-11 w-11 items-center justify-center rounded-full text-rose-600/70 hover:bg-rose-50/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200 hover:scale-110 hover:rotate-6"
               aria-label="Close feedback note"
             >
               <X size={18} strokeWidth={2.4} />
@@ -296,7 +296,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                   <WavyUnderline />
 
                   {/* Category tabs */}
-                  <div className="flex justify-center gap-2 mt-3 mb-3" role="tablist" aria-label="Feedback category">
+                  <div className="mt-3 mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="Feedback category">
                     {CATEGORIES.map((cat) => {
                       const active = category === cat.id;
                       return (
@@ -308,7 +308,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           animate={{ scale: active ? 1.08 : 1 }}
                           transition={CATEGORY_TAB_SPRING}
                           className={cn(
-                            "px-4 py-2 rounded-full border-2 font-hand font-bold text-sm min-h-[44px]",
+                            "min-h-11 min-w-0 px-3 py-2 rounded-full border-2 font-hand font-bold text-sm",
                             cat.classes,
                             active
                               ? "shadow-md opacity-100 border-[var(--c-grid)]/50"
@@ -394,7 +394,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                           whileTap={{ scale: 0.92 }}
                           onClick={handleClearDraft}
                           className={cn(
-                            "flex items-center gap-1 px-2.5 py-1.5 rounded-md",
+                            "flex min-h-11 items-center gap-1 px-2.5 py-1.5 rounded-md",
                             "border-2 border-dashed border-[var(--c-grid)]/40",
                             "text-[var(--c-ink)] opacity-50 hover:opacity-80",
                             "font-hand text-sm transition-opacity",
@@ -411,7 +411,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                         onClick={handleSubmit}
                         disabled={!message.trim() || state === 'submitting'}
                         className={cn(
-                          "flex items-center gap-1.5 px-4 py-1.5 rounded-md",
+                          "flex min-h-11 items-center gap-1.5 px-4 py-1.5 rounded-md",
                           "bg-[var(--c-ink)] text-[var(--c-paper)]",
                           "font-hand font-bold text-sm",
                           "shadow-sm transition-opacity",

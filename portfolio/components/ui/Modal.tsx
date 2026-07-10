@@ -124,29 +124,38 @@ function ModalContent({
       />
 
       <div
-        className="fixed inset-0 overflow-y-auto overscroll-contain"
+        className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
         onClick={onClose}
         style={{ zIndex: Z_INDEX.modal }}
       >
-        <m.div
-          ref={modalRef}
-          key="modal-card"
-          initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
-          animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
-          exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
-          transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-          className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
-          style={style}
-          role="dialog"
-          aria-modal="true"
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          aria-describedby={ariaDescribedBy}
-          tabIndex={-1}
-          onClick={(event) => event.stopPropagation()}
+        <div
+          className="flow-root min-h-full"
+          style={{
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
         >
-          {children}
-        </m.div>
+          <m.div
+            ref={modalRef}
+            key="modal-card"
+            initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
+            animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
+            exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
+            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
+            className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
+            style={style}
+            role="dialog"
+            aria-modal="true"
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
+            aria-describedby={ariaDescribedBy}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {children}
+          </m.div>
+        </div>
       </div>
     </>
   );

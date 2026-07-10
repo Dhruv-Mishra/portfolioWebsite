@@ -84,7 +84,7 @@ export default function ShortcutsHint() {
           animate={MOTION_ANIMATE}
           exit={MOTION_EXIT}
           transition={MOTION_TRANSITION}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 pointer-events-none select-none"
+          className="hidden md:block fixed bottom-6 left-1/2 -translate-x-1/2 pointer-events-none select-none"
           style={CONTAINER_STYLE}
         >
           <button

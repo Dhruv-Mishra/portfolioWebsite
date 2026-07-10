@@ -6,12 +6,11 @@ export const revalidate = 3600;
 
 export default function ResumePage() {
     return (
-        <div className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+        <div className="h-full min-h-[24rem] px-1 py-2 sm:px-4 md:min-h-[36rem] md:px-12 md:py-8 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <div
-                className="animate-page-sheet relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+                className="animate-page-sheet relative h-full min-h-[22rem] w-full max-w-5xl bg-white p-[1px] shadow-2xl md:min-h-[32rem]"
                 style={{
-                    height: '92dvh',
                     transform: 'rotate(-1deg)',
                     boxShadow: SHADOW_TOKENS.resume
                 }}

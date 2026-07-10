@@ -222,10 +222,15 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {!hideMobileBar && (
             <div
                 data-social-sidebar
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex max-w-[calc(100vw-var(--c-binding-w)-1rem)] items-center gap-0.5 overflow-x-auto rounded-full border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] px-1 py-1 shadow-md scrollbar-hidden sm:gap-1 sm:px-2 sm:py-1.5"
+                className="md:hidden fixed -translate-x-1/2 grid grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
                 role="complementary"
                 aria-label="Social media links"
-                style={{ zIndex: Z_INDEX.sidebar }}
+                style={{
+                    zIndex: Z_INDEX.sidebar,
+                    bottom: 'var(--c-mobile-dock-bottom)',
+                    left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
+                    maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
+                }}
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />

@@ -54,6 +54,8 @@ Staging image deploys publish both `linux/amd64` and `linux/arm64` images becaus
 
 Promotion is branch-based: run `Promote dev/lkg to Staging` to fast-forward `deployed/staging`, then run `Promote Staging to Production` to fast-forward `deployed/production`. The promotion workflows use `GITHUB_TOKEN` and explicitly dispatch the matching deploy workflow so they do not double-trigger deploys. Direct human pushes to either deployed branch still trigger the matching deploy workflow. Use `Rollback Portfolio Production` to restore the newest previous retained production release, or provide a retained release SHA.
 
+Runtime signing values use four repository-level Actions secrets: `STAGING_CHAT_HISTORY_SIGNING_SECRET`, `STAGING_MATRIX_NOTES_ACCESS_SECRET`, `PRODUCTION_CHAT_HISTORY_SIGNING_SECRET`, and `PRODUCTION_MATRIX_NOTES_ACCESS_SECRET`. Each deploy validates 64-character hexadecimal values and atomically synchronizes the appropriate pair into every VM's persisted service env file before restart. See [../stepstofollow.md](../stepstofollow.md) for the one-time setup; routine promotions require no manual VM secret updates.
+
 ## Structure
 
 ```text
@@ -71,8 +73,8 @@ scripts/          embeddings and deployment helpers
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
 - Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
-- Production requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
-- Production requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
+- Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
+- Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
 - `npm run build` triggers embeddings generation unless skipped via env.
 - Local TTS lives at `/api/tts` and runs KittenTTS nano 0.1 through a lazy server-side Python worker. GET is status-only; POST is the only synthesis path. Install Python deps with `pip install -r requirements-tts.txt`, and install native eSpeak NG for phonemization.

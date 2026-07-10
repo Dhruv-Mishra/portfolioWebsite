@@ -57,8 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     env:
-      CHAT_HISTORY_SIGNING_SECRET: ${{ secrets['CHAT_HISTORY_SIGNING_SECRET'] }}
-      MATRIX_NOTES_ACCESS_SECRET: ${{ secrets['MATRIX_NOTES_ACCESS_SECRET'] }}
+      STAGING_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
+      STAGING_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
 
     steps:
       - name: Require experimental branch for staging deploys
@@ -72,12 +72,12 @@ jobs:
         shell: bash
         run: |
           missing=0
-          if [ -z "${CHAT_HISTORY_SIGNING_SECRET:-}" ]; then
-            echo "::error::Required staging secret CHAT_HISTORY_SIGNING_SECRET is not configured or is empty"
+          if [[ ! "${STAGING_CHAT_HISTORY_SIGNING_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::STAGING_CHAT_HISTORY_SIGNING_SECRET must be configured as exactly 64 hexadecimal characters"
             missing=1
           fi
-          if [ -z "${MATRIX_NOTES_ACCESS_SECRET:-}" ]; then
-            echo "::error::Required staging secret MATRIX_NOTES_ACCESS_SECRET is not configured or is empty"
+          if [[ ! "${STAGING_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::STAGING_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -493,6 +493,8 @@ jobs:
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
+          RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
+          RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -502,7 +504,7 @@ jobs:
           # print the deploy log, then exit with the captured status.
           script_stop: false
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN
+          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET
           script: |
             set -euo pipefail
 
@@ -517,12 +519,20 @@ jobs:
             DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
             DOCKER_CONFIG_DIR=""
+            RUNTIME_ENV_TEMP=""
+            RUNTIME_ENV_REMOTE_TEMP=""
 
             DEPLOY_OK=0
             cleanup_staging() {
               sudo rm -rf "$STAGING" 2>/dev/null || true
               if [ -n "$DOCKER_CONFIG_DIR" ]; then
                 sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
+              fi
+              if [ -n "$RUNTIME_ENV_TEMP" ]; then
+                rm -f "$RUNTIME_ENV_TEMP" 2>/dev/null || true
+              fi
+              if [ -n "$RUNTIME_ENV_REMOTE_TEMP" ]; then
+                sudo rm -f "$RUNTIME_ENV_REMOTE_TEMP" 2>/dev/null || true
               fi
               if [ "$DEPLOY_OK" = "1" ]; then
                 sudo rm -f "$TARBALL" 2>/dev/null || true
@@ -542,6 +552,43 @@ jobs:
               echo "Refusing unsafe staging deploy identity: site=${SITE}, domain=${EXPECTED_DOMAIN}, port=${EXPECTED_PORT}"
               exit 1
             fi
+
+            sync_runtime_secrets() {
+              local env_file="/opt/${SITE}/config/.env.local"
+              local env_uid
+              local env_gid
+
+              if [[ ! "${RUNTIME_CHAT_HISTORY_SIGNING_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+                echo "Staging chat-history signing secret is missing or malformed"
+                exit 1
+              fi
+              if [[ ! "${RUNTIME_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
+                echo "Staging Matrix Notes access secret is missing or malformed"
+                exit 1
+              fi
+              if ! sudo test -f "$env_file"; then
+                echo "Staging runtime env file is missing: $env_file"
+                exit 1
+              fi
+
+              RUNTIME_ENV_TEMP="$(mktemp)"
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET"' \
+                "$env_file" > "$RUNTIME_ENV_TEMP"
+              printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
+              printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
+
+              env_uid="$(sudo stat -c '%u' "$env_file")"
+              env_gid="$(sudo stat -c '%g' "$env_file")"
+              RUNTIME_ENV_REMOTE_TEMP="${env_file}.next.${SHA}.$$"
+              sudo install -m 600 -o "$env_uid" -g "$env_gid" "$RUNTIME_ENV_TEMP" "$RUNTIME_ENV_REMOTE_TEMP"
+              sudo mv -f "$RUNTIME_ENV_REMOTE_TEMP" "$env_file"
+              RUNTIME_ENV_REMOTE_TEMP=""
+              rm -f "$RUNTIME_ENV_TEMP"
+              RUNTIME_ENV_TEMP=""
+              echo "Synchronized staging runtime secrets from GitHub Actions"
+            }
+
+            sync_runtime_secrets
 
             if [ "$DEPLOY_MODE" = "image" ]; then
               echo "Checking deploy kit at $DEPLOY_KIT"

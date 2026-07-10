@@ -477,12 +477,17 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
-    /* Per-navigation page transition. The short opacity fallback stays safe
-      while capable browsers progressively enhance it to a paper turn.
-     Pure opacity \u2014 no transform \u2014 so it cannot trigger CLS. */
-  .animate-page-template-in {
+  /* Per-navigation page transition. The short opacity fallback stays safe
+     while capable browsers progressively enhance it to a directional paper
+     turn. Larger jumps expose one secondary sheet rather than mounting every
+     intermediate route. */
+  .page-turn-surface {
     position: relative;
-    animation: pageTemplateFadeIn 140ms ease-out both;
+  }
+
+  .animate-page-template-in {
+    pointer-events: none;
+    animation: pageTemplateFadeIn 140ms ease-out backwards;
   }
 
   @keyframes pageTemplateFadeIn {
@@ -493,23 +498,81 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   @supports (transform: perspective(1px) rotateY(1deg)) {
     .animate-page-template-in {
       --page-turn-angle: -38deg;
+      --page-turn-secondary-angle: -20deg;
       --page-turn-duration: 420ms;
       --page-turn-perspective: 78rem;
-      animation: pageTemplateTurnIn var(--page-turn-duration) cubic-bezier(0.22, 0.75, 0.2, 1);
-      transform-origin: left center;
+      --page-turn-origin: left center;
+      --page-turn-offset: -2%;
+      --page-turn-stack-offset: -1.25%;
+      --page-turn-stack-midpoint: -0.45%;
+      --page-turn-shade-direction: 90deg;
+      animation: pageTemplateTurnIn var(--page-turn-duration) cubic-bezier(0.22, 0.75, 0.2, 1) backwards;
+      transform-origin: var(--page-turn-origin);
       backface-visibility: hidden;
       transform-style: preserve-3d;
+      will-change: transform, opacity;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"] {
+      --page-turn-angle: 38deg;
+      --page-turn-secondary-angle: 20deg;
+      --page-turn-origin: right center;
+      --page-turn-offset: 2%;
+      --page-turn-stack-offset: 1.25%;
+      --page-turn-stack-midpoint: 0.45%;
+      --page-turn-shade-direction: 270deg;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="2"] {
+      --page-turn-duration: 470ms;
+      --page-turn-stack-offset: -1.75%;
+      --page-turn-stack-midpoint: -0.65%;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="2"] {
+      --page-turn-stack-offset: 1.75%;
+      --page-turn-stack-midpoint: 0.65%;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="3"] {
+      --page-turn-angle: -48deg;
+      --page-turn-secondary-angle: -28deg;
+      --page-turn-duration: 510ms;
+      --page-turn-stack-offset: -2.4%;
+      --page-turn-stack-midpoint: -0.85%;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="3"] {
+      --page-turn-angle: 48deg;
+      --page-turn-secondary-angle: 28deg;
+      --page-turn-stack-offset: 2.4%;
+      --page-turn-stack-midpoint: 0.85%;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="2"]::before,
+    .animate-page-template-in[data-page-turn-distance="3"]::before {
+      content: "";
+      position: absolute;
+      inset: 0.2rem;
+      z-index: 0;
+      pointer-events: none;
+      background: var(--c-paper);
+      border: 1px solid color-mix(in srgb, var(--c-ink) 12%, transparent);
+      box-shadow: 0 0.35rem 0.9rem color-mix(in srgb, var(--c-ink) 12%, transparent);
+      transform-origin: var(--page-turn-origin);
+      animation: pageTemplateSecondaryIn var(--page-turn-duration) ease-out backwards;
+      will-change: transform, opacity;
     }
 
     .animate-page-template-in::after {
       content: "";
       position: absolute;
       inset: 0;
-      z-index: 1;
+      z-index: 20;
       pointer-events: none;
       opacity: 0;
       background: linear-gradient(
-        90deg,
+        var(--page-turn-shade-direction),
         color-mix(in srgb, var(--c-ink) 18%, transparent),
         color-mix(in srgb, var(--c-paper) 42%, transparent) 7%,
         transparent 24%,
@@ -523,7 +586,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     @keyframes pageTemplateTurnIn {
       from {
         opacity: 0.42;
-        transform: perspective(var(--page-turn-perspective)) translateX(-2%) rotateY(var(--page-turn-angle));
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-offset)) rotateY(var(--page-turn-angle));
       }
 
       72% {
@@ -537,6 +600,23 @@ label[for^="web-haptics-"] input[type="checkbox"] {
       }
     }
 
+    @keyframes pageTemplateSecondaryIn {
+      from {
+        opacity: 0.72;
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-stack-offset)) rotateY(var(--page-turn-secondary-angle));
+      }
+
+      68% {
+        opacity: 0.42;
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-stack-midpoint)) rotateY(2deg);
+      }
+
+      to {
+        opacity: 0;
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
+      }
+    }
+
     @keyframes pageTemplateShadeIn {
       from { opacity: 0.9; }
       to { opacity: 0; }
@@ -545,8 +625,25 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     @media (min-width: 768px) {
       .animate-page-template-in {
         --page-turn-angle: -58deg;
-        --page-turn-duration: 520ms;
         --page-turn-perspective: 100rem;
+        --page-turn-duration: 500ms;
+      }
+
+      .animate-page-template-in[data-page-turn-direction="backward"] {
+        --page-turn-angle: 58deg;
+      }
+
+      .animate-page-template-in[data-page-turn-distance="2"] {
+        --page-turn-duration: 540ms;
+      }
+
+      .animate-page-template-in[data-page-turn-distance="3"] {
+        --page-turn-angle: -66deg;
+        --page-turn-duration: 580ms;
+      }
+
+      .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="3"] {
+        --page-turn-angle: 66deg;
       }
     }
   }
@@ -555,9 +652,12 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     html:not([data-motion="full"]) .animate-page-template-in {
       animation: none !important;
       opacity: 1;
+      pointer-events: auto;
       transform: none;
+      will-change: auto;
     }
 
+    html:not([data-motion="full"]) .animate-page-template-in::before,
     html:not([data-motion="full"]) .animate-page-template-in::after {
       content: none;
       animation: none;
@@ -567,9 +667,12 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   html[data-motion="reduced"] .animate-page-template-in {
     animation: none !important;
     opacity: 1;
+    pointer-events: auto;
     transform: none;
+    will-change: auto;
   }
 
+  html[data-motion="reduced"] .animate-page-template-in::before,
   html[data-motion="reduced"] .animate-page-template-in::after {
     content: none;
     animation: none;

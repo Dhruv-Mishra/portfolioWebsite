@@ -20,10 +20,9 @@ describe('page-turn route transition contract', () => {
     expect(template).not.toMatch(/\bon[A-Z][A-Za-z]+\s*=/);
   });
 
-  it('keys a full-size animated surface to every pathname change', () => {
+  it('keys a full-size surface to pathname and subscribes to navigation intent', () => {
     const outerClass = template.match(/return \(\s*<div\s+className="([^"]+)"/)?.[1] ?? '';
-    const innerClass = surface.match(/className="([^"]*animate-page-template-in[^"]*)"/)?.[1] ?? '';
-    const contentClass = surface.match(/<div\s+className="([^"]*relative z-0[^"]*)">\s*\{children\}/s)?.[1] ?? '';
+    const contentClass = surface.match(/<div\s+className="([^"]*relative z-10[^"]*)">\s*\{children\}/s)?.[1] ?? '';
 
     expect(outerClass).toBe(
       'h-full min-h-full min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar',
@@ -33,12 +32,15 @@ describe('page-turn route transition contract', () => {
     expect(surface).toContain('"use client"');
     expect(surface).toContain("import { usePathname } from 'next/navigation'");
     expect(surface).toContain('const pathname = usePathname()');
+    expect(surface).toContain('useSyncExternalStore(');
+    expect(surface).toContain('installPageTurnHistory()');
+    expect(surface).toContain("activeTransition && 'animate-page-template-in'");
+    expect(surface).toContain('transition?.toPath === pathname');
+    expect(surface).toContain('data-page-turn-direction={activeTransition?.direction}');
+    expect(surface).toContain('data-page-turn-distance={activeTransition?.distance}');
     expect(surface).toContain('key={pathname}');
     expect(surface).not.toMatch(/framer-motion|startViewTransition|onClick/);
-    expect(innerClass).toContain('h-full');
-    expect(innerClass).toContain('min-h-full');
-    expect(innerClass).toContain('min-w-0');
-    expect(innerClass).toContain('isolate');
+    expect(surface).toContain("'page-turn-surface h-full min-h-full min-w-0 isolate'");
     expect(contentClass).toContain('h-full');
     expect(contentClass).toContain('min-h-full');
     expect(contentClass).toContain('min-w-0');
@@ -50,6 +52,9 @@ describe('page-turn route transition contract', () => {
     )?.[0] ?? '';
     const turnKeyframes = pageTurnCss.match(
       /@keyframes pageTemplateTurnIn \{([\s\S]+?)(?=@keyframes pageTemplateShadeIn)/,
+    )?.[1] ?? '';
+    const secondaryKeyframes = pageTurnCss.match(
+      /@keyframes pageTemplateSecondaryIn \{([\s\S]+?)(?=@keyframes pageTemplateShadeIn)/,
     )?.[1] ?? '';
     const shadeKeyframes = pageTurnCss.match(
       /@keyframes pageTemplateShadeIn\s*\{([\s\S]*?)^    \}/m,
@@ -67,16 +72,22 @@ describe('page-turn route transition contract', () => {
     expect(pageTurnCss).toMatch(
       /@supports\s*\(transform:\s*perspective\(1px\) rotateY\(1deg\)\)/,
     );
-    expect(pageTurnCss).toContain('transform-origin: left center');
+    expect(pageTurnCss).toContain('--page-turn-origin: left center');
+    expect(pageTurnCss).toContain('--page-turn-origin: right center');
     expect(pageTurnCss).toContain('--page-turn-angle: -38deg');
     expect(pageTurnCss).toContain('--page-turn-angle: -58deg');
+    expect(pageTurnCss).toContain('--page-turn-angle: 58deg');
+    expect(pageTurnCss).toContain('[data-page-turn-distance="2"]::before');
+    expect(pageTurnCss).toContain('[data-page-turn-distance="3"]::before');
     expect(turnKeyframes).toContain('rotateY(var(--page-turn-angle))');
+    expect(secondaryKeyframes).toContain('rotateY(var(--page-turn-secondary-angle))');
     expect(new Set(turnProperties)).toEqual(new Set(['opacity', 'transform']));
     expect(new Set(shadeProperties)).toEqual(new Set(['opacity']));
     expect(turnKeyframes).not.toMatch(
       /\b(?:width|height|margin|padding|top|right|bottom|left)\s*:/,
     );
-    expect(pageTurnCss).not.toContain('will-change');
+    expect(pageTurnCss).toContain('will-change: transform, opacity');
+    expect(pageTurnCss).toContain('will-change: auto');
     expect(pageTurnCss).not.toMatch(/view-transition|startViewTransition/);
     expect(pageTurnCss).not.toMatch(/pageTemplateTurnIn[^;]+\bboth\b/);
   });
@@ -88,12 +99,12 @@ describe('page-turn route transition contract', () => {
 
     expect(pseudo).toContain('position: absolute');
     expect(pseudo).toContain('inset: 0');
-    expect(pseudo).toContain('z-index: 1');
+    expect(pseudo).toContain('z-index: 20');
     expect(pseudo).toContain('pointer-events: none');
     expect(pseudo).toContain('var(--c-paper)');
     expect(pseudo).toContain('var(--c-ink)');
-    expect(surface).toMatch(/isolate animate-page-template-in/);
-    expect(surface).toMatch(/relative z-0[^>]*>\s*\{children\}/s);
+    expect(surface).toContain("activeTransition && 'animate-page-template-in'");
+    expect(surface).toMatch(/relative z-10[^>]*>\s*\{children\}/s);
   });
 
   it('disables the turn and shade for system and explicit reduced motion', () => {
@@ -105,6 +116,9 @@ describe('page-turn route transition contract', () => {
     );
     expect(css).toMatch(
       /html\[data-motion="reduced"\] \.animate-page-template-in::after\s*\{[\s\S]*?content:\s*none/,
+    );
+    expect(css).toMatch(
+      /html\[data-motion="reduced"\] \.animate-page-template-in\s*\{[\s\S]*?pointer-events:\s*auto/,
     );
     expect(css).toMatch(
       /html\[data-motion="reduced"\] \.animate-page-template-in\s*\{[\s\S]*?animation:\s*none\s*!important/,

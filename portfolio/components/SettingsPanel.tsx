@@ -352,7 +352,7 @@ export default function SettingsPanel() {
             onChange={setVoiceBackend}
           />
           <p className="font-hand text-sm text-[var(--c-ink)]/55">
-            Whisper downloads roughly 35 MB on first use.
+            Whisper downloads about 60-170 MB on first use, depending on your browser.
           </p>
         </SettingsGroup>
 

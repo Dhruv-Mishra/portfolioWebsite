@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type { NextConfig } from "next";
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import { CONTENT_SECURITY_POLICY } from "./lib/contentSecurityPolicy";
 
 // Absolute path to this config file's directory. This pins the Next.js workspace
 // root so a stray parent lockfile can never flip auto-detection and emit the
@@ -140,6 +141,7 @@ const nextConfig: NextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
           },
+          { key: 'Content-Security-Policy', value: CONTENT_SECURITY_POLICY },
         ],
       },
       {

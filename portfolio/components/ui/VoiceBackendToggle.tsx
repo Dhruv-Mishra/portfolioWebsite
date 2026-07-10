@@ -15,7 +15,7 @@ interface VoiceBackendToggleProps {
   className?: string;
   /**
    * Optional intercept hook. When provided, the parent owns the toggle
-   * action (e.g. to surface a confirmation modal explaining the ~35MB
+  * action (e.g. to surface a confirmation modal explaining the large
    * one-time download before enabling). Called with the *next* state.
    * If omitted, the toggle flips state immediately.
    */
@@ -25,8 +25,8 @@ interface VoiceBackendToggleProps {
 /**
  * Tiny "HD" pill toggle next to the mic button. Lights up when the user
  * has opted into the offline Whisper backend. The next mic use triggers a
- * one-time ~35MB model download (multilingual whisper-tiny); cached in
- * IndexedDB afterwards. Subsequent sessions are instant.
+ * first-use model/runtime download (multilingual whisper-tiny); cached in
+ * browser Cache Storage afterwards.
  */
 export function VoiceBackendToggle({
   isLoading = false,
@@ -56,7 +56,7 @@ export function VoiceBackendToggle({
       onClick={handleClick}
       role="switch"
       aria-checked={active}
-      aria-label={active ? 'Disable HD voice (Whisper)' : 'Enable HD voice (Whisper, ~35MB one-time download)'}
+      aria-label={active ? 'Disable HD voice (Whisper)' : 'Enable HD voice (Whisper, large first-use download)'}
       title={title}
       className={cn(
         'group relative inline-flex min-h-[44px] min-w-[44px] shrink-0 select-none items-center justify-center rounded-full font-hand font-bold tracking-wide transition-colors duration-200',

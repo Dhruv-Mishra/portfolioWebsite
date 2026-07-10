@@ -1117,7 +1117,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   compact
                   onToggleIntercept={(nextActive) => {
                     // Disabling is safe and instant. Enabling triggers a
-                    // ~35MB one-time download — surface a confirmation
+                    // Large first-use download — surface a confirmation
                     // modal first so the user understands what they're
                     // opting into (especially on mobile / metered data).
                     if (nextActive) setConfirmKind('enableLocal');
@@ -1271,7 +1271,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           <ConfirmContent
             titleId="chat-confirm-title"
             title="Enable Local Transcription?"
-            body="Switches voice input from the browser's online speech API to an on-device Whisper model. The first time you turn it on, your browser downloads ~35 MB and caches it for future visits — works fully offline after that, with multilingual support and better accuracy. Heads up if you're on a metered connection."
+            body="Switches voice input from the browser's online speech API to an on-device Whisper model. First use downloads about 60-170 MB, depending on your browser, and stores it in the browser cache when available. Recorded audio stays on this device. The browser may download the files again if it clears the cache."
             confirmLabel="Download & enable"
             confirmTone="primary"
             onCancel={() => setConfirmKind(null)}

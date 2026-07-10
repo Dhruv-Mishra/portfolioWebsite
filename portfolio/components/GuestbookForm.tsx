@@ -136,6 +136,7 @@ export default function GuestbookForm() {
       return;
     }
 
+    speech.reset();
     submit();
     setState('submitting');
     setErrorMsg('');
@@ -198,7 +199,7 @@ export default function GuestbookForm() {
       setState('error');
       setErrorMsg('the pin fell out — try again ~');
     }
-  }, [state, message, name, website, submit, success, warning, router]);
+  }, [state, message, name, website, speech, submit, success, warning, router]);
 
   const charCount = message.length;
   const charCountDanger = charCount > 280;

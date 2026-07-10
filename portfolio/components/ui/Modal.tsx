@@ -24,6 +24,8 @@ interface ModalProps {
   ariaLabel?: string;
   /** ID of the element that labels the dialog */
   ariaLabelledBy?: string;
+  /** ID of the element that describes the dialog */
+  ariaDescribedBy?: string;
   /** Tailwind classes for the backdrop overlay.
    *  Default: "bg-black/20 dark:bg-black/40" (light tint) */
   backdropClassName?: string;
@@ -42,6 +44,7 @@ function ModalContent({
   style,
   ariaLabel,
   ariaLabelledBy,
+  ariaDescribedBy,
   backdropClassName = "bg-black/20 dark:bg-black/40",
   modalRef,
 }: ModalContentProps) {
@@ -138,6 +141,7 @@ function ModalContent({
           aria-modal="true"
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
+          aria-describedby={ariaDescribedBy}
           tabIndex={-1}
           onClick={(event) => event.stopPropagation()}
         >
@@ -172,6 +176,7 @@ export function Modal({
   style,
   ariaLabel,
   ariaLabelledBy,
+  ariaDescribedBy,
   backdropClassName = "bg-black/20 dark:bg-black/40",
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -208,6 +213,7 @@ export function Modal({
           style={style}
           ariaLabel={ariaLabel}
           ariaLabelledBy={ariaLabelledBy}
+          ariaDescribedBy={ariaDescribedBy}
           backdropClassName={backdropClassName}
         >
           {children}

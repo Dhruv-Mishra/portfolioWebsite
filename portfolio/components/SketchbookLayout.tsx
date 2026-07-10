@@ -101,7 +101,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.015] md:opacity-[0.03]"
+                <div data-paper-grain className="absolute inset-0 pointer-events-none opacity-[0.015] md:opacity-[0.03]"
                     style={{ ...PAPER_NOISE_STYLE, zIndex: Z_INDEX.texture }}
                 />
 

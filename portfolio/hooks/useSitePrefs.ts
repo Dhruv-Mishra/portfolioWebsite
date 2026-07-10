@@ -13,6 +13,7 @@ export interface SitePrefs {
   paperGrain: boolean;
   tapeEffects: boolean;
   sketchOutlines: boolean;
+  experimentalFeatures: boolean;
   stickersEnabled: boolean;
   stickerToastsEnabled: boolean;
   hapticsEnabled: boolean;
@@ -26,6 +27,7 @@ function toSitePrefs(prefs: AdminPrefs): SitePrefs {
     paperGrain: prefs.paperGrain,
     tapeEffects: prefs.tapeEffects,
     sketchOutlines: prefs.sketchOutlines,
+    experimentalFeatures: prefs.experimentalFeatures,
     stickersEnabled: prefs.stickersEnabled,
     stickerToastsEnabled: prefs.stickerToastsEnabled,
     hapticsEnabled: prefs.hapticsEnabled,
@@ -57,6 +59,9 @@ export function setSitePref(
       return;
     case 'sketchOutlines':
       setAdminPref('sketchOutlines', value);
+      return;
+    case 'experimentalFeatures':
+      setAdminPref('experimentalFeatures', value);
       return;
     case 'stickersEnabled':
       setAdminPref('stickersEnabled', value);

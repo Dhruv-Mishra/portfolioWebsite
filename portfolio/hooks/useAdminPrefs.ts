@@ -31,7 +31,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'dhruv-admin-prefs';
-const STORAGE_VERSION = 4 as const;
+const STORAGE_VERSION = 5 as const;
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
 
@@ -43,6 +43,8 @@ export interface AdminPrefs {
   tapeEffects: boolean;
   /** Dashed sketch outlines on cards. Default: on. */
   sketchOutlines: boolean;
+  /** Opts into preview site features and the staging build. Default: off. */
+  experimentalFeatures: boolean;
   /** The flagship gate — enables `sudo matrix` in sudo help. Default: off. */
   experimentalCommands: boolean;
   /** Master switch — when false, no new stickers are earned (no roster
@@ -64,6 +66,7 @@ function defaultPrefs(): AdminPrefs {
     paperGrain: true,
     tapeEffects: true,
     sketchOutlines: true,
+    experimentalFeatures: false,
     experimentalCommands: false,
     stickersEnabled: true,
     stickerToastsEnabled: false,
@@ -95,6 +98,7 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
       paperGrain: booleanField(parsed, 'paperGrain', true),
       tapeEffects: booleanField(parsed, 'tapeEffects', true),
       sketchOutlines: booleanField(parsed, 'sketchOutlines', true),
+      experimentalFeatures: booleanField(parsed, 'experimentalFeatures', false),
       experimentalCommands: booleanField(parsed, 'experimentalCommands', false),
       stickersEnabled: booleanField(parsed, 'stickersEnabled', true),
       stickerToastsEnabled: booleanField(parsed, 'stickerToastsEnabled', false),

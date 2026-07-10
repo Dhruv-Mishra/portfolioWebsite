@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 
 describe('site preference migration and facade', () => {
-  it('migrates v2 values and defaults malformed or missing v3 fields safely', async () => {
+  it('migrates v2 values and defaults malformed or missing current fields safely', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify({
       version: 2,
       paperGrain: false,
@@ -49,9 +49,10 @@ describe('site preference migration and facade', () => {
     const prefs = internal.getAdminPrefsSnapshot();
 
     expect(prefs).toMatchObject({
-      version: 4,
+      version: 5,
       paperGrain: false,
       tapeEffects: true,
+      experimentalFeatures: false,
       experimentalCommands: true,
       stickerToastsEnabled: true,
       hapticsEnabled: true,
@@ -116,6 +117,35 @@ describe('site preference migration and facade', () => {
     expect(dataset).not.toHaveProperty('prefExperimental');
   });
 
+  it('exposes and persists the staging opt-in without exposing the private command gate', async () => {
+    const site = await import('@/hooks/useSitePrefs');
+
+    site.setSitePref('experimentalFeatures', true);
+
+    expect(site.getSitePrefsSnapshot().experimentalFeatures).toBe(true);
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({
+      version: 5,
+      experimentalFeatures: true,
+      experimentalCommands: false,
+    });
+  });
+
+  it('keeps the opt-in state truthful when storage is unavailable', async () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => null,
+        setItem: () => {
+          throw new DOMException('Storage unavailable');
+        },
+      },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+
+    expect(() => site.setSitePref('experimentalFeatures', true)).not.toThrow();
+    expect(site.getSitePrefsSnapshot().experimentalFeatures).toBe(true);
+  });
+
   it('persists and applies the full-motion override', async () => {
     const dataset: Record<string, string> = {};
     Object.defineProperty(globalThis, 'document', {
@@ -129,7 +159,7 @@ describe('site preference migration and facade', () => {
     internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
 
     expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({
-      version: 4,
+      version: 5,
       motionPreference: 'full',
     });
     expect(dataset.motion).toBe('full');

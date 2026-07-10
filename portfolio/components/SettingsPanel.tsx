@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
+import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import {
@@ -11,6 +11,7 @@ import {
   Mic2,
   Palette,
   Sticker,
+  TriangleAlert,
 } from 'lucide-react';
 import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
 import {
@@ -25,7 +26,10 @@ import {
   type ThemeSelection,
 } from '@/lib/themeToggleAction';
 import { classifyBuildChannel, type BuildChannelInfo } from '@/lib/buildChannel';
+import { getExperimentalToggleIntent } from '@/lib/experimentalFeatures';
 import { cn } from '@/lib/utils';
+import { Modal } from '@/components/ui/Modal';
+import { TapeStrip } from '@/components/ui/TapeStrip';
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -201,6 +205,8 @@ function BuildChannelStatus({ info }: { info: BuildChannelInfo | null }) {
 }
 
 export default function SettingsPanel() {
+  const [experimentalDialogOpen, setExperimentalDialogOpen] = useState(false);
+  const [redirectPending, setRedirectPending] = useState(false);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -228,10 +234,26 @@ export default function SettingsPanel() {
     ? theme
     : 'system';
 
+  const handleExperimentalChange = (nextEnabled: boolean) => {
+    const intent = getExperimentalToggleIntent(prefs.experimentalFeatures, nextEnabled);
+    if (intent === 'confirm-enable') {
+      setExperimentalDialogOpen(true);
+    } else if (intent === 'disable') {
+      setPref('experimentalFeatures', false);
+    }
+  };
+
+  const confirmExperimentalFeatures = () => {
+    setRedirectPending(buildInfo?.channel === 'production');
+    setPref('experimentalFeatures', true);
+    setExperimentalDialogOpen(false);
+  };
+
   return (
     <div className="relative mx-auto w-full max-w-3xl px-4 pb-20 pt-14 md:px-8 md:pt-12">
       <div className="pointer-events-none absolute left-2 top-10 h-24 w-1 -rotate-2 bg-rose-400/55 md:left-5" aria-hidden />
-      <header className="px-1 text-center">
+      <header className="relative px-1 text-center">
+        <TapeStrip size="sm" className="-top-5 rotate-2 opacity-75 md:-top-6" />
         <p className="font-code text-[10px] uppercase text-[var(--c-ink)]/45">site preferences</p>
         <h1 className="mt-1 font-hand text-4xl font-bold text-[var(--c-heading)] md:text-6xl">
           Settings
@@ -340,6 +362,16 @@ export default function SettingsPanel() {
           />
         </SettingsGroup>
 
+        <SettingsGroup title="Experiments" icon={TriangleAlert}>
+          <SettingToggle
+            label="Enable experimental features"
+            detail={redirectPending ? 'Opening the staging build...' : 'Try preview features on the staging build.'}
+            checked={prefs.experimentalFeatures}
+            disabled={redirectPending}
+            onChange={handleExperimentalChange}
+          />
+        </SettingsGroup>
+
         <SettingsGroup title="Build channel" icon={GitBranch}>
           <BuildChannelStatus info={buildInfo} />
         </SettingsGroup>
@@ -353,6 +385,42 @@ export default function SettingsPanel() {
           Back to the sketchbook
         </Link>
       </nav>
+      <Modal
+        isOpen={experimentalDialogOpen}
+        onClose={() => setExperimentalDialogOpen(false)}
+        ariaLabelledBy="experimental-features-title"
+        ariaDescribedBy="experimental-features-description"
+        className="mt-[var(--c-modal-top)] w-[calc(100%-1.5rem)] max-w-lg border-2 border-dashed border-amber-700/55 bg-[var(--c-paper)] p-6 shadow-xl md:p-8 dark:border-amber-300/55"
+        backdropClassName="bg-black/35 dark:bg-black/60"
+      >
+        <div className="flex items-start gap-3">
+          <TriangleAlert className="mt-1 shrink-0 text-amber-700 dark:text-amber-300" size={26} aria-hidden />
+          <div className="min-w-0">
+            <h2 id="experimental-features-title" className="font-hand text-2xl font-bold text-[var(--c-heading)] md:text-3xl">
+              Open the staging sketchbook?
+            </h2>
+            <p id="experimental-features-description" className="mt-3 font-hand text-base leading-relaxed text-[var(--c-ink)]/75 md:text-lg">
+              Staging can be unstable and may use preview data or features. Enabling this setting saves your choice and opens the same page on staging.
+            </p>
+          </div>
+        </div>
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setExperimentalDialogOpen(false)}
+            className="min-h-11 rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmExperimentalFeatures}
+            className="min-h-11 rounded-sm border-2 border-amber-800/65 bg-amber-400/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 dark:border-amber-200/65 dark:bg-amber-300/20"
+          >
+            Enable and open staging
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

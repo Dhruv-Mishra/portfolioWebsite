@@ -56,7 +56,7 @@ const INITIAL_STATE: TtsPlaybackState = {
 
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
-const DEFAULT_PLAYBACK_SPEED: TtsPlaybackSpeed = 1.25;
+const DEFAULT_PLAYBACK_SPEED: TtsPlaybackSpeed = 1;
 const BROWSER_TTS_CHUNK_CHARS = 180;
 const BROWSER_TTS_START_TIMEOUT_MS = 5_000;
 const SCHEDULE_AHEAD_SECONDS = 0.035;

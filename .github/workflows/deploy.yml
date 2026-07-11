@@ -683,6 +683,9 @@ jobs:
             # naturally via tmp cleanup or be overwritten on retry.)
             DEPLOY_OK=0
             cleanup_staging() {
+              local exit_code=$?
+              trap - EXIT
+              set +e
               sudo rm -rf "$STAGING" 2>/dev/null || true
               if [ -n "$DOCKER_CONFIG_DIR" ]; then
                 sudo rm -rf "$DOCKER_CONFIG_DIR" 2>/dev/null || true
@@ -697,6 +700,7 @@ jobs:
                 sudo rm -f "$TARBALL" 2>/dev/null || true
                 sudo rm -f "$DEPLOY_KIT" 2>/dev/null || true
               fi
+              exit "$exit_code"
             }
             trap cleanup_staging EXIT
 
@@ -885,6 +889,7 @@ jobs:
             DEPLOY_OK=1
             echo ""
             echo "✅ ${{ matrix.server.name }}: Deployment completed!"
+            exit 0
 
       - name: Verify Deployment (${{ matrix.server.name }})
         if: success()

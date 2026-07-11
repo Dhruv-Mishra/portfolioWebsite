@@ -473,6 +473,8 @@ parse_arguments() {
 
 cleanup() {
     local exit_code=$?
+    trap - EXIT
+    set +e
 
     if [[ ${exit_code} -ne 0 ]]; then
         log_separator
@@ -489,6 +491,8 @@ cleanup() {
         local dur=$(( $(date +%s) - DEPLOYMENT_START_TIME ))
         log INFO "Total time: $((dur / 60))m $((dur % 60))s"
     fi
+
+    exit "${exit_code}"
 }
 
 # Artifact-mode rollback: undo mutations in reverse order

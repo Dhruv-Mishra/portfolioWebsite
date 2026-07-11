@@ -71,6 +71,7 @@ describe('centralized Pocket TTS deployment topology', () => {
     expect(deployScript).toContain('--resolve "${DOMAIN}:443:127.0.0.1"');
     expect(deployScript).toContain('"https://${DOMAIN}/api/tts"');
     expect(deployScript).toContain('for attempt in {1..10}; do');
+    expect(deployScript).toContain('Public Pocket TTS status check failed after ${attempt} attempts');
     expect(deployScript).toContain('Private Pocket TTS gateway status check failed after ${attempt} attempts');
     expect(deployScript).toMatch(
       /image_deploy\(\) \{[^]*if ! reload_nginx[^]*private_tts_gateway_health_check[^]*tts_health_check[^]*rollback_deploy\(\)/,

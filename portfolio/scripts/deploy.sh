@@ -1975,6 +1975,29 @@ tts_health_check() {
 
     local response_file
     response_file=$(mktemp "/tmp/${SERVICE_NAME}-tts-health.XXXXXX")
+    local status_code="000"
+    local status_ready=false
+    local attempt
+    for attempt in {1..10}; do
+        status_code=$(curl -sS -o "${response_file}" -w "%{http_code}" --max-time 10 \
+            -H "Origin: https://${DOMAIN}" \
+            -H "Sec-Fetch-Site: same-origin" \
+            --resolve "${DOMAIN}:443:127.0.0.1" \
+            "https://${DOMAIN}/api/tts" -k 2>>"${LOG_FILE}" || echo "000")
+        if [[ "${status_code}" == "200" ]] && grep -q '"ok":true' "${response_file}"; then
+            status_ready=true
+            break
+        fi
+        if (( attempt < 10 )); then
+            sleep 1
+        fi
+    done
+    if [[ "${status_ready}" != "true" ]]; then
+        rm -f "${response_file}"
+        log ERROR "Public Pocket TTS status check failed after ${attempt} attempts (HTTP ${status_code})"
+        return 1
+    fi
+
     local http_code="000"
     if ! http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" \
         --max-time "${LOCAL_TTS_HEALTH_TIMEOUT}" \

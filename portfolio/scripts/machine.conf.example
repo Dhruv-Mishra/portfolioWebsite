@@ -12,12 +12,12 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # ┌──────────────────────────┬────────────────┬──────────────────────────────┐
-# │ Setting                  │ 1 OCPU / 1 GB  │ 4 ARM vCPU / 24 GB (2 sites) │
+# │ Setting                  │ 1 OCPU / 2 GB  │ 4 ARM vCPU / 24 GB (2 sites) │
 # │                          │   (1 site)     │   (per site values)          │
 # ├──────────────────────────┼────────────────┼──────────────────────────────┤
 # │ NODE_HEAP_MB             │ 350            │ 2048                         │
-# │ MEMORY_HIGH_MB           │ 400            │ 4096                         │
-# │ MEMORY_MAX_MB            │ 500            │ 6144                         │
+# │ MEMORY_HIGH_MB           │ 1200           │ 4096                         │
+# │ MEMORY_MAX_MB            │ 1536           │ 6144                         │
 # │ CPU_QUOTA_PERCENT        │ 90             │ 180                          │
 # │ BUILD_NICE               │ 15             │ 10                           │
 # │ BUILD_IONICE_CLASS       │ 3              │ 2                            │
@@ -30,7 +30,8 @@
 #   - Oracle ARM "4 OCPU" = 4 physical cores = 4 vCPU. Total capacity = 400%.
 #   - For 2 sites on 4 vCPU / 24 GB: give each site 180% CPU (leaves 40% for OS).
 #     Each site gets 2 GB heap + 6 GB max process memory. Leaves ~12 GB for OS/cache.
-#   - For 1 site on 1 OCPU / 1 GB: keep everything small. 350 MB heap, 500 MB max.
+#   - Pocket TTS requires a host with at least 2 GB RAM. The former 1 GB profile
+#     is unsupported. For 1 OCPU / 2 GB, use 350 MB heap and 1536 MB max memory.
 #     CPU at 90% (leaves 10% for sshd, nginx, earlyoom).
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -40,8 +41,7 @@ MACHINE_USER="ubuntu"
 
 # ── Node.js Runtime (per site) ───────────────────────────────────────────────
 # V8 heap limit in MB. Tune based on available RAM and number of sites.
-#   1 GB RAM, 1 site   → 350
-#   1 GB RAM, 2 sites  → 200 each
+#   2 GB RAM, 1 site   → 350
 #   24 GB RAM, 1 site  → 4096
 #   24 GB RAM, 2 sites → 2048 each
 NODE_HEAP_MB=350
@@ -49,10 +49,10 @@ NODE_HEAP_MB=350
 # ── systemd Resource Limits (per site) ───────────────────────────────────────
 # MemoryHigh: soft limit — kernel starts throttling/reclaiming above this
 # MemoryMax: hard limit — OOM kill above this
-#   1 GB RAM, 1 site   → 400 / 500
+#   2 GB RAM, 1 site   → 1200 / 1536
 #   24 GB RAM, 2 sites → 4096 / 6144 each
-MEMORY_HIGH_MB=400
-MEMORY_MAX_MB=500
+MEMORY_HIGH_MB=1200
+MEMORY_MAX_MB=1536
 
 # CPU quota as % of ALL CPUs.
 #   1 OCPU             = 100% total → 90% for 1 site (leaves headroom for OS)
@@ -70,7 +70,7 @@ BUILD_NICE=15
 #   4 vCPU:  2 (best-effort — disk is not the bottleneck with 24 GB RAM)
 BUILD_IONICE_CLASS=3
 # Max V8 heap during build (MB).
-#   1 GB RAM:  512 (uses swap if needed, but won't OOM)
+#   2 GB RAM:  512 (uses swap if needed, but won't OOM)
 #   24 GB RAM: 4096 (fast builds, no swapping)
 BUILD_HEAP_MB=512
 

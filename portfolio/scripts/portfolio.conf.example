@@ -64,8 +64,8 @@ MAX_LOG_FILES=10
 # These are set once per machine and shared across all sites:
 #   MACHINE_USER          - System user (default: ubuntu)
 #   NODE_HEAP_MB          - V8 heap limit per site (default: 350)
-#   MEMORY_HIGH_MB        - systemd soft memory limit (default: 400)
-#   MEMORY_MAX_MB         - systemd hard memory limit (default: 500)
+#   MEMORY_HIGH_MB        - systemd soft memory limit (default: 1200)
+#   MEMORY_MAX_MB         - systemd hard memory limit (default: 1536)
 #   CPU_QUOTA_PERCENT     - CPU quota per site (default: 180)
 #   BUILD_NICE            - Build process nice value (default: 15)
 #   BUILD_IONICE_CLASS    - Build I/O scheduling class (default: 3)

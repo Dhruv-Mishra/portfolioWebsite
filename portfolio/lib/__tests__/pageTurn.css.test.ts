@@ -123,10 +123,17 @@ describe('page-turn route transition contract', () => {
   });
 
   it('turns the one real route tree with a transparent ink shade', () => {
+    const animatedRouteRules = Array.from(
+      css.matchAll(
+        /\.animate-page-turn-forward-out,\s*\.animate-page-turn-backward-in\s*\{([\s\S]+?)\}/g,
+      ),
+      (match) => match[1],
+    ).join('\n');
     const pseudo = css.match(
       /\.animate-page-turn-forward-out::after,\s*\.animate-page-turn-backward-in::after\s*\{([\s\S]+?)\}/,
     )?.[1] ?? '';
 
+    expect(animatedRouteRules).not.toMatch(/\bbackground-(?:image|size)\s*:/);
     expect(pseudo).toContain('position: absolute');
     expect(pseudo).toContain('inset: 0');
     expect(pseudo).toContain('z-index: 20');

@@ -542,15 +542,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     pointer-events: none;
   }
 
-  .animate-page-turn-forward-out,
-  .animate-page-turn-backward-in {
-    background-color: var(--c-paper);
-    background-image:
-      linear-gradient(to right, var(--c-grid) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--c-grid) 1px, transparent 1px);
-    background-size: 24px 24px;
-  }
-
   .animate-page-turn-forward-out :where(.page-turn-content, .page-turn-content *),
   .animate-page-turn-backward-in :where(.page-turn-content, .page-turn-content *) {
     animation-play-state: paused !important;

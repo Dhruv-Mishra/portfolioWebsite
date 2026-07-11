@@ -33,6 +33,12 @@ describe('settings visual preference contracts', () => {
     expect(eagerEnhancements).toContain('<ExperimentalFeaturesController />');
   });
 
+  it('wires the Motion immersion toggle to the public preference', () => {
+    expect(settings).toMatch(/<SettingToggle\s+label="Enhance Immersion"/);
+    expect(settings).toContain('checked={prefs.enhanceImmersion}');
+    expect(settings).toContain("setBooleanPref('enhanceImmersion', checked)");
+  });
+
   it('reconciles cross-origin handoffs before preference-driven redirects', () => {
     const controller = readSource('components/ExperimentalFeaturesController.tsx');
     expect(controller).toContain('reconcileExperimentalFeatures');

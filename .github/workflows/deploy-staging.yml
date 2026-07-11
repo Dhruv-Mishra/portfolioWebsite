@@ -839,41 +839,95 @@ jobs:
 
           if [ "$status" != "200" ]; then
             if [ "$status" = "403" ] && [ "$challenge" = "true" ]; then
-              echo "::warning::Cloudflare returned a bot challenge to the GitHub runner. VM-local deploy verification passed, so this is treated as an edge security challenge rather than a failed deploy."
-              echo "Staging Cloudflare URL reached Cloudflare but challenged the GitHub runner: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
-              exit 0
+              echo "::warning::Cloudflare returned a bot challenge to the GitHub runner. Skipping homepage asset assertions, but continuing to the required chat smoke probe."
+              challenge=true
+            else
+              echo "Response body preview:"
+              head -c 1600 "$body_file" || true
+              echo ""
+              echo "::error::staging.whoisdhruv.com returned HTTP $status"
+              exit 1
             fi
-            echo "Response body preview:"
-            head -c 1600 "$body_file" || true
+          fi
+
+          if [ "$challenge" != "true" ]; then
+            asset_file="$(mktemp)"
+            grep -oE "/_next/static/[^\"' <)]*" "$body_file" \
+              | sed 's/[\\?].*$//' \
+              | sort -u > "$asset_file" || true
+
+            asset_count="$(wc -l < "$asset_file" | tr -d ' ')"
+            if [ "$asset_count" = "0" ]; then
+              echo "::error::No /_next/static assets found in staging HTML"
+              exit 1
+            fi
+
+            missing_assets=0
+            while IFS= read -r asset; do
+              [ -n "$asset" ] || continue
+              asset_status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+                -H "Cache-Control: no-cache" \
+                "https://${{ env.STAGING_DOMAIN }}${asset}" 2>/dev/null || echo "000")"
+              if [ "$asset_status" != "200" ]; then
+                echo "Static asset failed through Cloudflare: $asset -> $asset_status"
+                missing_assets=1
+              fi
+            done < "$asset_file"
+            if [ "$missing_assets" != "0" ]; then
+              echo "::error::One or more staging static assets returned non-200"
+              exit 1
+            fi
+          fi
+
+          chat_headers_file="$(mktemp)"
+          chat_body_file="$(mktemp)"
+          trap 'rm -f "$headers_file" "$body_file" ${asset_file:+"$asset_file"} "$chat_headers_file" "$chat_body_file"' EXIT
+          chat_status="$(curl -sS -L --retry 3 --retry-delay 2 --max-time 15 \
+            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -H "Origin: https://${{ env.STAGING_DOMAIN }}" \
+            -H "Referer: https://${{ env.STAGING_DOMAIN }}/" \
+            -H "Sec-Fetch-Site: same-origin" \
+            -H "Cache-Control: no-cache" \
+            -X POST \
+            --data '{"messages":[{"role":"user","content":"go to the about page"}]}' \
+            -D "$chat_headers_file" \
+            -o "$chat_body_file" \
+            -w "%{http_code}" \
+            "https://${{ env.STAGING_DOMAIN }}/chat/respond" || echo "000")"
+
+          echo "Staging chat smoke HTTP status: $chat_status"
+          echo "Chat response headers:"
+          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|cf-mitigated:|content-type:)' "$chat_headers_file" || true
+
+          if grep -qiE '^cf-mitigated:[[:space:]]*challenge' "$chat_headers_file" \
+            || grep -qi '<title>Just a moment' "$chat_body_file" \
+            || grep -qi 'challenges.cloudflare.com' "$chat_body_file"; then
+            echo "::error::Cloudflare challenged the required staging chat smoke probe"
+            exit 1
+          fi
+          if [ "$chat_status" != "200" ]; then
+            echo "Chat response body preview:"
+            head -c 1600 "$chat_body_file" || true
             echo ""
-            echo "::error::staging.whoisdhruv.com returned HTTP $status"
+            echo "::error::staging chat returned HTTP $chat_status"
             exit 1
           fi
-
-          asset_file="$(mktemp)"
-          grep -oE "/_next/static/[^\"' <)]*" "$body_file" \
-            | sed 's/[\\?].*$//' \
-            | sort -u > "$asset_file" || true
-
-          asset_count="$(wc -l < "$asset_file" | tr -d ' ')"
-          if [ "$asset_count" = "0" ]; then
-            echo "::error::No /_next/static assets found in staging HTML"
+          if ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$chat_headers_file"; then
+            echo "::error::staging chat returned a non-JSON response"
             exit 1
           fi
+          if ! node - "$chat_body_file" <<'NODE'
+          const fs = require('node:fs');
+          const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 
-          missing_assets=0
-          while IFS= read -r asset; do
-            [ -n "$asset" ] || continue
-            asset_status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
-              -H "Cache-Control: no-cache" \
-              "https://${{ env.STAGING_DOMAIN }}${asset}" 2>/dev/null || echo "000")"
-            if [ "$asset_status" != "200" ]; then
-              echo "Static asset failed through Cloudflare: $asset -> $asset_status"
-              missing_assets=1
-            fi
-          done < "$asset_file"
-          if [ "$missing_assets" != "0" ]; then
-            echo "::error::One or more staging static assets returned non-200"
+          if (body?.action?.navigateTo !== '/about') {
+            throw new Error('Chat response did not include a navigateTo action for /about');
+          }
+          NODE
+          then
+            echo "::error::staging chat response did not contain the expected navigateTo /about action"
             exit 1
           fi
 

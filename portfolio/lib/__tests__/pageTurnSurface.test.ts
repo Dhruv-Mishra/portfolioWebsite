@@ -12,6 +12,7 @@ import {
 
 let pathname = '/';
 let reducedMotion = false;
+let enhanceImmersion = true;
 const push = vi.fn();
 const replace = vi.fn();
 const prefetch = vi.fn();
@@ -23,6 +24,10 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/useEffectiveReducedMotion', () => ({
   useEffectiveReducedMotion: () => reducedMotion,
+}));
+
+vi.mock('@/hooks/useSitePrefs', () => ({
+  useSitePrefs: () => ({ enhanceImmersion }),
 }));
 
 function RouteProbe({ label }: { label: string }) {
@@ -60,6 +65,7 @@ function clickEvent(path: string) {
 beforeEach(() => {
   pathname = '/';
   reducedMotion = false;
+  enhanceImmersion = true;
   push.mockClear();
   replace.mockClear();
   prefetch.mockClear();
@@ -126,6 +132,68 @@ afterEach(async () => {
 });
 
 describe('PageTurnSurface single-route lifecycle', () => {
+  it('commits forward navigation immediately when immersion is off', async () => {
+    enhanceImmersion = false;
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(PageTurnSurface, null, null));
+    });
+
+    await act(async () => {
+      clickListener?.(clickEvent('/projects'));
+      await Promise.resolve();
+    });
+
+    expect(push).toHaveBeenCalledOnce();
+    expect(push).toHaveBeenCalledWith('/projects');
+    expect(prefetch).not.toHaveBeenCalled();
+    expect(routeLayer(renderer).props.className).not.toContain('animate-page-turn-forward-out');
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('cancels a stale immersive forward turn when immersion is disabled', async () => {
+    vi.useFakeTimers();
+    window.setTimeout = globalThis.setTimeout.bind(globalThis);
+    window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(PageTurnSurface, null, null));
+    });
+    await act(async () => {
+      requestPageTurnNavigation({ push, replace }, { href: '/projects', mode: 'push' });
+      await Promise.resolve();
+    });
+    expect(prefetch).toHaveBeenCalledWith('/projects');
+
+    enhanceImmersion = false;
+    await act(async () => {
+      renderer.update(React.createElement(PageTurnSurface, null, null));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
+      await Promise.resolve();
+    });
+
+    expect(replace).toHaveBeenCalledOnce();
+    expect(replace).toHaveBeenCalledWith('/about');
+    expect(prefetch).toHaveBeenCalledOnce();
+    expect(prefetch).toHaveBeenCalledWith('/projects');
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(push).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledOnce();
+    expect(getPageTurnSnapshot()).toBeNull();
+
+    await act(async () => renderer.unmount());
+  });
+
   it('turns the current route before committing forward navigation', async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
 

@@ -29,14 +29,10 @@ export interface PageTurnTransition {
   distance: 1 | 2 | 3;
 }
 
-export const PAGE_TURN_DURATION_BY_DISTANCE_MS = {
-  1: 600,
-  2: 680,
-  3: 760,
-} as const;
+export const PAGE_TURN_DURATION_MS = 600;
 
-export function getPageTurnDurationMs(distance: PageTurnTransition['distance']) {
-  return PAGE_TURN_DURATION_BY_DISTANCE_MS[distance];
+export function getPageTurnDurationMs() {
+  return PAGE_TURN_DURATION_MS;
 }
 
 export const PAGE_TURN_ROUTES: readonly PageTurnRoute[] = [

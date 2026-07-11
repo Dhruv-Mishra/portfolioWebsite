@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createTtsAudioCacheKey,
   getTtsAudioCacheEvictionKeys,
   MAX_TTS_AUDIO_CACHE_BYTES,
   MAX_TTS_AUDIO_CACHE_RECORDS,
 } from '@/lib/ttsAudioCache';
 
 describe('TTS audio cache budget', () => {
+  it('separates generated audio by the server reference revision', () => {
+    const options = { provider: 'pocket-tts', speed: 1, voice: 'custom-dhruv' } as const;
+
+    expect(createTtsAudioCacheKey('Hello', { ...options, voiceRevision: 'a'.repeat(64) }))
+      .not.toBe(createTtsAudioCacheKey('Hello', { ...options, voiceRevision: 'b'.repeat(64) }));
+  });
+
   it('evicts least-recently-used records until both budgets are met', () => {
     const records = Array.from({ length: MAX_TTS_AUDIO_CACHE_RECORDS + 2 }, (_, index) => ({
       byteLength: 1,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { gzipSync } from 'node:zlib';
 import {
   getLocalTtsQueueState,
+  getLocalTtsVoiceRevision,
   getPublicLocalTtsSettings,
   isTtsRequestAbortedError,
   isTtsQueueFullError,
@@ -102,7 +103,7 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request, { requireExplicitOrigin: true });
+  const originError = validateOrigin(request, { requireOrigin: true });
   if (originError) return originError;
 
   const ip = getClientIP(request);
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       ok: true,
       queue: getLocalTtsQueueState(),
       settings: getPublicLocalTtsSettings(),
+      voiceRevision: await getLocalTtsVoiceRevision(),
     }, {
       headers: { 'Cache-Control': 'no-store' },
     });
@@ -196,15 +198,20 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         try {
           await runWithLocalTtsSlot(async () => {
-            if (!safeEnqueue({
-              codec: 'pcm_s16le',
-              provider: getPublicLocalTtsSettings().provider,
-              sampleRate: 24_000,
-              compression: acceptsGzip ? 'adaptive-gzip' : 'none',
-              type: 'ready',
-            })) return;
+            let sentReady = false;
 
             for await (const chunk of streamLocalTts(text, options, request.signal)) {
+              if (!sentReady) {
+                if (!safeEnqueue({
+                  codec: 'pcm_s16le',
+                  provider: getPublicLocalTtsSettings().provider,
+                  sampleRate: chunk.sampleRate,
+                  compression: acceptsGzip ? 'adaptive-gzip' : 'none',
+                  type: 'ready',
+                  voiceRevision: chunk.voiceRevision,
+                })) return;
+                sentReady = true;
+              }
               if (!safeEnqueue({
                 ...createTtsStreamAudioFrame(chunk.audio, acceptsGzip),
                 durationMs: chunk.durationMs,
@@ -214,6 +221,7 @@ export async function POST(request: NextRequest): Promise<Response> {
               })) return;
             }
 
+            if (!sentReady) throw new Error('Local TTS produced no audio chunks.');
             safeEnqueue({ type: 'done' });
           }, request.signal);
         } catch (error) {

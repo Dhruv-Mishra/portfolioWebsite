@@ -3,7 +3,7 @@
 const DB_NAME = 'dhruv-tts-audio-cache';
 const DB_VERSION = 2;
 const STORE_NAME = 'message-audio';
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
 const DEFAULT_PROVIDER = 'pocket-tts';
@@ -35,6 +35,7 @@ interface TtsAudioCacheOptions {
   sampleRate?: number;
   speed?: number;
   voice?: string;
+  voiceRevision?: string;
 }
 
 type CachedTtsAudioWrite = Omit<CachedTtsAudio, 'createdAt' | 'lastAccessedAt' | 'messageIds' | 'version'> & {
@@ -75,7 +76,8 @@ export function createTtsAudioCacheKey(
   const speed = options.speed ?? DEFAULT_SPEED;
   const codec = options.codec ?? DEFAULT_CODEC;
   const sampleRate = options.sampleRate ?? DEFAULT_SAMPLE_RATE;
-  return `tts:${CACHE_VERSION}:${provider}:${createTtsAudioTextHash(text)}:${voice}:${formatCacheNumber(speed)}:${codec}:${sampleRate}`;
+  const voiceRevision = options.voiceRevision ?? 'unknown';
+  return `tts:${CACHE_VERSION}:${provider}:${createTtsAudioTextHash(text)}:${voice}:${voiceRevision}:${formatCacheNumber(speed)}:${codec}:${sampleRate}`;
 }
 
 function ensureIndex(

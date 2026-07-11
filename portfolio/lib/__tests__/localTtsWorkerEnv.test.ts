@@ -29,4 +29,12 @@ describe('local TTS worker environment', () => {
 
     expect(createWorkerEnv(getLocalTtsSettings()).HF_HUB_OFFLINE).toBe('1');
   });
+
+  it('forwards the resolved explicit reference path to the worker', () => {
+    vi.stubEnv('LOCAL_TTS_REFERENCE_PATH', 'tmp/custom-reference.mp3');
+
+    const settings = getLocalTtsSettings();
+    expect(settings.referencePath).toMatch(/tmp[\\/]custom-reference\.mp3$/);
+    expect(createWorkerEnv(settings).LOCAL_TTS_REFERENCE_PATH).toBe(settings.referencePath);
+  });
 });

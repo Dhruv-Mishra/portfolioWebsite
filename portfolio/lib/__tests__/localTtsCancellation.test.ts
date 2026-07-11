@@ -39,6 +39,7 @@ function createWorkerChunk(id: string): string {
     sampleRate: 24_000,
     index: 0,
     type: 'chunk',
+    voiceRevision: 'a'.repeat(64),
   })}\n`;
 }
 

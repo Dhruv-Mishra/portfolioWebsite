@@ -1,8 +1,9 @@
 import 'server-only';
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -10,6 +11,7 @@ import readline from 'node:readline';
 const PROVIDER = 'pocket-tts';
 const MODEL_ID = 'kyutai/pocket-tts';
 const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'portfolio', 'pocket-tts');
+const DEFAULT_REFERENCE_PATH = path.join('public', 'sounds', 'voice', 'TTSReference.mp3');
 const WORKER_RELATIVE_PATH = path.join('scripts', 'pocket-tts-worker.py');
 const SAMPLE_RATE = 24_000;
 const MAX_TEXT_CHARS = 1_200;
@@ -26,6 +28,7 @@ interface WorkerChunkMessage {
   index: number;
   sampleRate: number;
   type: 'chunk';
+  voiceRevision: string;
 }
 
 interface WorkerDoneMessage {
@@ -66,6 +69,7 @@ export interface LocalTtsChunk {
   index: number;
   sampleRate: number;
   text: string;
+  voiceRevision: string;
 }
 
 export interface LocalTtsSettings {
@@ -80,6 +84,7 @@ export interface LocalTtsSettings {
   modelPath: string | null;
   provider: 'pocket-tts';
   pythonExecutable: string;
+  referencePath: string;
   sampleRate: number;
   speed: number;
   voice: LocalTtsVoice;
@@ -187,6 +192,11 @@ function getPythonExecutable(): string {
   return process.env.LOCAL_TTS_PYTHON?.trim() || getDefaultPythonExecutable();
 }
 
+function getReferencePath(): string {
+  const configuredPath = process.env.LOCAL_TTS_REFERENCE_PATH?.trim() || DEFAULT_REFERENCE_PATH;
+  return path.resolve(process.cwd(), configuredPath);
+}
+
 function resolveWorkerScript(): string {
   const serverDir = process.argv[1] ? path.dirname(process.argv[1]) : process.cwd();
   const candidates = [
@@ -241,6 +251,7 @@ function getSettings(): LocalTtsSettings {
     modelPath: null,
     provider: PROVIDER,
     pythonExecutable: getPythonExecutable(),
+    referencePath: getReferencePath(),
     sampleRate: SAMPLE_RATE,
     speed,
     voice,
@@ -250,6 +261,11 @@ function getSettings(): LocalTtsSettings {
 
 export function getLocalTtsSettings(): LocalTtsSettings {
   return getSettings();
+}
+
+export async function getLocalTtsVoiceRevision(): Promise<string> {
+  const referenceAudio = await readFile(getSettings().referencePath);
+  return createHash('sha256').update(referenceAudio).digest('hex');
 }
 
 function getLocalTtsCacheMode(): PublicLocalTtsSettings['cacheMode'] {
@@ -293,6 +309,7 @@ export function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
     LOCAL_TTS_INTER_OP_THREADS: String(settings.interOpThreads),
     LOCAL_TTS_INTRA_OP_THREADS: String(settings.intraOpThreads),
     LOCAL_TTS_MODEL_ID: settings.modelId,
+    LOCAL_TTS_REFERENCE_PATH: settings.referencePath,
     OMP_NUM_THREADS: process.env.OMP_NUM_THREADS ?? String(settings.intraOpThreads),
     ONNX_NUM_THREADS: process.env.ONNX_NUM_THREADS ?? String(settings.intraOpThreads),
     OPENBLAS_NUM_THREADS: process.env.OPENBLAS_NUM_THREADS ?? '1',
@@ -398,16 +415,18 @@ class PocketTtsWorkerClient {
     if (typeof id !== 'string' || id.length === 0 || typeof type !== 'string') return null;
 
     if (type === 'chunk') {
-      const { audioBase64, index, sampleRate } = message;
+      const { audioBase64, index, sampleRate, voiceRevision } = message;
       if (
         typeof audioBase64 !== 'string'
         || !isValidBase64(audioBase64)
         || !isNonNegativeInteger(index)
         || !isValidSampleRate(sampleRate)
+        || typeof voiceRevision !== 'string'
+        || !/^[a-f0-9]{64}$/.test(voiceRevision)
       ) {
         return null;
       }
-      return { audioBase64, id, index, sampleRate, type };
+      return { audioBase64, id, index, sampleRate, type, voiceRevision };
     }
 
     if (type === 'done') {
@@ -746,6 +765,7 @@ export async function* streamLocalTts(text: string, options: LocalTtsOptions, si
       index: chunk.index,
       sampleRate: chunk.sampleRate,
       text: chunks[0] ?? '',
+      voiceRevision: chunk.voiceRevision,
     };
   }
 }

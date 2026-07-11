@@ -29,12 +29,12 @@ describe('/api/tts security', () => {
     expect(payload.queue).toEqual({ active: 0, queued: 0 });
     expect(payload.settings).toMatchObject({
       cacheMode: 'cache-first',
-      chunkChars: 120,
       concurrency: 1,
       defaultSpeed: 1.08,
-      defaultVoice: 'expr-voice-5-m',
-      modelId: 'KittenML/kitten-tts-nano-0.1',
-      provider: 'kitten-tts',
+      defaultVoice: 'custom-dhruv',
+      modelId: 'kyutai/pocket-tts',
+      provider: 'pocket-tts',
+      quantized: true,
       sampleRate: 24_000,
     });
     expect(payload.settings).not.toHaveProperty('cacheDir');

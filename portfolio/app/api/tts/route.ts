@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  encodePcm16,
   getLocalTtsQueueState,
   getPublicLocalTtsSettings,
   isTtsRequestAbortedError,
@@ -145,15 +144,16 @@ export async function POST(request: NextRequest): Promise<Response> {
         try {
           await runWithLocalTtsSlot(async () => {
             controller.enqueue(encodeLine({
-              chunkCount: chunks.length,
               codec: 'pcm_s16le',
+              provider: getPublicLocalTtsSettings().provider,
+              quantized: getPublicLocalTtsSettings().quantized,
               sampleRate: 24_000,
               type: 'ready',
             }));
 
             for await (const chunk of streamLocalTts(text, options, request.signal)) {
               controller.enqueue(encodeLine({
-                audioBase64: encodePcm16(chunk.audio).toString('base64'),
+                audioBase64: chunk.audio.toString('base64'),
                 durationMs: chunk.durationMs,
                 index: chunk.index,
                 sampleRate: chunk.sampleRate,

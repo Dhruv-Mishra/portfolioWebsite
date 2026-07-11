@@ -290,7 +290,7 @@ function saveMessages(messages: ChatMessage[]) {
       .map(({ isOld: _isOld, isFiller: _isFiller, clientOnly: _clientOnly, oracleEmitted: _oracleEmitted, ...m }) => m)
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
-    void pruneTtsAudioCache(toSave.map(message => message.id));
+    void pruneTtsAudioCache(['welcome', ...toSave.map(message => message.id)]);
   } catch {
     // localStorage full or unavailable — silently fail
   }

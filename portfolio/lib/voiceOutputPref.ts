@@ -6,12 +6,12 @@ export type VoiceOutputPref = 'device' | 'server';
 
 const STORAGE_KEY = 'voice-output-pref';
 const EVENT_NAME = 'voice-output-pref:change';
-const DEFAULT_PREF: VoiceOutputPref = 'device';
+const DEFAULT_PREF: VoiceOutputPref = 'server';
 
 function readPref(): VoiceOutputPref {
   if (typeof window === 'undefined') return DEFAULT_PREF;
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'server' ? 'server' : DEFAULT_PREF;
+    return window.localStorage.getItem(STORAGE_KEY) === 'device' ? 'device' : DEFAULT_PREF;
   } catch {
     return DEFAULT_PREF;
   }

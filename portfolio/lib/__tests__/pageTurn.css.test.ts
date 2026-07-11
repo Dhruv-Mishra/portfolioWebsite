@@ -9,58 +9,77 @@ const surface = fs.readFileSync(
   'utf8',
 );
 const css = fs.readFileSync(path.join(projectRoot, 'app', 'globals.css'), 'utf8');
+const model = fs.readFileSync(path.join(projectRoot, 'lib', 'pageTurn.ts'), 'utf8');
 const packageJson = fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8');
 const packageLock = fs.readFileSync(path.join(projectRoot, 'package-lock.json'), 'utf8');
+const layout = fs.readFileSync(path.join(projectRoot, 'app', 'layout.tsx'), 'utf8');
 
 describe('page-turn route transition contract', () => {
-  it('keeps scroll ownership in the server template without a motion runtime', () => {
+  it('keeps the per-navigation server template transparent', () => {
     expect(template).not.toMatch(/^\s*["']use client["'];?/m);
     expect(template).not.toMatch(/from ["'](?:framer-motion|motion\/react)["']/);
     expect(template).not.toMatch(/\b(?:document|window|startViewTransition|ViewTransition)\b/);
     expect(template).not.toMatch(/\bon[A-Z][A-Za-z]+\s*=/);
+    expect(template).toContain('return children;');
   });
 
-  it('keys a full-size surface to pathname and subscribes to navigation intent', () => {
-    const outerClass = template.match(/return \(\s*<div\s+className="([^"]+)"/)?.[1] ?? '';
-    const contentClass = surface.match(/<div\s+className="([^"]*relative z-10[^"]*)">\s*\{children\}/s)?.[1] ?? '';
-
-    expect(outerClass).toBe(
-      'h-full min-h-full min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar',
-    );
-    expect(outerClass).not.toContain('animate-page-template-in');
-    expect(template).toContain('<PageTurnSurface>{children}</PageTurnSurface>');
+  it('hosts one keyed real route layer in the persistent layout', () => {
+    expect(layout).toContain('<PageTurnSurface>{children}</PageTurnSurface>');
     expect(surface).toContain('"use client"');
-    expect(surface).toContain("import { usePathname } from 'next/navigation'");
+    expect(surface).toContain("import { usePathname, useRouter } from 'next/navigation'");
     expect(surface).toContain('const pathname = usePathname()');
     expect(surface).toContain('useSyncExternalStore(');
-    expect(surface).toContain('installPageTurnHistory()');
-    expect(surface).toContain("activeTransition && 'animate-page-template-in'");
-    expect(surface).toContain('transition?.toPath === pathname');
+    expect(surface).toContain('uninstallHistory = installPageTurnHistory()');
+    expect(surface).toMatch(/window\.setTimeout\([\s\S]*?installPageTurnHistory\(\)[\s\S]*?,\s*0\s*\)/);
+    expect(surface).toContain('renderedPathname !== pathname');
+    expect(surface).toContain('?? createPageTurnTransition(renderedPathname, pathname)');
+    expect(surface).toContain('key={pathname}');
+    expect(surface.match(/data-route-scroll-container/g)).toHaveLength(1);
+    expect(surface.match(/data-page-turn-layer=/g)).toHaveLength(1);
+    expect(surface).toContain('data-page-turn-layer="active"');
+    expect(surface).toMatch(/\binert\b/);
+    expect(surface).toContain('document.addEventListener(\'click\', onDocumentClick, true)');
+    expect(surface).toContain('event.preventDefault()');
+    expect(surface).toContain('router[pendingForward.mode](pendingForward.href)');
+    expect(surface).toContain('const timeout = window.setTimeout(commitForwardNavigation, durationMs)');
     expect(surface).toContain('data-page-turn-direction={activeTransition?.direction}');
     expect(surface).toContain('data-page-turn-distance={activeTransition?.distance}');
-    expect(surface).toContain('key={pathname}');
-    expect(surface).not.toMatch(/framer-motion|startViewTransition|onClick/);
-    expect(surface).toContain("'page-turn-surface h-full min-h-full min-w-0 isolate'");
-    expect(contentClass).toContain('h-full');
-    expect(contentClass).toContain('min-h-full');
-    expect(contentClass).toContain('min-w-0');
+    expect(surface).toContain("getPageTurnDurationMs(activeTransition.distance)");
+    expect(surface).toContain("'--page-turn-duration': `${durationMs}ms`");
+    expect(surface).toContain('window.setTimeout(');
+    expect(surface).toContain('durationMs,');
+    expect(surface).not.toMatch(/framer-motion|startViewTransition|cloneNode/);
+    expect(surface).toContain('page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate');
   });
 
-  it('progressively enhances a safe fade with compositor-only paper-turn geometry', () => {
+  it('uses one aligned slow timing model for CSS and state cleanup', () => {
+    expect(model).toContain('1: 680');
+    expect(model).toContain('2: 760');
+    expect(model).toContain('3: 840');
+    expect(css).toContain('--page-turn-duration: 680ms');
+    expect(css).not.toMatch(/--page-turn-duration:\s*(?:420|470|500|510|540|580)ms/);
+    expect(surface).not.toMatch(/setTimeout\([\s\S]*?,\s*800\s*,?\s*\)/);
+  });
+
+  it('progressively enhances a safe fade with distinct left-hinged directions', () => {
     const pageTurnCss = css.match(
-      /\.animate-page-template-in\s*\{[\s\S]+?(?=\/\* Cursor handling)/,
+      /\/\* The persistent layout keeps[\s\S]+?(?=\/\* Cursor handling)/,
     )?.[0] ?? '';
-    const turnKeyframes = pageTurnCss.match(
-      /@keyframes pageTemplateTurnIn \{([\s\S]+?)(?=@keyframes pageTemplateShadeIn)/,
+    const forwardKeyframes = pageTurnCss.match(
+      /@keyframes pageTurnForwardOut \{([\s\S]+?)(?=@keyframes pageTurnBackwardIn)/,
     )?.[1] ?? '';
-    const secondaryKeyframes = pageTurnCss.match(
-      /@keyframes pageTemplateSecondaryIn \{([\s\S]+?)(?=@keyframes pageTemplateShadeIn)/,
+    const backwardKeyframes = pageTurnCss.match(
+      /@keyframes pageTurnBackwardIn \{([\s\S]+?)(?=@keyframes pageTurnForwardShadeOut)/,
     )?.[1] ?? '';
     const shadeKeyframes = pageTurnCss.match(
-      /@keyframes pageTemplateShadeIn\s*\{([\s\S]*?)^    \}/m,
+      /@keyframes pageTurnBackwardShadeIn\s*\{([\s\S]*?)^    \}/m,
     )?.[1] ?? '';
-    const turnProperties = Array.from(
-      turnKeyframes.matchAll(/^\s*([\w-]+)\s*:/gm),
+    const forwardProperties = Array.from(
+      forwardKeyframes.matchAll(/^\s*([\w-]+)\s*:/gm),
+      (match) => match[1],
+    );
+    const backwardProperties = Array.from(
+      backwardKeyframes.matchAll(/^\s*([\w-]+)\s*:/gm),
       (match) => match[1],
     );
     const shadeProperties = Array.from(
@@ -68,61 +87,77 @@ describe('page-turn route transition contract', () => {
       (match) => match[1],
     );
 
-    expect(pageTurnCss).toMatch(/animation:\s*pageTemplateFadeIn\s+\d+ms/);
+    expect(pageTurnCss).toMatch(/animation:\s*pageTurnForwardFadeOut\s+var\(--page-turn-duration\)/);
+    expect(pageTurnCss).toMatch(/animation:\s*pageTurnBackwardFadeIn\s+var\(--page-turn-duration\)/);
     expect(pageTurnCss).toMatch(
       /@supports\s*\(transform:\s*perspective\(1px\) rotateY\(1deg\)\)/,
     );
     expect(pageTurnCss).toContain('--page-turn-origin: left center');
-    expect(pageTurnCss).toContain('--page-turn-origin: right center');
-    expect(pageTurnCss).toContain('--page-turn-angle: -38deg');
-    expect(pageTurnCss).toContain('--page-turn-angle: -58deg');
-    expect(pageTurnCss).toContain('--page-turn-angle: 58deg');
-    expect(pageTurnCss).toContain('[data-page-turn-distance="2"]::before');
-    expect(pageTurnCss).toContain('[data-page-turn-distance="3"]::before');
-    expect(turnKeyframes).toContain('rotateY(var(--page-turn-angle))');
-    expect(secondaryKeyframes).toContain('rotateY(var(--page-turn-secondary-angle))');
-    expect(new Set(turnProperties)).toEqual(new Set(['opacity', 'transform']));
+    expect(pageTurnCss).not.toContain('right center');
+    expect(pageTurnCss).toContain('--page-turn-forward-angle: -68deg');
+    expect(pageTurnCss).toContain('--page-turn-backward-angle: -58deg');
+    expect(pageTurnCss).toContain('.page-turn-layer[data-page-turn-distance="2"]');
+    expect(pageTurnCss).toContain('.page-turn-layer[data-page-turn-distance="3"]');
+    expect(forwardKeyframes).toContain('rotateY(var(--page-turn-forward-angle))');
+    expect(backwardKeyframes).toContain('rotateY(var(--page-turn-backward-angle))');
+    expect(forwardKeyframes).not.toBe(backwardKeyframes);
+    expect(new Set(forwardProperties)).toEqual(new Set(['opacity', 'transform']));
+    expect(new Set(backwardProperties)).toEqual(new Set(['opacity', 'transform']));
     expect(new Set(shadeProperties)).toEqual(new Set(['opacity']));
-    expect(turnKeyframes).not.toMatch(
+    expect(`${forwardKeyframes}${backwardKeyframes}`).not.toMatch(
       /\b(?:width|height|margin|padding|top|right|bottom|left)\s*:/,
     );
     expect(pageTurnCss).toContain('will-change: transform, opacity');
     expect(pageTurnCss).toContain('will-change: auto');
     expect(pageTurnCss).not.toMatch(/view-transition|startViewTransition/);
-    expect(pageTurnCss).not.toMatch(/pageTemplateTurnIn[^;]+\bboth\b/);
+    expect(pageTurnCss).not.toContain('right center');
   });
 
-  it('uses an out-of-flow, non-interactive paper-and-ink shade', () => {
+  it('sequences nested entry motion until the page turn releases', () => {
+    expect(css).toMatch(
+      /\.animate-page-turn-forward-out :where\(\.page-turn-content, \.page-turn-content \*\)[\s\S]*?animation-play-state:\s*paused\s*!important/,
+    );
+    expect(css).toMatch(
+      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-forward-out[\s\S]*?animation-play-state:\s*running\s*!important/,
+    );
+  });
+
+  it('turns the one real route tree with a transparent ink shade', () => {
     const pseudo = css.match(
-      /\.animate-page-template-in::after\s*\{([\s\S]+?)\}/,
+      /\.animate-page-turn-forward-out::after,\s*\.animate-page-turn-backward-in::after\s*\{([\s\S]+?)\}/,
     )?.[1] ?? '';
 
     expect(pseudo).toContain('position: absolute');
     expect(pseudo).toContain('inset: 0');
     expect(pseudo).toContain('z-index: 20');
     expect(pseudo).toContain('pointer-events: none');
-    expect(pseudo).toContain('var(--c-paper)');
-    expect(pseudo).toContain('var(--c-ink)');
-    expect(surface).toContain("activeTransition && 'animate-page-template-in'");
-    expect(surface).toMatch(/relative z-10[^>]*>\s*\{children\}/s);
+    expect(css).toMatch(
+      /\.animate-page-turn-forward-out::after\s*\{[\s\S]*?transparent[\s\S]*?var\(--c-ink\)/,
+    );
+    expect(surface).toContain("activeIsOutgoing && 'animate-page-turn-forward-out'");
+    expect(surface).toContain("activeIsIncoming && 'animate-page-turn-backward-in'");
+    expect(surface).toContain('{children}');
+    expect(surface).not.toContain('outgoingRoute');
   });
 
   it('disables the turn and shade for system and explicit reduced motion', () => {
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-template-in\s*\{[\s\S]*?animation:\s*none\s*!important/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-turn-forward-out[\s\S]*?animation:\s*none\s*!important/,
     );
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-template-in::after\s*\{[\s\S]*?content:\s*none/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-turn-forward-out::after[\s\S]*?content:\s*none/,
     );
     expect(css).toMatch(
-      /html\[data-motion="reduced"\] \.animate-page-template-in::after\s*\{[\s\S]*?content:\s*none/,
+      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-forward-out::after[\s\S]*?content:\s*none/,
     );
     expect(css).toMatch(
-      /html\[data-motion="reduced"\] \.animate-page-template-in\s*\{[\s\S]*?pointer-events:\s*auto/,
+      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-backward-in[\s\S]*?pointer-events:\s*auto/,
     );
     expect(css).toMatch(
-      /html\[data-motion="reduced"\] \.animate-page-template-in\s*\{[\s\S]*?animation:\s*none\s*!important/,
+      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-backward-in[\s\S]*?animation:\s*none\s*!important/,
     );
+    expect(surface).toContain('if (!nextTransition || reducedMotion) {');
+    expect(surface).toContain('if (!reducedMotion) return');
   });
 
   it('adds no page-turn dependency', () => {

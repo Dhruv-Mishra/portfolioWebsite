@@ -90,6 +90,27 @@ describe('committed facts.embeddings.json', () => {
     expect(typed.factCount).toBeGreaterThan(0);
   });
 
+  it('matches the markdown fact corpus exactly', () => {
+    const sourceFacts = loadFacts(path.resolve(process.cwd(), 'content', 'facts'));
+    const embeddedFacts = (bundle as EmbeddingsBundle).facts;
+
+    expect(embeddedFacts.map((fact) => fact.id)).toEqual(sourceFacts.map((fact) => fact.id));
+    for (let index = 0; index < sourceFacts.length; index += 1) {
+      const source = sourceFacts[index];
+      const embedded = embeddedFacts[index];
+      expect(embedded, `stale embedded fact: ${source.id}`).toMatchObject({
+        id: source.id,
+        text: source.text,
+        tags: source.tags,
+        priority: source.priority,
+        anchor: source.anchor,
+        category: source.category,
+      });
+      expect(embedded.slug, `stale project slug: ${source.id}`).toBe(source.slug);
+      expect(embedded.contentHash, `stale content hash: ${source.id}`).toBe(hashContent(source.text));
+    }
+  });
+
   it('every fact has a non-zero, correctly-dimensioned embedding', () => {
     const typed = bundle as EmbeddingsBundle;
     const dimension = typed.dimension;

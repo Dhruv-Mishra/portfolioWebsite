@@ -61,9 +61,9 @@ describe('motion preference contract', () => {
 
   it('lets full motion override device reduction while explicit reduction remains authoritative', () => {
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?html:not\(\[data-motion="full"\]\) \.animate-page-template-in/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?html:not\(\[data-motion="full"\]\) \.animate-page-turn-forward-out/,
     );
-    expect(css).toContain('html[data-motion="reduced"] .animate-page-template-in');
+    expect(css).toContain('html[data-motion="reduced"] :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in)');
     expect(reducedContract).toContain('html:not([data-motion="full"])');
   });
 });

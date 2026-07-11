@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { m } from 'framer-motion';
 import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from 'next/link';
@@ -9,7 +10,10 @@ import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
+import { createMobileSocialBarVisibilityController } from '@/lib/mobileSocialBarVisibility';
 import { useDiscoActive } from '@/hooks/useStickers';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { runThemeToggle } from '@/lib/themeToggleAction';
 import { Tooltip } from '@/components/ui/Tooltip';
 // Note: soundManager import removed — the mobile theme button now routes
@@ -190,6 +194,80 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
 // no longer carries a mute button so we don't double-render the control on
 // narrow viewports.
 
+function MobileSocialBar({ children }: React.PropsWithChildren) {
+    const isMobile = useIsMobile();
+    const reducedMotion = useEffectiveReducedMotion();
+    const [isVisible, setIsVisible] = React.useState(true);
+    const controllerRef = React.useRef<ReturnType<typeof createMobileSocialBarVisibilityController> | null>(null);
+
+    React.useEffect(() => {
+        if (!isMobile) return;
+
+        const scrollContainer = document.querySelector<HTMLElement>('[data-route-scroll-container]');
+        if (!scrollContainer) return;
+
+        const controller = createMobileSocialBarVisibilityController({
+            initialScrollTop: scrollContainer.scrollTop,
+            onVisibilityChange: setIsVisible,
+            requestFrame: window.requestAnimationFrame.bind(window),
+            cancelFrame: window.cancelAnimationFrame.bind(window),
+            setIdleTimeout: window.setTimeout.bind(window),
+            clearIdleTimeout: window.clearTimeout.bind(window),
+        });
+        controllerRef.current = controller;
+
+        const handleScroll = () => controller.handleScroll(() => scrollContainer.scrollTop);
+        scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+        return () => {
+            scrollContainer.removeEventListener('scroll', handleScroll);
+            controller.dispose();
+            controllerRef.current = null;
+        };
+    }, [isMobile]);
+
+    const reveal = () => controllerRef.current?.reveal();
+
+    return (
+        <div
+            data-social-sidebar-frame
+            className="md:hidden fixed -translate-x-1/2"
+            style={{
+                zIndex: Z_INDEX.sidebar,
+                bottom: 'var(--c-mobile-dock-bottom)',
+                left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
+                maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
+            }}
+        >
+            <m.div
+                data-social-sidebar
+                data-social-sidebar-layout="mobile"
+                data-mobile-social-bar-visible={isVisible ? 'true' : 'false'}
+                className="grid max-w-full grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
+                role="complementary"
+                aria-label="Social media links"
+                initial={false}
+                animate={{
+                    y: isVisible ? '0%' : '200%',
+                }}
+                transition={reducedMotion
+                    ? { duration: 0 }
+                    : { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ pointerEvents: isVisible ? 'auto' : 'none' }}
+                onPointerDownCapture={reveal}
+                onFocusCapture={() => controllerRef.current?.setFocusWithin(true)}
+                onBlurCapture={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        controllerRef.current?.setFocusWithin(false);
+                    }
+                }}
+            >
+                {children}
+            </m.div>
+        </div>
+    );
+}
+
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     const { externalLink, openPanel, toggle } = useAppHaptics();
     const pathname = usePathname();
@@ -236,19 +314,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             {!hideMobileBar && (
-            <div
-                data-social-sidebar
-                data-social-sidebar-layout="mobile"
-                className="md:hidden fixed -translate-x-1/2 grid grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
-                role="complementary"
-                aria-label="Social media links"
-                style={{
-                    zIndex: Z_INDEX.sidebar,
-                    bottom: 'var(--c-mobile-dock-bottom)',
-                    left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
-                    maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
-                }}
-            >
+            <MobileSocialBar key={pathname}>
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />
 
@@ -273,7 +339,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                         <MessageSquare size={15} strokeWidth={2.5} />
                     </button>
                 )}
-            </div>
+            </MobileSocialBar>
             )}
         </>
     );

@@ -4,7 +4,7 @@ description: "Sol orchestrator for complex or ambiguous engineering work: decide
 argument-hint: "Describe the outcome, constraints, known failures, and any decisions already fixed."
 model: "GPT-5.6 Sol (copilot)"
 target: vscode
-agents: [Builder, Fastlane]
+agents: [*]
 user-invocable: true
 disable-model-invocation: false
 ---

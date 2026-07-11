@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { useAdminPrefsApi } from '@/hooks/useAdminPrefs';
 import { logoutAdmin } from '@/lib/adminAuthClient';
 import { MATRIX_PUZZLE_KEYS } from '@/lib/matrixPuzzle';
+import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 type ToggleKey = 'paperGrain' | 'tapeEffects' | 'sketchOutlines' | 'experimentalCommands';
 
@@ -109,7 +110,7 @@ export default function AdminConsole(): React.ReactElement {
     // 404s). Small sleep so the user briefly sees the "logging out…"
     // state, not a jarring instant redirect.
     window.setTimeout(() => {
-      router.replace('/');
+      requestPageTurnNavigation(router, { href: '/', mode: 'replace' });
     }, 180);
   }, [router]);
 
@@ -153,7 +154,7 @@ export default function AdminConsole(): React.ReactElement {
         <footer className="mt-6 flex flex-col-reverse md:flex-row md:justify-between gap-3 items-stretch">
           <button
             type="button"
-            onClick={() => router.push('/')}
+            onClick={() => requestPageTurnNavigation(router, { href: '/', mode: 'push' })}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/15 transition-colors font-code text-xs tracking-[0.2em] uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
           >
             <Home size={14} aria-hidden />

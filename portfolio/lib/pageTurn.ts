@@ -1,4 +1,17 @@
 export type PageTurnDirection = 'forward' | 'backward';
+export type PageTurnNavigationMode = 'push' | 'replace';
+
+export interface PageTurnNavigationRequest {
+  href: string;
+  mode: PageTurnNavigationMode;
+}
+
+export interface PageTurnNavigationRouter {
+  push: (href: string) => void;
+  replace: (href: string) => void;
+}
+
+export const PAGE_TURN_NAVIGATION_EVENT = 'portfolio:page-turn-navigation';
 
 export interface PageTurnRoute {
   path: string;
@@ -14,6 +27,16 @@ export interface PageTurnTransition {
   toPage: number;
   direction: PageTurnDirection;
   distance: 1 | 2 | 3;
+}
+
+export const PAGE_TURN_DURATION_BY_DISTANCE_MS = {
+  1: 680,
+  2: 760,
+  3: 840,
+} as const;
+
+export function getPageTurnDurationMs(distance: PageTurnTransition['distance']) {
+  return PAGE_TURN_DURATION_BY_DISTANCE_MS[distance];
 }
 
 export const PAGE_TURN_ROUTES: readonly PageTurnRoute[] = [
@@ -35,6 +58,23 @@ let transitionSequence = 0;
 let snapshot: PageTurnTransition | null = null;
 const listeners = new Set<() => void>();
 let notificationQueued = false;
+
+export function requestPageTurnNavigation(
+  router: PageTurnNavigationRouter,
+  request: PageTurnNavigationRequest,
+) {
+  if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+    const event = new CustomEvent<PageTurnNavigationRequest>(PAGE_TURN_NAVIGATION_EVENT, {
+      bubbles: false,
+      cancelable: true,
+      detail: request,
+    });
+    window.dispatchEvent(event);
+    if (event.defaultPrevented) return;
+  }
+
+  router[request.mode](request.href);
+}
 
 function notifyListeners() {
   if (notificationQueued) return;
@@ -203,30 +243,54 @@ export function installPageTurnHistory() {
 
   const patchedPushState: History['pushState'] = function pushState(data, unused, url) {
     const fromPath = currentPath;
-    const nextIndex = tracker.index + 1;
-    const result = originalPushState.call(
-      window.history,
-      stateWithHistoryIndex(data, nextIndex),
-      unused,
-      url,
+    const toPath = normalizePageTurnPath(
+      url === undefined || url === null
+        ? window.location.pathname
+        : new URL(url.toString(), window.location.href).pathname,
     );
+    const nextIndex = tracker.index + 1;
+    const transition = createPageTurnTransition(fromPath, toPath);
+    startPageTurn(transition);
+    let result: ReturnType<History['pushState']>;
+    try {
+      result = originalPushState.call(
+        window.history,
+        stateWithHistoryIndex(data, nextIndex),
+        unused,
+        url,
+      );
+    } catch (error) {
+      if (transition) finishPageTurn(transition.sequence);
+      throw error;
+    }
     tracker.push();
     currentPath = normalizePageTurnPath(window.location.pathname);
-    startPageTurn(createPageTurnTransition(fromPath, currentPath));
     return result;
   };
   window.history.pushState = patchedPushState;
 
   const patchedReplaceState: History['replaceState'] = function replaceState(data, unused, url) {
     const fromPath = currentPath;
-    const result = originalReplaceState.call(
-      window.history,
-      stateWithHistoryIndex(data, tracker.replace()),
-      unused,
-      url,
+    const toPath = normalizePageTurnPath(
+      url === undefined || url === null
+        ? window.location.pathname
+        : new URL(url.toString(), window.location.href).pathname,
     );
+    const transition = createPageTurnTransition(fromPath, toPath);
+    startPageTurn(transition);
+    let result: ReturnType<History['replaceState']>;
+    try {
+      result = originalReplaceState.call(
+        window.history,
+        stateWithHistoryIndex(data, tracker.replace()),
+        unused,
+        url,
+      );
+    } catch (error) {
+      if (transition) finishPageTurn(transition.sequence);
+      throw error;
+    }
     currentPath = normalizePageTurnPath(window.location.pathname);
-    startPageTurn(createPageTurnTransition(fromPath, currentPath));
     return result;
   };
   window.history.replaceState = patchedReplaceState;

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, type CSSProperties, type MouseEvent } from 'react';
+import { useState, useCallback, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import { PROJECTS } from '@/lib/projects';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { stickerBus } from '@/lib/stickerBus';
 import { recordOpenedProjectImperative } from '@/hooks/useStickers';
+import { getPageTurnSnapshot, getServerPageTurnSnapshot, subscribeToPageTurn } from '@/lib/pageTurn';
 
 // Dynamic import — ProjectModal only renders on user click.
 const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
@@ -85,6 +86,12 @@ export default function Projects() {
     const [selectedProject, setSelectedProject] = useState<number | null>(null);
     const [hasOpenedProject, setHasOpenedProject] = useState(false);
     const isMobile = useIsMobile();
+    const pageTurn = useSyncExternalStore(
+        subscribeToPageTurn,
+        getPageTurnSnapshot,
+        getServerPageTurnSnapshot,
+    );
+    const settleEntrance = isMobile || pageTurn?.direction === 'backward';
     const { closePanel, openPanel } = useAppHaptics();
 
     const openProject = useCallback((index: number) => {
@@ -131,15 +138,15 @@ export default function Projects() {
                         <m.div
                             key={proj.name}
                             className="pt-5"
-                            initial={isMobile ? { opacity: 1, y: 0, rotate: rotate } : { opacity: 0, y: 20, rotate: rotate }}
-                            animate={isMobile ? { opacity: 1, y: 0, rotate: rotate } : undefined}
-                            whileInView={isMobile ? undefined : {
+                            initial={settleEntrance ? { opacity: 1, y: 0, rotate: rotate } : { opacity: 0, y: 20, rotate: rotate }}
+                            animate={settleEntrance ? { opacity: 1, y: 0, rotate: rotate } : undefined}
+                            whileInView={settleEntrance ? undefined : {
                                 opacity: 1,
                                 y: 0,
                                 rotate: rotate,
                             }}
-                            viewport={isMobile ? undefined : { once: true, margin: PROJECT_TOKENS.viewportMargin }}
-                            transition={isMobile ? { duration: 0 } : {
+                            viewport={settleEntrance ? undefined : { once: true, margin: PROJECT_TOKENS.viewportMargin }}
+                            transition={settleEntrance ? { duration: 0 } : {
                                 delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
                                 ...CARD_SPRING,
                             }}

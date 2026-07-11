@@ -53,10 +53,10 @@ describe('page-turn route transition contract', () => {
   });
 
   it('uses one aligned slow timing model for CSS and state cleanup', () => {
-    expect(model).toContain('1: 680');
-    expect(model).toContain('2: 760');
-    expect(model).toContain('3: 840');
-    expect(css).toContain('--page-turn-duration: 680ms');
+    expect(model).toContain('1: 600');
+    expect(model).toContain('2: 680');
+    expect(model).toContain('3: 760');
+    expect(css).toContain('--page-turn-duration: 600ms');
     expect(css).not.toMatch(/--page-turn-duration:\s*(?:420|470|500|510|540|580)ms/);
     expect(surface).not.toMatch(/setTimeout\([\s\S]*?,\s*800\s*,?\s*\)/);
   });
@@ -123,10 +123,17 @@ describe('page-turn route transition contract', () => {
   });
 
   it('turns the one real route tree with a transparent ink shade', () => {
+    const animatedRouteRules = Array.from(
+      css.matchAll(
+        /\.animate-page-turn-forward-out,\s*\.animate-page-turn-backward-in\s*\{([\s\S]+?)\}/g,
+      ),
+      (match) => match[1],
+    ).join('\n');
     const pseudo = css.match(
       /\.animate-page-turn-forward-out::after,\s*\.animate-page-turn-backward-in::after\s*\{([\s\S]+?)\}/,
     )?.[1] ?? '';
 
+    expect(animatedRouteRules).not.toMatch(/\bbackground-(?:image|size)\s*:/);
     expect(pseudo).toContain('position: absolute');
     expect(pseudo).toContain('inset: 0');
     expect(pseudo).toContain('z-index: 20');

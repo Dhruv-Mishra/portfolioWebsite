@@ -32,6 +32,29 @@ interface PendingForwardTurn {
   href: string;
   mode: PageTurnNavigationRequest['mode'];
   transition: PageTurnTransition;
+  lockSequence: number;
+}
+
+interface IncomingTurn {
+  transition: PageTurnTransition;
+}
+
+interface NavigationWatchdog {
+  sequence: number;
+  timeout: number;
+}
+
+interface NavigationLock {
+  sequence: number;
+  transition: PageTurnTransition;
+  snapshotSequence: number;
+}
+
+function isSameNavigationTransition(
+  first: PageTurnTransition,
+  second: PageTurnTransition,
+) {
+  return first.fromPath === second.fromPath && first.toPath === second.toPath;
 }
 
 const ROUTE_SCROLL_CLASSES =
@@ -47,11 +70,43 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     getServerPageTurnSnapshot,
   );
   const [renderedPathname, setRenderedPathname] = useState(pathname);
-  const [incomingTurn, setIncomingTurn] = useState<PageTurnTransition | null>(null);
+  const [incomingTurn, setIncomingTurn] = useState<IncomingTurn | null>(null);
   const [pendingForward, setPendingForward] = useState<PendingForwardTurn | null>(null);
   const routeScrollRef = useRef<HTMLDivElement>(null);
   const navigationStartedRef = useRef(false);
-  const navigationWatchdogRef = useRef<number | null>(null);
+  const navigationLockRef = useRef<NavigationLock | null>(null);
+  const navigationWatchdogRef = useRef<NavigationWatchdog | null>(null);
+
+  const releaseNavigationLock = useCallback((sequence: number) => {
+    const lock = navigationLockRef.current;
+    if (lock?.sequence !== sequence) return;
+
+    navigationLockRef.current = null;
+    const activeSnapshot = getPageTurnSnapshot();
+    if (activeSnapshot?.sequence === lock.snapshotSequence) {
+      finishPageTurn(activeSnapshot.sequence);
+    }
+  }, []);
+
+  const adoptNavigationSnapshot = useCallback((sequence: number) => {
+    const lock = navigationLockRef.current;
+    if (lock?.sequence !== sequence) return;
+
+    const activeSnapshot = getPageTurnSnapshot();
+    if (
+      activeSnapshot?.fromPath === lock.transition.fromPath
+      && activeSnapshot.toPath === lock.transition.toPath
+    ) {
+      lock.snapshotSequence = activeSnapshot.sequence;
+    }
+  }, []);
+
+  const clearNavigationWatchdog = useCallback((sequence?: number) => {
+    const watchdog = navigationWatchdogRef.current;
+    if (!watchdog || sequence !== undefined && watchdog.sequence !== sequence) return;
+    window.clearTimeout(watchdog.timeout);
+    navigationWatchdogRef.current = null;
+  }, []);
 
   if (renderedPathname !== pathname) {
     const currentSnapshot = getPageTurnSnapshot();
@@ -63,16 +118,18 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       ?? createPageTurnTransition(renderedPathname, pathname);
 
     setRenderedPathname(pathname);
-    setIncomingTurn(nextTransition?.direction === 'backward' && !reducedMotion
-      ? nextTransition
-      : null);
+    if (nextTransition?.direction === 'backward' && !reducedMotion) {
+      setIncomingTurn({ transition: nextTransition });
+    } else {
+      setIncomingTurn(null);
+    }
   }
 
   const forwardTurn = !reducedMotion
     && pendingForward?.transition.fromPath === pathname
     ? pendingForward.transition
     : null;
-  const backwardTurn = reducedMotion ? null : incomingTurn;
+  const backwardTurn = reducedMotion ? null : incomingTurn?.transition ?? null;
   const activeTransition = forwardTurn ?? backwardTurn;
   const durationMs = activeTransition
     ? getPageTurnDurationMs(activeTransition.distance)
@@ -85,17 +142,41 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     }, 0);
     return () => {
       window.clearTimeout(timeout);
-      if (navigationWatchdogRef.current !== null) {
-        window.clearTimeout(navigationWatchdogRef.current);
-      }
+      clearNavigationWatchdog();
+      const lockSequence = navigationLockRef.current?.sequence;
+      if (lockSequence !== undefined) releaseNavigationLock(lockSequence);
       uninstallHistory();
     };
-  }, []);
+  }, [clearNavigationWatchdog, releaseNavigationLock]);
+
+  useLayoutEffect(() => {
+    if (!backwardTurn) return;
+
+    const currentLock = navigationLockRef.current;
+    if (currentLock && isSameNavigationTransition(currentLock.transition, backwardTurn)) {
+      adoptNavigationSnapshot(currentLock.sequence);
+      return;
+    }
+
+    clearNavigationWatchdog();
+    const lockSequence = backwardTurn.sequence;
+    navigationLockRef.current = {
+      sequence: lockSequence,
+      transition: backwardTurn,
+      snapshotSequence: backwardTurn.sequence,
+    };
+    adoptNavigationSnapshot(lockSequence);
+  }, [adoptNavigationSnapshot, backwardTurn, clearNavigationWatchdog]);
 
   const startNavigationRequest = useCallback((request: PageTurnNavigationRequest) => {
     const url = new URL(request.href, window.location.href);
     if (url.origin !== window.location.origin) return false;
-    if (pendingForward) return true;
+    if (
+      navigationLockRef.current !== null
+      || pendingForward
+      || incomingTurn
+      || getPageTurnSnapshot()
+    ) return true;
 
     const href = `${url.pathname}${url.search}${url.hash}`;
     const nextTransition = createPageTurnTransition(pathname, url.pathname);
@@ -104,14 +185,29 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       return true;
     }
 
+    const lockSequence = nextTransition.sequence;
+    navigationLockRef.current = {
+      sequence: lockSequence,
+      transition: nextTransition,
+      snapshotSequence: nextTransition.sequence,
+    };
     startPageTurn(nextTransition);
     if (nextTransition.direction === 'backward') {
       try {
         router[request.mode](href);
       } catch (error) {
-        finishPageTurn(nextTransition.sequence);
+        adoptNavigationSnapshot(lockSequence);
+        releaseNavigationLock(lockSequence);
         throw error;
       }
+      adoptNavigationSnapshot(lockSequence);
+      const timeout = window.setTimeout(() => {
+        if (navigationWatchdogRef.current?.sequence !== lockSequence) return;
+        navigationWatchdogRef.current = null;
+        finishPageTurn(nextTransition.sequence);
+        releaseNavigationLock(lockSequence);
+      }, 5_000);
+      navigationWatchdogRef.current = { sequence: lockSequence, timeout };
       return true;
     }
 
@@ -124,14 +220,29 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       document.getElementById('main-content')?.focus({ preventScroll: true });
     }
 
-    router.prefetch(href);
+    try {
+      router.prefetch(href);
+    } catch (error) {
+      finishPageTurn(nextTransition.sequence);
+      releaseNavigationLock(lockSequence);
+      throw error;
+    }
     setPendingForward({
       href,
       mode: request.mode,
       transition: nextTransition,
+      lockSequence,
     });
     return true;
-  }, [pathname, pendingForward, reducedMotion, router]);
+  }, [
+    adoptNavigationSnapshot,
+    incomingTurn,
+    pathname,
+    pendingForward,
+    reducedMotion,
+    releaseNavigationLock,
+    router,
+  ]);
 
   useEffect(() => {
     const onNavigationRequest = (event: Event) => {
@@ -182,6 +293,7 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     try {
       router[pendingForward.mode](pendingForward.href);
     } catch (error) {
+      adoptNavigationSnapshot(pendingForward.lockSequence);
       setPendingForward((current) => (
         current?.transition.sequence === pendingForward.transition.sequence
           ? null
@@ -189,9 +301,12 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       ));
       navigationStartedRef.current = false;
       finishPageTurn(pendingForward.transition.sequence);
+      releaseNavigationLock(pendingForward.lockSequence);
       throw error;
     }
-    navigationWatchdogRef.current = window.setTimeout(() => {
+    adoptNavigationSnapshot(pendingForward.lockSequence);
+    const timeout = window.setTimeout(() => {
+      if (navigationWatchdogRef.current?.sequence !== pendingForward.lockSequence) return;
       setPendingForward((current) => (
         current?.transition.sequence === pendingForward.transition.sequence
           ? null
@@ -200,8 +315,13 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       navigationStartedRef.current = false;
       navigationWatchdogRef.current = null;
       finishPageTurn(pendingForward.transition.sequence);
+      releaseNavigationLock(pendingForward.lockSequence);
     }, 5_000);
-  }, [pendingForward, router]);
+    navigationWatchdogRef.current = {
+      sequence: pendingForward.lockSequence,
+      timeout,
+    };
+  }, [adoptNavigationSnapshot, pendingForward, releaseNavigationLock, router]);
 
   useEffect(() => {
     if (!forwardTurn) return;
@@ -210,23 +330,26 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   }, [commitForwardNavigation, durationMs, forwardTurn]);
 
   useEffect(() => {
-    if (!backwardTurn) return;
+    if (!backwardTurn || !incomingTurn) return;
+    const lock = navigationLockRef.current;
+    const lockSequence = lock && isSameNavigationTransition(lock.transition, backwardTurn)
+      ? lock.sequence
+      : null;
     const timeout = window.setTimeout(() => {
       setIncomingTurn((current) => (
-        current?.sequence === backwardTurn.sequence ? null : current
+        current?.transition.sequence === backwardTurn.sequence ? null : current
       ));
+      if (lockSequence !== null) clearNavigationWatchdog(lockSequence);
       finishPageTurn(backwardTurn.sequence);
+      if (lockSequence !== null) releaseNavigationLock(lockSequence);
     }, getPageTurnDurationMs(backwardTurn.distance));
     return () => window.clearTimeout(timeout);
-  }, [backwardTurn]);
+  }, [backwardTurn, clearNavigationWatchdog, incomingTurn, releaseNavigationLock]);
 
   useEffect(() => {
     if (!pendingForward || pendingForward.transition.fromPath === pathname) return;
     const timeout = window.setTimeout(() => {
-      if (navigationWatchdogRef.current !== null) {
-        window.clearTimeout(navigationWatchdogRef.current);
-        navigationWatchdogRef.current = null;
-      }
+      clearNavigationWatchdog(pendingForward.lockSequence);
       setPendingForward((current) => (
         current?.transition.sequence === pendingForward.transition.sequence
           ? null
@@ -234,9 +357,10 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       ));
       navigationStartedRef.current = false;
       finishPageTurn(pendingForward.transition.sequence);
+      releaseNavigationLock(pendingForward.lockSequence);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [pathname, pendingForward]);
+  }, [clearNavigationWatchdog, pathname, pendingForward, releaseNavigationLock]);
 
   useEffect(() => {
     if (
@@ -250,13 +374,42 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!reducedMotion) return;
+    if (pendingForward) {
+      const timeout = window.setTimeout(commitForwardNavigation, 0);
+      return () => window.clearTimeout(timeout);
+    }
+
+    const incoming = incomingTurn;
+    const lock = navigationLockRef.current;
+    const lockSequence = lock && (!incoming
+      || isSameNavigationTransition(lock.transition, incoming.transition))
+      ? lock.sequence
+      : undefined;
     const sequence = transition?.toPath === pathname ? transition.sequence : null;
+    if (lockSequence !== undefined) {
+      clearNavigationWatchdog(lockSequence);
+      releaseNavigationLock(lockSequence);
+    }
+    if (incoming) finishPageTurn(incoming.transition.sequence);
+    if (sequence !== null) finishPageTurn(sequence);
+    if (!incoming) return;
+
     const timeout = window.setTimeout(() => {
-      setIncomingTurn(null);
-      if (sequence !== null) finishPageTurn(sequence);
+      setIncomingTurn((current) => (
+        current?.transition.sequence === incoming.transition.sequence ? null : current
+      ));
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [pathname, reducedMotion, transition]);
+  }, [
+    clearNavigationWatchdog,
+    commitForwardNavigation,
+    incomingTurn,
+    pathname,
+    pendingForward,
+    reducedMotion,
+    releaseNavigationLock,
+    transition,
+  ]);
 
   const finishActiveTransition = (event: AnimationEvent<HTMLDivElement>) => {
     if (
@@ -271,6 +424,11 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
         commitForwardNavigation();
       } else {
         setIncomingTurn(null);
+        const lock = navigationLockRef.current;
+        if (lock && isSameNavigationTransition(lock.transition, activeTransition)) {
+          clearNavigationWatchdog(lock.sequence);
+          releaseNavigationLock(lock.sequence);
+        }
         finishPageTurn(activeTransition.sequence);
       }
     }

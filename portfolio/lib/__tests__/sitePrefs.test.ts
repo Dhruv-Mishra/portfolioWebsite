@@ -34,6 +34,30 @@ beforeEach(() => {
 });
 
 describe('site preference migration and facade', () => {
+  it.each([
+    ['absent storage', null],
+    ['malformed storage', '{'],
+    ['a missing motion preference', JSON.stringify({ version: 5 })],
+    ['an invalid motion preference', JSON.stringify({ version: 5, motionPreference: 'always' })],
+  ])('defaults to full motion for %s', async (_scenario, storedValue) => {
+    if (storedValue !== null) storage.setItem(STORAGE_KEY, storedValue);
+
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    expect(internal.getAdminPrefsSnapshot().motionPreference).toBe('full');
+  });
+
+  it.each(['system', 'reduced', 'full'] as const)(
+    'preserves an explicit %s motion preference',
+    async (motionPreference) => {
+      storage.setItem(STORAGE_KEY, JSON.stringify({ version: 5, motionPreference }));
+
+      const internal = await import('@/hooks/useAdminPrefs');
+
+      expect(internal.getAdminPrefsSnapshot().motionPreference).toBe(motionPreference);
+    },
+  );
+
   it('migrates v2 values and defaults malformed or missing current fields safely', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify({
       version: 2,
@@ -56,7 +80,7 @@ describe('site preference migration and facade', () => {
       experimentalCommands: true,
       stickerToastsEnabled: true,
       hapticsEnabled: true,
-      motionPreference: 'system',
+      motionPreference: 'full',
     });
   });
 
@@ -80,7 +104,7 @@ describe('site preference migration and facade', () => {
 
   it('adopts validated preference changes from another tab', async () => {
     const internal = await import('@/hooks/useAdminPrefs');
-    expect(internal.getAdminPrefsSnapshot().motionPreference).toBe('system');
+    expect(internal.getAdminPrefsSnapshot().motionPreference).toBe('full');
     expect(storageHandler).toBeTypeOf('function');
 
     storageHandler?.({

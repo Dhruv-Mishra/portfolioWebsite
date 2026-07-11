@@ -30,9 +30,9 @@ export interface PageTurnTransition {
 }
 
 export const PAGE_TURN_DURATION_BY_DISTANCE_MS = {
-  1: 680,
-  2: 760,
-  3: 840,
+  1: 600,
+  2: 680,
+  3: 760,
 } as const;
 
 export function getPageTurnDurationMs(distance: PageTurnTransition['distance']) {

@@ -44,7 +44,7 @@
 #                --skip-build        [legacy]   Skip npm ci + next build
 #                --skip-nginx        Skip nginx config update
 #                --rollback          Roll back to the newest previous release
-#                --rollback-to SHA   Roll back to a specific retained release
+#                --rollback-to SHA   Roll back by retained source Git SHA prefix
 #                --force             [legacy]   Deploy with uncommitted changes
 #                --help              Show help
 #
@@ -271,7 +271,9 @@ readonly NC='\033[0m'
 
 MODE="legacy"              # "artifact" | "image" | "legacy"
 RELEASE_DIR=""             # set in image/artifact mode
+RELEASE_ID=""              # release directory basename in image/artifact/rollback mode
 RELEASE_SHA=""             # set in image/artifact mode
+NEW_RELEASE_DIR=""         # final release directory materialized by this deploy
 DOCKER_IMAGE=""             # set in image mode
 DOCKER_HOST_ARCH=""         # normalized Docker daemon architecture in image mode
 ROLLBACK_TARGET_SHA=""      # set in rollback mode when a specific target is requested
@@ -363,9 +365,10 @@ CONFIGURATION
   Site config:    /etc/deploy/sites/<name>.conf
 
 LAYOUT (image/artifact mode)
-  /opt/<service>/config/.env.local       — secrets, survives deploys
-  /opt/<service>/releases/<sha>/         — one dir per release, auto-trimmed
-  /opt/<service>/current -> releases/X   — atomic symlink flipped at deploy time
+    /opt/<service>/config/.env.local        — secrets, survives deploys
+    /opt/<service>/releases/<sha>/          — artifact release, auto-trimmed
+    /opt/<service>/releases/<sha>-<digest>/ — image release; digest is 12 hex chars
+    /opt/<service>/current -> releases/X    — atomic symlink flipped at deploy time
 EOF
     exit 0
 }
@@ -402,8 +405,8 @@ parse_arguments() {
                     log ERROR "--image requires an image reference"
                     exit 1
                 fi
-                if [[ "${DOCKER_IMAGE}" != *@sha256:* ]]; then
-                    log ERROR "--image must be an immutable digest ref (expected repo@sha256:..., got: ${DOCKER_IMAGE})"
+                if ! [[ "${DOCKER_IMAGE}" =~ @sha256:[0-9a-f]{64}$ ]]; then
+                    log ERROR "--image must end with an immutable lowercase digest (expected repo@sha256:<64 lowercase hex>, got: ${DOCKER_IMAGE})"
                     exit 1
                 fi
                 shift 2
@@ -549,6 +552,21 @@ rollback_artifact() {
             log SUCCESS "nginx rolled back"
         else
             log ERROR "CRITICAL: nginx rollback failed — manual intervention required"
+        fi
+    fi
+
+    # Remove only a final release directory created by this failed deploy, and
+    # only after restoration confirms it is no longer active.
+    if [[ -n "${NEW_RELEASE_DIR}" ]] && [[ -d "${NEW_RELEASE_DIR}" ]]; then
+        local current_target=""
+        local new_release_target=""
+        current_target=$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+        new_release_target=$(readlink -f "${NEW_RELEASE_DIR}" 2>/dev/null || true)
+        if [[ -n "${new_release_target}" ]] && [[ "${current_target}" != "${new_release_target}" ]]; then
+            log INFO "Removing failed staged release: ${NEW_RELEASE_DIR}"
+            rm -rf "${NEW_RELEASE_DIR}"
+        else
+            log WARN "Keeping failed staged release because it is still active: ${NEW_RELEASE_DIR}"
         fi
     fi
 
@@ -1252,9 +1270,10 @@ record_previous_release() {
 }
 
 stage_release() {
+    RELEASE_ID="${RELEASE_SHA}"
     log STEP "Staging release ${RELEASE_SHA}..."
 
-    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_ID}"
     local current_target=""
     local target_real=""
 
@@ -1302,52 +1321,51 @@ stage_release() {
 
     rm -rf "${target}"
     mv "${staging}" "${target}"
+    NEW_RELEASE_DIR="${target}"
 
     local file_count
     file_count=$(find "${target}" -type f | wc -l)
     log SUCCESS "Staged ${file_count} files to ${target}"
 }
 
+image_release_id() {
+    local digest="${DOCKER_IMAGE##*@sha256:}"
+    printf '%s-%s\n' "${RELEASE_SHA}" "${digest:0:12}"
+}
+
 stage_image_release() {
-    log STEP "Staging image release ${RELEASE_SHA}..."
+    local release_id
+    release_id="$(image_release_id)"
+    RELEASE_ID="${release_id}"
+    log STEP "Staging image release ${release_id}..."
 
-    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
-    local staging="${DEPLOY_RELEASES_DIR}/.${RELEASE_SHA}.staging.$$"
+    local target="${DEPLOY_RELEASES_DIR}/${release_id}"
+    local staging="${DEPLOY_RELEASES_DIR}/.${release_id}.staging.$$"
     local extract_container="${SERVICE_NAME}-extract-$$"
-    local current_target=""
-    local target_real=""
 
-    current_target=$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
+    log INFO "Pulling image: ${DOCKER_IMAGE}"
+    docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+    verify_pulled_image_architecture
+
     if [[ -d "${target}" ]]; then
-        target_real=$(readlink -f "${target}" 2>/dev/null || true)
-    fi
-
-    if [[ -n "${current_target}" ]] && [[ -n "${target_real}" ]] && [[ "${current_target}" == "${target_real}" ]]; then
-        local current_image=""
+        local staged_image=""
         if [[ -f "${target}/.deploy/meta.json" ]]; then
-            current_image=$(sed -n 's/.*"image": "\([^"]*\)".*/\1/p' "${target}/.deploy/meta.json" | head -1)
+            staged_image=$(sed -n 's/.*"image": "\([^"]*\)".*/\1/p' "${target}/.deploy/meta.json" | head -1)
         fi
-        if [[ "${current_image}" == "${DOCKER_IMAGE}" ]]; then
+        if [[ "${staged_image}" == "${DOCKER_IMAGE}" ]]; then
             RELEASE_DIR="${target}"
-            log WARN "Image release ${RELEASE_SHA} is already active with the same digest — reusing existing static files"
+            log WARN "Image release ${release_id} already exists with the same digest — reusing existing static files"
             return 0
         fi
-        log ERROR "Active release ${RELEASE_SHA} already exists with a different image digest"
-        log ERROR "Current: ${current_image:-unknown}"
+        log ERROR "Image release identity ${release_id} already exists with inconsistent metadata"
+        log ERROR "Current: ${staged_image:-unknown}"
         log ERROR "Requested: ${DOCKER_IMAGE}"
-        log ERROR "Refusing to replace the live same-SHA release in place; deploy a new SHA or drain/remove the old release manually."
+        log ERROR "Refusing to replace an immutable image release directory in place."
         exit 1
     fi
 
     rm -rf "${staging}"
     mkdir -p "${staging}/.next"
-    if [[ -d "${target}" ]]; then
-        log WARN "Release ${RELEASE_SHA} already on disk but is not active — replacing after staging succeeds"
-    fi
-
-    log INFO "Pulling image: ${DOCKER_IMAGE}"
-    docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
-    verify_pulled_image_architecture
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     # shellcheck disable=SC2064
@@ -1377,8 +1395,8 @@ META
     chmod o+x "${DEPLOY_ROOT}" "${DEPLOY_RELEASES_DIR}" "${staging}" 2>/dev/null || true
     chmod -R o+rX "${staging}/.next/static" "${staging}/public" 2>/dev/null || true
 
-    rm -rf "${target}"
     mv "${staging}" "${target}"
+    NEW_RELEASE_DIR="${target}"
 
     local file_count
     file_count=$(find "${target}" -type f | wc -l)
@@ -1912,9 +1930,13 @@ activate_nginx_config() {
 #===============================================================================
 
 atomic_symlink_swap() {
-    log STEP "Atomic symlink swap → ${RELEASE_SHA}..."
+    if [[ -z "${RELEASE_ID}" ]]; then
+        log ERROR "Cannot activate release: RELEASE_ID is empty"
+        exit 1
+    fi
+    log STEP "Atomic symlink swap → ${RELEASE_ID}..."
 
-    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
+    local target="${DEPLOY_RELEASES_DIR}/${RELEASE_ID}"
     local tmp="${DEPLOY_CURRENT_LINK}.tmp.$$"
 
     # Two-step for atomic replace on ext4/xfs via rename(2):
@@ -2061,8 +2083,8 @@ trim_old_releases() {
     # We never touch the release that `current` points to.
     local current_target
     current_target=$(readlink "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
-    local current_sha=""
-    [[ -n "${current_target}" ]] && current_sha="$(basename "${current_target}")"
+    local current_release_id=""
+    [[ -n "${current_target}" ]] && current_release_id="$(basename "${current_target}")"
 
     mapfile -t releases < <(
         find "${DEPLOY_RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' \
@@ -2071,7 +2093,7 @@ trim_old_releases() {
 
     local kept=0
     for rel in "${releases[@]}"; do
-        if [[ "${rel}" == "${current_sha}" ]] || [[ ${kept} -lt ${RELEASE_RETENTION_COUNT} ]]; then
+        if [[ "${rel}" == "${current_release_id}" ]] || [[ ${kept} -lt ${RELEASE_RETENTION_COUNT} ]]; then
             kept=$((kept + 1))
             continue
         fi
@@ -2287,7 +2309,7 @@ image_deploy() {
 # ROLLBACK MODE — restore a retained image/artifact release
 #===============================================================================
 
-current_release_sha() {
+current_release_id() {
     if [[ ! -L "${DEPLOY_CURRENT_LINK}" ]]; then
         return 0
     fi
@@ -2298,7 +2320,7 @@ current_release_sha() {
 }
 
 resolve_rollback_release() {
-    local current_sha="$1"
+    local current_release_id="$1"
 
     if [[ -n "${ROLLBACK_TARGET_SHA}" ]]; then
         local matches=()
@@ -2327,7 +2349,7 @@ resolve_rollback_release() {
 
     local candidate
     for candidate in "${candidates[@]}"; do
-        if [[ -n "${candidate}" ]] && [[ "${candidate}" != "${current_sha}" ]]; then
+        if [[ -n "${candidate}" ]] && [[ "${candidate}" != "${current_release_id}" ]]; then
             echo "${candidate}"
             return 0
         fi
@@ -2359,23 +2381,23 @@ rollback_deploy() {
     validate_env_file
     validate_staging_env_contract
 
-    local current_sha
-    current_sha="$(current_release_sha)"
-    if [[ -z "${current_sha}" ]]; then
+    local current_release_id
+    current_release_id="$(current_release_id)"
+    if [[ -z "${current_release_id}" ]]; then
         log ERROR "No active release symlink found at ${DEPLOY_CURRENT_LINK}"
         exit 1
     fi
 
-    local target_sha
-    target_sha="$(resolve_rollback_release "${current_sha}")"
-    if [[ "${target_sha}" == "${current_sha}" ]]; then
-        log ERROR "Rollback target is already active: ${target_sha}"
+    local target_release_id
+    target_release_id="$(resolve_rollback_release "${current_release_id}")"
+    if [[ "${target_release_id}" == "${current_release_id}" ]]; then
+        log ERROR "Rollback target is already active: ${target_release_id}"
         exit 1
     fi
 
-    RELEASE_SHA="${target_sha}"
-    RELEASE_DIR="${DEPLOY_RELEASES_DIR}/${RELEASE_SHA}"
-    ROLLBACK_PREV_SHA="${current_sha}"
+    RELEASE_ID="${target_release_id}"
+    RELEASE_DIR="${DEPLOY_RELEASES_DIR}/${RELEASE_ID}"
+    ROLLBACK_PREV_SHA="${current_release_id}"
 
     [[ -d "${RELEASE_DIR}" ]] || {
         log ERROR "Rollback release directory missing: ${RELEASE_DIR}"
@@ -2386,7 +2408,13 @@ rollback_deploy() {
         exit 1
     }
 
-    log INFO "Rollback target: ${current_sha} -> ${RELEASE_SHA}"
+    RELEASE_SHA="$(release_meta_value "${RELEASE_DIR}" sha)"
+    if [[ -z "${RELEASE_SHA}" ]]; then
+        log ERROR "Rollback release metadata is missing source SHA: ${RELEASE_DIR}/.deploy/meta.json"
+        exit 1
+    fi
+
+    log INFO "Rollback target: ${current_release_id} -> ${RELEASE_ID} (source sha=${RELEASE_SHA})"
 
     local target_image
     target_image="$(release_meta_value "${RELEASE_DIR}" image)"
@@ -2396,7 +2424,7 @@ rollback_deploy() {
             exit 1
         fi
         if ! command -v docker &>/dev/null; then
-            log ERROR "Docker is required to roll back image release ${RELEASE_SHA}"
+            log ERROR "Docker is required to roll back image release ${RELEASE_ID}"
             exit 1
         fi
         if ! docker info &>/dev/null; then

@@ -6,6 +6,7 @@ import { CHAT_CONFIG, WELCOME_MESSAGE, getContextualFallback } from '@/lib/chatC
 import { clearTtsAudioCache, pruneTtsAudioCache } from '@/lib/ttsAudioCache';
 import { getActionFallbackReply, hasActionExecution, resolveExactActionLabel, type ActionExecution } from '@/lib/actions';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
+import { CHAT_RESPONSE_ENDPOINT, CHAT_SUGGESTIONS_ENDPOINT } from '@/lib/chatEndpoints';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import { pickRandom } from '@/lib/utils';
@@ -408,7 +409,7 @@ export function useStickyChat(): UseStickyChat {
       .slice(-4)
       .map(m => ({ role: m.role, content: m.content }));
 
-    fetch('/api/chat/suggestions', {
+    fetch(CHAT_SUGGESTIONS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: contextMessages }),
@@ -790,7 +791,7 @@ export function useStickyChat(): UseStickyChat {
         abortControllerRef.current?.abort('timeout');
       }, CHAT_CONFIG.responseTimeoutMs);
 
-      const response = await fetch('/api/chat', {
+      const response = await fetch(CHAT_RESPONSE_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: conversationMessages }),
@@ -939,7 +940,7 @@ export function useStickyChat(): UseStickyChat {
 
   /**
   * Inject a user message + canned assistant reply locally — bypasses
-  * `/api/chat` entirely. Used by the chat UI to short-circuit hardcoded
+   * the remote chat endpoint entirely. Used by the chat UI to short-circuit hardcoded
   * initial-suggestion clicks and exact action labels.
    *
    * No rate limiting, no filler timers, no oracle handoff: this is

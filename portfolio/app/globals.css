@@ -565,7 +565,8 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; }
   }
 
-  @supports (transform: perspective(1px) rotateY(1deg)) {
+  @media (max-width: 767px) and (hover: none), (max-width: 767px) and (pointer: coarse) {
+    @supports (transform: perspective(1px) rotateY(1deg)) {
     .page-turn-layer {
       --page-turn-forward-angle: -68deg;
       --page-turn-backward-angle: -58deg;
@@ -584,20 +585,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     .animate-page-turn-backward-in {
       animation: pageTurnBackwardIn var(--page-turn-duration) cubic-bezier(0.18, 0.72, 0.14, 1) backwards;
       will-change: transform, opacity;
-    }
-
-    .page-turn-layer[data-page-turn-distance="2"] {
-      --page-turn-forward-angle: -74deg;
-      --page-turn-backward-angle: -64deg;
-      --page-turn-forward-offset: -6%;
-      --page-turn-backward-offset: -4.25%;
-    }
-
-    .page-turn-layer[data-page-turn-distance="3"] {
-      --page-turn-forward-angle: -80deg;
-      --page-turn-backward-angle: -70deg;
-      --page-turn-forward-offset: -7%;
-      --page-turn-backward-offset: -5%;
     }
 
     .animate-page-turn-forward-out::after,
@@ -685,10 +672,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
       to { opacity: 0; }
     }
 
-    @media (min-width: 768px) {
-      .page-turn-layer {
-        --page-turn-perspective: 112rem;
-      }
     }
   }
 

@@ -7,13 +7,17 @@ import {
 
 type Frame = { handle: number; callback: FrameRequestCallback };
 
-function createHarness(initialScrollTop = 0) {
+function createHarness(
+  initialScrollTop = 0,
+  options: { initiallyRouteHidden?: boolean } = {},
+) {
   const visibilityChanges: boolean[] = [];
   const frames: Frame[] = [];
   let nextFrameHandle = 1;
 
   const controller = createMobileSocialBarVisibilityController({
     initialScrollTop,
+    ...options,
     onVisibilityChange: (isVisible) => visibilityChanges.push(isVisible),
     requestFrame: (callback) => {
       const handle = nextFrameHandle++;
@@ -62,14 +66,90 @@ describe('mobile social bar visibility controller', () => {
 
     vi.advanceTimersByTime(MOBILE_SOCIAL_BAR_IDLE_MS);
     scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX - 1;
-    harness.controller.handleScroll(() => scrollTop);
+    harness.controller.handleScroll(() => scrollTop, true);
     harness.flushFrame();
     expect(harness.visibilityChanges).toEqual([true, false]);
 
     scrollTop += 1;
-    harness.controller.handleScroll(() => scrollTop);
+    harness.controller.handleScroll(() => scrollTop, true);
     harness.flushFrame();
     expect(harness.visibilityChanges).toEqual([true, false, true]);
+  });
+
+  it('keeps a route-hidden bar hidden through restoration until user scrolling crosses the threshold', () => {
+    vi.useFakeTimers();
+    const harness = createHarness(20, { initiallyRouteHidden: true });
+    let scrollTop = 20;
+
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX * 2;
+    harness.controller.handleScroll(() => scrollTop, false);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX - 1;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += 1;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false, true]);
+  });
+
+  it('does not unlock a route-hidden bar on upward user scrolling', () => {
+    vi.useFakeTimers();
+    const harness = createHarness(20, { initiallyRouteHidden: true });
+    let scrollTop = 20;
+
+    scrollTop -= 10;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX * 2;
+    harness.controller.handleScroll(() => scrollTop, false);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false, true]);
+  });
+
+  it('cancels a queued qualifying scroll when a route hide occurs', () => {
+    const harness = createHarness(20);
+    let scrollTop = 20;
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX;
+    harness.controller.handleScroll(() => scrollTop, true);
+    expect(harness.pendingFrames()).toBe(1);
+
+    harness.controller.hideForRouteChange();
+    expect(harness.pendingFrames()).toBe(0);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([true, false]);
+  });
+
+  it('does not reveal a route-hidden bar through direct interaction before user scroll reaches the threshold', () => {
+    const harness = createHarness(20, { initiallyRouteHidden: true });
+    let scrollTop = 20;
+
+    harness.controller.reveal();
+    harness.controller.setFocusWithin(true);
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += MOBILE_SOCIAL_BAR_REVEAL_THRESHOLD_PX - 1;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false]);
+
+    scrollTop += 1;
+    harness.controller.handleScroll(() => scrollTop, true);
+    harness.flushFrame();
+    expect(harness.visibilityChanges).toEqual([false, true]);
   });
 
   it('reveal resets the idle period for route and direct-interaction callers', () => {
@@ -106,7 +186,7 @@ describe('mobile social bar visibility controller', () => {
     vi.useFakeTimers();
     const harness = createHarness();
 
-    harness.controller.handleScroll(() => 100);
+    harness.controller.handleScroll(() => 100, true);
     expect(harness.pendingFrames()).toBe(1);
     harness.controller.dispose();
     expect(harness.pendingFrames()).toBe(0);

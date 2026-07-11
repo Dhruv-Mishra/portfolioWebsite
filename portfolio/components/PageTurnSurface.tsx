@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { useSitePrefs } from '@/hooks/useSitePrefs';
 import {
   createPageTurnTransition,
   finishPageTurn,
@@ -64,6 +65,8 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const reducedMotion = useEffectiveReducedMotion();
+  const { enhanceImmersion } = useSitePrefs();
+  const pageTurnEnabled = enhanceImmersion && !reducedMotion;
   const transition = useSyncExternalStore(
     subscribeToPageTurn,
     getPageTurnSnapshot,
@@ -108,6 +111,17 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     navigationWatchdogRef.current = null;
   }, []);
 
+  const settleDisabledPageTurnState = useCallback(() => {
+    clearNavigationWatchdog();
+    navigationStartedRef.current = false;
+    navigationLockRef.current = null;
+    setPendingForward(null);
+    setIncomingTurn(null);
+
+    const activeSnapshot = getPageTurnSnapshot();
+    if (activeSnapshot) finishPageTurn(activeSnapshot.sequence);
+  }, [clearNavigationWatchdog]);
+
   if (renderedPathname !== pathname) {
     const currentSnapshot = getPageTurnSnapshot();
     const intentTransition = currentSnapshot?.fromPath === renderedPathname
@@ -118,21 +132,21 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       ?? createPageTurnTransition(renderedPathname, pathname);
 
     setRenderedPathname(pathname);
-    if (nextTransition?.direction === 'backward' && !reducedMotion) {
+    if (nextTransition?.direction === 'backward' && pageTurnEnabled) {
       setIncomingTurn({ transition: nextTransition });
     } else {
       setIncomingTurn(null);
     }
   }
 
-  const forwardTurn = !reducedMotion
+  const forwardTurn = pageTurnEnabled
     && pendingForward?.transition.fromPath === pathname
     ? pendingForward.transition
     : null;
-  const backwardTurn = reducedMotion ? null : incomingTurn?.transition ?? null;
+  const backwardTurn = pageTurnEnabled ? incomingTurn?.transition ?? null : null;
   const activeTransition = forwardTurn ?? backwardTurn;
   const durationMs = activeTransition
-    ? getPageTurnDurationMs(activeTransition.distance)
+    ? getPageTurnDurationMs()
     : 0;
 
   useEffect(() => {
@@ -171,6 +185,14 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const startNavigationRequest = useCallback((request: PageTurnNavigationRequest) => {
     const url = new URL(request.href, window.location.href);
     if (url.origin !== window.location.origin) return false;
+
+    const href = `${url.pathname}${url.search}${url.hash}`;
+    if (!pageTurnEnabled) {
+      settleDisabledPageTurnState();
+      router[request.mode](href);
+      return true;
+    }
+
     if (
       navigationLockRef.current !== null
       || pendingForward
@@ -178,9 +200,8 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       || getPageTurnSnapshot()
     ) return true;
 
-    const href = `${url.pathname}${url.search}${url.hash}`;
     const nextTransition = createPageTurnTransition(pathname, url.pathname);
-    if (!nextTransition || reducedMotion) {
+    if (!nextTransition) {
       router[request.mode](href);
       return true;
     }
@@ -239,9 +260,10 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     incomingTurn,
     pathname,
     pendingForward,
-    reducedMotion,
+    pageTurnEnabled,
     releaseNavigationLock,
     router,
+    settleDisabledPageTurnState,
   ]);
 
   useEffect(() => {
@@ -342,7 +364,7 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
       if (lockSequence !== null) clearNavigationWatchdog(lockSequence);
       finishPageTurn(backwardTurn.sequence);
       if (lockSequence !== null) releaseNavigationLock(lockSequence);
-    }, getPageTurnDurationMs(backwardTurn.distance));
+    }, getPageTurnDurationMs());
     return () => window.clearTimeout(timeout);
   }, [backwardTurn, clearNavigationWatchdog, incomingTurn, releaseNavigationLock]);
 
@@ -373,42 +395,13 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   }, [forwardTurn, pathname, transition]);
 
   useEffect(() => {
-    if (!reducedMotion) return;
-    if (pendingForward) {
-      const timeout = window.setTimeout(commitForwardNavigation, 0);
-      return () => window.clearTimeout(timeout);
-    }
+    if (pageTurnEnabled) return;
 
-    const incoming = incomingTurn;
-    const lock = navigationLockRef.current;
-    const lockSequence = lock && (!incoming
-      || isSameNavigationTransition(lock.transition, incoming.transition))
-      ? lock.sequence
-      : undefined;
-    const sequence = transition?.toPath === pathname ? transition.sequence : null;
-    if (lockSequence !== undefined) {
-      clearNavigationWatchdog(lockSequence);
-      releaseNavigationLock(lockSequence);
-    }
-    if (incoming) finishPageTurn(incoming.transition.sequence);
-    if (sequence !== null) finishPageTurn(sequence);
-    if (!incoming) return;
-
-    const timeout = window.setTimeout(() => {
-      setIncomingTurn((current) => (
-        current?.transition.sequence === incoming.transition.sequence ? null : current
-      ));
-    }, 0);
+    const timeout = window.setTimeout(settleDisabledPageTurnState, 0);
     return () => window.clearTimeout(timeout);
   }, [
-    clearNavigationWatchdog,
-    commitForwardNavigation,
-    incomingTurn,
-    pathname,
-    pendingForward,
-    reducedMotion,
-    releaseNavigationLock,
-    transition,
+    pageTurnEnabled,
+    settleDisabledPageTurnState,
   ]);
 
   const finishActiveTransition = (event: AnimationEvent<HTMLDivElement>) => {

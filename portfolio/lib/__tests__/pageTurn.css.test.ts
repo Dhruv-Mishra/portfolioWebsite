@@ -44,7 +44,7 @@ describe('page-turn route transition contract', () => {
     expect(surface).toContain('const timeout = window.setTimeout(commitForwardNavigation, durationMs)');
     expect(surface).toContain('data-page-turn-direction={activeTransition?.direction}');
     expect(surface).toContain('data-page-turn-distance={activeTransition?.distance}');
-    expect(surface).toContain("getPageTurnDurationMs(activeTransition.distance)");
+    expect(surface).toContain('getPageTurnDurationMs()');
     expect(surface).toContain("'--page-turn-duration': `${durationMs}ms`");
     expect(surface).toContain('window.setTimeout(');
     expect(surface).toContain('durationMs,');
@@ -53,9 +53,8 @@ describe('page-turn route transition contract', () => {
   });
 
   it('uses one aligned slow timing model for CSS and state cleanup', () => {
-    expect(model).toContain('1: 600');
-    expect(model).toContain('2: 680');
-    expect(model).toContain('3: 760');
+    expect(model).toContain('PAGE_TURN_DURATION_MS = 600');
+    expect(model).not.toContain('PAGE_TURN_DURATION_BY_DISTANCE_MS');
     expect(css).toContain('--page-turn-duration: 600ms');
     expect(css).not.toMatch(/--page-turn-duration:\s*(?:420|470|500|510|540|580)ms/);
     expect(surface).not.toMatch(/setTimeout\([\s\S]*?,\s*800\s*,?\s*\)/);
@@ -90,14 +89,13 @@ describe('page-turn route transition contract', () => {
     expect(pageTurnCss).toMatch(/animation:\s*pageTurnForwardFadeOut\s+var\(--page-turn-duration\)/);
     expect(pageTurnCss).toMatch(/animation:\s*pageTurnBackwardFadeIn\s+var\(--page-turn-duration\)/);
     expect(pageTurnCss).toMatch(
-      /@supports\s*\(transform:\s*perspective\(1px\) rotateY\(1deg\)\)/,
+      /@media \(max-width: 767px\)[\s\S]*?@supports\s*\(transform:\s*perspective\(1px\) rotateY\(1deg\)\)/,
     );
+    expect(pageTurnCss).toMatch(/\.animate-page-turn-forward-out\s*\{\s*animation:\s*pageTurnForwardFadeOut/);
     expect(pageTurnCss).toContain('--page-turn-origin: left center');
     expect(pageTurnCss).not.toContain('right center');
     expect(pageTurnCss).toContain('--page-turn-forward-angle: -68deg');
     expect(pageTurnCss).toContain('--page-turn-backward-angle: -58deg');
-    expect(pageTurnCss).toContain('.page-turn-layer[data-page-turn-distance="2"]');
-    expect(pageTurnCss).toContain('.page-turn-layer[data-page-turn-distance="3"]');
     expect(forwardKeyframes).toContain('rotateY(var(--page-turn-forward-angle))');
     expect(backwardKeyframes).toContain('rotateY(var(--page-turn-backward-angle))');
     expect(forwardKeyframes).not.toBe(backwardKeyframes);
@@ -163,8 +161,12 @@ describe('page-turn route transition contract', () => {
     expect(css).toMatch(
       /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-backward-in[\s\S]*?animation:\s*none\s*!important/,
     );
-    expect(surface).toContain('if (!nextTransition || reducedMotion) {');
-    expect(surface).toContain('if (!reducedMotion) return');
+    expect(surface).toContain('const pageTurnEnabled = enhanceImmersion && !reducedMotion;');
+    expect(surface.indexOf('if (!pageTurnEnabled) {')).toBeLessThan(
+      surface.indexOf('navigationLockRef.current !== null'),
+    );
+    expect(surface).toContain('if (!nextTransition) {');
+    expect(surface).toContain('if (pageTurnEnabled) return');
   });
 
   it('adds no page-turn dependency', () => {

@@ -2295,8 +2295,9 @@ health_check() {
     local chat_code
     chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
         -X POST -H "Content-Type: application/json" \
+        -H "Sec-Fetch-Site: same-origin" \
         -d '{"messages":[{"role":"user","content":"health check"}]}' \
-        "http://127.0.0.1:${NEXTJS_PORT}/api/chat" 2>/dev/null || echo "000")
+        "http://127.0.0.1:${NEXTJS_PORT}/chat/respond" 2>/dev/null || echo "000")
     if [[ "${chat_code}" == "200" ]] || [[ "${chat_code}" == "429" ]]; then
         log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else

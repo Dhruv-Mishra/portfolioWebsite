@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   PAGE_TURN_ROUTES,
-  PAGE_TURN_DURATION_BY_DISTANCE_MS,
+  PAGE_TURN_DURATION_MS,
   PageTurnHistoryTracker,
   createPageTurnTransition,
   finishPageTurn,
@@ -50,14 +50,8 @@ describe('page-turn route model', () => {
   });
 
   it('uses one shared, deliberately paced duration model', () => {
-    expect(PAGE_TURN_DURATION_BY_DISTANCE_MS).toEqual({
-      1: 600,
-      2: 680,
-      3: 760,
-    });
-    expect([1, 2, 3].map((distance) => (
-      getPageTurnDurationMs(distance as 1 | 2 | 3)
-    ))).toEqual([600, 680, 760]);
+    expect(PAGE_TURN_DURATION_MS).toBe(600);
+    expect([1, 2, 3].map(() => getPageTurnDurationMs())).toEqual([600, 600, 600]);
   });
 
   it('assigns a stable page number to every visible route and not found', () => {

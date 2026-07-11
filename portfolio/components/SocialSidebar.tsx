@@ -11,6 +11,7 @@ import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 import { createMobileSocialBarVisibilityController } from '@/lib/mobileSocialBarVisibility';
+import { PAGE_TURN_NAVIGATION_EVENT } from '@/lib/pageTurn';
 import { useDiscoActive } from '@/hooks/useStickers';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -194,11 +195,15 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
 // no longer carries a mute button so we don't double-render the control on
 // narrow viewports.
 
-function MobileSocialBar({ children }: React.PropsWithChildren) {
+function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChildren<{ initiallyRouteHidden: boolean }>) {
     const isMobile = useIsMobile();
     const reducedMotion = useEffectiveReducedMotion();
-    const [isVisible, setIsVisible] = React.useState(true);
+    const [routeHiddenAtMount] = React.useState(() => initiallyRouteHidden);
+    const [isVisible, setIsVisible] = React.useState(() => !routeHiddenAtMount);
     const controllerRef = React.useRef<ReturnType<typeof createMobileSocialBarVisibilityController> | null>(null);
+    const userScrollIntentRef = React.useRef(false);
+    const userScrollIntentFrameRef = React.useRef<number | null>(null);
+    const lastTouchClientYRef = React.useRef<number | null>(null);
 
     React.useEffect(() => {
         if (!isMobile) return;
@@ -208,6 +213,7 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
 
         const controller = createMobileSocialBarVisibilityController({
             initialScrollTop: scrollContainer.scrollTop,
+            initiallyRouteHidden: routeHiddenAtMount,
             onVisibilityChange: setIsVisible,
             requestFrame: window.requestAnimationFrame.bind(window),
             cancelFrame: window.cancelAnimationFrame.bind(window),
@@ -216,15 +222,79 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
         });
         controllerRef.current = controller;
 
-        const handleScroll = () => controller.handleScroll(() => scrollContainer.scrollTop);
+        const clearUserScrollIntent = () => {
+            userScrollIntentRef.current = false;
+            if (userScrollIntentFrameRef.current !== null) {
+                window.cancelAnimationFrame(userScrollIntentFrameRef.current);
+                userScrollIntentFrameRef.current = null;
+            }
+        };
+        const markPageDownIntent = () => {
+            if (userScrollIntentFrameRef.current !== null) {
+                window.cancelAnimationFrame(userScrollIntentFrameRef.current);
+            }
+            userScrollIntentRef.current = true;
+            userScrollIntentFrameRef.current = window.requestAnimationFrame(() => {
+                userScrollIntentFrameRef.current = null;
+                userScrollIntentRef.current = false;
+            });
+        };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (
+                ['ArrowDown', 'PageDown', 'End'].includes(event.key)
+                || (event.key === ' ' && !event.shiftKey)
+            ) {
+                markPageDownIntent();
+            } else if (
+                ['ArrowUp', 'PageUp', 'Home'].includes(event.key)
+                || (event.key === ' ' && event.shiftKey)
+            ) {
+                clearUserScrollIntent();
+            }
+        };
+        const handleWheel = (event: WheelEvent) => {
+            if (event.deltaY > 0) markPageDownIntent();
+            else if (event.deltaY < 0) clearUserScrollIntent();
+        };
+        const handleTouchStart = (event: TouchEvent) => {
+            lastTouchClientYRef.current = event.touches[0]?.clientY ?? null;
+        };
+        const handleTouchMove = (event: TouchEvent) => {
+            const clientY = event.touches[0]?.clientY;
+            if (clientY === undefined || lastTouchClientYRef.current === null) return;
+            if (clientY < lastTouchClientYRef.current) markPageDownIntent();
+            else if (clientY > lastTouchClientYRef.current) clearUserScrollIntent();
+            lastTouchClientYRef.current = clientY;
+        };
+        const handleScroll = () => {
+            const isUserInitiated = userScrollIntentRef.current;
+            clearUserScrollIntent();
+            controller.handleScroll(() => scrollContainer.scrollTop, isUserInitiated);
+        };
+        const handlePageTurn = () => {
+            clearUserScrollIntent();
+            controller.hideForRouteChange();
+        };
         scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+        scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+        scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
+        scrollContainer.addEventListener('wheel', handleWheel, { passive: true });
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener(PAGE_TURN_NAVIGATION_EVENT, handlePageTurn);
 
         return () => {
             scrollContainer.removeEventListener('scroll', handleScroll);
+            scrollContainer.removeEventListener('touchstart', handleTouchStart);
+            scrollContainer.removeEventListener('touchmove', handleTouchMove);
+            scrollContainer.removeEventListener('wheel', handleWheel);
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener(PAGE_TURN_NAVIGATION_EVENT, handlePageTurn);
+            clearUserScrollIntent();
+            lastTouchClientYRef.current = null;
             controller.dispose();
             controllerRef.current = null;
         };
-    }, [isMobile]);
+    }, [isMobile, routeHiddenAtMount]);
 
     const reveal = () => controllerRef.current?.reveal();
 
@@ -271,6 +341,11 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
 export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
     const { externalLink, openPanel, toggle } = useAppHaptics();
     const pathname = usePathname();
+    const hasHydrated = React.useSyncExternalStore(
+        subscribeToHydration,
+        getClientHydrationSnapshot,
+        getServerHydrationSnapshot,
+    );
     // The dedicated chat route owns the bottom of the viewport (input bar +
     // suggestion strip) on mobile — hide the floating mobile pill there
     // to free vertical real estate. Desktop sidebar is harmless (off to
@@ -314,7 +389,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             {!hideMobileBar && (
-            <MobileSocialBar key={pathname}>
+            <MobileSocialBar key={pathname} initiallyRouteHidden={hasHydrated}>
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />
 

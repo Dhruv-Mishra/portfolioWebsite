@@ -1,7 +1,7 @@
 import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
-import { acceptsTtsFrameGzip, createTtsStreamAudioFrame } from '@/app/api/tts/route';
+import { acceptsTtsFrameGzip, createTtsStreamAudioFrame } from '@/lib/ttsStreamFrames.server';
 
 describe('/api/tts adaptive frame compression', () => {
   it('only negotiates the exact gzip capability token', () => {

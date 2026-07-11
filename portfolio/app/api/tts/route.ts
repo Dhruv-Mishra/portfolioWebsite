@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { gzipSync } from 'node:zlib';
 import {
   getLocalTtsQueueState,
   getLocalTtsVoiceRevision,
@@ -13,6 +12,7 @@ import {
   synthesizeLocalTts,
 } from '@/lib/localTts.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { acceptsTtsFrameGzip, createTtsStreamAudioFrame } from '@/lib/ttsStreamFrames.server';
 import { adaptTextForSpeech } from '@/lib/ttsPrompts';
 import { validateOrigin } from '@/lib/validateOrigin';
 
@@ -20,8 +20,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_TTS_BODY_BYTES = 6_000;
-const TTS_GZIP_METADATA_OVERHEAD_BYTES = 64;
-const TTS_GZIP_MINIMUM_SAVINGS_RATIO = 0.1;
 const ttsRateLimiter = createServerRateLimiter({
   maxRequests: 24,
   windowMs: 60_000,
@@ -34,34 +32,6 @@ interface TtsRequestBody {
   stream?: unknown;
   text?: unknown;
   voice?: unknown;
-}
-
-export interface TtsStreamAudioFrame {
-  audioBase64: string;
-  compression: 'gzip' | 'none';
-  uncompressedBytes?: number;
-}
-
-export function acceptsTtsFrameGzip(request: Request): boolean {
-  return request.headers.get('x-tts-accept-compression') === 'gzip';
-}
-
-export function createTtsStreamAudioFrame(audio: Buffer, acceptsGzip: boolean): TtsStreamAudioFrame {
-  if (!acceptsGzip) {
-    return { audioBase64: audio.toString('base64'), compression: 'none' };
-  }
-
-  const compressed = gzipSync(audio, { level: 1 });
-  const maximumCompressedBytes = audio.length * (1 - TTS_GZIP_MINIMUM_SAVINGS_RATIO);
-  if (compressed.length + TTS_GZIP_METADATA_OVERHEAD_BYTES > maximumCompressedBytes) {
-    return { audioBase64: audio.toString('base64'), compression: 'none' };
-  }
-
-  return {
-    audioBase64: compressed.toString('base64'),
-    compression: 'gzip',
-    uncompressedBytes: audio.length,
-  };
 }
 
 function getContentLength(request: NextRequest): number | null {

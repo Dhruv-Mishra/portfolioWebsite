@@ -61,6 +61,7 @@ import {
 } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
+import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { completeMatrixNotesEscape } from '@/app/matrix-notes/actions';
 
 const GLYPHS =
@@ -846,7 +847,7 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
     // so the overlay remains painted for the full transition — otherwise
     // `DiscoFlagController` would unmount us mid-dissolve.
     window.setTimeout(() => {
-      router.push('/matrix-notes?from=escape');
+      requestPageTurnNavigation(router, { href: '/matrix-notes?from=escape', mode: 'push' });
       // Small additional buffer before clearing matrixActive so the
       // destination page has a frame to paint under the black fade.
       window.setTimeout(() => {

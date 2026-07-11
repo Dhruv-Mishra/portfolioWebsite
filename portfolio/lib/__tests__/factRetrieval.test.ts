@@ -9,6 +9,7 @@ import {
   topKByEmbedding,
   topKByPriority,
   retrieveRelevantFacts,
+  getRelevantFactContext,
   getFactBySlug,
 } from '@/lib/factRetrieval.server';
 import type { EmbeddedFact } from '@/lib/factTypes';
@@ -141,6 +142,31 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     const facts = await retrieveRelevantFacts('what commands can I type in the terminal', { limit: 8 });
     const ids = facts.map((f) => f.id);
     expect(ids).toContain('site-terminal');
+  });
+
+  it('keeps six-fact terminal context compact without dropping terminal safeguards', async () => {
+    const context = await getRelevantFactContext('what commands can I type in the terminal', { limit: 6 });
+
+    expect(context.length).toBeLessThan(4_000);
+    expect(context).toContain('help, about, projects');
+    expect(context).toContain('sitewide speaker toggle');
+    expect(context).toContain('require a second confirmation with `yes`');
+    expect(context).toContain('only its on-screen `WAKE UP` or later escape button can dismiss it');
+    expect(context).toContain('Disco exits through `sudo disco off` or the theme toggle');
+  });
+
+  it('keeps Matrix-specific questions on the dedicated puzzle retrieval path', async () => {
+    const facts = await retrieveRelevantFacts('give me a Matrix puzzle hint in the terminal', { limit: 6 });
+
+    expect(facts.map((fact) => fact.id)).toContain('site-matrix-puzzle');
+  });
+
+  it('does not route command-palette questions to the terminal overview fact', async () => {
+    const facts = await retrieveRelevantFacts('how does the command palette work?', { limit: 6 });
+    const ids = facts.map((fact) => fact.id);
+
+    expect(ids).toContain('site-command-palette');
+    expect(ids).not.toContain('site-terminal');
   });
 
   it('surfaces the about-page timeline fact when asked about the experience timeline', async () => {

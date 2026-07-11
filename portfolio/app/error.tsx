@@ -7,6 +7,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS } from '@/lib/designTokens';
 import { reportError } from '@/lib/errorReporting';
+import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 // Hoisted animation configs — avoid allocation per render
 const ALERT_SHAKE_ANIMATE = {
@@ -87,7 +88,7 @@ export default function Error({
               type="button"
               whileHover={INTERACTION_TOKENS.hover.liftRotate}
               whileTap={INTERACTION_TOKENS.tap.press}
-              onClick={() => router.push('/')}
+              onClick={() => requestPageTurnNavigation(router, { href: '/', mode: 'push' })}
               className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
             >
               Go Home

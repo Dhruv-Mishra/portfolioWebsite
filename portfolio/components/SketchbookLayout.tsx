@@ -136,7 +136,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <main
                     id="main-content"
                     role="main"
-                    className="relative w-full min-w-0 h-full overflow-y-auto overflow-x-clip ruler-scrollbar md:perspective-[2000px]"
+                    className="relative h-full w-full min-w-0 overflow-hidden md:perspective-[2000px]"
                     style={{ zIndex: Z_INDEX.content }}
                     tabIndex={-1}
                 >

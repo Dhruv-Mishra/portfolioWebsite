@@ -247,7 +247,11 @@ function buildRecentActionContext(messages: readonly MessageShape[]): string | n
 
 // ── Query extraction ────────────────────────────────────────────────
 
-function latestUserQuery(messages: readonly MessageShape[]): string {
+function latestUserMessage(messages: readonly MessageShape[]): string {
+  return [...messages].reverse().find((message) => message.role === 'user')?.content.trim() ?? '';
+}
+
+function recentUserQuery(messages: readonly MessageShape[]): string {
   const recentUserMessages = messages
     .filter((message) => message.role === 'user')
     .slice(-3)
@@ -296,24 +300,25 @@ export async function buildDhruvSystemPromptParts(
   messages: readonly MessageShape[],
   options: BuildPromptOptions = {},
 ): Promise<SystemPromptParts> {
-  const latestQuery = latestUserQuery(messages);
+  const latestMessage = latestUserMessage(messages);
+  const retrievalQuery = recentUserQuery(messages);
   const recentActionsBlock = buildRecentActionContext(messages);
 
   const conditionalSections: string[] = [];
 
-  if (looksOffTopic(latestQuery)) {
+  if (looksOffTopic(latestMessage)) {
     conditionalSections.push(OFF_TOPIC_BLOCK);
   }
 
-  if (recentActionsBlock || hasActionIntent(latestQuery)) {
+  if (recentActionsBlock || hasActionIntent(latestMessage)) {
     conditionalSections.push(UI_ACTION_BLOCK);
   }
 
-  if (mentionsTerminal(latestQuery)) {
+  if (mentionsTerminal(latestMessage)) {
     conditionalSections.push(TERMINAL_RULES_BLOCK);
   }
 
-  if (mentionsMatrixPuzzle(latestQuery)) {
+  if (mentionsMatrixPuzzle(latestMessage)) {
     // Persistence count = how many of the user's messages in the (already
     // capped) recent context mention the puzzle. Drives the hint-ladder
     // tier inside the help block. The block itself enforces the
@@ -325,7 +330,7 @@ export async function buildDhruvSystemPromptParts(
     conditionalSections.push(buildMatrixPuzzleHelpBlock(persistence));
   }
 
-  if (mentionsMatrixPassword(latestQuery)) {
+  if (mentionsMatrixPassword(latestMessage)) {
     conditionalSections.push(MATRIX_PUZZLE_BLOCK);
   }
 
@@ -336,9 +341,9 @@ export async function buildDhruvSystemPromptParts(
   // On pure greetings/acks, skip fact retrieval entirely. Keeps simple turns
   // light and stops the model from anchoring onto whichever fact happens to
   // rank first (e.g. the Microsoft Shell role).
-  const skipFacts = options.factsOverride === undefined && isPureGreeting(latestQuery);
+  const skipFacts = options.factsOverride === undefined && isPureGreeting(latestMessage);
   const facts = options.factsOverride
-    ?? (skipFacts ? '' : await getRelevantFactContext(latestQuery, { limit: options.factLimit }));
+    ?? (skipFacts ? '' : await getRelevantFactContext(retrievalQuery, { limit: options.factLimit }));
   if (facts) {
     conditionalSections.push(`Relevant facts:\n${facts}`);
   }

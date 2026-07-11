@@ -80,6 +80,11 @@ export interface RetrievalOptions {
 const DEFAULT_LIMIT = 8;
 const PC_BUILD_FACT_ID = 'personal-pc-build';
 const PC_SPECS_QUERY_PATTERN = /\b(pc|computer|desktop|rig|specs?|gpu|cpu|ram|memory|hardware|overclock|overclocking|3080|13600kf|ddr5)\b/i;
+const COMMAND_PALETTE_FACT_ID = 'site-command-palette';
+const COMMAND_PALETTE_QUERY_PATTERN = /\bcommand\s+palette\b|\b(?:cmd|ctrl)\s*\+\s*k\b/i;
+const TERMINAL_FACT_ID = 'site-terminal';
+const TERMINAL_OVERVIEW_QUERY_PATTERN = /\b(terminal|cli)\b|\b(what|which|list|show|available|supported)\b(?:\W+\w+){0,3}\W+commands?\b/i;
+const MATRIX_PUZZLE_QUERY_PATTERN = /\b(matrix|puzzle|escape|stuck|hint)\b/i;
 
 // ── Math helpers ────────────────────────────────────────────────────
 
@@ -297,6 +302,16 @@ export async function retrieveRelevantFacts(
     if (right.priority !== left.priority) return right.priority - left.priority;
     return left.id.localeCompare(right.id);
   });
+
+  if (COMMAND_PALETTE_QUERY_PATTERN.test(query)) {
+    const commandPaletteFact = LOADED.facts.find((fact) => fact.id === COMMAND_PALETTE_FACT_ID);
+    if (commandPaletteFact) return [...anchorSlice, commandPaletteFact].slice(0, limit);
+  }
+
+  if (TERMINAL_OVERVIEW_QUERY_PATTERN.test(query) && !MATRIX_PUZZLE_QUERY_PATTERN.test(query)) {
+    const terminalFact = LOADED.facts.find((fact) => fact.id === TERMINAL_FACT_ID);
+    if (terminalFact) return [...anchorSlice, terminalFact].slice(0, limit);
+  }
 
   const remaining = Math.max(0, limit - anchorSlice.length);
   if (remaining === 0) {

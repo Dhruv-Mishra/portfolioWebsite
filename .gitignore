@@ -1,6 +1,7 @@
 /ResumeBuilder
 .TEMP/
 .playwright-mcp/
+.serena/
 
 # dependencies
 node_modules/

@@ -20,6 +20,7 @@ The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style po
 - Sketchbook UI with light and dark themes, motion, responsive layouts, and custom interaction details.
 - Terminal-driven navigation with route commands and file-style content.
 - AI chat grounded by a local fact corpus and build-time embeddings.
+- Optional custom Pocket TTS server voice with device-speech fallback.
 - Public pages for about, projects, resume, chat, guestbook, and stickers.
 - Machine-readable routes for AI crawlers and markdown consumers.
 
@@ -61,7 +62,8 @@ The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, 
 - `deployed/staging` is the staging deployment branch; direct pushes deploy to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
 - `deployed/production` is the production deployment branch; direct pushes deploy to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
 - Manual promotion workflows move `dev/lkg` to `deployed/staging`, then `deployed/staging` to `deployed/production`.
-- Staging and production runtime signing secrets are stored as distinct repository-level Actions secrets and synchronized to every VM during deployment. Complete the one-time setup in [stepstofollow.md](stepstofollow.md).
+- Staging and production runtime signing secrets are stored as distinct repository-level Actions secrets and synchronized to every VM during deployment. Complete the one-time setup in [VMChangesRequired.md](VMChangesRequired.md).
+- Pocket TTS deployments also require repository-level `STAGING_HF_TOKEN` and `PRODUCTION_HF_TOKEN` read-token secrets; detailed setup and voice-consent requirements live in [portfolio/README.md](portfolio/README.md).
 - Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
 
 ## For Agents

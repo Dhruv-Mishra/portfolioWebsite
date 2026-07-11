@@ -7,40 +7,33 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
-const PROVIDER = 'kitten-tts';
-const MODEL_ID = process.env.LOCAL_TTS_MODEL_ID ?? 'KittenML/kitten-tts-nano-0.1';
-const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'portfolio', 'kitten-tts');
-const WORKER_RELATIVE_PATH = path.join('scripts', 'kitten-tts-worker.py');
+const PROVIDER = 'pocket-tts';
+const MODEL_ID = 'kyutai/pocket-tts';
+const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'portfolio', 'pocket-tts');
+const WORKER_RELATIVE_PATH = path.join('scripts', 'pocket-tts-worker.py');
 const SAMPLE_RATE = 24_000;
-const DEFAULT_CHUNK_CHARS = 120;
-const MAX_CHUNK_CHARS = 320;
 const MAX_TEXT_CHARS = 1_200;
-const DEFAULT_SPEED = 1.08;
+const DEFAULT_SPEED = 1;
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
-const DEFAULT_VOICE = 'expr-voice-5-m';
+const DEFAULT_VOICE = 'custom-dhruv';
 
-const ALLOWED_VOICES = [
-  'expr-voice-2-m',
-  'expr-voice-2-f',
-  'expr-voice-3-m',
-  'expr-voice-3-f',
-  'expr-voice-4-m',
-  'expr-voice-4-f',
-  'expr-voice-5-m',
-  'expr-voice-5-f',
-] as const;
+export type LocalTtsVoice = typeof DEFAULT_VOICE;
 
-export type LocalTtsVoice = (typeof ALLOWED_VOICES)[number];
-
-interface WorkerResultMessage {
+interface WorkerChunkMessage {
   audioBase64: string;
-  audioSeconds?: number;
-  durationMs?: number;
+  id: string;
+  index: number;
+  sampleRate: number;
+  type: 'chunk';
+}
+
+interface WorkerDoneMessage {
+  audioSeconds: number;
+  durationMs: number;
   id: string;
   sampleRate: number;
-  speedApplied?: boolean;
-  type: 'result';
+  type: 'done';
 }
 
 interface WorkerErrorMessage {
@@ -49,12 +42,17 @@ interface WorkerErrorMessage {
   type: 'error';
 }
 
-type WorkerResponseMessage = WorkerResultMessage | WorkerErrorMessage;
+type WorkerResponseMessage = WorkerChunkMessage | WorkerDoneMessage | WorkerErrorMessage;
+
+const MAX_WORKER_SAMPLE_RATE = 192_000;
 
 interface PendingWorkerRequest {
   completeWorkerExecution: () => void;
-  reject: (error: Error) => void;
-  resolve: (result: WorkerResultMessage) => void;
+  error: Error | null;
+  chunks: WorkerChunkMessage[];
+  done: boolean;
+  aborted: TtsRequestAbortedError | null;
+  waiters: Array<{ reject: (error: Error) => void; resolve: (chunk: WorkerChunkMessage | null) => void }>;
 }
 
 export interface LocalTtsOptions {
@@ -63,7 +61,7 @@ export interface LocalTtsOptions {
 }
 
 export interface LocalTtsChunk {
-  audio: Float32Array;
+  audio: Buffer;
   durationMs: number;
   index: number;
   sampleRate: number;
@@ -74,32 +72,29 @@ export interface LocalTtsSettings {
   cacheDir: string;
   chunkChars: number;
   concurrency: number;
-  espeakLibrary: string | null;
   interOpThreads: number;
   intraOpThreads: number;
   maxQueue: number;
   maxTextChars: number;
   modelId: string;
   modelPath: string | null;
-  provider: 'kitten-tts';
+  provider: 'pocket-tts';
   pythonExecutable: string;
   sampleRate: number;
   speed: number;
   voice: LocalTtsVoice;
-  voicesPath: string | null;
   workerScript: string;
 }
 
 export interface PublicLocalTtsSettings {
   cacheMode: 'cache-first' | 'offline';
-  chunkChars: number;
   concurrency: number;
   defaultSpeed: number;
   defaultVoice: LocalTtsVoice;
   maxQueue: number;
   maxTextChars: number;
   modelId: string;
-  provider: 'kitten-tts';
+  provider: 'pocket-tts';
   sampleRate: number;
 }
 
@@ -159,15 +154,10 @@ function getEnvFloat(names: readonly string[], fallback: number, min: number, ma
   return Math.min(max, Math.max(min, parsed));
 }
 
-function getConfiguredVoice(): LocalTtsVoice {
-  const raw = process.env.LOCAL_TTS_VOICE ?? process.env.NEXT_PUBLIC_TTS_VOICE;
-  return raw && (ALLOWED_VOICES as readonly string[]).includes(raw)
-    ? raw as LocalTtsVoice
-    : DEFAULT_VOICE;
-}
+function getConfiguredVoice(): LocalTtsVoice { return DEFAULT_VOICE; }
 
 function getConfiguredSpeed(): number {
-  return getEnvFloat(['LOCAL_TTS_SPEED', 'NEXT_PUBLIC_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
+  return getEnvFloat(['LOCAL_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
 }
 
 function getCpuCount(): number {
@@ -213,6 +203,26 @@ function clampSpeed(speed: number): number {
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed));
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return isNonNegativeFiniteNumber(value) && Number.isInteger(value);
+}
+
+function isValidSampleRate(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && Number.isInteger(value)
+    && value > 0
+    && value <= MAX_WORKER_SAMPLE_RATE;
+}
+
+function isValidBase64(value: string): boolean {
+  return value.length > 0 && value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
 function getSettings(): LocalTtsSettings {
   const cpuCount = getCpuCount();
   const intraOpThreads = getEnvInt('LOCAL_TTS_INTRA_OP_THREADS', getDefaultIntraOpThreads(), 1, cpuCount);
@@ -221,21 +231,19 @@ function getSettings(): LocalTtsSettings {
 
   return {
     cacheDir: process.env.LOCAL_TTS_CACHE_DIR ?? DEFAULT_CACHE_DIR,
-    chunkChars: getEnvInt('LOCAL_TTS_CHUNK_CHARS', DEFAULT_CHUNK_CHARS, 80, MAX_CHUNK_CHARS),
-    concurrency: getEnvInt('LOCAL_TTS_CONCURRENCY', 1, 1, 2),
-    espeakLibrary: process.env.LOCAL_TTS_ESPEAK_LIBRARY ?? null,
+    chunkChars: MAX_TEXT_CHARS,
+    concurrency: 1,
     interOpThreads: getEnvInt('LOCAL_TTS_INTER_OP_THREADS', 1, 1, 2),
     intraOpThreads,
     maxQueue: getEnvInt('LOCAL_TTS_MAX_QUEUE', 4, 0, 16),
     maxTextChars: getEnvInt('LOCAL_TTS_MAX_TEXT_CHARS', MAX_TEXT_CHARS, 80, 4_000),
     modelId: MODEL_ID,
-    modelPath: process.env.LOCAL_TTS_MODEL_PATH ?? process.env.KITTEN_TTS_MODEL_PATH ?? null,
+    modelPath: null,
     provider: PROVIDER,
     pythonExecutable: getPythonExecutable(),
     sampleRate: SAMPLE_RATE,
     speed,
     voice,
-    voicesPath: process.env.LOCAL_TTS_VOICES_PATH ?? null,
     workerScript: resolveWorkerScript(),
   };
 }
@@ -253,8 +261,7 @@ function getLocalTtsCacheMode(): PublicLocalTtsSettings['cacheMode'] {
 export function getPublicLocalTtsSettings(): PublicLocalTtsSettings {
   return {
     cacheMode: getLocalTtsCacheMode(),
-    chunkChars: getEnvInt('LOCAL_TTS_CHUNK_CHARS', DEFAULT_CHUNK_CHARS, 80, MAX_CHUNK_CHARS),
-    concurrency: getEnvInt('LOCAL_TTS_CONCURRENCY', 1, 1, 2),
+    concurrency: 1,
     defaultSpeed: getConfiguredSpeed(),
     defaultVoice: getConfiguredVoice(),
     maxQueue: getEnvInt('LOCAL_TTS_MAX_QUEUE', 4, 0, 16),
@@ -277,19 +284,15 @@ function configureCpuRuntime(settings: LocalTtsSettings): void {
   process.env.UV_THREADPOOL_SIZE ??= String(Math.max(4, settings.intraOpThreads));
 }
 
-function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
-  return {
+export function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {
     ...process.env,
-    HF_HOME: process.env.HF_HOME ?? settings.cacheDir,
+    HF_HUB_CACHE: process.env.HF_HUB_CACHE ?? settings.cacheDir,
     HF_HUB_DISABLE_SYMLINKS_WARNING: process.env.HF_HUB_DISABLE_SYMLINKS_WARNING ?? '1',
-    KITTEN_TTS_MODEL: process.env.KITTEN_TTS_MODEL ?? settings.modelId,
     LOCAL_TTS_CACHE_DIR: settings.cacheDir,
-    LOCAL_TTS_ESPEAK_LIBRARY: settings.espeakLibrary ?? process.env.LOCAL_TTS_ESPEAK_LIBRARY,
     LOCAL_TTS_INTER_OP_THREADS: String(settings.interOpThreads),
     LOCAL_TTS_INTRA_OP_THREADS: String(settings.intraOpThreads),
     LOCAL_TTS_MODEL_ID: settings.modelId,
-    LOCAL_TTS_MODEL_PATH: settings.modelPath ?? process.env.LOCAL_TTS_MODEL_PATH,
-    LOCAL_TTS_VOICES_PATH: settings.voicesPath ?? process.env.LOCAL_TTS_VOICES_PATH,
     OMP_NUM_THREADS: process.env.OMP_NUM_THREADS ?? String(settings.intraOpThreads),
     ONNX_NUM_THREADS: process.env.ONNX_NUM_THREADS ?? String(settings.intraOpThreads),
     OPENBLAS_NUM_THREADS: process.env.OPENBLAS_NUM_THREADS ?? '1',
@@ -298,9 +301,15 @@ function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
     NUMEXPR_NUM_THREADS: process.env.NUMEXPR_NUM_THREADS ?? '1',
     OMP_WAIT_POLICY: process.env.OMP_WAIT_POLICY ?? 'PASSIVE',
   };
+
+    environment.HF_HUB_OFFLINE = process.env.LOCAL_TTS_OFFLINE === '1'
+      ? '1'
+      : process.env.HF_HUB_OFFLINE;
+
+  return environment;
 }
 
-class KittenTtsWorkerClient {
+class PocketTtsWorkerClient {
   private child: ChildProcessWithoutNullStreams;
   private closed = false;
   private nextRequestId = 0;
@@ -326,33 +335,110 @@ class KittenTtsWorkerClient {
     });
   }
 
-  async synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): Promise<WorkerResultMessage> {
-    const message = await this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
-    return message;
+  async *synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): AsyncGenerator<WorkerChunkMessage> {
+    const pending = await this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
+    while (true) {
+      const chunk = await this.nextChunk(pending);
+      if (!chunk) return;
+      yield chunk;
+    }
   }
 
   private handleStdoutLine(line: string): void {
     if (!line.trim()) return;
 
-    let message: WorkerResponseMessage;
+    let payload: unknown;
     try {
-      message = JSON.parse(line) as WorkerResponseMessage;
+      payload = JSON.parse(line) as unknown;
     } catch {
       this.handleExit(new TtsWorkerUnavailableError('Local TTS worker emitted invalid JSON.'));
       return;
     }
 
-    const pending = this.pending.get(message.id);
-    if (!pending) return;
-    this.pending.delete(message.id);
-    pending.completeWorkerExecution();
-
-    if (message.type === 'error') {
-      pending.reject(new TtsWorkerUnavailableError(message.message ?? 'Local TTS worker failed.'));
+    const message = this.parseWorkerMessage(payload);
+    if (!message) {
+      const id = this.getWorkerMessageId(payload);
+      if (id && this.pending.has(id)) {
+        this.failPendingRequest(id, 'Local TTS worker emitted an invalid response.');
+      } else {
+        this.handleExit(new TtsWorkerUnavailableError('Local TTS worker emitted an invalid response.'));
+      }
       return;
     }
 
-    pending.resolve(message);
+    const pending = this.pending.get(message.id);
+    if (!pending) return;
+    if (message.type === 'chunk') {
+      if (pending.aborted) return;
+      const waiter = pending.waiters.shift();
+      if (waiter) waiter.resolve(message);
+      else pending.chunks.push(message);
+      return;
+    }
+
+    this.pending.delete(message.id);
+    pending.done = true;
+    if (message.type === 'error') {
+      pending.error = new TtsWorkerUnavailableError(message.message ?? 'Local TTS worker failed.');
+    }
+    pending.completeWorkerExecution();
+    this.flushPending(pending);
+  }
+
+  private getWorkerMessageId(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    const id = (payload as { id?: unknown }).id;
+    return typeof id === 'string' && id.length > 0 ? id : null;
+  }
+
+  private parseWorkerMessage(payload: unknown): WorkerResponseMessage | null {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    const message = payload as Record<string, unknown>;
+    const { id, type } = message;
+    if (typeof id !== 'string' || id.length === 0 || typeof type !== 'string') return null;
+
+    if (type === 'chunk') {
+      const { audioBase64, index, sampleRate } = message;
+      if (
+        typeof audioBase64 !== 'string'
+        || !isValidBase64(audioBase64)
+        || !isNonNegativeInteger(index)
+        || !isValidSampleRate(sampleRate)
+      ) {
+        return null;
+      }
+      return { audioBase64, id, index, sampleRate, type };
+    }
+
+    if (type === 'done') {
+      const { audioSeconds, durationMs, sampleRate } = message;
+      if (
+        !isNonNegativeFiniteNumber(audioSeconds)
+        || !isNonNegativeFiniteNumber(durationMs)
+        || !isValidSampleRate(sampleRate)
+      ) {
+        return null;
+      }
+      return { audioSeconds, durationMs, id, sampleRate, type };
+    }
+
+    if (type === 'error') {
+      const { message: errorMessage } = message;
+      if (errorMessage !== undefined && typeof errorMessage !== 'string') return null;
+      return { id, message: errorMessage, type };
+    }
+
+    return null;
+  }
+
+  private failPendingRequest(id: string, message: string): void {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    pending.done = true;
+    pending.error = new TtsWorkerUnavailableError(message);
+    pending.completeWorkerExecution();
+    this.flushPending(pending);
   }
 
   private handleExit(error: Error): void {
@@ -366,8 +452,10 @@ class KittenTtsWorkerClient {
     }
 
     for (const pending of this.pending.values()) {
+      pending.error = error;
+      pending.done = true;
       pending.completeWorkerExecution();
-      pending.reject(error);
+      this.flushPending(pending);
     }
     this.pending.clear();
 
@@ -377,10 +465,29 @@ class KittenTtsWorkerClient {
     }
   }
 
+  private flushPending(pending: PendingWorkerRequest): void {
+    while (pending.waiters.length > 0) {
+      const waiter = pending.waiters.shift();
+      if (!waiter) continue;
+      if (pending.aborted) waiter.reject(pending.aborted);
+      else if (pending.error) waiter.reject(pending.error);
+      else waiter.resolve(pending.chunks.shift() ?? null);
+    }
+  }
+
+  private nextChunk(pending: PendingWorkerRequest): Promise<WorkerChunkMessage | null> {
+    if (pending.aborted) return Promise.reject(pending.aborted);
+    if (pending.error) return Promise.reject(pending.error);
+    const chunk = pending.chunks.shift();
+    if (chunk) return Promise.resolve(chunk);
+    if (pending.done) return Promise.resolve(null);
+    return new Promise((resolve, reject) => pending.waiters.push({ resolve, reject }));
+  }
+
   private sendRequest(
     request: { speed: number; text: string; type: 'synthesize'; voice: LocalTtsVoice },
     signal?: AbortSignal,
-  ): Promise<WorkerResultMessage> {
+  ): Promise<PendingWorkerRequest> {
     if (this.closed) {
       return Promise.reject(new TtsWorkerUnavailableError('Local TTS worker is not running.'));
     }
@@ -393,28 +500,29 @@ class KittenTtsWorkerClient {
     });
     let submitted = false;
 
-    return new Promise<WorkerResultMessage>((resolve, reject) => {
+    return new Promise<PendingWorkerRequest>((resolve, reject) => {
       const abortRequest = () => {
         const pending = this.pending.get(id);
         if (!pending) return;
-        pending.reject(new TtsRequestAbortedError(workerCompletion));
+        pending.aborted ??= new TtsRequestAbortedError(workerCompletion);
+        cleanup();
+        reject(pending.aborted);
+        this.flushPending(pending);
         if (!submitted) {
           this.pending.delete(id);
+          pending.done = true;
           pending.completeWorkerExecution();
         }
       };
       const cleanup = () => signal?.removeEventListener('abort', abortRequest);
 
       this.pending.set(id, {
+        aborted: null,
+        chunks: [],
         completeWorkerExecution,
-        reject: (error) => {
-          cleanup();
-          reject(error);
-        },
-        resolve: (result) => {
-          cleanup();
-          resolve(result);
-        },
+        done: false,
+        error: null,
+        waiters: [],
       });
 
       signal?.addEventListener('abort', abortRequest, { once: true });
@@ -426,31 +534,39 @@ class KittenTtsWorkerClient {
       const payload = `${JSON.stringify({ id, ...request })}\n`;
       submitted = true;
       this.child.stdin.write(payload, (error) => {
-        if (!error) return;
+        if (!error) {
+          const pending = this.pending.get(id);
+          if (pending) resolve(pending);
+          return;
+        }
         const pending = this.pending.get(id);
         if (!pending) return;
         this.pending.delete(id);
+        pending.done = true;
+        pending.error = new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`);
         pending.completeWorkerExecution();
-        pending.reject(new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`));
+        this.flushPending(pending);
+        cleanup();
+        reject(pending.error);
       });
     });
   }
 }
 
-let workerPromise: Promise<KittenTtsWorkerClient> | null = null;
-let activeWorker: KittenTtsWorkerClient | null = null;
+let workerPromise: Promise<PocketTtsWorkerClient> | null = null;
+let activeWorker: PocketTtsWorkerClient | null = null;
 let activeJobs = 0;
 let queuedJobs = 0;
 const waiters: Array<() => void> = [];
 
-async function loadLocalTts(): Promise<KittenTtsWorkerClient> {
+async function loadLocalTts(): Promise<PocketTtsWorkerClient> {
   if (workerPromise) return workerPromise;
 
   workerPromise = (async () => {
     const settings = getSettings();
     configureCpuRuntime(settings);
     await mkdir(settings.cacheDir, { recursive: true });
-    const worker = new KittenTtsWorkerClient(settings);
+    const worker = new PocketTtsWorkerClient(settings);
     activeWorker = worker;
     return worker;
   })().catch((error: unknown) => {
@@ -543,119 +659,17 @@ function normalizeText(text: string, maxChars: number): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, maxChars);
 }
 
-function splitLongSegment(segment: string, maxChars: number): string[] {
-  const chunks: string[] = [];
-  let remaining = segment.trim();
-
-  while (remaining.length > maxChars) {
-    const window = remaining.slice(0, maxChars + 1);
-    const breakAt = Math.max(
-      window.lastIndexOf(', '),
-      window.lastIndexOf('; '),
-      window.lastIndexOf(': '),
-      window.lastIndexOf(' '),
-    );
-    const cutAt = breakAt > 80 ? breakAt + 1 : maxChars;
-    chunks.push(remaining.slice(0, cutAt).trim());
-    remaining = remaining.slice(cutAt).trim();
-  }
-
-  if (remaining) chunks.push(remaining);
-  return chunks;
-}
-
 export function splitTextForLocalTts(text: string): string[] {
   const settings = getSettings();
   const normalized = normalizeText(text, settings.maxTextChars);
-  if (!normalized) return [];
-
-  const sentenceMatches = normalized.match(/[^.!?]+[.!?]+["')\]]?|[^.!?]+$/g) ?? [normalized];
-  const chunks: string[] = [];
-  let pending = '';
-
-  for (const rawSentence of sentenceMatches) {
-    const sentence = rawSentence.trim();
-    if (!sentence) continue;
-
-    if (sentence.length > settings.chunkChars) {
-      if (pending) {
-        chunks.push(pending);
-        pending = '';
-      }
-      chunks.push(...splitLongSegment(sentence, settings.chunkChars));
-      continue;
-    }
-
-    const candidate = pending ? `${pending} ${sentence}` : sentence;
-    if (candidate.length <= settings.chunkChars) {
-      pending = candidate;
-    } else {
-      if (pending) chunks.push(pending);
-      pending = sentence;
-    }
-  }
-
-  if (pending) chunks.push(pending);
-  return chunks;
+  return normalized ? [normalized] : [];
 }
 
 export function resolveLocalTtsOptions(input: { speed?: unknown; voice?: unknown }): LocalTtsOptions {
   const settings = getSettings();
-  const voice = typeof input.voice === 'string' && (ALLOWED_VOICES as readonly string[]).includes(input.voice)
-    ? input.voice as LocalTtsVoice
-    : settings.voice;
   const speed = typeof input.speed === 'number' ? clampSpeed(input.speed) : settings.speed;
 
-  return { speed, voice };
-}
-
-function decodeFloat32Base64(audioBase64: string): Float32Array {
-  const buffer = Buffer.from(audioBase64, 'base64');
-  const sampleCount = Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
-  const view = new Float32Array(buffer.buffer, buffer.byteOffset, sampleCount);
-  return new Float32Array(view);
-}
-
-function applyLinearSpeedTransform(samples: Float32Array, speed: number): Float32Array {
-  const clampedSpeed = clampSpeed(speed);
-  if (samples.length === 0 || Math.abs(clampedSpeed - DEFAULT_SPEED) < 0.001) {
-    return samples;
-  }
-
-  const outputLength = Math.max(1, Math.round(samples.length / clampedSpeed));
-  const output = new Float32Array(outputLength);
-
-  for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
-    const sourcePosition = outputIndex * clampedSpeed;
-    const lowerIndex = Math.floor(sourcePosition);
-    const upperIndex = Math.min(samples.length - 1, lowerIndex + 1);
-    const fraction = sourcePosition - lowerIndex;
-    const lower = samples[Math.min(samples.length - 1, lowerIndex)];
-    const upper = samples[upperIndex];
-    output[outputIndex] = lower + ((upper - lower) * fraction);
-  }
-
-  return output;
-}
-
-function normalizeWorkerAudio(result: WorkerResultMessage, speed: number): { audio: Float32Array; sampleRate: number } {
-  const decoded = decodeFloat32Base64(result.audioBase64);
-  const sampleRate = result.sampleRate || SAMPLE_RATE;
-  const audio = result.speedApplied === false ? applyLinearSpeedTransform(decoded, speed) : decoded;
-  return { audio, sampleRate };
-}
-
-function concatFloat32(chunks: Float32Array[]): Float32Array {
-  const totalLength = chunks.reduce((total, chunk) => total + chunk.length, 0);
-  const merged = new Float32Array(totalLength);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return merged;
+  return { speed, voice: DEFAULT_VOICE };
 }
 
 export function encodePcm16(samples: Float32Array): Buffer {
@@ -671,7 +685,10 @@ export function encodePcm16(samples: Float32Array): Buffer {
 }
 
 export function encodePcm16Wav(samples: Float32Array, sampleRate = SAMPLE_RATE): Buffer {
-  const pcm = encodePcm16(samples);
+  return encodePcm16BufferWav(encodePcm16(samples), sampleRate);
+}
+
+function encodePcm16BufferWav(pcm: Buffer, sampleRate = SAMPLE_RATE): Buffer {
   const header = Buffer.alloc(44);
 
   header.write('RIFF', 0, 'ascii');
@@ -691,24 +708,28 @@ export function encodePcm16Wav(samples: Float32Array, sampleRate = SAMPLE_RATE):
   return Buffer.concat([header, pcm]);
 }
 
+function decodeWorkerPcm16(audioBase64: string): Buffer {
+  const audio = Buffer.from(audioBase64, 'base64');
+  if (audio.length % 2 !== 0) {
+    throw new TtsWorkerUnavailableError('Local TTS worker emitted PCM data with an invalid byte length.');
+  }
+  return audio;
+}
+
 export async function synthesizeLocalTts(text: string, options: LocalTtsOptions, signal?: AbortSignal): Promise<Buffer> {
   const chunks = splitTextForLocalTts(text);
   if (chunks.length === 0) {
-    return encodePcm16Wav(new Float32Array(), SAMPLE_RATE);
+    return encodePcm16BufferWav(Buffer.alloc(0), SAMPLE_RATE);
   }
 
   throwIfAborted(signal);
   const worker = await loadLocalTts();
-  const audioChunks: Float32Array[] = [];
-
-  for (const chunk of chunks) {
-    throwIfAborted(signal);
-    const result = await worker.synthesize(chunk, options, signal);
-    throwIfAborted(signal);
-    audioChunks.push(normalizeWorkerAudio(result, options.speed).audio);
+  const audioChunks: Buffer[] = [];
+  for await (const chunk of worker.synthesize(chunks[0], options, signal)) {
+    audioChunks.push(decodeWorkerPcm16(chunk.audioBase64));
   }
 
-  return encodePcm16Wav(concatFloat32(audioChunks), SAMPLE_RATE);
+  return encodePcm16BufferWav(Buffer.concat(audioChunks), SAMPLE_RATE);
 }
 
 export async function* streamLocalTts(text: string, options: LocalTtsOptions, signal?: AbortSignal): AsyncGenerator<LocalTtsChunk> {
@@ -716,18 +737,15 @@ export async function* streamLocalTts(text: string, options: LocalTtsOptions, si
   throwIfAborted(signal);
   const worker = await loadLocalTts();
 
-  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+  for await (const chunk of worker.synthesize(chunks[0] ?? '', options, signal)) {
     throwIfAborted(signal);
-    const startedAt = performance.now();
-    const result = await worker.synthesize(chunks[chunkIndex], options, signal);
-    const audio = normalizeWorkerAudio(result, options.speed);
-    throwIfAborted(signal);
+    const audio = decodeWorkerPcm16(chunk.audioBase64);
     yield {
-      audio: audio.audio,
-      durationMs: Math.round(performance.now() - startedAt),
-      index: chunkIndex,
-      sampleRate: audio.sampleRate,
-      text: chunks[chunkIndex],
+      audio,
+      durationMs: Math.round(audio.length / 2 / chunk.sampleRate * 1000),
+      index: chunk.index,
+      sampleRate: chunk.sampleRate,
+      text: chunks[0] ?? '',
     };
   }
 }

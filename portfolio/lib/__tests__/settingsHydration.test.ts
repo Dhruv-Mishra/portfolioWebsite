@@ -22,4 +22,13 @@ describe('settings hydration contract', () => {
     expect(source).toContain('getClientHydrationSnapshot = () => true');
     expect(source).toContain('getServerHydrationSnapshot = () => false');
   });
+
+  it('keeps voice input and output as independent settings', () => {
+    expect(source).toContain('SettingsGroup title="Voice input"');
+    expect(source).toContain('SettingsGroup title="Voice output"');
+    expect(source).toContain("name=\"voice-backend\"");
+    expect(source).toContain("name=\"voice-output\"");
+    expect(source).toContain("label: 'Device TTS'");
+    expect(source).toContain("label: 'Server custom'");
+  });
 });

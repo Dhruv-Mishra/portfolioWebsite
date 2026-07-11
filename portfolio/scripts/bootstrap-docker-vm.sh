@@ -56,7 +56,7 @@ fi
 install -m 0750 -d /etc/deploy/sites
 install -m 0750 -d /etc/ssl/cloudflare
 install -m 0755 -d "/opt/${SERVICE_NAME}/config" "/opt/${SERVICE_NAME}/releases"
-install -m 0755 -d "/var/cache/${SERVICE_NAME}/kitten-tts"
+install -m 0755 -d "/var/cache/${SERVICE_NAME}/pocket-tts"
 
 if [[ -f "${SCRIPT_DIR}/machine.conf.example" && ! -f /etc/deploy/machine.conf ]]; then
     install -m 0600 "${SCRIPT_DIR}/machine.conf.example" /etc/deploy/machine.conf

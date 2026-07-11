@@ -173,9 +173,10 @@ readonly DOCKER_CACHE_GID="${DOCKER_CACHE_GID:-1000}"
 readonly NODE_HEAP_MB="${NODE_HEAP_MB:-350}"
 readonly BUILD_HEAP_MB="${BUILD_HEAP_MB:-512}"
 
-# systemd limits
-readonly MEMORY_HIGH_MB="${MEMORY_HIGH_MB:-400}"
-readonly MEMORY_MAX_MB="${MEMORY_MAX_MB:-500}"
+# systemd limits. This 1200/1536 MB profile is a provisional minimum; measure
+# peak RSS under production TTS load before treating it as a final sizing.
+readonly MEMORY_HIGH_MB="${MEMORY_HIGH_MB:-1200}"
+readonly MEMORY_MAX_MB="${MEMORY_MAX_MB:-1536}"
 readonly CPU_QUOTA_PERCENT="${CPU_QUOTA_PERCENT:-180}"
 
 # Priorities
@@ -200,6 +201,7 @@ readonly NPM_BUILD_TIMEOUT="${NPM_BUILD_TIMEOUT:-600}"
 
 # Health check — 60s is safe for 1 OCPU ARM VMs where Node.js startup can take 15-25s
 readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-60}"
+readonly LOCAL_TTS_HEALTH_TIMEOUT="${LOCAL_TTS_HEALTH_TIMEOUT:-300}"
 readonly MIN_DISK_MB="${MIN_DISK_MB:-500}"
 
 # Number of releases to retain (including the current one).
@@ -224,11 +226,17 @@ readonly DEPLOY_RELEASES_DIR="${DEPLOY_ROOT}/releases"
 readonly DEPLOY_CURRENT_LINK="${DEPLOY_ROOT}/current"
 readonly DEPLOY_ENV_FILE="${DEPLOY_CONFIG_DIR}/.env.local"
 readonly DEPLOY_LOCK_FILE="/var/lock/${SERVICE_NAME}-deploy.lock"
+readonly TTS_CACHE_DIR="/var/cache/${SERVICE_NAME}/pocket-tts"
+readonly LEGACY_TTS_CACHE_DIR="/var/cache/${SERVICE_NAME}/kitten-tts"
+readonly DOCKER_BUNDLED_TTS_REFERENCE_PATH="/app/public/sounds/voice/TTSReference.mp3"
+readonly ARTIFACT_TTS_REFERENCE_PATH="${DEPLOY_CURRENT_LINK}/public/sounds/voice/TTSReference.mp3"
+readonly TTS_VOICE_STATE_PATH="${TTS_CACHE_DIR}/custom-dhruv.safetensors"
 
 # Legacy paths (for first-run migration + backward compat)
 readonly LEGACY_STANDALONE_DIR="${PROJECT_ROOT}/.next/standalone"
 readonly LEGACY_ENV_FILE="${PROJECT_ROOT}/.env.local"
 readonly LEGACY_STANDALONE_ENV_FILE="${LEGACY_STANDALONE_DIR}/.env.local"
+readonly LEGACY_TTS_REFERENCE_PATH="${LEGACY_STANDALONE_DIR}/public/sounds/voice/TTSReference.mp3"
 
 # Configs
 readonly SYSTEMD_UNIT="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -257,7 +265,11 @@ MODE="legacy"              # "artifact" | "image" | "legacy"
 RELEASE_DIR=""             # set in image/artifact mode
 RELEASE_SHA=""             # set in image/artifact mode
 DOCKER_IMAGE=""             # set in image mode
+DOCKER_HOST_ARCH=""         # normalized Docker daemon architecture in image mode
 ROLLBACK_TARGET_SHA=""      # set in rollback mode when a specific target is requested
+DOCKER_TTS_REFERENCE_PATH="${DOCKER_BUNDLED_TTS_REFERENCE_PATH}"
+DOCKER_TTS_VOICE_STATE_PATH="${TTS_VOICE_STATE_PATH}"
+DOCKER_TTS_REFERENCE_HOST_PATH=""
 
 SKIP_GIT=false
 SKIP_DEPS=false
@@ -582,7 +594,65 @@ check_dependencies() {
         log ERROR "Docker is installed but the daemon is not reachable"
         exit 1
     fi
+    if [[ "${MODE}" == "image" ]]; then
+        detect_docker_host_architecture
+    fi
     log SUCCESS "All dependencies present"
+}
+
+detect_docker_host_architecture() {
+    local docker_arch
+    docker_arch=$(docker info --format '{{.Architecture}}' 2>/dev/null || true)
+
+    case "${docker_arch}" in
+        x86_64|amd64)
+            DOCKER_HOST_ARCH="amd64"
+            ;;
+        aarch64|arm64)
+            DOCKER_HOST_ARCH="arm64"
+            ;;
+        *)
+            log ERROR "Unsupported Docker host architecture: ${docker_arch:-unknown} (supported: x86_64/amd64, aarch64/arm64)"
+            exit 1
+            ;;
+    esac
+
+    log INFO "Docker host architecture: ${DOCKER_HOST_ARCH}"
+}
+
+verify_pulled_image_architecture() {
+    if [[ -z "${DOCKER_HOST_ARCH}" ]]; then
+        log ERROR "Docker host architecture was not detected before image validation"
+        exit 1
+    fi
+
+    local image_arch
+    image_arch=$(docker image inspect --format '{{.Architecture}}' "${DOCKER_IMAGE}" 2>/dev/null || true)
+    if [[ "${image_arch}" != "${DOCKER_HOST_ARCH}" ]]; then
+        log ERROR "Pulled image architecture mismatch: expected ${DOCKER_HOST_ARCH}, got ${image_arch:-unknown}"
+        exit 1
+    fi
+
+    log SUCCESS "Pulled image architecture verified: ${image_arch}"
+}
+
+validate_runtime_profile() {
+    if [[ "${MODE}" == "artifact" ]]; then
+        echo "ERROR: Artifact mode cannot serve required Pocket TTS because its Python dependencies are not bundled. Deploy with --image instead." >&2
+        exit 1
+    fi
+
+    if [[ "${MODE}" == "image" ]]; then
+        validate_image_memory_profile
+    fi
+}
+
+validate_image_memory_profile() {
+    if ! [[ "${MEMORY_MAX_MB}" =~ ^[0-9]+$ ]] || ! [[ "${MEMORY_HIGH_MB}" =~ ^[0-9]+$ ]] \
+        || (( MEMORY_MAX_MB < 1536 )) || (( MEMORY_HIGH_MB < 1200 )); then
+        echo "ERROR: Image mode requires MEMORY_MAX_MB>=1536 and MEMORY_HIGH_MB>=1200. Update /etc/deploy/machine.conf before deploying." >&2
+        exit 1
+    fi
 }
 
 check_disk_space() {
@@ -903,6 +973,21 @@ first_run_bootstrap() {
     log SUCCESS "Layout ready: ${DEPLOY_ROOT}"
 }
 
+ensure_tts_cache_dir() {
+    local new_cache_empty=false
+    if [[ ! -d "${TTS_CACHE_DIR}" ]] || [[ -z "$(find "${TTS_CACHE_DIR}" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+        new_cache_empty=true
+    fi
+
+    mkdir -p "${TTS_CACHE_DIR}"
+    if [[ "${new_cache_empty}" == "true" ]] && [[ -d "${LEGACY_TTS_CACHE_DIR}" ]] \
+        && [[ -n "$(find "${LEGACY_TTS_CACHE_DIR}" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+        log INFO "Legacy Kitten TTS cache retained at ${LEGACY_TTS_CACHE_DIR}; Pocket TTS cache starts separately at ${TTS_CACHE_DIR} for rollback/manual cleanup."
+    elif [[ -d "${LEGACY_TTS_CACHE_DIR}" ]] && [[ "${new_cache_empty}" != "true" ]]; then
+        log INFO "Leaving legacy TTS cache untouched because ${TTS_CACHE_DIR} is populated"
+    fi
+}
+
 validate_env_file() {
     log STEP "Validating ${DEPLOY_ENV_FILE}..."
 
@@ -952,6 +1037,59 @@ validate_env_file() {
 env_file_value() {
     local key="$1"
     awk -F= -v k="${key}" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "${DEPLOY_ENV_FILE}"
+}
+
+validate_container_path() {
+    local label="$1"
+    local path="$2"
+
+    if [[ -z "${path}" ]] || [[ "${path}" != /* ]] \
+        || [[ "${path}" == *".."* ]] \
+        || ! [[ "${path}" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+        log ERROR "${label} must be a non-empty absolute container path without traversal or whitespace"
+        exit 1
+    fi
+}
+
+resolve_docker_tts_runtime_config() {
+    local configured_reference
+    local configured_voice_state
+    local configured_host_reference
+
+    configured_reference="$(env_file_value LOCAL_TTS_REFERENCE_PATH)"
+    configured_voice_state="$(env_file_value LOCAL_TTS_VOICE_STATE_PATH)"
+    configured_host_reference="$(env_file_value LOCAL_TTS_REFERENCE_HOST_PATH)"
+
+    DOCKER_TTS_VOICE_STATE_PATH="${configured_voice_state:-${TTS_VOICE_STATE_PATH}}"
+    validate_container_path LOCAL_TTS_VOICE_STATE_PATH "${DOCKER_TTS_VOICE_STATE_PATH}"
+    if [[ "${DOCKER_TTS_VOICE_STATE_PATH}" != "${TTS_CACHE_DIR}/"* ]]; then
+        log ERROR "LOCAL_TTS_VOICE_STATE_PATH must remain under ${TTS_CACHE_DIR} so voice state persists"
+        exit 1
+    fi
+
+    DOCKER_TTS_REFERENCE_HOST_PATH=""
+    if [[ -n "${configured_host_reference}" ]]; then
+        if [[ "${configured_host_reference}" != /* ]] || [[ "${configured_host_reference}" == *$'\n'* ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH must be an absolute host file path"
+            exit 1
+        fi
+        DOCKER_TTS_REFERENCE_HOST_PATH="$(realpath -e -- "${configured_host_reference}" 2>/dev/null || true)"
+        if [[ -z "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] || [[ ! -f "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH must reference an existing regular file"
+            exit 1
+        fi
+        if [[ "${DOCKER_TTS_REFERENCE_HOST_PATH}" =~ [[:space:]] ]] || ! [[ "${DOCKER_TTS_REFERENCE_HOST_PATH}" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH contains characters unsafe for the generated systemd Docker command"
+            exit 1
+        fi
+        log INFO "Resolved canonical private Pocket TTS reference host path: ${DOCKER_TTS_REFERENCE_HOST_PATH}"
+        DOCKER_TTS_REFERENCE_PATH="/run/secrets/tts-reference"
+    else
+        DOCKER_TTS_REFERENCE_PATH="${configured_reference:-${DOCKER_BUNDLED_TTS_REFERENCE_PATH}}"
+        validate_container_path LOCAL_TTS_REFERENCE_PATH "${DOCKER_TTS_REFERENCE_PATH}"
+    fi
+
+    log INFO "Resolved Pocket TTS runtime settings (private_reference=$([[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] && echo true || echo false))"
 }
 
 validate_staging_env_contract() {
@@ -1086,6 +1224,7 @@ stage_image_release() {
 
     log INFO "Pulling image: ${DOCKER_IMAGE}"
     docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+    verify_pulled_image_architecture
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     # shellcheck disable=SC2064
@@ -1179,6 +1318,9 @@ prune_docker_images() {
 prepare_systemd_unit() {
     log STEP "Preparing systemd unit (staged)..."
 
+    ensure_tts_cache_dir
+    chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+
     local node_bin
     node_bin=$(command -v node)
 
@@ -1196,7 +1338,14 @@ User=${SERVICE_USER}
 WorkingDirectory=${DEPLOY_CURRENT_LINK}
 
 # Environment — file lives inside the release, injected at deploy time
-Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
+Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
+Environment=LOCAL_TTS_REFERENCE_PATH=${ARTIFACT_TTS_REFERENCE_PATH}
+Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
+Environment=LOCAL_TTS_INTRA_OP_THREADS=1
+Environment=LOCAL_TTS_INTER_OP_THREADS=1
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
 EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -1222,8 +1371,8 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-CacheDirectory=${SERVICE_NAME}/kitten-tts
-ReadWritePaths=${DEPLOY_ROOT} /var/cache/${SERVICE_NAME}/kitten-tts
+CacheDirectory=${SERVICE_NAME}/pocket-tts
+ReadWritePaths=${DEPLOY_ROOT} ${TTS_CACHE_DIR}
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -1256,14 +1405,18 @@ prepare_docker_systemd_unit() {
     log STEP "Preparing Docker systemd unit (staged)..."
 
     local docker_bin
+    local docker_tts_volume_args
     docker_bin=$(command -v docker)
     local docker_cpus
     docker_cpus=$(docker_cpu_quota)
-    local tts_cache_dir="/var/cache/${SERVICE_NAME}/kitten-tts"
-
-    mkdir -p "${tts_cache_dir}"
-    chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${tts_cache_dir}" 2>/dev/null || true
-    chmod 775 "${tts_cache_dir}" 2>/dev/null || true
+    resolve_docker_tts_runtime_config
+    docker_tts_volume_args="--volume ${TTS_CACHE_DIR}:${TTS_CACHE_DIR}"
+    if [[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
+        docker_tts_volume_args+=" --volume ${DOCKER_TTS_REFERENCE_HOST_PATH}:/run/secrets/tts-reference:ro"
+    fi
+    ensure_tts_cache_dir
+    chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+    chmod 775 "${TTS_CACHE_DIR}" 2>/dev/null || true
 
     STAGED_SYSTEMD_UNIT="$(mktemp "/tmp/${SERVICE_NAME}.service.XXXXXX")"
 
@@ -1285,9 +1438,17 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
   --env PORT=${NEXTJS_PORT} \
   --env HOSTNAME=0.0.0.0 \
   --env NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} \
-  --env LOCAL_TTS_CACHE_DIR=${tts_cache_dir} \
+    --env LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR} \
+    --env LOCAL_TTS_REFERENCE_HOST_PATH= \
+    --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} \
+    --env LOCAL_TTS_VOICE_STATE_PATH=${DOCKER_TTS_VOICE_STATE_PATH} \
+    --env LOCAL_TTS_INTRA_OP_THREADS=1 \
+    --env LOCAL_TTS_INTER_OP_THREADS=1 \
+    --env OMP_NUM_THREADS=1 \
+    --env MKL_NUM_THREADS=1 \
+    --env HF_HUB_CACHE=${TTS_CACHE_DIR} \
   --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
-  --volume ${tts_cache_dir}:${tts_cache_dir} \
+    ${docker_tts_volume_args} \
   --memory ${MEMORY_MAX_MB}m \
   --memory-reservation ${MEMORY_HIGH_MB}m \
   --cpus ${docker_cpus} \
@@ -1594,6 +1755,39 @@ start_service() {
     return 1
 }
 
+tts_health_check() {
+    log STEP "Verifying Pocket TTS synthesis readiness..."
+
+    local response_file
+    response_file=$(mktemp "/tmp/${SERVICE_NAME}-tts-health.XXXXXX")
+    local http_code="000"
+    if ! http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" \
+        --max-time "${LOCAL_TTS_HEALTH_TIMEOUT}" \
+        -X POST \
+        -H "Accept: application/x-ndjson" \
+        -H "Content-Type: application/json" \
+        -H "Origin: https://${DOMAIN}" \
+        -H "Sec-Fetch-Site: same-origin" \
+        --data '{"text":"Deployment voice readiness check.","stream":true}' \
+        "http://127.0.0.1:${NEXTJS_PORT}/api/tts" 2>>"${LOG_FILE}"); then
+        rm -f "${response_file}"
+        log ERROR "Pocket TTS readiness request failed"
+        return 1
+    fi
+
+    if [[ "${http_code}" != "200" ]] \
+        || ! grep -q '"type":"ready"' "${response_file}" \
+        || ! grep -q '"type":"chunk"' "${response_file}" \
+        || ! grep -q '"type":"done"' "${response_file}"; then
+        rm -f "${response_file}"
+        log ERROR "Pocket TTS readiness response was incomplete (HTTP ${http_code})"
+        return 1
+    fi
+
+    rm -f "${response_file}"
+    log SUCCESS "Pocket TTS synthesized a streaming response"
+}
+
 reload_nginx() {
     if [[ "${SKIP_NGINX}" == "true" ]]; then
         return 0
@@ -1833,6 +2027,8 @@ image_deploy() {
         exit 1
     fi
 
+    tts_health_check
+
     if ! reload_nginx; then
         if is_staging_site; then
             log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
@@ -1970,17 +2166,17 @@ rollback_deploy() {
             log ERROR "Docker daemon is not reachable"
             exit 1
         fi
+        detect_docker_host_architecture
 
         DOCKER_IMAGE="${target_image}"
         log INFO "Pulling rollback image: ${DOCKER_IMAGE}"
         docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+        verify_pulled_image_architecture
+        validate_image_memory_profile
         prepare_docker_systemd_unit
     else
-        [[ -f "${RELEASE_DIR}/server.js" ]] || {
-            log ERROR "Rollback release is neither an image release nor an artifact release with server.js: ${RELEASE_DIR}"
-            exit 1
-        }
-        prepare_systemd_unit
+        log ERROR "Artifact rollback cannot serve required Pocket TTS because its Python dependencies are not bundled. Roll back to a retained image release instead."
+        exit 1
     fi
 
     prepare_nginx_config
@@ -2009,6 +2205,8 @@ rollback_deploy() {
         log ERROR "Rollback target did not come up healthy"
         exit 1
     fi
+
+    tts_health_check
 
     if ! reload_nginx; then
         log ERROR "nginx reload failed during rollback"
@@ -2143,6 +2341,8 @@ prepare_legacy_standalone() {
 
 ensure_legacy_systemd() {
     log STEP "Writing legacy systemd unit (points at ${LEGACY_STANDALONE_DIR})..."
+    ensure_tts_cache_dir
+    chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
     local node_bin
     node_bin=$(command -v node)
     cat > "${SYSTEMD_UNIT}" << UNIT
@@ -2155,7 +2355,14 @@ Wants=network.target
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${LEGACY_STANDALONE_DIR}
-Environment=LOCAL_TTS_CACHE_DIR=/var/cache/${SERVICE_NAME}/kitten-tts
+Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
+Environment=LOCAL_TTS_REFERENCE_PATH=${LEGACY_TTS_REFERENCE_PATH}
+Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
+Environment=LOCAL_TTS_INTRA_OP_THREADS=1
+Environment=LOCAL_TTS_INTER_OP_THREADS=1
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
 EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -2176,8 +2383,8 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-CacheDirectory=${SERVICE_NAME}/kitten-tts
-ReadWritePaths=${PROJECT_ROOT} /var/cache/${SERVICE_NAME}/kitten-tts
+CacheDirectory=${SERVICE_NAME}/pocket-tts
+ReadWritePaths=${PROJECT_ROOT} ${TTS_CACHE_DIR}
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -2271,15 +2478,25 @@ health_check() {
 
     total=$((total + 1))
     systemctl is-active --quiet nginx && { log DEBUG "✓ Nginx"; passed=$((passed + 1)); } \
-        || log WARN "✗ Nginx not running"
+        || log ERROR "✗ Nginx not running"
 
     total=$((total + 1))
     systemctl is-active --quiet "${SERVICE_NAME}" && { log DEBUG "✓ ${SERVICE_NAME}"; passed=$((passed + 1)); } \
-        || log WARN "✗ ${SERVICE_NAME} not running"
+        || log ERROR "✗ ${SERVICE_NAME} not running"
 
     total=$((total + 1))
     ss -tlnp | grep -q ":${NEXTJS_PORT} " && { log DEBUG "✓ Port ${NEXTJS_PORT}"; passed=$((passed + 1)); } \
-        || log WARN "✗ Port ${NEXTJS_PORT} not listening"
+        || log ERROR "✗ Port ${NEXTJS_PORT} not listening"
+
+    total=$((total + 1))
+    local homepage_code
+    homepage_code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 \
+        "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null || echo "000")
+    if [[ "${homepage_code}" == "200" ]]; then
+        log DEBUG "✓ Homepage: ${homepage_code}"; passed=$((passed + 1))
+    else
+        log ERROR "✗ Homepage: ${homepage_code}"
+    fi
 
     total=$((total + 1))
     local http_code
@@ -2288,26 +2505,28 @@ health_check() {
     if [[ "${http_code}" =~ ^(200|301|302)$ ]]; then
         log DEBUG "✓ HTTPS: ${http_code}"; passed=$((passed + 1))
     else
-        log WARN "? HTTPS: ${http_code}"; passed=$((passed + 1))
+        log ERROR "✗ HTTPS: ${http_code}"
     fi
 
     total=$((total + 1))
     local chat_code
     chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
         -X POST -H "Content-Type: application/json" \
+        -H "Origin: https://${DOMAIN}" \
         -H "Sec-Fetch-Site: same-origin" \
         -d '{"messages":[{"role":"user","content":"health check"}]}' \
         "http://127.0.0.1:${NEXTJS_PORT}/chat/respond" 2>/dev/null || echo "000")
     if [[ "${chat_code}" == "200" ]] || [[ "${chat_code}" == "429" ]]; then
         log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else
-        log WARN "? Chat API: ${chat_code}"; passed=$((passed + 1))
+        log ERROR "✗ Chat API: ${chat_code}"
     fi
 
     if [[ ${passed} -eq ${total} ]]; then
         log SUCCESS "All health checks passed (${passed}/${total})"
     else
-        log WARN "Health checks: ${passed}/${total}"
+        log ERROR "Health checks failed: ${passed}/${total}"
+        return 1
     fi
 }
 
@@ -2351,6 +2570,9 @@ print_summary() {
 main() {
     DEPLOYMENT_START_TIME=$(date +%s)
 
+    parse_arguments "$@"
+    validate_runtime_profile
+
     setup_directories
 
     # Mutex — prevent overlapping deploys on the same VM
@@ -2361,8 +2583,6 @@ main() {
     fi
 
     trap cleanup EXIT
-
-    parse_arguments "$@"
 
     log_separator
     log INFO "Starting ${MODE} deployment: site=${SITE_NAME} at $(date)"

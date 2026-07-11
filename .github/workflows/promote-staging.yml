@@ -12,14 +12,6 @@ on:
         required: false
         default: dev/lkg
         type: string
-      deploy_mode:
-        description: "Deployment mode for the staging deploy workflow"
-        required: false
-        default: image
-        type: choice
-        options:
-          - image
-          - artifact
 
 concurrency:
   group: promote-staging
@@ -93,11 +85,10 @@ jobs:
         if: steps.promote.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
           TARGET_BRANCH: ${{ steps.promote.outputs.target_branch }}
         run: |
           set -euo pipefail
-          gh workflow run deploy-staging.yml --ref "$TARGET_BRANCH" -f "deploy_mode=${DEPLOY_MODE}"
+          gh workflow run deploy-staging.yml --ref "$TARGET_BRANCH"
 
       - name: Promotion summary
         run: |

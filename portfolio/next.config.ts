@@ -71,8 +71,9 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     '/api/tts': [
-      './scripts/kitten-tts-worker.py',
+      './scripts/pocket-tts-worker.py',
       './requirements-tts.txt',
+      './public/sounds/voice/TTSReference.mp3',
     ],
   },
   // Pin workspace root so Next.js never auto-detects from a stray parent lockfile.

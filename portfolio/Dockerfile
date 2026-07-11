@@ -21,8 +21,6 @@ ARG NEXT_PUBLIC_GA_ID
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_ENABLE_ANALYTICS
 ARG NEXT_PUBLIC_ENABLE_ERROR_TRACKING
-ARG NEXT_PUBLIC_TTS_VOICE
-ARG NEXT_PUBLIC_TTS_SPEED
 ARG NEXT_BUILD_FLAGS=""
 ARG BROWSERSLIST_QUERY=""
 
@@ -31,8 +29,6 @@ ENV NEXT_BUILD_ID=${NEXT_BUILD_ID} \
     NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL} \
     NEXT_PUBLIC_ENABLE_ANALYTICS=${NEXT_PUBLIC_ENABLE_ANALYTICS} \
     NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${NEXT_PUBLIC_ENABLE_ERROR_TRACKING} \
-    NEXT_PUBLIC_TTS_VOICE=${NEXT_PUBLIC_TTS_VOICE} \
-    NEXT_PUBLIC_TTS_SPEED=${NEXT_PUBLIC_TTS_SPEED} \
     NODE_OPTIONS=--max-old-space-size=4096
 
 COPY . .
@@ -64,7 +60,14 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
     LOCAL_TTS_PYTHON=/opt/tts-venv/bin/python \
-    LOCAL_TTS_CACHE_DIR=/var/cache/portfolio/kitten-tts \
+    LOCAL_TTS_CACHE_DIR=/var/cache/portfolio/pocket-tts \
+    LOCAL_TTS_REFERENCE_PATH=/app/public/sounds/voice/TTSReference.mp3 \
+    LOCAL_TTS_VOICE_STATE_PATH=/var/cache/portfolio/pocket-tts/custom-dhruv.safetensors \
+    LOCAL_TTS_INTRA_OP_THREADS=1 \
+    LOCAL_TTS_INTER_OP_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    HF_HUB_CACHE=/var/cache/portfolio/pocket-tts \
     PYTHONUNBUFFERED=1 \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1
 
@@ -72,8 +75,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
-      espeak-ng \
-      libespeak-ng1 \
+        libsndfile1 \
       python3 \
       python3-venv \
       tini \
@@ -85,11 +87,12 @@ COPY requirements-tts.txt /tmp/requirements-tts.txt
 RUN python3 -m venv /opt/tts-venv \
     && /opt/tts-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
     && /opt/tts-venv/bin/pip install --no-cache-dir -r /tmp/requirements-tts.txt \
+    && /opt/tts-venv/bin/python -c "import pocket_tts, soundfile, torch" \
     && rm -f /tmp/requirements-tts.txt
 
 COPY --from=builder --chown=node:node /app/standalone ./
 
-RUN mkdir -p /var/cache/portfolio/kitten-tts \
+RUN mkdir -p /var/cache/portfolio/pocket-tts \
     && chown -R node:node /var/cache/portfolio
 
 USER node

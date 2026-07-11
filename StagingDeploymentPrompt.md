@@ -74,7 +74,7 @@ STAGING_SITE_CONF="/etc/deploy/sites/${STAGING_SITE}.conf"
 MACHINE_CONF="/etc/deploy/machine.conf"
 STAGING_ROOT="/opt/${STAGING_SITE}"
 STAGING_ENV_FILE="${STAGING_ROOT}/config/.env.local"
-STAGING_CACHE_DIR="/var/cache/${STAGING_SITE}/kitten-tts"
+STAGING_CACHE_DIR="/var/cache/${STAGING_SITE}/pocket-tts"
 
 abort() {
   echo "ERROR: $*" >&2
@@ -176,8 +176,8 @@ ensure_machine_conf() {
   cat > "$MACHINE_CONF" <<MACHINE
 MACHINE_USER="${SERVICE_USER}"
 NODE_HEAP_MB=350
-MEMORY_HIGH_MB=400
-MEMORY_MAX_MB=500
+MEMORY_HIGH_MB=1200
+MEMORY_MAX_MB=1536
 CPU_QUOTA_PERCENT=90
 BUILD_NICE=15
 BUILD_IONICE_CLASS=3
@@ -208,6 +208,7 @@ create_dirs() {
   install -m 0755 -d "${STAGING_ROOT}/config" "${STAGING_ROOT}/releases"
   install -m 0755 -d "$STAGING_CACHE_DIR"
   chown -R "${SERVICE_USER}:${SERVICE_USER}" "$STAGING_ROOT" 2>/dev/null || true
+  chown -R "${SERVICE_USER}:${SERVICE_USER}" "$STAGING_CACHE_DIR" 2>/dev/null || true
 }
 
 write_staging_site_conf() {
@@ -260,7 +261,7 @@ create_staging_env() {
 
   upsert_env NEXT_PUBLIC_SITE_URL "https://${STAGING_DOMAIN}" "$STAGING_ENV_FILE"
   upsert_env SITE_URL "https://${STAGING_DOMAIN}" "$STAGING_ENV_FILE"
-  upsert_env LOCAL_TTS_CACHE_DIR "/var/cache/${STAGING_SITE}/kitten-tts" "$STAGING_ENV_FILE"
+  upsert_env LOCAL_TTS_CACHE_DIR "/var/cache/${STAGING_SITE}/pocket-tts" "$STAGING_ENV_FILE"
   ensure_secret ADMIN_UNLOCK_SECRET "$STAGING_ENV_FILE"
   ensure_secret CHAT_HISTORY_SIGNING_SECRET "$STAGING_ENV_FILE"
   ensure_secret IP_HASH_SALT "$STAGING_ENV_FILE"
@@ -313,6 +314,14 @@ SCRIPT
 sudo chmod +x /tmp/prepare-portfolio-staging.sh
 sudo bash /tmp/prepare-portfolio-staging.sh
 ```
+
+## Pocket TTS Prerequisites
+
+Before the first staging image deployment, create the repository-level `STAGING_HF_TOKEN` Actions secret. Use a least-privilege Hugging Face read token and ensure its account accepts the gated terms at <https://huggingface.co/kyutai/pocket-tts>. Do not put this token in this prompt, the setup script, or a VM env file: the deployment workflow synchronizes the repository secret.
+
+The script creates `/var/cache/portfolio-staging/pocket-tts`; confirm it has service ownership, disk capacity, and outbound network access for the initial download. The `MEMORY_HIGH_MB=1200` and `MEMORY_MAX_MB=1536` values are provisional minima. Prefer at least 2 GB host RAM and validate peak RSS with no swap pressure; a 24 GB fleet may retain `4096` and `6144`. First deploy synthesis can take several minutes. Only after a successful warmup may offline cache use set `HF_HUB_OFFLINE=1` or `LOCAL_TTS_OFFLINE=1`.
+
+The shipped reference at `public/sounds/voice/TTSReference.mp3` is public. The deploy owner must confirm it is their voice or is used with explicit lawful consent, and it must not be used to deceive or impersonate. Pocket TTS software is MIT; model weights are CC BY 4.0 and subject to gated prohibited-use terms. If redistribution is not intended, store the file privately on the VM and set `LOCAL_TTS_REFERENCE_HOST_PATH=/absolute/path/to/reference.mp3` in the persisted staging env before deploy. The host path must be absolute and contain only letters, digits, `_`, `.`, `/`, and `-`, with no whitespace. The deploy script validates the file and mounts it read-only into the container at `/run/secrets/tts-reference`; do not use a host path for `LOCAL_TTS_REFERENCE_PATH`.
 
 If the repository is private or the VM cannot clone over HTTPS, run with an SSH URL that works from the VM:
 

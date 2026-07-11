@@ -6,15 +6,6 @@ permissions:
 
 on:
   workflow_dispatch:
-    inputs:
-      deploy_mode:
-        description: "Deployment mode for the production deploy workflow"
-        required: false
-        default: image
-        type: choice
-        options:
-          - image
-          - artifact
 
 concurrency:
   group: promote-production
@@ -96,11 +87,10 @@ jobs:
         if: steps.promote.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
           TARGET_BRANCH: ${{ steps.promote.outputs.target_branch }}
         run: |
           set -euo pipefail
-          gh workflow run deploy.yml --ref "$TARGET_BRANCH" -f "deploy_mode=${DEPLOY_MODE}" -f site=portfolio -f skip_nginx=false
+          gh workflow run deploy.yml --ref "$TARGET_BRANCH" -f site=portfolio -f skip_nginx=false
 
       - name: Promotion summary
         run: |

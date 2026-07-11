@@ -706,6 +706,7 @@ jobs:
 
             SHA="${{ github.sha }}"
             SITE="${{ inputs.site || 'portfolio' }}"
+            DOMAIN="${{ env.DOMAIN }}"
             TTS_MODE="${{ matrix.server.tts_mode }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
             TARBALL="/tmp/portfolio-${SHA}.tar.gz"

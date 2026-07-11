@@ -133,5 +133,7 @@ describe('centralized Pocket TTS deployment topology', () => {
       );
       expect(workflow).toContain('max-parallel: 1');
     }
+    expect(productionWorkflow).toContain('DOMAIN="${{ env.DOMAIN }}"');
+    expect(productionWorkflow).toContain('-H "Origin: https://${DOMAIN}"');
   });
 });

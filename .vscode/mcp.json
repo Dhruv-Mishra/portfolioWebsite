@@ -1,0 +1,14 @@
+{
+	"servers": {
+		"Headroom MCP": {
+			"type": "stdio",
+			"command": "${userHome}\\.local\\bin\\headroom.exe",
+			"args": ["mcp", "serve"],
+			"env": {
+				"HEADROOM_TELEMETRY": "off",
+				"HEADROOM_UPDATE_CHECK": "off"
+			}
+		}
+	},
+	"inputs": []
+}

@@ -8,16 +8,18 @@ This repository uses three VS Code custom agents. The small roster keeps context
 | Builder | GPT-5.6 Terra | HIGH | Balanced implementation, tests, docs, and repair loops |
 | Fastlane | GPT-5.6 Luna | HIGH | Bounded research, mechanical work, command output, and verification |
 
-Use Lead for complex work and let it delegate conditionally. Select Builder directly for well-scoped implementation and Fastlane for bounded work. Do not invoke all three by ritual; each subagent has an independent context and consumes additional credits.
+Use Lead for complex work. Lead should delegate non-trivial work whenever it can form a bounded packet: settled implementation goes to Builder, while exploration, code-path discovery, error analysis, commands, tests, and verification go to Fastlane. Select Builder directly for already-scoped implementation and Fastlane directly for bounded work.
 
-Do not add permanent Oracle or Architect agents. Sol/Lead already owns both capabilities, and a renamed duplicate would add prompt and routing overhead without model diversity. For cross-cutting or hard-to-reverse work, use VS Code's built-in Plan agent, then request at most one fresh read-only Lead subagent to independently challenge assumptions, alternatives, failure modes, and verification.
+Use multiple cheap agents when two or more work items are independent: separate Fastlane instances can inspect different code paths or run separate checks, and separate Builders can own non-overlapping implementation slices with fixed interfaces. Serialize agents that edit the same files or depend on an unresolved shared contract. Do not invoke all three roles by ritual; each subagent has an independent context and consumes credits, so the saved Sol context or elapsed time must exceed the handoff cost.
+
+Do not add permanent Oracle or Architect agents. Sol/Lead already owns architecture, tradeoffs, decomposition, conflict resolution, and final acceptance; a renamed duplicate would add prompt and routing overhead without model diversity. For high-blast-radius or hard-to-reverse work, Lead should write or consume an explicit plan before delegating implementation.
 
 ## VS Code Setup
 
 1. Use VS Code 1.128.0 or newer and enable all three GPT-5.6 models in **Chat: Manage Language Models**.
 2. Open each model's picker submenu and select **XHIGH** for Sol when offered, and **HIGH** for Terra and Luna. VS Code remembers effort per model/session. `.agent.md` has no documented effort property, so adding `effort:` would be inert or invalid.
 3. Trust the workspace. In **Configure Tools**, select all tools that agents may use. The agent files intentionally omit `tools`, which avoids a restrictive or stale allowlist and uses VS Code's dynamic defaults.
-4. Keep nested subagents disabled unless a real divide-and-conquer task requires them. The normal topology is one-level Lead to Builder/Fastlane delegation.
+4. Use downward routing: Lead may invoke Builder and Fastlane; Builder may invoke Fastlane only for a bounded discovery or verification assist; Fastlane invokes no subagents. This prevents cheap workers from routing routine work back to Sol.
 5. Use **Chat: Open Customizations** and Chat diagnostics after changing an agent, model, MCP server, or instruction file.
 6. Install RTK's native Copilot integration with `rtk init -g --copilot --auto-patch`, restart VS Code, and keep `rg` on `PATH`. The hook applies to terminal calls from the main agent and subagents; explicit `rtk` prefixes remain the portable fallback.
 
@@ -39,13 +41,17 @@ RTK 0.43.0's `init --show`, `verify`, and once-daily reminder inspect only the C
 - Exclude generated output from search/indexing. Keep build logs and temporary screenshots outside agent context.
 - Inspect per-turn credits, the context-window control, Agent Debug Logs, and Cache Explorer before adding another optimization layer.
 
-## Headroom And Caveman
+## Headroom
 
-Do not add either to the always-loaded repository setup today.
+The workspace registers Headroom 0.31 as an on-demand stdio MCP server in `.vscode/mcp.json`, using a `${userHome}`-resolved executable path with telemetry and background update checks disabled. Native VS Code Copilot Chat is not a documented `headroom wrap` target, so do not run a proxy or redirect model traffic. Keep output shaping and effort routing off; both can alter response behavior.
 
-Headroom 0.31 supports Copilot **CLI** wrapping and an MCP server, but its repository does not document transparent interception of native VS Code Copilot Chat. Its largest savings are for JSON, logs, and long tool-heavy sessions; its limitations page reports a 4.8% median reduction for short conversations and passes source code, grep output, and RAG contexts through. RTK already captures the highest-value terminal-output case here without another proxy, tool schema, cache, or retrieval layer.
+Headroom complements RTK rather than replacing it. RTK filters terminal output before it reaches an agent. Headroom is reserved for large repetitive JSON, structured logs, and API/database payloads that did not already pass through RTK. Its MCP call is explicit, originals remain retrievable by hash for one hour, and agents must retrieve exact content before exhaustive, security-sensitive, failure-sensitive, or code-changing decisions.
 
-For a measured experiment, pilot Headroom only in non-sensitive Copilot CLI sessions, disable telemetry, compare cost and accuracy against a holdout, and verify Windows credential handling. Keep it only if Agent Debug Logs show net savings after latency and MCP-schema overhead.
+Do not call Headroom on every result. The installed pipeline intentionally passes through errors, code, grep results, short content, and payloads with no net reduction. In local verification, protected error data and representative 1.5K-token payloads produced 0% savings, while direct library diagnostics confirmed compression for larger root JSON arrays. Use a practical 4K-token floor and keep Headroom only when session stats show material savings without extra retrieval churn.
+
+After changing `.vscode/mcp.json`, restart that MCP server or reload the VS Code window once. Verify with the Headroom stats tool; the proxy may remain unreachable because MCP-only compression is local and does not require it.
+
+## Caveman
 
 The reviewed Caveman projects are prompt-style compression conventions rather than a verified VS Code compression layer. Their useful behavior is already represented by the concise agent prompts and RTK rules.
 

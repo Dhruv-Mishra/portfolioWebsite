@@ -13,8 +13,10 @@ Scope: the whole repository.
 
 - `Lead` (GPT-5.6 Sol, XHIGH intent) owns complex or ambiguous work and the final result.
 - `Builder` (GPT-5.6 Terra, HIGH intent) implements scoped changes end to end.
-- `Fastlane` (GPT-5.6 Luna, HIGH intent) handles bounded research, mechanical work, command output, and verification.
-- Use the fewest agents needed. Keep delegation one level deep by default, pass compact task packets, and serialize writers that share this checkout.
+- `Fastlane` (GPT-5.6 Luna, HIGH intent) handles bounded exploration, diagnostics, mechanical work, command output, testing, and verification.
+- For non-trivial packetizable work, Lead delegates settled implementation to Builder and bounded evidence work to Fastlane. Keep Sol focused on architecture, decomposition, ambiguity, integration, and final acceptance.
+- Fan out multiple Builder or Fastlane instances only for independent slices. Pass compact task packets with anchors, fixed decisions, ownership, edit permission, acceptance checks, and expected evidence; serialize writers that share files or unresolved contracts.
+- Route downward by default: Lead can invoke Builder/Fastlane, Builder can use Fastlane for a bounded assist, and Fastlane does not spawn subagents.
 - Agent files omit restrictive tool allowlists so VS Code supplies its current default tools dynamically. Actual execution remains subject to workspace trust, approval settings, tool availability, and organization policy.
 - Start from a concrete anchor, make focused edits, validate after the first substantive edit, and repair failures before widening scope.
 
@@ -27,7 +29,11 @@ Scope: the whole repository.
 - Use direct PowerShell cmdlets when RTK cannot wrap them.
 - Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
 - Do not duplicate project context in agent files. Read the nearest `AGENTS.md` and linked docs on demand.
-- Use subagents when context isolation or independent review is worth the handoff, not as a mandatory pipeline.
+- Use the fewest agents whose isolation saves more Sol context or elapsed time than the handoff costs; never invoke every role by ritual.
+- RTK remains the first compression layer for terminal output. Headroom complements it for large non-terminal payloads; it never replaces explicit `rtk` prefixes.
+- Use Headroom on demand only for roughly 4K+ token repetitive JSON arrays, structured logs, API/database results, or other content where compression reports material savings. Skip short content, source code, diffs, grep/search results, requirements, and already-compact RTK output.
+- Treat compressed content as an index, not exact evidence. Keep its retrieval hash and retrieve the original before exhaustive work or any decision involving errors, security, exact values, identifiers, paths, line references, commands, or code changes. If compression saves nothing or relevance is uncertain, use the original.
+- Do not enable Headroom proxy routing, output shaping, effort routing, failure learning, or automatic instruction writes for native VS Code Copilot Chat. Check Headroom stats only after substantial tool-heavy work, not after every call.
 - See [docs/agent-setup.md](docs/agent-setup.md) for model effort, tool, compression, and MCP setup notes.
 
 ## Commands

@@ -58,6 +58,8 @@ describe('public chat route aliases', () => {
     expect(workflowSource).toContain('https://${{ env.STAGING_DOMAIN }}/chat/respond');
     expect(workflowSource).not.toContain('https://${{ env.STAGING_DOMAIN }}/api/chat');
     expect(workflowSource).toContain('cf-mitigated:');
+    expect(workflowSource).toContain("Cloudflare challenged the GitHub runner's staging chat probe after all VM-local checks passed");
+    expect(workflowSource).not.toContain('Cloudflare challenged the required staging chat smoke probe');
     expect(workflowSource).toContain('application/json');
     expect(workflowSource).toContain("body?.action?.navigateTo !== '/about'");
 

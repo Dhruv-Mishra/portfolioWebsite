@@ -2011,14 +2011,25 @@ private_tts_gateway_health_check() {
     local response_file
     response_file=$(mktemp "/tmp/${SERVICE_NAME}-tts-private-health.XXXXXX")
     local http_code="000"
-    http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" --max-time 10 \
-        --interface 127.0.0.1 \
-        -H "X-Portfolio-TTS-Token: ${TTS_BACKEND_TOKEN}" \
-        -H "Origin: https://${DOMAIN}" \
-        "http://${TTS_PRIVATE_LISTEN}/api/tts" 2>>"${LOG_FILE}" || echo "000")
-    if [[ "${http_code}" != "200" ]] || ! grep -q '"ok":true' "${response_file}"; then
+    local status_ready=false
+    local attempt
+    for attempt in {1..10}; do
+        http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" --max-time 10 \
+            --interface 127.0.0.1 \
+            -H "X-Portfolio-TTS-Token: ${TTS_BACKEND_TOKEN}" \
+            -H "Origin: https://${DOMAIN}" \
+            "http://${TTS_PRIVATE_LISTEN}/api/tts" 2>>"${LOG_FILE}" || echo "000")
+        if [[ "${http_code}" == "200" ]] && grep -q '"ok":true' "${response_file}"; then
+            status_ready=true
+            break
+        fi
+        if (( attempt < 10 )); then
+            sleep 1
+        fi
+    done
+    if [[ "${status_ready}" != "true" ]]; then
         rm -f "${response_file}"
-        log ERROR "Private Pocket TTS gateway status check failed (HTTP ${http_code})"
+        log ERROR "Private Pocket TTS gateway status check failed after ${attempt} attempts (HTTP ${http_code})"
         return 1
     fi
 

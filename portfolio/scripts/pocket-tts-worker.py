@@ -23,13 +23,6 @@ def write_json(payload: dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
-def get_env_bool(name: str, fallback: bool) -> bool:
-    value = os.environ.get(name, "").strip().lower()
-    if not value:
-        return fallback
-    return value not in {"0", "false", "no", "off"}
-
-
 def resolve_path(value: str | None, fallback: Path) -> Path:
     path = Path(value).expanduser() if value else fallback
     if not path.is_absolute():
@@ -71,9 +64,8 @@ class PocketTtsWorker:
             with contextlib.redirect_stdout(sys.stderr):
                 from pocket_tts import TTSModel, export_model_state
 
-                quantize = get_env_bool("LOCAL_TTS_QUANTIZE", True)
-                log(f"[pocket-tts-worker] loading english model (quantize={quantize})")
-                self.model = TTSModel.load_model(language="english", quantize=quantize)
+                log("[pocket-tts-worker] loading english model")
+                self.model = TTSModel.load_model()
                 self.export_model_state = export_model_state
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(
@@ -104,7 +96,17 @@ class PocketTtsWorker:
                 raise RuntimeError(f"TTS reference audio does not exist: {reference_path}")
 
             log(f"[pocket-tts-worker] deriving voice state from {reference_path}")
-            self.voice_state = model.get_state_for_audio_prompt(str(reference_path))
+            try:
+                self.voice_state = model.get_state_for_audio_prompt(str(reference_path))
+            except Exception as exc:  # noqa: BLE001
+                message = str(exc)
+                if "voice cloning" in message and "download the weights" in message:
+                    raise RuntimeError(
+                        "Custom Pocket TTS voice access is not configured. Accept the model terms at "
+                        "https://huggingface.co/kyutai/pocket-tts, then provide HF_TOKEN or run "
+                        "`hf auth login` for the account starting this process."
+                    ) from exc
+                raise
             state_path.parent.mkdir(parents=True, exist_ok=True)
             temporary_fd, temporary_name = tempfile.mkstemp(
                 dir=state_path.parent,

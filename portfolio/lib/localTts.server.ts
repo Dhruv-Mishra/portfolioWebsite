@@ -80,7 +80,6 @@ export interface LocalTtsSettings {
   modelPath: string | null;
   provider: 'pocket-tts';
   pythonExecutable: string;
-  quantized: boolean;
   sampleRate: number;
   speed: number;
   voice: LocalTtsVoice;
@@ -96,7 +95,6 @@ export interface PublicLocalTtsSettings {
   maxTextChars: number;
   modelId: string;
   provider: 'pocket-tts';
-  quantized: boolean;
   sampleRate: number;
 }
 
@@ -157,12 +155,6 @@ function getEnvFloat(names: readonly string[], fallback: number, min: number, ma
 }
 
 function getConfiguredVoice(): LocalTtsVoice { return DEFAULT_VOICE; }
-
-function getEnvBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name]?.trim().toLowerCase();
-  if (!raw) return fallback;
-  return !['0', 'false', 'no', 'off'].includes(raw);
-}
 
 function getConfiguredSpeed(): number {
   return getEnvFloat(['LOCAL_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
@@ -249,7 +241,6 @@ function getSettings(): LocalTtsSettings {
     modelPath: null,
     provider: PROVIDER,
     pythonExecutable: getPythonExecutable(),
-    quantized: getEnvBool('LOCAL_TTS_QUANTIZE', true),
     sampleRate: SAMPLE_RATE,
     speed,
     voice,
@@ -277,7 +268,6 @@ export function getPublicLocalTtsSettings(): PublicLocalTtsSettings {
     maxTextChars: getEnvInt('LOCAL_TTS_MAX_TEXT_CHARS', MAX_TEXT_CHARS, 80, 4_000),
     modelId: MODEL_ID,
     provider: PROVIDER,
-    quantized: getEnvBool('LOCAL_TTS_QUANTIZE', true),
     sampleRate: SAMPLE_RATE,
   };
 }
@@ -297,13 +287,12 @@ function configureCpuRuntime(settings: LocalTtsSettings): void {
 export function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
-    HF_HOME: process.env.HF_HOME ?? settings.cacheDir,
+    HF_HUB_CACHE: process.env.HF_HUB_CACHE ?? settings.cacheDir,
     HF_HUB_DISABLE_SYMLINKS_WARNING: process.env.HF_HUB_DISABLE_SYMLINKS_WARNING ?? '1',
     LOCAL_TTS_CACHE_DIR: settings.cacheDir,
     LOCAL_TTS_INTER_OP_THREADS: String(settings.interOpThreads),
     LOCAL_TTS_INTRA_OP_THREADS: String(settings.intraOpThreads),
     LOCAL_TTS_MODEL_ID: settings.modelId,
-    LOCAL_TTS_QUANTIZE: String(settings.quantized),
     OMP_NUM_THREADS: process.env.OMP_NUM_THREADS ?? String(settings.intraOpThreads),
     ONNX_NUM_THREADS: process.env.ONNX_NUM_THREADS ?? String(settings.intraOpThreads),
     OPENBLAS_NUM_THREADS: process.env.OPENBLAS_NUM_THREADS ?? '1',

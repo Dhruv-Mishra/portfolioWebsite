@@ -265,10 +265,10 @@ MODE="legacy"              # "artifact" | "image" | "legacy"
 RELEASE_DIR=""             # set in image/artifact mode
 RELEASE_SHA=""             # set in image/artifact mode
 DOCKER_IMAGE=""             # set in image mode
+DOCKER_HOST_ARCH=""         # normalized Docker daemon architecture in image mode
 ROLLBACK_TARGET_SHA=""      # set in rollback mode when a specific target is requested
 DOCKER_TTS_REFERENCE_PATH="${DOCKER_BUNDLED_TTS_REFERENCE_PATH}"
 DOCKER_TTS_VOICE_STATE_PATH="${TTS_VOICE_STATE_PATH}"
-DOCKER_TTS_QUANTIZE="true"
 DOCKER_TTS_REFERENCE_HOST_PATH=""
 
 SKIP_GIT=false
@@ -594,7 +594,46 @@ check_dependencies() {
         log ERROR "Docker is installed but the daemon is not reachable"
         exit 1
     fi
+    if [[ "${MODE}" == "image" ]]; then
+        detect_docker_host_architecture
+    fi
     log SUCCESS "All dependencies present"
+}
+
+detect_docker_host_architecture() {
+    local docker_arch
+    docker_arch=$(docker info --format '{{.Architecture}}' 2>/dev/null || true)
+
+    case "${docker_arch}" in
+        x86_64|amd64)
+            DOCKER_HOST_ARCH="amd64"
+            ;;
+        aarch64|arm64)
+            DOCKER_HOST_ARCH="arm64"
+            ;;
+        *)
+            log ERROR "Unsupported Docker host architecture: ${docker_arch:-unknown} (supported: x86_64/amd64, aarch64/arm64)"
+            exit 1
+            ;;
+    esac
+
+    log INFO "Docker host architecture: ${DOCKER_HOST_ARCH}"
+}
+
+verify_pulled_image_architecture() {
+    if [[ -z "${DOCKER_HOST_ARCH}" ]]; then
+        log ERROR "Docker host architecture was not detected before image validation"
+        exit 1
+    fi
+
+    local image_arch
+    image_arch=$(docker image inspect --format '{{.Architecture}}' "${DOCKER_IMAGE}" 2>/dev/null || true)
+    if [[ "${image_arch}" != "${DOCKER_HOST_ARCH}" ]]; then
+        log ERROR "Pulled image architecture mismatch: expected ${DOCKER_HOST_ARCH}, got ${image_arch:-unknown}"
+        exit 1
+    fi
+
+    log SUCCESS "Pulled image architecture verified: ${image_arch}"
 }
 
 validate_runtime_profile() {
@@ -1015,19 +1054,11 @@ validate_container_path() {
 resolve_docker_tts_runtime_config() {
     local configured_reference
     local configured_voice_state
-    local configured_quantize
     local configured_host_reference
 
     configured_reference="$(env_file_value LOCAL_TTS_REFERENCE_PATH)"
     configured_voice_state="$(env_file_value LOCAL_TTS_VOICE_STATE_PATH)"
-    configured_quantize="$(env_file_value LOCAL_TTS_QUANTIZE)"
     configured_host_reference="$(env_file_value LOCAL_TTS_REFERENCE_HOST_PATH)"
-
-    DOCKER_TTS_QUANTIZE="${configured_quantize:-true}"
-    if [[ "${DOCKER_TTS_QUANTIZE}" != "true" ]] && [[ "${DOCKER_TTS_QUANTIZE}" != "false" ]]; then
-        log ERROR "LOCAL_TTS_QUANTIZE must be true or false"
-        exit 1
-    fi
 
     DOCKER_TTS_VOICE_STATE_PATH="${configured_voice_state:-${TTS_VOICE_STATE_PATH}}"
     validate_container_path LOCAL_TTS_VOICE_STATE_PATH "${DOCKER_TTS_VOICE_STATE_PATH}"
@@ -1058,7 +1089,7 @@ resolve_docker_tts_runtime_config() {
         validate_container_path LOCAL_TTS_REFERENCE_PATH "${DOCKER_TTS_REFERENCE_PATH}"
     fi
 
-    log INFO "Resolved Pocket TTS runtime settings (quantize=${DOCKER_TTS_QUANTIZE}, private_reference=$([[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] && echo true || echo false))"
+    log INFO "Resolved Pocket TTS runtime settings (private_reference=$([[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] && echo true || echo false))"
 }
 
 validate_staging_env_contract() {
@@ -1193,6 +1224,7 @@ stage_image_release() {
 
     log INFO "Pulling image: ${DOCKER_IMAGE}"
     docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+    verify_pulled_image_architecture
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     # shellcheck disable=SC2064
@@ -1309,12 +1341,11 @@ WorkingDirectory=${DEPLOY_CURRENT_LINK}
 Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
 Environment=LOCAL_TTS_REFERENCE_PATH=${ARTIFACT_TTS_REFERENCE_PATH}
 Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
-Environment=LOCAL_TTS_QUANTIZE=true
 Environment=LOCAL_TTS_INTRA_OP_THREADS=1
 Environment=LOCAL_TTS_INTER_OP_THREADS=1
 Environment=OMP_NUM_THREADS=1
 Environment=MKL_NUM_THREADS=1
-Environment=HF_HOME=${TTS_CACHE_DIR}
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
 EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -1411,12 +1442,11 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
     --env LOCAL_TTS_REFERENCE_HOST_PATH= \
     --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} \
     --env LOCAL_TTS_VOICE_STATE_PATH=${DOCKER_TTS_VOICE_STATE_PATH} \
-    --env LOCAL_TTS_QUANTIZE=${DOCKER_TTS_QUANTIZE} \
     --env LOCAL_TTS_INTRA_OP_THREADS=1 \
     --env LOCAL_TTS_INTER_OP_THREADS=1 \
     --env OMP_NUM_THREADS=1 \
     --env MKL_NUM_THREADS=1 \
-    --env HF_HOME=${TTS_CACHE_DIR} \
+    --env HF_HUB_CACHE=${TTS_CACHE_DIR} \
   --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
     ${docker_tts_volume_args} \
   --memory ${MEMORY_MAX_MB}m \
@@ -2136,10 +2166,12 @@ rollback_deploy() {
             log ERROR "Docker daemon is not reachable"
             exit 1
         fi
+        detect_docker_host_architecture
 
         DOCKER_IMAGE="${target_image}"
         log INFO "Pulling rollback image: ${DOCKER_IMAGE}"
         docker pull "${DOCKER_IMAGE}" 2>&1 | tee -a "${LOG_FILE}"
+        verify_pulled_image_architecture
         validate_image_memory_profile
         prepare_docker_systemd_unit
     else
@@ -2326,12 +2358,11 @@ WorkingDirectory=${LEGACY_STANDALONE_DIR}
 Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
 Environment=LOCAL_TTS_REFERENCE_PATH=${LEGACY_TTS_REFERENCE_PATH}
 Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
-Environment=LOCAL_TTS_QUANTIZE=true
 Environment=LOCAL_TTS_INTRA_OP_THREADS=1
 Environment=LOCAL_TTS_INTER_OP_THREADS=1
 Environment=OMP_NUM_THREADS=1
 Environment=MKL_NUM_THREADS=1
-Environment=HF_HOME=${TTS_CACHE_DIR}
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
 EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}

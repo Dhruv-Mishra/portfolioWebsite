@@ -1,4 +1,4 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 torch==2.10.0
-pocket-tts[audio,quantize]==2.1.0
+pocket-tts[audio]==2.1.0

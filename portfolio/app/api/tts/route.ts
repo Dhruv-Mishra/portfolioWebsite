@@ -199,7 +199,6 @@ export async function POST(request: NextRequest): Promise<Response> {
             if (!safeEnqueue({
               codec: 'pcm_s16le',
               provider: getPublicLocalTtsSettings().provider,
-              quantized: getPublicLocalTtsSettings().quantized,
               sampleRate: 24_000,
               compression: acceptsGzip ? 'adaptive-gzip' : 'none',
               type: 'ready',

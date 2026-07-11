@@ -46,12 +46,12 @@ describe('/api/tts security', () => {
       defaultVoice: 'custom-dhruv',
       modelId: 'kyutai/pocket-tts',
       provider: 'pocket-tts',
-      quantized: true,
       sampleRate: 24_000,
     });
     expect(payload.settings).not.toHaveProperty('cacheDir');
     expect(payload.settings).not.toHaveProperty('espeakLibrary');
     expect(payload.settings).not.toHaveProperty('pythonExecutable');
+    expect(payload.settings).not.toHaveProperty('quantized');
     expect(payload.settings).not.toHaveProperty('workerScript');
   });
 

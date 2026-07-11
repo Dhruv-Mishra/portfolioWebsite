@@ -28,6 +28,7 @@ Staging must stay isolated as `portfolio-staging` on `staging.whoisdhruv.com` an
 On every production VM:
 
 - Docker is installed and `sudo docker info` succeeds.
+- `uname -m` and `sudo docker version --format '{{.Server.Os}}/{{.Server.Arch}}'` agree on the host architecture. ARM hosts must report `aarch64` or `arm64`.
 - Nginx is installed and `sudo nginx -t` passes.
 - `/etc/deploy/machine.conf` exists.
 - `/etc/deploy/sites/portfolio.conf` exists and contains:
@@ -65,10 +66,10 @@ Do not manually kill the legacy production process before running the first Dock
 - Confirm the candidate commit is already deployed and tested on staging.
 - Run the `Promote Staging to Production` workflow.
 - Let it move `deployed/staging` to `deployed/production`.
-- Let `Deploy Portfolio Production` run in `image` mode.
+- Let `Deploy Portfolio Production` run as the image-only deployment.
 - Approve the production environment gate.
 - Keep `skip_nginx=false` for the first Docker production migration.
-- Do not select artifact mode: Pocket TTS needs the bundled Python runtime. The image build verifies Pocket TTS, Torch, TorchAO, and SoundFile imports; deployment synthesizes real audio and rolls back on failure before workflow metadata checks.
+- Do not use artifact deployment: Pocket TTS needs the bundled Python runtime. The image build verifies Pocket TTS, Torch, and SoundFile imports for `linux/amd64` and `linux/arm64`; deployment checks that the Docker host and pulled image architectures match, synthesizes real audio, and rolls back on failure before workflow metadata checks.
 
 ## Post-Deploy Verification
 
@@ -77,6 +78,8 @@ On each production VM:
 ```bash
 sudo systemctl is-active portfolio
 sudo docker ps --format '{{.Names}}' | grep -qx portfolio
+uname -m
+sudo docker image inspect "$(sudo docker inspect -f '{{.Image}}' portfolio)" --format 'container-image={{.Os}}/{{.Architecture}}'
 curl -sf http://127.0.0.1:3000/
 curl -sk -H 'Host: whoisdhruv.com' https://127.0.0.1/ -o /dev/null -w '%{http_code}\n'
 sudo test -f /opt/portfolio/current/.deploy/meta.json
@@ -108,12 +111,12 @@ Also verify at least one `/_next/static/...` asset from the local Nginx HTML ret
 Stop if any of these are true:
 
 - The deploy is not running from `refs/heads/deployed/production`.
-- The first production Docker deploy is not using `deploy_mode=image`.
 - Required `PRODUCTION_HF_TOKEN` is missing, its account has not accepted Pocket TTS gated terms, the reference voice has not been consent-confirmed, or the Pocket cache cannot be created/warmed.
 - The workflow input `site` is not `portfolio`.
 - `skip_nginx=true` is requested for the first Docker migration.
 - Any production env value points to `staging.whoisdhruv.com`.
 - Docker is missing, unreachable, or cannot pull the GHCR image.
+- The Docker host or pulled image architecture is not the expected platform; ARM hosts must run an `arm64` image.
 - `sudo nginx -t` fails before deploy.
 - The Cloudflare origin cert/key is missing or does not cover `whoisdhruv.com` and `www.whoisdhruv.com`.
 - Port `3000` is owned by an unknown non-portfolio service.

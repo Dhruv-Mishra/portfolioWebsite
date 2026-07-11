@@ -253,25 +253,13 @@ jobs:
               echo "Pocket TTS metadata returned HTTP $TTS_HTTP_CODE on :$PORT"
               exit 1
             fi
-            RUNTIME_ENV_FILE="/opt/${SITE}/config/.env.local"
-            if ! sudo test -f "$RUNTIME_ENV_FILE"; then
-              echo "Missing production runtime env file: $RUNTIME_ENV_FILE" >&2
-              exit 1
-            fi
-            TTS_QUANTIZE="$(sudo awk -F= '$1 == "LOCAL_TTS_QUANTIZE" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$RUNTIME_ENV_FILE")"
-            case "$TTS_QUANTIZE" in
-              ""|true) EXPECTED_TTS_QUANTIZED=true ;;
-              false) EXPECTED_TTS_QUANTIZED=false ;;
-              *) echo "LOCAL_TTS_QUANTIZE must be true or false in $RUNTIME_ENV_FILE" >&2; exit 1 ;;
-            esac
             node -e '
               const metadata = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
               const settings = metadata.settings || {};
-              const expectedQuantized = process.argv[2] === "true";
-              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.quantized !== expectedQuantized || settings.defaultVoice !== "custom-dhruv") {
+              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.defaultVoice !== "custom-dhruv") {
                 throw new Error("Pocket TTS metadata did not match the expected runtime configuration");
               }
-            ' "$TTS_METADATA_FILE" "$EXPECTED_TTS_QUANTIZED"
+            ' "$TTS_METADATA_FILE"
             if sudo test -f "/opt/${SITE}/current/.deploy/meta.json" && sudo grep -q '"image"' "/opt/${SITE}/current/.deploy/meta.json"; then
               sudo docker ps --format '{{.Names}}' | grep -qx "$SITE"
             fi

@@ -133,15 +133,50 @@ Do not create these only as environment secrets. The workflow guard jobs read re
 
 The deployment workflows automatically and atomically synchronize the correct token into each VM's persisted `.env.local`. Do not manually paste `HF_TOKEN` on every VM.
 
+### Local Windows setup and reference regeneration
+
+Use this sequence after accepting the Pocket TTS model terms and whenever `portfolio/public/sounds/voice/TTSReference.mp3` changes. Keep `HF_HOME` unchanged: this integration uses `HF_HUB_CACHE`, so Hugging Face CLI authentication remains supported.
+
+In PowerShell from `C:\portfolioWebsite\portfolio`, stop the running dev server with `Ctrl+C`, then set the cache location for the current session and future user sessions:
+
+```powershell
+$env:HF_HUB_CACHE = Join-Path $env:USERPROFILE '.cache\huggingface\hub'
+[Environment]::SetEnvironmentVariable('HF_HUB_CACHE', $env:HF_HUB_CACHE, 'User')
+```
+
+Authenticate interactively, or provide a token only to the current terminal without echoing it:
+
+```powershell
+hf auth login
+# Alternative for this terminal only:
+# $env:HF_TOKEN = Read-Host 'Paste the Hugging Face read token' -MaskInput
+```
+
+Delete only the derived custom voice state before regenerating. Do not remove the Hugging Face hub cache or other Pocket TTS files:
+
+```powershell
+Remove-Item "$env:USERPROFILE\.cache\portfolio\pocket-tts\custom-dhruv.safetensors" -Force -ErrorAction SilentlyContinue
+rtk npm run tts:smoke
+Get-Item "$env:USERPROFILE\.cache\portfolio\pocket-tts\custom-dhruv.safetensors" | Select-Object FullName, Length, LastWriteTime
+```
+
+The recreated state is about 8.1 MB. After the smoke test succeeds and the file is present, restart the application:
+
+```powershell
+rtk npm run dev
+```
+
 ## 5. Back up and inspect every VM
 
 Run the following on each VM before changing anything:
 
 ```bash
 hostname
+uname -m
 free -h
 swapon --show
 nproc
+sudo docker version --format 'docker-server={{.Server.Os}}/{{.Server.Arch}}'
 df -h / /var/lib/docker
 sudo docker system df
 sudo systemctl is-active docker nginx portfolio portfolio-staging || true
@@ -236,26 +271,22 @@ sudo docker system df
 
 Do not prune current or retained rollback images immediately before deployment.
 
-## 8. Make the runtime settings explicit
+## 8. Remove unsupported persisted runtime settings
 
-On every deployment VM, add the quantization setting to both persisted environment files. This does not add the HF token; GitHub Actions does that.
+Pocket TTS 2.1.0 in this integration does not support int8 mode. Remove the stale `LOCAL_TTS_QUANTIZE` key from both persisted environment files; do not add a replacement. GitHub Actions continues to inject the matching `HF_TOKEN` during deployment.
 
 ```bash
 sudo bash -c '
 set -euo pipefail
 for file in /opt/portfolio/config/.env.local /opt/portfolio-staging/config/.env.local; do
   test -f "$file"
-  if grep -q "^LOCAL_TTS_QUANTIZE=" "$file"; then
-    sed -i "s/^LOCAL_TTS_QUANTIZE=.*/LOCAL_TTS_QUANTIZE=true/" "$file"
-  else
-    printf "LOCAL_TTS_QUANTIZE=true\n" >> "$file"
-  fi
+  sed -i "/^LOCAL_TTS_QUANTIZE=/d" "$file"
   chmod 600 "$file"
 done
 '
 ```
 
-Pocket TTS uses one active inference per container. Keep quantization enabled for the first rollout because it reduces model memory and is normally faster with the pinned CPU-only Torch 2.10 and TorchAO runtime.
+Pocket TTS uses one active inference per container. The first deployment downloads the model weights and derives the custom voice state without int8 mode.
 
 Do not enable `HF_HUB_OFFLINE=1` or `LOCAL_TTS_OFFLINE=1` before the first successful warmup.
 
@@ -305,12 +336,23 @@ sudo test -r /opt/portfolio/config/.env.local && echo production-env-readable
 sudo test -r /opt/portfolio-staging/config/.env.local && echo staging-env-readable
 sudo test -w /var/cache/portfolio/pocket-tts && echo production-cache-writable || true
 sudo test -w /var/cache/portfolio-staging/pocket-tts && echo staging-cache-writable || true
+uname -m
+sudo docker version --format 'docker-server={{.Server.Os}}/{{.Server.Arch}}'
 ss -tlnp | grep -E ':(3000|3010)\b' || true
 free -h
 swapon --show
 ```
 
 The deploy script fixes cache ownership for the container, so a root-only shell check may not exactly match UID 1000. The important checks are that the directories exist, have free disk space, and can be owned by UID/GID 1000.
+
+On an ARM VM, both architecture commands must report `aarch64` or `arm64`. Before deployment, verify the published image reference from the workflow contains both supported platforms:
+
+```bash
+IMAGE_REF='ghcr.io/dhruv-mishra/portfolio@REPLACE_WITH_WORKFLOW_DIGEST'
+sudo docker buildx imagetools inspect "$IMAGE_REF" | grep -E 'Platform: linux/(amd64|arm64)'
+```
+
+Both `linux/amd64` and `linux/arm64` must appear. The deploy script also rejects a Docker host or pulled image whose architecture does not match.
 
 ## 11. Merge the feature branch into `dev/lkg`
 
@@ -336,31 +378,26 @@ If a PR already exists, `gh pr create` will report it; use the existing PR.
 
 ## 12. Promote to staging
 
-The current `promote-staging.yml` still dispatches the deploy workflow with the old `deploy_mode` input, while the TTS deployment workflow is now image-only. Until that promotion workflow is corrected, use a direct human push so the `push` trigger starts staging deployment without obsolete inputs.
-
-From PowerShell:
+Run the corrected promotion workflow. It takes only the source branch and explicitly dispatches the staging deployment; do not manually push `deployed/staging`.
 
 ```powershell
 Set-Location C:\portfolioWebsite
-git fetch origin
-git merge-base --is-ancestor origin/deployed/staging origin/dev/lkg
-if ($LASTEXITCODE -ne 0) { throw 'deployed/staging is not an ancestor of dev/lkg; stop and reconcile branches' }
-git push origin origin/dev/lkg:refs/heads/deployed/staging
+gh workflow run promote-staging.yml `
+  --repo Dhruv-Mishra/portfolioWebsite `
+  --ref dev/lkg `
+  -f source_branch=dev/lkg
 ```
 
-Do not use force push.
-
-Open the staging workflow:
+Monitor the promotion, then the staging deployment it dispatches:
 
 ```powershell
-gh run list --repo Dhruv-Mishra/portfolioWebsite --workflow deploy-staging.yml --branch deployed/staging --limit 3
+$promotionRunId = gh run list --repo Dhruv-Mishra/portfolioWebsite --workflow promote-staging.yml --branch dev/lkg --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $promotionRunId --repo Dhruv-Mishra/portfolioWebsite --exit-status
+$deployRunId = gh run list --repo Dhruv-Mishra/portfolioWebsite --workflow deploy-staging.yml --branch deployed/staging --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $deployRunId --repo Dhruv-Mishra/portfolioWebsite --exit-status
 ```
 
-Or open:
-
-<https://github.com/Dhruv-Mishra/portfolioWebsite/actions/workflows/deploy-staging.yml>
-
-The first deployment can take several minutes because each target VM downloads the gated model, quantizes it, derives `custom-dhruv.safetensors`, and performs a real synthesis health check. A failed synthesis causes deployment rollback.
+The first deployment can take several minutes because each target VM downloads the gated model, derives `custom-dhruv.safetensors`, and performs a real synthesis health check. A failed synthesis causes deployment rollback.
 
 ## 13. Verify staging on every deployed VM
 
@@ -369,6 +406,7 @@ On each staging VM, run:
 ```bash
 sudo systemctl is-active portfolio-staging
 sudo docker ps --format '{{.Names}}' | grep -qx portfolio-staging
+sudo docker image inspect "$(sudo docker inspect -f '{{.Image}}' portfolio-staging)" --format 'container-image={{.Os}}/{{.Architecture}}'
 curl -fsS http://127.0.0.1:3010/ >/dev/null && echo homepage-ok
 curl -fsS \
   -H 'Origin: https://staging.whoisdhruv.com' \
@@ -452,21 +490,23 @@ Do not enable production offline mode until production has completed its own suc
 
 Do this only after all staging checks pass and the memory plan is safe on every production target.
 
-The current `promote-production.yml` also passes the obsolete `deploy_mode` input. Until it is corrected, promote with a direct human push:
+Run the corrected production promotion workflow with no custom inputs. It explicitly dispatches the production deployment; do not manually push `deployed/production`.
 
 ```powershell
 Set-Location C:\portfolioWebsite
-git fetch origin
-git merge-base --is-ancestor origin/deployed/production origin/deployed/staging
-if ($LASTEXITCODE -ne 0) { throw 'deployed/production is not an ancestor of deployed/staging; stop and reconcile branches' }
-git push origin origin/deployed/staging:refs/heads/deployed/production
+gh workflow run promote-production.yml `
+  --repo Dhruv-Mishra/portfolioWebsite `
+  --ref deployed/staging
 ```
 
-Do not force push.
+Monitor the promotion and the production deployment, then approve the production environment gate:
 
-Open the production deployment workflow and approve the production environment gate:
-
-<https://github.com/Dhruv-Mishra/portfolioWebsite/actions/workflows/deploy.yml>
+```powershell
+$promotionRunId = gh run list --repo Dhruv-Mishra/portfolioWebsite --workflow promote-production.yml --branch deployed/staging --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $promotionRunId --repo Dhruv-Mishra/portfolioWebsite --exit-status
+$deployRunId = gh run list --repo Dhruv-Mishra/portfolioWebsite --workflow deploy.yml --branch deployed/production --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $deployRunId --repo Dhruv-Mishra/portfolioWebsite --exit-status
+```
 
 The production workflow deploys serially. Do not manually stop production first. Deployment runs a real TTS synthesis before marking each VM healthy and rolls back a failed VM.
 
@@ -477,6 +517,7 @@ On every production VM:
 ```bash
 sudo systemctl is-active portfolio
 sudo docker ps --format '{{.Names}}' | grep -qx portfolio
+sudo docker image inspect "$(sudo docker inspect -f '{{.Image}}' portfolio)" --format 'container-image={{.Os}}/{{.Architecture}}'
 curl -fsS http://127.0.0.1:3000/ >/dev/null && echo homepage-ok
 curl -fsS \
   -H 'Origin: https://whoisdhruv.com' \
@@ -546,7 +587,9 @@ Only after production and staging are stable on every active VM:
 - [ ] VM 3 confirmed to have sufficient **system RAM**, not only GPU VRAM
 - [ ] Machine memory limits updated
 - [ ] Production and staging Pocket caches created
-- [ ] Quantization explicitly enabled
+- [ ] Unsupported persisted TTS setting removed
+- [ ] Windows local authentication, smoke test, and custom voice-state regeneration completed after any reference update
+- [ ] VM Docker host and published image manifest report the required architecture
 - [ ] Voice public/private decision completed
 - [ ] Feature PR merged to `dev/lkg`
 - [ ] Staging deployed and browser-tested

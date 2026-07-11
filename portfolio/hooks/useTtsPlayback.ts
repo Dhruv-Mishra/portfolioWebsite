@@ -23,9 +23,11 @@ interface TtsPlaybackState {
 interface TtsStreamMessage {
   audioBase64?: string;
   codec?: string;
+  compression?: 'gzip' | 'none' | 'adaptive-gzip';
   message?: string;
   sampleRate?: number;
   type?: 'ready' | 'chunk' | 'done' | 'error';
+  uncompressedBytes?: number;
 }
 
 interface UseTtsPlaybackResult extends TtsPlaybackState {
@@ -58,30 +60,12 @@ const BROWSER_TTS_CHUNK_CHARS = 180;
 const BROWSER_TTS_START_TIMEOUT_MS = 5_000;
 const SCHEDULE_AHEAD_SECONDS = 0.035;
 const BROWSER_TTS_VOICE_HINTS = ['natural', 'premium', 'google', 'microsoft', 'samantha', 'daniel', 'alex'];
-const ALLOWED_TTS_VOICES = [
-  'expr-voice-2-m',
-  'expr-voice-2-f',
-  'expr-voice-3-m',
-  'expr-voice-3-f',
-  'expr-voice-4-m',
-  'expr-voice-4-f',
-  'expr-voice-5-m',
-  'expr-voice-5-f',
-] as const;
-const DEFAULT_TTS_SPEED = getClientTtsSpeed();
-const DEFAULT_TTS_VOICE = getClientTtsVoice();
-const TTS_REQUEST_OPTIONS = { speed: DEFAULT_TTS_SPEED, voice: DEFAULT_TTS_VOICE } as const;
-
-function getClientTtsVoice(): string {
-  const voice = process.env.NEXT_PUBLIC_TTS_VOICE;
-  return voice && (ALLOWED_TTS_VOICES as readonly string[]).includes(voice) ? voice : 'expr-voice-5-m';
-}
-
-function getClientTtsSpeed(): number {
-  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1.08');
-  if (!Number.isFinite(parsed)) return 1.08;
-  return Math.min(1.15, Math.max(0.85, parsed));
-}
+const DEFAULT_TTS_SPEED = 1;
+const DEFAULT_TTS_VOICE = 'custom-dhruv';
+const TTS_REQUEST_OPTIONS = { provider: 'pocket-tts', speed: DEFAULT_TTS_SPEED, voice: DEFAULT_TTS_VOICE } as const;
+const MAX_TTS_PCM_FRAME_BYTES = 1 * 1024 * 1024;
+const MAX_TTS_PCM_TOTAL_BYTES = 32 * 1024 * 1024;
+let gzipDecompressionSupported: boolean | null = null;
 
 function getGeneratedAudioPlaybackRate(speed: TtsPlaybackSpeed): number {
   return speed / DEFAULT_TTS_SPEED;
@@ -156,6 +140,81 @@ function base64ToArrayBuffer(value: string): ArrayBuffer {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes.buffer;
+}
+
+function supportsGzipDecompression(): boolean {
+  if (gzipDecompressionSupported !== null) return gzipDecompressionSupported;
+
+  try {
+    new DecompressionStream('gzip');
+    gzipDecompressionSupported = true;
+  } catch {
+    gzipDecompressionSupported = false;
+  }
+  return gzipDecompressionSupported;
+}
+
+function validatePcmChunk(buffer: ArrayBuffer, totalBytes: number): void {
+  if (buffer.byteLength > MAX_TTS_PCM_FRAME_BYTES) {
+    throw new Error('TTS audio frame exceeds the maximum PCM frame size.');
+  }
+  if (buffer.byteLength % 2 !== 0) {
+    throw new Error('TTS audio frame is not valid 16-bit PCM.');
+  }
+  if (totalBytes + buffer.byteLength > MAX_TTS_PCM_TOTAL_BYTES) {
+    throw new Error('TTS audio exceeds the maximum response size.');
+  }
+}
+
+async function decompressGzipChunk(buffer: ArrayBuffer, expectedBytes: number, totalBytes: number): Promise<ArrayBuffer> {
+  if (!supportsGzipDecompression()) {
+    throw new Error('This browser cannot decompress TTS audio frames.');
+  }
+
+  if (!Number.isFinite(expectedBytes) || !Number.isInteger(expectedBytes) || expectedBytes < 0) {
+    throw new Error('TTS compressed audio frame has invalid length metadata.');
+  }
+  if (expectedBytes > MAX_TTS_PCM_FRAME_BYTES || totalBytes + expectedBytes > MAX_TTS_PCM_TOTAL_BYTES) {
+    throw new Error('TTS compressed audio frame exceeds the maximum PCM size.');
+  }
+
+  const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let outputBytes = 0;
+  let failed = true;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+
+      outputBytes += value.byteLength;
+      if (outputBytes > expectedBytes || outputBytes > MAX_TTS_PCM_FRAME_BYTES || totalBytes + outputBytes > MAX_TTS_PCM_TOTAL_BYTES) {
+        throw new Error('TTS decompressed audio frame exceeds its declared PCM size.');
+      }
+      chunks.push(value);
+    }
+    if (outputBytes !== expectedBytes) {
+      throw new Error('TTS audio frame length did not match its compressed payload metadata.');
+    }
+
+    const output = new Uint8Array(outputBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      output.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    validatePcmChunk(output.buffer, totalBytes);
+    failed = false;
+    return output.buffer;
+  } finally {
+    if (failed) {
+      try { await reader.cancel(); } catch { /* Preserve the decompression error. */ }
+    }
+    reader.releaseLock();
+  }
 }
 
 function decodePcm16(buffer: ArrayBuffer): Float32Array {
@@ -535,6 +594,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       headers: {
         Accept: 'application/x-ndjson',
         'Content-Type': 'application/json',
+        ...(supportsGzipDecompression() ? { 'X-TTS-Accept-Compression': 'gzip' } : {}),
       },
       method: 'POST',
       mode: 'same-origin',
@@ -554,8 +614,9 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     let codec = DEFAULT_CODEC;
     let sampleRate = DEFAULT_SAMPLE_RATE;
     let pending = '';
+    let receivedDoneFrame = false;
 
-    const handleLine = (line: string) => {
+    const handleLine = async (line: string): Promise<void> => {
       if (!line.trim() || playbackIdRef.current !== playbackId) return;
       const message = JSON.parse(line) as TtsStreamMessage;
       if (message.type === 'ready') {
@@ -567,13 +628,20 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         throw new Error(message.message ?? 'Local TTS streaming failed.');
       }
       if (message.type === 'done') {
-        streamDoneRef.current = true;
-        finishPlaybackIfDone(playbackId);
+        receivedDoneFrame = true;
         return;
       }
       if (message.type !== 'chunk' || !message.audioBase64) return;
+      if (receivedDoneFrame) {
+        throw new Error('TTS stream contained audio after its completion frame.');
+      }
 
-      const buffer = base64ToArrayBuffer(message.audioBase64);
+      let buffer = base64ToArrayBuffer(message.audioBase64);
+      if (message.compression === 'gzip') {
+        buffer = await decompressGzipChunk(buffer, message.uncompressedBytes as number, byteLength);
+      } else {
+        validatePcmChunk(buffer, byteLength);
+      }
       const chunkSampleRate = message.sampleRate ?? sampleRate;
       sampleRate = chunkSampleRate;
       byteLength += buffer.byteLength;
@@ -586,17 +654,33 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       }
     };
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
-      pending += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-      const lines = pending.split('\n');
-      pending = lines.pop() ?? '';
-      for (const line of lines) handleLine(line);
-      if (done) break;
+    let completed = false;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
+        pending += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const lines = pending.split('\n');
+        pending = lines.pop() ?? '';
+        for (const line of lines) await handleLine(line);
+        if (done) break;
+      }
+
+      if (pending.trim()) await handleLine(pending);
+      if (!receivedDoneFrame) {
+        throw new Error('TTS stream ended before its completion frame.');
+      }
+      if (cachedChunks.length === 0 && spokenText.trim()) {
+        throw new Error('TTS stream completed without any PCM audio.');
+      }
+      completed = true;
+    } finally {
+      if (!completed) {
+        try { await reader.cancel(); } catch { /* Preserve the stream error. */ }
+      }
+      reader.releaseLock();
     }
 
-    if (pending.trim()) handleLine(pending);
     streamDoneRef.current = true;
     if (!abortController.signal.aborted && playbackIdRef.current === playbackId && cachedChunks.length > 0) {
       void putCachedTtsAudio({

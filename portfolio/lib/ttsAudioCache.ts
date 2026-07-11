@@ -3,33 +3,12 @@
 const DB_NAME = 'dhruv-tts-audio-cache';
 const DB_VERSION = 2;
 const STORE_NAME = 'message-audio';
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const DEFAULT_CODEC = 'pcm_s16le';
 const DEFAULT_SAMPLE_RATE = 24_000;
-
-const ALLOWED_TTS_VOICES = [
-  'expr-voice-2-m',
-  'expr-voice-2-f',
-  'expr-voice-3-m',
-  'expr-voice-3-f',
-  'expr-voice-4-m',
-  'expr-voice-4-f',
-  'expr-voice-5-m',
-  'expr-voice-5-f',
-] as const;
-const DEFAULT_VOICE = getDefaultTtsVoice();
-const DEFAULT_SPEED = getDefaultTtsSpeed();
-
-function getDefaultTtsVoice(): string {
-  const voice = process.env.NEXT_PUBLIC_TTS_VOICE;
-  return voice && (ALLOWED_TTS_VOICES as readonly string[]).includes(voice) ? voice : 'expr-voice-5-m';
-}
-
-function getDefaultTtsSpeed(): number {
-  const parsed = Number.parseFloat(process.env.NEXT_PUBLIC_TTS_SPEED ?? '1.08');
-  if (!Number.isFinite(parsed)) return 1.08;
-  return Math.min(1.15, Math.max(0.85, parsed));
-}
+const DEFAULT_PROVIDER = 'pocket-tts';
+const DEFAULT_VOICE = 'custom-dhruv';
+const DEFAULT_SPEED = 1;
 
 export interface CachedTtsAudio {
   byteLength: number;
@@ -50,6 +29,7 @@ export interface CachedTtsAudio {
 
 interface TtsAudioCacheOptions {
   codec?: string;
+  provider?: string;
   sampleRate?: number;
   speed?: number;
   voice?: string;
@@ -82,11 +62,12 @@ export function createTtsAudioCacheKey(
   text: string,
   options: TtsAudioCacheOptions = {},
 ): string {
+  const provider = options.provider ?? DEFAULT_PROVIDER;
   const voice = options.voice ?? DEFAULT_VOICE;
   const speed = options.speed ?? DEFAULT_SPEED;
   const codec = options.codec ?? DEFAULT_CODEC;
   const sampleRate = options.sampleRate ?? DEFAULT_SAMPLE_RATE;
-  return `tts:${CACHE_VERSION}:${createTtsAudioTextHash(text)}:${voice}:${formatCacheNumber(speed)}:${codec}:${sampleRate}`;
+  return `tts:${CACHE_VERSION}:${provider}:${createTtsAudioTextHash(text)}:${voice}:${formatCacheNumber(speed)}:${codec}:${sampleRate}`;
 }
 
 function ensureIndex(

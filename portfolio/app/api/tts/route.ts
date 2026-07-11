@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { gzipSync } from 'node:zlib';
 import {
   getLocalTtsQueueState,
   getPublicLocalTtsSettings,
@@ -18,6 +19,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_TTS_BODY_BYTES = 6_000;
+const TTS_GZIP_METADATA_OVERHEAD_BYTES = 64;
+const TTS_GZIP_MINIMUM_SAVINGS_RATIO = 0.1;
 const ttsRateLimiter = createServerRateLimiter({
   maxRequests: 24,
   windowMs: 60_000,
@@ -30,6 +33,34 @@ interface TtsRequestBody {
   stream?: unknown;
   text?: unknown;
   voice?: unknown;
+}
+
+export interface TtsStreamAudioFrame {
+  audioBase64: string;
+  compression: 'gzip' | 'none';
+  uncompressedBytes?: number;
+}
+
+export function acceptsTtsFrameGzip(request: Request): boolean {
+  return request.headers.get('x-tts-accept-compression') === 'gzip';
+}
+
+export function createTtsStreamAudioFrame(audio: Buffer, acceptsGzip: boolean): TtsStreamAudioFrame {
+  if (!acceptsGzip) {
+    return { audioBase64: audio.toString('base64'), compression: 'none' };
+  }
+
+  const compressed = gzipSync(audio, { level: 1 });
+  const maximumCompressedBytes = audio.length * (1 - TTS_GZIP_MINIMUM_SAVINGS_RATIO);
+  if (compressed.length + TTS_GZIP_METADATA_OVERHEAD_BYTES > maximumCompressedBytes) {
+    return { audioBase64: audio.toString('base64'), compression: 'none' };
+  }
+
+  return {
+    audioBase64: compressed.toString('base64'),
+    compression: 'gzip',
+    uncompressedBytes: audio.length,
+  };
 }
 
 function getContentLength(request: NextRequest): number | null {
@@ -139,29 +170,52 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   if (wantsStreaming(request, body)) {
     const encodeLine = getJsonLineEncoder();
+    const acceptsGzip = acceptsTtsFrameGzip(request);
+    let canceled = false;
     const stream = new ReadableStream<Uint8Array>({
+      cancel() {
+        canceled = true;
+      },
       async start(controller) {
+        let closed = false;
+        const safeEnqueue = (payload: object): boolean => {
+          if (closed || canceled || request.signal.aborted) return false;
+          try {
+            controller.enqueue(encodeLine(payload));
+            return true;
+          } catch {
+            closed = true;
+            return false;
+          }
+        };
+        const safeClose = () => {
+          if (closed || canceled) return;
+          closed = true;
+          try { controller.close(); } catch { /* The consumer already canceled. */ }
+        };
+
         try {
           await runWithLocalTtsSlot(async () => {
-            controller.enqueue(encodeLine({
+            if (!safeEnqueue({
               codec: 'pcm_s16le',
               provider: getPublicLocalTtsSettings().provider,
               quantized: getPublicLocalTtsSettings().quantized,
               sampleRate: 24_000,
+              compression: acceptsGzip ? 'adaptive-gzip' : 'none',
               type: 'ready',
-            }));
+            })) return;
 
             for await (const chunk of streamLocalTts(text, options, request.signal)) {
-              controller.enqueue(encodeLine({
-                audioBase64: chunk.audio.toString('base64'),
+              if (!safeEnqueue({
+                ...createTtsStreamAudioFrame(chunk.audio, acceptsGzip),
                 durationMs: chunk.durationMs,
                 index: chunk.index,
                 sampleRate: chunk.sampleRate,
                 type: 'chunk',
-              }));
+              })) return;
             }
 
-            controller.enqueue(encodeLine({ type: 'done' }));
+            safeEnqueue({ type: 'done' });
           }, request.signal);
         } catch (error) {
           if (isTtsRequestAbortedError(error) || request.signal.aborted) {
@@ -173,9 +227,9 @@ export async function POST(request: NextRequest): Promise<Response> {
           if (!isTtsQueueFullError(error)) {
             console.error('[local-tts] Streaming request failed', error);
           }
-          controller.enqueue(encodeLine({ message, type: 'error' }));
+          safeEnqueue({ message, type: 'error' });
         } finally {
-          controller.close();
+          safeClose();
         }
       },
     });

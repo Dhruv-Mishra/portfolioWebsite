@@ -92,6 +92,10 @@ function getSpeechSynthesisUtteranceCtor(): typeof SpeechSynthesisUtterance | nu
   return window.SpeechSynthesisUtterance ?? null;
 }
 
+function supportsClientSpeechNow(): boolean {
+  return !!getSpeechSynthesis() && !!getSpeechSynthesisUtteranceCtor();
+}
+
 function splitTextForBrowserSpeech(text: string): string[] {
   const chunks: string[] = [];
   const sentences = text
@@ -291,7 +295,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
 
   useEffect(() => {
     const synth = getSpeechSynthesis();
-    const supported = !!synth && !!getSpeechSynthesisUtteranceCtor();
+    const supported = supportsClientSpeechNow();
     setClientSpeechSupported(supported);
     if (!synth || !supported) return;
 
@@ -860,7 +864,8 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     }
     const cacheKey = createTtsAudioCacheKey(spokenText, TTS_REQUEST_OPTIONS);
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
-    const shouldPreferClientSpeech = (options?.preferClientSpeech ?? preferClientSpeech) && clientSpeechSupported;
+    const shouldPreferClientSpeech = (options?.preferClientSpeech ?? preferClientSpeech)
+      && (clientSpeechSupported || supportsClientSpeechNow());
 
     try {
       if (shouldPreferClientSpeech) {

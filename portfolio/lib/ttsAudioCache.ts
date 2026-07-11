@@ -9,6 +9,8 @@ const DEFAULT_SAMPLE_RATE = 24_000;
 const DEFAULT_PROVIDER = 'pocket-tts';
 const DEFAULT_VOICE = 'custom-dhruv';
 const DEFAULT_SPEED = 1;
+export const MAX_TTS_AUDIO_CACHE_BYTES = 32 * 1024 * 1024;
+export const MAX_TTS_AUDIO_CACHE_RECORDS = 32;
 
 export interface CachedTtsAudio {
   byteLength: number;
@@ -38,6 +40,12 @@ interface TtsAudioCacheOptions {
 type CachedTtsAudioWrite = Omit<CachedTtsAudio, 'createdAt' | 'lastAccessedAt' | 'messageIds' | 'version'> & {
   messageIds?: readonly string[];
 };
+
+interface TtsAudioCacheBudgetRecord {
+  byteLength: number;
+  cacheKey: string;
+  lastAccessedAt: number;
+}
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 
@@ -168,6 +176,57 @@ function continueCursorAfter<T>(request: IDBRequest<T>, cursor: IDBCursorWithVal
   request.onerror = () => cursor.continue();
 }
 
+export function getTtsAudioCacheEvictionKeys(
+  records: readonly TtsAudioCacheBudgetRecord[],
+  retainedCacheKey: string,
+): string[] {
+  const retained = records.find(record => record.cacheKey === retainedCacheKey);
+  if (!retained || retained.byteLength > MAX_TTS_AUDIO_CACHE_BYTES) return [retainedCacheKey];
+
+  let totalBytes = records.reduce((total, record) => total + Math.max(0, record.byteLength), 0);
+  let totalRecords = records.length;
+  const evictionKeys: string[] = [];
+  const oldestFirst = [...records].sort((left, right) => (
+    left.lastAccessedAt - right.lastAccessedAt || left.cacheKey.localeCompare(right.cacheKey)
+  ));
+
+  for (const record of oldestFirst) {
+    if (totalBytes <= MAX_TTS_AUDIO_CACHE_BYTES && totalRecords <= MAX_TTS_AUDIO_CACHE_RECORDS) break;
+    if (record.cacheKey === retainedCacheKey) continue;
+    evictionKeys.push(record.cacheKey);
+    totalBytes -= Math.max(0, record.byteLength);
+    totalRecords -= 1;
+  }
+
+  return evictionKeys;
+}
+
+function pruneCacheBudgetAfterWrite(
+  store: IDBObjectStore,
+  retainedCacheKey: string,
+): void {
+  const records: TtsAudioCacheBudgetRecord[] = [];
+  const cursorRequest = store.openCursor();
+
+  cursorRequest.onsuccess = () => {
+    const cursor = cursorRequest.result;
+    if (cursor) {
+      const record = cursor.value as CachedTtsAudio;
+      records.push({
+        byteLength: Number.isFinite(record.byteLength) ? record.byteLength : 0,
+        cacheKey: record.cacheKey,
+        lastAccessedAt: Number.isFinite(record.lastAccessedAt) ? record.lastAccessedAt : 0,
+      });
+      cursor.continue();
+      return;
+    }
+
+    for (const cacheKey of getTtsAudioCacheEvictionKeys(records, retainedCacheKey)) {
+      store.delete(cacheKey);
+    }
+  };
+}
+
 export async function getCachedTtsAudio(cacheKey: string, messageId: string, spokenText: string): Promise<CachedTtsAudio | null> {
   const database = await openDb();
   if (!database) return null;
@@ -219,7 +278,7 @@ export async function putCachedTtsAudio(record: CachedTtsAudioWrite): Promise<vo
         ? request.result
         : null;
       const messageIds = mergeMessageIds(existing, record.messageId, record.messageIds);
-      store.put({
+      const putRequest = store.put({
         ...record,
         createdAt: existing?.createdAt ?? now,
         lastAccessedAt: now,
@@ -227,6 +286,7 @@ export async function putCachedTtsAudio(record: CachedTtsAudioWrite): Promise<vo
         messageIds,
         version: CACHE_VERSION,
       });
+      putRequest.onsuccess = () => pruneCacheBudgetAfterWrite(store, record.cacheKey);
     };
 
     transaction.oncomplete = () => resolve();

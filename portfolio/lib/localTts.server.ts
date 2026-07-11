@@ -72,7 +72,6 @@ export interface LocalTtsSettings {
   cacheDir: string;
   chunkChars: number;
   concurrency: number;
-  espeakLibrary: string | null;
   interOpThreads: number;
   intraOpThreads: number;
   maxQueue: number;
@@ -242,7 +241,6 @@ function getSettings(): LocalTtsSettings {
     cacheDir: process.env.LOCAL_TTS_CACHE_DIR ?? DEFAULT_CACHE_DIR,
     chunkChars: MAX_TEXT_CHARS,
     concurrency: 1,
-    espeakLibrary: process.env.LOCAL_TTS_ESPEAK_LIBRARY ?? null,
     interOpThreads: getEnvInt('LOCAL_TTS_INTER_OP_THREADS', 1, 1, 2),
     intraOpThreads,
     maxQueue: getEnvInt('LOCAL_TTS_MAX_QUEUE', 4, 0, 16),
@@ -296,13 +294,12 @@ function configureCpuRuntime(settings: LocalTtsSettings): void {
   process.env.UV_THREADPOOL_SIZE ??= String(Math.max(4, settings.intraOpThreads));
 }
 
-function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
-  return {
+export function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {
     ...process.env,
     HF_HOME: process.env.HF_HOME ?? settings.cacheDir,
     HF_HUB_DISABLE_SYMLINKS_WARNING: process.env.HF_HUB_DISABLE_SYMLINKS_WARNING ?? '1',
     LOCAL_TTS_CACHE_DIR: settings.cacheDir,
-    LOCAL_TTS_ESPEAK_LIBRARY: settings.espeakLibrary ?? process.env.LOCAL_TTS_ESPEAK_LIBRARY,
     LOCAL_TTS_INTER_OP_THREADS: String(settings.interOpThreads),
     LOCAL_TTS_INTRA_OP_THREADS: String(settings.intraOpThreads),
     LOCAL_TTS_MODEL_ID: settings.modelId,
@@ -315,6 +312,12 @@ function createWorkerEnv(settings: LocalTtsSettings): NodeJS.ProcessEnv {
     NUMEXPR_NUM_THREADS: process.env.NUMEXPR_NUM_THREADS ?? '1',
     OMP_WAIT_POLICY: process.env.OMP_WAIT_POLICY ?? 'PASSIVE',
   };
+
+    environment.HF_HUB_OFFLINE = process.env.LOCAL_TTS_OFFLINE === '1'
+      ? '1'
+      : process.env.HF_HUB_OFFLINE;
+
+  return environment;
 }
 
 class PocketTtsWorkerClient {

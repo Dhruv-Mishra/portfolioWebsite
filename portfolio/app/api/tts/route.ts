@@ -102,7 +102,7 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request, { requireOrigin: true });
+  const originError = validateOrigin(request, { requireExplicitOrigin: true });
   if (originError) return originError;
 
   const ip = getClientIP(request);
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const originError = validateOrigin(request, { requireOrigin: true });
+  const originError = validateOrigin(request, { requireExplicitOrigin: true });
   if (originError) return originError;
 
   const ip = getClientIP(request);

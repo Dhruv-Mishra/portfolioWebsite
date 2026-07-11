@@ -58,6 +58,13 @@ export interface ValidateOriginOptions {
    * compatibility with curl/cron/server-to-server callers (read-only routes).
    */
   requireOrigin?: boolean;
+
+  /**
+   * When true, an allowed explicit `Origin` header is mandatory. This is for
+   * endpoints that must only accept browser requests; `Sec-Fetch-Site` is not
+   * an authentication signal and cannot satisfy this requirement.
+   */
+  requireExplicitOrigin?: boolean;
 }
 
 /**
@@ -82,6 +89,7 @@ export function validateOrigin(
 ): Response | null {
   const origin = request.headers.get('origin');
   const requireOrigin = options.requireOrigin === true;
+  const requireExplicitOrigin = options.requireExplicitOrigin === true;
 
   if (origin) {
     if (ALLOWED_ORIGINS.has(origin)) return null;
@@ -89,7 +97,11 @@ export function validateOrigin(
   }
 
   // No Origin header.
-  if (!requireOrigin) return null;
+  if (!requireOrigin && !requireExplicitOrigin) return null;
+
+  if (requireExplicitOrigin) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   // Strict mode: accept Sec-Fetch-Site: same-origin as a fallback for
   // browser-initiated same-origin requests that omit Origin.

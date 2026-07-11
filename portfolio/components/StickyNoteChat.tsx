@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffe
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { Eraser, Loader2, Pause, Play, RotateCcw, Send, Volume2, Zap } from 'lucide-react';
+import { Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -1073,15 +1073,17 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
             {hasMessages && (
+              <Tooltip label="Clear chat history">
               <button
                 type="button"
                 onClick={() => setConfirmKind('clear')}
-                className="flex min-h-[44px] items-center gap-1 rounded px-2 text-[11px] font-hand font-bold text-[var(--c-ink)]/70 transition-colors duration-200 hover:text-red-600 dark:hover:text-red-400 md:px-1.5 md:text-xs"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                 title="Clear chat history"
+                aria-label="Clear chat history"
               >
-                <Eraser size={12} />
-                Clear chat
+                <Trash2 size={14} aria-hidden="true" />
               </button>
+              </Tooltip>
             )}
             {speech.isSupported && (
               <>

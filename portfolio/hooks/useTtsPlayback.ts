@@ -305,6 +305,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
   const pendingSourcesRef = useRef(0);
   const playbackModeRef = useRef<'browser' | 'stream' | 'wav' | null>(null);
   const playbackIdRef = useRef(0);
+  const requestedClientSpeechRef = useRef<boolean | null>(null);
   const playbackSpeedRef = useRef<TtsPlaybackSpeed>(DEFAULT_PLAYBACK_SPEED);
   const scheduledUntilRef = useRef(0);
   const sourceRefs = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -410,6 +411,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       cancelBrowserSpeech?.();
     }
     playbackModeRef.current = null;
+    requestedClientSpeechRef.current = null;
 
     clearGeneratedAudio();
     disposeFallbackAudio();
@@ -887,7 +889,9 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     const trimmedText = text.trim();
     if (!trimmedText) return;
 
+    const shouldRequestClientSpeech = options?.preferClientSpeech ?? preferClientSpeech;
     cleanup(false);
+    requestedClientSpeechRef.current = shouldRequestClientSpeech;
     const abortController = new AbortController();
     abortRef.current = abortController;
     const playbackId = playbackIdRef.current;
@@ -897,7 +901,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       return;
     }
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
-    const shouldPreferClientSpeech = (options?.preferClientSpeech ?? preferClientSpeech)
+    const shouldPreferClientSpeech = shouldRequestClientSpeech
       && (clientSpeechSupported || supportsClientSpeechNow());
 
     try {
@@ -965,6 +969,16 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     const trimmedText = text.trim();
     if (!trimmedText) return;
 
+    const shouldRequestClientSpeech = options?.preferClientSpeech ?? preferClientSpeech;
+    if (
+      state.activeMessageId === messageId
+      && requestedClientSpeechRef.current !== null
+      && requestedClientSpeechRef.current !== shouldRequestClientSpeech
+    ) {
+      await startPlayback(messageId, trimmedText, options);
+      return;
+    }
+
     if (state.activeMessageId === messageId && state.status === 'playing') {
       const synth = getSpeechSynthesis();
       const context = audioContextRef.current;
@@ -1005,7 +1019,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     }
 
     await startPlayback(messageId, trimmedText, options);
-  }, [cleanup, startPlayback, state.activeMessageId, state.status]);
+  }, [cleanup, preferClientSpeech, startPlayback, state.activeMessageId, state.status]);
 
   useEffect(() => () => {
     cleanup(false);

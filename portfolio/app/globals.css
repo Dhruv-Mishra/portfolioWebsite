@@ -532,7 +532,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     /* The persistent layout keeps one live route tree. Forward turns the current
       route before committing navigation; backward turns the real incoming route. */
   .page-turn-layer {
-    --page-turn-duration: 680ms;
+    --page-turn-duration: 600ms;
     --page-turn-origin: left center;
     transform-origin: var(--page-turn-origin);
   }

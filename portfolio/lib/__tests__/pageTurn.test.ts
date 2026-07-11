@@ -51,13 +51,13 @@ describe('page-turn route model', () => {
 
   it('uses one shared, deliberately paced duration model', () => {
     expect(PAGE_TURN_DURATION_BY_DISTANCE_MS).toEqual({
-      1: 680,
-      2: 760,
-      3: 840,
+      1: 600,
+      2: 680,
+      3: 760,
     });
     expect([1, 2, 3].map((distance) => (
       getPageTurnDurationMs(distance as 1 | 2 | 3)
-    ))).toEqual([680, 760, 840]);
+    ))).toEqual([600, 680, 760]);
   });
 
   it('assigns a stable page number to every visible route and not found', () => {

@@ -89,7 +89,6 @@ jobs:
     env:
       PRODUCTION_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
       PRODUCTION_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
-      PRODUCTION_HF_TOKEN: ${{ secrets.PRODUCTION_HF_TOKEN }}
 
     steps:
       - name: Require deployed/production for production deploys
@@ -109,10 +108,6 @@ jobs:
           fi
           if [[ ! "${PRODUCTION_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
             echo "::error::PRODUCTION_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
-            missing=1
-          fi
-          if [ -z "${PRODUCTION_HF_TOKEN:-}" ]; then
-            echo "::error::PRODUCTION_HF_TOKEN must be configured, and its token account must have accepted kyutai/pocket-tts gated terms"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -369,16 +364,19 @@ jobs:
       matrix:
         server:
           - name: production-1
+            tts_mode: local
             host_secret: SERVER_HOST_1
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
           - name: production-2
+            tts_mode: remote
             host_secret: SERVER_HOST_2
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
           - name: production-3
+            tts_mode: remote
             host_secret: SERVER_HOST_3
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
@@ -433,6 +431,8 @@ jobs:
             DOMAIN="${{ env.DOMAIN }}"
             PORT="3000"
             CONF="/etc/deploy/sites/${SITE}.conf"
+            MACHINE_CONF="/etc/deploy/machine.conf"
+            EXPECTED_TTS_MODE="${{ matrix.server.tts_mode }}"
 
             fail() {
               echo "ERROR: $*" >&2
@@ -450,6 +450,11 @@ jobs:
               sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$env_file"
             }
 
+            read_machine_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$MACHINE_CONF"
+            }
+
             [ "$SITE" = "portfolio" ] || fail "production site must be portfolio, got $SITE"
             sudo test -f "$CONF" || fail "missing production site config: $CONF"
 
@@ -458,6 +463,7 @@ jobs:
             actual_port="$(read_conf NEXTJS_PORT)"
             actual_container="$(read_conf DOCKER_CONTAINER_NAME)"
             actual_branch="$(read_conf GIT_BRANCH)"
+            actual_tts_mode="$(read_conf TTS_NODE_MODE)"
             project_root="$(read_conf PROJECT_ROOT)"
             env_file="/opt/${actual_service:-portfolio}/config/.env.local"
             legacy_env_file="${project_root:-/home/ubuntu/portfolioWebsite/portfolio}/.env.local"
@@ -466,6 +472,10 @@ jobs:
             [ "$actual_service" = "portfolio" ] || fail "SERVICE_NAME must be portfolio, got ${actual_service:-unset}"
             [ "$actual_port" = "$PORT" ] || fail "NEXTJS_PORT must be $PORT, got ${actual_port:-unset}"
             [ -z "$actual_container" ] || [ "$actual_container" = "portfolio" ] || fail "DOCKER_CONTAINER_NAME must be portfolio, got $actual_container"
+            [ "$actual_tts_mode" = "$EXPECTED_TTS_MODE" ] || fail "TTS_NODE_MODE must match matrix role $EXPECTED_TTS_MODE, got ${actual_tts_mode:-unset}"
+
+            tts_token="$(read_conf TTS_BACKEND_TOKEN)"
+            [[ "$tts_token" =~ ^[A-Za-z0-9_-]{32,128}$ ]] || fail "TTS_BACKEND_TOKEN is missing or malformed"
 
             if [ "$actual_branch" = "master" ]; then
               backup="${CONF}.bak.$(date -u +%Y%m%d%H%M%S)"
@@ -504,6 +514,31 @@ jobs:
             command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
             sudo nginx -t
 
+            sudo test -f "$MACHINE_CONF" || fail "missing machine config: $MACHINE_CONF"
+            memory_high_mb="$(read_machine_conf MEMORY_HIGH_MB)"
+            memory_max_mb="$(read_machine_conf MEMORY_MAX_MB)"
+            [[ "$memory_high_mb" =~ ^[0-9]+$ ]] || fail "MEMORY_HIGH_MB must be numeric"
+            [[ "$memory_max_mb" =~ ^[0-9]+$ ]] || fail "MEMORY_MAX_MB must be numeric"
+            physical_memory_mb="$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)"
+
+            if [ "$EXPECTED_TTS_MODE" = "local" ]; then
+              (( memory_high_mb >= 1200 )) || fail "local TTS requires MEMORY_HIGH_MB >= 1200, got $memory_high_mb"
+              (( memory_max_mb >= 1536 )) || fail "local TTS requires MEMORY_MAX_MB >= 1536, got $memory_max_mb"
+              (( physical_memory_mb >= 1900 )) || fail "local Pocket TTS requires about 2 GB physical RAM; detected ${physical_memory_mb} MB"
+              private_listen="$(read_conf TTS_PRIVATE_LISTEN)"
+              allowed_clients="$(read_conf TTS_ALLOWED_CLIENTS)"
+              [[ "$private_listen" =~ ^(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+):[0-9]{1,5}$ ]] || fail "TTS_PRIVATE_LISTEN must be a private IPv4 address and port"
+              [ -n "$allowed_clients" ] || fail "TTS_ALLOWED_CLIENTS must be configured"
+              private_ip="${private_listen%:*}"
+              ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1 | grep -Fxq "$private_ip" || fail "TTS_PRIVATE_LISTEN address is not assigned to this VM"
+            else
+              (( memory_high_mb >= 400 )) || fail "remote TTS requires MEMORY_HIGH_MB >= 400, got $memory_high_mb"
+              (( memory_max_mb >= 500 )) || fail "remote TTS requires MEMORY_MAX_MB >= 500, got $memory_max_mb"
+              (( physical_memory_mb >= 900 )) || fail "remote node requires at least 900 MB physical RAM; detected ${physical_memory_mb} MB"
+              backend_url="$(read_conf TTS_BACKEND_URL)"
+              [[ "$backend_url" =~ ^http://(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)[0-9.]+:[0-9]{1,5}$ ]] || fail "TTS_BACKEND_URL must be an exact private HTTP IPv4 endpoint"
+            fi
+
             if ss -tln "sport = :${PORT}" 2>/dev/null | grep -q LISTEN; then
               pids="$(sudo ss -tlnp "sport = :${PORT}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u || true)"
               main_pid=""
@@ -541,7 +576,7 @@ jobs:
               echo "Port ${PORT} ownership OK; deploy.sh may restart portfolio."
             fi
 
-            echo "Production VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}"
+            echo "Production VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}; TTS ${EXPECTED_TTS_MODE}; memory ${memory_high_mb}/${memory_max_mb} MB"
 
   # ───────────────────────────────────────────────────────────────────────────
   # DEPLOY — serial matrix across all VMs, consumes the build artifact/image
@@ -564,16 +599,19 @@ jobs:
       matrix:
         server:
           - name: production-1
+            tts_mode: local
             host_secret: SERVER_HOST_1
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
           - name: production-2
+            tts_mode: remote
             host_secret: SERVER_HOST_2
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
           - name: production-3
+            tts_mode: remote
             host_secret: SERVER_HOST_3
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
@@ -652,7 +690,7 @@ jobs:
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
           RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
-          RUNTIME_HF_TOKEN: ${{ secrets.PRODUCTION_HF_TOKEN }}
+          RUNTIME_HF_TOKEN: ${{ matrix.server.tts_mode == 'local' && secrets.PRODUCTION_HF_TOKEN || '' }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -668,6 +706,7 @@ jobs:
 
             SHA="${{ github.sha }}"
             SITE="${{ inputs.site || 'portfolio' }}"
+            TTS_MODE="${{ matrix.server.tts_mode }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
             TARBALL="/tmp/portfolio-${SHA}.tar.gz"
             STAGING="/tmp/portfolio-stage-${SHA}"
@@ -736,7 +775,7 @@ jobs:
                 echo "Production Matrix Notes access secret is missing or malformed"
                 exit 1
               fi
-              if [ -z "${RUNTIME_HF_TOKEN:-}" ]; then
+              if [ "$TTS_MODE" = "local" ] && [ -z "${RUNTIME_HF_TOKEN:-}" ]; then
                 echo "Production Hugging Face runtime token is missing"
                 exit 1
               fi
@@ -753,14 +792,17 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 != "LOCAL_TTS_CACHE_DIR" && $1 != "LOCAL_TTS_VOICE_STATE_PATH" && $1 != "LOCAL_TTS_QUANTIZE"' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/' \
                 "$source_env" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
-              printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
-              printf 'HF_HUB_CACHE=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
-              printf 'LOCAL_TTS_CACHE_DIR=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
-              printf 'LOCAL_TTS_VOICE_STATE_PATH=/var/cache/%s/pocket-tts/custom-dhruv.safetensors\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+              printf 'TTS_NODE_MODE=%s\n' "$TTS_MODE" >> "$RUNTIME_ENV_TEMP"
+              if [ "$TTS_MODE" = "local" ]; then
+                printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
+                printf 'HF_HUB_CACHE=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+                printf 'LOCAL_TTS_CACHE_DIR=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+                printf 'LOCAL_TTS_VOICE_STATE_PATH=/var/cache/%s/pocket-tts/custom-dhruv.safetensors\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+              fi
 
               env_uid="$(sudo stat -c '%u' "$source_env")"
               env_gid="$(sudo stat -c '%g' "$source_env")"
@@ -770,10 +812,17 @@ jobs:
               RUNTIME_ENV_REMOTE_TEMP=""
               rm -f "$RUNTIME_ENV_TEMP"
               RUNTIME_ENV_TEMP=""
-              echo "Synchronized production runtime secrets and Pocket TTS cache settings"
+              echo "Synchronized production runtime secrets for TTS role $TTS_MODE"
             }
 
             sync_runtime_secrets
+
+            if [ "$TTS_MODE" = "remote" ]; then
+              backend_url="$(sudo awk -F= '$1 == "TTS_BACKEND_URL" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "/etc/deploy/sites/${SITE}.conf")"
+              tts_token="$(sudo awk -F= '$1 == "TTS_BACKEND_TOKEN" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "/etc/deploy/sites/${SITE}.conf")"
+              backend_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Portfolio-TTS-Token: $tts_token" -H "Origin: https://${DOMAIN}" "${backend_url}/api/tts" 2>/dev/null || echo 000)"
+              [ "$backend_code" = "200" ] || { echo "Remote Pocket TTS gateway is not reachable after production-1 deployment (HTTP $backend_code)"; exit 1; }
+            fi
 
             # Optional pass-throughs. Currently only skip_nginx is exposed as
             # a workflow input — the other legacy flags (skip_git/deps/build,
@@ -899,7 +948,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
-          command_timeout: 2m
+          command_timeout: 6m
           script: |
             set -euo pipefail
 
@@ -924,10 +973,12 @@ jobs:
             SVC_NAME="$(read_conf SERVICE_NAME)"
             SVC_PORT="$(read_conf NEXTJS_PORT)"
             SVC_DOMAIN="$(read_conf DOMAIN)"
+            SVC_TTS_MODE="$(read_conf TTS_NODE_MODE)"
 
             [ "$SVC_NAME" = "portfolio" ] || fail "SERVICE_NAME must be portfolio, got ${SVC_NAME:-unset}"
             [ "$SVC_PORT" = "3000" ] || fail "NEXTJS_PORT must be 3000, got ${SVC_PORT:-unset}"
             [ "$SVC_DOMAIN" = "$EXPECTED_DOMAIN" ] || fail "DOMAIN must be $EXPECTED_DOMAIN, got ${SVC_DOMAIN:-unset}"
+            [ "$SVC_TTS_MODE" = "${{ matrix.server.tts_mode }}" ] || fail "TTS_NODE_MODE must be ${{ matrix.server.tts_mode }}, got ${SVC_TTS_MODE:-unset}"
 
             echo "Post-deploy verification for $SVC_NAME"
 
@@ -960,27 +1011,17 @@ jobs:
 
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
-            TTS_METADATA_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_METADATA_FILE"' EXIT
-
-            TTS_HTTP_CODE=$(curl -sS --max-time 5 \
-              -H "Sec-Fetch-Site: same-origin" \
-              -H "Origin: https://${SVC_DOMAIN}" \
-              -o "$TTS_METADATA_FILE" \
-              -w "%{http_code}" \
-              "http://127.0.0.1:${SVC_PORT}/api/tts" 2>/dev/null || echo "000")
-            if [ "$TTS_HTTP_CODE" != "200" ]; then
-              echo "Pocket TTS metadata returned HTTP $TTS_HTTP_CODE on :$SVC_PORT"
-              exit 1
-            fi
-            node -e '
-              const metadata = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-              const settings = metadata.settings || {};
-              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.defaultVoice !== "custom-dhruv") {
-                throw new Error("Pocket TTS metadata did not match the expected runtime configuration");
-              }
-            ' "$TTS_METADATA_FILE"
-            echo "Pocket TTS metadata verified"
+            TTS_STREAM_FILE="$(mktemp)"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE"' EXIT
+            TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+              -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \
+              -H "Origin: https://${SVC_DOMAIN}" -H "Sec-Fetch-Site: same-origin" \
+              --data '{"text":"Production topology verification.","stream":true}' \
+              -o "$TTS_STREAM_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/api/tts" 2>/dev/null || echo "000")
+            [ "$TTS_HTTP_CODE" = "200" ] || fail "Pocket TTS HTTPS route returned HTTP $TTS_HTTP_CODE"
+            grep -q '"type":"ready"' "$TTS_STREAM_FILE" && grep -q '"type":"chunk"' "$TTS_STREAM_FILE" && grep -q '"type":"done"' "$TTS_STREAM_FILE" \
+              || fail "Pocket TTS HTTPS stream was incomplete"
+            echo "Pocket TTS HTTPS topology verified"
 
             curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"

@@ -1,5 +1,5 @@
 export const TTS_LLM_RULES = `Speech-safe reply text:
-- Write plain prose that also sounds natural if read aloud by KittenTTS / fast local TTS.
+- Write plain prose that also sounds natural when read aloud by the local voice engine.
 - Prefer short, speech-safe replies; keep sentences compact so streaming audio starts quickly.
 - Avoid raw URLs, markdown tables, code fences, emoji, symbol-heavy shorthand, and decorative punctuation.
 - Expand tech names naturally when useful, e.g. Next.js as Next J S, Node.js as Node J S, C++ as C plus plus.`;

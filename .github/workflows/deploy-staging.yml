@@ -6,15 +6,6 @@ permissions:
 
 on:
   workflow_dispatch:
-    inputs:
-      deploy_mode:
-        description: "Deployment mode"
-        required: false
-        default: image
-        type: choice
-        options:
-          - image
-          - artifact
 
   push:
     branches:
@@ -44,7 +35,7 @@ env:
   STAGING_PORT: "3010"
   NODE_VERSION: "22"
   CI_NPM_VERSION: "10.9.8"
-  DEPLOY_MODE: ${{ inputs.deploy_mode || 'image' }}
+  DEPLOY_MODE: image
   DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
   NEXT_PUBLIC_GA_ID: ""
   NEXT_PUBLIC_ENABLE_ANALYTICS: "false"
@@ -246,8 +237,6 @@ jobs:
             NEXT_PUBLIC_SITE_URL=https://${{ env.STAGING_DOMAIN }}
             NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
             NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
-            NEXT_PUBLIC_TTS_VOICE=expr-voice-5-m
-            NEXT_PUBLIC_TTS_SPEED=1
             NEXT_BUILD_FLAGS=--webpack
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 
@@ -760,13 +749,24 @@ jobs:
               echo "Pocket TTS metadata returned HTTP $TTS_HTTP_CODE on :$SVC_PORT"
               exit 1
             fi
+            RUNTIME_ENV_FILE="/opt/${SITE}/config/.env.local"
+            if ! sudo test -f "$RUNTIME_ENV_FILE"; then
+              fail "missing staging runtime env file: $RUNTIME_ENV_FILE"
+            fi
+            TTS_QUANTIZE="$(sudo awk -F= '$1 == "LOCAL_TTS_QUANTIZE" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$RUNTIME_ENV_FILE")"
+            case "$TTS_QUANTIZE" in
+              ""|true) EXPECTED_TTS_QUANTIZED=true ;;
+              false) EXPECTED_TTS_QUANTIZED=false ;;
+              *) fail "LOCAL_TTS_QUANTIZE must be true or false in $RUNTIME_ENV_FILE" ;;
+            esac
             node -e '
               const metadata = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
               const settings = metadata.settings || {};
-              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.quantized !== true || settings.defaultVoice !== "custom-dhruv") {
+              const expectedQuantized = process.argv[2] === "true";
+              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.quantized !== expectedQuantized || settings.defaultVoice !== "custom-dhruv") {
                 throw new Error("Pocket TTS metadata did not match the expected runtime configuration");
               }
-            ' "$TTS_METADATA_FILE"
+            ' "$TTS_METADATA_FILE" "$EXPECTED_TTS_QUANTIZED"
             echo "Pocket TTS metadata verified"
 
             curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \

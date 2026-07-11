@@ -228,7 +228,7 @@ readonly DEPLOY_ENV_FILE="${DEPLOY_CONFIG_DIR}/.env.local"
 readonly DEPLOY_LOCK_FILE="/var/lock/${SERVICE_NAME}-deploy.lock"
 readonly TTS_CACHE_DIR="/var/cache/${SERVICE_NAME}/pocket-tts"
 readonly LEGACY_TTS_CACHE_DIR="/var/cache/${SERVICE_NAME}/kitten-tts"
-readonly DOCKER_TTS_REFERENCE_PATH="/app/public/sounds/voice/TTSReference.mp3"
+readonly DOCKER_BUNDLED_TTS_REFERENCE_PATH="/app/public/sounds/voice/TTSReference.mp3"
 readonly ARTIFACT_TTS_REFERENCE_PATH="${DEPLOY_CURRENT_LINK}/public/sounds/voice/TTSReference.mp3"
 readonly TTS_VOICE_STATE_PATH="${TTS_CACHE_DIR}/custom-dhruv.safetensors"
 
@@ -266,6 +266,10 @@ RELEASE_DIR=""             # set in image/artifact mode
 RELEASE_SHA=""             # set in image/artifact mode
 DOCKER_IMAGE=""             # set in image mode
 ROLLBACK_TARGET_SHA=""      # set in rollback mode when a specific target is requested
+DOCKER_TTS_REFERENCE_PATH="${DOCKER_BUNDLED_TTS_REFERENCE_PATH}"
+DOCKER_TTS_VOICE_STATE_PATH="${TTS_VOICE_STATE_PATH}"
+DOCKER_TTS_QUANTIZE="true"
+DOCKER_TTS_REFERENCE_HOST_PATH=""
 
 SKIP_GIT=false
 SKIP_DEPS=false
@@ -996,6 +1000,67 @@ env_file_value() {
     awk -F= -v k="${key}" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "${DEPLOY_ENV_FILE}"
 }
 
+validate_container_path() {
+    local label="$1"
+    local path="$2"
+
+    if [[ -z "${path}" ]] || [[ "${path}" != /* ]] \
+        || [[ "${path}" == *".."* ]] \
+        || ! [[ "${path}" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+        log ERROR "${label} must be a non-empty absolute container path without traversal or whitespace"
+        exit 1
+    fi
+}
+
+resolve_docker_tts_runtime_config() {
+    local configured_reference
+    local configured_voice_state
+    local configured_quantize
+    local configured_host_reference
+
+    configured_reference="$(env_file_value LOCAL_TTS_REFERENCE_PATH)"
+    configured_voice_state="$(env_file_value LOCAL_TTS_VOICE_STATE_PATH)"
+    configured_quantize="$(env_file_value LOCAL_TTS_QUANTIZE)"
+    configured_host_reference="$(env_file_value LOCAL_TTS_REFERENCE_HOST_PATH)"
+
+    DOCKER_TTS_QUANTIZE="${configured_quantize:-true}"
+    if [[ "${DOCKER_TTS_QUANTIZE}" != "true" ]] && [[ "${DOCKER_TTS_QUANTIZE}" != "false" ]]; then
+        log ERROR "LOCAL_TTS_QUANTIZE must be true or false"
+        exit 1
+    fi
+
+    DOCKER_TTS_VOICE_STATE_PATH="${configured_voice_state:-${TTS_VOICE_STATE_PATH}}"
+    validate_container_path LOCAL_TTS_VOICE_STATE_PATH "${DOCKER_TTS_VOICE_STATE_PATH}"
+    if [[ "${DOCKER_TTS_VOICE_STATE_PATH}" != "${TTS_CACHE_DIR}/"* ]]; then
+        log ERROR "LOCAL_TTS_VOICE_STATE_PATH must remain under ${TTS_CACHE_DIR} so voice state persists"
+        exit 1
+    fi
+
+    DOCKER_TTS_REFERENCE_HOST_PATH=""
+    if [[ -n "${configured_host_reference}" ]]; then
+        if [[ "${configured_host_reference}" != /* ]] || [[ "${configured_host_reference}" == *$'\n'* ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH must be an absolute host file path"
+            exit 1
+        fi
+        DOCKER_TTS_REFERENCE_HOST_PATH="$(realpath -e -- "${configured_host_reference}" 2>/dev/null || true)"
+        if [[ -z "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] || [[ ! -f "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH must reference an existing regular file"
+            exit 1
+        fi
+        if [[ "${DOCKER_TTS_REFERENCE_HOST_PATH}" =~ [[:space:]] ]] || ! [[ "${DOCKER_TTS_REFERENCE_HOST_PATH}" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+            log ERROR "LOCAL_TTS_REFERENCE_HOST_PATH contains characters unsafe for the generated systemd Docker command"
+            exit 1
+        fi
+        log INFO "Resolved canonical private Pocket TTS reference host path: ${DOCKER_TTS_REFERENCE_HOST_PATH}"
+        DOCKER_TTS_REFERENCE_PATH="/run/secrets/tts-reference"
+    else
+        DOCKER_TTS_REFERENCE_PATH="${configured_reference:-${DOCKER_BUNDLED_TTS_REFERENCE_PATH}}"
+        validate_container_path LOCAL_TTS_REFERENCE_PATH "${DOCKER_TTS_REFERENCE_PATH}"
+    fi
+
+    log INFO "Resolved Pocket TTS runtime settings (quantize=${DOCKER_TTS_QUANTIZE}, private_reference=$([[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]] && echo true || echo false))"
+}
+
 validate_staging_env_contract() {
     if ! is_staging_site; then
         return 0
@@ -1309,9 +1374,15 @@ prepare_docker_systemd_unit() {
     log STEP "Preparing Docker systemd unit (staged)..."
 
     local docker_bin
+    local docker_tts_volume_args
     docker_bin=$(command -v docker)
     local docker_cpus
     docker_cpus=$(docker_cpu_quota)
+    resolve_docker_tts_runtime_config
+    docker_tts_volume_args="--volume ${TTS_CACHE_DIR}:${TTS_CACHE_DIR}"
+    if [[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
+        docker_tts_volume_args+=" --volume ${DOCKER_TTS_REFERENCE_HOST_PATH}:/run/secrets/tts-reference:ro"
+    fi
     ensure_tts_cache_dir
     chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${TTS_CACHE_DIR}" 2>/dev/null || true
     chmod 775 "${TTS_CACHE_DIR}" 2>/dev/null || true
@@ -1337,16 +1408,17 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
   --env HOSTNAME=0.0.0.0 \
   --env NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} \
     --env LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR} \
-        --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} \
-    --env LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH} \
-    --env LOCAL_TTS_QUANTIZE=true \
+    --env LOCAL_TTS_REFERENCE_HOST_PATH= \
+    --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} \
+    --env LOCAL_TTS_VOICE_STATE_PATH=${DOCKER_TTS_VOICE_STATE_PATH} \
+    --env LOCAL_TTS_QUANTIZE=${DOCKER_TTS_QUANTIZE} \
     --env LOCAL_TTS_INTRA_OP_THREADS=1 \
     --env LOCAL_TTS_INTER_OP_THREADS=1 \
     --env OMP_NUM_THREADS=1 \
     --env MKL_NUM_THREADS=1 \
     --env HF_HOME=${TTS_CACHE_DIR} \
   --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
-    --volume ${TTS_CACHE_DIR}:${TTS_CACHE_DIR} \
+    ${docker_tts_volume_args} \
   --memory ${MEMORY_MAX_MB}m \
   --memory-reservation ${MEMORY_HIGH_MB}m \
   --cpus ${docker_cpus} \
@@ -2375,15 +2447,25 @@ health_check() {
 
     total=$((total + 1))
     systemctl is-active --quiet nginx && { log DEBUG "✓ Nginx"; passed=$((passed + 1)); } \
-        || log WARN "✗ Nginx not running"
+        || log ERROR "✗ Nginx not running"
 
     total=$((total + 1))
     systemctl is-active --quiet "${SERVICE_NAME}" && { log DEBUG "✓ ${SERVICE_NAME}"; passed=$((passed + 1)); } \
-        || log WARN "✗ ${SERVICE_NAME} not running"
+        || log ERROR "✗ ${SERVICE_NAME} not running"
 
     total=$((total + 1))
     ss -tlnp | grep -q ":${NEXTJS_PORT} " && { log DEBUG "✓ Port ${NEXTJS_PORT}"; passed=$((passed + 1)); } \
-        || log WARN "✗ Port ${NEXTJS_PORT} not listening"
+        || log ERROR "✗ Port ${NEXTJS_PORT} not listening"
+
+    total=$((total + 1))
+    local homepage_code
+    homepage_code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 \
+        "http://127.0.0.1:${NEXTJS_PORT}/" 2>/dev/null || echo "000")
+    if [[ "${homepage_code}" == "200" ]]; then
+        log DEBUG "✓ Homepage: ${homepage_code}"; passed=$((passed + 1))
+    else
+        log ERROR "✗ Homepage: ${homepage_code}"
+    fi
 
     total=$((total + 1))
     local http_code
@@ -2392,26 +2474,28 @@ health_check() {
     if [[ "${http_code}" =~ ^(200|301|302)$ ]]; then
         log DEBUG "✓ HTTPS: ${http_code}"; passed=$((passed + 1))
     else
-        log WARN "? HTTPS: ${http_code}"; passed=$((passed + 1))
+        log ERROR "✗ HTTPS: ${http_code}"
     fi
 
     total=$((total + 1))
     local chat_code
     chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
         -X POST -H "Content-Type: application/json" \
+        -H "Origin: https://${DOMAIN}" \
         -H "Sec-Fetch-Site: same-origin" \
         -d '{"messages":[{"role":"user","content":"health check"}]}' \
         "http://127.0.0.1:${NEXTJS_PORT}/chat/respond" 2>/dev/null || echo "000")
     if [[ "${chat_code}" == "200" ]] || [[ "${chat_code}" == "429" ]]; then
         log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else
-        log WARN "? Chat API: ${chat_code}"; passed=$((passed + 1))
+        log ERROR "✗ Chat API: ${chat_code}"
     fi
 
     if [[ ${passed} -eq ${total} ]]; then
         log SUCCESS "All health checks passed (${passed}/${total})"
     else
-        log WARN "Health checks: ${passed}/${total}"
+        log ERROR "Health checks failed: ${passed}/${total}"
+        return 1
     fi
 }
 

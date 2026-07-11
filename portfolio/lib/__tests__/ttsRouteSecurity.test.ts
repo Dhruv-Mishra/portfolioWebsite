@@ -42,7 +42,7 @@ describe('/api/tts security', () => {
     expect(payload.settings).toMatchObject({
       cacheMode: 'cache-first',
       concurrency: 1,
-      defaultSpeed: 1.08,
+      defaultSpeed: 1,
       defaultVoice: 'custom-dhruv',
       modelId: 'kyutai/pocket-tts',
       provider: 'pocket-tts',

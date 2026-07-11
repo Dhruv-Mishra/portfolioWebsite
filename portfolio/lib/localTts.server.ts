@@ -13,7 +13,7 @@ const DEFAULT_CACHE_DIR = path.join(os.homedir(), '.cache', 'portfolio', 'pocket
 const WORKER_RELATIVE_PATH = path.join('scripts', 'pocket-tts-worker.py');
 const SAMPLE_RATE = 24_000;
 const MAX_TEXT_CHARS = 1_200;
-const DEFAULT_SPEED = 1.08;
+const DEFAULT_SPEED = 1;
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
 const DEFAULT_VOICE = 'custom-dhruv';
@@ -165,7 +165,7 @@ function getEnvBool(name: string, fallback: boolean): boolean {
 }
 
 function getConfiguredSpeed(): number {
-  return getEnvFloat(['LOCAL_TTS_SPEED', 'NEXT_PUBLIC_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
+  return getEnvFloat(['LOCAL_TTS_SPEED'], DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
 }
 
 function getCpuCount(): number {

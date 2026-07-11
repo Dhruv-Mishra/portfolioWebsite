@@ -27,7 +27,7 @@ permissions:
 #
 # Why multi-platform image publishing:
 #   - The Next.js standalone bundle is still pure JavaScript at runtime, but
-#     the container now includes Python/eSpeak for local TTS.
+#     the container now includes Python/Pocket TTS for local TTS.
 #   - Buildx publishes linux/amd64 and linux/arm64 variants so fresh VMs can
 #     pull the same immutable digest regardless of CPU architecture.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -97,6 +97,7 @@ jobs:
     env:
       PRODUCTION_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
       PRODUCTION_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
+      PRODUCTION_HF_TOKEN: ${{ secrets.PRODUCTION_HF_TOKEN }}
 
     steps:
       - name: Require deployed/production for production deploys
@@ -116,6 +117,10 @@ jobs:
           fi
           if [[ ! "${PRODUCTION_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
             echo "::error::PRODUCTION_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
+            missing=1
+          fi
+          if [ -z "${PRODUCTION_HF_TOKEN:-}" ]; then
+            echo "::error::PRODUCTION_HF_TOKEN must be configured, and its token account must have accepted kyutai/pocket-tts gated terms"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -643,6 +648,7 @@ jobs:
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
           RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
+          RUNTIME_HF_TOKEN: ${{ secrets.PRODUCTION_HF_TOKEN }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -652,7 +658,7 @@ jobs:
           # print the deploy log, then exit with the captured status.
           script_stop: false
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET
+          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_HF_TOKEN
           script: |
             set -euo pipefail
 
@@ -722,6 +728,10 @@ jobs:
                 echo "Production Matrix Notes access secret is missing or malformed"
                 exit 1
               fi
+              if [ -z "${RUNTIME_HF_TOKEN:-}" ]; then
+                echo "Production Hugging Face runtime token is missing"
+                exit 1
+              fi
 
               if ! sudo test -f "$source_env"; then
                 project_root="$(sudo awk -F= '$1 == "PROJECT_ROOT" { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$site_conf")"
@@ -735,10 +745,11 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET"' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "HF_TOKEN"' \
                 "$source_env" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
+              printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
 
               env_uid="$(sudo stat -c '%u' "$source_env")"
               env_gid="$(sudo stat -c '%g' "$source_env")"
@@ -748,7 +759,7 @@ jobs:
               RUNTIME_ENV_REMOTE_TEMP=""
               rm -f "$RUNTIME_ENV_TEMP"
               RUNTIME_ENV_TEMP=""
-              echo "Synchronized production runtime secrets from GitHub Actions"
+              echo "Synchronized production runtime secrets"
             }
 
             sync_runtime_secrets
@@ -937,7 +948,27 @@ jobs:
 
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
+            TTS_METADATA_FILE="$(mktemp)"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_METADATA_FILE"' EXIT
+
+            TTS_HTTP_CODE=$(curl -sS --max-time 5 \
+              -H "Sec-Fetch-Site: same-origin" \
+              -H "Origin: https://${SVC_DOMAIN}" \
+              -o "$TTS_METADATA_FILE" \
+              -w "%{http_code}" \
+              "http://127.0.0.1:${SVC_PORT}/api/tts" 2>/dev/null || echo "000")
+            if [ "$TTS_HTTP_CODE" != "200" ]; then
+              echo "Pocket TTS metadata returned HTTP $TTS_HTTP_CODE on :$SVC_PORT"
+              exit 1
+            fi
+            node -e '
+              const metadata = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              const settings = metadata.settings || {};
+              if (metadata.ok !== true || settings.provider !== "pocket-tts" || settings.quantized !== true || settings.defaultVoice !== "custom-dhruv") {
+                throw new Error("Pocket TTS metadata did not match the expected runtime configuration");
+              }
+            ' "$TTS_METADATA_FILE"
+            echo "Pocket TTS metadata verified"
 
             curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"

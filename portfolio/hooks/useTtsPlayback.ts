@@ -28,6 +28,7 @@ interface TtsStreamMessage {
   sampleRate?: number;
   type?: 'ready' | 'chunk' | 'done' | 'error';
   uncompressedBytes?: number;
+  voiceRevision?: string;
 }
 
 interface UseTtsPlaybackResult extends TtsPlaybackState {
@@ -66,6 +67,28 @@ const TTS_REQUEST_OPTIONS = { provider: 'pocket-tts', speed: DEFAULT_TTS_SPEED, 
 const MAX_TTS_PCM_FRAME_BYTES = 1 * 1024 * 1024;
 const MAX_TTS_PCM_TOTAL_BYTES = 32 * 1024 * 1024;
 let gzipDecompressionSupported: boolean | null = null;
+
+function isValidVoiceRevision(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+}
+
+async function getServerVoiceRevision(signal: AbortSignal): Promise<string> {
+  const response = await fetch('/api/tts', {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    method: 'GET',
+    mode: 'same-origin',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    signal,
+  });
+  if (!response.ok) throw new Error(`TTS status request failed with ${response.status}`);
+
+  const payload = await response.json() as { voiceRevision?: unknown };
+  if (!isValidVoiceRevision(payload.voiceRevision)) {
+    throw new Error('TTS status response did not include a valid voice revision.');
+  }
+  return payload.voiceRevision;
+}
 
 function getGeneratedAudioPlaybackRate(speed: TtsPlaybackSpeed): number {
   return speed / DEFAULT_TTS_SPEED;
@@ -582,7 +605,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     messageId: string,
     requestText: string,
     spokenText: string,
-    cacheKey: string,
+    expectedVoiceRevision: string,
     abortController: AbortController,
     playbackId: number,
   ) => {
@@ -619,6 +642,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     let sampleRate = DEFAULT_SAMPLE_RATE;
     let pending = '';
     let receivedDoneFrame = false;
+    let streamVoiceRevision: string | null = null;
 
     const handleLine = async (line: string): Promise<void> => {
       if (!line.trim() || playbackIdRef.current !== playbackId) return;
@@ -626,6 +650,10 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       if (message.type === 'ready') {
         codec = message.codec ?? codec;
         sampleRate = message.sampleRate ?? sampleRate;
+        if (!isValidVoiceRevision(message.voiceRevision)) {
+          throw new Error('TTS stream did not include a valid voice revision.');
+        }
+        streamVoiceRevision = message.voiceRevision;
         return;
       }
       if (message.type === 'error') {
@@ -636,6 +664,9 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         return;
       }
       if (message.type !== 'chunk' || !message.audioBase64) return;
+      if (!streamVoiceRevision) {
+        throw new Error('TTS stream emitted audio before its ready frame.');
+      }
       if (receivedDoneFrame) {
         throw new Error('TTS stream contained audio after its completion frame.');
       }
@@ -671,7 +702,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       }
 
       if (pending.trim()) await handleLine(pending);
-      if (!receivedDoneFrame) {
+      if (!receivedDoneFrame || !streamVoiceRevision) {
         throw new Error('TTS stream ended before its completion frame.');
       }
       if (cachedChunks.length === 0 && spokenText.trim()) {
@@ -689,7 +720,10 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     if (!abortController.signal.aborted && playbackIdRef.current === playbackId && cachedChunks.length > 0) {
       void putCachedTtsAudio({
         byteLength,
-        cacheKey,
+        cacheKey: createTtsAudioCacheKey(spokenText, {
+          ...TTS_REQUEST_OPTIONS,
+          voiceRevision: streamVoiceRevision ?? expectedVoiceRevision,
+        }),
         chunks: cachedChunks,
         codec,
         messageId,
@@ -862,7 +896,6 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       setState(INITIAL_STATE);
       return;
     }
-    const cacheKey = createTtsAudioCacheKey(spokenText, TTS_REQUEST_OPTIONS);
     setState({ activeMessageId: messageId, error: null, status: 'loading' });
     const shouldPreferClientSpeech = (options?.preferClientSpeech ?? preferClientSpeech)
       && (clientSpeechSupported || supportsClientSpeechNow());
@@ -882,23 +915,27 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         } catch {
           if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
           primeGeneratedAudioPlayback();
+          const voiceRevision = await getServerVoiceRevision(abortController.signal);
+          const cacheKey = createTtsAudioCacheKey(spokenText, { ...TTS_REQUEST_OPTIONS, voiceRevision });
           const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
           if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
           if (cached) {
             await playCachedAudio(cached, messageId, playbackId);
             return;
           }
-          await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
+          await streamAndCacheAudio(messageId, trimmedText, spokenText, voiceRevision, abortController, playbackId);
         }
       } else {
         try {
+          const voiceRevision = await getServerVoiceRevision(abortController.signal);
+          const cacheKey = createTtsAudioCacheKey(spokenText, { ...TTS_REQUEST_OPTIONS, voiceRevision });
           const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
           if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
           if (cached) {
             await playCachedAudio(cached, messageId, playbackId);
             return;
           }
-          await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
+          await streamAndCacheAudio(messageId, trimmedText, spokenText, voiceRevision, abortController, playbackId);
         } catch (serverError) {
           if (abortController.signal.aborted || playbackIdRef.current !== playbackId || !clientSpeechSupported) {
             throw serverError;

@@ -10,7 +10,7 @@ describe('/api/tts security', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Forbidden' });
   });
 
-  it('rejects a spoofed same-origin fetch-site header without Origin', async () => {
+  it('allows same-origin browser status requests without an Origin header', async () => {
     const response = await GET(new Request('http://localhost/api/tts', {
       headers: {
         'sec-fetch-site': 'same-origin',
@@ -18,8 +18,7 @@ describe('/api/tts security', () => {
       },
     }) as never);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' });
+    expect(response.status).toBe(200);
   });
 
   it('returns sanitized status settings for allowed explicit-origin GET requests', async () => {
@@ -35,6 +34,7 @@ describe('/api/tts security', () => {
       ok: boolean;
       queue: { active: number; queued: number };
       settings: Record<string, unknown>;
+      voiceRevision: string;
     };
 
     expect(payload.ok).toBe(true);
@@ -53,6 +53,7 @@ describe('/api/tts security', () => {
     expect(payload.settings).not.toHaveProperty('pythonExecutable');
     expect(payload.settings).not.toHaveProperty('quantized');
     expect(payload.settings).not.toHaveProperty('workerScript');
+    expect(payload.voiceRevision).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('checks POST origin before body validation or model loading', async () => {

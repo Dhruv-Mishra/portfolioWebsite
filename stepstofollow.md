@@ -152,10 +152,9 @@ hf auth login
 # $env:HF_TOKEN = Read-Host 'Paste the Hugging Face read token' -MaskInput
 ```
 
-Delete only the derived custom voice state before regenerating. Do not remove the Hugging Face hub cache or other Pocket TTS files:
+After this version, replacing `portfolio/public/sounds/voice/TTSReference.mp3` at the same path automatically invalidates the derived server state and browser-generated audio cache by SHA-256 reference revision. Do not manually delete the derived state; the next request re-derives it. That first request still needs the accepted gated model terms and an available token or warmed model cache. To verify a replacement locally:
 
 ```powershell
-Remove-Item "$env:USERPROFILE\.cache\portfolio\pocket-tts\custom-dhruv.safetensors" -Force -ErrorAction SilentlyContinue
 rtk npm run tts:smoke
 Get-Item "$env:USERPROFILE\.cache\portfolio\pocket-tts\custom-dhruv.safetensors" | Select-Object FullName, Length, LastWriteTime
 ```

@@ -350,6 +350,7 @@ jobs:
             PORT="${{ env.STAGING_PORT }}"
             CONF="/etc/deploy/sites/${SITE}.conf"
             PROD_CONF="/etc/deploy/sites/portfolio.conf"
+            MACHINE_CONF="/etc/deploy/machine.conf"
             ENV_FILE="/opt/${SITE}/config/.env.local"
 
             fail() {
@@ -365,6 +366,11 @@ jobs:
             read_env() {
               local key="$1"
               sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$ENV_FILE"
+            }
+
+            read_machine_conf() {
+              local key="$1"
+              sudo awk -F= -v k="$key" '$1 == k { value=$2; gsub(/^[ \t\"]+|[ \t\"]+$/, "", value); print value; exit }' "$MACHINE_CONF"
             }
 
             sudo test -f "$CONF" || fail "missing staging site config: $CONF"
@@ -392,11 +398,23 @@ jobs:
             command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
             sudo nginx -t
 
+            sudo test -f "$MACHINE_CONF" || fail "missing machine config: $MACHINE_CONF"
+            memory_high_mb="$(read_machine_conf MEMORY_HIGH_MB)"
+            memory_max_mb="$(read_machine_conf MEMORY_MAX_MB)"
+            [[ "$memory_high_mb" =~ ^[0-9]+$ ]] || fail "MEMORY_HIGH_MB must be numeric, got ${memory_high_mb:-unset}"
+            [[ "$memory_max_mb" =~ ^[0-9]+$ ]] || fail "MEMORY_MAX_MB must be numeric, got ${memory_max_mb:-unset}"
+            (( memory_high_mb >= 1200 )) || fail "MEMORY_HIGH_MB must be >= 1200, got $memory_high_mb"
+            (( memory_max_mb >= 1536 )) || fail "MEMORY_MAX_MB must be >= 1536, got $memory_max_mb"
+
+            physical_memory_mb="$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)"
+            [[ "$physical_memory_mb" =~ ^[0-9]+$ ]] || fail "could not determine physical memory"
+            (( physical_memory_mb >= 1900 )) || fail "Pocket TTS requires at least 2 GB physical RAM; detected ${physical_memory_mb} MB"
+
             if ss -tln "sport = :${PORT}" 2>/dev/null | grep -q LISTEN; then
               sudo systemctl is-active --quiet "$SITE" || fail "port ${PORT} is in use, but ${SITE}.service is not active"
             fi
 
-            echo "Staging VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}"
+            echo "Staging VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}; memory ${memory_high_mb}/${memory_max_mb} MB, host ${physical_memory_mb} MB"
 
   deploy-staging:
     name: Deploy to ${{ matrix.server.name }}

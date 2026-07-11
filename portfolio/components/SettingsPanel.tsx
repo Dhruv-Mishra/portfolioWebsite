@@ -12,6 +12,7 @@ import {
   Palette,
   Sticker,
   TriangleAlert,
+  Volume2,
 } from 'lucide-react';
 import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
 import {
@@ -20,6 +21,7 @@ import {
   useSoundsMuted,
 } from '@/hooks/useStickers';
 import { useVoiceBackendPref, type VoiceBackendPref } from '@/lib/voiceBackendPref';
+import { useVoiceOutputPref, type VoiceOutputPref } from '@/lib/voiceOutputPref';
 import { soundManager } from '@/lib/soundManager';
 import {
   runThemeSelection,
@@ -55,6 +57,11 @@ const MOTION_OPTIONS = [
 const VOICE_OPTIONS: ReadonlyArray<{ value: VoiceBackendPref; label: string }> = [
   { value: 'native', label: 'Native' },
   { value: 'whisper', label: 'Whisper' },
+];
+
+const VOICE_OUTPUT_OPTIONS: ReadonlyArray<{ value: VoiceOutputPref; label: string }> = [
+  { value: 'device', label: 'Device TTS' },
+  { value: 'server', label: 'Server custom' },
 ];
 
 interface SettingsGroupProps {
@@ -226,6 +233,7 @@ export default function SettingsPanel() {
   const soundsMuted = useSoundsMuted();
   const { prefs, setPref } = useSitePrefsApi();
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
+  const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
   const hostname = useSyncExternalStore(
     subscribeToHydration,
     getClientHostnameSnapshot,
@@ -360,6 +368,15 @@ export default function SettingsPanel() {
           <p className="font-hand text-sm text-[var(--c-ink)]/55">
             Whisper downloads about 60-170 MB on first use, depending on your browser.
           </p>
+        </SettingsGroup>
+
+        <SettingsGroup title="Voice output" icon={Volume2}>
+          <SegmentedChoice
+            name="voice-output"
+            value={voiceOutput}
+            options={VOICE_OUTPUT_OPTIONS}
+            onChange={setVoiceOutput}
+          />
         </SettingsGroup>
 
         <SettingsGroup title="Appearance" icon={Brush}>

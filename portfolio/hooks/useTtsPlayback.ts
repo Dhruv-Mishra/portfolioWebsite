@@ -215,6 +215,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
   const browserUtterancesRef = useRef<SpeechSynthesisUtterance[]>([]);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const fallbackObjectUrlRef = useRef<string | null>(null);
+  const fallbackPlaybackSettlerRef = useRef<(() => void) | null>(null);
   const pendingSourcesRef = useRef(0);
   const playbackModeRef = useRef<'browser' | 'stream' | 'wav' | null>(null);
   const playbackIdRef = useRef(0);
@@ -259,13 +260,52 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     setState(INITIAL_STATE);
   }, []);
 
+  const clearGeneratedAudio = useCallback(() => {
+    streamDoneRef.current = false;
+    pendingSourcesRef.current = 0;
+    scheduledUntilRef.current = 0;
+
+    sourceRefs.current.forEach((source) => {
+      source.onended = null;
+      try { source.stop(); } catch { /* already stopped */ }
+      try { source.disconnect(); } catch { /* no-op */ }
+    });
+    sourceRefs.current.clear();
+
+    const context = audioContextRef.current;
+    audioContextRef.current = null;
+    audioUnlockPromiseRef.current = null;
+    if (context && context.state !== 'closed') {
+      void context.close().catch(() => {});
+    }
+  }, []);
+
+  const clearFallbackAudio = useCallback((expectedAudio?: HTMLAudioElement, expectedObjectUrl?: string) => {
+    if (expectedAudio && fallbackAudioRef.current !== expectedAudio) return;
+    if (expectedObjectUrl && fallbackObjectUrlRef.current !== expectedObjectUrl) return;
+    const fallbackAudio = fallbackAudioRef.current;
+    fallbackAudioRef.current = null;
+    if (fallbackAudio) {
+      fallbackAudio.onended = null;
+      fallbackAudio.onerror = null;
+      fallbackAudio.pause();
+      fallbackAudio.removeAttribute('src');
+      fallbackAudio.load();
+    }
+    releaseFallbackObjectUrl();
+  }, [releaseFallbackObjectUrl]);
+
+  const disposeFallbackAudio = useCallback(() => {
+    const settleFallbackPlayback = fallbackPlaybackSettlerRef.current;
+    fallbackPlaybackSettlerRef.current = null;
+    clearFallbackAudio();
+    settleFallbackPlayback?.();
+  }, [clearFallbackAudio]);
+
   const cleanup = useCallback((resetState: boolean) => {
     playbackIdRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
-    streamDoneRef.current = false;
-    pendingSourcesRef.current = 0;
-    scheduledUntilRef.current = 0;
 
     const cancelBrowserSpeech = browserSpeechCancelRef.current;
     browserSpeechCancelRef.current = null;
@@ -285,31 +325,10 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     }
     playbackModeRef.current = null;
 
-    sourceRefs.current.forEach((source) => {
-      source.onended = null;
-      try { source.stop(); } catch { /* already stopped */ }
-      try { source.disconnect(); } catch { /* no-op */ }
-    });
-    sourceRefs.current.clear();
-
-    const context = audioContextRef.current;
-    audioContextRef.current = null;
-    audioUnlockPromiseRef.current = null;
-    if (context && context.state !== 'closed') {
-      void context.close().catch(() => {});
-    }
-
-    const fallbackAudio = fallbackAudioRef.current;
-    if (fallbackAudio) {
-      fallbackAudio.pause();
-      fallbackAudio.removeAttribute('src');
-      fallbackAudio.load();
-      fallbackAudioRef.current = null;
-    }
-
-    releaseFallbackObjectUrl();
+    clearGeneratedAudio();
+    disposeFallbackAudio();
     if (resetState) setState(INITIAL_STATE);
-  }, [releaseFallbackObjectUrl]);
+  }, [clearGeneratedAudio, disposeFallbackAudio]);
 
   const stop = useCallback(() => {
     cleanup(true);
@@ -429,6 +448,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
   }, [ensureAudioContext, finishPlaybackIfDone, schedulePcmChunk]);
 
   const playWavFallback = useCallback(async (messageId: string, text: string, abortController: AbortController, playbackId: number) => {
+    clearGeneratedAudio();
     playbackModeRef.current = 'wav';
     const response = await fetch('/api/tts', {
       body: JSON.stringify({ text, ...TTS_REQUEST_OPTIONS }),
@@ -451,29 +471,49 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     audio.playbackRate = getGeneratedAudioPlaybackRate(playbackSpeedRef.current);
     fallbackAudioRef.current = audio;
 
-    audio.addEventListener('ended', () => {
-      if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) {
-        URL.revokeObjectURL(objectUrl);
-        return;
-      }
-      releaseFallbackObjectUrl();
-      fallbackAudioRef.current = null;
-      setState(INITIAL_STATE);
-    }, { once: true });
-    audio.addEventListener('error', () => {
-      if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) {
-        URL.revokeObjectURL(objectUrl);
-        return;
-      }
-      releaseFallbackObjectUrl();
-      fallbackAudioRef.current = null;
-      setState({ activeMessageId: messageId, error: 'Could not play spoken response.', status: 'error' });
-    }, { once: true });
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const settle = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        if (fallbackPlaybackSettlerRef.current === cancel) {
+          fallbackPlaybackSettlerRef.current = null;
+        }
+        clearFallbackAudio(audio, objectUrl);
+        if (error) reject(error);
+        else resolve();
+      };
+      const cancel = () => settle();
+      fallbackPlaybackSettlerRef.current = cancel;
 
-    await audio.play();
-    if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) return;
-    setState({ activeMessageId: messageId, error: null, status: 'playing' });
-  }, [releaseFallbackObjectUrl]);
+      audio.addEventListener('ended', () => {
+        if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) {
+          settle();
+          return;
+        }
+        setState(INITIAL_STATE);
+        settle();
+      }, { once: true });
+      audio.addEventListener('error', () => {
+        if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) {
+          settle();
+          return;
+        }
+        settle(new Error('Could not play spoken response.'));
+      }, { once: true });
+
+      void audio.play().then(() => {
+        if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) return;
+        setState({ activeMessageId: messageId, error: null, status: 'playing' });
+      }).catch((error) => {
+        if (playbackIdRef.current !== playbackId || fallbackAudioRef.current !== audio) {
+          settle();
+          return;
+        }
+        settle(error instanceof Error ? error : new Error('Could not play spoken response.'));
+      });
+    });
+  }, [clearFallbackAudio, clearGeneratedAudio]);
 
   const streamAndCacheAudio = useCallback(async (
     messageId: string,
@@ -762,13 +802,22 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
           await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
         }
       } else {
-        const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
-        if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
-        if (cached) {
-          await playCachedAudio(cached, messageId, playbackId);
-          return;
+        try {
+          const cached = await getCachedTtsAudio(cacheKey, messageId, spokenText);
+          if (abortController.signal.aborted || playbackIdRef.current !== playbackId) return;
+          if (cached) {
+            await playCachedAudio(cached, messageId, playbackId);
+            return;
+          }
+          await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
+        } catch (serverError) {
+          if (abortController.signal.aborted || playbackIdRef.current !== playbackId || !clientSpeechSupported) {
+            throw serverError;
+          }
+          clearGeneratedAudio();
+          disposeFallbackAudio();
+          await playBrowserSpeech(messageId, spokenText, playbackId);
         }
-        await streamAndCacheAudio(messageId, trimmedText, spokenText, cacheKey, abortController, playbackId);
       }
     } catch (error) {
       if (abortController.signal.aborted) return;
@@ -780,7 +829,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     } finally {
       if (abortRef.current === abortController) abortRef.current = null;
     }
-  }, [cleanup, clientSpeechSupported, playBrowserSpeech, playCachedAudio, preferClientSpeech, primeGeneratedAudioPlayback, streamAndCacheAudio]);
+  }, [cleanup, clearGeneratedAudio, clientSpeechSupported, disposeFallbackAudio, playBrowserSpeech, playCachedAudio, preferClientSpeech, primeGeneratedAudioPlayback, streamAndCacheAudio]);
 
   const restart = useCallback(async (messageId: string, text: string, options?: TtsPlaybackToggleOptions) => {
     await startPlayback(messageId, text, options);

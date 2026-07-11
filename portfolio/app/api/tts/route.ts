@@ -34,6 +34,15 @@ interface TtsRequestBody {
   voice?: unknown;
 }
 
+function remoteNodeResponse(): Response | null {
+  if (process.env.TTS_NODE_MODE !== 'remote') return null;
+
+  return Response.json(
+    { error: 'Local TTS is disabled on this node.' },
+    { status: 503, headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
 function getContentLength(request: NextRequest): number | null {
   const header = request.headers.get('content-length');
   if (!header) return null;
@@ -76,6 +85,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   const originError = validateOrigin(request, { requireOrigin: true });
   if (originError) return originError;
 
+  const remoteResponse = remoteNodeResponse();
+  if (remoteResponse) return remoteResponse;
+
   const ip = getClientIP(request);
   const { limited, retryAfter } = ttsRateLimiter.check(ip);
   if (limited) {
@@ -102,6 +114,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 export async function POST(request: NextRequest): Promise<Response> {
   const originError = validateOrigin(request, { requireExplicitOrigin: true });
   if (originError) return originError;
+
+  const remoteResponse = remoteNodeResponse();
+  if (remoteResponse) return remoteResponse;
 
   const ip = getClientIP(request);
   const { limited, retryAfter } = ttsRateLimiter.check(ip);

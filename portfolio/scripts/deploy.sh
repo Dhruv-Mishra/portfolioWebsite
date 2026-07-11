@@ -179,6 +179,14 @@ readonly MEMORY_HIGH_MB="${MEMORY_HIGH_MB:-1200}"
 readonly MEMORY_MAX_MB="${MEMORY_MAX_MB:-1536}"
 readonly CPU_QUOTA_PERCENT="${CPU_QUOTA_PERCENT:-180}"
 
+# Pocket TTS topology. Site config is authoritative because staging and
+# production use separate private gateway ports on the same large VM.
+readonly TTS_NODE_MODE="${TTS_NODE_MODE:-local}"
+readonly TTS_PRIVATE_LISTEN="${TTS_PRIVATE_LISTEN:-}"
+readonly TTS_ALLOWED_CLIENTS="${TTS_ALLOWED_CLIENTS:-}"
+readonly TTS_BACKEND_URL="${TTS_BACKEND_URL:-}"
+readonly TTS_BACKEND_TOKEN="${TTS_BACKEND_TOKEN:-}"
+
 # Priorities
 readonly SERVICE_NICE="${SERVICE_NICE:-5}"
 readonly BUILD_NICE="${BUILD_NICE:-15}"
@@ -641,7 +649,15 @@ verify_pulled_image_architecture() {
 }
 
 validate_runtime_profile() {
-    if [[ "${MODE}" == "artifact" ]]; then
+    validate_tts_topology
+    validate_local_tts_physical_memory
+
+    if [[ "${SKIP_NGINX}" == "true" ]] && [[ "${TTS_NODE_MODE}" == "remote" ]]; then
+        echo "ERROR: --skip-nginx is unsafe for remote TTS nodes because the public proxy topology must be activated." >&2
+        exit 1
+    fi
+
+    if [[ "${MODE}" == "artifact" ]] && [[ "${TTS_NODE_MODE}" == "local" ]]; then
         echo "ERROR: Artifact mode cannot serve required Pocket TTS because its Python dependencies are not bundled. Deploy with --image instead." >&2
         exit 1
     fi
@@ -651,12 +667,115 @@ validate_runtime_profile() {
     fi
 }
 
+validate_local_tts_physical_memory() {
+    [[ "${TTS_NODE_MODE}" == "local" ]] || return 0
+
+    local physical_memory_mb
+    physical_memory_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) }' /proc/meminfo)
+    if ! [[ "${physical_memory_mb}" =~ ^[0-9]+$ ]] || (( physical_memory_mb < 1900 )); then
+        echo "ERROR: Local Pocket TTS requires at least 1900 MB physical RAM; detected ${physical_memory_mb:-unknown} MB." >&2
+        exit 1
+    fi
+}
+
 validate_image_memory_profile() {
     if ! [[ "${MEMORY_MAX_MB}" =~ ^[0-9]+$ ]] || ! [[ "${MEMORY_HIGH_MB}" =~ ^[0-9]+$ ]] \
-        || (( MEMORY_MAX_MB < 1536 )) || (( MEMORY_HIGH_MB < 1200 )); then
+        || (( MEMORY_MAX_MB <= 0 )) || (( MEMORY_HIGH_MB <= 0 )) || (( MEMORY_HIGH_MB > MEMORY_MAX_MB )); then
+        echo "ERROR: Image mode requires positive numeric memory limits with MEMORY_HIGH_MB<=MEMORY_MAX_MB." >&2
+        exit 1
+    fi
+    if [[ "${TTS_NODE_MODE}" == "local" ]] \
+        && (( MEMORY_MAX_MB < 1536 || MEMORY_HIGH_MB < 1200 )); then
         echo "ERROR: Image mode requires MEMORY_MAX_MB>=1536 and MEMORY_HIGH_MB>=1200. Update /etc/deploy/machine.conf before deploying." >&2
         exit 1
     fi
+}
+
+is_private_ipv4() {
+    local ip="$1"
+    local first second third fourth
+    IFS=. read -r first second third fourth <<< "${ip}"
+    [[ -n "${first}" && -n "${second}" && -n "${third}" && -n "${fourth}" ]] || return 1
+    [[ "${first}" =~ ^[0-9]+$ && "${second}" =~ ^[0-9]+$ && "${third}" =~ ^[0-9]+$ && "${fourth}" =~ ^[0-9]+$ ]] || return 1
+    local octet
+    for octet in "${first}" "${second}" "${third}" "${fourth}"; do
+        [[ "${octet}" == "0" || "${octet}" != 0* ]] || return 1
+    done
+    first=$((10#${first}))
+    second=$((10#${second}))
+    third=$((10#${third}))
+    fourth=$((10#${fourth}))
+    (( first <= 255 && second <= 255 && third <= 255 && fourth <= 255 )) || return 1
+    (( first == 10 )) || (( first == 172 && second >= 16 && second <= 31 )) || (( first == 192 && second == 168 ))
+}
+
+validate_tts_port() {
+    local port="$1"
+    [[ "${port}" =~ ^[0-9]{1,5}$ ]] && [[ "${port}" != 0* ]] && (( port >= 1 && port <= 65535 ))
+}
+
+validate_tts_topology() {
+    case "${TTS_NODE_MODE}" in
+        local|remote) ;;
+        *)
+            echo "ERROR: TTS_NODE_MODE must be exactly local or remote (got: ${TTS_NODE_MODE})" >&2
+            exit 1
+            ;;
+    esac
+
+    if ! [[ "${TTS_BACKEND_TOKEN}" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+        echo "ERROR: TTS_BACKEND_TOKEN must be 32-128 characters using only letters, digits, underscore, or dash." >&2
+        exit 1
+    fi
+
+    if [[ "${TTS_NODE_MODE}" == "remote" ]]; then
+        local remote_ip remote_port
+        if ! [[ "${TTS_BACKEND_URL}" =~ ^http://([0-9]{1,3}(\.[0-9]{1,3}){3}):([0-9]{1,5})$ ]]; then
+            echo "ERROR: TTS_BACKEND_URL must be exactly http://<private-ipv4>:<port> with no path, query, userinfo, or TLS." >&2
+            exit 1
+        fi
+        remote_ip="${BASH_REMATCH[1]}"
+        remote_port="${BASH_REMATCH[3]}"
+        is_private_ipv4 "${remote_ip}" || { echo "ERROR: TTS_BACKEND_URL must use an RFC1918 private IPv4 address." >&2; exit 1; }
+        validate_tts_port "${remote_port}" || { echo "ERROR: TTS_BACKEND_URL port is invalid." >&2; exit 1; }
+        return 0
+    fi
+
+    local listen_ip listen_port client client_ip prefix
+    if ! [[ "${TTS_PRIVATE_LISTEN}" =~ ^([0-9]{1,3}(\.[0-9]{1,3}){3}):([0-9]{1,5})$ ]]; then
+        echo "ERROR: TTS_PRIVATE_LISTEN must be <private-ipv4>:<port>." >&2
+        exit 1
+    fi
+    listen_ip="${BASH_REMATCH[1]}"
+    listen_port="${BASH_REMATCH[3]}"
+    is_private_ipv4 "${listen_ip}" || { echo "ERROR: TTS_PRIVATE_LISTEN must use an RFC1918 private interface address." >&2; exit 1; }
+    validate_tts_port "${listen_port}" || { echo "ERROR: TTS_PRIVATE_LISTEN port is invalid." >&2; exit 1; }
+
+    [[ -n "${TTS_ALLOWED_CLIENTS}" ]] || { echo "ERROR: TTS_ALLOWED_CLIENTS must contain at least one private IPv4 address or CIDR." >&2; exit 1; }
+    IFS=',' read -ra tts_clients <<< "${TTS_ALLOWED_CLIENTS}"
+    for client in "${tts_clients[@]}"; do
+        prefix=""
+        if [[ "${client}" == */* ]]; then
+            client_ip="${client%/*}"
+            prefix="${client##*/}"
+            [[ "${prefix}" =~ ^([89]|[12][0-9]|3[0-2])$ ]] \
+                || { echo "ERROR: Invalid TTS_ALLOWED_CLIENTS CIDR prefix." >&2; exit 1; }
+        else
+            client_ip="${client}"
+        fi
+        is_private_ipv4 "${client_ip}" \
+            || { echo "ERROR: TTS_ALLOWED_CLIENTS entries must be RFC1918 IPv4 addresses or CIDRs." >&2; exit 1; }
+        if [[ -n "${prefix}" ]]; then
+            local client_first client_second
+            IFS=. read -r client_first client_second _ <<< "${client_ip}"
+            client_first=$((10#${client_first}))
+            client_second=$((10#${client_second}))
+            if (( client_first == 172 && prefix < 12 )) || (( client_first == 192 && client_second == 168 && prefix < 16 )); then
+                echo "ERROR: TTS_ALLOWED_CLIENTS CIDR cannot extend outside its RFC1918 range." >&2
+                exit 1
+            fi
+        fi
+    done
 }
 
 check_disk_space() {
@@ -1322,8 +1441,23 @@ prune_docker_images() {
 prepare_systemd_unit() {
     log STEP "Preparing systemd unit (staged)..."
 
-    ensure_tts_cache_dir
-    chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+    local tts_environment="Environment=TTS_NODE_MODE=remote"
+    local tts_hardening="ReadWritePaths=${DEPLOY_ROOT}"
+    if [[ "${TTS_NODE_MODE}" == "local" ]]; then
+        ensure_tts_cache_dir
+        chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+        tts_environment="Environment=TTS_NODE_MODE=local
+Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
+Environment=LOCAL_TTS_REFERENCE_PATH=${ARTIFACT_TTS_REFERENCE_PATH}
+Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
+Environment=LOCAL_TTS_INTRA_OP_THREADS=1
+Environment=LOCAL_TTS_INTER_OP_THREADS=1
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}"
+        tts_hardening="CacheDirectory=${SERVICE_NAME}/pocket-tts
+ReadWritePaths=${DEPLOY_ROOT} ${TTS_CACHE_DIR}"
+    fi
 
     local node_bin
     node_bin=$(command -v node)
@@ -1342,14 +1476,7 @@ User=${SERVICE_USER}
 WorkingDirectory=${DEPLOY_CURRENT_LINK}
 
 # Environment — file lives inside the release, injected at deploy time
-Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
-Environment=LOCAL_TTS_REFERENCE_PATH=${ARTIFACT_TTS_REFERENCE_PATH}
-Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
-Environment=LOCAL_TTS_INTRA_OP_THREADS=1
-Environment=LOCAL_TTS_INTER_OP_THREADS=1
-Environment=OMP_NUM_THREADS=1
-Environment=MKL_NUM_THREADS=1
-Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
+${tts_environment}
 EnvironmentFile=-${DEPLOY_CURRENT_LINK}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -1375,8 +1502,7 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-CacheDirectory=${SERVICE_NAME}/pocket-tts
-ReadWritePaths=${DEPLOY_ROOT} ${TTS_CACHE_DIR}
+${tts_hardening}
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -1409,18 +1535,21 @@ prepare_docker_systemd_unit() {
     log STEP "Preparing Docker systemd unit (staged)..."
 
     local docker_bin
-    local docker_tts_volume_args
+    local docker_tts_runtime_args
     docker_bin=$(command -v docker)
     local docker_cpus
     docker_cpus=$(docker_cpu_quota)
-    resolve_docker_tts_runtime_config
-    docker_tts_volume_args="--volume ${TTS_CACHE_DIR}:${TTS_CACHE_DIR}"
-    if [[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
-        docker_tts_volume_args+=" --volume ${DOCKER_TTS_REFERENCE_HOST_PATH}:/run/secrets/tts-reference:ro"
+    docker_tts_runtime_args="--env TTS_NODE_MODE=remote"
+    if [[ "${TTS_NODE_MODE}" == "local" ]]; then
+        resolve_docker_tts_runtime_config
+        docker_tts_runtime_args="--env TTS_NODE_MODE=local --env LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR} --env LOCAL_TTS_REFERENCE_HOST_PATH= --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} --env LOCAL_TTS_VOICE_STATE_PATH=${DOCKER_TTS_VOICE_STATE_PATH} --env LOCAL_TTS_INTRA_OP_THREADS=1 --env LOCAL_TTS_INTER_OP_THREADS=1 --env OMP_NUM_THREADS=1 --env MKL_NUM_THREADS=1 --env HF_HUB_CACHE=${TTS_CACHE_DIR} --volume ${TTS_CACHE_DIR}:${TTS_CACHE_DIR}"
+        if [[ -n "${DOCKER_TTS_REFERENCE_HOST_PATH}" ]]; then
+            docker_tts_runtime_args+=" --volume ${DOCKER_TTS_REFERENCE_HOST_PATH}:/run/secrets/tts-reference:ro"
+        fi
+        ensure_tts_cache_dir
+        chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+        chmod 775 "${TTS_CACHE_DIR}" 2>/dev/null || true
     fi
-    ensure_tts_cache_dir
-    chown -R "${DOCKER_CACHE_UID}:${DOCKER_CACHE_GID}" "${TTS_CACHE_DIR}" 2>/dev/null || true
-    chmod 775 "${TTS_CACHE_DIR}" 2>/dev/null || true
 
     STAGED_SYSTEMD_UNIT="$(mktemp "/tmp/${SERVICE_NAME}.service.XXXXXX")"
 
@@ -1442,17 +1571,8 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
   --env PORT=${NEXTJS_PORT} \
   --env HOSTNAME=0.0.0.0 \
   --env NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} \
-    --env LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR} \
-    --env LOCAL_TTS_REFERENCE_HOST_PATH= \
-    --env LOCAL_TTS_REFERENCE_PATH=${DOCKER_TTS_REFERENCE_PATH} \
-    --env LOCAL_TTS_VOICE_STATE_PATH=${DOCKER_TTS_VOICE_STATE_PATH} \
-    --env LOCAL_TTS_INTRA_OP_THREADS=1 \
-    --env LOCAL_TTS_INTER_OP_THREADS=1 \
-    --env OMP_NUM_THREADS=1 \
-    --env MKL_NUM_THREADS=1 \
-    --env HF_HUB_CACHE=${TTS_CACHE_DIR} \
+    ${docker_tts_runtime_args} \
   --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
-    ${docker_tts_volume_args} \
   --memory ${MEMORY_MAX_MB}m \
   --memory-reservation ${MEMORY_HIGH_MB}m \
   --cpus ${docker_cpus} \
@@ -1563,6 +1683,81 @@ ZONES
     log SUCCESS "Wrote ${NGINX_ZONES_CONF}"
 }
 
+append_private_tts_gateway() {
+    local output_file="$1"
+    [[ "${TTS_NODE_MODE}" == "local" ]] || return 0
+
+    cat >> "${output_file}" << GATEWAY
+
+# Private Pocket TTS gateway for remote portfolio nodes.
+server {
+    listen ${TTS_PRIVATE_LISTEN};
+    server_name _;
+
+    location = /api/tts {
+        if (\$http_x_portfolio_tts_token != "${TTS_BACKEND_TOKEN}") { return 403; }
+        allow 127.0.0.1;
+GATEWAY
+    local client
+    IFS=',' read -ra tts_clients <<< "${TTS_ALLOWED_CLIENTS}"
+    for client in "${tts_clients[@]}"; do
+        printf '        allow %s;\n' "${client}" >> "${output_file}"
+    done
+    cat >> "${output_file}" << GATEWAY
+        deny all;
+        proxy_pass http://${SERVICE_NAME}_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_set_header Host \$host;
+        proxy_set_header Origin \$http_origin;
+        proxy_set_header X-Real-IP \$http_x_real_ip;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+        chunked_transfer_encoding on;
+    }
+}
+GATEWAY
+}
+
+render_nginx_template() {
+    local tmpl="$1"
+    local output_file="$2"
+    local standalone_dir="$3"
+    local tts_proxy_target="http://${SERVICE_NAME}_backend"
+    local tts_proxy_token_header='# Local TTS requests remain on this site upstream.'
+    if [[ "${TTS_NODE_MODE}" == "remote" ]]; then
+        tts_proxy_target="${TTS_BACKEND_URL}"
+        tts_proxy_token_header='proxy_set_header X-Portfolio-TTS-Token __TTS_BACKEND_TOKEN__;'
+    fi
+
+    sed -e "s|__DOMAIN__|${DOMAIN}|g" \
+        -e "s|__NEXTJS_PORT__|${NEXTJS_PORT}|g" \
+        -e "s|__SERVICE_NAME__|${SERVICE_NAME}|g" \
+        -e "s|__SSL_CERT__|${SSL_CERT}|g" \
+        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
+        -e "s|__STANDALONE_DIR__|${standalone_dir}|g" \
+        -e "s|__TTS_PROXY_TARGET__|${tts_proxy_target}|g" \
+        -e "s|__TTS_PROXY_TOKEN_HEADER__|${tts_proxy_token_header}|g" \
+        "${tmpl}" > "${output_file}"
+    if [[ "${TTS_NODE_MODE}" == "remote" ]]; then
+        local token_rendered
+        token_rendered=$(mktemp "/tmp/${SERVICE_NAME}-nginx-token.XXXXXX")
+        chmod 600 "${token_rendered}"
+        local line
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            printf '%s\n' "${line//__TTS_BACKEND_TOKEN__/${TTS_BACKEND_TOKEN}}"
+        done < "${output_file}" > "${token_rendered}"
+        mv -f "${token_rendered}" "${output_file}"
+    fi
+    append_private_tts_gateway "${output_file}"
+}
+
 prepare_nginx_config() {
     log STEP "Preparing nginx config (staged)..."
 
@@ -1574,18 +1769,11 @@ prepare_nginx_config() {
 
     STAGED_NGINX_CONF="$(mktemp "/tmp/${SERVICE_NAME}-nginx.conf.XXXXXX")"
 
-    # __STANDALONE_DIR__ points to the atomic symlink, NOT the release dir directly.
-    # This way nginx configs don't reference a per-SHA path and survive symlink
-    # swaps without a reload (though we reload anyway for explicit cache invalidation).
-    sed -e "s|__DOMAIN__|${DOMAIN}|g" \
-        -e "s|__NEXTJS_PORT__|${NEXTJS_PORT}|g" \
-        -e "s|__SERVICE_NAME__|${SERVICE_NAME}|g" \
-        -e "s|__SSL_CERT__|${SSL_CERT}|g" \
-        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
-        -e "s|__STANDALONE_DIR__|${DEPLOY_CURRENT_LINK}|g" \
-        "${tmpl}" > "${STAGED_NGINX_CONF}"
+    # Point at the atomic symlink so configs survive release swaps.
+    render_nginx_template "${tmpl}" "${STAGED_NGINX_CONF}" "${DEPLOY_CURRENT_LINK}"
 
-    chmod 644 "${STAGED_NGINX_CONF}"
+    chmod 600 "${STAGED_NGINX_CONF}"
+    chown root:root "${STAGED_NGINX_CONF}"
     log SUCCESS "nginx config staged at ${STAGED_NGINX_CONF}"
 }
 
@@ -1677,7 +1865,8 @@ backup_existing_nginx() {
     if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
         ROLLBACK_NGINX_BACKUP="${BACKUP_DIR}/${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
         cp "${NGINX_ACTIVE_CONF}" "${ROLLBACK_NGINX_BACKUP}"
-        chmod 644 "${ROLLBACK_NGINX_BACKUP}"
+        chmod 600 "${ROLLBACK_NGINX_BACKUP}"
+        chown root:root "${ROLLBACK_NGINX_BACKUP}"
         log DEBUG "nginx backup: ${ROLLBACK_NGINX_BACKUP}"
     fi
 }
@@ -1689,7 +1878,7 @@ activate_nginx_config() {
     fi
     log STEP "Activating nginx config..."
 
-    cp "${STAGED_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"
+    install -m 600 -o root -g root "${STAGED_NGINX_CONF}" "${NGINX_ACTIVE_CONF}"
 
     # Ensure site is enabled
     local symlink="${NGINX_SITES_ENABLED}/${SERVICE_NAME}"
@@ -1760,7 +1949,7 @@ start_service() {
 }
 
 tts_health_check() {
-    log STEP "Verifying Pocket TTS synthesis readiness..."
+    log STEP "Verifying Pocket TTS through the public HTTPS nginx route..."
 
     local response_file
     response_file=$(mktemp "/tmp/${SERVICE_NAME}-tts-health.XXXXXX")
@@ -1773,7 +1962,8 @@ tts_health_check() {
         -H "Origin: https://${DOMAIN}" \
         -H "Sec-Fetch-Site: same-origin" \
         --data '{"text":"Deployment voice readiness check.","stream":true}' \
-        "http://127.0.0.1:${NEXTJS_PORT}/api/tts" 2>>"${LOG_FILE}"); then
+        --resolve "${DOMAIN}:443:127.0.0.1" \
+        "https://${DOMAIN}/api/tts" -k 2>>"${LOG_FILE}"); then
         rm -f "${response_file}"
         log ERROR "Pocket TTS readiness request failed"
         return 1
@@ -1790,6 +1980,45 @@ tts_health_check() {
 
     rm -f "${response_file}"
     log SUCCESS "Pocket TTS synthesized a streaming response"
+}
+
+private_tts_gateway_health_check() {
+    [[ "${TTS_NODE_MODE}" == "local" ]] || return 0
+
+    log STEP "Verifying the private Pocket TTS gateway status path..."
+    local response_file
+    response_file=$(mktemp "/tmp/${SERVICE_NAME}-tts-private-health.XXXXXX")
+    local http_code="000"
+    http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" --max-time 10 \
+        --interface 127.0.0.1 \
+        -H "X-Portfolio-TTS-Token: ${TTS_BACKEND_TOKEN}" \
+        -H "Origin: https://${DOMAIN}" \
+        "http://${TTS_PRIVATE_LISTEN}/api/tts" 2>>"${LOG_FILE}" || echo "000")
+    if [[ "${http_code}" != "200" ]] || ! grep -q '"ok":true' "${response_file}"; then
+        rm -f "${response_file}"
+        log ERROR "Private Pocket TTS gateway status check failed (HTTP ${http_code})"
+        return 1
+    fi
+
+    http_code=$(curl -sS -o "${response_file}" -w "%{http_code}" \
+        --max-time "${LOCAL_TTS_HEALTH_TIMEOUT}" --interface 127.0.0.1 \
+        -X POST \
+        -H "X-Portfolio-TTS-Token: ${TTS_BACKEND_TOKEN}" \
+        -H "Accept: application/x-ndjson" \
+        -H "Content-Type: application/json" \
+        -H "Origin: https://${DOMAIN}" \
+        --data '{"text":"Private gateway readiness check.","stream":true}' \
+        "http://${TTS_PRIVATE_LISTEN}/api/tts" 2>>"${LOG_FILE}" || echo "000")
+    if [[ "${http_code}" != "200" ]] \
+        || ! grep -q '"type":"ready"' "${response_file}" \
+        || ! grep -q '"type":"chunk"' "${response_file}" \
+        || ! grep -q '"type":"done"' "${response_file}"; then
+        rm -f "${response_file}"
+        log ERROR "Private Pocket TTS gateway synthesis check failed (HTTP ${http_code})"
+        return 1
+    fi
+    rm -f "${response_file}"
+    log SUCCESS "Private Pocket TTS gateway status and synthesis paths are ready"
 }
 
 reload_nginx() {
@@ -1979,6 +2208,9 @@ artifact_deploy() {
         log WARN "Deploy will be reported as successful; rollback is NOT triggered."
     fi
 
+    private_tts_gateway_health_check
+    tts_health_check
+
     # Post-deploy housekeeping (non-fatal)
     trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
     update_deploy_symlink
@@ -2031,8 +2263,6 @@ image_deploy() {
         exit 1
     fi
 
-    tts_health_check
-
     if ! reload_nginx; then
         if is_staging_site; then
             log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
@@ -2041,6 +2271,9 @@ image_deploy() {
         log WARN "nginx reload failed — new container is up, but nginx config was not reloaded."
         log WARN "Investigate manually: sudo nginx -t && sudo systemctl reload nginx"
     fi
+
+    private_tts_gateway_health_check
+    tts_health_check
 
     trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
     prune_docker_images || log WARN "Docker image pruning had issues (non-fatal)"
@@ -2210,12 +2443,13 @@ rollback_deploy() {
         exit 1
     fi
 
-    tts_health_check
-
     if ! reload_nginx; then
         log ERROR "nginx reload failed during rollback"
         exit 1
     fi
+
+    private_tts_gateway_health_check
+    tts_health_check
 
     update_deploy_symlink
     health_check
@@ -2345,8 +2579,23 @@ prepare_legacy_standalone() {
 
 ensure_legacy_systemd() {
     log STEP "Writing legacy systemd unit (points at ${LEGACY_STANDALONE_DIR})..."
-    ensure_tts_cache_dir
-    chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+    local tts_environment="Environment=TTS_NODE_MODE=remote"
+    local tts_hardening="ReadWritePaths=${PROJECT_ROOT}"
+    if [[ "${TTS_NODE_MODE}" == "local" ]]; then
+        ensure_tts_cache_dir
+        chown "${SERVICE_USER}:${SERVICE_USER}" "${TTS_CACHE_DIR}" 2>/dev/null || true
+        tts_environment="Environment=TTS_NODE_MODE=local
+Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
+Environment=LOCAL_TTS_REFERENCE_PATH=${LEGACY_TTS_REFERENCE_PATH}
+Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
+Environment=LOCAL_TTS_INTRA_OP_THREADS=1
+Environment=LOCAL_TTS_INTER_OP_THREADS=1
+Environment=OMP_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}"
+        tts_hardening="CacheDirectory=${SERVICE_NAME}/pocket-tts
+ReadWritePaths=${PROJECT_ROOT} ${TTS_CACHE_DIR}"
+    fi
     local node_bin
     node_bin=$(command -v node)
     cat > "${SYSTEMD_UNIT}" << UNIT
@@ -2359,14 +2608,7 @@ Wants=network.target
 Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${LEGACY_STANDALONE_DIR}
-Environment=LOCAL_TTS_CACHE_DIR=${TTS_CACHE_DIR}
-Environment=LOCAL_TTS_REFERENCE_PATH=${LEGACY_TTS_REFERENCE_PATH}
-Environment=LOCAL_TTS_VOICE_STATE_PATH=${TTS_VOICE_STATE_PATH}
-Environment=LOCAL_TTS_INTRA_OP_THREADS=1
-Environment=LOCAL_TTS_INTER_OP_THREADS=1
-Environment=OMP_NUM_THREADS=1
-Environment=MKL_NUM_THREADS=1
-Environment=HF_HUB_CACHE=${TTS_CACHE_DIR}
+${tts_environment}
 EnvironmentFile=-${LEGACY_STANDALONE_DIR}/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=${NEXTJS_PORT}
@@ -2387,8 +2629,7 @@ IOSchedulingPriority=4
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-CacheDirectory=${SERVICE_NAME}/pocket-tts
-ReadWritePaths=${PROJECT_ROOT} ${TTS_CACHE_DIR}
+${tts_hardening}
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -2418,16 +2659,13 @@ deploy_legacy_nginx() {
     if [[ -f "${NGINX_ACTIVE_CONF}" ]]; then
         ROLLBACK_NGINX_BACKUP="${BACKUP_DIR}/${SERVICE_NAME}.backup.$(date +%Y%m%d-%H%M%S)"
         cp "${NGINX_ACTIVE_CONF}" "${ROLLBACK_NGINX_BACKUP}"
+        chmod 600 "${ROLLBACK_NGINX_BACKUP}"
+        chown root:root "${ROLLBACK_NGINX_BACKUP}"
     fi
     local tmpl="${PROJECT_ROOT}/${NGINX_CONF_TEMPLATE}"
-    sed -e "s|__DOMAIN__|${DOMAIN}|g" \
-        -e "s|__NEXTJS_PORT__|${NEXTJS_PORT}|g" \
-        -e "s|__SERVICE_NAME__|${SERVICE_NAME}|g" \
-        -e "s|__SSL_CERT__|${SSL_CERT}|g" \
-        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
-        -e "s|__STANDALONE_DIR__|${LEGACY_STANDALONE_DIR}|g" \
-        "${tmpl}" > "${NGINX_ACTIVE_CONF}"
-    chmod 644 "${NGINX_ACTIVE_CONF}"
+    render_nginx_template "${tmpl}" "${NGINX_ACTIVE_CONF}" "${LEGACY_STANDALONE_DIR}"
+    chmod 600 "${NGINX_ACTIVE_CONF}"
+    chown root:root "${NGINX_ACTIVE_CONF}"
     local symlink="${NGINX_SITES_ENABLED}/${SERVICE_NAME}"
     [[ -L "${symlink}" ]] || ln -sf "${NGINX_ACTIVE_CONF}" "${symlink}"
     mkdir -p "/var/cache/nginx/${SERVICE_NAME}"
@@ -2467,6 +2705,8 @@ legacy_deploy() {
     [[ $i -ge ${HEALTH_CHECK_RETRIES} ]] && { log ERROR "Service failed to start"; exit 1; }
 
     deploy_legacy_nginx
+    private_tts_gateway_health_check
+    tts_health_check
     health_check
 }
 

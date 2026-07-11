@@ -49,6 +49,22 @@ SSL_KEY="/etc/ssl/cloudflare/whoisdhruv.com.key"
 # Template file in the repo (relative to PROJECT_ROOT)
 NGINX_CONF_TEMPLATE="nginx-cloudflare.conf"
 
+# ── Pocket TTS Topology ──────────────────────────────────────────────────────
+# Configure each site independently. Staging and production on the local TTS
+# VM must use different private ports. Generate a shared token with:
+#   openssl rand -base64 48 | tr -d '=+/' | head -c 48
+#
+# Local gateway node:
+TTS_NODE_MODE="local"
+TTS_PRIVATE_LISTEN="10.0.0.10:3100"
+TTS_ALLOWED_CLIENTS="10.0.0.20,10.0.0.21/32"
+TTS_BACKEND_TOKEN="REPLACE_WITH_GENERATED_TOKEN"
+#
+# Remote client node (replace the local-only settings above):
+# TTS_NODE_MODE="remote"
+# TTS_BACKEND_URL="http://10.0.0.10:3100"
+# TTS_BACKEND_TOKEN="same_token_as_the_matching_local_site_gateway"
+
 # ── Required Environment Variables ───────────────────────────────────────────
 # Comma-separated. Deploy script validates these exist in .env.local.
 # Leave empty to support either Groq-first (`GROQ_API_KEY`) or legacy
@@ -64,8 +80,8 @@ MAX_LOG_FILES=10
 # These are set once per machine and shared across all sites:
 #   MACHINE_USER          - System user (default: ubuntu)
 #   NODE_HEAP_MB          - V8 heap limit per site (default: 350)
-#   MEMORY_HIGH_MB        - systemd soft memory limit (default: 1200)
-#   MEMORY_MAX_MB         - systemd hard memory limit (default: 1536)
+#   MEMORY_HIGH_MB        - systemd soft limit (local TTS >=1200; remote >=400)
+#   MEMORY_MAX_MB         - systemd hard limit (local TTS >=1536; remote >=500)
 #   CPU_QUOTA_PERCENT     - CPU quota per site (default: 180)
 #   BUILD_NICE            - Build process nice value (default: 15)
 #   BUILD_IONICE_CLASS    - Build I/O scheduling class (default: 3)

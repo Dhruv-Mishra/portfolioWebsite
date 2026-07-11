@@ -17,6 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/chat`, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${baseUrl}/guestbook`, changeFrequency: 'daily', priority: 0.5 },
     { url: `${baseUrl}/stickers`, changeFrequency: 'monthly', priority: 0.3 },
+    { url: `${baseUrl}/settings`, changeFrequency: 'monthly', priority: 0.3 },
     // LLM/AI-crawler markdown surfaces (https://llmstxt.org). Listed in the
     // sitemap so traditional search crawlers also discover them — useful for
     // Google's AI Overviews and Bing's answer engine which both ingest .md.

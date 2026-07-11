@@ -17,36 +17,18 @@
  * The banner is **only** rendered on `/stickers`. No sitewide presence.
  */
 
-import { memo, useEffect, useState } from 'react';
+import { memo } from 'react';
 import { m } from 'framer-motion';
 import SuperuserCard from '@/components/superuser/SuperuserCard';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 
 interface SuperuserBannerProps {
   /** Timestamp the superuser sticker was earned (from store `unlockedAt.superuser`). */
   earnedAt: number | undefined;
 }
 
-/**
- * Detect `prefers-reduced-motion: reduce`. Only used to gate the quiet
- * entrance (fade + small slide up). The persistent shimmer on the card is
- * controlled entirely by CSS and always runs — it's a premium treatment
- * rather than a motion cue.
- */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = (): void => setReduced(mq.matches);
-    update();
-    mq.addEventListener?.('change', update);
-    return () => mq.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
-}
-
 function SuperuserBannerImpl({ earnedAt }: SuperuserBannerProps): React.ReactElement {
-  const reducedMotion = usePrefersReducedMotion();
+  const reducedMotion = useEffectiveReducedMotion();
 
   // Persistent quiet entrance — a subtle fade + small slide up. The toast
   // already played the scale-spring + confetti elsewhere (or is about to).

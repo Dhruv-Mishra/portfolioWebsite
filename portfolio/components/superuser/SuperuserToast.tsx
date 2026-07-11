@@ -29,7 +29,7 @@
  *   - role="alert" + aria-live="assertive" for immediate SR announcement.
  *   - Focusable close button.
  *   - ESC handler.
- *   - Respect prefers-reduced-motion for entrance scale; shimmer stays on.
+ *   - Respect reduced motion for entrance scale and persistent shimmer.
  */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -37,6 +37,7 @@ import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import SuperuserCard from '@/components/superuser/SuperuserCard';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { setSuperuserRevealedAtImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
@@ -53,23 +54,8 @@ const AUTO_DISMISS_MS = 7000;
 const FANFARE_TO_DISCO_DELAY_MS = 300;
 const EXIT_ANIMATION_MS = 260;
 
-/** Detect `prefers-reduced-motion: reduce`. Gates the scale-spring entrance
- *  only; the shimmer on the card stays on regardless (premium treatment). */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const update = (): void => setReduced(mq.matches);
-    update();
-    mq.addEventListener?.('change', update);
-    return () => mq.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
-}
-
 function SuperuserToastImpl({ earnedAt, onDismissed }: SuperuserToastProps): React.ReactElement | null {
-  const reducedMotion = usePrefersReducedMotion();
+  const reducedMotion = useEffectiveReducedMotion();
   const [visible, setVisible] = useState<boolean>(true);
   const dismissedRef = useRef<boolean>(false);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);

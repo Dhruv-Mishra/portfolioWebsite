@@ -87,6 +87,11 @@ const AdminPrefsController = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const ExperimentalFeaturesController = dynamic(
+  () => import('@/components/ExperimentalFeaturesController'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -96,6 +101,7 @@ export default function EagerEnhancements() {
       <SoundRouteListener />
       <ClickSoundListener />
       <AdminPrefsController />
+      <ExperimentalFeaturesController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

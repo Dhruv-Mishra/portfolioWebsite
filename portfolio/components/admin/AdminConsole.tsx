@@ -28,11 +28,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Cpu, FileText, PenTool, Sparkles, LogOut, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAdminPrefsApi, type AdminPrefs } from '@/hooks/useAdminPrefs';
+import { useAdminPrefsApi } from '@/hooks/useAdminPrefs';
 import { logoutAdmin } from '@/lib/adminAuthClient';
 import { MATRIX_PUZZLE_KEYS } from '@/lib/matrixPuzzle';
 
-type ToggleKey = keyof Omit<AdminPrefs, 'version'>;
+type ToggleKey = 'paperGrain' | 'tapeEffects' | 'sketchOutlines' | 'experimentalCommands';
 
 interface ToggleDef {
   key: ToggleKey;

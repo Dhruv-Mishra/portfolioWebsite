@@ -1,7 +1,7 @@
 "use client";
 
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { AnimatePresence, m, type Variants } from 'framer-motion';
 import {
   BriefcaseBusiness,
@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import type { ExperienceTimelineCategory, ExperienceTimelineEntry } from '@/lib/experienceTimeline';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -154,25 +155,10 @@ function getEntriesForFilter(entries: readonly ExperienceTimelineEntry[], filter
   return filter === 'all' ? entries : entries.filter((entry) => entry.category === filter);
 }
 
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
-
-    updatePreference();
-    mediaQuery.addEventListener('change', updatePreference);
-    return () => mediaQuery.removeEventListener('change', updatePreference);
-  }, []);
-
-  return prefersReducedMotion;
-}
-
 export default function ExperienceTimeline({ entries }: ExperienceTimelineProps) {
   const [activeId, setActiveId] = useState<string | null>(entries[0]?.id ?? null);
   const [selectedFilter, setSelectedFilter] = useState<TimelineFilter>('all');
-  const prefersReducedMotion = usePrefersReducedMotion();
+  const prefersReducedMotion = useEffectiveReducedMotion();
   const { selection, subtle, toggle } = useAppHaptics();
 
   const filteredEntries = useMemo(

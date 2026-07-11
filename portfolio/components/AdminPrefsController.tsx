@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * AdminPrefsController — mirrors the admin-prefs store into
+ * AdminPrefsController — mirrors public visual preferences into
  * `<html data-pref-*>` attributes so CSS selectors in globals.css can
- * toggle visual treatments. Also bridges for the sticker store's
- * `superuser` signal which the terminal relies on.
+ * toggle visual treatments. Internal puzzle preferences are intentionally
+ * never exposed as document attributes.
  *
  * Single-purpose + tiny. Mounted once by EagerEnhancements.
  */

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Sun, Moon } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { stickerBus } from '@/lib/stickerBus';
@@ -10,6 +11,7 @@ import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
 import { useDiscoActive } from '@/hooks/useStickers';
 import { runThemeToggle } from '@/lib/themeToggleAction';
+import { Tooltip } from '@/components/ui/Tooltip';
 // Note: soundManager import removed — the mobile theme button now routes
 // audio playback through `runThemeToggle` so the desktop + mobile handlers
 // share exactly one code path. The shared helper owns the cricket/rooster
@@ -86,7 +88,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleClick}
-            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
             title={social.name}
             aria-label={social.name}
             style={{ animationDelay: `${0.5 + ((index || 0) * 0.1)}s` }}
@@ -102,6 +104,24 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
 
 // Pre-computed mobile social list (CP History replaced by feedback button)
 const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
+
+const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPress }: { isMobile?: boolean; onPress: () => void }) {
+    const link = (
+        <Link
+            href="/settings"
+            onClick={onPress}
+            className={isMobile
+                ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)] text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
+                : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
+            title="Settings"
+            aria-label="Open settings"
+        >
+            <Settings size={isMobile ? 15 : 24} strokeWidth={2.5} className={isMobile ? undefined : "md:h-7 md:w-7"} />
+        </Link>
+    );
+
+    return isMobile ? link : <Tooltip label="Settings">{link}</Tooltip>;
+});
 
 /**
  * Mobile theme button — mirrors the desktop `ThemeToggle` behaviour so the
@@ -184,7 +204,8 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {/* Desktop: Vertical sidebar on right */}
             <div
                 data-social-sidebar
-                className="hidden md:flex fixed right-4 md:right-8 top-1/2 -translate-y-1/2 flex-col gap-6"
+                data-social-sidebar-layout="desktop"
+                className="hidden md:flex fixed right-4 md:right-8 flex-col gap-6"
                 role="complementary"
                 aria-label="Social media links"
                 style={{ zIndex: Z_INDEX.sidebar }}
@@ -192,6 +213,22 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 {SOCIALS.map((social, i) => (
                     <SocialLink key={social.name} social={social} index={i} onPress={externalLink} />
                 ))}
+                <SettingsLink onPress={openPanel} />
+                {onFeedbackClick && (
+                    <button
+                        type="button"
+                        data-social-feedback-short
+                        onClick={() => {
+                            openPanel();
+                            onFeedbackClick();
+                        }}
+                        className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-purple-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                        title="Send feedback"
+                        aria-label="Open feedback form"
+                    >
+                        <MessageSquare size={24} strokeWidth={2.5} className="md:h-7 md:w-7" />
+                    </button>
+                )}
                 <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
@@ -201,13 +238,21 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
             {!hideMobileBar && (
             <div
                 data-social-sidebar
-                className="md:hidden fixed bottom-4 left-[calc(50%+var(--c-binding-w)/2)] -translate-x-1/2 flex max-w-[calc(100vw-var(--c-binding-w)-1rem)] items-center gap-0.5 overflow-x-auto rounded-full border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] px-1 py-1 shadow-md scrollbar-hidden sm:gap-1 sm:px-2 sm:py-1.5"
+                data-social-sidebar-layout="mobile"
+                className="md:hidden fixed -translate-x-1/2 grid grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
                 role="complementary"
                 aria-label="Social media links"
-                style={{ zIndex: Z_INDEX.sidebar }}
+                style={{
+                    zIndex: Z_INDEX.sidebar,
+                    bottom: 'var(--c-mobile-dock-bottom)',
+                    left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
+                    maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
+                }}
             >
                 {/* Theme Toggle */}
                 <MobileThemeButton onPress={toggle} />
+
+                <SettingsLink isMobile onPress={openPanel} />
 
                 {MOBILE_SOCIALS.map((social) => (
                     <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />

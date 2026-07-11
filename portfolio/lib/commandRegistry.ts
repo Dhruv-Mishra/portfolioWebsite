@@ -25,8 +25,10 @@ import {
   Keyboard,
   AtSign,
   Github,
+  Settings,
 } from 'lucide-react';
 import { PERSONAL_LINKS } from '@/lib/links';
+import { runThemeToggle } from '@/lib/themeToggleAction';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -36,6 +38,7 @@ export interface CommandContext {
   router: AppRouterInstance;
   setTheme: (t: 'light' | 'dark') => void;
   resolvedTheme: string | undefined;
+  discoActive: boolean;
   openFeedback: () => void;
   openShortcuts: () => void;
   runTerminalCommand: (cmd: string) => void;
@@ -124,6 +127,14 @@ export function buildCommandEntries(): CommandEntry[] {
       icon: Sticker,
       run: (ctx) => ctx.router.push('/stickers'),
     },
+    {
+      id: 'nav-settings',
+      label: 'Settings',
+      keywords: ['settings', 'preferences', 'accessibility', 'sound', 'motion', 'theme'],
+      group: 'Navigation',
+      icon: Settings,
+      run: (ctx) => ctx.router.push('/settings'),
+    },
 
     // ── Actions ─────────────────────────────────────────────────
     {
@@ -133,10 +144,11 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Actions',
       keyboardHint: 't',
       icon: SunMoon,
-      run: (ctx) => {
-        const next = ctx.resolvedTheme === 'dark' ? 'light' : 'dark';
-        ctx.setTheme(next);
-      },
+      run: (ctx) => runThemeToggle({
+        discoActive: ctx.discoActive,
+        isDark: ctx.resolvedTheme === 'dark',
+        setTheme: ctx.setTheme,
+      }),
     },
     {
       id: 'action-send-feedback',

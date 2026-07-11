@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence, usePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,8 @@ interface ModalProps {
   ariaLabel?: string;
   /** ID of the element that labels the dialog */
   ariaLabelledBy?: string;
+  /** ID of the element that describes the dialog */
+  ariaDescribedBy?: string;
   /** Tailwind classes for the backdrop overlay.
    *  Default: "bg-black/20 dark:bg-black/40" (light tint) */
   backdropClassName?: string;
@@ -42,12 +44,20 @@ function ModalContent({
   style,
   ariaLabel,
   ariaLabelledBy,
+  ariaDescribedBy,
   backdropClassName = "bg-black/20 dark:bg-black/40",
   modalRef,
 }: ModalContentProps) {
   const openerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const [isPresent, safeToRemove] = usePresence();
   const removeFromPresence = useEffectEvent(() => safeToRemove?.());
+
+  const requestClose = useCallback(() => onCloseRef.current(), []);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (isPresent) return;
@@ -75,7 +85,7 @@ function ModalContent({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        requestClose();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -104,7 +114,7 @@ function ModalContent({
       document.body.style.overflow = originalOverflow;
       openerRef.current?.focus();
     };
-  }, [modalRef, onClose]);
+  }, [modalRef, requestClose]);
 
   return (
     <>
@@ -114,35 +124,45 @@ function ModalContent({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: ANIMATION_TOKENS.duration.normal }}
-        onClick={onClose}
+        onClick={requestClose}
         className={cn("fixed inset-0", backdropClassName)}
         style={{ zIndex: Z_INDEX.modal }}
         aria-hidden="true"
       />
 
       <div
-        className="fixed inset-0 overflow-y-auto overscroll-contain"
-        onClick={onClose}
+        className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-contain"
+        onClick={requestClose}
         style={{ zIndex: Z_INDEX.modal }}
       >
-        <m.div
-          ref={modalRef}
-          key="modal-card"
-          initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
-          animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
-          exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
-          transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
-          className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
-          style={style}
-          role="dialog"
-          aria-modal="true"
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          tabIndex={-1}
-          onClick={(event) => event.stopPropagation()}
+        <div
+          className="flow-root min-h-full"
+          style={{
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          }}
         >
-          {children}
-        </m.div>
+          <m.div
+            ref={modalRef}
+            key="modal-card"
+            initial={INTERACTION_TOKENS.entrance.fadeScaleRotate.initial}
+            animate={INTERACTION_TOKENS.entrance.fadeScaleRotate.animate}
+            exit={INTERACTION_TOKENS.exit.fadeScaleRotate}
+            transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle }}
+            className={cn("relative mx-3 md:mx-auto will-change-transform", className)}
+            style={style}
+            role="dialog"
+            aria-modal="true"
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
+            aria-describedby={ariaDescribedBy}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {children}
+          </m.div>
+        </div>
       </div>
     </>
   );
@@ -172,6 +192,7 @@ export function Modal({
   style,
   ariaLabel,
   ariaLabelledBy,
+  ariaDescribedBy,
   backdropClassName = "bg-black/20 dark:bg-black/40",
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -208,6 +229,7 @@ export function Modal({
           style={style}
           ariaLabel={ariaLabel}
           ariaLabelledBy={ariaLabelledBy}
+          ariaDescribedBy={ariaDescribedBy}
           backdropClassName={backdropClassName}
         >
           {children}

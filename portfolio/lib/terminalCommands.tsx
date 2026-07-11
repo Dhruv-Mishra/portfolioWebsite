@@ -89,6 +89,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                 { cmd: 'feedback', desc: 'Report a bug / send feedback' },
                 { cmd: 'guestbook', desc: 'Sign the wall' },
                 { cmd: 'sign', desc: 'Alias for guestbook' },
+                { cmd: 'settings', desc: 'Open site preferences' },
             ],
             // Page 3 — fun / stickers / puzzle
             [
@@ -275,6 +276,10 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         output: "Navigating to the wall...",
         action: () => { setTimeout(() => router.push("/guestbook"), NAVIGATION_DELAY_MS); }
     }),
+    settings: () => ({
+        output: "Opening site settings...",
+        action: () => { setTimeout(() => router.push("/settings"), NAVIGATION_DELAY_MS); }
+    }),
     stickers: (args: string[]) => {
         const sub = (args[0] ?? '').toLowerCase();
         if (!sub) {
@@ -289,7 +294,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         }
         if (sub === 'on') {
             setAdminPref('stickersEnabled', true);
-            return { output: "Stickers enabled. (Toasts unchanged \u2014 use `stickers quiet` or the /stickers settings to control them.)" };
+            return { output: "Stickers enabled. (Toasts unchanged \u2014 use `stickers quiet` or open /settings to control them.)" };
         }
         if (sub === 'quiet') {
             setAdminPref('stickerToastsEnabled', false);

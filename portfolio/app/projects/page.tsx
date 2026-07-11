@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, type CSSProperties } from 'react';
+import { useState, useCallback, type CSSProperties, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
@@ -101,6 +101,11 @@ export default function Projects() {
         }
     }, [openPanel]);
 
+    const handleCardClick = useCallback((event: MouseEvent<HTMLDivElement>, index: number) => {
+        if (event.target instanceof Element && event.target.closest('a, button')) return;
+        openProject(index);
+    }, [openProject]);
+
     const handleCloseModal = useCallback(() => {
         closePanel();
         setSelectedProject(null);
@@ -142,6 +147,8 @@ export default function Projects() {
                         {/* Inner hover/tap layer — honor reduced-motion while keeping normal hover polish. */}
                         <MotionConfig reducedMotion="user">
                         <m.div
+                            data-clickable
+                            onClick={(event) => handleCardClick(event, i)}
                             whileHover={isMobile ? undefined : CARD_HOVER}
                             whileTap={CARD_TAP}
                             className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
@@ -149,6 +156,7 @@ export default function Projects() {
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
+                                data-tape-strip
                                 className="absolute -top-4 w-32 h-10 shadow-sm z-20"
                                 style={styles.tape}
                             />

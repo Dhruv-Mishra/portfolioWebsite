@@ -36,6 +36,23 @@ export interface ThemeToggleParams {
   setTheme: (theme: 'dark' | 'light') => void;
 }
 
+export type ThemeSelection = 'system' | 'light' | 'dark';
+
+export interface ThemeSelectionParams {
+  discoActive: boolean;
+  theme: ThemeSelection;
+  setTheme: (theme: ThemeSelection) => void;
+}
+
+export function runThemeSelection({
+  discoActive,
+  theme,
+  setTheme,
+}: ThemeSelectionParams): void {
+  if (discoActive) setDiscoActiveImperative(false);
+  setTheme(theme);
+}
+
 /**
  * Run the theme-toggle side effect. Pure w.r.t. React — safe to call from
  * any event handler. See module header for the branching.

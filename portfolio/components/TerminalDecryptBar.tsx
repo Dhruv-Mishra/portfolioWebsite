@@ -52,6 +52,8 @@
  */
 
 import React from 'react';
+import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
 
 /** Total width of the bar in cells. 30 fits a 360px viewport at default font size. */
 const BAR_CELLS = 30;
@@ -99,16 +101,6 @@ interface TerminalDecryptBarProps {
   durationMs?: number;
 }
 
-/** Read prefers-reduced-motion once per mount. SSR-safe. */
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-}
-
 export default function TerminalDecryptBar({
   id,
   label = 'decrypting adminTerminal.txt',
@@ -128,7 +120,9 @@ export default function TerminalDecryptBar({
       return;
     }
 
-    const reducedMotion = prefersReducedMotion();
+    const reducedMotion = getEffectiveReducedMotion(
+      getSitePrefsSnapshot().motionPreference,
+    );
     const duration = reducedMotion
       ? REDUCED_MOTION_DURATION_MS
       : durationMs ?? DEFAULT_DURATION_MS;

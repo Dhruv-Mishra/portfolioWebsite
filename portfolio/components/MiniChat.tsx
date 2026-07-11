@@ -86,7 +86,8 @@ export default function MiniChat() {
 
   return (
     <div
-      className="fixed right-4 md:right-20 bottom-[calc(env(safe-area-inset-bottom,0px)+5rem)] md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
+      data-mini-chat-root
+      className="fixed right-[max(1rem,env(safe-area-inset-right,0px))] bottom-[var(--c-mobile-floating-bottom)] md:right-20 md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]"
       style={{ zIndex: Z_INDEX.nav }}
     >
       {isOpen ? <MiniChatPanel onClose={handleClose} /> : null}

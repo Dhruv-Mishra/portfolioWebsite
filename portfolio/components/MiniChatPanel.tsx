@@ -41,6 +41,7 @@ export default function MiniChatPanel({ onClose }: MiniChatPanelProps) {
         onClick={handleClose}
       />
       <m.div
+        data-mini-chat-panel
         initial={INTERACTION_TOKENS.entrance.popIn.initial}
         animate={INTERACTION_TOKENS.entrance.popIn.animate}
         transition={GENTLE_SPRING_TRANSITION}

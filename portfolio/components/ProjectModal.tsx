@@ -110,7 +110,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         <Modal
             isOpen={project !== null}
             onClose={onClose}
-            className="w-[95vw] max-w-3xl my-6 md:my-12 font-hand"
+            className="mx-auto my-3 w-[calc(100%-1.5rem)] max-w-3xl font-hand md:my-12"
             ariaLabel={project ? `${project.name} project details` : undefined}
             backdropClassName="bg-black/60"
         >
@@ -118,6 +118,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 <div className="relative pt-5">
                     {/* Tape decoration — lives in the top padding, outside the clip path */}
                     <div
+                        data-tape-strip
                         className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-10 shadow-sm z-20"
                         style={TAPE_STYLE_DECOR}
                     />
@@ -133,7 +134,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                 closePanel();
                                 onClose();
                             }}
-                            className="absolute top-4 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-white/60 text-rose-600/80 shadow-md hover:scale-110 hover:rotate-6 hover:bg-rose-50/90 hover:text-rose-700 dark:bg-black/40 dark:text-rose-400/85 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200"
+                            className="absolute top-4 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white/60 text-rose-600/80 shadow-md hover:scale-110 hover:rotate-6 hover:bg-rose-50/90 hover:text-rose-700 dark:bg-black/40 dark:text-rose-400/85 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200"
                             aria-label="Close project note"
                             data-clickable
                         >
@@ -176,7 +177,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                             onClick={toggleMute}
                                             aria-label={isMuted ? 'Unmute video' : 'Mute video'}
                                             data-clickable
-                                            className="absolute bottom-3 right-3 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
+                                            className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
                                         >
                                             {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                                         </button>

@@ -65,6 +65,10 @@
     --c-pill-w: 5px;
     --c-modal-top: 8vh;
     --c-modal-top-md: 12vh;
+    --c-mobile-dock-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+    --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
+    --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 8.25rem);
+    --c-mobile-floating-upper-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
@@ -244,6 +248,54 @@
       --t-hero-md: 3rem;
       --t-hero-lg: 3rem;
     }
+  }
+
+}
+
+/* Keep fixed interaction surfaces reachable when landscape orientation or
+   an on-screen keyboard leaves little vertical room. These overrides live
+   outside Tailwind layers so they beat the generated size/position utilities. */
+@media (max-height: 640px) {
+  [data-mini-chat-panel] {
+    height: min(var(--c-chat-h), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--c-mobile-floating-bottom) - 5rem));
+  }
+}
+
+@media (min-width: 768px) and (min-height: 641px) {
+  [data-social-sidebar-layout="desktop"] {
+    top: 50%;
+    translate: 0 -50%;
+  }
+}
+
+@media (min-width: 768px) and (max-height: 640px) {
+  [data-mini-chat-root] {
+    right: 6rem;
+  }
+
+  [data-mini-chat-panel] {
+    right: 0.5rem;
+    height: min(var(--c-chat-h-md), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 6.5rem));
+  }
+
+  [data-social-sidebar-layout="desktop"] {
+    top: max(0.5rem, env(safe-area-inset-top, 0px));
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem);
+    transform: none;
+    gap: 0.25rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding-block: 0.125rem;
+  }
+
+  [data-social-feedback-short] {
+    display: flex;
+  }
+
+  [data-feedback-tab] {
+    display: none !important;
   }
 }
 
@@ -477,16 +529,205 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
-  /* Per-navigation page fade. Replaces a previous framer-motion template so
-     the motion runtime is no longer on the critical path of every navigation.
-     Pure opacity \u2014 no transform \u2014 so it cannot trigger CLS. */
-  .animate-page-template-in {
-    animation: pageTemplateIn 0.2s ease-out both;
+  /* Per-navigation page transition. The short opacity fallback stays safe
+     while capable browsers progressively enhance it to a directional paper
+     turn. Larger jumps expose one secondary sheet rather than mounting every
+     intermediate route. */
+  .page-turn-surface {
+    position: relative;
   }
 
-  @keyframes pageTemplateIn {
-    from { opacity: 0; }
+  .animate-page-template-in {
+    pointer-events: none;
+    animation: pageTemplateFadeIn 140ms ease-out backwards;
+  }
+
+  @keyframes pageTemplateFadeIn {
+    from { opacity: 0.82; }
     to { opacity: 1; }
+  }
+
+  @supports (transform: perspective(1px) rotateY(1deg)) {
+    .animate-page-template-in {
+      --page-turn-angle: -38deg;
+      --page-turn-secondary-angle: -20deg;
+      --page-turn-duration: 420ms;
+      --page-turn-perspective: 78rem;
+      --page-turn-origin: left center;
+      --page-turn-offset: -2%;
+      --page-turn-stack-offset: -1.25%;
+      --page-turn-stack-midpoint: -0.45%;
+      --page-turn-shade-direction: 90deg;
+      animation: pageTemplateTurnIn var(--page-turn-duration) cubic-bezier(0.22, 0.75, 0.2, 1) backwards;
+      transform-origin: var(--page-turn-origin);
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+      will-change: transform, opacity;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"] {
+      --page-turn-angle: 38deg;
+      --page-turn-secondary-angle: 20deg;
+      --page-turn-origin: right center;
+      --page-turn-offset: 2%;
+      --page-turn-stack-offset: 1.25%;
+      --page-turn-stack-midpoint: 0.45%;
+      --page-turn-shade-direction: 270deg;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="2"] {
+      --page-turn-duration: 470ms;
+      --page-turn-stack-offset: -1.75%;
+      --page-turn-stack-midpoint: -0.65%;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="2"] {
+      --page-turn-stack-offset: 1.75%;
+      --page-turn-stack-midpoint: 0.65%;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="3"] {
+      --page-turn-angle: -48deg;
+      --page-turn-secondary-angle: -28deg;
+      --page-turn-duration: 510ms;
+      --page-turn-stack-offset: -2.4%;
+      --page-turn-stack-midpoint: -0.85%;
+    }
+
+    .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="3"] {
+      --page-turn-angle: 48deg;
+      --page-turn-secondary-angle: 28deg;
+      --page-turn-stack-offset: 2.4%;
+      --page-turn-stack-midpoint: 0.85%;
+    }
+
+    .animate-page-template-in[data-page-turn-distance="2"]::before,
+    .animate-page-template-in[data-page-turn-distance="3"]::before {
+      content: "";
+      position: absolute;
+      inset: 0.2rem;
+      z-index: 0;
+      pointer-events: none;
+      background: var(--c-paper);
+      border: 1px solid color-mix(in srgb, var(--c-ink) 12%, transparent);
+      box-shadow: 0 0.35rem 0.9rem color-mix(in srgb, var(--c-ink) 12%, transparent);
+      transform-origin: var(--page-turn-origin);
+      animation: pageTemplateSecondaryIn var(--page-turn-duration) ease-out backwards;
+      will-change: transform, opacity;
+    }
+
+    .animate-page-template-in::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(
+        var(--page-turn-shade-direction),
+        color-mix(in srgb, var(--c-ink) 18%, transparent),
+        color-mix(in srgb, var(--c-paper) 42%, transparent) 7%,
+        transparent 24%,
+        transparent 78%,
+        color-mix(in srgb, var(--c-paper) 24%, transparent) 91%,
+        color-mix(in srgb, var(--c-ink) 7%, transparent)
+      );
+      animation: pageTemplateShadeIn var(--page-turn-duration) ease-out;
+    }
+
+    @keyframes pageTemplateTurnIn {
+      from {
+        opacity: 0.42;
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-offset)) rotateY(var(--page-turn-angle));
+      }
+
+      72% {
+        opacity: 1;
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(1.5deg);
+      }
+
+      to {
+        opacity: 1;
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
+      }
+    }
+
+    @keyframes pageTemplateSecondaryIn {
+      from {
+        opacity: 0.72;
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-stack-offset)) rotateY(var(--page-turn-secondary-angle));
+      }
+
+      68% {
+        opacity: 0.42;
+        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-stack-midpoint)) rotateY(2deg);
+      }
+
+      to {
+        opacity: 0;
+        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
+      }
+    }
+
+    @keyframes pageTemplateShadeIn {
+      from { opacity: 0.9; }
+      to { opacity: 0; }
+    }
+
+    @media (min-width: 768px) {
+      .animate-page-template-in {
+        --page-turn-angle: -58deg;
+        --page-turn-perspective: 100rem;
+        --page-turn-duration: 500ms;
+      }
+
+      .animate-page-template-in[data-page-turn-direction="backward"] {
+        --page-turn-angle: 58deg;
+      }
+
+      .animate-page-template-in[data-page-turn-distance="2"] {
+        --page-turn-duration: 540ms;
+      }
+
+      .animate-page-template-in[data-page-turn-distance="3"] {
+        --page-turn-angle: -66deg;
+        --page-turn-duration: 580ms;
+      }
+
+      .animate-page-template-in[data-page-turn-direction="backward"][data-page-turn-distance="3"] {
+        --page-turn-angle: 66deg;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:not([data-motion="full"]) .animate-page-template-in {
+      animation: none !important;
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+      will-change: auto;
+    }
+
+    html:not([data-motion="full"]) .animate-page-template-in::before,
+    html:not([data-motion="full"]) .animate-page-template-in::after {
+      content: none;
+      animation: none;
+    }
+  }
+
+  html[data-motion="reduced"] .animate-page-template-in {
+    animation: none !important;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    will-change: auto;
+  }
+
+  html[data-motion="reduced"] .animate-page-template-in::before,
+  html[data-motion="reduced"] .animate-page-template-in::after {
+    content: none;
+    animation: none;
   }
 
 }
@@ -580,8 +821,8 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   animation: listening-ellipsis 1.2s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .animate-listening-bar,
-  .animate-listening-ellipsis { animation: none; }
+  html:not([data-motion="full"]) .animate-listening-bar,
+  html:not([data-motion="full"]) .animate-listening-ellipsis { animation: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -732,8 +973,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 /* Diagonal light streak — same idiom as the old sticker-card shimmer but
    larger, slower, and with a higher-contrast peak. Part of the premium
-   feel; does NOT respect reduce-motion (persistent shimmer is a property
-   of the card, not a motion animation the user would find distracting). */
+  feel; both reduced-motion paths suppress the persistent shimmer. */
 .superuser-banner__card::after {
   content: "";
   position: absolute;
@@ -843,9 +1083,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 /* Reduce-motion: disable persistent decorative movement. Confetti is
    controlled separately by JavaScript. */
 @media (prefers-reduced-motion: reduce) {
-  .superuser-banner__glow { animation: none; }
-  .superuser-banner__medal { animation: none; }
-  .superuser-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__glow { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__medal { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__card::after { animation: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1014,9 +1254,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .escape-banner__glow { animation: none; }
-  .escape-banner__medal { animation: none; }
-  .escape-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__glow { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__medal { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__card::after { animation: none; }
 }
 
 /* Matrix note card entrance — used on /matrix-notes. Kept separate from
@@ -1031,11 +1271,19 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     transform: translateY(0) scale(1);
   }
 }
+@keyframes matrix-note-reduced-in {
+  from { opacity: 0; transform: none; }
+  to   { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  @keyframes matrix-note-in {
-    from { opacity: 0; transform: none; }
-    to   { opacity: 1; transform: none; }
+  html:not([data-motion="full"]) [data-matrix-note] {
+    animation-name: matrix-note-reduced-in !important;
   }
+}
+
+html[data-motion="reduced"] [data-matrix-note] {
+  animation-name: matrix-note-reduced-in !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1929,11 +2177,10 @@ html[data-disco="on"] [data-social-sidebar] > *:nth-child(3) { --disco-motion-de
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(4) { --disco-motion-delay: 330ms; }
 html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-delay: 440ms; }
 
-/* Reduced motion: disco is an explicit opt-in easter egg, so its motion is
-   intentionally NOT disabled here. This block remains only for non-disco
-   shimmer cleanup that is not controlled by the user's disco-mode choice. */
+/* Legacy shimmer guard. The shared contract at the end of this file now
+  settles every decorative disco loop for both motion preference paths. */
 @media (prefers-reduced-motion: reduce) {
-  .sticker-card--superuser::after {
+  html:not([data-motion="full"]) .sticker-card--superuser::after {
     animation: none;
     opacity: 0;
   }
@@ -1964,7 +2211,7 @@ html[data-sudo-rainbow="on"] a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-sudo-rainbow="on"] a {
+  html:not([data-motion="full"])[data-sudo-rainbow="on"] a {
     animation: none;
     text-decoration-color: #a855f7;
   }
@@ -2072,7 +2319,7 @@ html[data-sudo-rainbow="on"] a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .terminal-decrypt-bar__label::after {
+  html:not([data-motion="full"]) .terminal-decrypt-bar__label::after {
     animation: none;
     opacity: 0.8;
   }
@@ -2227,7 +2474,11 @@ html:not([data-pref-paper="on"]) {
   --paper-pattern: none;
 }
 
-/* Tape effects — when disabled, hide every `<TapeStrip>` instance. */
+html:not([data-pref-paper="on"]) [data-paper-grain] {
+  display: none;
+}
+
+/* Tape effects — the shared marker covers `<TapeStrip>` and decorative tape. */
 html:not([data-pref-tape="on"]) [data-tape-strip] {
   display: none;
 }
@@ -2236,4 +2487,146 @@ html:not([data-pref-tape="on"]) [data-tape-strip] {
    "sketch" outline is prominent) switch to solid borders. */
 html:not([data-pref-sketch="on"]) .sticker-card {
   border-style: solid;
+}
+
+/* Shared reduced-motion contract
+   Both device and explicit preferences settle decorative entrances at their
+   final visual state. Puzzle/auth timing is intentionally outside this list. */
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    html:not([data-motion="full"])[data-disco="on"] body,
+    html:not([data-motion="full"])[data-disco="on"] body::before,
+    html:not([data-motion="full"])[data-disco="on"] body::after,
+    html:not([data-motion="full"])[data-disco="on"] :where(
+      nav[aria-label="Main navigation"] > a > div,
+      .group\/card,
+      article.animate-wall-note-in > div,
+      .bg-\[var\(--note-user\)\],
+      .bg-\[var\(--note-ai\)\],
+      button[data-clickable],
+      [role="dialog"][aria-label="Command palette"],
+      .bg-binding-bg,
+      .bg-note-paper,
+      .bg-note-yellow,
+      .bg-note-blue,
+      .bg-note-green,
+      .bg-note-purple,
+      .bg-note-orange,
+      .bg-note-gray,
+      h1,
+      h2,
+      h3,
+      [data-social-sidebar] > *
+    ) {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    html:not([data-motion="full"]) :where(
+      .animate-hero-title,
+      .animate-hero-subtitle,
+      .animate-hero-badge,
+      .animate-nav-tab,
+      .animate-social-link,
+      .animate-page-sheet,
+      .animate-page-template-in,
+      .animate-theme-icon,
+      .animate-wall-note-in,
+      .animate-listening-bar,
+      .animate-listening-ellipsis,
+      .sticker-card,
+      .sticker-card--superuser::after,
+      .superuser-banner__glow,
+      .superuser-banner__medal,
+      .superuser-banner__card::after,
+      .escape-banner__glow,
+      .escape-banner__medal,
+      .escape-banner__card::after,
+      [data-sticker-toast],
+      [data-superuser-toast],
+      [data-disco-motion],
+      [data-disco-bounce]
+    ) {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+    }
+
+    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+      opacity: 1 !important;
+    }
+
+    html:not([data-motion="full"]) .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
+    html:not([data-motion="full"]) .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+    html:not([data-motion="full"]) .animate-social-link,
+    html:not([data-motion="full"]) .animate-page-sheet { transform: translateY(0) !important; }
+    html:not([data-motion="full"]) .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
+    html:not([data-motion="full"]) .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+  }
+
+  html[data-motion="reduced"][data-disco="on"] body,
+  html[data-motion="reduced"][data-disco="on"] body::before,
+  html[data-motion="reduced"][data-disco="on"] body::after,
+  html[data-motion="reduced"][data-disco="on"] :where(
+    nav[aria-label="Main navigation"] > a > div,
+    .group\/card,
+    article.animate-wall-note-in > div,
+    .bg-\[var\(--note-user\)\],
+    .bg-\[var\(--note-ai\)\],
+    button[data-clickable],
+    [role="dialog"][aria-label="Command palette"],
+    .bg-binding-bg,
+    .bg-note-paper,
+    .bg-note-yellow,
+    .bg-note-blue,
+    .bg-note-green,
+    .bg-note-purple,
+    .bg-note-orange,
+    .bg-note-gray,
+    h1,
+    h2,
+    h3,
+    [data-social-sidebar] > *
+  ) {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html[data-motion="reduced"] :where(
+    .animate-hero-title,
+    .animate-hero-subtitle,
+    .animate-hero-badge,
+    .animate-nav-tab,
+    .animate-social-link,
+    .animate-page-sheet,
+    .animate-page-template-in,
+    .animate-theme-icon,
+    .animate-wall-note-in,
+    .animate-listening-bar,
+    .animate-listening-ellipsis,
+    .sticker-card,
+    .sticker-card--superuser::after,
+    .superuser-banner__glow,
+    .superuser-banner__medal,
+    .superuser-banner__card::after,
+    .escape-banner__glow,
+    .escape-banner__medal,
+    .escape-banner__card::after,
+    [data-sticker-toast],
+    [data-superuser-toast],
+    [data-disco-motion],
+    [data-disco-bounce]
+  ) {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+    opacity: 1 !important;
+  }
+
+  html[data-motion="reduced"] .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
+  html[data-motion="reduced"] .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+  html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
+  html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
+  html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { HapticInput } from "web-haptics";
 import { useWebHaptics } from "web-haptics/react";
+import { getSitePrefsSnapshot } from "@/hooks/useSitePrefs";
 
 // showSwitch: true keeps the <label>/<input switch> pair actually rendered
 // (rather than display:none). iOS Safari only fires Taptic Engine haptics when
@@ -49,21 +50,37 @@ function installInteractionTracking() {
     listenersAttached = true;
 }
 
+interface HapticsGateInput {
+    enabled: boolean;
+    visibilityState: DocumentVisibilityState;
+    interactionMode: InteractionMode;
+    interactionAgeMs: number;
+}
+
+export function shouldAllowHaptics({
+    enabled,
+    visibilityState,
+    interactionMode,
+    interactionAgeMs,
+}: HapticsGateInput): boolean {
+    return enabled
+        && visibilityState === "visible"
+        && interactionAgeMs <= 2500
+        && (interactionMode === "touch" || interactionMode === "pen");
+}
+
 function canUseRuntimeHaptics(): boolean {
     if (typeof window === "undefined") {
         return false;
     }
 
-    if (document.visibilityState !== "visible") {
-        return false;
-    }
-
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-    if (now - lastInteractionTime > 2500) {
-        return false;
-    }
-
-    return lastInteractionMode === "touch" || lastInteractionMode === "pen";
+    return shouldAllowHaptics({
+        enabled: getSitePrefsSnapshot().hapticsEnabled,
+        visibilityState: document.visibilityState,
+        interactionMode: lastInteractionMode,
+        interactionAgeMs: now - lastInteractionTime,
+    });
 }
 
 export function useAppHaptics() {

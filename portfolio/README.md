@@ -89,6 +89,8 @@ scripts/          embeddings and deployment helpers
 - Assistant response playback uses the streaming `/api/tts` path and caches completed spoken text/options in IndexedDB with per-message associations. Clearing chat clears the generated-audio cache too.
 - Speech-safe text rules live in `lib/ttsPrompts.ts`; `/api/tts` adapts displayed replies into speech-safe text without mutating saved chat messages.
 - For production nginx, disable buffering on `/api/tts` just like `/api/chat`: `proxy_buffering off; proxy_cache off; proxy_read_timeout 120s;`.
+- Local Transcription runs `Xenova/whisper-tiny` in a same-origin browser worker; recorded audio stays in the browser, and only text is submitted when the visitor sends the form. First use fetches model files from `huggingface.co` (large weights redirect to `us.aws.cdn.hf.co`) and the pinned ONNX runtime from `cdn.jsdelivr.net`. WebGPU currently requests about 144.5 MiB of model weights; the WASM fallback requests about 39.0 MiB of quantized weights; ONNX WASM runtime files add about 22.5 MiB, plus small configuration/tokenizer files.
+- Transformers.js stores downloaded model/runtime responses in browser Cache Storage when available. Reuse is best-effort: browser eviction, private browsing, or clearing site data can require another download. The deployed CSP must retain the three hosts above, `script-src blob: 'wasm-unsafe-eval'` for the cached ONNX factory/WASM compilation, and `worker-src 'self'` for the compiled Whisper worker.
 
 ## AI And Retrieval Configuration
 

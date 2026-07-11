@@ -36,6 +36,7 @@ import {
   type CommandContext,
 } from '@/lib/commandRegistry';
 import { soundManager } from '@/lib/soundManager';
+import { useDiscoActive } from '@/hooks/useStickers';
 
 // ── Static style objects (hoisted) ─────────────────────────────────
 
@@ -201,6 +202,7 @@ function CommandPalette({
 }: CommandPaletteProps) {
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const discoActive = useDiscoActive();
   const isMobile = useIsMobile();
 
   const isClient = useSyncExternalStore(
@@ -264,12 +266,13 @@ function CommandPalette({
       router,
       setTheme: (t) => setTheme(t),
       resolvedTheme,
+      discoActive,
       openFeedback,
       openShortcuts,
       // v1: drop terminal category, this is effectively a no-op.
       runTerminalCommand: () => { /* intentional no-op in v1 */ },
     }),
-    [router, setTheme, resolvedTheme, openFeedback, openShortcuts],
+    [router, setTheme, resolvedTheme, discoActive, openFeedback, openShortcuts],
   );
 
   // ── Filtered & grouped results ──────────────────────────────────

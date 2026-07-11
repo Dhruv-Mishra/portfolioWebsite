@@ -39,7 +39,7 @@ export default function Error({
         className="max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl transform relative"
       >
         {/* Tape decoration */}
-        <div className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6" style={TAPE_STYLE_DECOR} />
+        <div data-tape-strip className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6" style={TAPE_STYLE_DECOR} />
         
         <div className="text-center relative z-10">
           <m.div

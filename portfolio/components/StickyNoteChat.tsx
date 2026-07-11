@@ -47,6 +47,7 @@ import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
 import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -1116,7 +1117,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   compact
                   onToggleIntercept={(nextActive) => {
                     // Disabling is safe and instant. Enabling triggers a
-                    // ~35MB one-time download — surface a confirmation
+                    // Large first-use download — surface a confirmation
                     // modal first so the user understands what they're
                     // opting into (especially on mobile / metered data).
                     if (nextActive) setConfirmKind('enableLocal');
@@ -1127,6 +1128,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   isListening={speech.isListening}
                   isLoading={speech.isLoading}
                   isTranscribing={speech.isTranscribing}
+                  isRequestingPermission={speech.isRequestingPermission}
                   loadProgress={speech.loadProgress}
                   onClick={handleMicToggle}
                   disabled={isLoading}
@@ -1269,7 +1271,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           <ConfirmContent
             titleId="chat-confirm-title"
             title="Enable Local Transcription?"
-            body="Switches voice input from the browser's online speech API to an on-device Whisper model. The first time you turn it on, your browser downloads ~35 MB and caches it for future visits — works fully offline after that, with multilingual support and better accuracy. Heads up if you're on a metered connection."
+            body="Switches voice input from the browser's online speech API to an on-device Whisper model. First use downloads about 60-170 MB, depending on your browser, and stores it in the browser cache when available. Recorded audio stays on this device. The browser may download the files again if it clears the cache."
             confirmLabel="Download & enable"
             confirmTone="primary"
             onCancel={() => setConfirmKind(null)}
@@ -1498,7 +1500,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (action.themeAction) {
       selection();
       if (action.themeAction === 'toggle') {
-        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+        runThemeToggle({
+          discoActive,
+          isDark: resolvedTheme === 'dark',
+          setTheme,
+        });
       } else if (action.themeAction === 'disco') {
         // Pre-warm the heavy disco media chunk on the user-gesture tick
         // so sparkles/spotlights paint without a fetch stall.
@@ -1511,7 +1517,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       } else if (action.themeAction === 'disco-off') {
         setDiscoActiveImperative(false);
       } else {
-        setTheme(action.themeAction);
+        runThemeSelection({
+          discoActive,
+          theme: action.themeAction,
+          setTheme,
+        });
       }
     }
 
@@ -1549,7 +1559,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         router.push(dest);
       }, NAVIGATION_DELAY_MS);
     }
-  }, [externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
+  }, [discoActive, externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
 
   const handleTypewriterDone = useCallback((messageId: string) => {
     setReadyForAssistantId(messageId);

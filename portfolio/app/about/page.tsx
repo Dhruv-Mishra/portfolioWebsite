@@ -32,6 +32,7 @@ export default function About() {
                 <div className="animate-page-sheet relative min-h-[400px] w-full min-w-0 max-w-full text-gray-800 shadow-[3px_4px_9px_rgba(0,0,0,0.18)] md:transform md:-rotate-1 md:shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
                     <div
+                        data-tape-strip
                         className="absolute -top-1 left-3 w-24 h-10 shadow-sm z-20 -rotate-[8deg] md:-left-6 md:w-32"
                         style={TAPE_STYLE_DECOR}
                     />
@@ -96,6 +97,7 @@ export default function About() {
                             <div className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3">
                                 <div className="bg-white p-1 md:p-2 shadow-md border border-gray-200 relative">
                                     <div
+                                        data-tape-strip
                                         className="absolute -top-2 md:-top-3 left-1/2 -translate-x-1/2 w-16 md:w-24 h-6 md:h-8 shadow-sm z-30 -rotate-1"
                                         style={TAPE_STYLE_DECOR}
                                     />

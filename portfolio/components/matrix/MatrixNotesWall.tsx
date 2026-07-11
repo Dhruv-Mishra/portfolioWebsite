@@ -210,6 +210,7 @@ function MatrixNoteCard({ entry, index }: MatrixNoteCardProps): React.ReactEleme
 
   return (
     <article
+      data-matrix-note
       className="relative rounded-md border border-emerald-500/25 bg-emerald-950/25 backdrop-blur-[1px] p-5 md:p-6 shadow-[0_8px_24px_-16px_rgba(16,185,129,0.35)] transition-[transform,border-color] duration-200 hover:border-emerald-400/55 focus-within:border-emerald-400/70"
       style={{
         transform: `rotate(${rotation}deg) translate3d(0,0,0)`,

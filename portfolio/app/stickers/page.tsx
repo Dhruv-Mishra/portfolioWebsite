@@ -21,9 +21,9 @@
  * persistent shimmer (see `.superuser-banner__card::after`).
  */
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import Link from 'next/link';
 import { STICKER_ROSTER, StickerSvg, rotationForId, hashStickerId, SUPERUSER_STICKER, type StickerId, type StickerEntry } from '@/lib/stickers';
 import { useMatrixEscaped, useMatrixEscapedAt, useStickers } from '@/hooks/useStickers';
-import { useAdminPrefs, setAdminPref } from '@/hooks/useAdminPrefs';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { cn } from '@/lib/utils';
@@ -138,8 +138,16 @@ export default function StickerDrawerPage() {
           {hasSuperuser ? 'You earned the Superuser sticker. Sudo terminal access unlocked.' : ''}
         </div>
 
-        {/* ─── Sticker settings strip — tucked above the grid ─── */}
-        <StickerSettingsStrip />
+        <p className="mt-7 text-center font-hand text-sm text-[var(--c-ink)]/55 md:text-base">
+          Sticker notifications and earning live in{' '}
+          <Link
+            href="/settings"
+            className="inline-flex min-h-11 items-center font-bold text-[var(--c-heading)] underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            Settings
+          </Link>
+          .
+        </p>
 
         {/* ─── Grid ─── */}
         <section
@@ -297,95 +305,3 @@ const StickerCard = memo(StickerCardImpl, (prev, next) =>
   prev.sticker.id === next.sticker.id &&
   prev.index === next.index,
 );
-
-// ─── Sticker settings strip ─────────────────────────────────────────────
-// Always-expanded sketchbook card. Two paper-style toggles. Persists via
-// `useAdminPrefs` (localStorage key `dhruv-admin-prefs`).
-function StickerSettingsStrip() {
-  const { stickersEnabled, stickerToastsEnabled } = useAdminPrefs();
-  return (
-    <section
-      aria-label="Sticker settings"
-      className="mt-8 md:mt-10 mb-2 mx-auto max-w-lg rounded-md border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)]/70 px-5 py-4 font-hand text-[var(--c-ink)] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
-    >
-      <header className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-lg md:text-xl font-bold text-[var(--c-heading)]">
-          Sticker settings
-        </h2>
-        <span className="text-xs md:text-sm text-[var(--c-ink)]/55 italic">
-          (saved in your browser)
-        </span>
-      </header>
-      <div className="space-y-2.5 text-base md:text-lg">
-        <SketchToggle
-          label="Earn stickers as I explore"
-          checked={stickersEnabled}
-          onChange={(v) => setAdminPref('stickersEnabled', v)}
-        />
-        <SketchToggle
-          label="Show pop-up when I earn one"
-          hint="off by default — turn on if you like the celebration"
-          checked={stickerToastsEnabled}
-          disabled={!stickersEnabled}
-          onChange={(v) => setAdminPref('stickerToastsEnabled', v)}
-        />
-      </div>
-    </section>
-  );
-}
-
-interface SketchToggleProps {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (next: boolean) => void;
-}
-
-function SketchToggle({ label, hint, checked, disabled, onChange }: SketchToggleProps) {
-  return (
-    <label
-      className={cn(
-        'flex items-center justify-between gap-4 rounded-sm border border-dashed border-[var(--c-ink)]/25 bg-[var(--c-paper)]/60 px-3 py-2 transition-colors',
-        disabled
-          ? 'cursor-not-allowed opacity-55'
-          : 'cursor-pointer hover:bg-[var(--c-paper)]/90',
-      )}
-    >
-      {/* Hidden input first so the visible track can be its `peer` for focus styling. */}
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={label}
-      />
-      <span className="flex-1 min-w-0">
-        <span className="block leading-tight">{label}</span>
-        {hint ? (
-          <span className="block text-xs md:text-sm text-[var(--c-ink)]/55 italic mt-0.5">
-            {hint}
-          </span>
-        ) : null}
-      </span>
-      <span
-        aria-hidden
-        className={cn(
-          'relative inline-flex w-12 h-6 rounded-full border-2 border-dashed shrink-0 transition-colors',
-          'peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-[var(--c-heading)]/60 peer-focus-visible:ring-offset-[var(--c-paper)]',
-          checked
-            ? 'bg-[var(--c-heading)]/25 border-[var(--c-heading)]/70'
-            : 'bg-[var(--c-paper)] border-[var(--c-ink)]/40',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-[1px] inline-block w-4 h-4 rounded-full bg-[var(--c-ink)] shadow-sm transition-transform duration-200',
-            checked ? 'translate-x-[26px]' : 'translate-x-[2px]',
-          )}
-        />
-      </span>
-    </label>
-  );
-}

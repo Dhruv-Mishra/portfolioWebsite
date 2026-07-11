@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   useSpeechRecognition,
   type UseSpeechRecognitionResult,
@@ -12,6 +12,13 @@ import {
   pickAudioMimeType,
   WHISPER_MODEL_ID,
 } from '@/lib/whisperShared';
+import {
+  formatMicrophoneError,
+  getMicrophonePermissionState,
+  microphoneAccessContext,
+  stopMediaStreamTracks,
+} from '@/lib/microphoneAccess';
+import { WhisperPermissionRequest } from '@/lib/whisperPermissionRequest';
 
 type WhisperWorkerClient = typeof import('@/lib/whisperWorkerClient');
 
@@ -75,11 +82,31 @@ function resolveWhisperLanguage(explicit?: string): string | undefined {
 export type VoiceBackend = 'auto' | 'whisper' | 'native';
 export type ResolvedBackend = 'whisper' | 'native' | null;
 
+export function resolveVoiceBackend(
+  requested: VoiceBackend,
+  capabilities: { nativeSpeechSupported: boolean; whisperFeasible: boolean },
+  whisperReady = false,
+): ResolvedBackend {
+  if (requested === 'native') {
+    return capabilities.nativeSpeechSupported
+      ? 'native'
+      : capabilities.whisperFeasible ? 'whisper' : null;
+  }
+  if (requested === 'whisper') {
+    return capabilities.whisperFeasible
+      ? 'whisper'
+      : capabilities.nativeSpeechSupported ? 'native' : null;
+  }
+  if (capabilities.nativeSpeechSupported && !whisperReady) return 'native';
+  if (capabilities.whisperFeasible) return 'whisper';
+  return capabilities.nativeSpeechSupported ? 'native' : null;
+}
+
 export interface UseVoiceInputOptions {
   /**
    * `native` (default) uses the Web Speech API for an instant, zero-download
    * experience — best mobile UX. `whisper` opts into the Transformers.js
-   * Whisper pipeline (one-time ~35MB download, cached in IndexedDB after).
+  * Whisper pipeline (large first-use download, cached in Cache Storage after).
    * `auto` is legacy: starts on native and transparently upgrades to
    * Whisper once the model has finished a background preload.
    */
@@ -97,6 +124,8 @@ export interface UseVoiceInputResult {
   requiresLocalTranscription: boolean;
   /** True while actively recording / listening. */
   isListening: boolean;
+  /** True while the browser is resolving microphone access. */
+  isRequestingPermission: boolean;
   /** True while the Whisper model is downloading on first use. */
   isLoading: boolean;
   /** True while Whisper is post-processing the recorded audio. */
@@ -123,7 +152,7 @@ export interface UseVoiceInputResult {
 
 /**
  * Unified voice-input hook with two backends:
- *  - `'whisper'` — Transformers.js Whisper (lazy-loaded; better quality, ~40MB first load)
+ *  - `'whisper'` — Transformers.js Whisper (lazy-loaded; better quality, large first load)
  *  - `'native'`  — Web Speech API (instant, lower quality, browser-dependent)
  *
  * Defaults to `'native'` for an instant, zero-download experience.
@@ -142,8 +171,6 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     hasWhisperAudioSupport,
     () => false,
   );
-
-  const wantsWhisper = backend === 'whisper' || (backend === 'auto' && whisperFeasible);
 
   // Background Whisper preload for `auto` mode. First session always uses
   // native (instant); once Whisper is cached, subsequent sessions prefer it.
@@ -183,6 +210,13 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   const cancelledRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const [permissionRequest] = useState(() => new WhisperPermissionRequest());
+  const whisperPermissionRequest = useSyncExternalStore(
+    permissionRequest.subscribe,
+    permissionRequest.getSnapshot,
+    () => null,
+  );
+  const previousBackendRef = useRef(backend);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const teardownAnalyser = useCallback(() => {
@@ -198,13 +232,15 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
   const stopMediaTracks = useCallback(() => {
     teardownAnalyser();
-    streamRef.current?.getTracks().forEach((t) => {
-      try { t.stop(); } catch { /* no-op */ }
-    });
+    stopMediaStreamTracks(streamRef.current);
     streamRef.current = null;
   }, [teardownAnalyser]);
 
   const startWhisper = useCallback(async () => {
+    if (recorderRef.current?.state === 'recording') return;
+    const requestId = permissionRequest.begin(backend);
+    if (requestId === null) return;
+
     setWhisperError(null);
     setWhisperTranscript('');
     cancelledRef.current = false;
@@ -213,12 +249,19 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
-      setWhisperError(err instanceof Error ? err.message : 'mic-permission-denied');
-      // Fall back to native if `auto`.
-      if (backend === 'auto' && native.isSupported) {
-        setResolvedBackend('native');
-        native.start();
+      if (!permissionRequest.settle(requestId, null) || cancelledRef.current) return;
+      const permissionState = await getMicrophonePermissionState();
+      if (permissionRequest.isCurrent(requestId) && !cancelledRef.current) {
+        setWhisperError(formatMicrophoneError(
+          err,
+          microphoneAccessContext(permissionState),
+        ));
       }
+      return;
+    }
+    if (!permissionRequest.settle(requestId, stream)) return;
+    if (cancelledRef.current) {
+      stopMediaStreamTracks(stream);
       return;
     }
     streamRef.current = stream;
@@ -317,7 +360,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       stopMediaTracks();
       setWhisperError(err instanceof Error ? err.message : 'recorder-start-failed');
     }
-  }, [backend, native, stopMediaTracks, lang]);
+  }, [backend, permissionRequest, stopMediaTracks, lang]);
 
   const stopWhisper = useCallback(() => {
     const rec = recorderRef.current;
@@ -331,6 +374,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
   const resetWhisper = useCallback(() => {
     cancelledRef.current = true;
+    permissionRequest.cancel();
     setWhisperTranscript('');
     setWhisperError(null);
     setIsTranscribing(false);
@@ -340,37 +384,52 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     }
     stopMediaTracks();
     setIsWhisperListening(false);
-  }, [stopMediaTracks]);
+  }, [permissionRequest, stopMediaTracks]);
 
   // Cleanup on unmount.
   useEffect(() => () => {
     cancelledRef.current = true;
+    permissionRequest.cancel();
     const rec = recorderRef.current;
     if (rec && rec.state !== 'inactive') {
       try { rec.stop(); } catch { /* no-op */ }
     }
     stopMediaTracks();
-  }, [stopMediaTracks]);
+  }, [permissionRequest, stopMediaTracks]);
+
+  useLayoutEffect(() => {
+    if (previousBackendRef.current === backend) return;
+    previousBackendRef.current = backend;
+    cancelledRef.current = true;
+    permissionRequest.cancel();
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch { /* no-op */ }
+    }
+    stopMediaTracks();
+  }, [backend, permissionRequest, stopMediaTracks]);
 
   // Public API — route to the active backend.
   // `auto` defaults to native for instant first-tap UX; only upgrades to
   // Whisper once the model has finished its background preload.
-  const useNative =
-    backend === 'native' ||
-    !wantsWhisper ||
-    (backend === 'auto' && !isWhisperReady);
+  const preferredBackend = resolveVoiceBackend(backend, {
+    nativeSpeechSupported: native.isSupported,
+    whisperFeasible,
+  }, isWhisperReady);
+  const isCurrentWhisperPermissionRequest = !!whisperPermissionRequest
+    && whisperPermissionRequest.backend === backend;
 
   const start = useCallback(() => {
-    if (useNative && native.isSupported) {
+    if (preferredBackend === 'native') {
       setResolvedBackend('native');
       native.start();
-    } else if (whisperFeasible) {
+    } else if (preferredBackend === 'whisper') {
       void startWhisper();
     } else {
       setResolvedBackend(null);
       setWhisperError(native.error || 'Voice input is not supported in this browser.');
     }
-  }, [useNative, native, whisperFeasible, startWhisper]);
+  }, [preferredBackend, native, startWhisper]);
 
   const stop = useCallback(() => {
     if (resolvedBackend === 'whisper') stopWhisper();
@@ -381,14 +440,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }, [resolvedBackend, stopWhisper, native, stopMediaTracks]);
 
   const reset = useCallback(() => {
-    if (resolvedBackend === 'whisper') resetWhisper();
-    else {
-      stopMediaTracks();
-    }
+    resetWhisper();
     native.reset();
-    setWhisperTranscript('');
-    setWhisperError(null);
-  }, [resolvedBackend, resetWhisper, native, stopMediaTracks]);
+  }, [resetWhisper, native]);
 
   if (resolvedBackend === 'whisper') {
     return {
@@ -397,6 +451,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       localTranscriptionSupported: whisperFeasible,
       requiresLocalTranscription: false,
       isListening: isWhisperListening,
+      isRequestingPermission: isCurrentWhisperPermissionRequest,
       isLoading,
       isTranscribing,
       transcript: whisperTranscript,
@@ -413,8 +468,13 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     isSupported: native.isSupported || whisperFeasible,
     nativeSpeechSupported: native.isSupported,
     localTranscriptionSupported: whisperFeasible,
-    requiresLocalTranscription: useNative && !native.isSupported && whisperFeasible,
+    requiresLocalTranscription:
+      backend !== 'whisper'
+      && preferredBackend === 'whisper'
+      && !native.isSupported,
     isListening: native.isListening,
+    isRequestingPermission:
+      native.isRequestingPermission || isCurrentWhisperPermissionRequest,
     isLoading: false,
     isTranscribing: false,
     transcript: native.transcript,

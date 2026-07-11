@@ -6,24 +6,23 @@ export const revalidate = 3600;
 
 export default function ResumePage() {
     return (
-        <div className="min-h-[100dvh] pt-8 pb-4 px-4 md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+        <div className="h-full min-h-[24rem] px-1 py-2 sm:px-4 md:min-h-[36rem] md:px-12 md:py-8 flex flex-col items-center justify-center relative z-10 box-border">
             {/* The Resume "Paper" */}
             <div
-                className="animate-page-sheet relative w-full max-w-5xl bg-white shadow-2xl p-[1px]"
+                className="animate-page-sheet relative h-full min-h-[22rem] w-full max-w-5xl bg-white p-[1px] shadow-2xl md:min-h-[32rem]"
                 style={{
-                    height: '92dvh',
                     transform: 'rotate(-1deg)',
                     boxShadow: SHADOW_TOKENS.resume
                 }}
             >
                 {/* Tape - Top Left */}
-                <div className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -top-3 -left-8 w-32 h-8 shadow-sm transform -rotate-[25deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Top Right */}
-                <div className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -top-4 -right-8 w-32 h-8 shadow-sm transform rotate-[20deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 {/* Tape - Bottom Center */}
-                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
+                <div data-tape-strip className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-40 h-10 shadow-sm transform rotate-[2deg] z-20 pointer-events-none" style={TAPE_STYLE_DECOR} />
 
                 <div className="w-full h-full bg-white relative z-10 overflow-hidden">
                     <div className="w-full h-full relative">

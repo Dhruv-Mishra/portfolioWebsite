@@ -3,15 +3,14 @@
 /**
  * Lazy-loaded singleton for Transformers.js ASR pipeline.
  *
- * Model: `Xenova/whisper-tiny` — multilingual (99 languages, ~39M params,
- * ~30-40MB quantized). Smallest viable Whisper variant; faster inference
- * and lighter download than `whisper-base` at the cost of some accuracy
- * (especially on short clips / non-English speech). Runs via WebGPU when
- * available, otherwise WASM SIMD.
+ * Model: `Xenova/whisper-tiny` — multilingual (99 languages, ~39M params).
+ * Smallest viable Whisper variant; faster inference than `whisper-base` at
+ * the cost of some accuracy (especially on short clips / non-English speech).
+ * Runs via WebGPU when available, otherwise WASM SIMD.
  *
- * Weights are fetched from huggingface.co (NOT this origin) and cached in
- * IndexedDB after the first load. The pipeline + ONNX runtime + tokenizer
- * assets are dynamic-imported so they never land in the main bundle.
+ * Weights are fetched from Hugging Face (NOT this origin) and cached through
+ * the browser Cache API after the first load. The pipeline + ONNX runtime +
+ * tokenizer assets are dynamic-imported so they never land in the main bundle.
  */
 
 import {

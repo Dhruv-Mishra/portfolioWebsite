@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useGlobalHotkeys } from '@/hooks/useGlobalHotkeys';
+import { useDiscoActive } from '@/hooks/useStickers';
+import { runThemeToggle } from '@/lib/themeToggleAction';
 
 /**
  * Lazy-loaded overlay UI. The overlay is only pulled the first time the
@@ -28,6 +30,7 @@ export default function ShortcutsOverlayProvider() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
+  const discoActive = useDiscoActive();
 
   const handleOpen = useCallback(() => setIsOpen(true), []);
   const handleClose = useCallback(() => setIsOpen(false), []);
@@ -41,9 +44,12 @@ export default function ShortcutsOverlayProvider() {
 
   // Theme toggle action — consumed by the global hotkey hook for `t`.
   const toggleTheme = useCallback(() => {
-    const next = resolvedTheme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-  }, [resolvedTheme, setTheme]);
+    runThemeToggle({
+      discoActive,
+      isDark: resolvedTheme === 'dark',
+      setTheme,
+    });
+  }, [discoActive, resolvedTheme, setTheme]);
 
   useGlobalHotkeys({
     router,

@@ -56,7 +56,7 @@ export interface AdminPrefs {
   stickerToastsEnabled: boolean;
   /** Whether supported touch/pen interactions may emit haptics. */
   hapticsEnabled: boolean;
-  /** `system` follows the OS; `reduced` always reduces; `full` overrides the OS. */
+  /** `system` follows the OS; `reduced` always reduces; `full` overrides the OS. Default: full. */
   motionPreference: MotionPreference;
 }
 
@@ -71,7 +71,7 @@ function defaultPrefs(): AdminPrefs {
     stickersEnabled: true,
     stickerToastsEnabled: false,
     hapticsEnabled: true,
-    motionPreference: 'system',
+    motionPreference: 'full',
   };
 }
 
@@ -104,9 +104,11 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
       stickerToastsEnabled: booleanField(parsed, 'stickerToastsEnabled', false),
       hapticsEnabled: booleanField(parsed, 'hapticsEnabled', true),
       motionPreference:
-        parsed.motionPreference === 'reduced' || parsed.motionPreference === 'full'
+        parsed.motionPreference === 'system'
+        || parsed.motionPreference === 'reduced'
+        || parsed.motionPreference === 'full'
           ? parsed.motionPreference
-          : 'system',
+          : 'full',
     };
   } catch {
     return defaultPrefs();

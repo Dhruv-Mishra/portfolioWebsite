@@ -1,10 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const projectRoot = process.cwd();
 const css = fs.readFileSync(path.join(projectRoot, 'app', 'globals.css'), 'utf8');
 const reducedContract = css.slice(css.lastIndexOf('/* Shared reduced-motion contract'));
+const layout = fs.readFileSync(path.join(projectRoot, 'app', 'layout.tsx'), 'utf8');
+const bootstrap = layout.match(/const SITE_PREFS_BOOTSTRAP = `([^`]+)`;/)?.[1] ?? '';
+
+function runBootstrap(storedValue: string | null): Record<string, string> {
+  const dataset: Record<string, string> = {};
+  vm.runInNewContext(bootstrap, {
+    document: { documentElement: { dataset } },
+    localStorage: { getItem: () => storedValue },
+  });
+  return dataset;
+}
 
 describe('motion preference contract', () => {
   it('maps system, reduced, and full preferences into Framer Motion', () => {
@@ -49,14 +61,28 @@ describe('motion preference contract', () => {
   });
 
   it('pre-paint bootstrap handles only public appearance and motion fields', () => {
-    const layout = fs.readFileSync(path.join(projectRoot, 'app', 'layout.tsx'), 'utf8');
-    const bootstrap = layout.match(/const SITE_PREFS_BOOTSTRAP = `([^`]+)`;/)?.[1] ?? '';
-
     expect(bootstrap).toContain("motionPreference==='reduced'");
     expect(bootstrap).toContain("motionPreference==='full'");
     expect(bootstrap).toContain('dataset.motion=o.motionPreference');
     expect(bootstrap).not.toContain('experimentalCommands');
     expect(bootstrap).not.toContain('prefExperimental');
+  });
+
+  it.each([
+    ['absent storage', null],
+    ['malformed storage', '{'],
+    ['a missing field', JSON.stringify({ version: 5 })],
+    ['an invalid field', JSON.stringify({ version: 5, motionPreference: 'always' })],
+  ])('defaults the pre-paint bootstrap to full motion for %s', (_scenario, storedValue) => {
+    expect(runBootstrap(storedValue).motion).toBe('full');
+  });
+
+  it.each([
+    ['system', undefined],
+    ['reduced', 'reduced'],
+    ['full', 'full'],
+  ] as const)('preserves explicit %s motion in the pre-paint bootstrap', (preference, expected) => {
+    expect(runBootstrap(JSON.stringify({ motionPreference: preference })).motion).toBe(expected);
   });
 
   it('lets full motion override device reduction while explicit reduction remains authoritative', () => {

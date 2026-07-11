@@ -250,15 +250,9 @@ sudo grep -E '^(MEMORY_HIGH_MB|MEMORY_MAX_MB|NODE_HEAP_MB|CPU_QUOTA_PERCENT)=' /
 
 Do not continue on a 1 GB VM with `1200/1536`; resize or remove that VM from the deployment topology first.
 
-## 7. Prepare Pocket TTS cache directories
+## 7. Verify disk space for automatic Pocket TTS caches
 
-Run on every VM that will receive the new image:
-
-```bash
-sudo install -d -m 0775 -o 1000 -g 1000 /var/cache/portfolio/pocket-tts
-sudo install -d -m 0775 -o 1000 -g 1000 /var/cache/portfolio-staging/pocket-tts
-sudo ls -ld /var/cache/portfolio/pocket-tts /var/cache/portfolio-staging/pocket-tts
-```
+Do not create or configure Pocket TTS cache directories manually. The deployment script creates the production and staging directories, applies container ownership, and bind-mounts each service's persistent cache.
 
 Keep the old `kitten-tts` cache directories until the rollout is stable. The deployment intentionally does not copy old provider files into the Pocket TTS cache.
 
@@ -271,20 +265,9 @@ sudo docker system df
 
 Do not prune current or retained rollback images immediately before deployment.
 
-## 8. Remove unsupported persisted runtime settings
+## 8. Let the deployment synchronize Pocket TTS settings
 
-Pocket TTS 2.1.0 in this integration does not support int8 mode. Remove the stale `LOCAL_TTS_QUANTIZE` key from both persisted environment files; do not add a replacement. GitHub Actions continues to inject the matching `HF_TOKEN` during deployment.
-
-```bash
-sudo bash -c '
-set -euo pipefail
-for file in /opt/portfolio/config/.env.local /opt/portfolio-staging/config/.env.local; do
-  test -f "$file"
-  sed -i "/^LOCAL_TTS_QUANTIZE=/d" "$file"
-  chmod 600 "$file"
-done
-'
-```
+Do not add or edit Pocket TTS cache variables on the VMs. Staging, production, and rollback workflows atomically remove stale `HF_HOME` and `LOCAL_TTS_QUANTIZE` entries, then persist the matching `HF_TOKEN`, `HF_HUB_CACHE`, `LOCAL_TTS_CACHE_DIR`, and `LOCAL_TTS_VOICE_STATE_PATH` for each service. The deploy script also supplies and validates those paths when it generates the Docker service.
 
 Pocket TTS uses one active inference per container. The first deployment downloads the model weights and derives the custom voice state without int8 mode.
 
@@ -334,8 +317,6 @@ sudo docker info >/dev/null && echo docker-ok
 sudo nginx -t
 sudo test -r /opt/portfolio/config/.env.local && echo production-env-readable
 sudo test -r /opt/portfolio-staging/config/.env.local && echo staging-env-readable
-sudo test -w /var/cache/portfolio/pocket-tts && echo production-cache-writable || true
-sudo test -w /var/cache/portfolio-staging/pocket-tts && echo staging-cache-writable || true
 uname -m
 sudo docker version --format 'docker-server={{.Server.Os}}/{{.Server.Arch}}'
 ss -tlnp | grep -E ':(3000|3010)\b' || true
@@ -343,7 +324,7 @@ free -h
 swapon --show
 ```
 
-The deploy script fixes cache ownership for the container, so a root-only shell check may not exactly match UID 1000. The important checks are that the directories exist, have free disk space, and can be owned by UID/GID 1000.
+The cache directories may not exist before the first deployment. The important preflight checks are sufficient disk space and outbound access to Hugging Face; deployment creates and owns the directories.
 
 On an ARM VM, both architecture commands must report `aarch64` or `arm64`. Before deployment, verify the published image reference from the workflow contains both supported platforms:
 
@@ -586,8 +567,8 @@ Only after production and staging are stable on every active VM:
 - [ ] VM 1 and VM 2 resized or removed from deployment/origin matrices
 - [ ] VM 3 confirmed to have sufficient **system RAM**, not only GPU VRAM
 - [ ] Machine memory limits updated
-- [ ] Production and staging Pocket caches created
-- [ ] Unsupported persisted TTS setting removed
+- [ ] Deployment verified production and staging Pocket cache creation
+- [ ] Deployment synchronized TTS cache settings and removed stale keys
 - [ ] Windows local authentication, smoke test, and custom voice-state regeneration completed after any reference update
 - [ ] VM Docker host and published image manifest report the required architecture
 - [ ] Voice public/private decision completed

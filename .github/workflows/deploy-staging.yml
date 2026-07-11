@@ -585,11 +585,14 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "HF_TOKEN"' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 != "LOCAL_TTS_CACHE_DIR" && $1 != "LOCAL_TTS_VOICE_STATE_PATH" && $1 != "LOCAL_TTS_QUANTIZE"' \
                 "$env_file" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
+              printf 'HF_HUB_CACHE=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_TTS_CACHE_DIR=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_TTS_VOICE_STATE_PATH=/var/cache/%s/pocket-tts/custom-dhruv.safetensors\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
 
               env_uid="$(sudo stat -c '%u' "$env_file")"
               env_gid="$(sudo stat -c '%g' "$env_file")"
@@ -599,7 +602,7 @@ jobs:
               RUNTIME_ENV_REMOTE_TEMP=""
               rm -f "$RUNTIME_ENV_TEMP"
               RUNTIME_ENV_TEMP=""
-              echo "Synchronized staging runtime secrets"
+              echo "Synchronized staging runtime secrets and Pocket TTS cache settings"
             }
 
             sync_runtime_secrets

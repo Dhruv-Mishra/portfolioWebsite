@@ -194,15 +194,19 @@ jobs:
               exit 1
             fi
             RUNTIME_ENV_TEMP="$(mktemp)"
-            sudo awk -F= '$1 != "HF_TOKEN"' "$RUNTIME_ENV_FILE" > "$RUNTIME_ENV_TEMP"
+            sudo awk -F= '$1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 != "LOCAL_TTS_CACHE_DIR" && $1 != "LOCAL_TTS_VOICE_STATE_PATH" && $1 != "LOCAL_TTS_QUANTIZE"' \
+              "$RUNTIME_ENV_FILE" > "$RUNTIME_ENV_TEMP"
             printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
+            printf 'HF_HUB_CACHE=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+            printf 'LOCAL_TTS_CACHE_DIR=/var/cache/%s/pocket-tts\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
+            printf 'LOCAL_TTS_VOICE_STATE_PATH=/var/cache/%s/pocket-tts/custom-dhruv.safetensors\n' "$SITE" >> "$RUNTIME_ENV_TEMP"
             RUNTIME_ENV_UID="$(sudo stat -c '%u' "$RUNTIME_ENV_FILE")"
             RUNTIME_ENV_GID="$(sudo stat -c '%g' "$RUNTIME_ENV_FILE")"
             RUNTIME_ENV_NEXT="${RUNTIME_ENV_FILE}.next.${{ github.run_id }}.$$"
             sudo install -m 600 -o "$RUNTIME_ENV_UID" -g "$RUNTIME_ENV_GID" "$RUNTIME_ENV_TEMP" "$RUNTIME_ENV_NEXT"
             rm -f "$RUNTIME_ENV_TEMP"
             sudo mv -f "$RUNTIME_ENV_NEXT" "$RUNTIME_ENV_FILE"
-            echo "Synchronized production Hugging Face runtime token"
+            echo "Synchronized production Hugging Face token and Pocket TTS cache settings"
 
             if [ -n "$REQUESTED_SHA" ]; then
               rollback_args=(--site "$SITE" --rollback-to "$REQUESTED_SHA")

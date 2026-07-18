@@ -10,11 +10,52 @@ const source = fs.readFileSync(
 describe('settings chat model contract', () => {
   it('renders every catalog model under its catalog groups with selected-model capabilities', () => {
     expect(source).toContain('title="AI model" icon={Bot}');
-    expect(source).toContain("['Recommended', 'NVIDIA']");
-    expect(source).toContain('CHAT_MODELS.filter((model) => model.group === group)');
+    expect(source).toContain('<ModelPicker');
+    expect(source).toContain('id="chat-model"');
+    expect(source).toContain('onValueChange={handleModelChange}');
     expect(source).toContain("selectedModel.supportsImages ? 'Vision' : 'Text'");
     expect(source).toContain('selectedModel.quality');
     expect(source).toContain('selectedModel.caveat');
+  });
+
+  it('keeps the model picker as an accessible grouped listbox', () => {
+    const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
+    expect(picker).toContain('role="listbox"');
+    expect(picker).toContain('role="option"');
+    expect(picker).toContain('aria-selected={model.id === value}');
+    expect(picker).toContain("case 'ArrowDown'");
+    expect(picker).toContain("case 'ArrowUp'");
+    expect(picker).toContain("case 'Home'");
+    expect(picker).toContain("case 'End'");
+    const tabCase = picker.match(/case 'Tab':\s*([\s\S]*?)\s*break;/);
+    expect(tabCase?.[1]).toContain('closePicker(false);');
+    expect(tabCase?.[1]).not.toContain('preventDefault');
+    expect(picker).toContain("case 'Escape'");
+    expect(picker).toContain('closePicker();');
+    expect(picker).toContain('triggerRef.current?.focus();');
+    expect(picker).toContain('onBlurCapture={handleBlurCapture}');
+    expect(picker).toContain('if (open && !pickerRef.current?.contains(event.relatedTarget)) closePicker(false);');
+    expect(picker).toContain('<Tooltip key={capability} label={detail.label}>');
+    expect(picker).toContain('title={detail.label}');
+    expect(picker).toContain('title={label}');
+    expect(picker).toContain('className="group relative inline-flex"');
+    expect(picker).toContain('role="tooltip"');
+    expect(picker).toContain('pointer-events-none absolute left-1/2 top-full z-40');
+    expect(picker).toContain('group-hover:opacity-100');
+  });
+
+  it('places the model listbox within the available viewport space', () => {
+    const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
+    expect(picker).toContain('useLayoutEffect');
+    expect(picker).toContain("type ListboxPlacement = 'top' | 'bottom'");
+    expect(picker).toContain('triggerRef.current?.getBoundingClientRect()');
+    expect(picker).toContain('pickerRef.current?.getBoundingClientRect()');
+    expect(picker).toContain("document.querySelector<HTMLElement>('nav[aria-label=\"Main navigation\"]')?.getBoundingClientRect()");
+    expect(picker).toContain('const usableViewportTop = Math.max(VIEWPORT_MARGIN, (navigationRect?.bottom ?? 0) + NAVIGATION_MARGIN);');
+    expect(picker).toContain('const availableAbove = Math.min(triggerRect.top, pickerRect.top) - usableViewportTop - LISTBOX_GAP;');
+    expect(picker).toContain("window.addEventListener('resize', updateListboxPlacement)");
+    expect(picker).toContain('style={{ maxHeight: `${listboxMaxHeight}px` }}');
+    expect(picker).toContain("placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'");
   });
 
   it('requires a safe, focused confirmation when persisted chat would be cleared', () => {

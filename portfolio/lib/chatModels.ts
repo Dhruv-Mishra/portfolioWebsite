@@ -1,5 +1,21 @@
 export const DEFAULT_CHAT_MODEL_ID = 'qwen-3.6-27b' as const;
 
+export const CHAT_MODEL_CAPABILITIES = ['fast', 'image', 'reasoning', 'slow'] as const;
+export type ChatModelCapability = (typeof CHAT_MODEL_CAPABILITIES)[number];
+
+interface ChatModelDefinition {
+  id: string;
+  provider: 'groq' | 'nvidia';
+  group: 'Recommended' | 'NVIDIA';
+  upstreamModel: string;
+  label: string;
+  quality: string;
+  supportsImages: boolean;
+  capabilities: readonly ChatModelCapability[];
+  isRecommended?: boolean;
+  caveat?: string;
+}
+
 export const CHAT_MODELS = [
   {
     id: 'qwen-3.6-27b',
@@ -9,6 +25,7 @@ export const CHAT_MODELS = [
     label: 'Qwen 3.6 27B',
     quality: 'Recommended',
     supportsImages: true,
+    capabilities: ['fast', 'image'],
     isRecommended: true,
   },
   {
@@ -19,6 +36,7 @@ export const CHAT_MODELS = [
     label: 'GLM 5.2',
     quality: 'Strong reasoning',
     supportsImages: false,
+    capabilities: ['reasoning', 'slow'],
   },
   {
     id: 'inkling',
@@ -28,6 +46,7 @@ export const CHAT_MODELS = [
     label: 'Inkling',
     quality: 'Fast',
     supportsImages: true,
+    capabilities: ['fast', 'image'],
   },
   {
     id: 'minimax-m3',
@@ -37,6 +56,7 @@ export const CHAT_MODELS = [
     label: 'MiniMax M3',
     quality: 'Preview',
     supportsImages: true,
+    capabilities: ['image'],
     caveat: 'Preview model; non-commercial use only.',
   },
   {
@@ -47,6 +67,7 @@ export const CHAT_MODELS = [
     label: 'DiffusionGemma 26B',
     quality: 'Vision',
     supportsImages: true,
+    capabilities: ['image'],
   },
   {
     id: 'kimi-k2.6',
@@ -56,6 +77,7 @@ export const CHAT_MODELS = [
     label: 'Kimi K2.6',
     quality: 'Strong reasoning',
     supportsImages: true,
+    capabilities: ['reasoning', 'image', 'slow'],
   },
   {
     id: 'deepseek-v4-flash',
@@ -65,6 +87,7 @@ export const CHAT_MODELS = [
     label: 'DeepSeek V4 Flash',
     quality: 'Fast',
     supportsImages: false,
+    capabilities: ['fast'],
   },
   {
     id: 'deepseek-v4-pro',
@@ -74,8 +97,9 @@ export const CHAT_MODELS = [
     label: 'DeepSeek V4 Pro',
     quality: 'High quality',
     supportsImages: false,
+    capabilities: ['reasoning', 'slow'],
   },
-] as const;
+] as const satisfies readonly ChatModelDefinition[];
 
 export type ChatModel = (typeof CHAT_MODELS)[number];
 export type ChatModelId = ChatModel['id'];

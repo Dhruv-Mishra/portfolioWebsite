@@ -38,7 +38,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
-import { CHAT_MODELS, getChatModel, type ChatModelId } from '@/lib/chatModels';
+import { ModelPicker } from '@/components/ModelPicker';
+import { getChatModel, type ChatModelId } from '@/lib/chatModels';
 import {
   CHAT_HISTORY_STORAGE_KEYS,
   clearChatHistoryStorage,
@@ -346,20 +347,11 @@ export default function SettingsPanel() {
           <label className="block font-hand text-base text-[var(--c-heading)] md:text-lg" htmlFor="chat-model">
             Conversation model
           </label>
-          <select
+          <ModelPicker
             id="chat-model"
             value={modelId}
-            onChange={(event) => handleModelChange(event.target.value as ChatModelId)}
-            className="mt-1 min-h-11 w-full rounded-sm border-2 border-dashed border-[var(--c-ink)]/30 bg-[var(--c-paper)] px-3 py-2 font-hand text-base text-[var(--c-heading)] shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-lg"
-          >
-            {['Recommended', 'NVIDIA'].map((group) => (
-              <optgroup key={group} label={group}>
-                {CHAT_MODELS.filter((model) => model.group === group).map((model) => (
-                  <option key={model.id} value={model.id}>{model.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            onValueChange={handleModelChange}
+          />
           {selectedModel ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
               <span>{selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>

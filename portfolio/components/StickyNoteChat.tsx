@@ -366,7 +366,6 @@ const SUGGESTION_TAP = { scale: 0.95 } as const;
 const INPUT_NOTE_STYLE = { transform: 'rotate(0.5deg)' } as const;
 const INPUT_NOTE_DISCO_STYLE: DiscoMotionStyle = { ...INPUT_NOTE_STYLE, '--disco-motion-delay': '220ms' };
 const INPUT_TOOLBAR_DISCO_STYLE: DiscoMotionStyle = { '--disco-motion-delay': '120ms' };
-const INPUT_NOTE_INITIAL = { opacity: 0, y: 20 } as const;
 const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
 const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
 const SEND_BUTTON_TAP = { scale: 0.9 } as const;
@@ -531,6 +530,14 @@ function MatrixAwareAssistantText({
   }
 
   return <span>{text}</span>;
+}
+
+function restoreComposerFocusIfAppropriate(composer: HTMLDivElement | null): void {
+  const activeElement = document.activeElement;
+  const textarea = composer?.querySelector<HTMLTextAreaElement>('textarea[aria-label="Chat message"]');
+  const sendButton = composer?.querySelector<HTMLButtonElement>('button[aria-label="Send message"]');
+  if (!textarea || (activeElement !== document.body && activeElement !== textarea && activeElement !== sendButton)) return;
+  textarea.focus();
 }
 
 function canSpeakAssistantMessage(message: ChatMessage): boolean {
@@ -900,11 +907,12 @@ const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: 
 
 // ─── Chat Input Area (isolated to prevent keystroke re-renders of message list) ───
 interface ChatInputAreaProps {
-  onSend: (text: string, image?: ChatImageAttachment) => void;
+  onSend: (text: string, image?: ChatImageAttachment, focusWasInComposer?: boolean) => void;
   isLoading: boolean;
   compact: boolean;
   hasMessages: boolean;
   onClear: () => void;
+  composerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const subscribeToComposerHydration = () => () => {};
@@ -977,7 +985,7 @@ const ConfirmContent = memo(function ConfirmContent({
   );
 });
 
-const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear }: ChatInputAreaProps) {
+const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear, composerRef }: ChatInputAreaProps) {
   const [input, setInput] = useState('');
   const [attachment, setAttachment] = useState<ChatImageAttachment | null>(null);
   const [attachmentStatus, setAttachmentStatus] = useState<string | null>(null);
@@ -1031,14 +1039,14 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading || isCompressingImage) return;
     if (speech.isListening) speech.stop();
-    onSend(input.trim(), attachment ?? undefined);
+    const focusWasInComposer = composerRef.current?.contains(document.activeElement) ?? false;
+    onSend(input.trim(), attachment ?? undefined, focusWasInComposer);
     setInput('');
     setAttachment(null);
     setAttachmentStatus(null);
     speech.reset();
     baseInputRef.current = '';
-    setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
-  }, [attachment, input, isCompressingImage, isLoading, onSend, speech]);
+  }, [attachment, composerRef, input, isCompressingImage, isLoading, onSend, speech]);
 
   const handleImageSelection = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1136,7 +1144,9 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   }, [input]);
 
   return (
-    <div className={cn(
+    <div
+      ref={composerRef}
+      className={cn(
       "absolute inset-x-0 pointer-events-none",
       // Lift the input bar off the viewport bottom on both breakpoints so
       // the user's eye is drawn TO it (rather than it disappearing into
@@ -1144,8 +1154,9 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
       // the sticky-note feels like a card the visitor can grab.
       "bottom-2 md:bottom-6",
       "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
-    )}
-    style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      )}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       <div className={cn(
         // Slightly more breathing room on mobile (pt-2 / pb-2) so the
         // toolbar above and the input note don't visually crowd each
@@ -1284,7 +1295,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 
         {/* The input "sticky note" — symmetric vertical padding (top = bottom). */}
         <m.div
-          initial={INPUT_NOTE_INITIAL}
+          initial={false}
           animate={INPUT_NOTE_ANIMATE}
           data-disco-motion="bob"
           data-disco-chat-input
@@ -1453,6 +1464,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const discoActive = useDiscoActive();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handledActionsRef = useRef<Set<string>>(new Set());
@@ -1462,7 +1474,45 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const [hasHadInteraction, setHasHadInteraction] = useState(false);
   const hasInitializedSuggestionsRef = useRef(false);
   const completedAssistantHapticRef = useRef<string | null>(null);
+  const announcedAssistantReplyRef = useRef<string | null>(null);
+  const composerFocusRequestSequenceRef = useRef(0);
+  const restoreComposerFocusAfterRemoteSendRef = useRef<number | null>(null);
+  const remoteSendLoadingStartedForFocusRef = useRef<number | null>(null);
+  const previousLoadingRef = useRef(isLoading);
   const lastErrorRef = useRef<string | null>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const composerHeightRef = useRef(0);
+  const [assistantReplyAnnouncement, setAssistantReplyAnnouncement] = useState<{ id: string; text: string } | null>(null);
+
+  useLayoutEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+
+    const measureComposer = () => {
+      const nextHeight = Math.ceil(composer.getBoundingClientRect().height);
+      if (nextHeight === composerHeightRef.current) return;
+      composerHeightRef.current = nextHeight;
+      setComposerHeight(nextHeight);
+    };
+
+    measureComposer();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(measureComposer);
+      observer.observe(composer);
+      return () => observer.disconnect();
+    }
+
+    // Older browsers still reserve the measured height and react to DOM changes.
+    const observer = typeof MutationObserver !== 'undefined'
+      ? new MutationObserver(measureComposer)
+      : null;
+    observer?.observe(composer, { attributes: true, childList: true, subtree: true });
+    window.addEventListener('resize', measureComposer);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measureComposer);
+    };
+  }, []);
 
   useEffect(() => {
     for (const message of messages) {
@@ -1698,12 +1748,28 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const handleTypewriterDone = useCallback((messageId: string) => {
     setReadyForAssistantId(messageId);
 
+    const completedMessage = messages.find(message => message.id === messageId);
+    if (
+      completedMessage &&
+      messageId !== 'welcome' &&
+      !completedMessage.isOld &&
+      !completedMessage.isFiller &&
+      completedMessage.matrixInterceptKind !== 'denied' &&
+      announcedAssistantReplyRef.current !== messageId
+    ) {
+      announcedAssistantReplyRef.current = messageId;
+      setAssistantReplyAnnouncement({
+        id: messageId,
+        text: `Assistant reply: ${completedMessage.content}`,
+      });
+    }
+
     const action = pendingActionsRef.current.get(messageId);
     if (!action) return;
 
     pendingActionsRef.current.delete(messageId);
     executeAction(action);
-  }, [executeAction]);
+  }, [executeAction, messages]);
 
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
@@ -1802,16 +1868,47 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     };
   }, [messages.length]);
 
-  const handleSendFromInput = useCallback((text: string, image?: ChatImageAttachment) => {
+  const handleSendFromInput = useCallback((text: string, image?: ChatImageAttachment, focusWasInComposer = false) => {
     setHasHadInteraction(true);
     stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
+    const focusRequestId = ++composerFocusRequestSequenceRef.current;
+    restoreComposerFocusAfterRemoteSendRef.current = focusWasInComposer ? focusRequestId : null;
+    remoteSendLoadingStartedForFocusRef.current = null;
     if (!image && sendHardcoded(text, getSuggestionResponse(text))) {
+      restoreComposerFocusAfterRemoteSendRef.current = null;
+      if (focusWasInComposer) restoreComposerFocusIfAppropriate(composerRef.current);
       return;
     }
-    sendMessage(text, image);
+    void sendMessage(text, image).finally(() => {
+      if (
+        restoreComposerFocusAfterRemoteSendRef.current === focusRequestId &&
+        remoteSendLoadingStartedForFocusRef.current !== focusRequestId
+      ) {
+        restoreComposerFocusAfterRemoteSendRef.current = null;
+      }
+    });
   }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
+
+  useEffect(() => {
+    if (isLoading && !previousLoadingRef.current) {
+      remoteSendLoadingStartedForFocusRef.current = restoreComposerFocusAfterRemoteSendRef.current;
+    }
+
+    const focusRequestId = restoreComposerFocusAfterRemoteSendRef.current;
+    const remoteSendCompleted =
+      previousLoadingRef.current &&
+      !isLoading &&
+      focusRequestId !== null &&
+      remoteSendLoadingStartedForFocusRef.current === focusRequestId;
+    previousLoadingRef.current = isLoading;
+    if (!remoteSendCompleted) return;
+
+    restoreComposerFocusAfterRemoteSendRef.current = null;
+    remoteSendLoadingStartedForFocusRef.current = null;
+    restoreComposerFocusIfAppropriate(composerRef.current);
+  }, [isLoading]);
 
   const handleSuggestion = useCallback((text: string) => {
     setHasHadInteraction(true);
@@ -1884,7 +1981,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     )}
       data-disco-chat-shell
       data-disco-motion={compact ? undefined : 'breath'}
-      style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
+      style={{
+        '--disco-motion-delay': '260ms',
+        '--chat-composer-height': `${composerHeight}px`,
+      } as CSSProperties}
     >
       {projectModalLoaded ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       <div className="sr-only" aria-live="polite">
@@ -1892,6 +1992,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         {ttsPlaybackStatus === 'playing' ? 'Playing assistant response.' : null}
         {ttsPlaybackStatus === 'paused' ? 'Assistant response paused.' : null}
         {ttsPlaybackStatus === 'error' ? (ttsPlaybackError ?? 'Could not play assistant response.') : null}
+      </div>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {assistantReplyAnnouncement ? (
+          <span key={assistantReplyAnnouncement.id}>{assistantReplyAnnouncement.text}</span>
+        ) : null}
       </div>
       {/* ─── Header ─── */}
       {!compact ? (
@@ -1935,10 +2040,13 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       <div
         ref={messagesScrollRef}
         className={cn(
-        "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 pb-32 md:pb-28 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
-        compact && "px-2 pt-4 pb-24 gap-4",
+        "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
+        compact && "px-2 pt-4 gap-4",
       )}
-        style={{ touchAction: 'pan-y' }}>
+        style={{
+          touchAction: 'pan-y',
+          paddingBottom: 'calc(var(--chat-composer-height, 0px) + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+        }}>
         {/* Messages (welcome note is always first) */}
         {messages.map((msg, idx) => {
           // Show "old notes" divider before the first non-welcome old message
@@ -1961,7 +2069,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 onSpeak={handleSpeakMessage}
                 onTtsRestart={handleTtsRestart}
                 onTtsSpeedChange={handleTtsSpeedChange}
-                onTypewriterDone={msg.role === 'assistant' && !msg.isOld ? () => handleTypewriterDone(msg.id) : undefined}
+                onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterDone(msg.id) : undefined}
                 showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
                 ttsPlaybackSpeed={ttsPlaybackSpeed}
                 ttsPlaybackError={ttsPlaybackError}
@@ -2038,6 +2146,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         compact={compact}
         hasMessages={hasMessages}
         onClear={handleClearDesk}
+        composerRef={composerRef}
       />
       </div>
 

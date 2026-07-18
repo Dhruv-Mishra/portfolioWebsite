@@ -28,4 +28,17 @@ describe('chat model catalog', () => {
     expect(isChatModelId('llama-3.1-8b-instant')).toBe(false);
     expect(isChatModelId('qwen-3.6-27b')).toBe(true);
   });
+
+  it('declares picker capabilities explicitly for every model', () => {
+    expect(Object.fromEntries(CHAT_MODELS.map((model) => [model.id, model.capabilities]))).toEqual({
+      'qwen-3.6-27b': ['fast', 'image'],
+      'glm-5.2': ['reasoning', 'slow'],
+      inkling: ['fast', 'image'],
+      'minimax-m3': ['image'],
+      'diffusiongemma-26b': ['image'],
+      'kimi-k2.6': ['reasoning', 'image', 'slow'],
+      'deepseek-v4-flash': ['fast'],
+      'deepseek-v4-pro': ['reasoning', 'slow'],
+    });
+  });
 });

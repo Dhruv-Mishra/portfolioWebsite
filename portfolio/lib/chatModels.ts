@@ -70,16 +70,6 @@ export const CHAT_MODELS = [
     capabilities: ['image'],
   },
   {
-    id: 'kimi-k2.6',
-    provider: 'nvidia',
-    group: 'NVIDIA',
-    upstreamModel: 'moonshotai/kimi-k2.6',
-    label: 'Kimi K2.6',
-    quality: 'Strong reasoning',
-    supportsImages: true,
-    capabilities: ['reasoning', 'image', 'slow'],
-  },
-  {
     id: 'deepseek-v4-flash',
     provider: 'nvidia',
     group: 'NVIDIA',

@@ -396,8 +396,10 @@ jobs:
             sudo test -f "$ENV_FILE" || fail "missing staging env file: $ENV_FILE"
             next_public_site_url="$(read_env NEXT_PUBLIC_SITE_URL)"
             site_url="$(read_env SITE_URL)"
+            nvidia_api_key="$(read_env NVIDIA_API_KEY)"
             [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got ${next_public_site_url:-unset}"
             [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got ${site_url:-unset}"
+            [ -n "$nvidia_api_key" ] || fail "NVIDIA_API_KEY must be configured for selectable NVIDIA chat models"
             command -v docker >/dev/null 2>&1 || fail "docker is not installed"
             sudo docker info >/dev/null || fail "docker daemon is not reachable"
             command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
@@ -1001,7 +1003,7 @@ jobs:
           chat_headers_file="$(mktemp)"
           chat_body_file="$(mktemp)"
           trap 'rm -f "$headers_file" "$body_file" ${asset_file:+"$asset_file"} "$chat_headers_file" "$chat_body_file"' EXIT
-          chat_status="$(curl -sS -L --retry 3 --retry-delay 2 --max-time 15 \
+          chat_status="$(curl -sS -L --retry 3 --retry-delay 2 --max-time 45 \
             -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
@@ -1010,15 +1012,15 @@ jobs:
             -H "Sec-Fetch-Site: same-origin" \
             -H "Cache-Control: no-cache" \
             -X POST \
-            --data '{"messages":[{"role":"user","content":"go to the about page"}]}' \
+            --data '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"Reply with exactly: STAGING_NVIDIA_OK"}]}' \
             -D "$chat_headers_file" \
             -o "$chat_body_file" \
             -w "%{http_code}" \
-            "https://${{ env.STAGING_DOMAIN }}/chat/respond" || echo "000")"
+            "https://${{ env.STAGING_DOMAIN }}/api/chat" || echo "000")"
 
           echo "Staging chat smoke HTTP status: $chat_status"
           echo "Chat response headers:"
-          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|cf-mitigated:|content-type:)' "$chat_headers_file" || true
+          grep -Ei '^(HTTP/|server:|cf-ray:|cf-cache-status:|cf-mitigated:|content-type:|x-chat-fallback:)' "$chat_headers_file" || true
 
           if grep -qiE '^cf-mitigated:[[:space:]]*challenge' "$chat_headers_file" \
             || grep -qi '<title>Just a moment' "$chat_body_file" \
@@ -1038,16 +1040,20 @@ jobs:
             echo "::error::staging chat returned a non-JSON response"
             exit 1
           fi
+          if ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline([[:space:]]|$)' "$chat_headers_file"; then
+            echo "::error::staging NVIDIA chat did not use the online provider"
+            exit 1
+          fi
           if ! node - "$chat_body_file" <<'NODE'
           const fs = require('node:fs');
           const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 
-          if (body?.action?.navigateTo !== '/about') {
-            throw new Error('Chat response did not include a navigateTo action for /about');
+          if (body?.modelId !== 'deepseek-v4-flash' || typeof body?.reply !== 'string' || !body.reply.trim()) {
+            throw new Error('Chat response did not contain a non-empty DeepSeek Flash reply');
           }
           NODE
           then
-            echo "::error::staging chat response did not contain the expected navigateTo /about action"
+            echo "::error::staging NVIDIA chat response was invalid"
             exit 1
           fi
 

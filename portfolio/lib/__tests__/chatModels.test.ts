@@ -11,14 +11,13 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(8);
+    expect(CHAT_MODELS).toHaveLength(7);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
       'z-ai/glm-5.2',
       'thinkingmachines/inkling',
       'minimaxai/minimax-m3',
       'google/diffusiongemma-26b-a4b-it',
-      'moonshotai/kimi-k2.6',
       'deepseek-ai/deepseek-v4-flash',
       'deepseek-ai/deepseek-v4-pro',
     ]);
@@ -36,7 +35,6 @@ describe('chat model catalog', () => {
       inkling: ['fast', 'image'],
       'minimax-m3': ['image'],
       'diffusiongemma-26b': ['image'],
-      'kimi-k2.6': ['reasoning', 'image', 'slow'],
       'deepseek-v4-flash': ['fast'],
       'deepseek-v4-pro': ['reasoning', 'slow'],
     });

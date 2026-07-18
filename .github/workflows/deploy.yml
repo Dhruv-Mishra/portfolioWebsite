@@ -503,12 +503,14 @@ jobs:
 
             next_public_site_url="$(read_env "$runtime_env" NEXT_PUBLIC_SITE_URL)"
             site_url="$(read_env "$runtime_env" SITE_URL)"
+            nvidia_api_key="$(read_env "$runtime_env" NVIDIA_API_KEY)"
             if [ -n "$next_public_site_url" ]; then
               [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got $next_public_site_url"
             fi
             if [ -n "$site_url" ]; then
               [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got $site_url"
             fi
+            [ -n "$nvidia_api_key" ] || fail "NVIDIA_API_KEY must be configured for selectable NVIDIA chat models"
 
             command -v docker >/dev/null 2>&1 || fail "docker is not installed"
             sudo docker info >/dev/null || fail "docker daemon is not reachable"

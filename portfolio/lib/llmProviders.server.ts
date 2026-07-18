@@ -65,8 +65,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b'>): LLMPr
         return { chat_template_kwargs: { enable_thinking: false } };
       case 'minimax-m3':
         return { chat_template_kwargs: { thinking_mode: 'disabled' } };
-      case 'kimi-k2.6':
-        return { chat_template_kwargs: { thinking: false } };
       case 'deepseek-v4-flash':
       case 'deepseek-v4-pro':
         return { chat_template_kwargs: { thinking: false } };

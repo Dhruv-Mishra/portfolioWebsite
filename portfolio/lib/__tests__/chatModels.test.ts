@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest';
+
+import { CHAT_MODELS, DEFAULT_CHAT_MODEL_ID, getChatModel, isChatModelId } from '@/lib/chatModels';
+
+describe('chat model catalog', () => {
+  it('uses Qwen as the recommended default and allowlists every supported upstream model', () => {
+    expect(DEFAULT_CHAT_MODEL_ID).toBe('qwen-3.6-27b');
+    expect(getChatModel(DEFAULT_CHAT_MODEL_ID)).toMatchObject({
+      provider: 'groq',
+      upstreamModel: 'qwen/qwen3.6-27b',
+      supportsImages: true,
+      isRecommended: true,
+    });
+    expect(CHAT_MODELS).toHaveLength(8);
+    expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
+      'qwen/qwen3.6-27b',
+      'z-ai/glm-5.2',
+      'thinkingmachines/inkling',
+      'minimaxai/minimax-m3',
+      'google/diffusiongemma-26b-a4b-it',
+      'moonshotai/kimi-k2.6',
+      'deepseek-ai/deepseek-v4-flash',
+      'deepseek-ai/deepseek-v4-pro',
+    ]);
+  });
+
+  it('rejects unknown client model identifiers', () => {
+    expect(isChatModelId('llama-3.1-8b-instant')).toBe(false);
+    expect(isChatModelId('qwen-3.6-27b')).toBe(true);
+  });
+});

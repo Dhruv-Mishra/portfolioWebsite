@@ -74,13 +74,16 @@ export async function POST(request: NextRequest) {
     const recentUserMessage = [...context].reverse().find(message => message.role === 'user')?.content;
     const recentAssistantMessage = [...context].reverse().find(message => message.role === 'assistant')?.content;
 
-    const { primary, fallback } = getSuggestionsProviders();
-    const providers = [primary, fallback].filter((provider): provider is LLMProvider => provider !== null);
+    const { primary, fallback, legacyFallback } = getSuggestionsProviders();
+    const providers = [primary, fallback, legacyFallback].filter((provider): provider is LLMProvider => provider != null);
+    const fallbackAttemptBudget = providers.length > 1
+      ? Math.floor(LLM_SUGGESTIONS_FALLBACK_RESERVE_MS / (providers.length - 1))
+      : 0;
     let suggestions: string[] = [];
 
     for (let i = 0; i < providers.length; i += 1) {
       const remainingMs = routeDeadlineAt - Date.now();
-      const fallbackReserveMs = i < providers.length - 1 ? LLM_SUGGESTIONS_FALLBACK_RESERVE_MS : 0;
+      const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
       const attemptTimeoutMs = Math.min(
         LLM_SUGGESTIONS_PROVIDER_TIMEOUT_MS,
         Math.max(0, remainingMs - fallbackReserveMs),
@@ -137,6 +140,20 @@ async function callSuggestionsProvider(
 
   try {
     const client = createProviderClient(provider);
+    const suggestionMaxTokens = Math.min(
+      provider.sampling.maxTokens
+        ?? provider.sampling.maxCompletionTokens
+        ?? LLM_SUGGESTIONS_PARAMS.maxTokens,
+      LLM_SUGGESTIONS_PARAMS.maxTokens,
+    );
+    const completionTokenLimit = provider.kind === 'groq'
+      ? {
+          max_completion_tokens: Math.min(
+            provider.sampling.maxCompletionTokens ?? suggestionMaxTokens,
+            LLM_SUGGESTIONS_PARAMS.maxTokens,
+          ),
+        }
+      : { max_tokens: suggestionMaxTokens };
     const completion = await client.chat.completions.create({
       model: provider.model,
       messages: [
@@ -144,9 +161,10 @@ async function callSuggestionsProvider(
         ...context,
         { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
       ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-      temperature: LLM_SUGGESTIONS_PARAMS.temperature,
-      top_p: LLM_SUGGESTIONS_PARAMS.topP,
-      max_tokens: LLM_SUGGESTIONS_PARAMS.maxTokens,
+      temperature: provider.sampling.temperature,
+      ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
+      ...completionTokenLimit,
+      ...provider.sampling.extraBody,
       stream: false,
     }, {
       signal,

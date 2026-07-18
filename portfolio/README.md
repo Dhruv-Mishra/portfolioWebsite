@@ -74,7 +74,7 @@ scripts/          embeddings and deployment helpers
 ## Runtime Notes
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
-- Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
+- Default chat tries Groq Qwen first, then built-in NVIDIA DiffusionGemma, then the optional text-only OpenAI-compatible legacy fallback through `LLM_*` variables.
 - Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
 - Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
@@ -107,9 +107,10 @@ scripts/          embeddings and deployment helpers
 
 | Variable | Purpose |
 |---|---|
-| `GROQ_API_KEY`, `GROQ_MODEL` | Primary chat provider and optional model override |
-| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | OpenAI-compatible fallback provider |
-| `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` | Secondary fallback provider |
+| `GROQ_API_KEY` | Runs the default `qwen/qwen3.6-27b` chat model on Groq; the main-chat model is fixed by the server allowlist. |
+| `NVIDIA_API_KEY` | Runs selectable NVIDIA models, NVIDIA-backed suggestions, and the built-in DiffusionGemma fallback after Groq failures. |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Optional final text-only legacy OpenAI-compatible compatibility fallback. |
+| `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` | Optional second legacy provider after `LLM_MODEL`. |
 | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
 | `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |
 | `SKIP_EMBEDDINGS_BUILD=1` | Reuse committed `lib/facts.embeddings.json` |

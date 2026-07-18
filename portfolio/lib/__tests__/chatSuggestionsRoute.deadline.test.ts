@@ -36,6 +36,12 @@ const PRIMARY_PROVIDER = {
   apiKey: 'groq-key',
   baseURL: 'https://api.groq.com/openai/v1',
   model: 'groq-model',
+  sampling: {
+    temperature: 0.6,
+    topP: 0.95,
+    maxCompletionTokens: 384,
+    extraBody: { reasoning_effort: 'none' },
+  },
 };
 
 const FALLBACK_PROVIDER = {
@@ -44,6 +50,20 @@ const FALLBACK_PROVIDER = {
   apiKey: 'legacy-key',
   baseURL: 'https://legacy.example/v1',
   model: 'legacy-model',
+  sampling: { temperature: 0.6, maxTokens: 384 },
+};
+
+const NVIDIA_PROVIDER = {
+  kind: 'nvidia' as const,
+  label: 'nvidia-suggestions',
+  apiKey: 'nvidia-key',
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  model: 'deepseek-ai/deepseek-v4-flash',
+  sampling: {
+    temperature: 0.6,
+    maxTokens: 384,
+    extraBody: { chat_template_kwargs: { thinking: false } },
+  },
 };
 
 function createSuggestionsRequest(signal?: AbortSignal): NextRequest {
@@ -112,9 +132,64 @@ describe('chat suggestions route deadlines', () => {
     await POST(createSuggestionsRequest());
 
     expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({ max_tokens: 48 }),
+      expect.objectContaining({ max_completion_tokens: 48 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it('uses NVIDIA sampling and preserves its exact provider-specific body', async () => {
+    const createMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+        choices: [{ message: { content: 'First suggestion\nSecond suggestion' } }],
+      }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: createMock } } });
+    getSuggestionsProvidersMock.mockReturnValue({ primary: NVIDIA_PROVIDER, fallback: null });
+
+    await POST(createSuggestionsRequest());
+
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'deepseek-ai/deepseek-v4-flash',
+      messages: [
+        { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+        { role: 'user', content: 'What do you build?' },
+        { role: 'assistant', content: 'I build reliable AI systems.' },
+        { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
+      ],
+      temperature: 0.6,
+      max_tokens: 48,
+      chat_template_kwargs: { thinking: false },
+      stream: false,
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('uses Groq sampling while retaining the concise suggestions cap', async () => {
+    const createMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+        choices: [{ message: { content: 'First suggestion\nSecond suggestion' } }],
+      }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: createMock } } });
+    getSuggestionsProvidersMock.mockReturnValue({ primary: PRIMARY_PROVIDER, fallback: null });
+
+    await POST(createSuggestionsRequest());
+
+    expect(createMock).toHaveBeenCalledWith({
+      model: 'groq-model',
+      messages: [
+        { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+        { role: 'user', content: 'What do you build?' },
+        { role: 'assistant', content: 'I build reliable AI systems.' },
+        { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
+      ],
+      temperature: 0.6,
+      top_p: 0.95,
+      max_completion_tokens: 48,
+      reasoning_effort: 'none',
+      stream: false,
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('reserves time for fallback before the seven second route deadline', async () => {

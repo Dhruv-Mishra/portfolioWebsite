@@ -1,11 +1,11 @@
 ﻿"use client";
 
 import dynamic from 'next/dynamic';
-import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, memo, useMemo, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, useSyncExternalStore, memo, useMemo, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, Zap } from 'lucide-react';
+import { ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -50,6 +50,13 @@ import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/ho
 import { Tooltip } from '@/components/ui/Tooltip';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
+import { compressChatImage, type ChatImageAttachment } from '@/lib/chatImageCompression';
+import { getChatModel } from '@/lib/chatModels';
+import {
+  CHAT_MODEL_PREF_STORAGE_KEY,
+  CHAT_MODEL_SWITCH_CLEAR_EVENT,
+  useChatModelPref,
+} from '@/lib/chatModelPref';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -730,6 +737,17 @@ const StickyNote = memo(function StickyNote({
         message.isOld && "sepia-[.15] dark:sepia-0",
       )}
     >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'absolute top-4 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--c-paper)] font-code text-xs font-bold shadow-sm',
+          isUser
+            ? '-right-3 bg-amber-500 text-amber-950'
+            : '-left-3 bg-sky-600 text-white',
+        )}
+      >
+        {isUser ? 'Y' : 'D'}
+      </span>
       {/* Tape on all notes */}
       <TapeStrip />
 
@@ -786,6 +804,19 @@ const StickyNote = memo(function StickyNote({
             <MatrixAwareAssistantText message={message} displayedText={displayedText} />
           )}
         </div>
+        {isUser && message.imagePreviewDataUrl ? (
+          <div className="mt-3 flex max-w-full items-center gap-2 border-t border-dashed border-[var(--note-user-ink)]/25 pt-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- transient request data URL must not use Next image optimization. */}
+            <img
+              src={message.imagePreviewDataUrl}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-sm border border-[var(--note-user-ink)]/25 object-cover"
+            />
+            <span className="min-w-0 truncate text-xs text-[var(--note-user-ink)]/75">
+              Image attached{message.imageName ? `: ${message.imageName}` : ''}
+            </span>
+          </div>
+        ) : null}
         {!isUser && isTtsActive && ttsStatus === 'error' && ttsPlaybackError ? (
           <p className="mt-2 font-sans text-xs leading-snug text-rose-700 dark:text-rose-300" role="status">
             {ttsPlaybackError}
@@ -869,12 +900,16 @@ const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: 
 
 // ─── Chat Input Area (isolated to prevent keystroke re-renders of message list) ───
 interface ChatInputAreaProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, image?: ChatImageAttachment) => void;
   isLoading: boolean;
   compact: boolean;
   hasMessages: boolean;
   onClear: () => void;
 }
+
+const subscribeToComposerHydration = () => () => {};
+const getClientComposerHydrationSnapshot = () => true;
+const getServerComposerHydrationSnapshot = () => false;
 
 /**
  * Confirmation modal body — sketchbook-styled disclaimer card with a
@@ -944,7 +979,13 @@ const ConfirmContent = memo(function ConfirmContent({
 
 const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear }: ChatInputAreaProps) {
   const [input, setInput] = useState('');
+  const [attachment, setAttachment] = useState<ChatImageAttachment | null>(null);
+  const [attachmentStatus, setAttachmentStatus] = useState<string | null>(null);
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageCompressionAbortRef = useRef<AbortController | null>(null);
+  const imageCompressionGenerationRef = useRef(0);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
   const { pref: voicePref, setPref: setVoicePref, togglePref: toggleVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
@@ -955,16 +996,79 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   // Escape dismissal). null = no modal open.
   type ConfirmKind = 'clear' | 'enableLocal' | null;
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
+  const { modelId } = useChatModelPref();
+  const modelPrefHydrated = useSyncExternalStore(
+    subscribeToComposerHydration,
+    getClientComposerHydrationSnapshot,
+    getServerComposerHydrationSnapshot,
+  );
+  const model = getChatModel(modelId);
+  const supportsImages = modelPrefHydrated && (model?.supportsImages ?? false);
+
+  useEffect(() => {
+    const clearAttachmentForModelSwitch = () => {
+      imageCompressionGenerationRef.current += 1;
+      imageCompressionAbortRef.current?.abort('model-switch');
+      imageCompressionAbortRef.current = null;
+      setAttachment(null);
+      setAttachmentStatus(null);
+      setIsCompressingImage(false);
+    };
+    const clearAttachmentForCrossTabModelSwitch = (event: StorageEvent) => {
+      if (event.key === CHAT_MODEL_PREF_STORAGE_KEY) clearAttachmentForModelSwitch();
+    };
+    window.addEventListener(CHAT_MODEL_SWITCH_CLEAR_EVENT, clearAttachmentForModelSwitch);
+    window.addEventListener('storage', clearAttachmentForCrossTabModelSwitch);
+    return () => {
+      imageCompressionGenerationRef.current += 1;
+      imageCompressionAbortRef.current?.abort('unmount');
+      imageCompressionAbortRef.current = null;
+      window.removeEventListener(CHAT_MODEL_SWITCH_CLEAR_EVENT, clearAttachmentForModelSwitch);
+      window.removeEventListener('storage', clearAttachmentForCrossTabModelSwitch);
+    };
+  }, []);
 
   const handleSend = useCallback(() => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isCompressingImage) return;
     if (speech.isListening) speech.stop();
-    onSend(input.trim());
+    onSend(input.trim(), attachment ?? undefined);
     setInput('');
+    setAttachment(null);
+    setAttachmentStatus(null);
     speech.reset();
     baseInputRef.current = '';
     setTimeout(() => inputRef.current?.focus(), TIMING_TOKENS.refocusDelay);
-  }, [input, isLoading, onSend, speech]);
+  }, [attachment, input, isCompressingImage, isLoading, onSend, speech]);
+
+  const handleImageSelection = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    imageCompressionAbortRef.current?.abort('superseded');
+    const controller = new AbortController();
+    imageCompressionAbortRef.current = controller;
+    const compressionGeneration = imageCompressionGenerationRef.current + 1;
+    imageCompressionGenerationRef.current = compressionGeneration;
+    setIsCompressingImage(true);
+    setAttachmentStatus('Preparing image...');
+    try {
+      const nextAttachment = await compressChatImage(file, controller.signal);
+      if (imageCompressionGenerationRef.current !== compressionGeneration || !supportsImages) return;
+      setAttachment(nextAttachment);
+      setAttachmentStatus(`Image ready, ${Math.ceil(nextAttachment.bytes / 1024)} KB.`);
+    } catch (error) {
+      if (imageCompressionGenerationRef.current !== compressionGeneration || controller.signal.aborted) return;
+      setAttachment(null);
+      setAttachmentStatus(error instanceof Error ? error.message : 'That image could not be prepared.');
+    } finally {
+      if (imageCompressionGenerationRef.current === compressionGeneration) {
+        setIsCompressingImage(false);
+      }
+      if (imageCompressionAbortRef.current === controller) {
+        imageCompressionAbortRef.current = null;
+      }
+    }
+  }, [supportsImages]);
 
   // Live-merge speech transcript into the textarea. While the mic is
   // actively listening we DON'T touch `setInput` — every interim token
@@ -1054,7 +1158,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             controls share a single translucent themed pill so they read
             as a unified "chat utilities" cluster rather than three
             disconnected affordances. */}
-        {(hasMessages || speech.isSupported) && (
+        {(hasMessages || speech.isSupported || supportsImages) && (
           <div className="flex items-center justify-end mb-1.5 px-1">
             <div
               data-disco-motion="shimmy"
@@ -1072,6 +1176,25 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               )}
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
+            {modelPrefHydrated ? (
+              <span className="max-w-32 truncate font-code text-[10px] text-[var(--c-ink)]/60" title={model?.label}>
+                {model?.label} · {supportsImages ? 'Vision' : 'Text'}
+              </span>
+            ) : null}
+            {supportsImages ? (
+              <Tooltip label="Attach image">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || isCompressingImage}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  title="Attach image"
+                  aria-label="Attach image"
+                >
+                  {isCompressingImage ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={15} aria-hidden="true" />}
+                </button>
+              </Tooltip>
+            ) : null}
             {hasMessages && (
               <Tooltip label="Clear chat history">
               <button
@@ -1123,6 +1246,41 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               : speech.error}
           </div>
         ) : null}
+        {supportsImages ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Choose image to attach"
+            className="sr-only"
+            onChange={handleImageSelection}
+          />
+        ) : null}
+        {attachment ? (
+          <div className="mx-1 mb-1.5 flex min-h-12 max-w-full items-center gap-2 border-b border-dashed border-[var(--c-ink)]/20 pb-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- transient request data URL must not use Next image optimization. */}
+            <img src={attachment.dataUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm border border-[var(--c-ink)]/20 object-cover" />
+            <span className="min-w-0 flex-1 truncate font-hand text-sm text-[var(--c-ink)]/75">
+              {attachment.filename} ({Math.ceil(attachment.bytes / 1024)} KB)
+            </span>
+            <Tooltip label="Remove image">
+              <button
+                type="button"
+                onClick={() => { setAttachment(null); setAttachmentStatus(null); }}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 hover:bg-red-100/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+                aria-label="Remove attached image"
+                title="Remove image"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </div>
+        ) : null}
+        {attachmentStatus ? (
+          <p className="mb-1 px-2 font-hand text-[11px] leading-tight text-[var(--c-ink)]/65" aria-live="polite">
+            {attachmentStatus}
+          </p>
+        ) : null}
 
         {/* The input "sticky note" — symmetric vertical padding (top = bottom). */}
         <m.div
@@ -1145,7 +1303,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                disabled={isLoading || speech.isListening || speech.isTranscribing}
+                disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
                 aria-label="Chat message"
                 className={cn(
                   // Auto-grow textarea: rows=1 baseline; useLayoutEffect
@@ -1206,10 +1364,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               whileHover={SEND_BUTTON_HOVER}
               whileTap={SEND_BUTTON_TAP}
               onClick={handleSend}
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() || isLoading || isCompressingImage}
               className={cn(
                 "flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-0 transition-colors",
-                input.trim() && !isLoading
+                input.trim() && !isLoading && !isCompressingImage
                   ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
                   : "text-gray-400 dark:text-gray-600",
               )}
@@ -1644,15 +1802,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     };
   }, [messages.length]);
 
-  const handleSendFromInput = useCallback((text: string) => {
+  const handleSendFromInput = useCallback((text: string, image?: ChatImageAttachment) => {
     setHasHadInteraction(true);
     stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
-    if (sendHardcoded(text, getSuggestionResponse(text))) {
+    if (!image && sendHardcoded(text, getSuggestionResponse(text))) {
       return;
     }
-    sendMessage(text);
+    sendMessage(text, image);
   }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
 
   const handleSuggestion = useCallback((text: string) => {

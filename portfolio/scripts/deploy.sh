@@ -600,13 +600,11 @@ check_root() {
 
 check_dependencies() {
     log STEP "Checking dependencies..."
-    local deps=("nginx" "systemctl" "curl" "sed" "flock")
+    local deps=("nginx" "systemctl" "curl" "sed" "awk" "flock")
     if [[ "${MODE}" == "legacy" ]]; then
         deps+=("git" "node" "npm" "nice" "ionice")
     elif [[ "${MODE}" == "image" ]]; then
-        deps+=("docker" "awk")
-    elif [[ "${MODE}" == "rollback" ]]; then
-        deps+=("awk")
+        deps+=("docker")
     fi
 
     local missing=()

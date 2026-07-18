@@ -97,6 +97,30 @@ function toProviderMessages(
   });
 }
 
+function normalizeProviderConversation(messages: SanitizedChatMessage[]): SanitizedChatMessage[] {
+  const normalized: SanitizedChatMessage[] = [];
+
+  for (const message of messages) {
+    if (message.role === 'assistant' && normalized.length === 0) {
+      continue;
+    }
+
+    const previous = normalized.at(-1);
+    if (previous?.role === message.role) {
+      previous.content = `${previous.content}\n\n${message.content}`;
+      continue;
+    }
+
+    normalized.push({ ...message });
+  }
+
+  while (normalized.at(-1)?.role === 'assistant') {
+    normalized.pop();
+  }
+
+  return normalized;
+}
+
 function getValidatedImage(value: unknown): ChatImage | null | 'invalid' {
   if (value === undefined) return null;
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof (value as { dataUrl?: unknown }).dataUrl !== 'string') {
@@ -261,10 +285,14 @@ export async function POST(request: NextRequest) {
     // recent UI actions, retrieved facts) is emitted as a separate system
     // message, and only when non-empty.
     const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized, { factLimit: 6 });
+    const providerConversation = normalizeProviderConversation(sanitized);
+    if (providerConversation.length === 0) {
+      return Response.json({ error: 'At least one user message is required' }, { status: 400 });
+    }
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
-      ...toProviderMessages(sanitized, image ?? undefined),
+      ...toProviderMessages(providerConversation, image ?? undefined),
     ];
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);

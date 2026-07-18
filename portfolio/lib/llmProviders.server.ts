@@ -32,10 +32,6 @@ const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const MAIN_STOP = ['\n\n\n', '\nUser:', '\nAssistant:'];
 
-function isFallbackModelEnabled(): boolean {
-  return process.env.LLM_ENABLE_FALLBACK_MODEL === 'true';
-}
-
 function getGroqQwenProvider(): LLMProvider | null {
   const apiKey = process.env.GROQ_API_KEY;
   const model = getChatModel(DEFAULT_CHAT_MODEL_ID);
@@ -96,33 +92,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b'>): LLMPr
   };
 }
 
-function getLegacyProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null } {
-  const primary: LLMProvider | null = (process.env.LLM_API_KEY && process.env.LLM_BASE_URL && process.env.LLM_MODEL)
-    ? {
-        kind: 'openai',
-        apiKey: process.env.LLM_API_KEY,
-        baseURL: process.env.LLM_BASE_URL,
-        model: process.env.LLM_MODEL,
-        label: process.env.LLM_MODEL,
-        supportsImages: false,
-        sampling: { temperature: 0.6, maxTokens: 384 },
-      }
-    : null;
-  const fallback: LLMProvider | null = (isFallbackModelEnabled() && process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_MODEL)
-    ? {
-        kind: 'openai',
-        apiKey: process.env.LLM_FALLBACK_API_KEY,
-        baseURL: process.env.LLM_FALLBACK_BASE_URL,
-        model: process.env.LLM_FALLBACK_MODEL,
-        label: process.env.LLM_FALLBACK_MODEL,
-        supportsImages: false,
-        sampling: { temperature: 0.6, maxTokens: 384 },
-      }
-    : null;
-
-  return { primary, fallback };
-}
-
 function toChatProviders(candidates: Array<LLMProvider | null>): ChatProviders {
   const providers = candidates.filter((provider): provider is LLMProvider => provider != null);
 
@@ -133,31 +102,16 @@ function toChatProviders(candidates: Array<LLMProvider | null>): ChatProviders {
 }
 
 export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MODEL_ID): ChatProviders {
-  const legacy = getLegacyProviders();
-
   if (selectedModelId === DEFAULT_CHAT_MODEL_ID) {
-    const groq = getGroqQwenProvider();
-    const nvidiaFallback = getNvidiaProvider('diffusiongemma-26b');
-    return toChatProviders([groq, nvidiaFallback, legacy.primary, legacy.fallback]);
+    return toChatProviders([getGroqQwenProvider()]);
   }
 
-  const nvidia = getNvidiaProvider(selectedModelId);
-  const groq = getGroqQwenProvider();
-  const nvidiaVisionFallback = nvidia?.supportsImages && selectedModelId !== 'diffusiongemma-26b'
-    ? getNvidiaProvider('diffusiongemma-26b')
-    : null;
-
-  return toChatProviders([nvidia, groq, nvidiaVisionFallback, legacy.primary, legacy.fallback]);
+  return toChatProviders([getNvidiaProvider(selectedModelId)]);
 }
 
 export function getSuggestionsProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null; legacyFallback: LLMProvider | null } {
   const nvidia = getNvidiaProvider('deepseek-v4-flash');
-  const groq = getGroqQwenProvider();
-  const legacy = getLegacyProviders();
-
-  if (nvidia) return { primary: nvidia, fallback: groq, legacyFallback: legacy.primary ?? legacy.fallback };
-  if (groq) return { primary: groq, fallback: legacy.primary ?? legacy.fallback, legacyFallback: legacy.fallback };
-  return { primary: legacy.primary, fallback: legacy.fallback, legacyFallback: null };
+  return { primary: nvidia, fallback: null, legacyFallback: null };
 }
 
 export function createProviderClient(provider: LLMProvider): OpenAI {

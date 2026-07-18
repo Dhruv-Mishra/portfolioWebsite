@@ -12,6 +12,7 @@ import {
   ACTION_REGISTRY,
   DISCO_ACTION_LABEL,
   DISCO_EXIT_ACTION_LABEL,
+  VALID_NAVIGATION_PATHS,
   VALID_THEME_ACTIONS,
   getActionFallbackReply,
   getFollowupActions,
@@ -19,6 +20,7 @@ import {
   getPromotedFollowupActions,
   resolveExactActionLabel,
 } from '@/lib/actions';
+import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { getCannedSuggestionTexts, getSuggestionResponse } from '@/lib/suggestionResponses';
 
 describe('public `disco` command', () => {
@@ -57,6 +59,21 @@ describe('chat themeAction: disco / disco-off', () => {
     const labels = ACTION_REGISTRY.map(a => a.label);
     expect(labels).toContain(DISCO_ACTION_LABEL);
     expect(labels).toContain(DISCO_EXIT_ACTION_LABEL);
+  });
+
+  it('represents every allowlisted navigation path and approved link', () => {
+    const navigationTargets = new Set(
+      ACTION_REGISTRY.flatMap(action => action.navigateTo ? [action.navigateTo] : []),
+    );
+    const openUrls = new Set(
+      ACTION_REGISTRY.flatMap(action => action.openUrls ?? []),
+    );
+
+    expect(navigationTargets).toEqual(new Set(VALID_NAVIGATION_PATHS));
+    expect(openUrls).toEqual(new Set([
+      ...Object.values(PERSONAL_LINKS),
+      ...Object.values(PROJECT_LINKS),
+    ]));
   });
 
   it('getActionFallbackReply returns a reply for disco / disco-off', () => {

@@ -1,71 +1,150 @@
 # Dhruv's Sketchbook
 
-The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style portfolio with an interactive terminal, grounded AI chat, project pages, resume content, stickers, and a public guestbook.
+The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfolio built as a hand-drawn engineering sketchbook. It combines a command-line interface, grounded multimodal AI chat, project case studies, custom speech, a public guestbook, and a small discovery layer that rewards exploration.
 
-- Production: [whoisdhruv.com](https://whoisdhruv.com)
-- Staging: [staging.whoisdhruv.com](https://staging.whoisdhruv.com)
+[Visit production](https://whoisdhruv.com) · [Preview staging](https://staging.whoisdhruv.com) · [Read the app guide](portfolio/README.md)
 
 ## Screenshots
 
-| Home | Projects |
+| Home and terminal | Project wall |
 |---|---|
-| ![Home page with terminal](docs/screenshots/home-desktop.png) | ![Projects page](docs/screenshots/projects-desktop.png) |
+| ![Dark sketchbook home page with an interactive terminal](docs/screenshots/home-desktop.png) | ![Dark sketchbook project wall with illustrated project cards](docs/screenshots/projects-desktop.png) |
 
-| Chat |
-|---|
-| ![Mobile chat page](docs/screenshots/chat-mobile.png) |
+<p align="center">
+	<img src="docs/screenshots/chat-mobile.png" width="390" alt="Mobile AI chat with model capability, image attachment, voice, suggestions, and action controls">
+</p>
 
-## What Ships
+## Experience
 
-- Sketchbook UI with light and dark themes, motion, responsive layouts, and custom interaction details.
-- Terminal-driven navigation with route commands and file-style content.
-- AI chat grounded by a local fact corpus and build-time embeddings.
-- Optional custom Pocket TTS server voice with device-speech fallback.
-- Public pages for about, projects, resume, chat, guestbook, and stickers.
-- Machine-readable routes for AI crawlers and markdown consumers.
+- **Sketchbook interface:** responsive light and dark themes, page-turn transitions, tactile details, a command palette, keyboard shortcuts, and optional sound effects.
+- **Interactive terminal:** navigates the site, opens content, changes UI state, and hides a few surprises behind a familiar shell vocabulary.
+- **Grounded AI chat:** answers from a local Markdown fact corpus and committed embedding fallback instead of inventing portfolio details.
+- **Multimodal model picker:** switches between Groq Qwen and seven NVIDIA-hosted models, exposing image attachment only when the active model supports vision.
+- **Voice in and out:** local browser transcription, a custom Pocket TTS server voice, persistent generated-audio caching, and device-speech fallback.
+- **Real product surfaces:** project modals, resume and Markdown routes, stickers, settings, a GitHub-backed guestbook, and private feedback workflows.
+- **Machine-readable content:** public Markdown and `llms.txt` routes make the portfolio useful to people, crawlers, and AI clients.
 
-Some routes and behaviors stay out of the README so the site keeps its discovery layer.
+Some commands and interactions intentionally remain undocumented so the site keeps its discovery layer.
 
-## Stack
+## AI Chat
 
-- Next.js 16 App Router with standalone output
-- React 19, TypeScript 5, Tailwind CSS 4, Framer Motion 12
-- Groq-first chat runtime with OpenAI-compatible fallback support
-- GitHub-backed guestbook, feedback, and notes workflows
-- ESLint 9 and Vitest 4
-- Linux VMs behind Cloudflare and Nginx; Docker image deploys for staging and production
+The chat boundary is deliberately narrow: model and provider IDs are server-allowlisted, provider keys never reach the browser, assistant history is signed before reuse, requests are origin-checked and rate-limited, and remote replies are sanitized before rendering.
 
-## Run Locally
+Image attachments are request-scoped and never persisted to local storage. Before upload, the browser:
 
-From the repo root:
+1. Accepts JPEG, PNG, or WebP files up to 10 MB.
+2. Corrects browser decoding and renders onto a high-quality canvas.
+3. Downscales the longest edge to at most 1280 px.
+4. Encodes JPEG at a quality floor of 0.60, progressively reducing dimensions until the image is at most 128 KiB.
+
+This keeps enough detail for screenshots and visual questions while reducing base64 overhead, provider latency, and request-size failures. Vision requests retain an image-capable online fallback when the selected provider is unavailable.
+
+### Models
+
+| Runtime | Model | Capability |
+|---|---|---|
+| Groq | Qwen 3.6 27B | Recommended, fast, vision |
+| NVIDIA | GLM 5.2 | Reasoning |
+| NVIDIA | Inkling | Fast, vision |
+| NVIDIA | MiniMax M3 | Preview, vision |
+| NVIDIA | DiffusionGemma 26B | Vision fallback |
+| NVIDIA | Kimi K2.6 | Reasoning, vision |
+| NVIDIA | DeepSeek V4 Flash | Fast |
+| NVIDIA | DeepSeek V4 Pro | Reasoning |
+
+### Chat Actions
+
+The LLM is not given arbitrary browser or operating-system access. Recognized requests resolve through a deterministic, validated action layer with six tool families:
+
+| Tool | Allowed result |
+|---|---|
+| Navigate | Open home, about, projects, resume, chat, guestbook, stickers, or settings |
+| Project | Open one of the nine allowlisted project detail modals |
+| Open link | Open approved profile, contact, resume, project source, demo, or research links |
+| Appearance | Switch light/dark theme or enter/exit disco mode |
+| Feedback | Open the feedback note |
+| Command palette | Open the site's command palette |
+
+Action chips and contextual follow-up suggestions cover the same allowlist, so suggested actions cannot grant capabilities beyond those the router already validates.
+
+## Architecture
+
+```mermaid
+flowchart LR
+	Browser[Browser] --> Edge[Cloudflare]
+	Edge --> Nginx[Nginx on Linux VMs]
+	Nginx --> Next[Next.js standalone server]
+	Next --> BrowserUI[React client and App Router]
+	Next --> Routes[API routes]
+	Routes --> Retrieval[Markdown facts + embeddings]
+	Routes --> Providers[Groq and NVIDIA APIs]
+	Routes --> GitHub[Guestbook and feedback workflows]
+	Routes --> TTS[Pocket TTS gateway]
+	BrowserUI --> Whisper[Browser Whisper worker]
+```
+
+### Stack
+
+- Next.js 16 App Router, React 19, and strict TypeScript 5
+- Tailwind CSS 4, Framer Motion 12, and Lucide icons
+- Groq SDK plus OpenAI-compatible NVIDIA and optional legacy providers
+- Transformers.js for local transcription and Pocket TTS 2.1 for server speech
+- Vitest 4 and ESLint 9
+- Dockerized standalone output on Linux VMs behind Cloudflare and Nginx
+
+## Local Development
+
+Requirements: Node.js 22 or newer and npm 10.9.8.
 
 ```bash
+git clone https://github.com/Dhruv-Mishra/dhruvwebsite.git
+cd dhruvwebsite/portfolio
 npm install
 npm run dev
 ```
 
-The app lives in [portfolio](portfolio). The root `package.json` proxies `dev`, `build`, `start`, and `lint`; run tests with `npm --prefix portfolio run test`.
-
-## Useful Commands
+Open [http://localhost:3000](http://localhost:3000). The committed embedding bundle supports local builds without provider credentials; online chat, GitHub workflows, and custom speech require their corresponding server-side configuration.
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start the Next.js dev server |
-| `npm run build` | Build the production app |
-| `npm run start` | Start the production server |
+| `npm run dev` | Start the development server |
+| `npm run build` | Generate embeddings when configured and build standalone output |
+| `npm run start` | Run the production server locally |
 | `npm run lint` | Run ESLint |
-| `npm --prefix portfolio run test` | Run the Vitest suite |
+| `npm run typecheck` | Run the TypeScript compiler without emitting files |
+| `npm test` | Run the Vitest suite |
+
+Configuration, container setup, Pocket TTS requirements, and deployment contracts are documented in [portfolio/README.md](portfolio/README.md).
+
+## Repository
+
+```text
+portfolio/app/              pages, public routes, and API handlers
+portfolio/components/       sketchbook UI and interactive surfaces
+portfolio/content/facts/    retrieval corpus for grounded chat
+portfolio/context/          React providers
+portfolio/hooks/            client controllers and persistence
+portfolio/lib/              models, actions, integrations, and tests
+portfolio/public/           fonts, media, sounds, and static assets
+portfolio/scripts/          build, smoke-test, and deployment tooling
+docs/screenshots/           curated GitHub screenshots
+```
 
 ## Deployment
 
-- `dev/lkg` is the primary development branch for reviewed changes.
-- `deployed/staging` is the staging deployment branch; direct pushes deploy to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
-- `deployed/production` is the production deployment branch; direct pushes deploy to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
-- Manual promotion workflows move `dev/lkg` to `deployed/staging`, then `deployed/staging` to `deployed/production`.
-- Staging and production runtime signing secrets are stored as distinct repository-level Actions secrets and synchronized to every VM during deployment. Complete the one-time setup in [VMChangesRequired.md](VMChangesRequired.md).
-- Pocket TTS deployments also require repository-level `STAGING_HF_TOKEN` and `PRODUCTION_HF_TOKEN` read-token secrets; detailed setup and voice-consent requirements live in [portfolio/README.md](portfolio/README.md).
-- Cloudflare sits at the edge, with Nginx and the Next.js standalone server on the VM origin.
+Development is promoted through environment branches:
 
-## For Agents
+```text
+dev/lkg -> deployed/staging -> deployed/production
+```
 
-Start with [AGENTS.md](AGENTS.md), then read the nearest directory-level `AGENTS.md` before editing files in that area. Keep runtime markdown routes and the fact corpus unless the task explicitly changes public/RAG content.
+- `deployed/staging` deploys Docker images to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
+- `deployed/production` deploys to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
+- Each environment has separate signing, access, provider, and speech credentials.
+- Deploy workflows validate VM identity and image architecture, run health checks, verify the deployed SHA, and retain rollback releases.
+
+Cloudflare provides the public edge; Nginx routes traffic to the standalone Next.js service on the VM fleet. The complete operational contract lives in [portfolio/README.md](portfolio/README.md).
+
+## Contributing
+
+Start with [AGENTS.md](AGENTS.md), then read the nearest directory-level guide before editing. Preserve the runtime Markdown routes, retrieval corpus, hidden discovery layer, theme support, accessibility, and mobile behavior. Run lint, type checking, and relevant Vitest coverage before opening a pull request.

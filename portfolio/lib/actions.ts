@@ -109,6 +109,18 @@ export const ACTION_REGISTRY: ActionDef[] = [
     navigateTo: '/projects',
   },
   {
+    label: 'Go to the home page',
+    navigateTo: '/',
+  },
+  {
+    label: 'Open the resume page',
+    navigateTo: '/resume',
+  },
+  {
+    label: 'Return to chat',
+    navigateTo: '/chat',
+  },
+  {
     label: 'Switch to dark mode',
     themeAction: 'dark',
   },
@@ -173,12 +185,48 @@ export const ACTION_REGISTRY: ActionDef[] = [
     openUrls: [PROJECT_LINKS.fluentui],
   },
   {
+    label: 'Open the Course Evaluator repo',
+    openUrls: [PROJECT_LINKS.courseEvaluator],
+  },
+  {
+    label: 'Open the IVC repo',
+    openUrls: [PROJECT_LINKS.ivc],
+  },
+  {
+    label: 'Open the portfolio source',
+    openUrls: [PROJECT_LINKS.portfolio],
+  },
+  {
+    label: 'Open the Hybrid Recommender repo',
+    openUrls: [PROJECT_LINKS.recommender],
+  },
+  {
+    label: 'Open the AtomVault repo',
+    openUrls: [PROJECT_LINKS.atomvault],
+  },
+  {
+    label: 'Open the Bloom Filter research',
+    openUrls: [PROJECT_LINKS.bloomfilter],
+  },
+  {
     label: 'Open your LinkedIn',
     openUrls: [PERSONAL_LINKS.linkedin],
   },
   {
     label: 'Show your Codeforces profile',
     openUrls: [PERSONAL_LINKS.codeforces],
+  },
+  {
+    label: 'Open your CP history',
+    openUrls: [PERSONAL_LINKS.cpHistory],
+  },
+  {
+    label: 'Email me',
+    openUrls: [PERSONAL_LINKS.email],
+  },
+  {
+    label: 'Call me',
+    openUrls: [PERSONAL_LINKS.phone],
   },
   {
     label: 'Report a bug',

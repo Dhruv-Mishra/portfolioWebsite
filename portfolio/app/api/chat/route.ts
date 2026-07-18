@@ -8,7 +8,8 @@ import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage }
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
-import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
+import { DEFAULT_CHAT_MODEL_ID, getChatModel, isChatModelId, type ChatModelId } from '@/lib/chatModels';
+import type { ChatImage, ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
 import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import {
   LLM_MAIN_RESPONSE_TIMEOUT_MS,
@@ -28,6 +29,7 @@ export const runtime = 'nodejs';
 interface ProviderCallResult {
   reply: string;
   action: ActionExecution | null;
+  modelId: ChatModelId | 'legacy';
 }
 
 type ProviderFailureCode =
@@ -39,38 +41,8 @@ type ProviderFailureCode =
 
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
-const MAX_CHAT_BODY_BYTES = 24_000;
-
-/**
- * Sampling parameters for the main chat completion.
- *
- * Tuned for the "concise, sharp, no filler" voice mandated by STYLE_BLOCK:
- *   - temperature 0.7 + top_p 0.9 give enough variation for personality without
- *     the rambling and dash-heavy filler that t=1/top_p=1 produced.
- *   - max_completion_tokens 220 is well above the 20-70 word target while
- *     bounding any
- *     runaway generation.
- *   - stop sequences cut off the rare "User:"/"Assistant:" hallucinated turn
- *     and the triple-newline runaway pattern early.
- *
- * Applied uniformly to both Groq (primary) and the legacy OpenAI-compatible
- * provider (fallback) so behavior is identical regardless of which provider
- * served the request.
- */
-const GROQ_SAMPLING: {
-  readonly temperature: number;
-  readonly topP: number;
-  readonly maxCompletionTokens: number;
-  readonly stop: string[];
-} = {
-  temperature: 0.7,
-  topP: 0.9,
-  maxCompletionTokens: 220,
-  stop: ['\n\n\n', '\nUser:', '\nAssistant:'],
-};
-
-
-
+const MAX_CHAT_BODY_BYTES = 300_000;
+const MAX_IMAGE_BYTES = 180 * 1024;
 
 function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessage[] {
   const sanitized: SanitizedChatMessage[] = [];
@@ -106,15 +78,50 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
 
 function toProviderMessages(
   messages: SanitizedChatMessage[],
+  image: ChatImage | undefined,
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-  return messages.map(({ role, content }) => ({ role, content }));
+  const latestUserIndex = image
+    ? messages.reduce((latest, message, index) => (message.role === 'user' ? index : latest), -1)
+    : -1;
+
+  return messages.map(({ role, content }, index) => {
+    if (index !== latestUserIndex) return { role, content };
+
+    return {
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: image!.dataUrl } },
+        { type: 'text', text: content },
+      ],
+    } as OpenAI.Chat.Completions.ChatCompletionUserMessageParam;
+  });
 }
 
-function getOrderedProviders(primary: LLMProvider | null, fallback: LLMProvider | null): LLMProvider[] {
+function getValidatedImage(value: unknown): ChatImage | null | 'invalid' {
+  if (value === undefined) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value) || typeof (value as { dataUrl?: unknown }).dataUrl !== 'string') {
+    return 'invalid';
+  }
+
+  const dataUrl = (value as { dataUrl: string }).dataUrl;
+  const match = /^data:image\/(?:jpeg|png|webp);base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/.exec(dataUrl);
+  if (!match || !match[1]) return 'invalid';
+
+  const decodedBytes = Buffer.from(match[1], 'base64');
+  if (decodedBytes.byteLength > MAX_IMAGE_BYTES) return 'invalid';
+
+  return { dataUrl };
+}
+
+function getOrderedProviders(
+  primary: LLMProvider | null,
+  fallback: LLMProvider | null,
+  legacyFallback: LLMProvider | null | undefined,
+): LLMProvider[] {
   const seen = new Set<string>();
 
-  return [primary, fallback]
-    .filter((provider): provider is LLMProvider => provider !== null)
+  return [primary, fallback, legacyFallback]
+    .filter((provider): provider is LLMProvider => provider != null)
     .filter((provider) => {
       const key = `${provider.baseURL}::${provider.model}::${provider.apiKey}`;
       if (seen.has(key)) {
@@ -171,9 +178,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { messages?: ClientChatMessage[] };
+    let body: { messages?: unknown; model?: unknown; image?: unknown };
     try {
-      body = await readBoundedJson<{ messages?: ClientChatMessage[] }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
+      body = await readBoundedJson<{ messages?: unknown; model?: unknown; image?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
     } catch (error) {
       if (error instanceof BoundedJsonError) {
         return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
@@ -182,6 +189,24 @@ export async function POST(request: NextRequest) {
     }
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const selectedModelId = body.model === undefined
+      ? DEFAULT_CHAT_MODEL_ID
+      : isChatModelId(body.model)
+        ? body.model
+        : null;
+    if (!selectedModelId) {
+      return Response.json({ error: 'Unsupported chat model' }, { status: 400 });
+    }
+
+    const selectedModel = getChatModel(selectedModelId);
+    const image = getValidatedImage(body.image);
+    if (image === 'invalid') {
+      return Response.json({ error: 'Image must be a JPEG, PNG, or WebP data URL under 180 KB' }, { status: 400 });
+    }
+    if (image && !selectedModel?.supportsImages) {
+      return Response.json({ error: 'The selected model does not support images' }, { status: 400 });
     }
 
     const userMessages = body.messages;
@@ -240,11 +265,12 @@ export async function POST(request: NextRequest) {
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
-      ...toProviderMessages(sanitized),
+      ...toProviderMessages(sanitized, image ?? undefined),
     ];
 
-    const { primary, fallback } = getChatProviders();
-    const providers = getOrderedProviders(primary, fallback);
+    const { primary, fallback, legacyFallback } = getChatProviders(selectedModelId);
+    const providers = getOrderedProviders(primary, fallback, legacyFallback)
+      .filter((provider) => !image || provider.supportsImages);
 
     if (providers.length === 0) {
       console.error('No LLM providers are configured; returning local fallback reply.');
@@ -255,10 +281,14 @@ export async function POST(request: NextRequest) {
     let succeededTier: 'primaryOnline' | 'fallbackOnline' | null = null;
     const providerErrors: string[] = [];
 
+    const fallbackAttemptBudget = providers.length > 1
+      ? Math.floor(LLM_PROVIDER_FALLBACK_RESERVE_MS / (providers.length - 1))
+      : 0;
+
     for (let i = 0; i < providers.length; i += 1) {
       const provider = providers[i];
       const remainingMs = routeDeadlineAt - Date.now();
-      const fallbackReserveMs = i < providers.length - 1 ? LLM_PROVIDER_FALLBACK_RESERVE_MS : 0;
+      const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
       const attemptTimeoutMs = Math.min(
         LLM_PROVIDER_TIMEOUT_MS,
         Math.max(0, remainingMs - fallbackReserveMs),
@@ -300,6 +330,7 @@ export async function POST(request: NextRequest) {
       reply: result.reply,
       action: result.action,
       signature: signAssistantMessage(result.reply, result.action),
+      modelId: result.modelId,
     }, {
       headers: {
         'Cache-Control': 'no-store',
@@ -336,30 +367,27 @@ async function callProvider(
       const completion = await groq.chat.completions.create({
         model: provider.model,
         messages: messages as Groq.Chat.Completions.ChatCompletionMessageParam[],
-        temperature: GROQ_SAMPLING.temperature,
-        top_p: GROQ_SAMPLING.topP,
-        max_completion_tokens: GROQ_SAMPLING.maxCompletionTokens,
-        stop: GROQ_SAMPLING.stop,
+        temperature: provider.sampling.temperature,
+        ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
+        ...(provider.sampling.maxCompletionTokens !== undefined ? { max_completion_tokens: provider.sampling.maxCompletionTokens } : {}),
+        ...provider.sampling.extraBody,
         stream: false,
       }, {
         signal,
       });
       rawContent = completion.choices?.[0]?.message?.content;
     } else {
-      // Some OpenAI-compatible providers (e.g. NVIDIA-hosted Qwen) reject
-      // multiple system messages with: "System message must be at the
-      // beginning". Collapse all leading system messages into a single one
-      // for non-Groq providers. Groq accepts the split form and benefits
-      // from prompt caching on the stable prefix.
-      const collapsedMessages = collapseLeadingSystemMessages(messages);
+      const collapsedMessages = provider.acceptsSystemMessages === false
+        ? foldSystemMessagesIntoFirstUser(messages)
+        : collapseLeadingSystemMessages(messages);
       const client = createProviderClient(provider);
       const completion = await client.chat.completions.create({
         model: provider.model,
         messages: collapsedMessages,
-        temperature: CHAT_CONFIG.temperature,
-        top_p: CHAT_CONFIG.topP,
-        max_tokens: CHAT_CONFIG.maxTokens,
-        stop: GROQ_SAMPLING.stop,
+        temperature: provider.sampling.temperature,
+        ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
+        ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
+        ...provider.sampling.extraBody,
         stream: false,
       }, {
         signal,
@@ -386,6 +414,7 @@ async function callProvider(
     return {
       reply,
       action: null,
+      modelId: provider.modelId ?? 'legacy',
     };
   } finally {
     clearTimeout(timeout);
@@ -452,4 +481,41 @@ function collapseLeadingSystemMessages(
     { role: 'system', content: systemContent },
     ...messages.slice(splitIdx),
   ];
+}
+
+function foldSystemMessagesIntoFirstUser(
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  const collapsed = collapseLeadingSystemMessages(messages);
+  const systemMessage = collapsed[0];
+  if (!systemMessage || systemMessage.role !== 'system' || typeof systemMessage.content !== 'string') {
+    return collapsed;
+  }
+
+  const remaining = collapsed.slice(1);
+  const firstUserIndex = remaining.findIndex((message) => message.role === 'user');
+  if (firstUserIndex === -1) return remaining;
+
+  const firstUser = remaining[firstUserIndex];
+  if (typeof firstUser.content === 'string') {
+    remaining[firstUserIndex] = {
+      role: 'user',
+      content: `${systemMessage.content}\n\n${firstUser.content}`,
+    };
+  } else if (Array.isArray(firstUser.content)) {
+    const textParts = firstUser.content.filter(
+      (part): part is OpenAI.Chat.Completions.ChatCompletionContentPartText => part.type === 'text',
+    );
+    const mediaParts = firstUser.content.filter((part) => part.type !== 'text');
+    const userText = textParts.map(part => part.text).join('\n');
+    remaining[firstUserIndex] = {
+      role: 'user',
+      content: [
+        ...mediaParts,
+        { type: 'text', text: `${systemMessage.content}\n\n${userText}` },
+      ],
+    } as OpenAI.Chat.Completions.ChatCompletionUserMessageParam;
+  }
+
+  return remaining;
 }

@@ -13,6 +13,12 @@ import { pickRandom } from '@/lib/utils';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { FILLER_DELAYS } from '@/lib/llmConfig';
 import {
+  CHAT_MODEL_PREF_STORAGE_KEY,
+  CHAT_MODEL_SWITCH_CLEAR_EVENT,
+  getChatModelPref,
+} from '@/lib/chatModelPref';
+import type { ChatImageAttachment } from '@/lib/chatImageCompression';
+import {
   advanceInterrogation,
   drawDeniedFillerLines,
   drawRevealFillerLines,
@@ -56,13 +62,16 @@ export interface ChatMessage {
    * sees — and thus never imitates — the oracle's scripted voice.
    */
   oracleEmitted?: boolean;
+  imagePreviewDataUrl?: string;
+  imageName?: string;
+  imageBytes?: number;
 }
 
 interface UseStickyChat {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, image?: ChatImageAttachment) => Promise<void>;
   sendCanned: (userText: string, response: string, action?: ActionExecution | null) => void;
   sendHardcoded: (userText: string, response: string | null) => boolean;
   clearMessages: () => void;
@@ -173,6 +182,7 @@ const PENDING_CHAT_TTL_MS = 120_000;
 
 interface PendingChatRecovery {
   assistantId: string;
+  modelId: ReturnType<typeof getChatModelPref>;
   prompt: string;
   timestamp: number;
   userId: string;
@@ -190,7 +200,8 @@ function loadPendingChatRecovery(): PendingChatRecovery | null {
       typeof parsed.prompt !== 'string' ||
       typeof parsed.userId !== 'string' ||
       typeof parsed.assistantId !== 'string' ||
-      typeof parsed.timestamp !== 'number'
+      typeof parsed.timestamp !== 'number' ||
+      parsed.modelId !== getChatModelPref()
     ) {
       sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
       return null;
@@ -218,10 +229,16 @@ function savePendingChatRecovery(recovery: PendingChatRecovery) {
   }
 }
 
-function clearPendingChatRecovery() {
+function clearPendingChatRecovery(assistantId?: string) {
   if (typeof window === 'undefined') return;
 
   try {
+    if (assistantId) {
+      const stored = sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY);
+      if (!stored) return;
+      const pending = JSON.parse(stored) as Partial<PendingChatRecovery>;
+      if (pending.assistantId !== assistantId) return;
+    }
     sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
   } catch {
     // Ignore storage failures.
@@ -287,8 +304,17 @@ function saveMessages(messages: ChatMessage[]) {
     // interrogation state is deliberately NOT persisted per brief).
     const toSave = messages
       .filter(m => m.id !== 'welcome')
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to omit from saved data
-      .map(({ isOld: _isOld, isFiller: _isFiller, clientOnly: _clientOnly, oracleEmitted: _oracleEmitted, ...m }) => m)
+      .map((message) => {
+        const persistentMessage = { ...message };
+        delete persistentMessage.isOld;
+        delete persistentMessage.isFiller;
+        delete persistentMessage.clientOnly;
+        delete persistentMessage.oracleEmitted;
+        delete persistentMessage.imagePreviewDataUrl;
+        delete persistentMessage.imageName;
+        delete persistentMessage.imageBytes;
+        return persistentMessage;
+      })
       .slice(-CHAT_CONFIG.maxStoredMessages);
     localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
     void pruneTtsAudioCache(['welcome', ...toSave.map(message => message.id)]);
@@ -655,7 +681,7 @@ export function useStickyChat(): UseStickyChat {
     [scheduleOracle, playOracleTransition],
   );
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, image?: ChatImageAttachment) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
     if (!trimmed || isLoadingRef.current) return;
 
@@ -713,6 +739,11 @@ export function useStickyChat(): UseStickyChat {
       role: 'user',
       content: trimmed,
       timestamp: Date.now(),
+      ...(image ? {
+        imagePreviewDataUrl: image.dataUrl,
+        imageName: image.filename,
+        imageBytes: image.bytes,
+      } : {}),
     };
 
     // Add assistant placeholder (empty content — typewriter will reveal it)
@@ -728,6 +759,7 @@ export function useStickyChat(): UseStickyChat {
     saveMessages(optimisticMessages);
     savePendingChatRecovery({
       assistantId,
+      modelId: getChatModelPref(),
       prompt: trimmed,
       timestamp: pendingAssistant.timestamp,
       userId: userMsg.id,
@@ -752,8 +784,15 @@ export function useStickyChat(): UseStickyChat {
       }, tier.delay);
       fillerTimerIds.push(tid);
     }
-    const clearFillerTimers = () => { fillerTimerIds.forEach(t => clearTimeout(t)); fillerCleanupRef.current = null; };
+    const clearFillerTimers = () => {
+      fillerTimerIds.forEach(t => clearTimeout(t));
+      if (fillerCleanupRef.current === clearFillerTimers) {
+        fillerCleanupRef.current = null;
+      }
+    };
     fillerCleanupRef.current = clearFillerTimers;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       // Build conversation history. Oracle-emitted (matrix puzzle) messages
@@ -792,26 +831,30 @@ export function useStickyChat(): UseStickyChat {
         { role: 'user' as const, content: trimmed },
       ];
 
-      abortControllerRef.current = new AbortController();
       timeoutId = setTimeout(() => {
-        abortControllerRef.current?.abort('timeout');
+        controller.abort('timeout');
       }, CHAT_CONFIG.responseTimeoutMs);
 
       const response = await fetch(CHAT_RESPONSE_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationMessages }),
-        signal: abortControllerRef.current.signal,
+        body: JSON.stringify({
+          messages: conversationMessages,
+          model: getChatModelPref(),
+          ...(image ? { image: { dataUrl: image.dataUrl } } : {}),
+        }),
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
       clearFillerTimers();
+      if (abortControllerRef.current !== controller) return;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         if (isRecoverableServerFailure(response.status)) {
           setError(null);
-          clearPendingChatRecovery();
+          clearPendingChatRecovery(assistantId);
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantId
@@ -826,7 +869,8 @@ export function useStickyChat(): UseStickyChat {
       }
 
       const data = await response.json();
-      clearPendingChatRecovery();
+      if (abortControllerRef.current !== controller) return;
+      clearPendingChatRecovery(assistantId);
       const rawReply: string = data.reply || '';
       const safeReply = sanitizeAssistantReplyText(rawReply);
       const serverAction = hasActionExecution(data.action as ActionExecution | null | undefined)
@@ -867,16 +911,17 @@ export function useStickyChat(): UseStickyChat {
     } catch (err) {
       clearTimeout(timeoutId);
       clearFillerTimers();
+      if (abortControllerRef.current !== controller) return;
 
       if (err instanceof Error && err.name === 'AbortError') {
-        const reason = abortControllerRef.current?.signal.reason;
+        const reason = controller.signal.reason;
         if (reason === 'clear') {
-          clearPendingChatRecovery();
+          clearPendingChatRecovery(assistantId);
           // clearMessages already wiped state — nothing to do
           return;
         }
         if (reason === 'timeout') {
-          clearPendingChatRecovery();
+          clearPendingChatRecovery(assistantId);
           setMessages(prev =>
             prev.map(m =>
               m.id === assistantId
@@ -893,7 +938,7 @@ export function useStickyChat(): UseStickyChat {
 
       if (isRecoverableClientFailure(err)) {
         setError(null);
-        clearPendingChatRecovery();
+        clearPendingChatRecovery(assistantId);
         setMessages(prev =>
           prev.map(m =>
             m.id === assistantId
@@ -910,8 +955,11 @@ export function useStickyChat(): UseStickyChat {
         prev.filter(m => m.id !== assistantId)
       );
     } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null;
+      if (abortControllerRef.current === controller) {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
@@ -919,6 +967,7 @@ export function useStickyChat(): UseStickyChat {
     // Abort any in-flight LLM request and suggestions fetch
     abortControllerRef.current?.abort('clear');
     abortControllerRef.current = null;
+    isLoadingRef.current = false;
     suggestionsAbortRef.current?.abort('clear');
     suggestionsAbortRef.current = null;
     clearPendingChatRecovery();
@@ -938,6 +987,19 @@ export function useStickyChat(): UseStickyChat {
       void clearTtsAudioCache();
     }
   }, [clearOracleTimers]);
+
+  useEffect(() => {
+    const clearForModelSwitch = () => clearMessages();
+    const clearForCrossTabModelSwitch = (event: StorageEvent) => {
+      if (event.key === CHAT_MODEL_PREF_STORAGE_KEY) clearMessages();
+    };
+    window.addEventListener(CHAT_MODEL_SWITCH_CLEAR_EVENT, clearForModelSwitch);
+    window.addEventListener('storage', clearForCrossTabModelSwitch);
+    return () => {
+      window.removeEventListener(CHAT_MODEL_SWITCH_CLEAR_EVENT, clearForModelSwitch);
+      window.removeEventListener('storage', clearForCrossTabModelSwitch);
+    };
+  }, [clearMessages]);
 
   const markOpenUrlsFailed = useCallback((messageId: string) => {
     setMessages(prev =>

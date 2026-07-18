@@ -62,7 +62,10 @@ const GROQ_PROVIDER = {
   label: 'groq-primary',
   apiKey: 'test-key',
   baseURL: 'https://api.groq.com/openai/v1',
-  model: 'llama-3.1-8b-instant',
+  model: 'qwen/qwen3.6-27b',
+  modelId: 'qwen-3.6-27b' as const,
+  supportsImages: true,
+  sampling: { temperature: 0.6, topP: 0.95, maxCompletionTokens: 384 },
 };
 
 const FALLBACK_PROVIDER = {
@@ -71,10 +74,24 @@ const FALLBACK_PROVIDER = {
   apiKey: 'fallback-key',
   baseURL: 'https://fallback.example/v1',
   model: 'fallback-model',
+  supportsImages: false,
+  sampling: { temperature: 0.6, maxTokens: 384 },
 };
 
-function createChatRequest(signal?: AbortSignal): NextRequest {
-  const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }] });
+const NVIDIA_VISION_PROVIDER = {
+  kind: 'nvidia' as const,
+  label: 'nvidia-vision',
+  apiKey: 'nvidia-key',
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  model: 'google/diffusiongemma-26b-a4b-it',
+  modelId: 'diffusiongemma-26b' as const,
+  supportsImages: true,
+  acceptsSystemMessages: false,
+  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { enable_thinking: false } },
+};
+
+function createChatRequest(signal?: AbortSignal, payload: Record<string, unknown> = {}): NextRequest {
+  const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }], ...payload });
   return new Request('http://localhost/api/chat', {
     method: 'POST',
     headers: {
@@ -163,9 +180,9 @@ describe('chat route provider payload mapping', () => {
     });
     expect(providerAssistantMessage && 'action' in providerAssistantMessage).toBe(false);
     expect(groqCreateMock.mock.calls[0]?.[0]).toMatchObject({
-      max_completion_tokens: 220,
-      temperature: 0.7,
-      top_p: 0.9,
+      max_completion_tokens: 384,
+      temperature: 0.6,
+      top_p: 0.95,
     });
   });
 
@@ -196,6 +213,37 @@ describe('chat route provider payload mapping', () => {
     await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply' });
   });
 
+  it('tries NVIDIA before the legacy provider after a Groq failure', async () => {
+    const nvidiaFallback = { ...NVIDIA_VISION_PROVIDER, label: 'nvidia-fallback' };
+    getChatProvidersMock.mockReturnValue({
+      primary: GROQ_PROVIDER,
+      fallback: nvidiaFallback,
+      legacyFallback: FALLBACK_PROVIDER,
+    });
+    groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
+
+    const nvidiaCreateMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'NVIDIA fallback reply' } }],
+    }));
+    const legacyCreateMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'legacy fallback reply' } }],
+    }));
+    createProviderClientMock.mockImplementation((provider: { label: string }) => ({
+      chat: {
+        completions: {
+          create: provider.label === nvidiaFallback.label ? nvidiaCreateMock : legacyCreateMock,
+        },
+      },
+    }));
+
+    const response = await POST(createChatRequest());
+
+    expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
+    expect(legacyCreateMock).not.toHaveBeenCalled();
+    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply' });
+  });
+
   it('propagates request cancellation and returns a stable fallback reason code', async () => {
     vi.useFakeTimers();
     const requestController = new AbortController();
@@ -223,5 +271,105 @@ describe('chat route provider payload mapping', () => {
 
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('all-providers-failed');
     expect(response.headers.get('X-Chat-Fallback-Reason')).not.toContain('secret');
+  });
+
+  it('rejects unknown model IDs and invalid or oversized image data URLs before provider calls', async () => {
+    const unknownModel = await POST(createChatRequest(undefined, { model: 'llama-3.1-8b-instant' }));
+    const invalidImage = await POST(createChatRequest(undefined, { image: { dataUrl: 'https://example.com/image.png' } }));
+    const oversizedImage = await POST(createChatRequest(undefined, {
+      image: { dataUrl: `data:image/png;base64,${Buffer.alloc(180 * 1024 + 1).toString('base64')}` },
+    }));
+
+    expect(unknownModel.status).toBe(400);
+    expect(invalidImage.status).toBe(400);
+    expect(oversizedImage.status).toBe(400);
+    expect(groqCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects images for a text-only model', async () => {
+    const response = await POST(createChatRequest(undefined, {
+      model: 'glm-5.2',
+      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
+    }));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: 'The selected model does not support images' });
+    expect(groqCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('sends a validated image only to the latest user message and folds DiffusionGemma system context into user content', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallback: null });
+    const nvidiaCreateMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+        choices: [{ message: { content: 'vision reply' } }],
+      }));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, {
+      model: 'diffusiongemma-26b',
+      messages: [
+        { role: 'user', content: 'Earlier text' },
+        { role: 'assistant', content: 'unsigned assistant' },
+        { role: 'user', content: 'What is in this image?' },
+      ],
+      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
+    }));
+
+    expect(response.status).toBe(200);
+    const payload = nvidiaCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
+    expect(payload.messages.some((message) => message.role === 'system')).toBe(false);
+    expect(payload.messages[0]).toMatchObject({ role: 'user', content: expect.stringContaining('stable system prompt') });
+    const latestUser = payload.messages.at(-1);
+    expect(latestUser).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+        { type: 'text', text: 'What is in this image?' },
+      ],
+    });
+    expect(payload.messages.filter((message) => Array.isArray(message.content))).toHaveLength(1);
+    expect(nvidiaCreateMock.mock.calls[0]?.[0]).toMatchObject({
+      max_tokens: 384,
+      temperature: 0.6,
+      enable_thinking: false,
+    });
+    await expect(response.json()).resolves.toMatchObject({ modelId: 'diffusiongemma-26b' });
+  });
+
+  it('keeps a single-turn DiffusionGemma image before folded system and user text', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallback: null });
+    const nvidiaCreateMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+        choices: [{ message: { content: 'vision reply' } }],
+      }));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, {
+      model: 'diffusiongemma-26b',
+      messages: [{ role: 'user', content: 'What is in this image?' }],
+      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
+    }));
+
+    expect(response.status).toBe(200);
+    const payload = nvidiaCreateMock.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(payload.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+          { type: 'text', text: 'stable system prompt\n\nconditional system prompt\n\nWhat is in this image?' },
+        ],
+      },
+    ]);
   });
 });

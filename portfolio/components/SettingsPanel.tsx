@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import {
   Activity,
   AudioLines,
+  Bot,
   Brush,
   GitBranch,
+  Image as ImageIcon,
   Mic2,
   Palette,
+  Sparkles,
   Sticker,
   TriangleAlert,
   Volume2,
@@ -35,6 +38,13 @@ import {
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
+import { CHAT_MODELS, getChatModel, type ChatModelId } from '@/lib/chatModels';
+import {
+  CHAT_HISTORY_STORAGE_KEYS,
+  clearChatHistoryStorage,
+  dispatchChatModelSwitchClear,
+  useChatModelPref,
+} from '@/lib/chatModelPref';
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -222,7 +232,9 @@ function BuildChannelStatus({
 
 export default function SettingsPanel() {
   const [experimentalDialogOpen, setExperimentalDialogOpen] = useState(false);
+  const [pendingModelId, setPendingModelId] = useState<ChatModelId | null>(null);
   const [redirectPending, setRedirectPending] = useState(false);
+  const modelCancelRef = useRef<HTMLButtonElement>(null);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -234,6 +246,7 @@ export default function SettingsPanel() {
   const { prefs, setPref } = useSitePrefsApi();
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
   const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
+  const { modelId, setModelId } = useChatModelPref();
   const hostname = useSyncExternalStore(
     subscribeToHydration,
     getClientHostnameSnapshot,
@@ -253,6 +266,27 @@ export default function SettingsPanel() {
     && (theme === 'light' || theme === 'dark' || theme === 'system')
     ? theme
     : 'system';
+  const selectedModel = getChatModel(modelId);
+
+  useEffect(() => {
+    if (pendingModelId) modelCancelRef.current?.focus();
+  }, [pendingModelId]);
+
+  const applyModelSwitch = (nextModelId: ChatModelId) => {
+    clearChatHistoryStorage();
+    dispatchChatModelSwitchClear();
+    setModelId(nextModelId);
+    setPendingModelId(null);
+  };
+
+  const handleModelChange = (nextModelId: ChatModelId) => {
+    if (nextModelId === modelId) return;
+    if (hasPersistedChatMessages()) {
+      setPendingModelId(nextModelId);
+      return;
+    }
+    applyModelSwitch(nextModelId);
+  };
 
   const handleExperimentalChange = (nextEnabled: boolean) => {
     const intent = getExperimentalToggleIntent(prefs.experimentalFeatures, nextEnabled);
@@ -306,6 +340,42 @@ export default function SettingsPanel() {
               setTheme,
             })}
           />
+        </SettingsGroup>
+
+        <SettingsGroup title="AI model" icon={Bot}>
+          <label className="block font-hand text-base text-[var(--c-heading)] md:text-lg" htmlFor="chat-model">
+            Conversation model
+          </label>
+          <select
+            id="chat-model"
+            value={modelId}
+            onChange={(event) => handleModelChange(event.target.value as ChatModelId)}
+            className="mt-1 min-h-11 w-full rounded-sm border-2 border-dashed border-[var(--c-ink)]/30 bg-[var(--c-paper)] px-3 py-2 font-hand text-base text-[var(--c-heading)] shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-lg"
+          >
+            {['Recommended', 'NVIDIA'].map((group) => (
+              <optgroup key={group} label={group}>
+                {CHAT_MODELS.filter((model) => model.group === group).map((model) => (
+                  <option key={model.id} value={model.id}>{model.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {selectedModel ? (
+            <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
+              <span>{selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>
+              <span className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-ink)]/20 px-2 py-0.5">
+                <ImageIcon size={14} aria-hidden />
+                {selectedModel.supportsImages ? 'Vision' : 'Text'}
+              </span>
+              <span className="rounded-sm border border-[var(--c-ink)]/20 px-2 py-0.5">{selectedModel.quality}</span>
+              {'isRecommended' in selectedModel && selectedModel.isRecommended ? (
+                <span className="inline-flex items-center gap-1 text-amber-800 dark:text-amber-300">
+                  <Sparkles size={14} aria-hidden /> Recommended
+                </span>
+              ) : null}
+              {'caveat' in selectedModel && selectedModel.caveat ? <span className="basis-full text-sm text-rose-700 dark:text-rose-300">{selectedModel.caveat}</span> : null}
+            </div>
+          ) : null}
         </SettingsGroup>
 
         <SettingsGroup title="Sound and touch" icon={AudioLines}>
@@ -421,6 +491,38 @@ export default function SettingsPanel() {
         </Link>
       </nav>
       <Modal
+        isOpen={pendingModelId !== null}
+        onClose={() => setPendingModelId(null)}
+        ariaLabelledBy="chat-model-switch-title"
+        ariaDescribedBy="chat-model-switch-description"
+        className="mt-[var(--c-modal-top)] w-[calc(100%-1.5rem)] max-w-lg border-2 border-dashed border-amber-700/55 bg-[var(--c-paper)] p-6 shadow-xl md:p-8 dark:border-amber-300/55"
+        backdropClassName="bg-black/35 dark:bg-black/60"
+      >
+        <h2 id="chat-model-switch-title" className="font-hand text-2xl font-bold text-[var(--c-heading)] md:text-3xl">
+          Switch conversation model?
+        </h2>
+        <p id="chat-model-switch-description" className="mt-3 font-hand text-base leading-relaxed text-[var(--c-ink)]/75 md:text-lg">
+          Chat context and history are model-specific. Switching clears this conversation from this device.
+        </p>
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            ref={modelCancelRef}
+            type="button"
+            onClick={() => setPendingModelId(null)}
+            className="min-h-11 rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => pendingModelId && applyModelSwitch(pendingModelId)}
+            className="min-h-11 rounded-sm border-2 border-amber-800/65 bg-amber-400/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 dark:border-amber-200/65 dark:bg-amber-300/20"
+          >
+            Switch and clear chat
+          </button>
+        </div>
+      </Modal>
+      <Modal
         isOpen={experimentalDialogOpen}
         onClose={() => setExperimentalDialogOpen(false)}
         ariaLabelledBy="experimental-features-title"
@@ -458,4 +560,18 @@ export default function SettingsPanel() {
       </Modal>
     </div>
   );
+}
+
+function hasPersistedChatMessages(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = window.localStorage.getItem(CHAT_HISTORY_STORAGE_KEYS[0]);
+    if (!stored) return false;
+    const messages = JSON.parse(stored) as Array<{ id?: unknown; content?: unknown }>;
+    return Array.isArray(messages) && messages.some((message) => (
+      message.id !== 'welcome' && typeof message.content === 'string' && message.content.trim().length > 0
+    ));
+  } catch {
+    return false;
+  }
 }

@@ -74,7 +74,7 @@ scripts/          embeddings and deployment helpers
 ## Runtime Notes
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
-- Default chat tries Groq Qwen first, then built-in NVIDIA DiffusionGemma, then the optional text-only OpenAI-compatible legacy fallback through `LLM_*` variables.
+- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default or the selected NVIDIA model. Provider failures degrade to the local fallback reply instead of silently switching models.
 - Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
 - Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
@@ -108,9 +108,8 @@ scripts/          embeddings and deployment helpers
 | Variable | Purpose |
 |---|---|
 | `GROQ_API_KEY` | Runs the default `qwen/qwen3.6-27b` chat model on Groq; the main-chat model is fixed by the server allowlist. |
-| `NVIDIA_API_KEY` | Runs selectable NVIDIA models, NVIDIA-backed suggestions, and the built-in DiffusionGemma fallback after Groq failures. |
-| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Optional final text-only legacy OpenAI-compatible compatibility fallback. |
-| `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` | Optional second legacy provider after `LLM_MODEL`. |
+| `NVIDIA_API_KEY` | Runs selectable NVIDIA models and NVIDIA-backed suggestions. Suggestions return empty rather than consuming Groq quota when NVIDIA is unavailable. |
+| `LLM_API_KEY`, `LLM_BASE_URL` | Optional compatibility credentials used by embeddings and development admin authentication; they are not chat model fallbacks. |
 | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
 | `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |
 | `SKIP_EMBEDDINGS_BUILD=1` | Reuse committed `lib/facts.embeddings.json` |

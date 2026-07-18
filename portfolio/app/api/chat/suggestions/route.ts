@@ -23,6 +23,28 @@ export const runtime = 'nodejs';
 const suggestionsRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.suggestions, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_SUGGESTIONS_BODY_BYTES = 8_000;
 
+type SuggestionMessage = { role: 'user' | 'assistant'; content: string };
+
+function normalizeSuggestionContext(messages: SuggestionMessage[]): SuggestionMessage[] {
+  const normalized: SuggestionMessage[] = [];
+
+  for (const message of messages) {
+    if (message.role === 'assistant' && normalized.length === 0) {
+      continue;
+    }
+
+    const previous = normalized.at(-1);
+    if (previous?.role === message.role) {
+      previous.content = `${previous.content}\n\n${message.content}`;
+      continue;
+    }
+
+    normalized.push({ ...message });
+  }
+
+  return normalized;
+}
+
 export async function POST(request: NextRequest) {
   const routeDeadlineController = new AbortController();
   const routeDeadlineAt = Date.now() + LLM_SUGGESTIONS_TIMEOUT_MS;
@@ -61,15 +83,15 @@ export async function POST(request: NextRequest) {
     // System/tool roles are blocked here so a hostile caller cannot inject
     // prompt-system context through the suggestions endpoint (P1-6).
     const rawMessages = Array.isArray(body.messages) ? body.messages : [];
-    const messages: { role: string; content: string }[] = rawMessages
+    const messages: SuggestionMessage[] = rawMessages
       .filter((m): m is { role: 'user' | 'assistant'; content: unknown } =>
         typeof m === 'object' && m !== null && isClientChatMessage(m as { role?: unknown; content?: unknown }))
       .map((m) => ({ role: m.role, content: String(m.content) }));
 
     // Take last 4 messages for context (lightweight)
-    const context = messages
+    const context = normalizeSuggestionContext(messages
       .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
-      .slice(-4);
+      .slice(-4));
 
     const recentUserMessage = [...context].reverse().find(message => message.role === 'user')?.content;
     const recentAssistantMessage = [...context].reverse().find(message => message.role === 'assistant')?.content;
@@ -128,7 +150,7 @@ export async function POST(request: NextRequest) {
 
 async function callSuggestionsProvider(
   provider: LLMProvider,
-  context: Array<{ role: string; content: string }>,
+  context: SuggestionMessage[],
   routeSignal: AbortSignal,
   timeoutMs: number,
   recentUserMessage?: string,
@@ -154,12 +176,19 @@ async function callSuggestionsProvider(
           ),
         }
       : { max_tokens: suggestionMaxTokens };
+    const instruction = 'Generate 2 follow-up suggestions for the user.';
+    const lastContextMessage = context.at(-1);
+    const messages = lastContextMessage?.role === 'user'
+      ? [
+          ...context.slice(0, -1),
+          { role: 'user' as const, content: `${lastContextMessage.content}\n\n${instruction}` },
+        ]
+      : [...context, { role: 'user' as const, content: instruction }];
     const completion = await client.chat.completions.create({
       model: provider.model,
       messages: [
         { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
-        ...context,
-        { role: 'user', content: 'Generate 2 follow-up suggestions for the user.' },
+        ...messages,
       ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
       temperature: provider.sampling.temperature,
       ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),

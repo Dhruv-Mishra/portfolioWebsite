@@ -87,7 +87,7 @@ const NVIDIA_VISION_PROVIDER = {
   modelId: 'diffusiongemma-26b' as const,
   supportsImages: true,
   acceptsSystemMessages: false,
-  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { enable_thinking: false } },
+  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
 };
 
 const NVIDIA_KIMI_PROVIDER = {
@@ -333,7 +333,7 @@ describe('chat route provider payload mapping', () => {
     expect(groqCreateMock).not.toHaveBeenCalled();
   });
 
-  it('sends a validated image only to the latest user message and folds DiffusionGemma system context into user content', async () => {
+  it('merges user turns left adjacent by unsigned assistant removal before folding DiffusionGemma system context', async () => {
     getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
     const nvidiaCreateMock = vi.fn<(
       payload: Record<string, unknown>,
@@ -358,20 +358,20 @@ describe('chat route provider payload mapping', () => {
     expect(response.status).toBe(200);
     const payload = nvidiaCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
     expect(payload.messages.some((message) => message.role === 'system')).toBe(false);
-    expect(payload.messages[0]).toMatchObject({ role: 'user', content: expect.stringContaining('stable system prompt') });
-    const latestUser = payload.messages.at(-1);
-    expect(latestUser).toMatchObject({
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
-        { type: 'text', text: 'What is in this image?' },
-      ],
-    });
+    expect(payload.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+          { type: 'text', text: 'stable system prompt\n\nconditional system prompt\n\nEarlier text\n\nWhat is in this image?' },
+        ],
+      },
+    ]);
     expect(payload.messages.filter((message) => Array.isArray(message.content))).toHaveLength(1);
     expect(nvidiaCreateMock.mock.calls[0]?.[0]).toMatchObject({
       max_tokens: 384,
       temperature: 0.6,
-      enable_thinking: false,
+      chat_template_kwargs: { enable_thinking: false },
     });
     await expect(response.json()).resolves.toMatchObject({ modelId: 'diffusiongemma-26b' });
   });
@@ -409,7 +409,7 @@ describe('chat route provider payload mapping', () => {
     ]);
   });
 
-  it('sends Kimi the image only on the latest user turn with its exact sampling body', async () => {
+  it('sends Kimi one leading system and alternating signed turns with the image on the final user turn', async () => {
     getChatProvidersMock.mockReturnValue({ primary: NVIDIA_KIMI_PROVIDER, fallbacks: [] });
     const kimiCreateMock = vi.fn<(
       payload: Record<string, unknown>,
@@ -425,7 +425,11 @@ describe('chat route provider payload mapping', () => {
       model: 'kimi-k2.6',
       messages: [
         { role: 'user', content: 'Earlier text' },
-        { role: 'assistant', content: 'unsigned assistant' },
+        {
+          role: 'assistant',
+          content: 'A signed answer',
+          signature: signAssistantMessage('A signed answer', null),
+        },
         { role: 'user', content: 'What is in this image?' },
       ],
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
@@ -436,6 +440,7 @@ describe('chat route provider payload mapping', () => {
     expect(payload.messages).toEqual([
       { role: 'system', content: 'stable system prompt\n\nconditional system prompt' },
       { role: 'user', content: 'Earlier text' },
+      { role: 'assistant', content: 'A signed answer' },
       {
         role: 'user',
         content: [

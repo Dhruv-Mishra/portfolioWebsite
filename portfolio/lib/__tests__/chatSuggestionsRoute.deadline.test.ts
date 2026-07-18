@@ -66,12 +66,15 @@ const NVIDIA_PROVIDER = {
   },
 };
 
-function createSuggestionsRequest(signal?: AbortSignal): NextRequest {
+function createSuggestionsRequest(
+  signal?: AbortSignal,
+  messages = [
+    { role: 'user', content: 'What do you build?' },
+    { role: 'assistant', content: 'I build reliable AI systems.' },
+  ],
+): NextRequest {
   const body = JSON.stringify({
-    messages: [
-      { role: 'user', content: 'What do you build?' },
-      { role: 'assistant', content: 'I build reliable AI systems.' },
-    ],
+    messages,
   });
   return new Request('http://localhost/api/chat/suggestions', {
     method: 'POST',
@@ -162,6 +165,34 @@ describe('chat suggestions route deadlines', () => {
       chat_template_kwargs: { thinking: false },
       stream: false,
     }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  it('normalizes malformed bounded context and merges the instruction into its final user turn', async () => {
+    const createMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+        choices: [{ message: { content: 'First suggestion\nSecond suggestion' } }],
+      }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: createMock } } });
+    getSuggestionsProvidersMock.mockReturnValue({ primary: NVIDIA_PROVIDER, fallback: null, legacyFallback: null });
+
+    await POST(createSuggestionsRequest(undefined, [
+      { role: 'assistant', content: 'Leading reply to ignore' },
+      { role: 'user', content: 'First user turn' },
+      { role: 'user', content: 'Second user turn' },
+      { role: 'assistant', content: 'A response' },
+      { role: 'user', content: 'Final user turn' },
+    ]));
+
+    expect(createMock.mock.calls[0]?.[0]).toMatchObject({
+      messages: [
+        { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+        { role: 'user', content: 'First user turn\n\nSecond user turn' },
+        { role: 'assistant', content: 'A response' },
+        { role: 'user', content: 'Final user turn\n\nGenerate 2 follow-up suggestions for the user.' },
+      ],
+    });
   });
 
   it('uses Groq sampling while retaining the concise suggestions cap', async () => {

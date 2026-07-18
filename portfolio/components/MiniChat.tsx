@@ -109,14 +109,16 @@ export default function MiniChat() {
         data-clickable
       >
         {isOpen ? (
-          <span className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110">
+          <span className="text-rose-600 dark:text-rose-300 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-110 max-[480px]:scale-[0.84]">
             <CloseDoodle />
           </span>
         ) : (
           <>
-            <StickyNoteDoodle />
+            <span className="max-[480px]:scale-[0.84]">
+              <StickyNoteDoodle />
+            </span>
             {/* Pulsing dot */}
-            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full shadow border-2 border-emerald-500 bg-transparent animate-pulse max-[480px]:w-2.5 max-[480px]:h-2.5" />
           </>
         )}
       </button>

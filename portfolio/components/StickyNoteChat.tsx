@@ -427,7 +427,7 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     onClick={handleClick}
     data-disco-motion={isDisco ? 'wiggle' : 'bob'}
     className={cn(
-      "px-4 py-2 border-2 rounded shadow-sm font-hand text-sm md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
+      "min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5 border-2 rounded shadow-sm font-hand text-sm max-[480px]:text-[13px] md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
       isDisco
         ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
         : cn(
@@ -438,14 +438,14 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     style={suggestionStyle}
   >
     <span className={cn(
-      "flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-0.5",
+      "flex items-center gap-1 max-[480px]:gap-0.5 text-[10px] max-[480px]:text-[9px] font-bold uppercase tracking-wider mb-0.5",
       isDisco
         ? "text-fuchsia-700"
         : isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
     )}>
       {isDisco
         ? <span aria-hidden="true">🪩</span>
-        : isAction ? <Zap size={10} className="text-amber-500" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
+        : isAction ? <Zap size={10} className="text-amber-500 max-[480px]:h-2 max-[480px]:w-2" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
       {isDisco ? 'disco' : (isAction ? 'action' : 'suggestion')}
     </span>
     {text}
@@ -1162,7 +1162,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         // toolbar above and the input note don't visually crowd each
         // other; desktop keeps its existing comfortable gutter.
         "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pt-2 pb-2 md:pt-3 md:pb-3",
-        compact && "px-2 pt-1 pb-1",
+        compact && "px-2 pt-1 pb-1 max-[480px]:px-1.5 max-[480px]:pt-0.5 max-[480px]:pb-0.5",
       )}>
         {/* Ancillary controls toolbar — lives ABOVE the input box so the
             input itself stays visually clean (text + send only). All
@@ -1170,12 +1170,12 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             as a unified "chat utilities" cluster rather than three
             disconnected affordances. */}
         {(hasMessages || speech.isSupported || supportsImages) && (
-          <div className="flex items-center justify-end mb-1.5 px-1">
+          <div className="flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5">
             <div
               data-disco-motion="shimmy"
               data-disco-chat-input-bar
               className={cn(
-                'flex max-w-full flex-wrap items-center justify-end gap-2 rounded-full px-2.5 py-1.5 md:gap-4 md:px-3 md:py-1.5',
+                'flex max-w-full flex-wrap items-center justify-end gap-2 max-[480px]:gap-1 rounded-full px-2.5 max-[480px]:px-1.5 py-1.5 max-[480px]:py-0.5 md:gap-4 md:px-3 md:py-1.5',
                 // Translucent paper background — reads on both light and
                 // dark themes via the --c-paper / --c-ink tokens, then
                 // softened with /60 + backdrop-blur so messages bleed
@@ -1188,7 +1188,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
             {modelPrefHydrated ? (
-              <span className="max-w-32 truncate font-code text-[10px] text-[var(--c-ink)]/60" title={model?.label}>
+              <span className="max-w-32 max-[480px]:max-w-24 truncate font-code text-[10px] max-[480px]:text-[9px] text-[var(--c-ink)]/60" title={model?.label}>
                 {model?.label} · {supportsImages ? 'Vision' : 'Text'}
               </span>
             ) : null}
@@ -1202,7 +1202,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   title="Attach image"
                   aria-label="Attach image"
                 >
-                  {isCompressingImage ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={15} aria-hidden="true" />}
+                  {isCompressingImage ? <Loader2 size={14} className="max-[480px]:h-3 max-[480px]:w-3 animate-spin" aria-hidden="true" /> : <ImagePlus size={15} className="max-[480px]:h-3 max-[480px]:w-3" aria-hidden="true" />}
                 </button>
               </Tooltip>
             ) : null}
@@ -1385,7 +1385,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               title="Send note"
               aria-label="Send message"
             >
-              <Send size={compact ? 14 : 16} className="md:w-[20px] md:h-[20px]" />
+              <Send size={compact ? 14 : 16} className="max-[480px]:h-3 max-[480px]:w-3 md:w-[20px] md:h-[20px]" />
             </m.button>
           </div>
         </m.div>
@@ -2093,7 +2093,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 animate={SUGGESTIONS_CONTAINER_ANIMATE}
                 exit={SUGGESTIONS_CONTAINER_EXIT}
                 transition={SUGGESTIONS_CONTAINER_TRANSITION}
-                className="flex flex-wrap justify-center gap-2 md:gap-3 mt-2"
+                className="flex flex-wrap justify-center gap-2 max-[480px]:gap-1.5 md:gap-3 mt-2 max-[480px]:mt-1.5"
               >
                 {matrixEscaped && (
                   <MatrixEscapeChip

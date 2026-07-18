@@ -48,21 +48,21 @@ export default function MiniChatPanel({ onClose }: MiniChatPanelProps) {
         data-disco-motion="breath"
         className={cn(
           "absolute bottom-16 right-0 bg-[var(--c-paper)] border border-[var(--c-grid)]/30 rounded-lg shadow-lg md:shadow-2xl overflow-hidden",
-          "w-[var(--c-chat-w)] h-[var(--c-chat-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
+          "w-[var(--c-chat-w)] h-[var(--c-chat-h)] max-[480px]:h-[var(--c-quick-chat-mobile-h)] md:w-[var(--c-chat-w-md)] md:h-[var(--c-chat-h-md)]",
           "max-w-[var(--c-chat-max-w)]",
         )}
         style={CHAT_PANEL_STYLE}
       >
         <div className="h-full relative">
-          <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]" style={{ willChange: 'backdrop-filter' }}>
+          <div className="absolute inset-x-0 top-0 z-20 border-b border-[var(--c-grid)]/20 bg-[var(--note-user)]/78 px-4 pt-3 pb-2 max-[480px]:px-3 max-[480px]:pt-2 max-[480px]:pb-1.5 md:bg-[var(--note-user)]/55 md:backdrop-blur-[1px]" style={{ willChange: 'backdrop-filter' }}>
             <div className="pr-24">
-              <div className="font-hand text-xl font-bold leading-none text-[var(--c-heading)]">
+              <div className="font-hand text-xl max-[480px]:text-lg font-bold leading-none text-[var(--c-heading)]">
                 Quick chat
               </div>
-              <div className="mt-1 font-hand text-sm text-[var(--c-ink)]/60">
+              <div className="mt-1 max-[480px]:mt-0.5 font-hand text-sm max-[480px]:text-xs text-[var(--c-ink)]/60">
                 Pass me a note without leaving the page.
               </div>
-              <WavyUnderline className="!mt-1.5 opacity-45" />
+              <WavyUnderline className="!mt-1.5 max-[480px]:!mt-1 max-[480px]:scale-y-75 opacity-45" />
             </div>
           </div>
 
@@ -74,7 +74,7 @@ export default function MiniChatPanel({ onClose }: MiniChatPanelProps) {
               title="Open full chat"
               aria-label="Open full chat"
             >
-              <ExternalLink size={14} />
+              <ExternalLink size={14} className="max-[480px]:h-3 max-[480px]:w-3" />
             </Link>
             <button
               type="button"
@@ -83,10 +83,10 @@ export default function MiniChatPanel({ onClose }: MiniChatPanelProps) {
               title="Close quick chat"
               aria-label="Close quick chat"
             >
-              <Trash2 size={14} />
+              <Trash2 size={14} className="max-[480px]:h-3 max-[480px]:w-3" />
             </button>
           </div>
-          <div className="h-full pt-16">
+          <div className="h-full pt-16 max-[480px]:pt-[3.5rem]">
             <StickyNoteChat compact />
           </div>
         </div>

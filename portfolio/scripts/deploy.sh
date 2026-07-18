@@ -1269,6 +1269,34 @@ record_previous_release() {
     fi
 }
 
+validate_static_release_layout() {
+    local release_dir="$1"
+    local required_file
+
+    if [[ ! -d "${release_dir}/.next/static" ]] \
+        || ! find "${release_dir}/.next/static" -type f -print -quit | grep -q .; then
+        log ERROR "Release static layout is invalid: .next/static is missing or empty (${release_dir})"
+        return 1
+    fi
+
+    if [[ -e "${release_dir}/public/public" ]]; then
+        log ERROR "Release static layout is invalid: nested public/public directory detected (${release_dir})"
+        return 1
+    fi
+
+    for required_file in \
+        public/resources/aboutPhoto.webp \
+        public/resources/audioAgent.mp4 \
+        public/resources/resume.pdf; do
+        if [[ ! -s "${release_dir}/${required_file}" ]]; then
+            log ERROR "Release static layout is invalid: missing or empty ${required_file} (${release_dir})"
+            return 1
+        fi
+    done
+
+    log SUCCESS "Release static layout validated: ${release_dir}"
+}
+
 stage_release() {
     RELEASE_ID="${RELEASE_SHA}"
     log STEP "Staging release ${RELEASE_SHA}..."
@@ -1288,6 +1316,7 @@ stage_release() {
             log ERROR "Refusing artifact same-SHA reuse; the active release is likely an image-mode static release. Deploy a new SHA or drain/remove it manually."
             exit 1
         fi
+        validate_static_release_layout "${target}" || exit 1
         log WARN "Release ${RELEASE_SHA} is already active — reusing existing staged files"
         return 0
     fi
@@ -1295,6 +1324,7 @@ stage_release() {
     local staging="${DEPLOY_RELEASES_DIR}/.${RELEASE_SHA}.staging.$$"
     rm -rf "${staging}"
     mkdir -p "${staging}"
+    NEW_RELEASE_DIR="${staging}"
 
     if [[ -d "${target}" ]]; then
         log WARN "Release ${RELEASE_SHA} already on disk but is not active — replacing after staging succeeds"
@@ -1308,6 +1338,7 @@ stage_release() {
     # Copy the production .env.local into the release (systemd reads it from here)
     cp "${DEPLOY_ENV_FILE}" "${staging}/.env.local"
     chmod 600 "${staging}/.env.local"
+    validate_static_release_layout "${staging}" || exit 1
 
     # Fix ownership: service user owns the bundle
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "${staging}"
@@ -1353,6 +1384,7 @@ stage_image_release() {
             staged_image=$(sed -n 's/.*"image": "\([^"]*\)".*/\1/p' "${target}/.deploy/meta.json" | head -1)
         fi
         if [[ "${staged_image}" == "${DOCKER_IMAGE}" ]]; then
+            validate_static_release_layout "${target}" || exit 1
             RELEASE_DIR="${target}"
             log WARN "Image release ${release_id} already exists with the same digest — reusing existing static files"
             return 0
@@ -1366,6 +1398,7 @@ stage_image_release() {
 
     rm -rf "${staging}"
     mkdir -p "${staging}/.next"
+    NEW_RELEASE_DIR="${staging}"
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     # shellcheck disable=SC2064
@@ -1379,6 +1412,8 @@ stage_image_release() {
         || { log ERROR "Could not extract public/ from image"; exit 1; }
     docker cp "${extract_container}:/app/.deploy" "${staging}/" \
         || { log ERROR "Could not extract .deploy/ from image"; exit 1; }
+
+    validate_static_release_layout "${staging}" || exit 1
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     trap - RETURN
@@ -2441,6 +2476,7 @@ rollback_deploy() {
         log ERROR "Rollback release is missing nginx template: ${RELEASE_DIR}/.deploy/${NGINX_CONF_TEMPLATE}"
         exit 1
     }
+    validate_static_release_layout "${RELEASE_DIR}" || exit 1
 
     RELEASE_SHA="$(release_meta_value "${RELEASE_DIR}" sha)"
     if [[ -z "${RELEASE_SHA}" ]]; then
@@ -2750,6 +2786,7 @@ legacy_deploy() {
     install_dependencies
     build_project
     prepare_legacy_standalone
+    validate_static_release_layout "${LEGACY_STANDALONE_DIR}" || exit 1
     cleanup_git_changes
     ensure_legacy_systemd
 
@@ -2826,6 +2863,41 @@ health_check() {
         log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else
         log ERROR "✗ Chat API: ${chat_code}"
+    fi
+
+    local resource_check
+    local resource_path
+    local expected_type
+    local resource_headers
+    local resource_code
+    local resource_type
+    # Atomic release modes can restore the previous symlink if a public asset
+    # fails through nginx. Legacy mode mutates its standalone directory in
+    # place, so it is guarded by validate_static_release_layout before restart.
+    if [[ "${MODE}" != "legacy" ]]; then
+        for resource_check in \
+            "/resources/aboutPhoto.webp|image/webp" \
+            "/resources/audioAgent.mp4|video/mp4" \
+            "/resources/resume.pdf|application/pdf"; do
+            resource_path="${resource_check%%|*}"
+            expected_type="${resource_check##*|}"
+            total=$((total + 1))
+
+            resource_headers=$(mktemp "/tmp/${SERVICE_NAME}-resource-health.XXXXXX")
+            resource_code=$(curl -sk -D "${resource_headers}" -o /dev/null -w "%{http_code}" \
+                --max-time 10 -H "Range: bytes=0-0" \
+                --resolve "${DOMAIN}:443:127.0.0.1" \
+                "https://${DOMAIN}${resource_path}" 2>/dev/null || echo "000")
+            resource_type=$(awk -F': *' 'tolower($1) == "content-type" { value=tolower($2); sub(/\r$/, "", value); print value; exit }' "${resource_headers}")
+            rm -f "${resource_headers}"
+
+            if [[ "${resource_code}" == "206" ]] && [[ "${resource_type}" == "${expected_type}"* ]]; then
+                log DEBUG "✓ Resource ${resource_path}: ${resource_code} ${resource_type}"
+                passed=$((passed + 1))
+            else
+                log ERROR "✗ Resource ${resource_path}: HTTP ${resource_code}, Content-Type ${resource_type:-missing}"
+            fi
+        done
     fi
 
     if [[ ${passed} -eq ${total} ]]; then

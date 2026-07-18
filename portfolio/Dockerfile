@@ -45,7 +45,13 @@ RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && cp -r .next/standalone/. /app/standalone/ \
     && rm -rf /app/standalone/.next/static \
     && cp -r .next/static /app/standalone/.next/ \
+    && rm -rf /app/standalone/public \
     && cp -r public /app/standalone/public \
+    && find /app/standalone/.next/static -type f -print -quit | grep -q . \
+    && test -s /app/standalone/public/resources/aboutPhoto.webp \
+    && test -s /app/standalone/public/resources/audioAgent.mp4 \
+    && test -s /app/standalone/public/resources/resume.pdf \
+    && test ! -e /app/standalone/public/public \
     && cp scripts/deploy.sh /app/standalone/.deploy/deploy.sh \
     && cp scripts/machine.conf.example /app/standalone/.deploy/machine.conf.example \
     && cp scripts/portfolio.conf.example /app/standalone/.deploy/portfolio.conf.example \

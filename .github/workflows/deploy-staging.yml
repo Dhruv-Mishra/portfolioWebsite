@@ -159,6 +159,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          rm -rf .next/standalone/public
           cp -r .next/static .next/standalone/.next/
           cp -r public        .next/standalone/
 
@@ -864,6 +865,23 @@ jobs:
             fi
             echo "Verified $ASSET_COUNT local nginx static assets for $SVC_NAME"
 
+            for resource_spec in \
+              "/resources/aboutPhoto.webp:image/webp" \
+              "/resources/audioAgent.mp4:video/mp4" \
+              "/resources/resume.pdf:application/pdf"; do
+              resource_path="${resource_spec%%:*}"
+              expected_mime="${resource_spec#*:}"
+              headers_file="$(mktemp)"
+              resource_code="$(curl -sk -r 0-0 -D "$headers_file" -o /dev/null -w "%{http_code}" --max-time 10 \
+                --resolve "${SVC_DOMAIN}:443:127.0.0.1" "https://${SVC_DOMAIN}${resource_path}" 2>/dev/null || echo "000")"
+              if [ "$resource_code" != "206" ] || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$headers_file"; then
+                rm -f "$headers_file"
+                fail "Public resource failed through local nginx: ${resource_path} (HTTP ${resource_code}, expected 206 ${expected_mime})"
+              fi
+              rm -f "$headers_file"
+            done
+            echo "Verified ranged public resources through local nginx"
+
             if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
               if ! sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
                 echo "Docker container is not running: $SVC_NAME"
@@ -961,6 +979,23 @@ jobs:
               echo "::error::One or more staging static assets returned non-200"
               exit 1
             fi
+
+            for resource_spec in \
+              "/resources/aboutPhoto.webp:image/webp" \
+              "/resources/audioAgent.mp4:video/mp4" \
+              "/resources/resume.pdf:application/pdf"; do
+              resource_path="${resource_spec%%:*}"
+              expected_mime="${resource_spec#*:}"
+              resource_headers="$(mktemp)"
+              resource_status="$(curl -sS -r 0-0 -D "$resource_headers" -o /dev/null -w "%{http_code}" --max-time 10 \
+                -H "Cache-Control: no-cache" "https://${{ env.STAGING_DOMAIN }}${resource_path}" 2>/dev/null || echo "000")"
+              if [ "$resource_status" != "206" ] || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$resource_headers"; then
+                rm -f "$resource_headers"
+                echo "::error::Staging public resource failed through Cloudflare: ${resource_path} (HTTP ${resource_status}, expected 206 ${expected_mime})"
+                exit 1
+              fi
+              rm -f "$resource_headers"
+            done
           fi
 
           chat_headers_file="$(mktemp)"

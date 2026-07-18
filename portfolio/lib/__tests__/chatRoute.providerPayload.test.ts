@@ -163,7 +163,7 @@ describe('chat route provider payload mapping', () => {
     });
     expect(providerAssistantMessage && 'action' in providerAssistantMessage).toBe(false);
     expect(groqCreateMock.mock.calls[0]?.[0]).toMatchObject({
-      max_completion_tokens: 400,
+      max_completion_tokens: 220,
       temperature: 0.7,
       top_p: 0.9,
     });

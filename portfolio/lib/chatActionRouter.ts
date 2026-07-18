@@ -53,6 +53,9 @@ const NAVIGATION_VERB_PATTERN = /\b(go to|take me to|navigate to|bring me to|ope
 const HOME_SHORTCUT_PATTERN = /\b(take me home|go home|head home|bring me home|back home|back to home)\b/i;
 const LINK_REQUEST_PATTERN = /\b(open|visit|show|take me to|go to|pull up|bring up|see|find|can i see|whats\s+your|what\s+is\s+your|wheres\s+your|where\s+is\s+your)\b/i;
 const FEEDBACK_PHRASE_PATTERN = /\b(report|file|submit|send|leave|give|log)\s+(?:a|an|the|some|me\s+a|in\s+a)?\s*(bug|issue|feedback|problem|error|complaint)\b/i;
+const ACTION_CHAIN_SEPARATOR_PATTERN = /\s*(?:,\s*(?:then\s*)?|\b(?:and then|then|also|and)\b)\s*/i;
+const MAX_CHAIN_EFFECTS = 3;
+const MAX_CHAIN_URLS = 2;
 
 const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; pattern: RegExp }> = [
   { path: '/', pattern: /\b(home|homepage|main page|start page|landing page)\b/i },
@@ -60,6 +63,9 @@ const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; patt
   { path: '/projects', pattern: /\b(projects|projects page|portfolio page|work page|your portfolio)\b/i },
   { path: '/resume', pattern: /\b(resume|cv|resume page)\b/i },
   { path: '/chat', pattern: /\b(chat|chat page|notes|note page)\b/i },
+  { path: '/guestbook', pattern: /\b(guestbook|guest book)\b/i },
+  { path: '/stickers', pattern: /\b(stickers?|sticker collection)\b/i },
+  { path: '/settings', pattern: /\b(settings?|chat settings)\b/i },
 ];
 
 const LINK_TARGETS: Array<{ pattern: RegExp; action: ActionExecution }> = [
@@ -104,7 +110,7 @@ function normalizeInput(input: string): string {
   return input
     .toLowerCase()
     .replace(/[“”'"`]/g, '')
-    .replace(/[^a-z0-9+:/\s-]/g, ' ')
+    .replace(/[^a-z0-9+:/,\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -206,6 +212,7 @@ function toActionExecution(action: ActionDef): ActionExecution {
     openUrls: action.openUrls,
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
+    commandPaletteAction: action.commandPaletteAction,
   };
 }
 
@@ -347,6 +354,19 @@ function resolveTheme(input: string): ActionResolution | null {
   return null;
 }
 
+function resolveCommandPalette(input: string): ActionResolution | null {
+  if (!/\b(open|show)\s+(?:the\s+)?(?:command\s+(?:palette|menu)|quick\s+actions)\b/i.test(input)) {
+    return null;
+  }
+
+  const action: ActionExecution = { commandPaletteAction: true };
+  return {
+    kind: 'action',
+    action,
+    reply: getActionFallbackReply(action) ?? 'Opening the command palette ~',
+  };
+}
+
 function resolveFeedback(input: string): ActionResolution | null {
   if (!FEEDBACK_PHRASE_PATTERN.test(input)) {
     return null;
@@ -382,12 +402,7 @@ function resolveKnownLink(input: string): ActionResolution | null {
   };
 }
 
-export function resolveChatIntent(input: string): ChatIntentResolution | null {
-  const normalized = normalizeInput(input);
-  if (!normalized || includesNegation(normalized)) {
-    return null;
-  }
-
+function resolveSingleChatIntent(normalized: string): ChatIntentResolution | null {
   const exactAction = resolveExactActionLabel(normalized);
   if (exactAction) {
     return exactAction;
@@ -412,6 +427,11 @@ export function resolveChatIntent(input: string): ChatIntentResolution | null {
     return theme;
   }
 
+  const commandPalette = resolveCommandPalette(normalized);
+  if (commandPalette) {
+    return commandPalette;
+  }
+
   const feedback = resolveFeedback(normalized);
   if (feedback) {
     return feedback;
@@ -434,4 +454,123 @@ export function resolveChatIntent(input: string): ChatIntentResolution | null {
   }
 
   return null;
+}
+
+function getChainActionVerb(input: string): string | null {
+  return input.match(ACTION_VERB_PATTERN)?.[0] ?? null;
+}
+
+function isShortChainClause(input: string): boolean {
+  return input.split(/\s+/).filter(Boolean).length <= 4;
+}
+
+function countActionEffects(action: ActionExecution): number {
+  return Number(Boolean(action.navigateTo)) +
+    Number(Boolean(action.themeAction)) +
+    Number(Boolean(action.feedbackAction)) +
+    Number(Boolean(action.projectSlug)) +
+    Number(Boolean(action.commandPaletteAction)) +
+    (action.openUrls?.length ?? 0);
+}
+
+function mergeChainActions(current: ActionExecution, next: ActionExecution): ActionExecution | null {
+  if (
+    (current.navigateTo && next.navigateTo) ||
+    (current.themeAction && next.themeAction) ||
+    (current.projectSlug && next.projectSlug)
+  ) {
+    return null;
+  }
+
+  const navigationWithInPageAction =
+    Boolean(current.navigateTo || next.navigateTo) &&
+    Boolean(
+      current.feedbackAction ||
+      next.feedbackAction ||
+      current.projectSlug ||
+      next.projectSlug ||
+      current.commandPaletteAction ||
+      next.commandPaletteAction,
+    );
+  if (navigationWithInPageAction) {
+    return null;
+  }
+
+  const transientSurfaceCount = Number(Boolean(current.feedbackAction || next.feedbackAction)) +
+    Number(Boolean(current.projectSlug || next.projectSlug)) +
+    Number(Boolean(current.commandPaletteAction || next.commandPaletteAction));
+  if (transientSurfaceCount > 1) {
+    return null;
+  }
+
+  const openUrls = [...new Set([...(current.openUrls ?? []), ...(next.openUrls ?? [])])];
+  if (openUrls.length > MAX_CHAIN_URLS) {
+    return null;
+  }
+
+  const merged: ActionExecution = {
+    navigateTo: current.navigateTo ?? next.navigateTo,
+    themeAction: current.themeAction ?? next.themeAction,
+    openUrls: openUrls.length ? openUrls : undefined,
+    feedbackAction: current.feedbackAction || next.feedbackAction || undefined,
+    projectSlug: current.projectSlug ?? next.projectSlug,
+    commandPaletteAction: current.commandPaletteAction || next.commandPaletteAction || undefined,
+  };
+
+  return countActionEffects(merged) <= MAX_CHAIN_EFFECTS ? merged : null;
+}
+
+function resolveActionChain(input: string): ActionResolution | null | undefined {
+  const clauses = input.split(ACTION_CHAIN_SEPARATOR_PATTERN).map(clause => clause.trim());
+  if (clauses.length === 1) {
+    return undefined;
+  }
+
+  let mergedAction: ActionExecution | null = null;
+  let inheritedVerb: string | null = null;
+
+  for (const clause of clauses) {
+    if (!clause || includesNegation(clause) || isExplanationRequest(clause)) {
+      return null;
+    }
+
+    let resolution = resolveSingleChatIntent(clause);
+    if (!resolution && inheritedVerb && isShortChainClause(clause)) {
+      resolution = resolveSingleChatIntent(`${inheritedVerb} ${clause}`);
+    }
+
+    if (!resolution || resolution.kind !== 'action') {
+      return null;
+    }
+
+    inheritedVerb ??= getChainActionVerb(clause);
+    mergedAction = mergedAction ? mergeChainActions(mergedAction, resolution.action) : resolution.action;
+    if (!mergedAction || countActionEffects(mergedAction) > MAX_CHAIN_EFFECTS) {
+      return null;
+    }
+  }
+
+  if (!mergedAction) {
+    return null;
+  }
+
+  return {
+    kind: 'action',
+    action: mergedAction,
+    reply: 'Taking care of that ~',
+  };
+}
+
+export function resolveChatIntent(input: string): ChatIntentResolution | null {
+  const normalized = normalizeInput(input);
+  if (!normalized || includesNegation(normalized)) {
+    return null;
+  }
+
+  const chainedAction = resolveActionChain(normalized);
+  if (chainedAction !== undefined) {
+    return chainedAction;
+  }
+
+  return resolveSingleChatIntent(normalized);
 }

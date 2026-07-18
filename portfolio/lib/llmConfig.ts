@@ -54,7 +54,7 @@ export const RATE_LIMIT_CONFIG = {
 export const LLM_SUGGESTIONS_PARAMS = {
   temperature: 0.9,
   topP: 0.95,
-  maxTokens: 80,
+  maxTokens: 48,
 } as const;
 
 // ── External API config ──────────────────────────────────────────────

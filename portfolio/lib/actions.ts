@@ -8,6 +8,7 @@ export interface ActionExecution {
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
+  commandPaletteAction?: boolean;
 }
 
 /** Action metadata for suggestion chips and prompt documentation. */
@@ -18,9 +19,10 @@ export interface ActionDef {
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
+  commandPaletteAction?: boolean;
 }
 
-export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat'] as const;
+export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat', '/guestbook', '/stickers', '/settings'] as const;
 export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
 
 type NavigationPath = (typeof VALID_NAVIGATION_PATHS)[number];
@@ -28,6 +30,15 @@ type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
 
 const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);
+const PROJECT_SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
+const ACTION_EXECUTION_KEYS = new Set([
+  'navigateTo',
+  'themeAction',
+  'openUrls',
+  'feedbackAction',
+  'projectSlug',
+  'commandPaletteAction',
+]);
 
 export const DISCO_ACTION_LABEL = 'Engage disco mode';
 export const DISCO_EXIT_ACTION_LABEL = 'Exit disco mode';
@@ -39,6 +50,9 @@ const NAVIGATION_REPLIES: Record<NavigationPath, string> = {
   '/projects': 'Taking you to the projects page ~',
   '/resume': 'Opening the resume page ~',
   '/chat': 'Bringing you back to the chat page ~',
+  '/guestbook': 'Opening the guestbook ~',
+  '/stickers': 'Opening the sticker collection ~',
+  '/settings': 'Opening the settings page ~',
 };
 
 const THEME_REPLIES: Record<ThemeAction, string> = {
@@ -72,6 +86,7 @@ const OPEN_LINK_TOOL_OPTIONS = [
 const OPEN_LINK_OPTIONS_BY_URL = new Map<string, (typeof OPEN_LINK_TOOL_OPTIONS)[number]>(
   OPEN_LINK_TOOL_OPTIONS.map(option => [option.url, option])
 );
+const APPROVED_OPEN_URLS = new Set<string>(OPEN_LINK_TOOL_OPTIONS.map(option => option.url));
 
 const PROJECT_MODAL_ACTIONS: ActionDef[] = PROJECT_ACTIONS.map(project => ({
   label: project.label,
@@ -85,6 +100,10 @@ const PROJECT_MODAL_ACTIONS: ActionDef[] = PROJECT_ACTIONS.map(project => ({
  */
 export const ACTION_REGISTRY: ActionDef[] = [
   ...PROJECT_MODAL_ACTIONS,
+  {
+    label: 'Open command palette',
+    commandPaletteAction: true,
+  },
   {
     label: 'Show me your portfolio',
     navigateTo: '/projects',
@@ -116,6 +135,18 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Show me your experience timeline',
     navigateTo: '/about',
+  },
+  {
+    label: 'Open the guestbook',
+    navigateTo: '/guestbook',
+  },
+  {
+    label: 'Browse the sticker collection',
+    navigateTo: '/stickers',
+  },
+  {
+    label: 'Open chat settings',
+    navigateTo: '/settings',
   },
   {
     label: 'Open the Cropio repo',
@@ -155,15 +186,73 @@ export const ACTION_REGISTRY: ActionDef[] = [
   },
 ];
 
-export function hasActionExecution(action: ActionExecution | null | undefined): action is ActionExecution {
-  return !!(
-    action &&
-    (action.navigateTo ||
-      action.themeAction ||
-      action.feedbackAction ||
-      action.projectSlug ||
-      (action.openUrls && action.openUrls.length > 0))
-  );
+export function hasActionExecution(action: unknown): action is ActionExecution {
+  if (!action || typeof action !== 'object' || Array.isArray(action)) {
+    return false;
+  }
+
+  const candidate = action as Record<string, unknown>;
+  for (const [key, value] of Object.entries(candidate)) {
+    if (!ACTION_EXECUTION_KEYS.has(key) && value !== undefined) {
+      return false;
+    }
+  }
+
+  if (candidate.navigateTo !== undefined &&
+    (typeof candidate.navigateTo !== 'string' || !NAVIGATION_PATH_SET.has(candidate.navigateTo))) {
+    return false;
+  }
+
+  if (candidate.themeAction !== undefined &&
+    (typeof candidate.themeAction !== 'string' || !THEME_ACTION_SET.has(candidate.themeAction))) {
+    return false;
+  }
+
+  if (candidate.projectSlug !== undefined &&
+    (typeof candidate.projectSlug !== 'string' || !PROJECT_SLUG_SET.has(candidate.projectSlug))) {
+    return false;
+  }
+
+  if (candidate.feedbackAction !== undefined && candidate.feedbackAction !== true) {
+    return false;
+  }
+
+  if (candidate.commandPaletteAction !== undefined && candidate.commandPaletteAction !== true) {
+    return false;
+  }
+
+  let uniqueUrls: string[] = [];
+  if (candidate.openUrls !== undefined) {
+    if (!Array.isArray(candidate.openUrls) || candidate.openUrls.length === 0 || candidate.openUrls.length > 2) {
+      return false;
+    }
+
+    for (const url of candidate.openUrls) {
+      if (typeof url !== 'string' || !APPROVED_OPEN_URLS.has(url)) {
+        return false;
+      }
+    }
+    uniqueUrls = [...new Set(candidate.openUrls)];
+    if (uniqueUrls.length > 2) {
+      return false;
+    }
+  }
+
+  const transientSurfaceCount = Number(candidate.feedbackAction === true) +
+    Number(candidate.projectSlug !== undefined) +
+    Number(candidate.commandPaletteAction === true);
+  if (transientSurfaceCount > 1 || (candidate.navigateTo !== undefined && transientSurfaceCount > 0)) {
+    return false;
+  }
+
+  const effectCount = Number(candidate.navigateTo !== undefined) +
+    Number(candidate.themeAction !== undefined) +
+    Number(candidate.feedbackAction === true) +
+    Number(candidate.projectSlug !== undefined) +
+    Number(candidate.commandPaletteAction === true) +
+    uniqueUrls.length;
+
+  return effectCount > 0 && effectCount <= 3;
 }
 
 function normalizeActionLabel(label: string): string {
@@ -177,6 +266,7 @@ export function toActionExecution(action: ActionDef): ActionExecution {
     openUrls: action.openUrls ? [...action.openUrls] : undefined,
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
+    commandPaletteAction: action.commandPaletteAction,
   };
 }
 
@@ -209,6 +299,10 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
   if (action.feedbackAction) {
     return 'Opening the feedback note ~';
+  }
+
+  if (action.commandPaletteAction) {
+    return 'Opening the command palette ~';
   }
 
   if (action.openUrls?.length) {
@@ -304,4 +398,5 @@ export const INITIAL_SUGGESTIONS = [
   DISCO_EXPLAINER_LABEL,
   "What's the Escape the Matrix puzzle?",
   "Report a bug",
+  'Open command palette',
 ] as const;

@@ -40,6 +40,7 @@ export interface ChatMessage {
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
+  commandPaletteAction?: boolean; // True when the command palette should open
   signature?: string; // Server signature for trusted assistant history replay
   /**
    * Matrix puzzle reply kind — set by the client-side regex intercept for
@@ -765,24 +766,29 @@ export function useStickyChat(): UseStickyChat {
       const recentMessages = messagesRef.current.filter(
         (m) => m.id !== 'welcome' && !m.oracleEmitted,
       );
-      const contextWindow = recentMessages.slice(-10);
+      const contextWindow = recentMessages.slice(-8);
       const conversationMessages = [
-        ...contextWindow.map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-          ...(m.role === 'assistant'
-            ? {
-                signature: m.signature,
-                action: {
-                  navigateTo: m.navigateTo,
-                  themeAction: m.themeAction,
-                  openUrls: m.openUrls,
-                  feedbackAction: m.feedbackAction,
-                  projectSlug: m.projectSlug,
-                },
-              }
-            : {}),
-        })),
+        ...contextWindow.map(m => {
+          const action: ActionExecution = {
+            navigateTo: m.navigateTo,
+            themeAction: m.themeAction,
+            openUrls: m.openUrls,
+            feedbackAction: m.feedbackAction,
+            projectSlug: m.projectSlug,
+            commandPaletteAction: m.commandPaletteAction,
+          };
+
+          return {
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            ...(m.role === 'assistant'
+              ? {
+                  signature: m.signature,
+                  ...(hasActionExecution(action) ? { action } : {}),
+                }
+              : {}),
+          };
+        }),
         { role: 'user' as const, content: trimmed },
       ];
 
@@ -843,6 +849,7 @@ export function useStickyChat(): UseStickyChat {
                   openUrls: serverAction?.openUrls,
                   feedbackAction: serverAction?.feedbackAction,
                   projectSlug: serverAction?.projectSlug,
+                  commandPaletteAction: serverAction?.commandPaletteAction,
                   signature: typeof data.signature === 'string' ? data.signature : undefined,
                 }
               : m
@@ -973,6 +980,7 @@ export function useStickyChat(): UseStickyChat {
       openUrls: action?.openUrls,
       feedbackAction: action?.feedbackAction,
       projectSlug: action?.projectSlug,
+      commandPaletteAction: action?.commandPaletteAction,
     };
     const next = [...messagesRef.current, userMsg, assistantMsg];
     setMessages(next);

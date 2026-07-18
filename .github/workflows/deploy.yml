@@ -215,6 +215,7 @@ jobs:
 
           # Next.js standalone omits static/ and public/ — copy them in
           cp -r .next/static .next/standalone/.next/
+          rm -rf .next/standalone/public
           cp -r public        .next/standalone/
 
           # Ship deploy.sh + nginx template INSIDE the artifact at .deploy/
@@ -1066,6 +1067,23 @@ jobs:
             fi
             echo "Verified $ASSET_COUNT local nginx static assets for $SVC_NAME"
 
+            for resource_spec in \
+              "/resources/aboutPhoto.webp:image/webp" \
+              "/resources/audioAgent.mp4:video/mp4" \
+              "/resources/resume.pdf:application/pdf"; do
+              resource_path="${resource_spec%%:*}"
+              expected_mime="${resource_spec#*:}"
+              headers_file="$(mktemp)"
+              resource_code="$(curl -sk -r 0-0 -D "$headers_file" -o /dev/null -w "%{http_code}" --max-time 10 \
+                --resolve "${SVC_DOMAIN}:443:127.0.0.1" "https://${SVC_DOMAIN}${resource_path}" 2>/dev/null || echo "000")"
+              if [ "$resource_code" != "206" ] || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$headers_file"; then
+                rm -f "$headers_file"
+                fail "Public resource failed through local nginx: ${resource_path} (HTTP ${resource_code}, expected 206 ${expected_mime})"
+              fi
+              rm -f "$headers_file"
+            done
+            echo "Verified ranged public resources through local nginx"
+
             # Log the directory identity; deploy metadata below is authoritative
             # for the source Git SHA because image release IDs include a digest.
             sudo test -L "$DEPLOY_ROOT/current" || fail "missing current symlink: $DEPLOY_ROOT/current"
@@ -1132,3 +1150,41 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Rollback (if the automatic rollback didn't fire):**" >> $GITHUB_STEP_SUMMARY
           echo "Re-run the workflow on the last known-good SHA — the deploy script will flip the symlink back to that release dir if it's still on disk." >> $GITHUB_STEP_SUMMARY
+
+  smoke-production:
+    name: Smoke production resources through Cloudflare
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Verify public resources at the edge
+        run: |
+          set -euo pipefail
+
+          for resource_spec in \
+            "/resources/aboutPhoto.webp:image/webp" \
+            "/resources/audioAgent.mp4:video/mp4" \
+            "/resources/resume.pdf:application/pdf"; do
+            resource_path="${resource_spec%%:*}"
+            expected_mime="${resource_spec#*:}"
+            headers_file="$(mktemp)"
+            trap 'rm -f "$headers_file"' EXIT
+
+            resource_status="$(curl -sS -r 0-0 -D "$headers_file" -o /dev/null -w "%{http_code}" \
+              --retry 3 --retry-delay 2 --max-time 15 \
+              -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
+              "https://${{ env.DOMAIN }}${resource_path}" 2>/dev/null || echo "000")"
+
+            echo "${resource_path}: HTTP ${resource_status}"
+            grep -Ei '^(content-type:|content-range:|cache-control:|cf-cache-status:|cf-ray:|server:)' "$headers_file" || true
+
+            if [ "$resource_status" != "206" ] \
+              || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$headers_file"; then
+              echo "::error::Production public resource failed through Cloudflare: ${resource_path} (HTTP ${resource_status}, expected 206 ${expected_mime})"
+              exit 1
+            fi
+
+            rm -f "$headers_file"
+            trap - EXIT
+          done

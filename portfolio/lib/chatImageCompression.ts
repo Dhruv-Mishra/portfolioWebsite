@@ -1,7 +1,10 @@
 export const CHAT_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const CHAT_IMAGE_MAX_RAW_BYTES = 10 * 1024 * 1024;
-export const CHAT_IMAGE_MAX_ENCODED_BYTES = 175 * 1024;
-export const CHAT_IMAGE_MAX_DIMENSION = 1600;
+export const CHAT_IMAGE_MAX_ENCODED_BYTES = 128 * 1024;
+export const CHAT_IMAGE_MAX_DIMENSION = 1280;
+
+const CHAT_IMAGE_JPEG_QUALITIES = [0.84, 0.76, 0.68, 0.6] as const;
+const CHAT_IMAGE_DOWNSCALE_FACTOR = 0.82;
 
 export interface ChatImageAttachment {
   dataUrl: string;
@@ -47,13 +50,18 @@ function assertValidImageFile(file: File): void {
 
 async function loadImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; release: () => void }> {
   if ('createImageBitmap' in window) {
-    const bitmap = await createImageBitmap(file);
-    return {
-      source: bitmap,
-      width: bitmap.width,
-      height: bitmap.height,
-      release: () => bitmap.close(),
-    };
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        release: () => bitmap.close(),
+      };
+    } catch {
+      // Some browsers expose createImageBitmap but reject image formats their
+      // regular image decoder supports, so continue through the fallback.
+    }
   }
 
   const objectUrl = URL.createObjectURL(file);
@@ -127,11 +135,13 @@ export async function compressChatImage(file: File, signal?: AbortSignal): Promi
       canvas.height = dimensions.height;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Image compression is unavailable in this browser.');
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(loaded.source, 0, 0, canvas.width, canvas.height);
 
-      for (const quality of [0.82, 0.68, 0.52, 0.4]) {
+      for (const quality of CHAT_IMAGE_JPEG_QUALITIES) {
         const blob = await canvasToBlob(canvas, quality, signal);
         const bytes = blob.size;
         if (bytes <= CHAT_IMAGE_MAX_ENCODED_BYTES) {
@@ -140,8 +150,8 @@ export async function compressChatImage(file: File, signal?: AbortSignal): Promi
         }
       }
       dimensions = {
-        width: Math.max(1, Math.round(dimensions.width * 0.72)),
-        height: Math.max(1, Math.round(dimensions.height * 0.72)),
+        width: Math.max(1, Math.round(dimensions.width * CHAT_IMAGE_DOWNSCALE_FACTOR)),
+        height: Math.max(1, Math.round(dimensions.height * CHAT_IMAGE_DOWNSCALE_FACTOR)),
       };
     }
   } finally {

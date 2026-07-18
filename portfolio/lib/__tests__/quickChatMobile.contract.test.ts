@@ -11,6 +11,7 @@ const miniChatSource = componentSource('MiniChat.tsx');
 const panelSource = componentSource('MiniChatPanel.tsx');
 const stickyChatSource = componentSource('StickyNoteChat.tsx');
 const listeningOverlaySource = componentSource(path.join('ui', 'ListeningOverlay.tsx'));
+const fullChatPageSource = fs.readFileSync(path.join(process.cwd(), 'app', 'chat', 'page.tsx'), 'utf8');
 const globalStyles = fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
 
 describe('quick chat small-mobile density contract', () => {
@@ -31,9 +32,18 @@ describe('quick chat small-mobile density contract', () => {
     expect(stickyChatSource).toContain('max-[480px]:h-3 max-[480px]:w-3');
   });
 
-  it('compacts suggestion and transcription surfaces at 480px without removing readable labels', () => {
+  it('compacts quick-chat text and keeps the transcription setting out of its utility island', () => {
+    expect(panelSource).toContain('<StickyNoteChat compact />');
+    expect(fullChatPageSource).toContain('<StickyNoteChat />');
+    expect(fullChatPageSource).not.toContain('<StickyNoteChat compact />');
     expect(stickyChatSource).toContain('min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5');
-    expect(stickyChatSource).toContain('max-[480px]:text-[13px]');
+    expect(stickyChatSource).toContain('compact && "px-3 py-1.5 text-xs');
+    expect(stickyChatSource).toContain('compact && "max-w-[92%] p-3 pb-5 text-sm');
+    expect(stickyChatSource).toContain('compact ? "text-sm md:text-base leading-snug');
+    expect(stickyChatSource).toContain('{!compact ? (');
+    expect(stickyChatSource).toContain('<VoiceBackendToggle');
+    expect(stickyChatSource).toContain("compact && 'gap-0 rounded-full px-0.5 py-0");
+    expect(stickyChatSource).toContain('compact && "md:h-8 md:w-8"');
     expect(stickyChatSource).toContain('max-[480px]:gap-1.5');
     expect(listeningOverlaySource).toContain('max-[480px]:h-6');
     expect(listeningOverlaySource).toContain('max-[480px]:text-[9px]');

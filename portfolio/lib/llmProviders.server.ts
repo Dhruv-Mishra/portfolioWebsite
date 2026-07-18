@@ -25,8 +25,7 @@ export interface LLMProvider {
 
 export interface ChatProviders {
   primary: LLMProvider | null;
-  fallback: LLMProvider | null;
-  legacyFallback: LLMProvider | null;
+  fallbacks: LLMProvider[];
 }
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
@@ -124,39 +123,31 @@ function getLegacyProviders(): { primary: LLMProvider | null; fallback: LLMProvi
   return { primary, fallback };
 }
 
+function toChatProviders(candidates: Array<LLMProvider | null>): ChatProviders {
+  const providers = candidates.filter((provider): provider is LLMProvider => provider != null);
+
+  return {
+    primary: providers[0] ?? null,
+    fallbacks: providers.slice(1),
+  };
+}
+
 export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MODEL_ID): ChatProviders {
   const legacy = getLegacyProviders();
 
   if (selectedModelId === DEFAULT_CHAT_MODEL_ID) {
     const groq = getGroqQwenProvider();
     const nvidiaFallback = getNvidiaProvider('diffusiongemma-26b');
-    if (groq) {
-      return {
-        primary: groq,
-        fallback: nvidiaFallback ?? legacy.primary ?? legacy.fallback,
-        legacyFallback: nvidiaFallback
-          ? legacy.primary ?? legacy.fallback
-          : legacy.primary
-            ? legacy.fallback
-            : null,
-      };
-    }
-    if (nvidiaFallback) {
-      return {
-        primary: nvidiaFallback,
-        fallback: legacy.primary ?? legacy.fallback,
-        legacyFallback: legacy.primary ? legacy.fallback : null,
-      };
-    }
-    return { ...legacy, legacyFallback: null };
+    return toChatProviders([groq, nvidiaFallback, legacy.primary, legacy.fallback]);
   }
 
   const nvidia = getNvidiaProvider(selectedModelId);
-  return {
-    primary: nvidia,
-    fallback: legacy.primary ?? legacy.fallback,
-    legacyFallback: legacy.primary ? legacy.fallback : null,
-  };
+  const groq = getGroqQwenProvider();
+  const nvidiaVisionFallback = nvidia?.supportsImages && selectedModelId !== 'diffusiongemma-26b'
+    ? getNvidiaProvider('diffusiongemma-26b')
+    : null;
+
+  return toChatProviders([nvidia, groq, nvidiaVisionFallback, legacy.primary, legacy.fallback]);
 }
 
 export function getSuggestionsProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null; legacyFallback: LLMProvider | null } {

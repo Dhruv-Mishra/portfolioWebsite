@@ -90,6 +90,17 @@ const NVIDIA_VISION_PROVIDER = {
   sampling: { temperature: 0.6, maxTokens: 384, extraBody: { enable_thinking: false } },
 };
 
+const NVIDIA_KIMI_PROVIDER = {
+  kind: 'nvidia' as const,
+  label: 'nvidia-kimi',
+  apiKey: 'nvidia-key',
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  model: 'moonshotai/kimi-k2.6',
+  modelId: 'kimi-k2.6' as const,
+  supportsImages: true,
+  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { thinking: false } } },
+};
+
 function createChatRequest(signal?: AbortSignal, payload: Record<string, unknown> = {}): NextRequest {
   const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }], ...payload });
   return new Request('http://localhost/api/chat', {
@@ -116,7 +127,7 @@ function rejectWhenAborted(signal: AbortSignal): Promise<never> {
 describe('chat route provider payload mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallback: null });
+    getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallbacks: [] });
     groqCreateMock.mockResolvedValue({ choices: [{ message: { content: 'provider reply' } }] });
   });
 
@@ -188,7 +199,7 @@ describe('chat route provider payload mapping', () => {
 
   it('starts the fallback within the shared deadline after the primary attempt budget', async () => {
     vi.useFakeTimers();
-    getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallback: FALLBACK_PROVIDER });
+    getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallbacks: [FALLBACK_PROVIDER] });
     groqCreateMock.mockImplementation((...args: unknown[]) => {
       const options = args[1] as { signal: AbortSignal };
       return rejectWhenAborted(options.signal);
@@ -217,8 +228,7 @@ describe('chat route provider payload mapping', () => {
     const nvidiaFallback = { ...NVIDIA_VISION_PROVIDER, label: 'nvidia-fallback' };
     getChatProvidersMock.mockReturnValue({
       primary: GROQ_PROVIDER,
-      fallback: nvidiaFallback,
-      legacyFallback: FALLBACK_PROVIDER,
+      fallbacks: [nvidiaFallback, FALLBACK_PROVIDER],
     });
     groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
 
@@ -242,6 +252,32 @@ describe('chat route provider payload mapping', () => {
     expect(legacyCreateMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
     await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply' });
+  });
+
+  it('skips text-only providers when an image request falls through the provider chain', async () => {
+    getChatProvidersMock.mockReturnValue({
+      primary: GROQ_PROVIDER,
+      fallbacks: [FALLBACK_PROVIDER, NVIDIA_VISION_PROVIDER],
+    });
+    groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
+
+    const nvidiaCreateMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'vision fallback reply' } }],
+    }));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, {
+      model: 'diffusiongemma-26b',
+      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
+    }));
+
+    expect(createProviderClientMock).toHaveBeenCalledTimes(1);
+    expect(createProviderClientMock).toHaveBeenCalledWith(NVIDIA_VISION_PROVIDER);
+    expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
+    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'vision fallback reply' });
   });
 
   it('propagates request cancellation and returns a stable fallback reason code', async () => {
@@ -298,7 +334,7 @@ describe('chat route provider payload mapping', () => {
   });
 
   it('sends a validated image only to the latest user message and folds DiffusionGemma system context into user content', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallback: null });
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
     const nvidiaCreateMock = vi.fn<(
       payload: Record<string, unknown>,
       options?: { signal?: AbortSignal },
@@ -341,7 +377,7 @@ describe('chat route provider payload mapping', () => {
   });
 
   it('keeps a single-turn DiffusionGemma image before folded system and user text', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallback: null });
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
     const nvidiaCreateMock = vi.fn<(
       payload: Record<string, unknown>,
       options?: { signal?: AbortSignal },
@@ -371,5 +407,49 @@ describe('chat route provider payload mapping', () => {
         ],
       },
     ]);
+  });
+
+  it('sends Kimi the image only on the latest user turn with its exact sampling body', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_KIMI_PROVIDER, fallbacks: [] });
+    const kimiCreateMock = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: { signal?: AbortSignal },
+    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
+      choices: [{ message: { content: 'Kimi vision reply' } }],
+    }));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: kimiCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, {
+      model: 'kimi-k2.6',
+      messages: [
+        { role: 'user', content: 'Earlier text' },
+        { role: 'assistant', content: 'unsigned assistant' },
+        { role: 'user', content: 'What is in this image?' },
+      ],
+      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
+    }));
+
+    expect(response.status).toBe(200);
+    const payload = kimiCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
+    expect(payload.messages).toEqual([
+      { role: 'system', content: 'stable system prompt\n\nconditional system prompt' },
+      { role: 'user', content: 'Earlier text' },
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+          { type: 'text', text: 'What is in this image?' },
+        ],
+      },
+    ]);
+    expect(payload.messages.filter((message) => Array.isArray(message.content))).toHaveLength(1);
+    expect(kimiCreateMock.mock.calls[0]?.[0]).toMatchObject({
+      max_tokens: 384,
+      temperature: 0.6,
+      chat_template_kwargs: { thinking: false },
+    });
+    await expect(response.json()).resolves.toMatchObject({ modelId: 'kimi-k2.6' });
   });
 });

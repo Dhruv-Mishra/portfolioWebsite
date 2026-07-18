@@ -412,7 +412,7 @@ function getNoteRotation(messageId: string, isUser: boolean): number {
   return isUser ? rotation : -rotation;
 }
 
-const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
+const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, compact = false, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; compact?: boolean; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
   const isDisco = Boolean(isAction && (text === DISCO_ACTION_LABEL || text === DISCO_EXIT_ACTION_LABEL));
   const suggestionStyle = getSuggestionStyle(isDisco, isAction, index);
@@ -428,6 +428,7 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
     data-disco-motion={isDisco ? 'wiggle' : 'bob'}
     className={cn(
       "min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5 border-2 rounded shadow-sm font-hand text-sm max-[480px]:text-[13px] md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
+      compact && "px-3 py-1.5 text-xs max-[480px]:px-2.5 max-[480px]:py-1 max-[480px]:text-[11px] md:text-sm",
       isDisco
         ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
         : cn(
@@ -464,7 +465,7 @@ const MATRIX_CHIP_STYLE = {
   backgroundColor: '#022c22',
 } as const;
 
-const MatrixEscapeChip = memo(function MatrixEscapeChip({ onSelect, skipEntrance }: { onSelect: () => void; skipEntrance?: boolean }) {
+const MatrixEscapeChip = memo(function MatrixEscapeChip({ compact = false, onSelect, skipEntrance }: { compact?: boolean; onSelect: () => void; skipEntrance?: boolean }) {
   return (
     <m.button
       initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
@@ -477,7 +478,10 @@ const MatrixEscapeChip = memo(function MatrixEscapeChip({ onSelect, skipEntrance
       type="button"
       aria-label="Enter the matrix — open the matrix-notes wall"
       data-disco-motion="wiggle"
-      className="px-4 py-2 border-2 border-emerald-300/80 rounded shadow-[0_0_14px_rgba(16,185,129,0.45)] font-code text-sm md:text-base text-emerald-100 hover:text-white hover:shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-shadow flex flex-col items-start"
+      className={cn(
+        "px-4 py-2 border-2 border-emerald-300/80 rounded shadow-[0_0_14px_rgba(16,185,129,0.45)] font-code text-sm md:text-base text-emerald-100 hover:text-white hover:shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-shadow flex flex-col items-start",
+        compact && "px-3 py-1.5 text-xs md:text-sm",
+      )}
       style={MATRIX_CHIP_STYLE}
       data-clickable
     >
@@ -683,6 +687,7 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
+  compact = false,
   isLoading = false,
   isTtsActive = false,
   onSpeak,
@@ -695,6 +700,7 @@ const StickyNote = memo(function StickyNote({
   ttsStatus = 'idle',
 }: {
   message: ChatMessage;
+  compact?: boolean;
   isLoading?: boolean;
   isTtsActive?: boolean;
   onSpeak?: (message: ChatMessage) => void;
@@ -738,6 +744,7 @@ const StickyNote = memo(function StickyNote({
       style={discoStyle}
       className={cn(
         "relative max-w-[90%] sm:max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
+        compact && "max-w-[92%] p-3 pb-5 text-sm leading-snug md:max-w-[82%] md:p-3.5 md:pb-6 md:text-base",
         isUser
           ? "bg-[var(--note-user)] text-[var(--note-user-ink)]"
           : "bg-[var(--note-ai)] text-[var(--note-ai-ink)]",
@@ -1170,12 +1177,16 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             as a unified "chat utilities" cluster rather than three
             disconnected affordances. */}
         {(hasMessages || speech.isSupported || supportsImages) && (
-          <div className="flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5">
+          <div className={cn(
+            "flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5",
+            compact && "mb-0.5 px-0 max-[480px]:mb-0.5 max-[480px]:px-0",
+          )}>
             <div
               data-disco-motion="shimmy"
               data-disco-chat-input-bar
               className={cn(
                 'flex max-w-full flex-wrap items-center justify-end gap-2 max-[480px]:gap-1 rounded-full px-2.5 max-[480px]:px-1.5 py-1.5 max-[480px]:py-0.5 md:gap-4 md:px-3 md:py-1.5',
+                compact && 'gap-0 rounded-full px-0.5 py-0 max-[480px]:gap-0 max-[480px]:px-0.5 max-[480px]:py-0 md:gap-0.5 md:px-1 md:py-0.5',
                 // Translucent paper background — reads on both light and
                 // dark themes via the --c-paper / --c-ink tokens, then
                 // softened with /60 + backdrop-blur so messages bleed
@@ -1187,7 +1198,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               )}
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
-            {modelPrefHydrated ? (
+            {!compact && modelPrefHydrated ? (
               <span className="max-w-32 max-[480px]:max-w-24 truncate font-code text-[10px] max-[480px]:text-[9px] text-[var(--c-ink)]/60" title={model?.label}>
                 {model?.label} · {supportsImages ? 'Vision' : 'Text'}
               </span>
@@ -1198,7 +1209,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading || isCompressingImage}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  className={cn(
+                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45",
+                    compact && "md:h-8 md:w-8",
+                  )}
                   title="Attach image"
                   aria-label="Attach image"
                 >
@@ -1211,7 +1225,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               <button
                 type="button"
                 onClick={() => setConfirmKind('clear')}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                className={cn(
+                  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400",
+                  compact && "md:h-8 md:w-8",
+                )}
                 title="Clear chat history"
                 aria-label="Clear chat history"
               >
@@ -1221,19 +1238,21 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             )}
             {speech.isSupported && (
               <>
-                <VoiceBackendToggle
-                  isLoading={speech.isLoading}
-                  loadProgress={speech.loadProgress}
-                  compact
-                  onToggleIntercept={(nextActive) => {
-                    // Disabling is safe and instant. Enabling triggers a
-                    // Large first-use download — surface a confirmation
-                    // modal first so the user understands what they're
-                    // opting into (especially on mobile / metered data).
-                    if (nextActive) setConfirmKind('enableLocal');
-                    else toggleVoicePref();
-                  }}
-                />
+                {!compact ? (
+                  <VoiceBackendToggle
+                    isLoading={speech.isLoading}
+                    loadProgress={speech.loadProgress}
+                    compact
+                    onToggleIntercept={(nextActive) => {
+                      // Disabling is safe and instant. Enabling triggers a
+                      // Large first-use download — surface a confirmation
+                      // modal first so the user understands what they're
+                      // opting into (especially on mobile / metered data).
+                      if (nextActive) setConfirmKind('enableLocal');
+                      else toggleVoicePref();
+                    }}
+                  />
+                ) : null}
                 <MicButton
                   isListening={speech.isListening}
                   isLoading={speech.isLoading}
@@ -1243,6 +1262,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   onClick={handleMicToggle}
                   disabled={isLoading}
                   size={compact ? 12 : 14}
+                  className={compact ? 'md:h-8 md:w-8 md:min-h-8 md:min-w-8 md:p-1' : undefined}
                   title={speech.requiresLocalTranscription ? 'Enable Local Transcription to dictate on this browser' : undefined}
                 />
               </>
@@ -1325,7 +1345,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   // greyer color is applied via the overlay span below
                   // (the textarea's native placeholder is unused on
                   // purpose — we render a custom typewriter overlay).
-                  compact ? "text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
+                  compact ? "text-sm md:text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
                   (speech.isListening || speech.isTranscribing) && "invisible",
                 )}
               />
@@ -1339,7 +1359,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   aria-hidden
                   className={cn(
                     "absolute left-0 top-2.5 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
-                    compact ? "text-base" : "text-base md:text-lg",
+                    compact ? "text-sm md:text-base" : "text-base md:text-lg",
                   )}
                 />
               )}
@@ -2064,6 +2084,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               )}
               <StickyNote
                 message={msg}
+                compact={compact}
                 isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
                 isTtsActive={ttsActiveMessageId === msg.id}
                 onSpeak={handleSpeakMessage}
@@ -2097,6 +2118,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               >
                 {matrixEscaped && (
                   <MatrixEscapeChip
+                    compact={compact}
                     onSelect={handleEnterMatrix}
                     skipEntrance={!hasHadInteraction}
                   />
@@ -2106,6 +2128,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     key={q}
                     text={q}
                     isAction={ACTION_SUGGESTION_SET.has(q)}
+                    compact={compact}
                     onSelect={handleSuggestion}
                     index={i}
                     skipEntrance={!hasHadInteraction}
@@ -2117,6 +2140,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                       key={q}
                       text={q}
                       isAction={ACTION_SUGGESTION_SET.has(q)}
+                      compact={compact}
                       onSelect={handleSuggestion}
                       index={i}
                       skipEntrance={!hasHadInteraction}

@@ -115,12 +115,11 @@ function getValidatedImage(value: unknown): ChatImage | null | 'invalid' {
 
 function getOrderedProviders(
   primary: LLMProvider | null,
-  fallback: LLMProvider | null,
-  legacyFallback: LLMProvider | null | undefined,
+  fallbacks: LLMProvider[],
 ): LLMProvider[] {
   const seen = new Set<string>();
 
-  return [primary, fallback, legacyFallback]
+  return [primary, ...fallbacks]
     .filter((provider): provider is LLMProvider => provider != null)
     .filter((provider) => {
       const key = `${provider.baseURL}::${provider.model}::${provider.apiKey}`;
@@ -268,8 +267,8 @@ export async function POST(request: NextRequest) {
       ...toProviderMessages(sanitized, image ?? undefined),
     ];
 
-    const { primary, fallback, legacyFallback } = getChatProviders(selectedModelId);
-    const providers = getOrderedProviders(primary, fallback, legacyFallback)
+    const { primary, fallbacks } = getChatProviders(selectedModelId);
+    const providers = getOrderedProviders(primary, fallbacks)
       .filter((provider) => !image || provider.supportsImages);
 
     if (providers.length === 0) {

@@ -55,13 +55,14 @@ describe('public chat route aliases', () => {
     expect(nginxSource).toMatch(/location = \/chat\/respond \{[\s\S]*?limit_req zone=api burst=5 nodelay;[\s\S]*?proxy_buffering off;[\s\S]*?proxy_cache off;[\s\S]*?proxy_read_timeout 120s;[\s\S]*?chunked_transfer_encoding on;/);
     expect(nginxSource).toMatch(/location = \/chat\/suggestions \{[\s\S]*?limit_req zone=api burst=5 nodelay;[\s\S]*?proxy_cache off;/);
 
-    expect(workflowSource).toContain('https://${{ env.STAGING_DOMAIN }}/chat/respond');
-    expect(workflowSource).not.toContain('https://${{ env.STAGING_DOMAIN }}/api/chat');
+    expect(workflowSource).toContain('https://${{ env.STAGING_DOMAIN }}/api/chat');
+    expect(workflowSource).toContain('"model":"deepseek-v4-flash"');
+    expect(workflowSource).toContain('x-chat-fallback:[[:space:]]*primaryOnline');
     expect(workflowSource).toContain('cf-mitigated:');
     expect(workflowSource).toContain("Cloudflare challenged the GitHub runner's staging chat probe after all VM-local checks passed");
     expect(workflowSource).not.toContain('Cloudflare challenged the required staging chat smoke probe');
     expect(workflowSource).toContain('application/json');
-    expect(workflowSource).toContain("body?.action?.navigateTo !== '/about'");
+    expect(workflowSource).toContain("body?.modelId !== 'deepseek-v4-flash'");
 
     expect(deploySource).toContain('"http://127.0.0.1:${NEXTJS_PORT}/chat/respond"');
     expect(deploySource).toContain('-H "Sec-Fetch-Site: same-origin"');

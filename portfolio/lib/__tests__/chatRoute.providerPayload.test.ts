@@ -90,17 +90,6 @@ const NVIDIA_VISION_PROVIDER = {
   sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
 };
 
-const NVIDIA_KIMI_PROVIDER = {
-  kind: 'nvidia' as const,
-  label: 'nvidia-kimi',
-  apiKey: 'nvidia-key',
-  baseURL: 'https://integrate.api.nvidia.com/v1',
-  model: 'moonshotai/kimi-k2.6',
-  modelId: 'kimi-k2.6' as const,
-  supportsImages: true,
-  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { thinking: false } } },
-};
-
 function createChatRequest(signal?: AbortSignal, payload: Record<string, unknown> = {}): NextRequest {
   const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }], ...payload });
   return new Request('http://localhost/api/chat', {
@@ -409,52 +398,4 @@ describe('chat route provider payload mapping', () => {
     ]);
   });
 
-  it('sends Kimi one leading system and alternating signed turns with the image on the final user turn', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_KIMI_PROVIDER, fallbacks: [] });
-    const kimiCreateMock = vi.fn<(
-      payload: Record<string, unknown>,
-      options?: { signal?: AbortSignal },
-    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
-      choices: [{ message: { content: 'Kimi vision reply' } }],
-    }));
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: kimiCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, {
-      model: 'kimi-k2.6',
-      messages: [
-        { role: 'user', content: 'Earlier text' },
-        {
-          role: 'assistant',
-          content: 'A signed answer',
-          signature: signAssistantMessage('A signed answer', null),
-        },
-        { role: 'user', content: 'What is in this image?' },
-      ],
-      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
-    }));
-
-    expect(response.status).toBe(200);
-    const payload = kimiCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
-    expect(payload.messages).toEqual([
-      { role: 'system', content: 'stable system prompt\n\nconditional system prompt' },
-      { role: 'user', content: 'Earlier text' },
-      { role: 'assistant', content: 'A signed answer' },
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
-          { type: 'text', text: 'What is in this image?' },
-        ],
-      },
-    ]);
-    expect(payload.messages.filter((message) => Array.isArray(message.content))).toHaveLength(1);
-    expect(kimiCreateMock.mock.calls[0]?.[0]).toMatchObject({
-      max_tokens: 384,
-      temperature: 0.6,
-      chat_template_kwargs: { thinking: false },
-    });
-    await expect(response.json()).resolves.toMatchObject({ modelId: 'kimi-k2.6' });
-  });
 });

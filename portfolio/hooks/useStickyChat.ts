@@ -72,8 +72,8 @@ interface UseStickyChat {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
-  sendMessage: (content: string, image?: ChatImageAttachment) => Promise<void>;
-  sendCanned: (userText: string, response: string, action?: ActionExecution | null) => void;
+  sendMessage: (content: string, image?: ChatImageAttachment) => Promise<boolean>;
+  sendCanned: (userText: string, response: string, action?: ActionExecution | null) => boolean;
   sendHardcoded: (userText: string, response: string | null) => boolean;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
@@ -708,9 +708,9 @@ export function useStickyChat(): UseStickyChat {
     [beginOracleSchedule, scheduleOracle, playOracleTransition],
   );
 
-  const sendMessage = useCallback(async (content: string, image?: ChatImageAttachment) => {
+  const sendMessage = useCallback((content: string, image?: ChatImageAttachment): Promise<boolean> => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
-    if (!trimmed || isLoadingRef.current || oracleBusyRef.current) return;
+    if (!trimmed || isLoadingRef.current || oracleBusyRef.current) return Promise.resolve(false);
 
     // ── Interrogation takes priority over every other path ──
     // If a sudo-give-password flow armed an interrogation, EVERY user
@@ -718,7 +718,7 @@ export function useStickyChat(): UseStickyChat {
     // The regular LLM is never called during interrogation.
     if (isInterrogationActive()) {
       handleInterrogationUserReply(trimmed);
-      return;
+      return Promise.resolve(true);
     }
 
     // ── Matrix puzzle client-side intercept ──
@@ -741,7 +741,7 @@ export function useStickyChat(): UseStickyChat {
         },
         startInterrogationAfter: intercept.kind === 'reveal',
       });
-      return;
+      return Promise.resolve(true);
     }
 
     // Immediately guard against double-fire — blocks concurrent sends before React
@@ -756,7 +756,7 @@ export function useStickyChat(): UseStickyChat {
       const remaining = rateLimiter.getRemainingTime('chat', RATE_LIMITS.CHAT_API);
       setRateLimitRemaining(remaining);
       setError(`Whoa, slow down! Even sticky notes need a breather. Try again in ${remaining} seconds.`);
-      return;
+      return Promise.resolve(false);
     }
     setRateLimitRemaining(null);
     setError(null);
@@ -822,7 +822,8 @@ export function useStickyChat(): UseStickyChat {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    try {
+    void (async () => {
+      try {
       // Build conversation history. Oracle-emitted (matrix puzzle) messages
       // are stripped from the context so the remote LLM never sees the
       // scripted voice and can't accidentally imitate it on subsequent
@@ -936,7 +937,7 @@ export function useStickyChat(): UseStickyChat {
           )
         );
       }
-    } catch (err) {
+      } catch (err) {
       clearTimeout(timeoutId);
       clearFillerTimers();
       if (abortControllerRef.current !== controller) return;
@@ -982,13 +983,16 @@ export function useStickyChat(): UseStickyChat {
       setMessages(prev =>
         prev.filter(m => m.id !== assistantId)
       );
-    } finally {
+      } finally {
       if (abortControllerRef.current === controller) {
         isLoadingRef.current = false;
         setIsLoading(false);
         abortControllerRef.current = null;
       }
-    }
+      }
+    })();
+
+    return Promise.resolve(true);
   }, [beginOracleSchedule, handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
   const clearMessages = useCallback(() => {
@@ -1046,10 +1050,10 @@ export function useStickyChat(): UseStickyChat {
    * intentionally a deterministic synchronous path, since the response is
    * baked at build time.
    */
-  const sendCanned = useCallback((userText: string, response: string, action?: ActionExecution | null) => {
-    if (isLoadingRef.current) return;
+  const sendCanned = useCallback((userText: string, response: string, action?: ActionExecution | null): boolean => {
+    if (isLoadingRef.current) return false;
     const trimmed = userText.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
-    if (!trimmed) return;
+    if (!trimmed) return false;
     suggestionsAbortRef.current?.abort('hardcoded');
     suggestionsAbortRef.current = null;
     setSuggestions([]);
@@ -1078,6 +1082,7 @@ export function useStickyChat(): UseStickyChat {
     setMessages(next);
     saveMessages(next);
     setError(null);
+    return true;
   }, []);
 
   const sendHardcoded = useCallback((userText: string, response: string | null) => {
@@ -1090,8 +1095,7 @@ export function useStickyChat(): UseStickyChat {
     const reply = response ?? fallback;
 
     if (!reply) return false;
-    sendCanned(userText, reply, action);
-    return true;
+    return sendCanned(userText, reply, action);
   }, [sendCanned]);
 
   return {

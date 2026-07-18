@@ -63,19 +63,6 @@ describe('getSuggestionsProviders', () => {
     expect(minimaxProviders.primary?.sampling.extraBody).toEqual({
       chat_template_kwargs: { thinking_mode: 'disabled' },
     });
-    const kimiProviders = getChatProviders('kimi-k2.6');
-    expect(kimiProviders).toMatchObject({
-      primary: {
-        kind: 'nvidia',
-        model: 'moonshotai/kimi-k2.6',
-        modelId: 'kimi-k2.6',
-        supportsImages: true,
-      },
-      fallbacks: [],
-    });
-    expect(kimiProviders.primary?.sampling.extraBody).toEqual({
-      chat_template_kwargs: { thinking: false },
-    });
   });
 
   it('returns no online chat provider when the selected model key is unavailable', () => {

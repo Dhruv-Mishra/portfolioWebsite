@@ -53,6 +53,13 @@ import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { compressChatImage, type ChatImageAttachment } from '@/lib/chatImageCompression';
 import { getChatModel } from '@/lib/chatModels';
 import {
+  appendComposerHistory,
+  canNavigateComposerHistory,
+  createComposerHistoryState,
+  navigateComposerHistory,
+  resetComposerHistoryNavigation,
+} from '@/lib/composerHistory';
+import {
   CHAT_MODEL_PREF_STORAGE_KEY,
   CHAT_MODEL_SWITCH_CLEAR_EVENT,
   useChatModelPref,
@@ -914,7 +921,7 @@ const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: 
 
 // ─── Chat Input Area (isolated to prevent keystroke re-renders of message list) ───
 interface ChatInputAreaProps {
-  onSend: (text: string, image?: ChatImageAttachment, focusWasInComposer?: boolean) => void;
+  onSend: (text: string, image?: ChatImageAttachment, focusWasInComposer?: boolean) => Promise<boolean>;
   isLoading: boolean;
   compact: boolean;
   hasMessages: boolean;
@@ -999,6 +1006,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const [isCompressingImage, setIsCompressingImage] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerHistoryRef = useRef(createComposerHistoryState());
+  const [historyCaretRequest, setHistoryCaretRequest] = useState(0);
+  const historyCaretRequestSequenceRef = useRef(0);
+  const pendingHistoryCaretRequestRef = useRef<number | null>(null);
   const imageCompressionAbortRef = useRef<AbortController | null>(null);
   const imageCompressionGenerationRef = useRef(0);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
@@ -1045,9 +1056,14 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading || isCompressingImage) return;
+    const submittedMessage = input.trim();
     if (speech.isListening) speech.stop();
     const focusWasInComposer = composerRef.current?.contains(document.activeElement) ?? false;
-    onSend(input.trim(), attachment ?? undefined, focusWasInComposer);
+    void onSend(submittedMessage, attachment ?? undefined, focusWasInComposer).then((accepted) => {
+      if (accepted) {
+        composerHistoryRef.current = appendComposerHistory(composerHistoryRef.current, submittedMessage);
+      }
+    });
     setInput('');
     setAttachment(null);
     setAttachmentStatus(null);
@@ -1111,6 +1127,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     }
     // Listening just ended (or transcribing finalised) — commit once.
     if (pendingTranscriptRef.current || merged) {
+      composerHistoryRef.current = resetComposerHistoryNavigation(composerHistoryRef.current);
       setInput(pendingTranscriptRef.current || merged);
       pendingTranscriptRef.current = '';
     }
@@ -1130,12 +1147,45 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     speech.start();
   }, [input, speech]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    composerHistoryRef.current = resetComposerHistoryNavigation(composerHistoryRef.current);
+    setInput(event.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength));
+  }, []);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      const textarea = event.currentTarget;
+      const direction = event.key === 'ArrowUp' ? 'up' : 'down';
+      const isEligibleForHistory = canNavigateComposerHistory(
+        textarea.value,
+        textarea.selectionStart,
+        textarea.selectionEnd,
+        direction,
+      );
+
+      if (isEligibleForHistory) {
+        const result = navigateComposerHistory(
+          composerHistoryRef.current,
+          input,
+          direction,
+        );
+        if (result.didNavigate) {
+          event.preventDefault();
+          composerHistoryRef.current = result.state;
+          const nextCaretRequest = ++historyCaretRequestSequenceRef.current;
+          pendingHistoryCaretRequestRef.current = nextCaretRequest;
+          setHistoryCaretRequest(nextCaretRequest);
+          setInput(result.value);
+          return;
+        }
+      }
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  }, [handleSend, input]);
 
   // Auto-grow the textarea up to its CSS max-height. We measure the
   // intrinsic scrollHeight after every value change in a layout effect so
@@ -1149,6 +1199,15 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, [input]);
+
+  useLayoutEffect(() => {
+    if (pendingHistoryCaretRequestRef.current !== historyCaretRequest) return;
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    pendingHistoryCaretRequestRef.current = null;
+  }, [historyCaretRequest]);
 
   return (
     <div
@@ -1331,7 +1390,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, CHAT_CONFIG.maxUserMessageLength))}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={1}
                 disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
@@ -1379,6 +1438,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   speech.reset();
                   baseInputRef.current = '';
                   pendingTranscriptRef.current = '';
+                  composerHistoryRef.current = resetComposerHistoryNavigation(composerHistoryRef.current);
                   setInput('');
                   setTimeout(() => inputRef.current?.focus(), 0);
                 }}
@@ -1888,7 +1948,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     };
   }, [messages.length]);
 
-  const handleSendFromInput = useCallback((text: string, image?: ChatImageAttachment, focusWasInComposer = false) => {
+  const handleSendFromInput = useCallback(async (text: string, image?: ChatImageAttachment, focusWasInComposer = false): Promise<boolean> => {
     setHasHadInteraction(true);
     stopTtsPlayback();
     submit();
@@ -1899,16 +1959,19 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     if (!image && sendHardcoded(text, getSuggestionResponse(text))) {
       restoreComposerFocusAfterRemoteSendRef.current = null;
       if (focusWasInComposer) restoreComposerFocusIfAppropriate(composerRef.current);
-      return;
+      return true;
     }
-    void sendMessage(text, image).finally(() => {
+    const accepted = sendMessage(text, image);
+    void accepted.then((wasAccepted) => {
       if (
+        !wasAccepted &&
         restoreComposerFocusAfterRemoteSendRef.current === focusRequestId &&
         remoteSendLoadingStartedForFocusRef.current !== focusRequestId
       ) {
         restoreComposerFocusAfterRemoteSendRef.current = null;
       }
     });
+    return accepted;
   }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
 
   useEffect(() => {

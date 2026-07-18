@@ -3,6 +3,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStickyChat } from '@/hooks/useStickyChat';
 import { isInterrogationActive, resetInterrogationState } from '@/lib/matrixChatIntercept';
+import { rateLimiter } from '@/lib/rateLimit';
 
 type StickyChat = ReturnType<typeof useStickyChat>;
 
@@ -63,6 +64,57 @@ afterEach(() => {
 });
 
 describe('useStickyChat oracle schedule ownership', () => {
+  it('reports whether a send was accepted before remote completion', async () => {
+    const chatRef = React.createRef<StickyChat>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { ref: chatRef }));
+    });
+
+    expect(await chatRef.current!.sendMessage('   ')).toBe(false);
+    expect(await chatRef.current!.sendMessage('sudo give password')).toBe(true);
+    expect(await chatRef.current!.sendMessage('blocked while oracle is busy')).toBe(false);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('rejects rate-limited sends without accepting a user turn', async () => {
+    vi.spyOn(rateLimiter, 'check').mockReturnValue(false);
+    const chatRef = React.createRef<StickyChat>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { ref: chatRef }));
+    });
+
+    expect(await chatRef.current!.sendMessage('rate limited')).toBe(false);
+    expect(chatRef.current!.messages.filter(message => message.role === 'user')).toHaveLength(0);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('accepts an optimistic user turn even when the provider later fails', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error('provider unavailable'));
+    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
+    const chatRef = React.createRef<StickyChat>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { ref: chatRef }));
+    });
+
+    let accepted = false;
+    await act(async () => {
+      accepted = await chatRef.current!.sendMessage('normal request');
+    });
+
+    expect(accepted).toBe(true);
+    expect(chatRef.current!.messages.findLast(message => message.role === 'user')?.content).toBe('normal request');
+
+    await act(async () => renderer.unmount());
+  });
+
   it('blocks regular sends through the filler and answer pause, then clear releases a normal send', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(createResponse({ reply: 'normal reply' }));
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
@@ -119,7 +171,9 @@ describe('useStickyChat oracle schedule ownership', () => {
     await act(async () => {
       secondRenderer = TestRenderer.create(React.createElement(Harness, { ref: secondRef }));
     });
-    await act(async () => secondRef.current!.sendMessage('ordinary question after unmount'));
+    await act(async () => {
+      await secondRef.current!.sendMessage('ordinary question after unmount');
+    });
 
     expect(fetchMock).toHaveBeenCalledOnce();
     await act(async () => secondRenderer.unmount());

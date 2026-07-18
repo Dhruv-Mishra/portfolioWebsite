@@ -42,7 +42,9 @@ describe('sticky note chat standalone accessibility contract', () => {
     expect(source).toContain('if (focusWasInComposer) restoreComposerFocusIfAppropriate(composerRef.current);');
     expect(source).toContain('const focusRequestId = ++composerFocusRequestSequenceRef.current;');
     expect(source).toContain('restoreComposerFocusAfterRemoteSendRef.current = focusWasInComposer ? focusRequestId : null;');
-    expect(source).toContain('void sendMessage(text, image).finally(() => {');
+    expect(source).toContain('const accepted = sendMessage(text, image);');
+    expect(source).toContain('void accepted.then((wasAccepted) => {');
+    expect(source).toContain('!wasAccepted &&');
     expect(source).toContain('restoreComposerFocusAfterRemoteSendRef.current === focusRequestId');
     expect(source).toContain('remoteSendLoadingStartedForFocusRef.current !== focusRequestId');
     expect(source).toContain('if (isLoading && !previousLoadingRef.current) {');

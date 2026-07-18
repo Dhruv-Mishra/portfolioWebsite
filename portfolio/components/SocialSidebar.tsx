@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { m } from 'framer-motion';
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon } from "lucide-react";
+import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon, ChevronDown, ChevronUp } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -40,18 +39,6 @@ const SOCIALS = [
         color: SOCIAL_COLORS.linkedin
     },
     {
-        name: "Codeforces",
-        icon: BarChart2,
-        url: PERSONAL_LINKS.codeforces,
-        color: SOCIAL_COLORS.codeforces
-    },
-    {
-        name: "CP History",
-        icon: Trophy,
-        url: PERSONAL_LINKS.cpHistory,
-        color: SOCIAL_COLORS.cpHistory
-    },
-    {
         name: "Email",
         icon: Mail,
         url: PERSONAL_LINKS.email,
@@ -62,6 +49,18 @@ const SOCIALS = [
         icon: Phone,
         url: PERSONAL_LINKS.phone,
         color: SOCIAL_COLORS.phone
+    },
+    {
+        name: "Codeforces",
+        icon: BarChart2,
+        url: PERSONAL_LINKS.codeforces,
+        color: SOCIAL_COLORS.codeforces
+    },
+    {
+        name: "CP History",
+        icon: Trophy,
+        url: PERSONAL_LINKS.cpHistory,
+        color: SOCIAL_COLORS.cpHistory
     }
 ];
 
@@ -78,11 +77,11 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
                 title={social.name}
                 aria-label={social.name}
             >
-                <social.icon size={15} strokeWidth={2.5} />
+                <social.icon size={14} strokeWidth={2.5} />
             </a>
         );
     }
@@ -107,8 +106,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
     );
 });
 
-// Pre-computed mobile social list (CP History replaced by feedback button)
-const MOBILE_SOCIALS = SOCIALS.filter(s => s.name !== 'CP History');
+const MOBILE_SOCIALS = SOCIALS.filter((social) => social.name !== "CP History");
 
 const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPress }: { isMobile?: boolean; onPress: () => void }) {
     const link = (
@@ -116,12 +114,12 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
             href="/settings"
             onClick={onPress}
             className={isMobile
-                ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)] text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
+                ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
                 : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
             title="Settings"
             aria-label="Open settings"
         >
-            <Settings size={isMobile ? 15 : 24} strokeWidth={2.5} className={isMobile ? undefined : "md:h-7 md:w-7"} />
+            <Settings size={isMobile ? 14 : 24} strokeWidth={2.5} className={isMobile ? undefined : "md:h-7 md:w-7"} />
         </Link>
     );
 
@@ -139,7 +137,7 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
  * gradient) stuck around because the old handler only flipped the
  * `next-themes` preference without touching `discoActive`.
  *
- * Visual placeholder dimensions are unchanged — the pre-mount `w-11 h-11`
+ * Visual placeholder dimensions are unchanged — the pre-mount `w-10 h-10`
  * shell keeps the neighbouring social icons from shuffling on hydrate.
  */
 const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
@@ -150,7 +148,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
         getClientHydrationSnapshot,
         getServerHydrationSnapshot,
     );
-    if (!mounted) return <div className="h-11 w-11 shrink-0" />;
+    if (!mounted) return <div className="h-10 w-10 shrink-0" />;
     const isDark = resolvedTheme === 'dark';
     const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';
     return (
@@ -160,16 +158,16 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
                 onPress();
                 runThemeToggle({ discoActive, isDark, setTheme });
             }}
-            className="flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             title={ariaLabel}
             aria-label={ariaLabel}
             data-disco-bounce="1"
         >
             {discoActive ? (
-                /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
-                   to 16px so it matches the sun / moon footprint at the 15px
+                     /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
+                         to 14px so it matches the sun / moon footprint at the 14px
                    lucide sizes we ship elsewhere in the mobile pill. */
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
+                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
                     <path d="M12 2v3" />
                     <circle cx="12" cy="13" r="7" className="fill-fuchsia-200/40 dark:fill-fuchsia-900/40" />
                     <path d="M5 13h14" opacity="0.55" />
@@ -182,9 +180,9 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
                     <path d="M21.5 16.5l-1.5-1" opacity="0.6" />
                 </svg>
             ) : isDark ? (
-                <Sun size={15} strokeWidth={2.5} />
+                <Sun size={14} strokeWidth={2.5} />
             ) : (
-                <Moon size={15} strokeWidth={2.5} />
+                <Moon size={14} strokeWidth={2.5} />
             )}
         </button>
     );
@@ -200,6 +198,7 @@ function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChil
     const reducedMotion = useEffectiveReducedMotion();
     const [routeHiddenAtMount] = React.useState(() => initiallyRouteHidden);
     const [isVisible, setIsVisible] = React.useState(() => !routeHiddenAtMount);
+    const [isDrawerExpanded, setIsDrawerExpanded] = React.useState(true);
     const controllerRef = React.useRef<ReturnType<typeof createMobileSocialBarVisibilityController> | null>(null);
     const userScrollIntentRef = React.useRef(false);
     const userScrollIntentFrameRef = React.useRef<number | null>(null);
@@ -309,21 +308,19 @@ function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChil
                 maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
             }}
         >
-            <m.div
-                data-social-sidebar
+            <div
+                id="mobile-social-drawer"
+                data-social-sidebar-frame
                 data-social-sidebar-layout="mobile"
                 data-mobile-social-bar-visible={isVisible ? 'true' : 'false'}
-                className="grid max-w-full grid-cols-4 gap-1 rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)] p-1.5 shadow-md"
-                role="complementary"
-                aria-label="Social media links"
-                initial={false}
-                animate={{
-                    y: isVisible ? '0%' : '200%',
+                className={`relative max-w-full rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)]/85 shadow-md ${isDrawerExpanded ? 'w-max p-1.5' : 'h-1 w-14 border-transparent bg-transparent p-0 shadow-none'}`}
+                style={{
+                    pointerEvents: isVisible ? 'auto' : 'none',
+                    transform: isVisible ? 'translateY(0)' : 'translateY(calc(100% + 4rem))',
+                    transitionProperty: 'transform',
+                    transitionDuration: reducedMotion ? '0ms' : '300ms',
+                    transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
                 }}
-                transition={reducedMotion
-                    ? { duration: 0 }
-                    : { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ pointerEvents: isVisible ? 'auto' : 'none' }}
                 onPointerDownCapture={reveal}
                 onFocusCapture={() => controllerRef.current?.setFocusWithin(true)}
                 onBlurCapture={(event) => {
@@ -332,8 +329,27 @@ function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChil
                     }
                 }}
             >
-                {children}
-            </m.div>
+                <button
+                    type="button"
+                    onClick={() => setIsDrawerExpanded((isExpanded) => !isExpanded)}
+                    className={`absolute ${isDrawerExpanded ? '-top-9 right-1' : '-top-8 right-1'} flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-indigo-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-600`}
+                    title={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
+                    aria-label={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
+                    aria-expanded={isDrawerExpanded}
+                    aria-controls="mobile-social-drawer-content"
+                >
+                    {isDrawerExpanded ? <ChevronDown size={14} strokeWidth={2.5} /> : <ChevronUp size={14} strokeWidth={2.5} />}
+                </button>
+                <div
+                    id="mobile-social-drawer-content"
+                    data-social-sidebar
+                    className="grid grid-cols-[repeat(4,40px)] gap-1"
+                    role="complementary"
+                    aria-label="Social media links"
+                >
+                    {isDrawerExpanded && children}
+                </div>
+            </div>
         </div>
     );
 }
@@ -351,6 +367,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
     // to free vertical real estate. Desktop sidebar is harmless (off to
     // the right edge) so it stays on every route.
     const hideMobileBar = pathname === '/chat';
+    const isSettingsRoute = pathname === '/settings';
 
     return (
         <>
@@ -366,7 +383,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 {SOCIALS.map((social, i) => (
                     <SocialLink key={social.name} social={social} index={i} onPress={externalLink} />
                 ))}
-                <SettingsLink onPress={openPanel} />
+                {!isSettingsRoute && <SettingsLink onPress={openPanel} />}
                 {onFeedbackClick && (
                     <button
                         type="button"
@@ -390,16 +407,10 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             {!hideMobileBar && (
             <MobileSocialBar key={pathname} initiallyRouteHidden={hasHydrated}>
-                {/* Theme Toggle */}
-                <MobileThemeButton onPress={toggle} />
-
-                <SettingsLink isMobile onPress={openPanel} />
-
                 {MOBILE_SOCIALS.map((social) => (
                     <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
                 ))}
 
-                {/* Feedback button (replaces CP History on mobile) */}
                 {onFeedbackClick && (
                     <button
                         type="button"
@@ -407,13 +418,17 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                             openPanel();
                             onFeedbackClick();
                         }}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)] text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
                         title="Send feedback"
                         aria-label="Open feedback form"
                     >
-                        <MessageSquare size={15} strokeWidth={2.5} />
+                        <MessageSquare size={14} strokeWidth={2.5} />
                     </button>
                 )}
+
+                <MobileThemeButton onPress={toggle} />
+
+                {!isSettingsRoute && <SettingsLink isMobile onPress={openPanel} />}
             </MobileSocialBar>
             )}
         </>

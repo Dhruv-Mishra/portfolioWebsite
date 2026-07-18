@@ -27,6 +27,7 @@ import {
   isInterrogationActive,
   ORACLE_ANSWER_PAUSE_MS,
   ORACLE_MESSAGE_GAP_MS,
+  resetInterrogationState,
   startInterrogation,
   type InterrogationTransition,
   type MatrixInterceptKind,
@@ -351,6 +352,7 @@ export function useStickyChat(): UseStickyChat {
   // / unmount. Without this, a user clearing the desk mid-interrogation
   // would still see later oracle beats land.
   const oracleTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const oracleBusyRef = useRef(false);
 
   // Abort in-flight requests and cancel filler timers on unmount.
   // Capture the timers Set in a local variable so the cleanup callback
@@ -364,6 +366,8 @@ export function useStickyChat(): UseStickyChat {
       // Cancel any pending oracle sequencer timers (matrix puzzle).
       for (const id of timers) clearTimeout(id);
       timers.clear();
+      oracleBusyRef.current = false;
+      resetInterrogationState();
     };
   }, []);
 
@@ -444,6 +448,7 @@ export function useStickyChat(): UseStickyChat {
     })
       .then(res => res.ok ? res.json() : { suggestions: [] })
       .then(data => {
+        if (suggestionsAbortRef.current !== controller) return;
         const newSuggestions: string[] = data.suggestions || [];
         setSuggestions(newSuggestions);
         // Cache to localStorage so they survive page switches
@@ -455,11 +460,16 @@ export function useStickyChat(): UseStickyChat {
       })
       .catch((err) => {
         // Only set empty on real failures, not abort
-        if (err?.name !== 'AbortError') setSuggestions([]);
+        if (suggestionsAbortRef.current === controller && err?.name !== 'AbortError') {
+          setSuggestions([]);
+        }
       })
       .finally(() => {
         clearTimeout(timeoutId);
-        if (!controller.signal.aborted) setIsSuggestionsLoading(false);
+        if (suggestionsAbortRef.current === controller) {
+          suggestionsAbortRef.current = null;
+          setIsSuggestionsLoading(false);
+        }
       });
   }, []);
 
@@ -472,6 +482,18 @@ export function useStickyChat(): UseStickyChat {
       clearTimeout(id);
     }
     oracleTimersRef.current.clear();
+  }, []);
+
+  const beginOracleSchedule = useCallback(() => {
+    oracleBusyRef.current = true;
+    isLoadingRef.current = true;
+    setIsLoading(true);
+  }, []);
+
+  const finishOracleSchedule = useCallback(() => {
+    oracleBusyRef.current = false;
+    isLoadingRef.current = false;
+    setIsLoading(false);
   }, []);
 
   const scheduleOracle = useCallback((fn: () => void, delayMs: number) => {
@@ -548,6 +570,7 @@ export function useStickyChat(): UseStickyChat {
             content: question,
             isFiller: false,
           });
+          finishOracleSchedule();
         }, oracleStepDelay(preamble));
         return;
       }
@@ -571,6 +594,7 @@ export function useStickyChat(): UseStickyChat {
             matrixInterceptKind: 'reveal',
             isFiller: false,
           });
+          finishOracleSchedule();
         }, afterRelease);
         return;
       }
@@ -580,9 +604,10 @@ export function useStickyChat(): UseStickyChat {
           content: transition.closing,
           isFiller: false,
         });
+        finishOracleSchedule();
       }, 0);
     },
-    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
+    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay, finishOracleSchedule],
   );
 
   /**
@@ -650,11 +675,12 @@ export function useStickyChat(): UseStickyChat {
             matrixInterceptKind: reveal.matrixInterceptKind,
             isFiller: false,
           });
+          finishOracleSchedule();
         }, offsetMs);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay],
+    [scheduleOracle, emitFillerLine, appendOracleMessage, oracleStepDelay, finishOracleSchedule],
   );
 
   /**
@@ -664,6 +690,7 @@ export function useStickyChat(): UseStickyChat {
    */
   const handleInterrogationUserReply = useCallback(
     (userText: string): void => {
+      beginOracleSchedule();
       const userMsg: ChatMessage = {
         id: generateId(),
         role: 'user',
@@ -678,12 +705,12 @@ export function useStickyChat(): UseStickyChat {
         playOracleTransition(transition);
       }, ORACLE_ANSWER_PAUSE_MS);
     },
-    [scheduleOracle, playOracleTransition],
+    [beginOracleSchedule, scheduleOracle, playOracleTransition],
   );
 
   const sendMessage = useCallback(async (content: string, image?: ChatImageAttachment) => {
     const trimmed = content.trim().slice(0, CHAT_CONFIG.maxUserMessageLength);
-    if (!trimmed || isLoadingRef.current) return;
+    if (!trimmed || isLoadingRef.current || oracleBusyRef.current) return;
 
     // ── Interrogation takes priority over every other path ──
     // If a sudo-give-password flow armed an interrogation, EVERY user
@@ -701,6 +728,7 @@ export function useStickyChat(): UseStickyChat {
     // reveal, then (for the sudo branch) kicks off an interrogation.
     const intercept = interceptMatrixPrompt(trimmed);
     if (intercept) {
+      beginOracleSchedule();
       const fillerLines = intercept.kind === 'reveal'
         ? drawRevealFillerLines(3)
         : drawDeniedFillerLines(3);
@@ -961,7 +989,7 @@ export function useStickyChat(): UseStickyChat {
         abortControllerRef.current = null;
       }
     }
-  }, [handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
+  }, [beginOracleSchedule, handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
   const clearMessages = useCallback(() => {
     // Abort any in-flight LLM request and suggestions fetch
@@ -975,6 +1003,8 @@ export function useStickyChat(): UseStickyChat {
     fillerCleanupRef.current?.();
     // Cancel any oracle (matrix puzzle) sequencer timers too.
     clearOracleTimers();
+    oracleBusyRef.current = false;
+    resetInterrogationState();
     // Reset all state
     setMessages(prev => prev.filter(m => m.id === 'welcome'));
     setIsLoading(false);
@@ -1051,6 +1081,10 @@ export function useStickyChat(): UseStickyChat {
   }, []);
 
   const sendHardcoded = useCallback((userText: string, response: string | null) => {
+    // Oracle answers must flow into sendMessage so the active interrogation
+    // can parse them instead of being replaced with a canned reply or action.
+    if (isInterrogationActive()) return false;
+
     const action = resolveExactActionLabel(userText);
     const fallback = action ? getActionFallbackReply(action) : null;
     const reply = response ?? fallback;

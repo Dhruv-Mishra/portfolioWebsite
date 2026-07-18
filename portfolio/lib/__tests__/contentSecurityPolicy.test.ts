@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import nextConfig from '../../next.config';
+import {
+  CONTENT_SECURITY_POLICY,
+  DEVELOPMENT_CONTENT_SECURITY_POLICY,
+} from '../contentSecurityPolicy';
 
 function parsePolicy(policy: string): Map<string, Set<string>> {
   return new Map(
@@ -23,6 +27,21 @@ function sortedPolicy(policy: Map<string, Set<string>>) {
 }
 
 describe('Whisper deployment content security policy', () => {
+  it('keeps unsafe eval limited to the development script policy', () => {
+    const productionPolicy = parsePolicy(CONTENT_SECURITY_POLICY);
+    const developmentPolicy = parsePolicy(DEVELOPMENT_CONTENT_SECURITY_POLICY);
+
+    expect(productionPolicy.get('script-src')).not.toContain("'unsafe-eval'");
+    expect(developmentPolicy.get('script-src')).toContain("'unsafe-eval'");
+    expect(
+      [...(developmentPolicy.get('script-src') ?? [])]
+        .filter((source) => source === "'unsafe-eval'"),
+    ).toHaveLength(1);
+
+    developmentPolicy.get('script-src')?.delete("'unsafe-eval'");
+    expect(sortedPolicy(developmentPolicy)).toEqual(sortedPolicy(productionPolicy));
+  });
+
   it('keeps Next and every deployed nginx policy semantically aligned', async () => {
     const headerRules = await nextConfig.headers?.();
     const globalHeaders = headerRules?.find((rule) => rule.source === '/:path*')?.headers ?? [];

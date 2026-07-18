@@ -248,10 +248,13 @@ export function isInterrogationActive(): boolean {
   return interrogationState !== null;
 }
 
-/** Reset the state — exported for tests. */
-export function __resetInterrogationForTests(): void {
+/** Reset the oracle state when its owning chat session is cleared or unmounted. */
+export function resetInterrogationState(): void {
   interrogationState = null;
 }
+
+/** Backward-compatible test alias. */
+export const __resetInterrogationForTests = resetInterrogationState;
 
 /**
  * Transition type returned by `startInterrogation` and `advanceInterrogation`.

@@ -20,6 +20,7 @@ import {
   isInterrogationActive,
   MATRIX_KEY_REVEAL_CONTENT,
   normalizeAnswer,
+  resetInterrogationState,
   startInterrogation,
 } from '@/lib/matrixChatIntercept';
 
@@ -127,6 +128,16 @@ describe('interrogation state machine', () => {
   });
 
   it('is inactive by default', () => {
+    expect(isInterrogationActive()).toBe(false);
+  });
+
+  it('exposes a production reset API while retaining the test alias', () => {
+    startInterrogation();
+    resetInterrogationState();
+    expect(isInterrogationActive()).toBe(false);
+
+    startInterrogation();
+    __resetInterrogationForTests();
     expect(isInterrogationActive()).toBe(false);
   });
 

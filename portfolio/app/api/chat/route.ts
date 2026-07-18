@@ -4,7 +4,7 @@ import Groq from 'groq-sdk';
 import { NextRequest } from 'next/server';
 import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
-import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
+import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
@@ -40,7 +40,6 @@ type ProviderFailureCode =
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 24_000;
-const MAX_CONTEXT_CHARS = 5_000;
 
 /**
  * Sampling parameters for the main chat completion.
@@ -48,8 +47,8 @@ const MAX_CONTEXT_CHARS = 5_000;
  * Tuned for the "concise, sharp, no filler" voice mandated by STYLE_BLOCK:
  *   - temperature 0.7 + top_p 0.9 give enough variation for personality without
  *     the rambling and dash-heavy filler that t=1/top_p=1 produced.
- *   - max_completion_tokens 400 (~300 words) is 4-5x the 20-60 word target,
- *     leaving headroom for legitimate longer answers while bounding any
+ *   - max_completion_tokens 220 is well above the 20-70 word target while
+ *     bounding any
  *     runaway generation.
  *   - stop sequences cut off the rare "User:"/"Assistant:" hallucinated turn
  *     and the triple-newline runaway pattern early.
@@ -66,7 +65,7 @@ const GROQ_SAMPLING: {
 } = {
   temperature: 0.7,
   topP: 0.9,
-  maxCompletionTokens: 400,
+  maxCompletionTokens: 220,
   stop: ['\n\n\n', '\nUser:', '\nAssistant:'],
 };
 
@@ -201,13 +200,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate message format (only user/assistant roles from client)
-    const sanitized: ClientChatMessage[] = validMessages.slice(-12); // Only keep last 12 messages for context (server-side cap)
-
-    const totalChars = sanitized.reduce((count, message) => count + message.content.length, 0);
-    if (totalChars > MAX_CONTEXT_CHARS) {
-      return Response.json({ error: 'Conversation context is too large. Please start a new chat.' }, { status: 400 });
-    }
+    // Select a signed, bounded recent history after assistant verification.
+    const sanitized = selectRecentChatHistory(validMessages);
 
     if (sanitized.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });

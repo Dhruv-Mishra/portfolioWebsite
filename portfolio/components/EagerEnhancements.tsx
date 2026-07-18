@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
+import CommandPaletteProvider from '@/components/CommandPaletteProvider';
 
 /**
  * EagerEnhancements — a tiny, always-mounted client component that boots the
@@ -17,21 +18,15 @@ import { useDesktopOnly } from '@/hooks/useDesktopOnly';
  * component builds cleanly even while those files are landing; Next.js will
  * error at build time if they're still missing by that point.
  *
- * Mobile gating: the command palette, shortcuts overlay, and shortcut hint
- * are keyboard-only surfaces. On touch-only devices (no hover, coarse
- * pointer) we skip rendering them entirely — which means their dynamic
- * chunks are never fetched either. Trackers stay eager on all viewports
+ * The lightweight command palette provider mounts on every viewport so chat
+ * actions can open its mobile sheet. The shortcuts overlay and hint remain
+ * desktop-only keyboard surfaces. Trackers stay eager on all viewports
  * because they work without a keyboard (page tracking always).
  *
  * Superuser-only asset prefetching lives in `DeferredEnhancements`, so the
  * default path does not subscribe to that store or fetch warmup logic before
  * the page is interactive.
  */
-
-const CommandPaletteProvider = dynamic(
-  () => import('@/components/CommandPaletteProvider'),
-  { ssr: false, loading: () => null },
-);
 
 const ShortcutsOverlayProvider = dynamic(
   () => import('@/components/ShortcutsOverlayProvider'),
@@ -102,7 +97,7 @@ export default function EagerEnhancements() {
       <ClickSoundListener />
       <AdminPrefsController />
       <ExperimentalFeaturesController />
-      {isDesktop ? <CommandPaletteProvider /> : null}
+      <CommandPaletteProvider />
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}
     </>

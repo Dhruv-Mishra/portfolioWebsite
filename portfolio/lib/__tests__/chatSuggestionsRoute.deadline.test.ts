@@ -28,6 +28,7 @@ vi.mock('@/lib/llmProviders.server', () => ({
 }));
 
 import { POST } from '@/app/api/chat/suggestions/route';
+import { SUGGESTIONS_SYSTEM_PROMPT } from '@/lib/chatSuggestionsPrompt.server';
 
 const PRIMARY_PROVIDER = {
   kind: 'groq' as const,
@@ -85,6 +86,35 @@ describe('chat suggestions route deadlines', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('keeps the suggestions prompt compact and enforces its output contract', () => {
+    expect(SUGGESTIONS_SYSTEM_PROMPT.length).toBeLessThanOrEqual(1250);
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('exactly 2 plain lines');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('2-8 casual words');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('use you/your for Dhruv, never I/my');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('last assistant reply directly');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('one affirmative and one decline or redirect');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('distinct, not rephrases');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('Never suggest themes');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('home, about, projects, resume, chat, guestbook, stickers, settings');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('approved links; project modals or repos; feedback');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('maximum 2 per suggestion');
+  });
+
+  it('uses the bounded suggestions completion ceiling', async () => {
+    const createMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'First suggestion\nSecond suggestion' } }],
+    }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: createMock } } });
+    getSuggestionsProvidersMock.mockReturnValue({ primary: PRIMARY_PROVIDER, fallback: null });
+
+    await POST(createSuggestionsRequest());
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ max_tokens: 48 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('reserves time for fallback before the seven second route deadline', async () => {

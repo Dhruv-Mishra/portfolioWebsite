@@ -693,7 +693,7 @@ const StickyNote = memo(function StickyNote({
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug);
+  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction);
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
   const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
@@ -1311,7 +1311,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       if (message.isOld || message.role !== 'assistant') continue;
       if (handledActionsRef.current.has(message.id)) continue;
 
-      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug;
+      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction;
       if (!hasAction) continue;
 
       handledActionsRef.current.add(message.id);
@@ -1460,6 +1460,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       action.themeAction ||
       action.feedbackAction ||
       action.projectSlug ||
+      action.commandPaletteAction ||
       (action.openUrls && action.openUrls.length > 0) ||
       action.navigateTo
     ) {
@@ -1505,6 +1506,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       openPanel();
       setProjectModalLoaded(true);
       setSelectedProjectSlug(action.projectSlug);
+    }
+
+    if (action.commandPaletteAction) {
+      openPanel();
+      window.dispatchEvent(new CustomEvent('open-command-palette'));
     }
 
     // Open URLs in new tabs — handle popup blockers

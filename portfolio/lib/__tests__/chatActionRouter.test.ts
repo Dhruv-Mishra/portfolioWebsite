@@ -3,7 +3,7 @@ import { resolveChatIntent, type ChatIntentResolution } from '@/lib/chatActionRo
 
 type Expected =
   | { kind: 'null' }
-  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; projectSlug?: string; openUrlContains?: string }
+  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; projectSlug?: string; commandPaletteAction?: boolean; openUrlContains?: string; openUrlContainsAll?: string[] }
   | { kind: 'project-info'; projectSlug: string };
 
 function check(input: string, expected: Expected) {
@@ -39,12 +39,24 @@ function check(input: string, expected: Expected) {
   if (expected.projectSlug !== undefined) {
     expect(r.action.projectSlug, `"${input}" projectSlug`).toBe(expected.projectSlug);
   }
+  if (expected.commandPaletteAction !== undefined) {
+    expect(r.action.commandPaletteAction, `"${input}" commandPaletteAction`).toBe(expected.commandPaletteAction);
+  }
   if (expected.openUrlContains !== undefined) {
     const urls = r.action.openUrls ?? [];
     expect(
       urls.some(u => u.includes(expected.openUrlContains!)),
       `"${input}" openUrls should contain "${expected.openUrlContains}" (got ${JSON.stringify(urls)})`,
     ).toBe(true);
+  }
+  if (expected.openUrlContainsAll !== undefined) {
+    const urls = r.action.openUrls ?? [];
+    for (const expectedUrl of expected.openUrlContainsAll) {
+      expect(
+        urls.some(url => url.includes(expectedUrl)),
+        `"${input}" openUrls should contain "${expectedUrl}" (got ${JSON.stringify(urls)})`,
+      ).toBe(true);
+    }
   }
 }
 
@@ -56,9 +68,18 @@ describe('resolveChatIntent — exact action labels', () => {
     check('Engage disco mode', { kind: 'action', themeAction: 'disco' });
     check('Exit disco mode', { kind: 'action', themeAction: 'disco-off' });
     check('Report a bug', { kind: 'action', feedbackAction: true });
+    check('Open command palette', { kind: 'action', commandPaletteAction: true });
     check('Show me your portfolio', { kind: 'action', navigateTo: '/projects' });
     check('Show me your experience timeline', { kind: 'action', navigateTo: '/about' });
     check('Open your GitHub profile', { kind: 'action', openUrlContains: 'github.com/Dhruv-Mishra' });
+  });
+});
+
+describe('resolveChatIntent — command palette intents', () => {
+  it('matches natural command palette phrasings', () => {
+    check('open command palette', { kind: 'action', commandPaletteAction: true });
+    check('show the command menu', { kind: 'action', commandPaletteAction: true });
+    check('open quick actions', { kind: 'action', commandPaletteAction: true });
   });
 });
 
@@ -103,6 +124,9 @@ describe('resolveChatIntent — navigation intents', () => {
     check('navigate to the resume page', { kind: 'action', navigateTo: '/resume' });
     check('bring me to the home page', { kind: 'action', navigateTo: '/' });
     check('open the home page', { kind: 'action', navigateTo: '/' });
+    check('open the guestbook', { kind: 'action', navigateTo: '/guestbook' });
+    check('go to stickers', { kind: 'action', navigateTo: '/stickers' });
+    check('open settings', { kind: 'action', navigateTo: '/settings' });
   });
 
   it('matches short natural phrasings', () => {
@@ -188,6 +212,49 @@ describe('resolveChatIntent — negation', () => {
     check("shouldn't go to the projects page", { kind: 'null' });
     check("rather not switch to dark mode", { kind: 'null' });
     check("never open that link", { kind: 'null' });
+  });
+});
+
+describe('resolveChatIntent — chained actions', () => {
+  it('merges up to three compatible actions and inherits later short-clause verbs', () => {
+    check('open github and linkedin', {
+      kind: 'action',
+      openUrlContainsAll: ['github.com/Dhruv-Mishra', 'linkedin.com'],
+    });
+    check('open github, linkedin', {
+      kind: 'action',
+      openUrlContainsAll: ['github.com/Dhruv-Mishra', 'linkedin.com'],
+    });
+    check('open github, then linkedin and switch to dark mode', {
+      kind: 'action',
+      themeAction: 'dark',
+      openUrlContainsAll: ['github.com/Dhruv-Mishra', 'linkedin.com'],
+    });
+    check('open the guestbook and github', {
+      kind: 'action',
+      navigateTo: '/guestbook',
+      openUrlContains: 'github.com/Dhruv-Mishra',
+    });
+    check('open command palette and switch to dark mode', {
+      kind: 'action',
+      commandPaletteAction: true,
+      themeAction: 'dark',
+    });
+  });
+
+  it('rejects chains that are unsafe, conflicting, or exceed limits', () => {
+    check('open guestbook and settings', { kind: 'null' });
+    check('switch to dark mode and light mode', { kind: 'null' });
+    check('open cropio and atomvault', { kind: 'null' });
+    check('open github and linkedin and codeforces', { kind: 'null' });
+    check('open github and settings and switch to dark mode and report a bug', { kind: 'null' });
+    check('open guestbook and command palette', { kind: 'null' });
+    check('open guestbook and report a bug', { kind: 'null' });
+    check('open command palette and report a bug', { kind: 'null' });
+    check('open cropio and report a bug', { kind: 'null' });
+    check('open github and do not open linkedin', { kind: 'null' });
+    check('open github and tell me about cropio', { kind: 'null' });
+    check('open github and the moon', { kind: 'null' });
   });
 });
 

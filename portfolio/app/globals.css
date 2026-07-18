@@ -247,6 +247,7 @@
       --t-hero: 3rem;
       --t-hero-md: 3rem;
       --t-hero-lg: 3rem;
+      --c-quick-chat-mobile-h: min(var(--c-chat-h), 66dvh);
     }
   }
 

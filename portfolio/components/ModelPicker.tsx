@@ -146,12 +146,8 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
     }
   };
 
-  const handleBlurCapture = (event: React.FocusEvent<HTMLDivElement>) => {
-    if (open && !pickerRef.current?.contains(event.relatedTarget)) closePicker(false);
-  };
-
   return (
-    <div ref={pickerRef} onBlurCapture={handleBlurCapture} className="relative mt-1">
+    <div ref={pickerRef} className="relative mt-1">
       <button
         ref={triggerRef}
         id={id}
@@ -195,7 +191,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
           aria-label="Conversation model"
           style={{ maxHeight: `${listboxMaxHeight}px` }}
           className={cn(
-            'absolute z-30 w-full overflow-y-auto rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] py-1 shadow-lg',
+            'absolute z-30 w-full overflow-x-clip overflow-y-auto rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] py-1 shadow-lg ruler-scrollbar',
             placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
           )}
         >

@@ -322,7 +322,11 @@ function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChil
                     transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
                 }}
                 onPointerDownCapture={reveal}
-                onFocusCapture={() => controllerRef.current?.setFocusWithin(true)}
+                onFocusCapture={(event) => {
+                    if (event.target instanceof HTMLElement && event.target.matches(':focus-visible')) {
+                        controllerRef.current?.setFocusWithin(true);
+                    }
+                }}
                 onBlurCapture={(event) => {
                     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
                         controllerRef.current?.setFocusWithin(false);

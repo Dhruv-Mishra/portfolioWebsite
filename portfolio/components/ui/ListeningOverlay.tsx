@@ -201,10 +201,10 @@ export function ListeningOverlay({
             className,
           )}
         >
-          <div className="flex items-center gap-2 md:gap-3 w-full px-1">
+          <div className="flex items-center gap-2 max-[480px]:gap-1.5 md:gap-3 w-full px-1">
             {/* Pulsing red dot + REC label */}
-            <span className="inline-flex items-center gap-1.5 shrink-0 font-hand text-[11px] md:text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-              <span aria-hidden className="relative inline-flex w-2.5 h-2.5">
+            <span className="inline-flex items-center gap-1.5 max-[480px]:gap-1 shrink-0 font-hand text-[11px] max-[480px]:text-[10px] md:text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+              <span aria-hidden className="relative inline-flex w-2.5 h-2.5 max-[480px]:w-2 max-[480px]:h-2">
                 <span className="absolute inset-0 rounded-full bg-red-500/40 animate-ping" />
                 <span className="relative inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
               </span>
@@ -212,13 +212,13 @@ export function ListeningOverlay({
             </span>
 
             {/* Waveform — flexes to fill */}
-            <div className="flex-1 min-w-0 h-7 md:h-8 text-[var(--c-ink)]/80">
+            <div className="flex-1 min-w-0 h-7 max-[480px]:h-6 md:h-8 text-[var(--c-ink)]/80">
               <Waveform analyser={analyser ?? null} active={isListening} />
             </div>
 
             {/* Monospace timer */}
             <span
-              className="shrink-0 font-code text-xs md:text-sm tabular-nums text-[var(--c-ink)]/70"
+              className="shrink-0 font-code text-xs max-[480px]:text-[11px] md:text-sm tabular-nums text-[var(--c-ink)]/70"
               aria-hidden
             >
               <ElapsedTimer />
@@ -228,11 +228,11 @@ export function ListeningOverlay({
           {/* Hint / interim transcript line */}
           <div className="flex items-center justify-center px-1 min-h-[1em]">
             {backend === 'native' && interim ? (
-              <span className="font-hand text-xs md:text-sm italic opacity-80 line-clamp-1 text-center max-w-full">
+              <span className="font-hand text-xs max-[480px]:text-[11px] md:text-sm italic opacity-80 line-clamp-1 text-center max-w-full">
                 {interim}
               </span>
             ) : (
-              <span className="font-hand text-[10px] md:text-[11px] italic opacity-50 text-center">
+              <span className="font-hand text-[10px] max-[480px]:text-[9px] md:text-[11px] italic opacity-50 text-center">
                 {backend === 'whisper'
                   ? 'tap mic to stop · transcribes when you stop'
                   : 'tap mic to stop'}
@@ -256,8 +256,8 @@ export function ListeningOverlay({
             className,
           )}
         >
-          <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
-          <span className="font-hand text-xs md:text-sm italic opacity-80">
+          <span className="inline-block w-3 h-3 max-[480px]:w-2.5 max-[480px]:h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin" aria-hidden />
+          <span className="font-hand text-xs max-[480px]:text-[11px] md:text-sm italic opacity-80">
             transcribing…
           </span>
         </m.div>

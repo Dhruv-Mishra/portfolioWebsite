@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CHAT_MODEL_CAPABILITIES, CHAT_MODELS } from '@/lib/chatModels';
 
 const source = fs.readFileSync(
   path.join(process.cwd(), 'components', 'SettingsPanel.tsx'),
@@ -33,8 +34,12 @@ describe('settings chat model contract', () => {
     expect(picker).toContain("case 'Escape'");
     expect(picker).toContain('closePicker();');
     expect(picker).toContain('triggerRef.current?.focus();');
-    expect(picker).toContain('onBlurCapture={handleBlurCapture}');
-    expect(picker).toContain('if (open && !pickerRef.current?.contains(event.relatedTarget)) closePicker(false);');
+    expect(picker).toContain("document.addEventListener('mousedown', handlePointerDown)");
+    expect(picker).not.toContain('onBlurCapture');
+    expect(picker).not.toContain('handleBlurCapture');
+    expect(picker).not.toContain('onPointerDownCapture');
+    expect(picker).not.toContain('pointerInteractionWithinPickerRef');
+    expect(picker).not.toContain('pointerInteractionCleanupTimeoutRef');
     expect(picker).toContain('<Tooltip key={capability} label={detail.label}>');
     expect(picker).toContain('title={detail.label}');
     expect(picker).toContain('title={label}');
@@ -56,6 +61,16 @@ describe('settings chat model contract', () => {
     expect(picker).toContain("window.addEventListener('resize', updateListboxPlacement)");
     expect(picker).toContain('style={{ maxHeight: `${listboxMaxHeight}px` }}');
     expect(picker).toContain("placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'");
+    expect(picker).toContain('overflow-x-clip overflow-y-auto');
+    expect(picker).toContain('ruler-scrollbar');
+  });
+
+  it('uses stable unique model and capability keys for listbox rendering', () => {
+    expect(new Set(CHAT_MODELS.map((model) => model.id)).size).toBe(CHAT_MODELS.length);
+    for (const model of CHAT_MODELS) {
+      expect(new Set(model.capabilities).size).toBe(model.capabilities.length);
+      expect(model.capabilities.every((capability) => CHAT_MODEL_CAPABILITIES.includes(capability))).toBe(true);
+    }
   });
 
   it('requires a safe, focused confirmation when persisted chat would be cleared', () => {

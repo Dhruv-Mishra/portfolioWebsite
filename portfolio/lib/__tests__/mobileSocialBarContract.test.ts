@@ -36,7 +36,9 @@ describe('mobile social bar component contract', () => {
 
   it('keeps direct interaction and focus support outside of the route gate', () => {
     expect(source).toContain('onPointerDownCapture={reveal}');
-    expect(source).toContain('onFocusCapture={() => controllerRef.current?.setFocusWithin(true)}');
+    expect(source).toContain('onFocusCapture={(event) => {');
+    expect(source).toContain("event.target instanceof HTMLElement && event.target.matches(':focus-visible')");
+    expect(source).toContain('controllerRef.current?.setFocusWithin(true);');
     expect(source).toContain('onBlurCapture={(event) => {');
     expect(source).not.toContain('aria-hidden={!isVisible}');
   });

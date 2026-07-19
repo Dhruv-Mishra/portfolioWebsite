@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
+import OpenAI from 'openai';
 
 import type { ActionExecution } from '@/lib/actions';
 import { signAssistantMessage } from '@/lib/chatHistory.server';
@@ -8,6 +9,11 @@ type GroqCreate = (
   payload: Record<string, unknown>,
   options?: { signal?: AbortSignal },
 ) => Promise<{ choices: Array<{ message: { content: string } }> }>;
+
+type NvidiaStreamCreate = (
+  payload: Record<string, unknown>,
+  options?: { signal?: AbortSignal },
+) => Promise<AsyncIterable<{ choices: Array<{ delta: { content: string } }> }>>;
 
 const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock } = vi.hoisted(() => ({
   buildPromptPartsMock: vi.fn(async () => ({
@@ -65,6 +71,7 @@ const GROQ_PROVIDER = {
   model: 'qwen/qwen3.6-27b',
   modelId: 'qwen-3.6-27b' as const,
   supportsImages: true,
+  imageInputOrder: 'text-first' as const,
   sampling: { temperature: 0.6, topP: 0.95, maxCompletionTokens: 384 },
 };
 
@@ -86,9 +93,41 @@ const NVIDIA_VISION_PROVIDER = {
   model: 'google/diffusiongemma-26b-a4b-it',
   modelId: 'diffusiongemma-26b' as const,
   supportsImages: true,
+  imageInputOrder: 'image-first' as const,
   acceptsSystemMessages: false,
   sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
 };
+
+const NVIDIA_TEXT_FIRST_VISION_PROVIDERS = [
+  {
+    kind: 'nvidia' as const,
+    label: 'nvidia-inkling',
+    apiKey: 'nvidia-key',
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    model: 'thinkingmachines/inkling',
+    modelId: 'inkling' as const,
+    supportsImages: true,
+    imageInputOrder: 'text-first' as const,
+    acceptsSystemMessages: true,
+    sampling: { temperature: 0.6, maxTokens: 384 },
+  },
+  {
+    kind: 'nvidia' as const,
+    label: 'nvidia-minimax',
+    apiKey: 'nvidia-key',
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    model: 'minimaxai/minimax-m3',
+    modelId: 'minimax-m3' as const,
+    supportsImages: true,
+    imageInputOrder: 'text-first' as const,
+    acceptsSystemMessages: true,
+    sampling: {
+      temperature: 0.6,
+      maxTokens: 384,
+      extraBody: { chat_template_kwargs: { thinking_mode: 'disabled' } },
+    },
+  },
+] as const;
 
 function createChatRequest(signal?: AbortSignal, payload: Record<string, unknown> = {}): NextRequest {
   const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }], ...payload });
@@ -111,6 +150,14 @@ function rejectWhenAborted(signal: AbortSignal): Promise<never> {
       { once: true },
     );
   });
+}
+
+function createNvidiaStream(content: string) {
+  return (async function* () {
+    const splitAt = Math.max(1, Math.floor(content.length / 2));
+    yield { choices: [{ delta: { content: content.slice(0, splitAt) } }] };
+    yield { choices: [{ delta: { content: content.slice(splitAt) } }] };
+  })();
 }
 
 describe('chat route provider payload mapping', () => {
@@ -202,7 +249,7 @@ describe('chat route provider payload mapping', () => {
     });
 
     const responsePromise = POST(createChatRequest());
-    await vi.advanceTimersByTimeAsync(27_999);
+    await vi.advanceTimersByTimeAsync(74_999);
     expect(fallbackCreateMock).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
@@ -221,9 +268,7 @@ describe('chat route provider payload mapping', () => {
     });
     groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
 
-    const nvidiaCreateMock = vi.fn(async () => ({
-      choices: [{ message: { content: 'NVIDIA fallback reply' } }],
-    }));
+    const nvidiaCreateMock = vi.fn(async () => createNvidiaStream('NVIDIA fallback reply'));
     const legacyCreateMock = vi.fn(async () => ({
       choices: [{ message: { content: 'legacy fallback reply' } }],
     }));
@@ -250,9 +295,7 @@ describe('chat route provider payload mapping', () => {
     });
     groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
 
-    const nvidiaCreateMock = vi.fn(async () => ({
-      choices: [{ message: { content: 'vision fallback reply' } }],
-    }));
+    const nvidiaCreateMock = vi.fn(async () => createNvidiaStream('vision fallback reply'));
     createProviderClientMock.mockReturnValue({
       chat: { completions: { create: nvidiaCreateMock } },
     });
@@ -268,6 +311,54 @@ describe('chat route provider payload mapping', () => {
     expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
     await expect(response.json()).resolves.toMatchObject({ reply: 'vision fallback reply' });
   });
+
+  it('keeps the image in the Groq Qwen payload using its documented text-first order', async () => {
+    const response = await POST(createChatRequest(undefined, {
+      image: { dataUrl: 'data:image/webp;base64,aGVsbG8=' },
+    }));
+
+    expect(response.status).toBe(200);
+    const payload = groqCreateMock.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(payload.messages.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Tell me about your work' },
+        { type: 'image_url', image_url: { url: 'data:image/webp;base64,aGVsbG8=' } },
+      ],
+    });
+  });
+
+  it.each(NVIDIA_TEXT_FIRST_VISION_PROVIDERS)(
+    'keeps the image in the $modelId NVIDIA stream payload',
+    async (provider) => {
+      getChatProvidersMock.mockReturnValue({ primary: provider, fallbacks: [] });
+      const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
+      createProviderClientMock.mockReturnValue({
+        chat: { completions: { create: nvidiaCreateMock } },
+      });
+
+      const response = await POST(createChatRequest(undefined, {
+        model: provider.modelId,
+        image: { dataUrl: 'data:image/jpeg;base64,aGVsbG8=' },
+      }));
+
+      expect(response.status).toBe(200);
+      const payload = nvidiaCreateMock.mock.calls[0]?.[0] as {
+        messages: Array<{ role: string; content: unknown }>;
+        stream: boolean;
+      };
+      expect(payload.stream).toBe(true);
+      expect(payload.messages.at(-1)).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Tell me about your work' },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,aGVsbG8=' } },
+        ],
+      });
+    },
+  );
 
   it('propagates request cancellation and returns a stable fallback reason code', async () => {
     vi.useFakeTimers();
@@ -287,6 +378,55 @@ describe('chat route provider payload mapping', () => {
 
     expect(providerSignal?.aborted).toBe(true);
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('request-aborted');
+  });
+
+  it('does not accept partial NVIDIA stream content after client cancellation', async () => {
+    const requestController = new AbortController();
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => (async function* () {
+      yield { choices: [{ delta: { content: 'partial reply' } }] };
+      requestController.abort('client-cancelled');
+    })());
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(requestController.signal, {
+      model: 'diffusiongemma-26b',
+    }));
+
+    expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('request-aborted');
+    await expect(response.json()).resolves.not.toMatchObject({ reply: 'partial reply' });
+  });
+
+  it('classifies the OpenAI SDK user-abort error as a provider timeout before using a fallback', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [FALLBACK_PROVIDER] });
+    const warningSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => {
+      throw new OpenAI.APIUserAbortError();
+    });
+    const fallbackCreateMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'fallback reply' } }],
+    }));
+    createProviderClientMock.mockImplementation((provider: { label: string }) => ({
+      chat: {
+        completions: {
+          create: provider.label === NVIDIA_VISION_PROVIDER.label ? nvidiaCreateMock : fallbackCreateMock,
+        },
+      },
+    }));
+
+    const response = await POST(createChatRequest(undefined, { model: 'diffusiongemma-26b' }));
+
+    expect(warningSpy).toHaveBeenCalledWith('LLM provider failed', expect.objectContaining({
+      code: 'provider-timeout',
+      errorName: 'Error',
+    }));
+    expect(fallbackCreateMock).toHaveBeenCalledTimes(1);
+    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply' });
   });
 
   it('does not expose raw provider errors in the fallback reason header', async () => {
@@ -324,12 +464,7 @@ describe('chat route provider payload mapping', () => {
 
   it('merges user turns left adjacent by unsigned assistant removal before folding DiffusionGemma system context', async () => {
     getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
-    const nvidiaCreateMock = vi.fn<(
-      payload: Record<string, unknown>,
-      options?: { signal?: AbortSignal },
-    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
-        choices: [{ message: { content: 'vision reply' } }],
-      }));
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
     createProviderClientMock.mockReturnValue({
       chat: { completions: { create: nvidiaCreateMock } },
     });
@@ -367,12 +502,7 @@ describe('chat route provider payload mapping', () => {
 
   it('keeps a single-turn DiffusionGemma image before folded system and user text', async () => {
     getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
-    const nvidiaCreateMock = vi.fn<(
-      payload: Record<string, unknown>,
-      options?: { signal?: AbortSignal },
-    ) => Promise<{ choices: Array<{ message: { content: string } }> }>>(async () => ({
-        choices: [{ message: { content: 'vision reply' } }],
-      }));
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
     createProviderClientMock.mockReturnValue({
       chat: { completions: { create: nvidiaCreateMock } },
     });

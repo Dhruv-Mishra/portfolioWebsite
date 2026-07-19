@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, useSyncExternalStore, memo, useMemo, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -34,6 +35,7 @@ import {
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { useVoiceOutputPref } from '@/lib/voiceOutputPref';
+import { useSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
 import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
 import {
   ACTION_REGISTRY,
@@ -1520,6 +1522,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
   const { pref: voiceOutput } = useVoiceOutputPref();
+  const { enabled: speakByDefault } = useSpeakByDefaultPref();
+  const { modelId } = useChatModelPref();
+  const selectedModel = getChatModel(modelId);
   const {
     activeMessageId: ttsActiveMessageId,
     error: ttsPlaybackError,
@@ -1555,6 +1560,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const hasInitializedSuggestionsRef = useRef(false);
   const completedAssistantHapticRef = useRef<string | null>(null);
   const announcedAssistantReplyRef = useRef<string | null>(null);
+  const autoSpokenAssistantRef = useRef<string | null>(null);
   const composerFocusRequestSequenceRef = useRef(0);
   const restoreComposerFocusAfterRemoteSendRef = useRef<number | null>(null);
   const remoteSendLoadingStartedForFocusRef = useRef<number | null>(null);
@@ -1844,12 +1850,26 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       });
     }
 
+    if (
+      speakByDefault &&
+      completedMessage &&
+      canSpeakAssistantMessage(completedMessage) &&
+      ttsActiveMessageId !== messageId &&
+      autoSpokenAssistantRef.current !== messageId
+    ) {
+      autoSpokenAssistantRef.current = messageId;
+      setTtsControlsMessageId(messageId);
+      void toggleTtsPlayback(messageId, completedMessage.content, {
+        preferClientSpeech: voiceOutput === 'device',
+      });
+    }
+
     const action = pendingActionsRef.current.get(messageId);
     if (!action) return;
 
     pendingActionsRef.current.delete(messageId);
     executeAction(action);
-  }, [executeAction, messages]);
+  }, [executeAction, messages, speakByDefault, toggleTtsPlayback, ttsActiveMessageId, voiceOutput]);
 
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
@@ -2009,6 +2029,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   }, [selection, sendMessage, sendHardcoded, stopTtsPlayback]);
 
   const handleSpeakMessage = useCallback((message: ChatMessage) => {
+    autoSpokenAssistantRef.current = message.id;
     setTtsControlsMessageId(message.id);
     void toggleTtsPlayback(message.id, message.content, { preferClientSpeech: voiceOutput === 'device' });
   }, [toggleTtsPlayback, voiceOutput]);
@@ -2098,6 +2119,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Pass me a note
           </m.h1>
           <WavyUnderline />
+          {selectedModel ? (
+            <Link
+              href="/settings?focus=ai-model"
+              prefetch={false}
+              className="mt-1 inline-flex min-h-11 items-center px-2 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
+              aria-label={`Current AI model: ${selectedModel.label}. Change in Settings`}
+            >
+              {selectedModel.label}
+            </Link>
+          ) : null}
           <m.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -2110,8 +2141,18 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           </m.p>
         </div>
       ) : (
-        <div className="shrink-0 pt-2 px-3">
+        <div className="flex shrink-0 items-center gap-2 px-3 pt-2">
           <WavyUnderline className="!mt-0 opacity-40" />
+          {selectedModel ? (
+            <Link
+              href="/settings?focus=ai-model"
+              prefetch={false}
+              className="inline-flex min-h-11 max-w-[55%] shrink-0 items-center truncate px-1 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+              aria-label={`Current AI model: ${selectedModel.label}. Change in Settings`}
+            >
+              {selectedModel.label}
+            </Link>
+          ) : null}
         </div>
       )}
 

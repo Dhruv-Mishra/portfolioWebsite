@@ -1,6 +1,7 @@
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { SHADOW_TOKENS } from '@/lib/designTokens';
 import DeferredResumePdf from '@/components/DeferredResumePdf';
+import { RESUME_PDF_URL } from '@/lib/siteVersion';
 
 export const revalidate = 3600;
 
@@ -35,7 +36,7 @@ export default function ResumePage() {
 
                     {/* External Link Overlay - Left on mobile, Right on desktop */}
                     <a
-                        href="/resources/resume.pdf"
+                        href={RESUME_PDF_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="absolute top-2 left-2 md:top-4 md:left-auto md:right-4 z-30 group"

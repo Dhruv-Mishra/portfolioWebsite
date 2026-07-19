@@ -8,22 +8,14 @@ permissions:
 # Architecture: build-once-deploy-many
 #
 #   build job (ubuntu-latest, once)
-#     └── npm ci → lint → test → next build → assemble standalone →
-#         tar czf portfolio-<sha>.tar.gz with deploy.sh bundled inside →
-#         build/push ghcr.io image tagged by the same SHA
+#     └── npm ci → lint → typecheck → test → build/push one multi-platform
+#         ghcr.io image tagged by the release SHA and package version
 #
 #   approve-production job (manual GitHub Environment gate, needs: build)
 #     └── waits for human approval before production mutation
 #
-#   deploy-production job (matrix, serial VMs, needs: approve-production)
-#     └── deploys the immutable image digest/artifact to production
-#
-# Why bundle deploy.sh inside the artifact:
-#   - Single-commit self-bootstrapping: the first push with this new workflow
-#     ships the new deploy.sh alongside the build. The VM extracts it from the
-#     tarball and runs it. No "update deploy.sh from git first" dance needed.
-#   - Hermetic reproducibility: deploy.sh version is always locked to bundle
-#     version. Impossible for them to drift.
+#   deploy jobs (all-host preflight → verified canary → parallel remote VMs)
+#     └── deploy the immutable image digest with per-host rollback
 #
 # Why multi-platform image publishing:
 #   - The Next.js standalone bundle is still pure JavaScript at runtime, but
@@ -115,10 +107,10 @@ jobs:
           fi
 
   # ───────────────────────────────────────────────────────────────────────────
-  # BUILD — runs once on ubuntu-latest, produces a single artifact
+  # BUILD — runs once on ubuntu-latest, produces a single immutable image
   # ───────────────────────────────────────────────────────────────────────────
   build:
-    name: Build artifact and image
+    name: Build production image
     needs: guard-production-ref
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -126,6 +118,7 @@ jobs:
       image: ${{ steps.image-meta.outputs.image }}
       image_digest: ${{ steps.docker-build.outputs.digest }}
       image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
+      release_version: ${{ steps.release-meta.outputs.version }}
 
     steps:
       - name: Checkout
@@ -137,19 +130,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: portfolio/package-lock.json
-
-      # Restore Turbopack/webpack incremental cache. Hashes lockfile + source
-      # so a dependency change or any code change misses, but pure CI re-runs
-      # of the same commit (e.g. retry after flaky deploy) hit warm and shave
-      # ~30-50% off the Next.js compile step.
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: portfolio/.next/cache
-          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
         working-directory: portfolio
@@ -185,70 +165,16 @@ jobs:
         working-directory: portfolio
         run: npm test
 
-      - name: Build Next.js (standalone)
-        working-directory: portfolio
-        env:
-          SKIP_EMBEDDINGS_BUILD: '1'
-          NEXT_BUILD_ID: ${{ github.sha }}
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
-        run: npm run build -- --webpack
-
-      - name: Verify portable standalone artifact
-        working-directory: portfolio
-        run: |
-          if find .next/standalone -type d -name '.cache' -print -quit | grep -q .; then
-            echo "::error::Standalone output contains a traced local cache directory"
-            find .next/standalone -type d -name '.cache' -print
-            exit 1
-          fi
-          if find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print -quit | grep -q .; then
-            echo "::error::Standalone output contains a platform-specific native binary"
-            find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print
-            exit 1
-          fi
-
-      - name: Assemble standalone bundle
-        working-directory: portfolio
+      - name: Resolve release metadata
+        id: release-meta
         run: |
           set -euo pipefail
-
-          # Next.js standalone omits static/ and public/ — copy them in
-          cp -r .next/static .next/standalone/.next/
-          rm -rf .next/standalone/public
-          cp -r public        .next/standalone/
-
-          # Ship deploy.sh + nginx template INSIDE the artifact at .deploy/
-          # so the VM can invoke it directly without a separate git pull.
-          mkdir -p .next/standalone/.deploy
-          cp scripts/deploy.sh          .next/standalone/.deploy/
-          cp nginx-cloudflare.conf      .next/standalone/.deploy/
-          chmod +x .next/standalone/.deploy/deploy.sh
-
-          # Build metadata — useful for forensics if a deploy goes sideways
-          cat > .next/standalone/.deploy/meta.json <<META
-          {
-            "sha": "${{ github.sha }}",
-            "ref": "${{ github.ref }}",
-            "actor": "${{ github.actor }}",
-            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "run_id": "${{ github.run_id }}",
-            "run_number": "${{ github.run_number }}"
-          }
-          META
-
-          # Package. Contents extract to the root of whatever dir you untar into.
-          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
-
-          ls -lh ../portfolio-${{ github.sha }}.tar.gz
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: portfolio-bundle
-          path: portfolio-${{ github.sha }}.tar.gz
-          retention-days: 14
-          if-no-files-found: error
+          version="$(node -p "require('./portfolio/package.json').version")"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid portfolio package version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Resolve image name
         id: image-meta
@@ -287,6 +213,9 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+          cache-from: type=gha,scope=portfolio-production-image
+          cache-to: type=gha,mode=max,scope=portfolio-production-image
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
@@ -312,20 +241,13 @@ jobs:
 
       - name: Build summary
         run: |
-          SIZE=$(ls -l portfolio-${{ github.sha }}.tar.gz | awk '{print $5}')
-          SIZE_MB=$(( SIZE / 1024 / 1024 ))
           echo "## 📦 Build complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Artifact | portfolio-${{ github.sha }}.tar.gz |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
-            echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Image | skipped (artifact deploy mode) |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "| Size | ${SIZE_MB} MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.release-meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Node | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -582,10 +504,10 @@ jobs:
             echo "Production VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}; TTS ${EXPECTED_TTS_MODE}; memory ${memory_high_mb}/${memory_max_mb} MB"
 
   # ───────────────────────────────────────────────────────────────────────────
-  # DEPLOY — serial matrix across all VMs, consumes the build artifact/image
+  # DEPLOY — verify the local TTS canary, then roll remote origins in parallel
   # ───────────────────────────────────────────────────────────────────────────
-  deploy-production:
-    name: Deploy to ${{ matrix.server.name }}
+  deploy-production-canary:
+    name: Deploy canary to ${{ matrix.server.name }}
     needs:
       - build
       - preflight-production
@@ -593,12 +515,7 @@ jobs:
     timeout-minutes: 30
 
     strategy:
-      # Activate one origin at a time. This keeps Cloudflare's origin set from
-      # flipping all VMs at once, and stops queued origins if an earlier deploy
-      # fails. If a later origin fails after an earlier one succeeded, rerun the
-      # last known-good SHA or drain origins in Cloudflare before retrying.
       fail-fast: true
-      max-parallel: 1
       matrix:
         server:
           - name: production-1
@@ -607,24 +524,12 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
-          - name: production-2
-            tts_mode: remote
-            host_secret: SERVER_HOST_2
-            user_secret: SERVER_USERNAME_2
-            key_secret: SERVER_SSH_KEY_2
-            port_secret: SERVER_PORT_2
-          - name: production-3
-            tts_mode: remote
-            host_secret: SERVER_HOST_3
-            user_secret: SERVER_USERNAME_3
-            key_secret: SERVER_SSH_KEY_3
-            port_secret: SERVER_PORT_3
 
     environment:
       name: ${{ matrix.server.name }}
       url: https://${{ env.DOMAIN }}
 
-    steps:
+    steps: &production-deploy-steps
       - name: Deployment Started (${{ matrix.server.name }})
         run: |
           echo "## 🚀 Deployment — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
@@ -1105,6 +1010,11 @@ jobs:
               sudo cat "$META_FILE" || true
               exit 1
             fi
+            if ! sudo grep -q '"version": "${{ needs.build.outputs.release_version }}"' "$META_FILE"; then
+              echo "Deploy metadata does not match package version ${{ needs.build.outputs.release_version }}:"
+              sudo cat "$META_FILE" || true
+              exit 1
+            fi
 
             if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
               if sudo docker ps --format '{{.Names}}' | grep -qx "$SVC_NAME"; then
@@ -1152,6 +1062,39 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Rollback (if the automatic rollback didn't fire):**" >> $GITHUB_STEP_SUMMARY
           echo "Re-run the workflow on the last known-good SHA — the deploy script will flip the symlink back to that release dir if it's still on disk." >> $GITHUB_STEP_SUMMARY
+
+  deploy-production:
+    name: Deploy to ${{ matrix.server.name }}
+    needs:
+      - build
+      - preflight-production
+      - deploy-production-canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: true
+      max-parallel: 2
+      matrix:
+        server:
+          - name: production-2
+            tts_mode: remote
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+          - name: production-3
+            tts_mode: remote
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+
+    environment:
+      name: ${{ matrix.server.name }}
+      url: https://${{ env.DOMAIN }}
+
+    steps: *production-deploy-steps
 
   smoke-production:
     name: Smoke production resources through Cloudflare

@@ -1,5 +1,7 @@
 // lib/links.ts — Single source of truth for all personal/project links
 
+import { RESUME_PDF_URL } from '@/lib/siteVersion';
+
 /** Personal social and contact links */
 export const PERSONAL_LINKS = {
   github: 'https://github.com/Dhruv-Mishra',
@@ -8,7 +10,7 @@ export const PERSONAL_LINKS = {
   cpHistory: 'https://zibada.guru/gcj/profile/Dhruv985',
   email: 'mailto:dhruvmishra.id@gmail.com',
   phone: 'tel:+919599377944',
-  resume: '/resources/resume.pdf',
+  resume: RESUME_PDF_URL,
 } as const;
 
 /** Project repository links */

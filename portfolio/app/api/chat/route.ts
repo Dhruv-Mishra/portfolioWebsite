@@ -8,7 +8,13 @@ import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage }
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
-import { DEFAULT_CHAT_MODEL_ID, getChatModel, isChatModelId, type ChatModelId } from '@/lib/chatModels';
+import {
+  DEFAULT_CHAT_MODEL_ID,
+  getChatModel,
+  isChatModelId,
+  type ChatImageInputOrder,
+  type ChatModelId,
+} from '@/lib/chatModels';
 import type { ChatImage, ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
 import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import {
@@ -79,6 +85,7 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
 function toProviderMessages(
   messages: SanitizedChatMessage[],
   image: ChatImage | undefined,
+  imageInputOrder: ChatImageInputOrder | undefined,
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
   const latestUserIndex = image
     ? messages.reduce((latest, message, index) => (message.role === 'user' ? index : latest), -1)
@@ -89,9 +96,12 @@ function toProviderMessages(
 
     return {
       role: 'user',
-      content: [
+      content: imageInputOrder === 'image-first' ? [
         { type: 'image_url', image_url: { url: image!.dataUrl } },
         { type: 'text', text: content },
+      ] : [
+        { type: 'text', text: content },
+        { type: 'image_url', image_url: { url: image!.dataUrl } },
       ],
     } as OpenAI.Chat.Completions.ChatCompletionUserMessageParam;
   });
@@ -289,15 +299,14 @@ export async function POST(request: NextRequest) {
     if (providerConversation.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });
     }
-    const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    const promptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
-      ...toProviderMessages(providerConversation, image ?? undefined),
     ];
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);
     const providers = getOrderedProviders(primary, fallbacks)
-      .filter((provider) => !image || provider.supportsImages);
+      .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder));
 
     if (providers.length === 0) {
       console.error('No LLM providers are configured; returning local fallback reply.');
@@ -324,6 +333,14 @@ export async function POST(request: NextRequest) {
       if (attemptTimeoutMs <= 0) continue;
 
       try {
+        const apiMessages = [
+          ...promptMessages,
+          ...toProviderMessages(
+            providerConversation,
+            image ?? undefined,
+            provider.imageInputOrder,
+          ),
+        ];
         result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
         succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
         break;
@@ -403,6 +420,33 @@ async function callProvider(
         signal,
       });
       rawContent = completion.choices?.[0]?.message?.content;
+    } else if (provider.kind === 'nvidia') {
+      const collapsedMessages = provider.acceptsSystemMessages === false
+        ? foldSystemMessagesIntoFirstUser(messages)
+        : collapseLeadingSystemMessages(messages);
+      const client = createProviderClient(provider);
+      const completion = await client.chat.completions.create({
+        model: provider.model,
+        messages: collapsedMessages,
+        temperature: provider.sampling.temperature,
+        ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
+        ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
+        ...provider.sampling.extraBody,
+        stream: true,
+      }, {
+        signal,
+      });
+      let streamedContent = '';
+      for await (const chunk of completion) {
+        if (signal.aborted) {
+          throw new OpenAI.APIUserAbortError();
+        }
+        streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
+      }
+      if (signal.aborted) {
+        throw new OpenAI.APIUserAbortError();
+      }
+      rawContent = streamedContent;
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
         ? foldSystemMessagesIntoFirstUser(messages)
@@ -458,7 +502,9 @@ function getProviderFailureCode(
   if (error instanceof Error && error.message === 'Provider returned an empty or invalid reply') {
     return 'invalid-provider-response';
   }
-  if (error instanceof Error && error.name === 'AbortError') return 'provider-timeout';
+  if (error instanceof OpenAI.APIUserAbortError || (error instanceof Error && error.name === 'AbortError')) {
+    return 'provider-timeout';
+  }
   return 'provider-error';
 }
 

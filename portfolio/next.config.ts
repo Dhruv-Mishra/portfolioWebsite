@@ -168,6 +168,13 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/resources/resume.pdf',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'CDN-Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
+      {
         // Audio samples — immutable caching + explicit byte-range advertisement.
         // In production nginx owns this (see nginx-cloudflare.conf `/sounds/`
         // block) and this Next.js header is redundant. In dev / non-nginx

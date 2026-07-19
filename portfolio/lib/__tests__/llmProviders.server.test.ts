@@ -48,21 +48,43 @@ describe('getSuggestionsProviders', () => {
 
     const defaultProviders = getChatProviders();
     expect(defaultProviders).toEqual({
-      primary: expect.objectContaining({ kind: 'groq', model: 'qwen/qwen3.6-27b', modelId: 'qwen-3.6-27b' }),
+      primary: expect.objectContaining({
+        kind: 'groq',
+        model: 'qwen/qwen3.6-27b',
+        modelId: 'qwen-3.6-27b',
+        supportsImages: true,
+        imageInputOrder: 'text-first',
+      }),
       fallbacks: [],
     });
     const minimaxProviders = getChatProviders('minimax-m3');
     expect(minimaxProviders).toMatchObject({
       fallbacks: [],
       primary: {
-      kind: 'nvidia',
-      model: 'minimaxai/minimax-m3',
+        kind: 'nvidia',
+        model: 'minimaxai/minimax-m3',
         modelId: 'minimax-m3',
+        supportsImages: true,
+        imageInputOrder: 'text-first',
       },
     });
     expect(minimaxProviders.primary?.sampling.extraBody).toEqual({
       chat_template_kwargs: { thinking_mode: 'disabled' },
     });
+
+    expect(getChatProviders('inkling').primary).toMatchObject({
+      supportsImages: true,
+      imageInputOrder: 'text-first',
+    });
+    expect(getChatProviders('diffusiongemma-26b').primary).toMatchObject({
+      supportsImages: true,
+      imageInputOrder: 'image-first',
+      acceptsSystemMessages: false,
+    });
+    expect(getChatProviders('glm-5.2').primary).toMatchObject({
+      supportsImages: false,
+    });
+    expect(getChatProviders('glm-5.2').primary).not.toHaveProperty('imageInputOrder');
   });
 
   it('returns no online chat provider when the selected model key is unavailable', () => {

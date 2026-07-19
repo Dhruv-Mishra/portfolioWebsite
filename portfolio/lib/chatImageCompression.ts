@@ -124,6 +124,13 @@ function blobToDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
 export async function compressChatImage(file: File, signal?: AbortSignal): Promise<ChatImageAttachment> {
   assertValidImageFile(file);
   throwIfAborted(signal);
+  const original = file.size <= CHAT_IMAGE_MAX_ENCODED_BYTES
+    ? {
+        dataUrl: await blobToDataUrl(file, signal),
+        filename: file.name,
+        bytes: file.size,
+      }
+    : undefined;
   const loaded = await loadImage(file);
 
   try {
@@ -144,7 +151,7 @@ export async function compressChatImage(file: File, signal?: AbortSignal): Promi
       for (const quality of CHAT_IMAGE_JPEG_QUALITIES) {
         const blob = await canvasToBlob(canvas, quality, signal);
         const bytes = blob.size;
-        if (bytes <= CHAT_IMAGE_MAX_ENCODED_BYTES) {
+        if (bytes <= CHAT_IMAGE_MAX_ENCODED_BYTES && (!original || bytes < original.bytes)) {
           const dataUrl = await blobToDataUrl(blob, signal);
           return { dataUrl, filename: file.name, bytes };
         }
@@ -158,5 +165,6 @@ export async function compressChatImage(file: File, signal?: AbortSignal): Promi
     loaded.release();
   }
 
+  if (original) return original;
   throw new Error('That image could not be compressed small enough. Try a simpler image.');
 }

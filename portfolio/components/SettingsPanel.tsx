@@ -25,6 +25,7 @@ import {
 } from '@/hooks/useStickers';
 import { useVoiceBackendPref, type VoiceBackendPref } from '@/lib/voiceBackendPref';
 import { useVoiceOutputPref, type VoiceOutputPref } from '@/lib/voiceOutputPref';
+import { useSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
 import { soundManager } from '@/lib/soundManager';
 import {
   runThemeSelection,
@@ -46,6 +47,7 @@ import {
   dispatchChatModelSwitchClear,
   useChatModelPref,
 } from '@/lib/chatModelPref';
+import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -79,11 +81,19 @@ interface SettingsGroupProps {
   title: string;
   icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean }>;
   children: ReactNode;
+  className?: string;
+  id?: string;
 }
 
-function SettingsGroup({ title, icon: Icon, children }: SettingsGroupProps) {
+function SettingsGroup({ title, icon: Icon, children, className, id }: SettingsGroupProps) {
   return (
-    <fieldset className="border-b-2 border-dashed border-[var(--c-grid)]/30 px-1 py-7 last:border-b-0 md:px-3 md:py-8">
+    <fieldset
+      id={id}
+      className={cn(
+        'scroll-mt-24 border-b-2 border-dashed border-[var(--c-grid)]/30 px-1 py-7 last:border-b-0 md:px-3 md:py-8',
+        className,
+      )}
+    >
       <legend className="flex items-center gap-2 px-1 font-hand text-xl font-bold text-[var(--c-heading)] md:text-2xl">
         <Icon size={21} aria-hidden />
         {title}
@@ -236,6 +246,7 @@ export default function SettingsPanel() {
   const [pendingModelId, setPendingModelId] = useState<ChatModelId | null>(null);
   const [redirectPending, setRedirectPending] = useState(false);
   const modelCancelRef = useRef<HTMLButtonElement>(null);
+  const modelTargetFocusedRef = useRef(false);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -247,6 +258,7 @@ export default function SettingsPanel() {
   const { prefs, setPref } = useSitePrefsApi();
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
   const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
+  const { enabled: speakByDefault, setEnabled: setSpeakByDefault } = useSpeakByDefaultPref();
   const { modelId, setModelId } = useChatModelPref();
   const hostname = useSyncExternalStore(
     subscribeToHydration,
@@ -257,6 +269,8 @@ export default function SettingsPanel() {
   const buildDestinationUrl = mounted && buildInfo?.channel === 'staging'
     ? getExperimentalFeaturesReturnUrl(window.location)
     : buildInfo?.destinationUrl ?? null;
+  const modelTargetActive = mounted
+    && new URLSearchParams(window.location.search).get('focus') === 'ai-model';
 
   const setBooleanPref = (key: SitePrefKey, checked: boolean) => {
     if (key === 'motionPreference') return;
@@ -272,6 +286,17 @@ export default function SettingsPanel() {
   useEffect(() => {
     if (pendingModelId) modelCancelRef.current?.focus();
   }, [pendingModelId]);
+
+  useEffect(() => {
+    if (modelTargetFocusedRef.current || !mounted) return;
+    if (new URLSearchParams(window.location.search).get('focus') !== 'ai-model') return;
+    const target = document.getElementById('ai-model-setting');
+    const modelControl = document.getElementById('chat-model');
+    if (!target || !modelControl) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    modelControl.focus({ preventScroll: true });
+    modelTargetFocusedRef.current = true;
+  }, [mounted]);
 
   const applyModelSwitch = (nextModelId: ChatModelId) => {
     clearChatHistoryStorage();
@@ -343,7 +368,15 @@ export default function SettingsPanel() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="AI model" icon={Bot}>
+        <SettingsGroup
+          id="ai-model-setting"
+          title="AI model"
+          icon={Bot}
+          className={cn(
+            'transition-[background-color,box-shadow] duration-300',
+            modelTargetActive && 'bg-amber-200/20 shadow-[inset_4px_0_0_rgba(245,158,11,0.65)] dark:bg-amber-300/10',
+          )}
+        >
           <label className="block font-hand text-base text-[var(--c-heading)] md:text-lg" htmlFor="chat-model">
             Conversation model
           </label>
@@ -439,6 +472,12 @@ export default function SettingsPanel() {
             options={VOICE_OUTPUT_OPTIONS}
             onChange={setVoiceOutput}
           />
+          <SettingToggle
+            label="Speak by default"
+            detail="Automatically play newly completed assistant replies."
+            checked={speakByDefault}
+            onChange={setSpeakByDefault}
+          />
         </SettingsGroup>
 
         <SettingsGroup title="Appearance" icon={Brush}>
@@ -482,6 +521,9 @@ export default function SettingsPanel() {
           Back to the sketchbook
         </Link>
       </nav>
+      <p className="mt-6 text-center font-code text-[10px] uppercase text-[var(--c-ink)]/45">
+        Website {SITE_VERSION_LABEL}
+      </p>
       <Modal
         isOpen={pendingModelId !== null}
         onClose={() => setPendingModelId(null)}

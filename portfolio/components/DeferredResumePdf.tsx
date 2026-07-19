@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { RESUME_PDF_URL } from '@/lib/siteVersion';
 
-const RESUME_PDF_URL = '/resources/resume.pdf';
 const RESUME_PDF_EMBED_URL = `${RESUME_PDF_URL}#toolbar=0&navpanes=0&view=FitV`;
 
 export default function DeferredResumePdf() {

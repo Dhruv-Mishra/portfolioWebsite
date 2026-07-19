@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
+import { useEffect, useState, type ComponentType } from 'react';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
 import CommandPaletteProvider from '@/components/CommandPaletteProvider';
 
@@ -89,6 +90,30 @@ const ExperimentalFeaturesController = dynamic(
 
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
+  const [DesktopContextMenu, setDesktopContextMenu] = useState<ComponentType | null>(null);
+
+  useEffect(() => {
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+    let active = true;
+
+    const syncContextMenu = () => {
+      if (!finePointer.matches) {
+        setDesktopContextMenu(null);
+        return;
+      }
+      void import('@/components/DesktopContextMenu').then((module) => {
+        if (active && finePointer.matches) setDesktopContextMenu(() => module.default);
+      });
+    };
+
+    syncContextMenu();
+    finePointer.addEventListener('change', syncContextMenu);
+    return () => {
+      active = false;
+      finePointer.removeEventListener('change', syncContextMenu);
+    };
+  }, []);
+
   return (
     <>
       <VisitedPagesTrackerMount />
@@ -100,6 +125,7 @@ export default function EagerEnhancements() {
       <CommandPaletteProvider />
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}
+      {DesktopContextMenu ? <DesktopContextMenu /> : null}
     </>
   );
 }

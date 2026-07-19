@@ -116,7 +116,7 @@ describe('centralized Pocket TTS deployment topology', () => {
     expect(workflow).not.toContain('http://127.0.0.1:${SVC_PORT}/api/tts');
   });
 
-  it('uses static preflight checks and serial post-local remote reachability checks', () => {
+  it('uses static preflight checks before post-local remote reachability checks', () => {
     for (const [workflow, prefix] of [
       [stagingWorkflow, 'staging'],
       [productionWorkflow, 'production'],
@@ -131,8 +131,22 @@ describe('centralized Pocket TTS deployment topology', () => {
       expect(workflow.indexOf(`name: ${prefix}-1\n            tts_mode: local`)).toBeLessThan(
         workflow.indexOf(`name: ${prefix}-2\n            tts_mode: remote`),
       );
-      expect(workflow).toContain('max-parallel: 1');
     }
+    expect(stagingWorkflow).toContain('deploy-staging-canary:');
+    expect(stagingWorkflow).toMatch(
+      /deploy-staging-canary:[^]*needs:[^]*- preflight-staging[^]*name: staging-1/,
+    );
+    expect(stagingWorkflow).toMatch(
+      /deploy-staging:[^]*needs:[^]*- preflight-staging[^]*- deploy-staging-canary[^]*max-parallel: 2[^]*name: staging-2[^]*name: staging-3/,
+    );
+    expect(productionWorkflow).toContain('deploy-production-canary:');
+    expect(productionWorkflow).toMatch(
+      /deploy-production-canary:[^]*needs:[^]*- preflight-production[^]*name: production-1/,
+    );
+    expect(productionWorkflow).toMatch(
+      /deploy-production:[^]*needs:[^]*- preflight-production[^]*- deploy-production-canary[^]*max-parallel: 2[^]*name: production-2[^]*name: production-3/,
+    );
+    expect(rollbackWorkflow).toContain('max-parallel: 1');
     expect(productionWorkflow).toContain('DOMAIN="${{ env.DOMAIN }}"');
     expect(productionWorkflow).toContain('-H "Origin: https://${DOMAIN}"');
   });

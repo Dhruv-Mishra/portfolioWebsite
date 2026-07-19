@@ -76,7 +76,7 @@ jobs:
           fi
 
   build:
-    name: Build staging artifact and image
+    name: Build staging image
     needs: guard-staging-ref
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -84,6 +84,7 @@ jobs:
       image: ${{ steps.image-meta.outputs.image }}
       image_digest: ${{ steps.docker-build.outputs.digest }}
       image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
+      release_version: ${{ steps.release-meta.outputs.version }}
 
     steps:
       - name: Checkout
@@ -95,15 +96,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
           cache-dependency-path: portfolio/package-lock.json
-
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: portfolio/.next/cache
-          key: nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.[jt]s', 'portfolio/**/*.[jt]sx', 'portfolio/**/*.css', 'portfolio/next.config.ts') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ hashFiles('portfolio/package-lock.json') }}-
-            nextjs-${{ runner.os }}-node${{ env.NODE_VERSION }}-
 
       - name: Install dependencies
         working-directory: portfolio
@@ -131,64 +123,16 @@ jobs:
         working-directory: portfolio
         run: npm test
 
-      - name: Build Next.js (standalone)
-        working-directory: portfolio
-        env:
-          SKIP_EMBEDDINGS_BUILD: "1"
-          NEXT_BUILD_ID: ${{ github.sha }}
-          NODE_OPTIONS: "--max-old-space-size=4096"
-          BROWSERSLIST: ${{ env.DEPLOY_BROWSERSLIST }}
-        run: npm run build -- --webpack
-
-      - name: Verify portable standalone artifact
-        working-directory: portfolio
-        run: |
-          if find .next/standalone -type d -name '.cache' -print -quit | grep -q .; then
-            echo "::error::Standalone output contains a traced local cache directory"
-            find .next/standalone -type d -name '.cache' -print
-            exit 1
-          fi
-          if find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print -quit | grep -q .; then
-            echo "::error::Standalone output contains a platform-specific native binary"
-            find .next/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print
-            exit 1
-          fi
-
-      - name: Assemble standalone bundle
-        working-directory: portfolio
+      - name: Resolve release metadata
+        id: release-meta
         run: |
           set -euo pipefail
-
-          rm -rf .next/standalone/public
-          cp -r .next/static .next/standalone/.next/
-          cp -r public        .next/standalone/
-
-          mkdir -p .next/standalone/.deploy
-          cp scripts/deploy.sh          .next/standalone/.deploy/
-          cp nginx-cloudflare.conf      .next/standalone/.deploy/
-          chmod +x .next/standalone/.deploy/deploy.sh
-
-          cat > .next/standalone/.deploy/meta.json <<META
-          {
-            "sha": "${{ github.sha }}",
-            "ref": "${{ github.ref }}",
-            "actor": "${{ github.actor }}",
-            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "run_id": "${{ github.run_id }}",
-            "run_number": "${{ github.run_number }}"
-          }
-          META
-
-          tar czf ../portfolio-${{ github.sha }}.tar.gz -C .next/standalone .
-          ls -lh ../portfolio-${{ github.sha }}.tar.gz
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: portfolio-bundle
-          path: portfolio-${{ github.sha }}.tar.gz
-          retention-days: 14
-          if-no-files-found: error
+          version="$(node -p "require('./portfolio/package.json').version")"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid portfolio package version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Resolve image name
         id: image-meta
@@ -227,6 +171,9 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+          cache-from: type=gha,scope=portfolio-staging-image
+          cache-to: type=gha,mode=max,scope=portfolio-staging-image
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
@@ -252,20 +199,13 @@ jobs:
 
       - name: Build summary
         run: |
-          SIZE=$(ls -l portfolio-${{ github.sha }}.tar.gz | awk '{print $5}')
-          SIZE_MB=$(( SIZE / 1024 / 1024 ))
           echo "## Staging build complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Artifact | portfolio-${{ github.sha }}.tar.gz |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ env.DEPLOY_MODE }}" = "image" ]; then
-            echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Image | skipped (artifact deploy mode) |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "| Size | ${SIZE_MB} MB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.release-meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
 
   preflight-staging:
     name: Preflight ${{ matrix.server.name }}
@@ -437,8 +377,8 @@ jobs:
 
             echo "Staging VM contract OK: ${SITE} (${DOMAIN}) on :${PORT}; TTS ${EXPECTED_TTS_MODE}; memory ${memory_high_mb}/${memory_max_mb} MB, host ${physical_memory_mb} MB"
 
-  deploy-staging:
-    name: Deploy to ${{ matrix.server.name }}
+  deploy-staging-canary:
+    name: Deploy canary to ${{ matrix.server.name }}
     needs:
       - build
       - preflight-staging
@@ -447,7 +387,6 @@ jobs:
 
     strategy:
       fail-fast: true
-      max-parallel: 1
       matrix:
         server:
           - name: staging-1
@@ -458,27 +397,11 @@ jobs:
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
             ghcr_secret: GHCR_READ_TOKEN
-          - name: staging-2
-            tts_mode: remote
-            environment: production-2
-            host_secret: SERVER_HOST_2
-            user_secret: SERVER_USERNAME_2
-            key_secret: SERVER_SSH_KEY_2
-            port_secret: SERVER_PORT_2
-            ghcr_secret: GHCR_READ_TOKEN
-          - name: staging-3
-            tts_mode: remote
-            environment: production-3
-            host_secret: SERVER_HOST_3
-            user_secret: SERVER_USERNAME_3
-            key_secret: SERVER_SSH_KEY_3
-            port_secret: SERVER_PORT_3
-            ghcr_secret: GHCR_READ_TOKEN
 
     environment:
       name: ${{ matrix.server.environment }}
 
-    steps:
+    steps: &staging-deploy-steps
       - name: Staging deployment started (${{ matrix.server.name }})
         run: |
           echo "## Staging deployment — ${{ matrix.server.name }}" >> $GITHUB_STEP_SUMMARY
@@ -898,14 +821,55 @@ jobs:
               sudo cat "$META_FILE" || true
               exit 1
             fi
+            if ! sudo grep -q '"version": "${{ needs.build.outputs.release_version }}"' "$META_FILE"; then
+              echo "Deploy metadata does not match package version ${{ needs.build.outputs.release_version }}:"
+              sudo cat "$META_FILE" || true
+              exit 1
+            fi
 
-            echo "Staging verified on ${{ matrix.server.name }}: $SVC_NAME on :$SVC_PORT"
+            echo "Staging verified on ${{ matrix.server.name }}: v${{ needs.build.outputs.release_version }} on :$SVC_PORT"
 
       - name: Staging deployment success (${{ matrix.server.name }})
         if: success()
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ${{ matrix.server.name }}: staging success" >> $GITHUB_STEP_SUMMARY
+
+  deploy-staging:
+    name: Deploy to ${{ matrix.server.name }}
+    needs:
+      - build
+      - preflight-staging
+      - deploy-staging-canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: true
+      max-parallel: 2
+      matrix:
+        server:
+          - name: staging-2
+            tts_mode: remote
+            environment: production-2
+            host_secret: SERVER_HOST_2
+            user_secret: SERVER_USERNAME_2
+            key_secret: SERVER_SSH_KEY_2
+            port_secret: SERVER_PORT_2
+            ghcr_secret: GHCR_READ_TOKEN
+          - name: staging-3
+            tts_mode: remote
+            environment: production-3
+            host_secret: SERVER_HOST_3
+            user_secret: SERVER_USERNAME_3
+            key_secret: SERVER_SSH_KEY_3
+            port_secret: SERVER_PORT_3
+            ghcr_secret: GHCR_READ_TOKEN
+
+    environment:
+      name: ${{ matrix.server.environment }}
+
+    steps: *staging-deploy-steps
 
   smoke-staging:
     name: Smoke staging through Cloudflare

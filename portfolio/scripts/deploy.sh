@@ -1413,12 +1413,20 @@ stage_image_release() {
 
     validate_static_release_layout "${staging}" || exit 1
 
+    local release_version
+    release_version="$(release_meta_value "${staging}" version)"
+    if ! [[ "${release_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+        log ERROR "Image release metadata has an invalid package version: ${release_version:-missing}"
+        exit 1
+    fi
+
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     trap - RETURN
 
     cat > "${staging}/.deploy/meta.json" << META
 {
   "sha": "${RELEASE_SHA}",
+    "version": "${release_version}",
   "image": "${DOCKER_IMAGE}",
   "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }

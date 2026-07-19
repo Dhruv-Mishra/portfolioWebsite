@@ -20,6 +20,8 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   TARGET_BRANCH: deployed/staging
+  NODE_VERSION: "22"
+  CI_NPM_VERSION: "10.9.8"
 
 jobs:
   promote:
@@ -34,7 +36,12 @@ jobs:
           fetch-depth: 0
           token: ${{ github.token }}
 
-      - name: Fast-forward staging branch
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Create and promote minor release
         id: promote
         env:
           SOURCE_BRANCH: ${{ inputs.source_branch || 'dev/lkg' }}
@@ -56,12 +63,16 @@ jobs:
           fi
 
           source_sha="$(git rev-parse "origin/${SOURCE_BRANCH}")"
+          target_sha=""
           if git rev-parse --verify --quiet "origin/${TARGET_BRANCH}" >/dev/null; then
             target_sha="$(git rev-parse "origin/${TARGET_BRANCH}")"
             if [ "$source_sha" = "$target_sha" ]; then
+              version="$(git show "${source_sha}:portfolio/package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).version));")"
               echo "changed=false" >> "$GITHUB_OUTPUT"
               echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+              echo "release_sha=$source_sha" >> "$GITHUB_OUTPUT"
               echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+              echo "version=$version" >> "$GITHUB_OUTPUT"
               echo "deployed/staging already points at ${source_sha}."
               exit 0
             fi
@@ -73,16 +84,33 @@ jobs:
             fi
           fi
 
+          git checkout --detach "$source_sha"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git push origin "${source_sha}:refs/heads/${TARGET_BRANCH}"
+
+          previous_version="$(node -p "require('./portfolio/package.json').version")"
+          npx -y npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor --no-git-tag-version --ignore-scripts
+          version="$(node -p "require('./portfolio/package.json').version")"
+          if [ "$version" = "$previous_version" ]; then
+            echo "::error::Minor version bump did not change portfolio/package.json"
+            exit 1
+          fi
+
+          git add portfolio/package.json portfolio/package-lock.json
+          git commit -m "chore(release): v${version}"
+          release_sha="$(git rev-parse HEAD)"
+
+          git push --atomic origin \
+            "HEAD:refs/heads/${SOURCE_BRANCH}" \
+            "HEAD:refs/heads/${TARGET_BRANCH}"
 
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
           echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch staging deploy workflow
-        if: steps.promote.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_BRANCH: ${{ steps.promote.outputs.target_branch }}
@@ -98,6 +126,8 @@ jobs:
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Source | \`${{ inputs.source_branch || 'dev/lkg' }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Target | \`${{ env.TARGET_BRANCH }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| SHA | \`${{ steps.promote.outputs.source_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Source SHA | \`${{ steps.promote.outputs.source_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Release SHA | \`${{ steps.promote.outputs.release_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${{ steps.promote.outputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Changed | \`${{ steps.promote.outputs.changed }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Deploy workflow | \`deploy-staging.yml\` |" >> "$GITHUB_STEP_SUMMARY"

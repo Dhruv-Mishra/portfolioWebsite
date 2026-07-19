@@ -11,7 +11,8 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 
 COPY package.json package-lock.json ./
 COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
-RUN npm install --global "npm@${NPM_VERSION}" \
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --global "npm@${NPM_VERSION}" \
     && npm ci
 
 FROM deps AS builder
@@ -57,7 +58,10 @@ RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && cp scripts/portfolio.conf.example /app/standalone/.deploy/portfolio.conf.example \
     && cp nginx-cloudflare.conf /app/standalone/.deploy/nginx-cloudflare.conf \
     && chmod +x /app/standalone/.deploy/deploy.sh \
-    && printf '{"buildId":"%s"}\n' "${NEXT_BUILD_ID}" > /app/standalone/.deploy/meta.json
+    && test -z "$(find /app/standalone -type d -name '.cache' -print -quit)" \
+    && test -z "$(find /app/standalone -type f \( -name '*.node' -o -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) -print -quit)" \
+    && RELEASE_VERSION="$(node -p "require('./package.json').version")" \
+    && printf '{"buildId":"%s","version":"%s"}\n' "${NEXT_BUILD_ID}" "${RELEASE_VERSION}" > /app/standalone/.deploy/meta.json
 
 FROM node:22-bookworm-slim AS runner
 

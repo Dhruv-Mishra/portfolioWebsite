@@ -3,7 +3,7 @@ import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle, PenLine } from "lucide-react";
-import { APP_VERSION } from "@/lib/constants";
+import { SITE_VERSION_LABEL } from "@/lib/siteVersion";
 
 export default function Home() {
 
@@ -40,7 +40,7 @@ export default function Home() {
             style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
             className="inline-block bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
           >
-            {APP_VERSION}
+            {SITE_VERSION_LABEL}
           </span>
         </div>
 

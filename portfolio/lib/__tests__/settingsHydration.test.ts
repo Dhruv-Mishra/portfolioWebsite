@@ -23,6 +23,14 @@ describe('settings hydration contract', () => {
     expect(source).toContain('getServerHydrationSnapshot = () => false');
   });
 
+  it('waits for the settings controls before one-shot model focus', () => {
+    expect(source).toContain('const modelTargetFocusedRef = useRef(false)');
+    expect(source).toContain('if (modelTargetFocusedRef.current || !mounted) return;');
+    expect(source).toContain('if (!target || !modelControl) return;');
+    expect(source).toContain('modelTargetFocusedRef.current = true;');
+    expect(source).toContain('}, [mounted]);');
+  });
+
   it('keeps voice input and output as independent settings', () => {
     expect(source).toContain('SettingsGroup title="Voice input"');
     expect(source).toContain('SettingsGroup title="Voice output"');

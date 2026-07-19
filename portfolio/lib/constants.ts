@@ -1,5 +1,7 @@
-/** Portfolio version — single source of truth */
-export const APP_VERSION = 'v0.1.0';
+import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
+
+/** Compatibility alias for terminal surfaces. */
+export const APP_VERSION = SITE_VERSION_LABEL;
 
 /**
  * Realistic torn-edge tape strip clipPath polygon.

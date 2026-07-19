@@ -7,10 +7,14 @@ const source = fs.readFileSync(
   path.join(process.cwd(), 'components', 'SettingsPanel.tsx'),
   'utf8',
 );
+const chatSource = fs.readFileSync(
+  path.join(process.cwd(), 'components', 'StickyNoteChat.tsx'),
+  'utf8',
+);
 
 describe('settings chat model contract', () => {
   it('renders every catalog model under its catalog groups with selected-model capabilities', () => {
-    expect(source).toContain('title="AI model" icon={Bot}');
+    expect(source).toMatch(/<SettingsGroup[\s\S]*?title="AI model"[\s\S]*?icon=\{Bot\}/);
     expect(source).toContain('<ModelPicker');
     expect(source).toContain('id="chat-model"');
     expect(source).toContain('onValueChange={handleModelChange}');
@@ -80,5 +84,16 @@ describe('settings chat model contract', () => {
     expect(source).toContain('clearChatHistoryStorage();');
     expect(source).toContain('dispatchChatModelSwitchClear();');
     expect(source).toContain('ref={modelCancelRef}');
+  });
+
+  it('links the current chat model to a focused, visibly marked settings target', () => {
+    expect(chatSource).toContain('href="/settings?focus=ai-model"');
+    expect(chatSource).toContain('Current AI model: ${selectedModel.label}. Change in Settings');
+    expect(source).toContain("get('focus') !== 'ai-model'");
+    expect(source).toContain("document.getElementById('ai-model-setting')");
+    expect(source).toContain("const modelControl = document.getElementById('chat-model')");
+    expect(source).toContain('modelControl.focus({ preventScroll: true })');
+    expect(source).toContain('modelTargetActive &&');
+    expect(source).toContain("shadow-[inset_4px_0_0_rgba(245,158,11,0.65)]");
   });
 });

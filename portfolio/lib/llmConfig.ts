@@ -2,13 +2,13 @@
 
 // ── Main chat timeouts ───────────────────────────────────────────────
 /** Server-side timeout (ms) for the main chat completion request. */
-export const LLM_MAIN_RESPONSE_TIMEOUT_MS = 40_000;
+export const LLM_MAIN_RESPONSE_TIMEOUT_MS = 90_000;
 
 /** Buffer (ms) added on top of the server timeout to account for network overhead. */
-const LLM_MAIN_RESPONSE_NETWORK_BUFFER_MS = 6_000;
+const LLM_MAIN_RESPONSE_NETWORK_BUFFER_MS = 10_000;
 
 /** Server-side timeout (ms) per main LLM provider before aborting the fetch. */
-export const LLM_PROVIDER_TIMEOUT_MS = 28_000;
+export const LLM_PROVIDER_TIMEOUT_MS = 75_000;
 
 /** Time reserved inside the main route deadline for an online fallback attempt. */
 export const LLM_PROVIDER_FALLBACK_RESERVE_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS - LLM_PROVIDER_TIMEOUT_MS;

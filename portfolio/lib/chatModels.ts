@@ -2,19 +2,24 @@ export const DEFAULT_CHAT_MODEL_ID = 'qwen-3.6-27b' as const;
 
 export const CHAT_MODEL_CAPABILITIES = ['fast', 'image', 'reasoning', 'slow'] as const;
 export type ChatModelCapability = (typeof CHAT_MODEL_CAPABILITIES)[number];
+export type ChatImageInputOrder = 'image-first' | 'text-first';
 
-interface ChatModelDefinition {
+interface ChatModelDefinitionBase {
   id: string;
   provider: 'groq' | 'nvidia';
   group: 'Recommended' | 'NVIDIA';
   upstreamModel: string;
   label: string;
   quality: string;
-  supportsImages: boolean;
   capabilities: readonly ChatModelCapability[];
   isRecommended?: boolean;
   caveat?: string;
 }
+
+type ChatModelDefinition = ChatModelDefinitionBase & (
+  | { supportsImages: true; imageInputOrder: ChatImageInputOrder }
+  | { supportsImages: false; imageInputOrder?: never }
+);
 
 export const CHAT_MODELS = [
   {
@@ -25,6 +30,7 @@ export const CHAT_MODELS = [
     label: 'Qwen 3.6 27B',
     quality: 'Recommended',
     supportsImages: true,
+    imageInputOrder: 'text-first',
     capabilities: ['fast', 'image'],
     isRecommended: true,
   },
@@ -46,6 +52,7 @@ export const CHAT_MODELS = [
     label: 'Inkling',
     quality: 'Fast',
     supportsImages: true,
+    imageInputOrder: 'text-first',
     capabilities: ['fast', 'image'],
   },
   {
@@ -56,6 +63,7 @@ export const CHAT_MODELS = [
     label: 'MiniMax M3',
     quality: 'Preview',
     supportsImages: true,
+    imageInputOrder: 'text-first',
     capabilities: ['image'],
     caveat: 'Preview model; non-commercial use only.',
   },
@@ -67,6 +75,7 @@ export const CHAT_MODELS = [
     label: 'DiffusionGemma 26B',
     quality: 'Vision',
     supportsImages: true,
+    imageInputOrder: 'image-first',
     capabilities: ['image'],
   },
   {

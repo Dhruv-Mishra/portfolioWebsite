@@ -52,6 +52,66 @@ describe('chat image compression helpers', () => {
     expect(source).toContain('const CHAT_IMAGE_JPEG_QUALITIES = [0.84, 0.76, 0.68, 0.6]');
   });
 
+  it('preserves an original supported image when every encoded candidate is larger', async () => {
+    const originalBytes = 24 * 1024;
+    const originalDataUrl = 'data:image/webp;base64,b3JpZ2luYWw=';
+    const toBlob = vi.fn((callback: BlobCallback) => {
+      callback(new Blob([new Uint8Array(originalBytes + 1)], { type: 'image/jpeg' }));
+    });
+    const bitmap = {
+      width: 320,
+      height: 180,
+      close: vi.fn(),
+    };
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({
+        imageSmoothingEnabled: false,
+        imageSmoothingQuality: 'low',
+        fillStyle: '',
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+      })),
+      toBlob,
+    } as unknown as HTMLCanvasElement;
+
+    class MockFileReader {
+      result: string | ArrayBuffer | null = null;
+      error: DOMException | null = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+
+      readAsDataURL(blob: Blob) {
+        this.result = blob.type === 'image/webp'
+          ? originalDataUrl
+          : 'data:image/jpeg;base64,cmVlbmNvZGVk';
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal('window', { createImageBitmap: true });
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+    vi.stubGlobal('FileReader', MockFileReader);
+    vi.stubGlobal('document', { createElement: vi.fn(() => canvas) });
+
+    const file = {
+      name: 'already-small.webp',
+      type: 'image/webp',
+      size: originalBytes,
+    } as File;
+    const result = await compressChatImage(file);
+
+    expect(result).toEqual({
+      dataUrl: originalDataUrl,
+      filename: 'already-small.webp',
+      bytes: originalBytes,
+    });
+    expect(toBlob).toHaveBeenCalledTimes(24);
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
   it('falls back from bitmap decoding and progressively downscales without dropping below the quality floor', async () => {
     const createObjectURL = vi.fn(() => 'blob:test-image');
     const revokeObjectURL = vi.fn();

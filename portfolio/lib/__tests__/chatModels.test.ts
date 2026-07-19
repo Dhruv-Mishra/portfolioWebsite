@@ -39,4 +39,28 @@ describe('chat model catalog', () => {
       'deepseek-v4-pro': ['reasoning', 'slow'],
     });
   });
+
+  it('advertises images only for documented vision models with an explicit payload order', () => {
+    expect(CHAT_MODELS.filter((model) => model.supportsImages).map((model) => model.id)).toEqual([
+      'qwen-3.6-27b',
+      'inkling',
+      'minimax-m3',
+      'diffusiongemma-26b',
+    ]);
+    expect(Object.fromEntries(CHAT_MODELS.map((model) => [
+      model.id,
+      'imageInputOrder' in model ? model.imageInputOrder : null,
+    ]))).toEqual({
+      'qwen-3.6-27b': 'text-first',
+      'glm-5.2': null,
+      inkling: 'text-first',
+      'minimax-m3': 'text-first',
+      'diffusiongemma-26b': 'image-first',
+      'deepseek-v4-flash': null,
+      'deepseek-v4-pro': null,
+    });
+    for (const model of CHAT_MODELS) {
+      expect(model.capabilities.some((capability) => capability === 'image')).toBe(model.supportsImages);
+    }
+  });
 });

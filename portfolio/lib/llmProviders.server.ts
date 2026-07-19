@@ -1,7 +1,12 @@
 import 'server-only';
 
 import OpenAI from 'openai';
-import { DEFAULT_CHAT_MODEL_ID, getChatModel, type ChatModelId } from '@/lib/chatModels';
+import {
+  DEFAULT_CHAT_MODEL_ID,
+  getChatModel,
+  type ChatImageInputOrder,
+  type ChatModelId,
+} from '@/lib/chatModels';
 
 export type LLMProviderKind = 'groq' | 'nvidia' | 'openai';
 
@@ -13,6 +18,7 @@ export interface LLMProvider {
   modelId?: ChatModelId;
   label: string;
   supportsImages: boolean;
+  imageInputOrder?: ChatImageInputOrder;
   acceptsSystemMessages?: boolean;
   sampling: {
     temperature: number;
@@ -35,7 +41,7 @@ const MAIN_STOP = ['\n\n\n', '\nUser:', '\nAssistant:'];
 function getGroqQwenProvider(): LLMProvider | null {
   const apiKey = process.env.GROQ_API_KEY;
   const model = getChatModel(DEFAULT_CHAT_MODEL_ID);
-  if (!apiKey || !model) return null;
+  if (!apiKey || !model || !model.supportsImages) return null;
 
   return {
     kind: 'groq',
@@ -45,6 +51,7 @@ function getGroqQwenProvider(): LLMProvider | null {
     modelId: model.id,
     label: `groq:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
+    imageInputOrder: model.imageInputOrder,
     sampling: {
       temperature: 0.6,
       topP: 0.95,
@@ -81,6 +88,7 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b'>): LLMPr
     modelId: model.id,
     label: `nvidia:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
+    ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     acceptsSystemMessages: model.id !== 'diffusiongemma-26b',
     sampling: {
       temperature: 0.6,

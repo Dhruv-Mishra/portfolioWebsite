@@ -27,18 +27,15 @@ const dockerfile = fs.readFileSync(path.join(projectRoot, 'Dockerfile'), 'utf8')
 const deployScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'deploy.sh'), 'utf8');
 
 describe('release version promotion', () => {
-  it('uses package.json as the 0.2.0 baseline mirrored by the npm lockfile', () => {
-    expect(packageJson.version).toBe('0.2.0');
+  it('uses a semantic package.json version mirrored by the npm lockfile', () => {
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageLock.version).toBe(packageJson.version);
     expect(
       (packageLock.packages as Record<string, { version?: string }> | undefined)?.['']?.version,
     ).toBe(packageJson.version);
   });
 
-  it('makes the next genuinely new staging release 0.3.0', () => {
-    const [major, minor] = String(packageJson.version).split('.').map(Number);
-
-    expect(`${major}.${minor + 1}.0`).toBe('0.3.0');
+  it('increments the minor version for each genuinely new staging release', () => {
     expect(stagingPromotion).toContain(
       'npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor',
     );

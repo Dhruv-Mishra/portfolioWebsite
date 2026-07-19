@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { Z_INDEX } from '@/lib/designTokens';
 
 const readSource = (relativePath: string) => fs.readFileSync(
   path.join(process.cwd(), relativePath),
@@ -9,6 +10,7 @@ const readSource = (relativePath: string) => fs.readFileSync(
 
 const eagerSource = readSource('components/EagerEnhancements.tsx');
 const menuSource = readSource('components/DesktopContextMenu.tsx');
+const cursorSource = readSource('components/SketchbookCursor.tsx');
 
 describe('desktop context menu contract', () => {
   it('fetches the menu chunk only after a fine-pointer media query matches', () => {
@@ -45,5 +47,17 @@ describe('desktop context menu contract', () => {
     for (const label of ['Open link in new tab', 'Copy link', 'Back', 'Forward', 'Reload', 'Home', 'Settings', 'Copy page link']) {
       expect(menuSource).toContain(`label: '${label}'`);
     }
+  });
+
+  it('keeps the custom cursor visible and batches high-frequency pointer input', () => {
+    expect(Z_INDEX.cursor).toBeGreaterThan(Z_INDEX.contextMenu);
+    expect(Z_INDEX.contextMenu).toBeGreaterThan(10001);
+    expect(menuSource).toContain('zIndex: Z_INDEX.contextMenu');
+    expect(menuSource).not.toContain('z-[10000]');
+    expect(cursorSource).toContain("window.addEventListener('mousemove', queueCursorMove, { passive: true })");
+    expect(cursorSource).toContain('applyPointerMove(now)');
+    expect(cursorSource.indexOf('applyPointerMove(now)')).toBeGreaterThan(
+      cursorSource.indexOf('const renderTrail = () =>'),
+    );
   });
 });

@@ -237,7 +237,8 @@ export const CURSOR_TRAIL = {
  *
  * Layer hierarchy (lowest → highest):
  * ┌─────────────────────────────────────────────────┐
- * │  cursor        9999   Custom pencil/chalk        │
+ * │  cursor       10003   Custom pencil/chalk        │
+ * │  contextMenu  10002   Desktop context menu       │
  * │  skipNav        200   Skip-to-content (focused)  │
  * │  modal          100   Full-screen modals (portal) │
  * │  nav             50   Navigation, MiniChat, Theme │
@@ -270,8 +271,10 @@ export const Z_INDEX = {
   palette: 150,
   /** Skip-to-main-content link when focused */
   skipNav: 200,
+  /** Desktop context menu, above full-screen effects but below the custom cursor */
+  contextMenu: 10002,
   /** Custom cursor — always topmost */
-  cursor: 9999,
+  cursor: 10003,
 } as const;
 
 /** Shadow tokens */

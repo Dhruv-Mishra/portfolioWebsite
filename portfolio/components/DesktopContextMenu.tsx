@@ -12,6 +12,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
+import { Z_INDEX } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 
 interface MenuPosition {
@@ -225,8 +226,8 @@ export default function DesktopContextMenu() {
       role="menu"
       aria-label="Page actions"
       onKeyDown={handleMenuKeyDown}
-      className="fixed z-[10000] w-56 rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] px-1.5 pb-1.5 pt-3 font-hand text-[var(--c-heading)] shadow-[3px_5px_16px_rgba(0,0,0,0.24)]"
-      style={{ left: position.x, top: position.y }}
+      className="fixed w-56 rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] px-1.5 pb-1.5 pt-3 font-hand text-[var(--c-heading)] shadow-[3px_5px_16px_rgba(0,0,0,0.24)]"
+      style={{ left: position.x, top: position.y, zIndex: Z_INDEX.contextMenu }}
     >
       <TapeStrip size="sm" className="!-top-2 !h-4 !w-16 rotate-2 opacity-70" />
       <p className="px-2 pb-1 font-code text-[9px] uppercase text-[var(--c-ink)]/45" aria-hidden>

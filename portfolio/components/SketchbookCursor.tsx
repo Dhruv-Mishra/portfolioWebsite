@@ -80,11 +80,10 @@ export default function SketchbookCursor() {
         // checkHover merged into mousemove — avoids a separate 'mouseover' event listener
         // that fires on every element boundary crossing in the DOM
         let lastHoverTarget: EventTarget | null = null;
-        const checkHover = (e: MouseEvent) => {
+        const checkHover = (target: EventTarget | null) => {
             // Skip if target hasn't changed (most common case during mouse movement)
-            if (e.target === lastHoverTarget) return;
-            lastHoverTarget = e.target;
-            const target = e.target as HTMLElement;
+            if (target === lastHoverTarget || !(target instanceof HTMLElement)) return;
+            lastHoverTarget = target;
             // Check for links, buttons, inputs, or elements with data-clickable
             const hovering = !!(target.tagName === 'A' || target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
                 target.closest('a') || target.closest('button') || target.closest('[data-clickable]'));
@@ -95,18 +94,26 @@ export default function SketchbookCursor() {
             }
         };
 
-        const moveCursor = (e: MouseEvent) => {
-            mouseX.set(e.clientX);
-            mouseY.set(e.clientY);
-            checkHover(e);
-            const now = performance.now();
+        // High-polling mice can emit hundreds of events per frame. Keep only
+        // the latest sample and apply it in the trail's existing rAF loop.
+        let pointerX = -100;
+        let pointerY = -100;
+        let pointerTarget: EventTarget | null = null;
+        let pointerPending = false;
+
+        const applyPointerMove = (now: number) => {
+            if (!pointerPending) return;
+            pointerPending = false;
+            mouseX.set(pointerX);
+            mouseY.set(pointerY);
+            checkHover(pointerTarget);
             lastMoveTime.current = now;
 
             // Distance-based throttling against last written point
             const prevIdx = (headRef.current - 1 + MAX_POINTS) % MAX_POINTS;
             const prev = headRef.current !== tailRef.current ? ring[prevIdx] : null;
-            const dx = prev ? e.clientX - prev.x : Infinity;
-            const dy = prev ? e.clientY - prev.y : Infinity;
+            const dx = prev ? pointerX - prev.x : Infinity;
+            const dy = prev ? pointerY - prev.y : Infinity;
             const dist2 = dx * dx + dy * dy; // avoid sqrt
 
             // Min 5px (25 sq), Max 80px (6400 sq)
@@ -114,11 +121,11 @@ export default function SketchbookCursor() {
                 const idx = headRef.current;
                 // Reuse or create point object in ring slot
                 if (ring[idx]) {
-                    ring[idx].x = e.clientX;
-                    ring[idx].y = e.clientY;
+                    ring[idx].x = pointerX;
+                    ring[idx].y = pointerY;
                     ring[idx].t = now;
                 } else {
-                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
+                    ring[idx] = { x: pointerX, y: pointerY, t: now };
                 }
                 headRef.current = (idx + 1) % MAX_POINTS;
                 // If head catches tail, advance tail (drop oldest point)
@@ -130,16 +137,21 @@ export default function SketchbookCursor() {
                 tailRef.current = headRef.current;
                 const idx = headRef.current;
                 if (ring[idx]) {
-                    ring[idx].x = e.clientX;
-                    ring[idx].y = e.clientY;
+                    ring[idx].x = pointerX;
+                    ring[idx].y = pointerY;
                     ring[idx].t = now;
                 } else {
-                    ring[idx] = { x: e.clientX, y: e.clientY, t: now };
+                    ring[idx] = { x: pointerX, y: pointerY, t: now };
                 }
                 headRef.current = (idx + 1) % MAX_POINTS;
             }
+        };
 
-            // Ensure the render loop is running whenever the mouse moves
+        const queueCursorMove = (event: MouseEvent) => {
+            pointerX = event.clientX;
+            pointerY = event.clientY;
+            pointerTarget = event.target;
+            pointerPending = true;
             wakeLoop();
         };
 
@@ -176,7 +188,7 @@ export default function SketchbookCursor() {
             resizeTimer = setTimeout(resizeCanvas, TIMING_TOKENS.resizeDebounce);
         };
 
-        window.addEventListener('mousemove', moveCursor, { passive: true });
+        window.addEventListener('mousemove', queueCursorMove, { passive: true });
         // Use single listener on document (captures mouseleave from window too)
         document.addEventListener('mouseleave', handleMouseLeave);
         document.addEventListener('mouseenter', handleMouseEnter);
@@ -199,6 +211,7 @@ export default function SketchbookCursor() {
             if (!canvas || !ctx) return;
 
             const now = performance.now();
+            applyPointerMove(now);
             let tail = tailRef.current;
             const head = headRef.current;
 
@@ -271,7 +284,7 @@ export default function SketchbookCursor() {
         wakeLoop();
 
         return () => {
-            window.removeEventListener('mousemove', moveCursor);
+            window.removeEventListener('mousemove', queueCursorMove);
             document.removeEventListener('mouseleave', handleMouseLeave);
             document.removeEventListener('mouseenter', handleMouseEnter);
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);

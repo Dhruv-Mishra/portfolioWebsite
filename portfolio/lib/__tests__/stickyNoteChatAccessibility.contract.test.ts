@@ -34,15 +34,16 @@ describe('sticky note chat standalone accessibility contract', () => {
     expect(source).toContain("msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome'");
   });
 
-  it('auto-plays only a newly completed speakable assistant reply through the manual playback engine', () => {
+  it('auto-plays a new speakable assistant reply when its final text starts typewriting', () => {
     expect(source).toContain('const { enabled: speakByDefault } = useSpeakByDefaultPref();');
     expect(source).toContain('const autoSpokenAssistantRef = useRef<string | null>(null);');
-    expect(source).toContain('canSpeakAssistantMessage(completedMessage)');
-    expect(source).toContain('ttsActiveMessageId !== messageId');
-    expect(source).toContain('autoSpokenAssistantRef.current !== messageId');
-    expect(source).toContain('autoSpokenAssistantRef.current = messageId;');
-    expect(source).toContain('void toggleTtsPlayback(messageId, completedMessage.content');
+    expect(source).toContain('if (!targetIsFiller) notifyStart();');
+    expect(source).toContain('canSpeakAssistantMessage(message)');
+    expect(source).toContain('ttsActiveMessageId === message.id');
+    expect(source).toContain('autoSpokenAssistantRef.current === message.id');
     expect(source).toContain('autoSpokenAssistantRef.current = message.id;');
+    expect(source).toContain('void toggleTtsPlayback(message.id, message.content');
+    expect(source).toContain("onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome'");
     expect(source).toContain("onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome'");
   });
 

@@ -82,13 +82,21 @@ function getNextTtsPlaybackSpeed(current: TtsPlaybackSpeed): TtsPlaybackSpeed {
 // response lands mid-animation.
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
 
-function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = TIMING_TOKENS.typeSpeed, onComplete?: () => void) {
+function useTypewriter(
+  text: string,
+  isFiller: boolean,
+  skip: boolean,
+  speed = TIMING_TOKENS.typeSpeed,
+  onStart?: () => void,
+  onComplete?: () => void,
+) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const [displayedText, setDisplayedText] = useState(skip ? text : '');
   const displayedTextRef = useRef(skip ? text : '');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
   const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
+  const notifyStart = useEffectEvent(() => onStart?.());
   const notifyComplete = useEffectEvent(() => onComplete?.());
   const phaseRef = useRef<TypewriterPhase>('idle');
 
@@ -128,6 +136,7 @@ function useTypewriter(text: string, isFiller: boolean, skip: boolean, speed = T
     const startTyping = (targetText: string, targetIsFiller: boolean, startIndex = 0) => {
       setPhase('typing');
       phaseRef.current = 'typing';
+      if (!targetIsFiller) notifyStart();
 
       const tick = (index: number) => {
         if (runIdRef.current !== activeRunId) return;
@@ -702,6 +711,7 @@ const StickyNote = memo(function StickyNote({
   onSpeak,
   onTtsRestart,
   onTtsSpeedChange,
+  onTypewriterStart,
   onTypewriterDone,
   showTtsControls = false,
   ttsPlaybackSpeed = 1,
@@ -715,6 +725,7 @@ const StickyNote = memo(function StickyNote({
   onSpeak?: (message: ChatMessage) => void;
   onTtsRestart?: (message: ChatMessage) => void;
   onTtsSpeedChange?: (message: ChatMessage) => void;
+  onTypewriterStart?: () => void;
   onTypewriterDone?: () => void;
   showTtsControls?: boolean;
   ttsPlaybackSpeed?: TtsPlaybackSpeed;
@@ -732,6 +743,7 @@ const StickyNote = memo(function StickyNote({
     !!message.isFiller,
     isUser || !!message.isOld,
     TIMING_TOKENS.typeSpeed,
+    onTypewriterStart,
     onTypewriterDone,
   );
   const showPencil = !isUser && isLoading;
@@ -1259,10 +1271,17 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               )}
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
-            {!compact && modelPrefHydrated ? (
-              <span className="max-w-32 max-[480px]:max-w-24 truncate font-code text-[10px] max-[480px]:text-[9px] text-[var(--c-ink)]/60" title={model?.label}>
-                {model?.label} · {supportsImages ? 'Vision' : 'Text'}
-              </span>
+            {!compact && modelPrefHydrated && model ? (
+              <Link
+                href="/settings?focus=ai-model"
+                prefetch={false}
+                data-chat-model-settings-link
+                className="inline-flex min-h-11 max-w-32 items-center truncate px-1 font-code text-[10px] text-[var(--c-ink)]/60 underline decoration-dotted underline-offset-4 transition-colors hover:text-[var(--c-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 max-[480px]:max-w-24 max-[480px]:text-[9px]"
+                title={`${model.label} · ${supportsImages ? 'Vision' : 'Text'}`}
+                aria-label={`Current AI model: ${model.label}. Change in Settings`}
+              >
+                {model.label} · {supportsImages ? 'Vision' : 'Text'}
+              </Link>
             ) : null}
             {supportsImages ? (
               <Tooltip label="Attach image">
@@ -1831,6 +1850,23 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     }
   }, [discoActive, externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
 
+  const handleTypewriterStart = useCallback((message: ChatMessage) => {
+    if (
+      !speakByDefault ||
+      !canSpeakAssistantMessage(message) ||
+      ttsActiveMessageId === message.id ||
+      autoSpokenAssistantRef.current === message.id
+    ) {
+      return;
+    }
+
+    autoSpokenAssistantRef.current = message.id;
+    setTtsControlsMessageId(message.id);
+    void toggleTtsPlayback(message.id, message.content, {
+      preferClientSpeech: voiceOutput === 'device',
+    });
+  }, [speakByDefault, toggleTtsPlayback, ttsActiveMessageId, voiceOutput]);
+
   const handleTypewriterDone = useCallback((messageId: string) => {
     setReadyForAssistantId(messageId);
 
@@ -1850,26 +1886,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       });
     }
 
-    if (
-      speakByDefault &&
-      completedMessage &&
-      canSpeakAssistantMessage(completedMessage) &&
-      ttsActiveMessageId !== messageId &&
-      autoSpokenAssistantRef.current !== messageId
-    ) {
-      autoSpokenAssistantRef.current = messageId;
-      setTtsControlsMessageId(messageId);
-      void toggleTtsPlayback(messageId, completedMessage.content, {
-        preferClientSpeech: voiceOutput === 'device',
-      });
-    }
-
     const action = pendingActionsRef.current.get(messageId);
     if (!action) return;
 
     pendingActionsRef.current.delete(messageId);
     executeAction(action);
-  }, [executeAction, messages, speakByDefault, toggleTtsPlayback, ttsActiveMessageId, voiceOutput]);
+  }, [executeAction, messages]);
 
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
@@ -2194,6 +2216,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                 onSpeak={handleSpeakMessage}
                 onTtsRestart={handleTtsRestart}
                 onTtsSpeedChange={handleTtsSpeedChange}
+                onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterStart(msg) : undefined}
                 onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterDone(msg.id) : undefined}
                 showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
                 ttsPlaybackSpeed={ttsPlaybackSpeed}

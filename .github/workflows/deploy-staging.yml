@@ -33,6 +33,7 @@ env:
   STAGING_SITE: portfolio-staging
   STAGING_DOMAIN: staging.whoisdhruv.com
   STAGING_PORT: "3010"
+  STAGING_LOCAL_AGENT_BASE_URL: https://llm.whoisdhruv.com/v1
   NODE_VERSION: "22"
   CI_NPM_VERSION: "10.9.8"
   DEPLOY_MODE: image
@@ -50,6 +51,7 @@ jobs:
     env:
       STAGING_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
       STAGING_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
+      STAGING_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}
 
     steps:
       - name: Require experimental branch for staging deploys
@@ -69,6 +71,10 @@ jobs:
           fi
           if [[ ! "${STAGING_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
             echo "::error::STAGING_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
+            missing=1
+          fi
+          if [ -z "${STAGING_LOCAL_AGENT_API_KEY:-}" ]; then
+            echo "::error::STAGING_LOCAL_AGENT_API_KEY must be configured for the staging local agent"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -468,6 +474,8 @@ jobs:
           GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
           RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
+          RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}
+          RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.STAGING_LOCAL_AGENT_BASE_URL }}
           RUNTIME_HF_TOKEN: ${{ matrix.server.tts_mode == 'local' && secrets.STAGING_HF_TOKEN || '' }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
@@ -478,7 +486,7 @@ jobs:
           # print the deploy log, then exit with the captured status.
           script_stop: false
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_HF_TOKEN
+          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
             set -euo pipefail
 
@@ -545,6 +553,18 @@ jobs:
                 echo "Staging Matrix Notes access secret is missing or malformed"
                 exit 1
               fi
+              if [ -z "${RUNTIME_LOCAL_AGENT_API_KEY:-}" ]; then
+                echo "Staging local agent API key is missing"
+                exit 1
+              fi
+              if [ -z "${RUNTIME_LOCAL_AGENT_BASE_URL:-}" ]; then
+                echo "Staging local agent base URL is missing"
+                exit 1
+              fi
+              if [[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]; then
+                echo "Staging local agent base URL must use https://"
+                exit 1
+              fi
               if [ "$TTS_MODE" = "local" ] && [ -z "${RUNTIME_HF_TOKEN:-}" ]; then
                 echo "Staging Hugging Face runtime token is missing"
                 exit 1
@@ -555,10 +575,12 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/' \
                 "$env_file" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_AGENT_BASE_URL=%s\n' "$RUNTIME_LOCAL_AGENT_BASE_URL" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_AGENT_API_KEY=%s\n' "$RUNTIME_LOCAL_AGENT_API_KEY" >> "$RUNTIME_ENV_TEMP"
               printf 'TTS_NODE_MODE=%s\n' "$TTS_MODE" >> "$RUNTIME_ENV_TEMP"
               if [ "$TTS_MODE" = "local" ]; then
                 printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"
@@ -737,7 +759,32 @@ jobs:
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
             TTS_STREAM_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE"' EXIT
+            CHAT_HEADERS_FILE="$(mktemp)"
+            CHAT_BODY_FILE="$(mktemp)"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE" "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"' EXIT
+            CHAT_HTTP_CODE=$(curl -sk --max-time 45 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
+              -H "Origin: https://${SVC_DOMAIN}" -H "Referer: https://${SVC_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
+              --data '{"model":"qwen-3.5-4b-local","messages":[{"role":"user","content":"Reply with exactly: STAGING_LOCAL_AGENT_OK"}]}' \
+              -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/chat/respond" 2>/dev/null || echo "000")
+            [ "$CHAT_HTTP_CODE" = "200" ] || fail "Local-agent HTTPS chat route returned HTTP $CHAT_HTTP_CODE"
+            grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE" \
+              || fail "Local-agent HTTPS chat route returned a non-JSON response"
+            grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline([[:space:]]|$)' "$CHAT_HEADERS_FILE" \
+              || fail "Local-agent HTTPS chat route did not use the primary provider"
+            if ! node - "$CHAT_BODY_FILE" <<'NODE'
+            const fs = require('node:fs');
+            const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+
+            if (body?.modelId !== 'qwen-3.5-4b-local' || typeof body?.reply !== 'string' || !body.reply.trim()) {
+              throw new Error('Chat response did not contain a non-empty local-agent reply');
+            }
+            NODE
+            then
+              fail "Local-agent HTTPS chat response was invalid"
+            fi
+            echo "Local-agent HTTPS chat topology verified"
+
             TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \
               -H "Origin: https://${SVC_DOMAIN}" -H "Sec-Fetch-Site: same-origin" \

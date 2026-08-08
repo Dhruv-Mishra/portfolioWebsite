@@ -86,7 +86,56 @@ describe('release version promotion', () => {
       `'"version": "\${{ needs.build.outputs.release_version }}"'`,
     );
     expect(productionDeploy).toContain(
-      `'"version": "\${{ needs.build.outputs.release_version }}"'`,
+      '"version": "${{ needs.build.outputs.release_version }}"',
     );
+  });
+
+  it('requires, syncs, and locally verifies the staging Qwen agent', () => {
+    const verificationScript = stagingDeploy.slice(
+      stagingDeploy.indexOf('- name: Verify staging deployment'),
+    );
+
+    expect(stagingDeploy).toMatch(
+      /STAGING_LOCAL_AGENT_BASE_URL:\s*https:\/\/llm\.whoisdhruv\.com\/v1/,
+    );
+    expect(stagingDeploy).toContain(
+      'STAGING_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}',
+    );
+    expect(stagingDeploy).toMatch(
+      /if \[ -z "\$\{STAGING_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(stagingDeploy).toContain(
+      'RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}',
+    );
+    expect(stagingDeploy).toContain(
+      'RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.STAGING_LOCAL_AGENT_BASE_URL }}',
+    );
+    expect(stagingDeploy).toMatch(
+      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
+    );
+    expect(stagingDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(stagingDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_BASE_URL:-\}" \]; then/,
+    );
+    expect(stagingDeploy).toContain('[[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]');
+    expect(stagingDeploy).toContain('$1 !~ /^LOCAL_AGENT_/');
+    expect(stagingDeploy).toContain(
+      "printf 'LOCAL_AGENT_BASE_URL=%s\\n' \"$RUNTIME_LOCAL_AGENT_BASE_URL\"",
+    );
+    expect(stagingDeploy).toContain(
+      "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
+    );
+
+    expect(verificationScript).toContain('--resolve "${SVC_DOMAIN}:443:127.0.0.1"');
+    expect(verificationScript).toContain('"https://${SVC_DOMAIN}/chat/respond"');
+    expect(verificationScript).toContain('"model":"qwen-3.5-4b-local"');
+    expect(verificationScript).toContain('-H "Origin: https://${SVC_DOMAIN}"');
+    expect(verificationScript).toContain('-H "Sec-Fetch-Site: same-origin"');
+    expect(verificationScript).toContain('application/json');
+    expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline');
+    expect(verificationScript).toContain("body?.modelId !== 'qwen-3.5-4b-local'");
+    expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
   });
 });

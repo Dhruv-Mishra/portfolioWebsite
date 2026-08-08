@@ -93,4 +93,44 @@ describe('getSuggestionsProviders', () => {
 
     expect(getChatProviders('glm-5.2')).toEqual({ primary: null, fallbacks: [] });
   });
+
+  it('uses the local Qwen agent only when its complete server-only configuration is present', () => {
+    vi.stubEnv('GROQ_API_KEY', 'groq-key');
+    vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+
+    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({
+      primary: {
+        kind: 'openai',
+        apiKey: 'local-agent-key',
+        baseURL: 'https://llm.whoisdhruv.com/v1',
+        model: 'qwen3.5-4b-q4_k_m',
+        modelId: 'qwen-3.5-4b-local',
+        label: 'Local agent',
+        supportsImages: false,
+        sampling: {
+          temperature: 0.7,
+          topP: 0.8,
+          maxTokens: 512,
+          extraBody: { chat_template_kwargs: { enable_thinking: false } },
+        },
+      },
+      fallbacks: [],
+    });
+  });
+
+  it('uses the static local reply when either local agent variable is unavailable', () => {
+    vi.stubEnv('GROQ_API_KEY', 'groq-key');
+    vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', '');
+
+    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
+
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', '');
+
+    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
+  });
 });

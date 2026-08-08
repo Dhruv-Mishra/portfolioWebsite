@@ -29,7 +29,12 @@ const CAPABILITY_DETAILS: Record<ChatModelCapability, { label: string; Icon: Luc
   },
 };
 
-const MODEL_GROUPS = ['Recommended', 'NVIDIA'] as const;
+const MODEL_GROUPS = ['Recommended', 'NVIDIA', 'Local agent'] as const;
+const PROVIDER_LABELS = {
+  groq: 'Groq',
+  nvidia: 'NVIDIA',
+  local: 'Local agent',
+} as const;
 const VIEWPORT_MARGIN = 12;
 const LISTBOX_GAP = 8;
 const NAVIGATION_MARGIN = 8;
@@ -160,7 +165,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
       >
         <span className="min-w-0">
           <span className="block truncate font-bold">{selectedModel?.label}</span>
-          <span className="block truncate text-sm text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel?.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>
+          <span className="block truncate text-sm text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? PROVIDER_LABELS[selectedModel.provider] : null}</span>
         </span>
         <ChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={20} aria-hidden />
       </button>
@@ -217,7 +222,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-base font-bold text-[var(--c-heading)]">{model.label}</span>
-                    <span className="block truncate text-sm text-[var(--c-ink)]/60">{model.provider === 'groq' ? 'Groq' : 'NVIDIA'} · {model.quality}</span>
+                    <span className="block truncate text-sm text-[var(--c-ink)]/60">{PROVIDER_LABELS[model.provider]} · {model.quality}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1" aria-label={model.capabilities.map((capability) => CAPABILITY_DETAILS[capability].label).join(', ')}>
                     {model.capabilities.map((capability) => {

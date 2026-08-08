@@ -78,7 +78,7 @@ scripts/          embeddings and deployment helpers
 ## Runtime Notes
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
-- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default or the selected NVIDIA model. Provider failures degrade to the local fallback reply instead of silently switching models.
+- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default, a selected NVIDIA model, or the optional local Qwen agent. Provider failures degrade to the local fallback reply instead of silently switching models.
 - Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
 - Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
@@ -113,6 +113,7 @@ scripts/          embeddings and deployment helpers
 |---|---|
 | `GROQ_API_KEY` | Runs the default `qwen/qwen3.6-27b` chat model on Groq; the main-chat model is fixed by the server allowlist. |
 | `NVIDIA_API_KEY` | Runs selectable NVIDIA models and NVIDIA-backed suggestions. Suggestions return empty rather than consuming Groq quota when NVIDIA is unavailable. |
+| `LOCAL_AGENT_BASE_URL`, `LOCAL_AGENT_API_KEY` | Optional server-only configuration for `qwen3.5-4b-q4_k_m`; both are required for the selectable Local agent model. Use a container-reachable base URL in Docker, for example `https://llm.whoisdhruv.com/v1`. |
 | `LLM_API_KEY`, `LLM_BASE_URL` | Optional compatibility credentials used by embeddings and development admin authentication; they are not chat model fallbacks. |
 | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
 | `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |

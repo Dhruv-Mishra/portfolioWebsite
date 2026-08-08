@@ -11,7 +11,7 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(7);
+    expect(CHAT_MODELS).toHaveLength(8);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
       'z-ai/glm-5.2',
@@ -20,12 +20,24 @@ describe('chat model catalog', () => {
       'google/diffusiongemma-26b-a4b-it',
       'deepseek-ai/deepseek-v4-flash',
       'deepseek-ai/deepseek-v4-pro',
+      'qwen3.5-4b-q4_k_m',
     ]);
+    expect(getChatModel('qwen-3.5-4b-local')).toEqual({
+      id: 'qwen-3.5-4b-local',
+      provider: 'local',
+      group: 'Local agent',
+      upstreamModel: 'qwen3.5-4b-q4_k_m',
+      label: 'Qwen 3.5 4B',
+      quality: 'Local agent',
+      supportsImages: false,
+      capabilities: ['slow'],
+    });
   });
 
   it('rejects unknown client model identifiers', () => {
     expect(isChatModelId('llama-3.1-8b-instant')).toBe(false);
     expect(isChatModelId('qwen-3.6-27b')).toBe(true);
+    expect(isChatModelId('qwen-3.5-4b-local')).toBe(true);
   });
 
   it('declares picker capabilities explicitly for every model', () => {
@@ -37,6 +49,7 @@ describe('chat model catalog', () => {
       'diffusiongemma-26b': ['image'],
       'deepseek-v4-flash': ['fast'],
       'deepseek-v4-pro': ['reasoning', 'slow'],
+      'qwen-3.5-4b-local': ['slow'],
     });
   });
 
@@ -58,6 +71,7 @@ describe('chat model catalog', () => {
       'diffusiongemma-26b': 'image-first',
       'deepseek-v4-flash': null,
       'deepseek-v4-pro': null,
+      'qwen-3.5-4b-local': null,
     });
     for (const model of CHAT_MODELS) {
       expect(model.capabilities.some((capability) => capability === 'image')).toBe(model.supportsImages);

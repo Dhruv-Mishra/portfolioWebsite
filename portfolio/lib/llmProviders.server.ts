@@ -61,7 +61,30 @@ function getGroqQwenProvider(): LLMProvider | null {
   };
 }
 
-function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b'>): LLMProvider | null {
+function getLocalAgentProvider(): LLMProvider | null {
+  const apiKey = process.env.LOCAL_AGENT_API_KEY;
+  const baseURL = process.env.LOCAL_AGENT_BASE_URL;
+  const model = getChatModel('qwen-3.5-4b-local');
+  if (!apiKey?.trim() || !baseURL?.trim() || !model || model.provider !== 'local') return null;
+
+  return {
+    kind: 'openai',
+    apiKey,
+    baseURL,
+    model: model.upstreamModel,
+    modelId: model.id,
+    label: 'Local agent',
+    supportsImages: model.supportsImages,
+    sampling: {
+      temperature: 0.7,
+      topP: 0.8,
+      maxTokens: 512,
+      extraBody: { chat_template_kwargs: { enable_thinking: false } },
+    },
+  };
+}
+
+function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-3.5-4b-local'>): LLMProvider | null {
   const apiKey = process.env.NVIDIA_API_KEY;
   const model = getChatModel(modelId);
   if (!apiKey || !model || model.provider !== 'nvidia') return null;
@@ -110,6 +133,10 @@ function toChatProviders(candidates: Array<LLMProvider | null>): ChatProviders {
 export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MODEL_ID): ChatProviders {
   if (selectedModelId === DEFAULT_CHAT_MODEL_ID) {
     return toChatProviders([getGroqQwenProvider()]);
+  }
+
+  if (selectedModelId === 'qwen-3.5-4b-local') {
+    return toChatProviders([getLocalAgentProvider()]);
   }
 
   return toChatProviders([getNvidiaProvider(selectedModelId)]);

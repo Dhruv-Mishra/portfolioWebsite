@@ -6,8 +6,8 @@ export type ChatImageInputOrder = 'image-first' | 'text-first';
 
 interface ChatModelDefinitionBase {
   id: string;
-  provider: 'groq' | 'nvidia';
-  group: 'Recommended' | 'NVIDIA';
+  provider: 'groq' | 'nvidia' | 'local';
+  group: 'Recommended' | 'NVIDIA' | 'Local agent';
   upstreamModel: string;
   label: string;
   quality: string;
@@ -97,6 +97,16 @@ export const CHAT_MODELS = [
     quality: 'High quality',
     supportsImages: false,
     capabilities: ['reasoning', 'slow'],
+  },
+  {
+    id: 'qwen-3.5-4b-local',
+    provider: 'local',
+    group: 'Local agent',
+    upstreamModel: 'qwen3.5-4b-q4_k_m',
+    label: 'Qwen 3.5 4B',
+    quality: 'Local agent',
+    supportsImages: false,
+    capabilities: ['slow'],
   },
 ] as const satisfies readonly ChatModelDefinition[];
 

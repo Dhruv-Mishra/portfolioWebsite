@@ -14,14 +14,14 @@ function readPortfolioFile(...segments: string[]) {
   return fs.readFileSync(path.join(portfolioRoot, ...segments), 'utf8');
 }
 
-function createCrossOriginRequest(pathname: string) {
+function createCrossOriginRequest(pathname: string, modelId?: string) {
   return new NextRequest(`https://whoisdhruv.com${pathname}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Origin: 'https://example.com',
     },
-    body: JSON.stringify({ messages: [] }),
+    body: JSON.stringify({ messages: [], ...(modelId ? { model: modelId } : {}) }),
   });
 }
 
@@ -37,7 +37,7 @@ describe('public chat route aliases', () => {
   });
 
   it('rejects cross-origin requests through both aliases', async () => {
-    await expect(publicChatPost(createCrossOriginRequest(CHAT_RESPONSE_ENDPOINT))).resolves.toMatchObject({ status: 403 });
+    await expect(publicChatPost(createCrossOriginRequest(CHAT_RESPONSE_ENDPOINT, 'qwen-3.5-4b-local'))).resolves.toMatchObject({ status: 403 });
     await expect(publicSuggestionsPost(createCrossOriginRequest(CHAT_SUGGESTIONS_ENDPOINT))).resolves.toMatchObject({ status: 403 });
   });
 

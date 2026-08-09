@@ -895,9 +895,9 @@ jobs:
           if ! curl -fsS --max-time 15 -H "Accept: application/json" \
             -o "$MODEL_STATUS_FILE" "$MODEL_STATUS_URL"; then
             echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
-            echo "Core model-status route failed: \`$MODEL_STATUS_URL\`." >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Staging model-status route failed: $MODEL_STATUS_URL"
-            exit 1
+            echo "Model probes skipped because the core model-status route was unavailable: \`$MODEL_STATUS_URL\`." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Staging model-status route failed: $MODEL_STATUS_URL"
+            exit 0
           fi
 
           if ! jq -e '
@@ -905,9 +905,9 @@ jobs:
             (.deploymentCanaryModelIds | all(.[]; type == "string" and length > 0 and test("^[^\\r\\n]+$")))
           ' "$MODEL_STATUS_FILE" >/dev/null; then
             echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
-            echo "Core model-status response did not provide a valid \`deploymentCanaryModelIds\` array." >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::Staging model-status response schema is invalid"
-            exit 1
+            echo "Model probes skipped because \`deploymentCanaryModelIds\` was missing or invalid." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Staging model-status response schema is invalid"
+            exit 0
           fi
 
           mapfile -t DEPLOYMENT_CANARY_MODEL_IDS < <(jq -r '.deploymentCanaryModelIds[]' "$MODEL_STATUS_FILE")

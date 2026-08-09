@@ -429,6 +429,30 @@ describe('chat route provider payload mapping', () => {
     await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply' });
   });
 
+  it('reports a safe provider-timeout fallback reason when every attempted provider times out', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => {
+      throw new OpenAI.APIUserAbortError();
+    });
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, { model: 'diffusiongemma-26b' }));
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-timeout');
+  });
+
+  it('reports a safe invalid-provider-response fallback reason when every response is empty', async () => {
+    groqCreateMock.mockResolvedValue({ choices: [{ message: { content: '   ' } }] });
+
+    const response = await POST(createChatRequest());
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('invalid-provider-response');
+  });
+
   it('does not expose raw provider errors in the fallback reason header', async () => {
     groqCreateMock.mockRejectedValue(new Error('upstream secret detail\r\napi-key-value'));
 

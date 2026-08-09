@@ -174,15 +174,29 @@ describe('release version promotion', () => {
     expect(modelCanaryLoop).toContain('--max-time 100');
     expect(modelCanaryLoop).not.toContain('--max-time 45');
     expect(modelCanaryLoop).toMatch(
-      /if CHAT_HTTP_CODE="\$\(curl -sk --max-time 100[\s\S]*?-w '%\{http_code\}'[\s\S]*?\)"; then\n\s+CHAT_CURL_EXIT=0\n\s+else\n\s+CHAT_CURL_EXIT=\$\?\n\s+CHAT_HTTP_CODE="000"\n\s+fi/,
+      /if CHAT_CURL_METRICS="\$\(curl -sk --max-time 100[\s\S]*?-w '%\{http_code\} %\{time_total\}'[\s\S]*?\)"; then\n\s+CHAT_CURL_EXIT=0\n\s+else\n\s+CHAT_CURL_EXIT=\$\?\n\s+fi/,
     );
     expect(modelCanaryLoop).not.toContain('|| echo "000"');
+    expect(modelCanaryLoop).toContain('CHAT_ELAPSED_SECONDS="unknown"');
+    expect(modelCanaryLoop).toContain('CHAT_HTTP_CODE="${BASH_REMATCH[1]}"');
+    expect(modelCanaryLoop).toContain('CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"');
+    expect(modelCanaryLoop).toContain('CHAT_FALLBACK="unknown"');
+    expect(modelCanaryLoop).toContain('primaryOnline|fallbackOnline|localStatic');
+    expect(modelCanaryLoop).toContain('CHAT_FALLBACK_REASON="unknown"');
+    expect(modelCanaryLoop).toContain(
+      'all-providers-failed|no-providers-configured|request-aborted|server-deadline-exceeded|provider-timeout|invalid-provider-response',
+    );
+    expect(modelCanaryLoop).toContain(
+      'CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} fallback=${CHAT_FALLBACK} reason=${CHAT_FALLBACK_REASON} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"',
+    );
+    expect(modelCanaryLoop).not.toContain('cat "$CHAT_HEADERS_FILE"');
+    expect(modelCanaryLoop).not.toContain('cat "$CHAT_BODY_FILE"');
     expect(verificationScript).toContain('content-type:[[:space:]]*application/json');
     expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$');
     expect(verificationScript).toContain('body?.modelId !== process.env.CHAT_MODEL');
     expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
     expect(verificationScript).toContain(
-      'fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT};',
+      'fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS};',
     );
   });
 });

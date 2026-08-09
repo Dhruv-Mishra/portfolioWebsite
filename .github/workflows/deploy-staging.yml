@@ -803,27 +803,61 @@ jobs:
             for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do
               CHAT_HEADERS_FILE="$(mktemp)"
               CHAT_BODY_FILE="$(mktemp)"
-              if CHAT_HTTP_CODE="$(curl -sk --max-time 100 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+              CHAT_HTTP_CODE="000"
+              CHAT_ELAPSED_SECONDS="unknown"
+              CHAT_CURL_METRICS=""
+              if CHAT_CURL_METRICS="$(curl -sk --max-time 100 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
                 -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
                 -H "Origin: https://${SVC_DOMAIN}" -H "Referer: https://${SVC_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
                 --data "{\"model\":\"${CHAT_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Staging deployment canary health check. Please provide a brief acknowledgement.\"}]}" \
-                -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w '%{http_code}' "https://${SVC_DOMAIN}/chat/respond" 2>/dev/null)"; then
+                -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w '%{http_code} %{time_total}' "https://${SVC_DOMAIN}/chat/respond" 2>/dev/null)"; then
                 CHAT_CURL_EXIT=0
               else
                 CHAT_CURL_EXIT=$?
-                CHAT_HTTP_CODE="000"
               fi
+              if [[ "$CHAT_CURL_METRICS" =~ ^([0-9]{3})[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
+                CHAT_HTTP_CODE="${BASH_REMATCH[1]}"
+                CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"
+              fi
+              read_chat_header() {
+                local header_name="$1"
+                awk -v header_name="$header_name" '
+                  {
+                    line = $0
+                    sub(/\r$/, "", line)
+                    split(line, parts, ":")
+                    if (tolower(parts[1]) == header_name && line ~ /^[^:]*:/) {
+                      sub(/^[^:]*:[[:space:]]*/, "", line)
+                      print line
+                      exit
+                    }
+                  }
+                ' "$CHAT_HEADERS_FILE"
+              }
+              CHAT_FALLBACK="unknown"
+              CHAT_FALLBACK_VALUE="$(read_chat_header 'x-chat-fallback')"
+              case "$CHAT_FALLBACK_VALUE" in
+                primaryOnline|fallbackOnline|localStatic) CHAT_FALLBACK="$CHAT_FALLBACK_VALUE" ;;
+              esac
+              CHAT_FALLBACK_REASON="unknown"
+              CHAT_FALLBACK_REASON_VALUE="$(read_chat_header 'x-chat-fallback-reason')"
+              case "$CHAT_FALLBACK_REASON_VALUE" in
+                all-providers-failed|no-providers-configured|request-aborted|server-deadline-exceeded|provider-timeout|invalid-provider-response)
+                  CHAT_FALLBACK_REASON="$CHAT_FALLBACK_REASON_VALUE"
+                  ;;
+              esac
+              CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} fallback=${CHAT_FALLBACK} reason=${CHAT_FALLBACK_REASON} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"
               if [ "$CHAT_HTTP_CODE" != "200" ]; then
                 rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT}; expected HTTP 200"
+                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected HTTP 200"
               fi
               if ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
                 rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT}; expected JSON content type"
+                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected JSON content type"
               fi
               if ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$' "$CHAT_HEADERS_FILE"; then
                 rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT}; expected primaryOnline fallback header"
+                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected primaryOnline fallback header"
               fi
               if ! CHAT_MODEL="$CHAT_MODEL" node - "$CHAT_BODY_FILE" <<'NODE'
             const fs = require('node:fs');
@@ -845,7 +879,7 @@ jobs:
             NODE
               then
                 rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT}; response contract invalid"
+                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; response contract invalid"
               fi
               rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
               echo "Staging chat canary verified: ${CHAT_MODEL}"

@@ -45,6 +45,13 @@ type ProviderFailureCode =
   | 'request-aborted'
   | 'server-deadline-exceeded';
 
+type FallbackReason =
+  | 'all-providers-failed'
+  | 'invalid-provider-response'
+  | 'no-providers-configured'
+  | 'provider-timeout'
+  | 'request-aborted'
+  | 'server-deadline-exceeded';
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 300_000;
@@ -168,7 +175,7 @@ function getOrderedProviders(
 
 function createFallbackResponse(
   latestUserMessage: string,
-  reason?: 'all-providers-failed' | 'no-providers-configured' | 'request-aborted' | 'server-deadline-exceeded',
+  reason?: FallbackReason,
 ) {
   const reply = getContextualFallback(latestUserMessage);
   const headers: Record<string, string> = {
@@ -184,6 +191,22 @@ function createFallbackResponse(
     degraded: true,
     signature: signAssistantMessage(reply, null),
   }, { headers });
+}
+
+function getFallbackReason(
+  providerFailureCodes: ProviderFailureCode[],
+  requestSignal: AbortSignal,
+  routeDeadlineSignal: AbortSignal,
+): FallbackReason {
+  if (requestSignal.aborted) return 'request-aborted';
+  if (routeDeadlineSignal.aborted) return 'server-deadline-exceeded';
+  if (providerFailureCodes.length > 0 && providerFailureCodes.every((code) => code === 'provider-timeout')) {
+    return 'provider-timeout';
+  }
+  if (providerFailureCodes.length > 0 && providerFailureCodes.every((code) => code === 'invalid-provider-response')) {
+    return 'invalid-provider-response';
+  }
+  return 'all-providers-failed';
 }
 
 export async function POST(request: NextRequest) {
@@ -316,6 +339,7 @@ export async function POST(request: NextRequest) {
     let result: ProviderCallResult | null = null;
     let succeededTier: 'primaryOnline' | 'fallbackOnline' | null = null;
     const providerErrors: string[] = [];
+    const providerFailureCodes: ProviderFailureCode[] = [];
 
     const fallbackAttemptBudget = providers.length > 1
       ? Math.floor(LLM_PROVIDER_FALLBACK_RESERVE_MS / (providers.length - 1))
@@ -346,6 +370,7 @@ export async function POST(request: NextRequest) {
         break;
       } catch (err) {
         const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
+        providerFailureCodes.push(code);
         providerErrors.push(`${provider.label}: ${code}`);
         console.warn('LLM provider failed', {
           provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
@@ -362,11 +387,7 @@ export async function POST(request: NextRequest) {
       });
       return createFallbackResponse(
         latestUserMessage,
-        request.signal.aborted
-          ? 'request-aborted'
-          : routeDeadlineController.signal.aborted
-            ? 'server-deadline-exceeded'
-            : 'all-providers-failed',
+        getFallbackReason(providerFailureCodes, request.signal, routeDeadlineController.signal),
       );
     }
 

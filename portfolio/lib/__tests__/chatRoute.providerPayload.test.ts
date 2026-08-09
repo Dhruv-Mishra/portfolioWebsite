@@ -477,7 +477,7 @@ describe('chat route provider payload mapping', () => {
 
   it('rejects images for a text-only model', async () => {
     const response = await POST(createChatRequest(undefined, {
-      model: 'glm-5.2',
+      model: 'gpt-oss-120b',
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
     }));
 

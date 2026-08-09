@@ -34,7 +34,7 @@ The repository contains five curated product screenshots covering the home inter
 - **Terminal navigation:** a shell-inspired command surface opens portfolio areas, changes allowed presentation state, and keeps the less-obvious interactions part of the experience.
 - **Projects and public content:** case-study cards and modals sit alongside resume, Markdown, `llms.txt`, and sitemap routes for people, crawlers, and AI clients.
 - **Grounded chat:** server-built context combines a local Markdown fact corpus with its committed embeddings bundle; the browser never receives provider credentials.
-- **Model selection with boundaries:** the picker exposes a Groq default, eight NVIDIA-hosted choices, and an optional OpenAI-compatible local agent. Model IDs are server allowlisted, and image input appears only for vision-capable choices.
+- **Model selection with boundaries:** the picker exposes a Groq default, seven NVIDIA-hosted choices, and an optional OpenAI-compatible local agent. Model IDs are server allowlisted, and image input appears only for vision-capable choices.
 - **Voice in and out:** users can choose browser-native recognition or local Whisper transcription in a Web Worker. Server custom voice uses Pocket TTS, streams generated audio, caches playback in the browser, and can fall back to device speech.
 - **Product workflows:** a GitHub-backed guestbook, private feedback, stickers, settings, and deterministic chat actions extend the portfolio beyond a static presentation.
 
@@ -60,7 +60,6 @@ This keeps enough detail for screenshots and visual questions while reducing bas
 | Runtime | Model | Capability |
 |---|---|---|
 | Groq | Qwen 3.6 27B | Recommended, fast, vision |
-| NVIDIA | GLM 5.2 | Reasoning |
 | NVIDIA | Inkling | Fast, vision |
 | NVIDIA | MiniMax M3 | Preview, vision; non-commercial use only |
 | NVIDIA | DiffusionGemma 26B | Vision |

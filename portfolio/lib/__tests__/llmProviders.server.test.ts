@@ -81,14 +81,6 @@ describe('getSuggestionsProviders', () => {
       imageInputOrder: 'image-first',
       acceptsSystemMessages: false,
     });
-    expect(getChatProviders('glm-5.2').primary).toMatchObject({
-      supportsImages: false,
-    });
-    expect(getChatProviders('glm-5.2').primary?.sampling.extraBody).toEqual({
-      chat_template_kwargs: { enable_thinking: false },
-    });
-    expect(getChatProviders('glm-5.2').primary).not.toHaveProperty('imageInputOrder');
-
     expect(getChatProviders('gemma-4-31b-it').primary).toMatchObject({
       kind: 'nvidia',
       model: 'google/gemma-4-31b-it',
@@ -111,7 +103,7 @@ describe('getSuggestionsProviders', () => {
     vi.stubEnv('NVIDIA_API_KEY', '');
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
 
-    expect(getChatProviders('glm-5.2')).toEqual({ primary: null, fallbacks: [] });
+    expect(getChatProviders('gpt-oss-120b')).toEqual({ primary: null, fallbacks: [] });
   });
 
   it.each([

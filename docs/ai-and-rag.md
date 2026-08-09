@@ -7,7 +7,6 @@ The chat route accepts only model IDs defined in [the model registry](../portfol
 | Group | Model | Image input | Registry role |
 |---|---|---:|---|
 | Recommended | Groq Qwen 3.6 27B | Yes | Default selection |
-| NVIDIA | GLM 5.2 | No | Strong reasoning |
 | NVIDIA | Inkling | Yes | Fast |
 | NVIDIA | MiniMax M3 | Yes | Preview; non-commercial use only |
 | NVIDIA | DiffusionGemma 26B | Yes | Vision |

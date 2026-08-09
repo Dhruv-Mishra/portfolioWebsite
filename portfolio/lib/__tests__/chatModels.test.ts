@@ -11,10 +11,9 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(10);
+    expect(CHAT_MODELS).toHaveLength(9);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
-      'z-ai/glm-5.2',
       'thinkingmachines/inkling',
       'minimaxai/minimax-m3',
       'google/diffusiongemma-26b-a4b-it',
@@ -45,7 +44,6 @@ describe('chat model catalog', () => {
   it('declares picker capabilities explicitly for every model', () => {
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [model.id, model.capabilities]))).toEqual({
       'qwen-3.6-27b': ['fast', 'image'],
-      'glm-5.2': ['reasoning', 'slow'],
       inkling: ['fast', 'image'],
       'minimax-m3': ['image'],
       'diffusiongemma-26b': ['image'],
@@ -70,7 +68,6 @@ describe('chat model catalog', () => {
       'imageInputOrder' in model ? model.imageInputOrder : null,
     ]))).toEqual({
       'qwen-3.6-27b': 'text-first',
-      'glm-5.2': null,
       inkling: 'text-first',
       'minimax-m3': 'text-first',
       'diffusiongemma-26b': 'image-first',

@@ -104,7 +104,6 @@ describe('release version promotion', () => {
     );
     const expectedStagingChatModels = [
       'qwen-3.6-27b',
-      'glm-5.2',
       'inkling',
       'minimax-m3',
       'diffusiongemma-26b',

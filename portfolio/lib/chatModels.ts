@@ -35,16 +35,6 @@ export const CHAT_MODELS = [
     isRecommended: true,
   },
   {
-    id: 'glm-5.2',
-    provider: 'nvidia',
-    group: 'NVIDIA',
-    upstreamModel: 'z-ai/glm-5.2',
-    label: 'GLM 5.2',
-    quality: 'Strong reasoning',
-    supportsImages: false,
-    capabilities: ['reasoning', 'slow'],
-  },
-  {
     id: 'inkling',
     provider: 'nvidia',
     group: 'NVIDIA',

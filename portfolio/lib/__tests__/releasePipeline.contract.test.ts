@@ -38,12 +38,12 @@ describe('release version promotion', () => {
     ).toBe(packageJson.version);
   });
 
-  it('prepares each staging release as a minor-version pull request', () => {
+  it('prepares each staging release as a minor-version release branch', () => {
     expect(stagingPromotion).toContain('mode:');
     expect(stagingPromotion).toContain('default: prepare-release');
     expect(stagingPromotion).toContain('- prepare-release');
     expect(stagingPromotion).toContain('- promote-release');
-    expect(stagingPromotion).toContain('pull-requests: write');
+    expect(stagingPromotion).not.toContain('pull-requests: write');
     expect(stagingPromotion).toContain(
       'npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor',
     );
@@ -63,9 +63,19 @@ describe('release version promotion', () => {
     expect(prepareRelease).toContain('git merge-base --is-ancestor "$target_sha" "$source_sha"');
     expect(prepareRelease).toContain('release_branch="release/staging-v${next_version}"');
     expect(prepareRelease).toContain('git push origin "HEAD:refs/heads/${release_branch}"');
-    expect(prepareRelease).toContain('gh pr list --head "$release_branch" --base "$SOURCE_BRANCH"');
-    expect(prepareRelease).toContain('gh pr create --base "$SOURCE_BRANCH" --head "$release_branch"');
-    expect(prepareRelease).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(prepareRelease).toContain(
+      'compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${SOURCE_BRANCH}...${release_branch}"',
+    );
+    expect(prepareRelease).toContain('echo "compare_url=$compare_url" >> "$GITHUB_OUTPUT"');
+    expect(prepareRelease).not.toContain('gh pr list');
+    expect(prepareRelease).not.toContain('gh pr create');
+    expect(prepareRelease).not.toContain('GH_TOKEN:');
+    expect(prepareRelease).not.toContain('pr_number=');
+    expect(prepareRelease).not.toContain('pr_url=');
+    expect(stagingPromotion).toContain(
+      '| Open release PR | [Open release PR](${{ steps.prepare.outputs.compare_url }}) |',
+    );
+    expect(stagingPromotion).not.toContain('steps.prepare.outputs.pr_number');
     expect(stagingPromotion).not.toContain('git push --atomic origin');
     expect(stagingPromotion).not.toContain('"HEAD:refs/heads/${SOURCE_BRANCH}"');
   });

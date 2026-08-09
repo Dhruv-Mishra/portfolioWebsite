@@ -72,11 +72,6 @@ describe('getSuggestionsProviders', () => {
       chat_template_kwargs: { thinking_mode: 'disabled' },
     });
 
-    expect(getChatProviders('diffusiongemma-26b').primary).toMatchObject({
-      supportsImages: true,
-      imageInputOrder: 'image-first',
-      acceptsSystemMessages: false,
-    });
     expect(getChatProviders('nemotron-3-super-120b-a12b').primary).toMatchObject({
       kind: 'nvidia',
       model: 'nvidia/nemotron-3-super-120b-a12b',

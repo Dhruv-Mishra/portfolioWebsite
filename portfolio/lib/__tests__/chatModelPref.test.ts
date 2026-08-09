@@ -15,6 +15,7 @@ describe('chat model preference', () => {
     expect(readChatModelPref(null)).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(readChatModelPref('not-a-model')).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(readChatModelPref('gpt-oss-120b')).toBe(DEFAULT_CHAT_MODEL_ID);
+    expect(readChatModelPref('diffusiongemma-26b')).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(source).toContain('useSyncExternalStore<ChatModelId>');
   });
 

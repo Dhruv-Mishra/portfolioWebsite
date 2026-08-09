@@ -11,11 +11,10 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(6);
+    expect(CHAT_MODELS).toHaveLength(5);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
       'minimaxai/minimax-m3',
-      'google/diffusiongemma-26b-a4b-it',
       'deepseek-ai/deepseek-v4-flash-0731',
       'nvidia/nemotron-3-super-120b-a12b',
       'gemma-4-e2b-phone',
@@ -34,6 +33,7 @@ describe('chat model catalog', () => {
 
   it('rejects unknown client model identifiers', () => {
     expect(isChatModelId('llama-3.1-8b-instant')).toBe(false);
+    expect(isChatModelId('diffusiongemma-26b')).toBe(false);
     expect(isChatModelId('qwen-3.6-27b')).toBe(true);
     expect(isChatModelId('qwen-3.5-4b-local')).toBe(true);
   });
@@ -42,7 +42,6 @@ describe('chat model catalog', () => {
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [model.id, model.capabilities]))).toEqual({
       'qwen-3.6-27b': ['fast', 'image'],
       'minimax-m3': ['image'],
-      'diffusiongemma-26b': ['image'],
       'deepseek-v4-flash': ['fast'],
       'nemotron-3-super-120b-a12b': ['reasoning', 'slow'],
       'qwen-3.5-4b-local': ['slow'],
@@ -53,7 +52,6 @@ describe('chat model catalog', () => {
     expect(CHAT_MODELS.filter((model) => model.supportsImages).map((model) => model.id)).toEqual([
       'qwen-3.6-27b',
       'minimax-m3',
-      'diffusiongemma-26b',
     ]);
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [
       model.id,
@@ -61,7 +59,6 @@ describe('chat model catalog', () => {
     ]))).toEqual({
       'qwen-3.6-27b': 'text-first',
       'minimax-m3': 'text-first',
-      'diffusiongemma-26b': 'image-first',
       'deepseek-v4-flash': null,
       'nemotron-3-super-120b-a12b': null,
       'qwen-3.5-4b-local': null,

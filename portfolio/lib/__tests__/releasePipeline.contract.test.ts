@@ -105,7 +105,6 @@ describe('release version promotion', () => {
     const expectedStagingChatModels = [
       'qwen-3.6-27b',
       'minimax-m3',
-      'diffusiongemma-26b',
       'deepseek-v4-flash',
       'nemotron-3-super-120b-a12b',
       'qwen-3.5-4b-local',

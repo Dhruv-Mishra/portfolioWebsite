@@ -87,35 +87,19 @@ const FALLBACK_PROVIDER = {
 
 const NVIDIA_VISION_PROVIDER = {
   kind: 'nvidia' as const,
-  label: 'nvidia-vision',
+  label: 'nvidia-minimax',
   apiKey: 'nvidia-key',
   baseURL: 'https://integrate.api.nvidia.com/v1',
-  model: 'google/diffusiongemma-26b-a4b-it',
-  modelId: 'diffusiongemma-26b' as const,
+  model: 'minimaxai/minimax-m3',
+  modelId: 'minimax-m3' as const,
   supportsImages: true,
-  imageInputOrder: 'image-first' as const,
-  acceptsSystemMessages: false,
-  sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
-};
-
-const NVIDIA_STREAMING_TEXT_FIRST_VISION_PROVIDERS = [
-  {
-    kind: 'nvidia' as const,
-    label: 'nvidia-minimax',
-    apiKey: 'nvidia-key',
-    baseURL: 'https://integrate.api.nvidia.com/v1',
-    model: 'minimaxai/minimax-m3',
-    modelId: 'minimax-m3' as const,
-    supportsImages: true,
-    imageInputOrder: 'text-first' as const,
-    acceptsSystemMessages: true,
-    sampling: {
-      temperature: 0.6,
-      maxTokens: 384,
-      extraBody: { chat_template_kwargs: { thinking_mode: 'disabled' } },
-    },
+  imageInputOrder: 'text-first' as const,
+  sampling: {
+    temperature: 0.6,
+    maxTokens: 384,
+    extraBody: { chat_template_kwargs: { thinking_mode: 'disabled' } },
   },
-] as const;
+};
 
 function createChatRequest(signal?: AbortSignal, payload: Record<string, unknown> = {}): NextRequest {
   const body = JSON.stringify({ messages: [{ role: 'user', content: 'Tell me about your work' }], ...payload });
@@ -289,7 +273,7 @@ describe('chat route provider payload mapping', () => {
     });
 
     const response = await POST(createChatRequest(undefined, {
-      model: 'diffusiongemma-26b',
+      model: 'minimax-m3',
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
     }));
 
@@ -318,35 +302,32 @@ describe('chat route provider payload mapping', () => {
     });
   });
 
-  it.each(NVIDIA_STREAMING_TEXT_FIRST_VISION_PROVIDERS)(
-    'keeps the image in the $modelId NVIDIA stream payload',
-    async (provider) => {
-      getChatProvidersMock.mockReturnValue({ primary: provider, fallbacks: [] });
-      const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
-      createProviderClientMock.mockReturnValue({
-        chat: { completions: { create: nvidiaCreateMock } },
-      });
+  it('keeps the image in the MiniMax NVIDIA stream payload', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: nvidiaCreateMock } },
+    });
 
-      const response = await POST(createChatRequest(undefined, {
-        model: provider.modelId,
-        image: { dataUrl: 'data:image/jpeg;base64,aGVsbG8=' },
-      }));
+    const response = await POST(createChatRequest(undefined, {
+      model: NVIDIA_VISION_PROVIDER.modelId,
+      image: { dataUrl: 'data:image/jpeg;base64,aGVsbG8=' },
+    }));
 
-      expect(response.status).toBe(200);
-      const payload = nvidiaCreateMock.mock.calls[0]?.[0] as {
-        messages: Array<{ role: string; content: unknown }>;
-        stream: boolean;
-      };
-      expect(payload.stream).toBe(true);
-      expect(payload.messages.at(-1)).toEqual({
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Tell me about your work' },
-          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,aGVsbG8=' } },
-        ],
-      });
-    },
-  );
+    expect(response.status).toBe(200);
+    const payload = nvidiaCreateMock.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: unknown }>;
+      stream: boolean;
+    };
+    expect(payload.stream).toBe(true);
+    expect(payload.messages.at(-1)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Tell me about your work' },
+        { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,aGVsbG8=' } },
+      ],
+    });
+  });
 
   it('skips a late invalid-response retry once the provider budget has under two seconds left', async () => {
     let now = 0;
@@ -397,7 +378,7 @@ describe('chat route provider payload mapping', () => {
     });
 
     const response = await POST(createChatRequest(requestController.signal, {
-      model: 'diffusiongemma-26b',
+      model: 'minimax-m3',
     }));
 
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
@@ -423,7 +404,7 @@ describe('chat route provider payload mapping', () => {
       },
     }));
 
-    const response = await POST(createChatRequest(undefined, { model: 'diffusiongemma-26b' }));
+    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3' }));
 
     expect(warningSpy).toHaveBeenCalledWith('LLM provider failed', expect.objectContaining({
       code: 'provider-timeout',
@@ -443,7 +424,7 @@ describe('chat route provider payload mapping', () => {
       chat: { completions: { create: nvidiaCreateMock } },
     });
 
-    const response = await POST(createChatRequest(undefined, { model: 'diffusiongemma-26b' }));
+    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3' }));
 
     expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-timeout');
@@ -489,72 +470,6 @@ describe('chat route provider payload mapping', () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: 'The selected model does not support images' });
     expect(groqCreateMock).not.toHaveBeenCalled();
-  });
-
-  it('merges user turns left adjacent by unsigned assistant removal before folding DiffusionGemma system context', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
-    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: nvidiaCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, {
-      model: 'diffusiongemma-26b',
-      messages: [
-        { role: 'user', content: 'Earlier text' },
-        { role: 'assistant', content: 'unsigned assistant' },
-        { role: 'user', content: 'What is in this image?' },
-      ],
-      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
-    }));
-
-    expect(response.status).toBe(200);
-    const payload = nvidiaCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
-    expect(payload.messages.some((message) => message.role === 'system')).toBe(false);
-    expect(payload.messages).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
-          { type: 'text', text: 'stable system prompt\n\nconditional system prompt\n\nEarlier text\n\nWhat is in this image?' },
-        ],
-      },
-    ]);
-    expect(payload.messages.filter((message) => Array.isArray(message.content))).toHaveLength(1);
-    expect(nvidiaCreateMock.mock.calls[0]?.[0]).toMatchObject({
-      max_tokens: 384,
-      temperature: 0.6,
-      chat_template_kwargs: { enable_thinking: false },
-    });
-    await expect(response.json()).resolves.toMatchObject({ modelId: 'diffusiongemma-26b' });
-  });
-
-  it('keeps a single-turn DiffusionGemma image before folded system and user text', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_VISION_PROVIDER, fallbacks: [] });
-    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('vision reply'));
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: nvidiaCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, {
-      model: 'diffusiongemma-26b',
-      messages: [{ role: 'user', content: 'What is in this image?' }],
-      image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
-    }));
-
-    expect(response.status).toBe(200);
-    const payload = nvidiaCreateMock.mock.calls[0]?.[0] as {
-      messages: Array<{ role: string; content: unknown }>;
-    };
-    expect(payload.messages).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
-          { type: 'text', text: 'stable system prompt\n\nconditional system prompt\n\nWhat is in this image?' },
-        ],
-      },
-    ]);
   });
 
 });

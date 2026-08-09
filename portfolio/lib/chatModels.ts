@@ -47,17 +47,6 @@ export const CHAT_MODELS = [
     caveat: 'Preview model; non-commercial use only.',
   },
   {
-    id: 'diffusiongemma-26b',
-    provider: 'nvidia',
-    group: 'NVIDIA',
-    upstreamModel: 'google/diffusiongemma-26b-a4b-it',
-    label: 'DiffusionGemma 26B',
-    quality: 'Vision',
-    supportsImages: true,
-    imageInputOrder: 'image-first',
-    capabilities: ['image'],
-  },
-  {
     id: 'deepseek-v4-flash',
     provider: 'nvidia',
     group: 'NVIDIA',

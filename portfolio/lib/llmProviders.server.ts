@@ -99,8 +99,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
 
   const extraBody = (() => {
     switch (model.id) {
-      case 'diffusiongemma-26b':
-        return { chat_template_kwargs: { enable_thinking: false } };
       case 'minimax-m3':
         return { chat_template_kwargs: { thinking_mode: 'disabled' } };
       case 'deepseek-v4-flash':
@@ -119,7 +117,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
     label: `nvidia:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
-    acceptsSystemMessages: model.id !== 'diffusiongemma-26b',
     sampling: {
       temperature: 0.6,
       maxTokens: 384,

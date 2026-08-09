@@ -86,7 +86,7 @@ scripts/          embeddings and deployment helpers
 ## Runtime Notes
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
-- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default, one of four NVIDIA models, or the optional local agent. Provider failures degrade to the local fallback reply instead of silently switching models.
+- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default, one of three NVIDIA models, or the optional local agent. Provider failures degrade to the local fallback reply instead of silently switching models.
 - Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
 - Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.

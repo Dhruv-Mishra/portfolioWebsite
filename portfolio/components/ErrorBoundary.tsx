@@ -1,6 +1,8 @@
 "use client";
 
 import React, { Component, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -10,6 +12,20 @@ interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+}
+
+function ErrorBoundaryHomeButton() {
+  const router = useRouter();
+
+  return (
+    <button
+      type="button"
+      onClick={() => requestPageTurnNavigation(router, { href: '/', mode: 'push' })}
+      className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
+    >
+      Go Back Home
+    </button>
+  );
 }
 
 // ErrorBoundary must NOT depend on framer-motion — if framer-motion itself
@@ -52,13 +68,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   {this.state.error.toString()}
                 </pre>
               )}
-              <button
-                type="button"
-                onClick={() => window.location.href = '/'}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
-              >
-                Go Back Home
-              </button>
+              <ErrorBoundaryHomeButton />
             </div>
           </div>
         </div>

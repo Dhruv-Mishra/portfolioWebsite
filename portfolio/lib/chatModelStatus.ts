@@ -15,6 +15,7 @@ export interface ChatModelStatusSnapshot {
   local: LocalModelStatus | null;
   configuredUnavailableModelIds: readonly ChatModelId[];
   deploymentCanaryModelIds: readonly ChatModelId[];
+  advisoryIssueModelIds: readonly ChatModelId[];
   issueModelIds: readonly ChatModelId[];
 }
 
@@ -22,6 +23,7 @@ const EMPTY_CHAT_MODEL_STATUS: ChatModelStatusSnapshot = {
   local: null,
   configuredUnavailableModelIds: [],
   deploymentCanaryModelIds: [],
+  advisoryIssueModelIds: [],
   issueModelIds: [],
 };
 
@@ -77,12 +79,32 @@ function parseConfiguredUnavailableModelIds(value: unknown): ChatModelId[] {
   });
 }
 
+function isFreshAdvisoryExpiry(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+
+  const expiresAt = Date.parse(value);
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+function parseAdvisoryIssueModelIds(value: unknown): ChatModelId[] {
+  if (!isRecord(value) || !isFreshAdvisoryExpiry(value.expiresAt) || !Array.isArray(value.models)) {
+    return [];
+  }
+
+  return [...new Set(value.models.flatMap((entry) => {
+    if (!isRecord(entry) || (entry.state !== 'degraded' && entry.state !== 'unhealthy')) return [];
+    const modelId = parseModelId(entry.id);
+    return modelId ? [modelId] : [];
+  }))];
+}
+
 export function parseChatModelStatusPayload(value: unknown): Omit<ChatModelStatusSnapshot, 'issueModelIds'> | null {
   if (!isRecord(value)) return null;
 
   const local = parseLocalModelStatus(value.localModelStatus ?? value.local ?? value.localAgent ?? value);
   const models = parseConfiguredUnavailableModelIds(value.models);
   const deploymentCanaryModelIds = parseModelIdList(value.deploymentCanaryModelIds);
+  const advisoryIssueModelIds = parseAdvisoryIssueModelIds(value.advisoryHealth);
 
   if (!local && !Array.isArray(value.models) && !isRecord(value.models)) return null;
 
@@ -90,6 +112,7 @@ export function parseChatModelStatusPayload(value: unknown): Omit<ChatModelStatu
     local,
     configuredUnavailableModelIds: models,
     deploymentCanaryModelIds,
+    advisoryIssueModelIds,
   };
 }
 
@@ -153,7 +176,9 @@ export function markChatModelFacingIssues(modelId: ChatModelId): void {
 }
 
 export function isChatModelFacingIssues(modelId: ChatModelId, status: ChatModelStatusSnapshot): boolean {
-  return status.configuredUnavailableModelIds.includes(modelId) || status.issueModelIds.includes(modelId);
+  return status.configuredUnavailableModelIds.includes(modelId)
+    || status.advisoryIssueModelIds.includes(modelId)
+    || status.issueModelIds.includes(modelId);
 }
 
 export function getChatModelDisplayName(

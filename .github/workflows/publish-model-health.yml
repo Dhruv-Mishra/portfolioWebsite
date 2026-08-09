@@ -1,0 +1,323 @@
+name: Publish Advisory Model Health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+env:
+  MODEL_HEALTH_REPOSITORY: Dhruv-Mishra/portfolio-model-health
+
+jobs:
+  publish-model-health:
+    name: Publish ${{ matrix.environment }} model health
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: staging
+            site_domain: staging.whoisdhruv.com
+          - environment: production
+            site_domain: whoisdhruv.com
+    concurrency:
+      group: publish-model-health-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      MODEL_HEALTH_ENVIRONMENT: ${{ matrix.environment }}
+      MODEL_HEALTH_SITE_DOMAIN: ${{ matrix.site_domain }}
+      MODEL_HEALTH_TOKEN: ${{ secrets.MODEL_HEALTH_TOKEN }}
+
+    steps:
+      - name: Probe deployment canaries and publish advisory snapshot
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          warn() {
+            local message="$1"
+            echo "::warning::${message}"
+            echo "- Warning: ${message}" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          {
+            echo "## Advisory model-health publish (${MODEL_HEALTH_ENVIRONMENT})"
+            echo ""
+            echo "This workflow is advisory only. It does not gate deployments or change chat routing."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "${MODEL_HEALTH_TOKEN:-}" ]; then
+            warn "MODEL_HEALTH_TOKEN is not configured; advisory health snapshot was not published"
+            exit 0
+          fi
+
+          STATUS_FILE="$(mktemp)"
+          EXISTING_RESPONSE_FILE="$(mktemp)"
+          EXISTING_SNAPSHOT_FILE="$(mktemp)"
+          PROBE_RESULTS_NDJSON_FILE="$(mktemp)"
+          PROBE_RESULTS_FILE="$(mktemp)"
+          SNAPSHOT_FILE="$(mktemp)"
+          WRITE_REQUEST_FILE="$(mktemp)"
+          WRITE_RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "$STATUS_FILE" "$EXISTING_RESPONSE_FILE" "$EXISTING_SNAPSHOT_FILE" "$PROBE_RESULTS_NDJSON_FILE" "$PROBE_RESULTS_FILE" "$SNAPSHOT_FILE" "$WRITE_REQUEST_FILE" "$WRITE_RESPONSE_FILE"' EXIT
+
+          MODEL_STATUS_URL="https://${MODEL_HEALTH_SITE_DOMAIN}/api/chat/model-status"
+          CONTENTS_URL="https://api.github.com/repos/${MODEL_HEALTH_REPOSITORY}/contents/status/v1/${MODEL_HEALTH_ENVIRONMENT}.json"
+          if ! curl -fsS --max-time 15 -H "Accept: application/json" \
+            -o "$STATUS_FILE" "$MODEL_STATUS_URL"; then
+            warn "Runtime model-status route failed; advisory health snapshot was not published"
+            exit 0
+          fi
+
+          if ! jq -e '
+            (.models | type == "array" and length > 0) and
+            (.models | all(
+              .[];
+              type == "object" and
+              (.id | type == "string" and length > 0 and test("^[^\\r\\n]+$")) and
+              (.provider | type == "string" and length > 0) and
+              (.available | type == "boolean")
+            )) and
+            (([.models[].id] | length) == ([.models[].id] | unique | length)) and
+            (.deploymentCanaryModelIds | type == "array") and
+            (.models as $models |
+              .deploymentCanaryModelIds | all(
+                .[];
+                type == "string" and
+                (. as $id | $models | any(.id == $id and .available == true))
+              )
+            )
+          ' "$STATUS_FILE" >/dev/null; then
+            warn "Runtime model-status response schema is invalid; advisory health snapshot was not published"
+            exit 0
+          fi
+
+          mapfile -t DEPLOYMENT_CANARY_MODEL_IDS < <(jq -r '.deploymentCanaryModelIds[]' "$STATUS_FILE")
+          if [ "${#DEPLOYMENT_CANARY_MODEL_IDS[@]}" -eq 0 ]; then
+            warn "Runtime model-status returned no configured deployment canaries; advisory health snapshot was not published"
+            exit 0
+          fi
+
+          MODEL_IDS_JSON="$(jq -c '[.models[].id]' "$STATUS_FILE")"
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          EXPIRES_AT="$(date -u -d '+20 minutes' +"%Y-%m-%dT%H:%M:%SZ")"
+
+          probe_model() {
+            local chat_model="$1"
+            local headers_file body_file curl_metrics curl_exit http_code elapsed_seconds returned_model failure_code healthy latency_ms
+            headers_file="$(mktemp)"
+            body_file="$(mktemp)"
+            curl_metrics=""
+            curl_exit=0
+            http_code="000"
+            elapsed_seconds=""
+            failure_code=""
+            healthy=false
+            latency_ms=null
+
+            if curl_metrics="$(curl -sk --max-time 100 \
+              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
+              -H "Origin: https://${MODEL_HEALTH_SITE_DOMAIN}" -H "Referer: https://${MODEL_HEALTH_SITE_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
+              --data "$(jq -nc --arg model "$chat_model" '{model: $model, messages: [{role: "user", content: "Scheduled canary health check. Reply with OK."}]}')" \
+              -D "$headers_file" -o "$body_file" -w '%{http_code} %{time_total}' "https://${MODEL_HEALTH_SITE_DOMAIN}/chat/respond" 2>/dev/null)"; then
+              curl_exit=0
+            else
+              curl_exit=$?
+            fi
+
+            if [[ "$curl_metrics" =~ ^([0-9]{3})[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
+              http_code="${BASH_REMATCH[1]}"
+              elapsed_seconds="${BASH_REMATCH[2]}"
+              latency_ms="$(jq -nr --arg seconds "$elapsed_seconds" '($seconds | tonumber * 1000 | round)')"
+            fi
+
+            returned_model="$(awk 'BEGIN { IGNORECASE = 1 } /^x-chat-fallback:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$headers_file")"
+            if [ "$curl_exit" -ne 0 ]; then
+              failure_code="network_error"
+            elif [ "$http_code" != "200" ]; then
+              failure_code="http_error"
+            elif ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$headers_file"; then
+              failure_code="invalid_response"
+            elif [ "$returned_model" = "localStatic" ]; then
+              failure_code="static_fallback"
+            elif [ "$returned_model" != "$chat_model" ]; then
+              failure_code="identity_mismatch"
+            elif ! jq -e --arg model "$chat_model" '
+              .modelId == $model and (.reply | type == "string" and length > 0)
+            ' "$body_file" >/dev/null; then
+              failure_code="invalid_response"
+            else
+              healthy=true
+            fi
+            rm -f "$headers_file" "$body_file"
+
+            jq -nc \
+              --arg id "$chat_model" \
+              --arg failureCode "$failure_code" \
+              --argjson healthy "$healthy" \
+              --argjson latencyMs "$latency_ms" '
+                {id: $id, healthy: $healthy}
+                | if $healthy then .failureCode = null else .failureCode = $failureCode end
+                | if $latencyMs == null then . else .latencyMs = $latencyMs end
+              ' >> "$PROBE_RESULTS_NDJSON_FILE"
+          }
+
+          for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do
+            probe_model "$CHAT_MODEL"
+          done
+          jq -s '.' "$PROBE_RESULTS_NDJSON_FILE" > "$PROBE_RESULTS_FILE"
+
+          EXISTING_SHA=""
+          fetch_existing_snapshot() {
+            local response_status
+            if ! response_status="$(curl -sS --max-time 15 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${MODEL_HEALTH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -o "$EXISTING_RESPONSE_FILE" -w '%{http_code}' "$CONTENTS_URL")"; then
+              warn "GitHub Contents API read failed; advisory health snapshot was not published"
+              return 1
+            fi
+
+            if [ "$response_status" = "404" ]; then
+              EXISTING_SHA=""
+              jq -n '{expiresAt: "", models: []}' > "$EXISTING_SNAPSHOT_FILE"
+              return 0
+            fi
+            if [ "$response_status" != "200" ]; then
+              warn "GitHub Contents API read returned HTTP ${response_status}; advisory health snapshot was not published"
+              return 1
+            fi
+            if ! jq -e '
+              type == "object" and
+              (.sha | type == "string" and length > 0) and
+              (.encoding == "base64") and
+              (.content | type == "string" and length > 0)
+            ' "$EXISTING_RESPONSE_FILE" >/dev/null; then
+              warn "GitHub Contents API read schema is invalid; advisory health snapshot was not published"
+              return 1
+            fi
+
+            EXISTING_SHA="$(jq -r '.sha' "$EXISTING_RESPONSE_FILE")"
+            if ! jq -r '.content' "$EXISTING_RESPONSE_FILE" | base64 --decode > "$EXISTING_SNAPSHOT_FILE"; then
+              warn "Existing advisory snapshot could not be decoded; advisory health snapshot was not published"
+              return 1
+            fi
+            if ! jq -e --arg environment "$MODEL_HEALTH_ENVIRONMENT" '
+              def exact_keys($expected): (keys | sort) == $expected;
+              type == "object" and
+              exact_keys(["environment", "expiresAt", "generatedAt", "models", "probeMode", "schemaVersion", "source"]) and
+              .schemaVersion == 1 and
+              .environment == $environment and
+              .probeMode == "canary" and
+              (.generatedAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+              (.expiresAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+              (.source | type == "object" and exact_keys(["runId", "site", "workflow"]) and
+                .workflow == "publish-model-health" and
+                (.runId | type == "string" and test("^[0-9]+$")) and
+                (.site | type == "string" and test("^[a-z0-9.-]{1,253}$"))
+              ) and
+              (.models | type == "array" and all(
+                .[];
+                type == "object" and
+                ((keys | sort) == ["checkedAt", "consecutiveFailures", "failureCode", "id", "state"] or
+                  (keys | sort) == ["checkedAt", "consecutiveFailures", "failureCode", "id", "latencyMs", "state"]
+                ) and
+                (.id | type == "string" and length > 0) and
+                (.state | . == "healthy" or . == "degraded" or . == "unhealthy" or . == "unknown") and
+                (.checkedAt | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+                (.consecutiveFailures | type == "number" and floor == . and . >= 0) and
+                (.failureCode == null or (.failureCode | type == "string" and test("^[a-z0-9]+(_[a-z0-9]+)*$"))) and
+                (has("latencyMs") | not or (.latencyMs | type == "number" and floor == . and . >= 0))
+              ))
+            ' "$EXISTING_SNAPSHOT_FILE" >/dev/null; then
+              warn "Existing advisory snapshot schema is invalid; advisory health snapshot was not published"
+              return 1
+            fi
+          }
+
+          build_snapshot() {
+            jq -n \
+              --arg environment "$MODEL_HEALTH_ENVIRONMENT" \
+              --arg generatedAt "$NOW" \
+              --arg expiresAt "$EXPIRES_AT" \
+              --arg runId "$GITHUB_RUN_ID" \
+              --arg site "$MODEL_HEALTH_SITE_DOMAIN" \
+              --argjson modelIds "$MODEL_IDS_JSON" \
+              --slurpfile previous "$EXISTING_SNAPSHOT_FILE" \
+              --slurpfile probes "$PROBE_RESULTS_FILE" '
+                (($previous[0] // {}) | if (.expiresAt? // "") > $generatedAt then (.models // []) else [] end) as $previousModels
+                | ($probes[0] // []) as $probes
+                | {
+                    schemaVersion: 1,
+                    environment: $environment,
+                    generatedAt: $generatedAt,
+                    expiresAt: $expiresAt,
+                    probeMode: "canary",
+                    source: {workflow: "publish-model-health", runId: $runId, site: $site},
+                    models: [
+                      $modelIds[] as $modelId
+                      | ($probes | map(select(.id == $modelId)) | first) as $probe
+                      | if $probe == null then
+                          {id: $modelId, state: "unknown", checkedAt: $generatedAt, consecutiveFailures: 0, failureCode: null}
+                        elif $probe.healthy then
+                          {id: $modelId, state: "healthy", checkedAt: $generatedAt, consecutiveFailures: 0, failureCode: null}
+                        else
+                          (([$previousModels[]? | select(.id == $modelId).consecutiveFailures] | first // 0) + 1) as $consecutiveFailures
+                          | {id: $modelId, state: (if $consecutiveFailures >= 2 then "unhealthy" else "degraded" end), checkedAt: $generatedAt, consecutiveFailures: $consecutiveFailures, failureCode: $probe.failureCode}
+                        end
+                      | if $probe != null and $probe.latencyMs != null then .latencyMs = $probe.latencyMs else . end
+                    ]
+                  }
+              ' > "$SNAPSHOT_FILE"
+          }
+
+          for attempt in 1 2; do
+            if ! fetch_existing_snapshot; then
+              exit 0
+            fi
+            build_snapshot
+            ENCODED_SNAPSHOT="$(base64 --wrap=0 "$SNAPSHOT_FILE")"
+            if [ -n "$EXISTING_SHA" ]; then
+              jq -n --arg message "chore: publish ${MODEL_HEALTH_ENVIRONMENT} model health" --arg content "$ENCODED_SNAPSHOT" --arg sha "$EXISTING_SHA" \
+                '{message: $message, content: $content, sha: $sha}' > "$WRITE_REQUEST_FILE"
+            else
+              jq -n --arg message "chore: publish ${MODEL_HEALTH_ENVIRONMENT} model health" --arg content "$ENCODED_SNAPSHOT" \
+                '{message: $message, content: $content}' > "$WRITE_REQUEST_FILE"
+            fi
+
+            if ! write_status="$(curl -sS --max-time 15 -X PUT \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${MODEL_HEALTH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "Content-Type: application/json" \
+              --data-binary @"$WRITE_REQUEST_FILE" \
+              -o "$WRITE_RESPONSE_FILE" -w '%{http_code}' "$CONTENTS_URL")"; then
+              warn "GitHub Contents API write failed; advisory health snapshot was not published"
+              exit 0
+            fi
+
+            if [ "$write_status" = "200" ] || [ "$write_status" = "201" ]; then
+              {
+                echo "| Model | State | Consecutive failures |"
+                echo "|---|---|---:|"
+                jq -r '.models[] | "| `\(.id)` | \(.state) | \(.consecutiveFailures) |"' "$SNAPSHOT_FILE"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ "$write_status" = "409" ] && [ "$attempt" -eq 1 ]; then
+              warn "GitHub Contents API write conflicted; retrying once with the current snapshot SHA"
+              continue
+            fi
+            if [ "$write_status" = "409" ]; then
+              warn "GitHub Contents API write conflicted after retry; advisory health snapshot was not published"
+            else
+              warn "GitHub Contents API write returned HTTP ${write_status}; advisory health snapshot was not published"
+            fi
+            exit 0
+          done

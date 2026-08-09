@@ -25,6 +25,7 @@ const stagingDeploy = readWorkflow('deploy-staging.yml');
 const productionDeploy = readWorkflow('deploy.yml');
 const productionRollback = readWorkflow('rollback-production.yml');
 const modelCatalogAudit = readWorkflow('model-catalog-audit.yml');
+const modelHealthPublisher = readWorkflow('publish-model-health.yml');
 const dockerfile = fs.readFileSync(path.join(projectRoot, 'Dockerfile'), 'utf8');
 const deployScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'deploy.sh'), 'utf8');
 
@@ -207,5 +208,26 @@ describe('release version promotion', () => {
     expect(modelCatalogAudit).not.toContain('deploymentCanaryModelIds');
     expect(modelCatalogAudit).toContain('## Staging model catalog audit');
     expect(modelCatalogAudit).not.toContain('exit 1');
+
+    expect(modelHealthPublisher).toContain('workflow_dispatch:');
+    expect(modelHealthPublisher).toContain('cron: "*/10 * * * *"');
+    expect(modelHealthPublisher).toContain('concurrency:');
+    expect(modelHealthPublisher).toContain('publish-model-health-${{ matrix.environment }}');
+    expect(modelHealthPublisher).toContain('MODEL_HEALTH_TOKEN: ${{ secrets.MODEL_HEALTH_TOKEN }}');
+    expect(modelHealthPublisher).toContain('https://${MODEL_HEALTH_SITE_DOMAIN}/api/chat/model-status');
+    expect(modelHealthPublisher).toContain('deploymentCanaryModelIds');
+    expect(modelHealthPublisher).toContain('mapfile -t DEPLOYMENT_CANARY_MODEL_IDS');
+    expect(modelHealthPublisher).toContain('for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do');
+    expect(modelHealthPublisher).not.toContain('mapfile -t CHAT_MODEL_IDS');
+    expect(modelHealthPublisher).toContain('"$returned_model" = "localStatic"');
+    expect(modelHealthPublisher).toContain('"$returned_model" != "$chat_model"');
+    expect(modelHealthPublisher).toContain('.modelId == $model');
+    expect(modelHealthPublisher).toContain('status/v1/${MODEL_HEALTH_ENVIRONMENT}.json');
+    expect(modelHealthPublisher).toContain('consecutiveFailures');
+    expect(modelHealthPublisher).toContain('if $consecutiveFailures >= 2 then "unhealthy" else "degraded" end');
+    expect(modelHealthPublisher).toContain('if [ "$write_status" = "409" ] && [ "$attempt" -eq 1 ]; then');
+    expect(modelHealthPublisher).toContain('::warning::${message}');
+    expect(modelHealthPublisher).toContain('exit 0');
+    expect(modelHealthPublisher).not.toContain('exit 1');
   });
 });

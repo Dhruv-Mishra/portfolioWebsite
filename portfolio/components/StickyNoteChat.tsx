@@ -54,6 +54,7 @@ import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { compressChatImage, type ChatImageAttachment } from '@/lib/chatImageCompression';
 import { getChatModel } from '@/lib/chatModels';
+import { getChatModelDisplayName, useChatModelStatus } from '@/lib/chatModelStatus';
 import {
   appendComposerHistory,
   canNavigateComposerHistory,
@@ -1037,12 +1038,14 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   type ConfirmKind = 'clear' | 'enableLocal' | null;
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
   const { modelId } = useChatModelPref();
+  const modelStatus = useChatModelStatus();
   const modelPrefHydrated = useSyncExternalStore(
     subscribeToComposerHydration,
     getClientComposerHydrationSnapshot,
     getServerComposerHydrationSnapshot,
   );
   const model = getChatModel(modelId);
+  const modelDisplayName = getChatModelDisplayName(model, modelStatus.local);
   const supportsImages = modelPrefHydrated && (model?.supportsImages ?? false);
 
   useEffect(() => {
@@ -1277,10 +1280,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 prefetch={false}
                 data-chat-model-settings-link
                 className="inline-flex min-h-11 max-w-32 items-center truncate px-1 font-code text-[10px] text-[var(--c-ink)]/60 underline decoration-dotted underline-offset-4 transition-colors hover:text-[var(--c-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 max-[480px]:max-w-24 max-[480px]:text-[9px]"
-                title={`${model.label} · ${supportsImages ? 'Vision' : 'Text'}`}
-                aria-label={`Current AI model: ${model.label}. Change in Settings`}
+                title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
+                aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
               >
-                {model.label} · {supportsImages ? 'Vision' : 'Text'}
+                {modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}
               </Link>
             ) : null}
             {supportsImages ? (
@@ -1544,6 +1547,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const { enabled: speakByDefault } = useSpeakByDefaultPref();
   const { modelId } = useChatModelPref();
   const selectedModel = getChatModel(modelId);
+  const modelStatus = useChatModelStatus();
+  const selectedModelDisplayName = getChatModelDisplayName(selectedModel, modelStatus.local);
   const {
     activeMessageId: ttsActiveMessageId,
     error: ttsPlaybackError,
@@ -2145,10 +2150,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             <Link
               href="/settings?focus=ai-model"
               prefetch={false}
-              className="mt-1 inline-flex min-h-11 items-center px-2 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
-              aria-label={`Current AI model: ${selectedModel.label}. Change in Settings`}
+              className="mt-1 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate px-2 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
+              title={selectedModelDisplayName}
+              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
             >
-              {selectedModel.label}
+              {selectedModelDisplayName}
             </Link>
           ) : null}
           <m.p
@@ -2170,9 +2176,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
               href="/settings?focus=ai-model"
               prefetch={false}
               className="inline-flex min-h-11 max-w-[55%] shrink-0 items-center truncate px-1 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
-              aria-label={`Current AI model: ${selectedModel.label}. Change in Settings`}
+              title={selectedModelDisplayName}
+              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
             >
-              {selectedModel.label}
+              {selectedModelDisplayName}
             </Link>
           ) : null}
         </div>

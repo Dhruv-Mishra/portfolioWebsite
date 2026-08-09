@@ -2,6 +2,7 @@ import 'server-only';
 
 import OpenAI from 'openai';
 import {
+  CHAT_MODELS,
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
   type ChatImageInputOrder,
@@ -35,9 +36,22 @@ export interface ChatProviders {
   fallbacks: LLMProvider[];
 }
 
+export interface ChatModelRuntimeStatus {
+  id: ChatModelId;
+  provider: (typeof CHAT_MODELS)[number]['provider'];
+  available: boolean;
+}
+
+export interface ChatModelRuntimeCatalog {
+  models: ChatModelRuntimeStatus[];
+  deploymentCanaryModelIds: ChatModelId[];
+}
+
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const MAIN_STOP = ['\n\n\n', '\nUser:', '\nAssistant:'];
+const MAIN_CHAT_MAX_TOKENS = 512;
+const SUGGESTIONS_MAX_TOKENS = 512;
 
 function getGroqQwenProvider(): LLMProvider | null {
   const apiKey = process.env.GROQ_API_KEY;
@@ -56,7 +70,7 @@ function getGroqQwenProvider(): LLMProvider | null {
     sampling: {
       temperature: 0.6,
       topP: 0.95,
-      maxCompletionTokens: 384,
+      maxCompletionTokens: 512,
       extraBody: { stop: MAIN_STOP, reasoning_effort: 'none' },
     },
   };
@@ -92,7 +106,10 @@ function getLocalAgentProvider(): LLMProvider | null {
   };
 }
 
-function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-3.5-4b-local'>): LLMProvider | null {
+function getNvidiaProvider(
+  modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-3.5-4b-local'>,
+  maxTokens = MAIN_CHAT_MAX_TOKENS,
+): LLMProvider | null {
   const apiKey = process.env.NVIDIA_API_KEY;
   const model = getChatModel(modelId);
   if (!apiKey || !model || model.provider !== 'nvidia') return null;
@@ -119,7 +136,7 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     sampling: {
       temperature: 0.6,
-      maxTokens: 384,
+      maxTokens,
       extraBody,
     },
   };
@@ -146,8 +163,27 @@ export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MOD
   return toChatProviders([getNvidiaProvider(selectedModelId)]);
 }
 
+export function getChatModelRuntimeCatalog(): ChatModelRuntimeCatalog {
+  const models = CHAT_MODELS.map((model) => ({
+    id: model.id,
+    provider: model.provider,
+    available: getChatProviders(model.id).primary !== null,
+  }));
+  const configuredProviders = new Set<ChatModelRuntimeStatus['provider']>();
+  const deploymentCanaryModelIds = models.flatMap((model) => {
+    if (!model.available || configuredProviders.has(model.provider)) {
+      return [];
+    }
+
+    configuredProviders.add(model.provider);
+    return [model.id];
+  });
+
+  return { models, deploymentCanaryModelIds };
+}
+
 export function getSuggestionsProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null; legacyFallback: LLMProvider | null } {
-  const nvidia = getNvidiaProvider('deepseek-v4-flash');
+  const nvidia = getNvidiaProvider('deepseek-v4-flash', SUGGESTIONS_MAX_TOKENS);
   return { primary: nvidia, fallback: null, legacyFallback: null };
 }
 

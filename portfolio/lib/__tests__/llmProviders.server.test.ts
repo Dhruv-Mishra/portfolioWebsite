@@ -1,12 +1,48 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getChatProviders, getSuggestionsProviders } from '@/lib/llmProviders.server';
+import { CHAT_MODELS } from '@/lib/chatModels';
+import { getChatModelRuntimeCatalog, getChatProviders, getSuggestionsProviders } from '@/lib/llmProviders.server';
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 describe('getSuggestionsProviders', () => {
+  it('allocates at least 512 output tokens to every configured chat response, including suggestions', () => {
+    vi.stubEnv('GROQ_API_KEY', 'groq-key');
+    vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+
+    for (const model of CHAT_MODELS) {
+      const provider = getChatProviders(model.id).primary;
+      const outputLimit = provider?.sampling.maxCompletionTokens ?? provider?.sampling.maxTokens;
+
+      expect(provider).not.toBeNull();
+      expect(outputLimit).toBeGreaterThanOrEqual(512);
+    }
+
+    expect(getSuggestionsProviders().primary?.sampling.maxTokens).toBeGreaterThanOrEqual(512);
+  });
+
+  it('reports one deployment canary for each configured provider family', () => {
+    vi.stubEnv('GROQ_API_KEY', 'groq-key');
+    vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+
+    expect(getChatModelRuntimeCatalog()).toEqual({
+      models: [
+        { id: 'qwen-3.6-27b', provider: 'groq', available: true },
+        { id: 'minimax-m3', provider: 'nvidia', available: true },
+        { id: 'deepseek-v4-flash', provider: 'nvidia', available: true },
+        { id: 'nemotron-3-super-120b-a12b', provider: 'nvidia', available: true },
+        { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
+      ],
+      deploymentCanaryModelIds: ['qwen-3.6-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
+    });
+  });
+
   it('uses only NVIDIA DeepSeek Flash for suggestions when every provider key is configured', () => {
     vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
@@ -19,7 +55,7 @@ describe('getSuggestionsProviders', () => {
     expect(providers.primary).toMatchObject({
       kind: 'nvidia',
       model: 'deepseek-ai/deepseek-v4-flash-0731',
-      sampling: { maxTokens: 384, extraBody: { chat_template_kwargs: { thinking: false } } },
+      sampling: { maxTokens: 512, extraBody: { chat_template_kwargs: { thinking: false } } },
     });
     expect(providers.fallback).toBeNull();
     expect(providers.legacyFallback).toBeNull();

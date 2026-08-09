@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 
 import type { ActionExecution } from '@/lib/actions';
-import { signAssistantMessage } from '@/lib/chatHistory.server';
+import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 
 type GroqCreate = (
   payload: Record<string, unknown>,
@@ -15,7 +15,7 @@ type NvidiaStreamCreate = (
   options?: { signal?: AbortSignal },
 ) => Promise<AsyncIterable<{ choices: Array<{ delta: { content: string } }> }>>;
 
-const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock } = vi.hoisted(() => ({
+const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock, resolveChatIntentMock } = vi.hoisted(() => ({
   buildPromptPartsMock: vi.fn(async () => ({
     stable: 'stable system prompt',
     conditional: 'conditional system prompt',
@@ -25,10 +25,11 @@ const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, gr
   groqCreateMock: vi.fn<GroqCreate>(async () => ({
     choices: [{ message: { content: 'provider reply' } }],
   })),
+  resolveChatIntentMock: vi.fn<() => unknown>(() => null),
 }));
 
 vi.mock('@/lib/chatActionRouter', () => ({
-  resolveChatIntent: vi.fn(() => null),
+  resolveChatIntent: resolveChatIntentMock,
 }));
 
 vi.mock('@/lib/chatContext.server', () => ({
@@ -135,12 +136,31 @@ function createNvidiaStream(content: string) {
 describe('chat route provider payload mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resolveChatIntentMock.mockReturnValue(null);
     getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallbacks: [] });
     groqCreateMock.mockResolvedValue({ choices: [{ message: { content: 'provider reply' } }] });
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('returns the actual primary model ID and signs the finalized provider reply', async () => {
+    const response = await POST(createChatRequest());
+    const body = await response.json() as {
+      reply: string;
+      action: null;
+      signature: string;
+    };
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.6-27b');
+    expect(body.reply).toBe('provider reply.');
+    expect(verifyAssistantMessage({
+      role: 'assistant',
+      content: body.reply,
+      action: body.action,
+      signature: body.signature,
+    })).not.toBeNull();
   });
 
   it('keeps verified assistant action for prompt assembly but strips it from provider messages', async () => {
@@ -228,8 +248,8 @@ describe('chat route provider payload mapping', () => {
     const response = await responsePromise;
 
     expect(fallbackCreateMock).toHaveBeenCalledTimes(1);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
-    await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply' });
+    expect(response.headers.get('X-Chat-Fallback')).toBe('legacy');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply.' });
   });
 
   it('tries NVIDIA before the legacy provider after a Groq failure', async () => {
@@ -256,8 +276,8 @@ describe('chat route provider payload mapping', () => {
 
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
     expect(legacyCreateMock).not.toHaveBeenCalled();
-    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
-    await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply' });
+    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply.' });
   });
 
   it('skips text-only providers when an image request falls through the provider chain', async () => {
@@ -280,8 +300,8 @@ describe('chat route provider payload mapping', () => {
     expect(createProviderClientMock).toHaveBeenCalledTimes(1);
     expect(createProviderClientMock).toHaveBeenCalledWith(NVIDIA_VISION_PROVIDER);
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
-    await expect(response.json()).resolves.toMatchObject({ reply: 'vision fallback reply' });
+    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'vision fallback reply.' });
   });
 
   it('keeps the image in the Groq Qwen payload using its documented text-first order', async () => {
@@ -411,8 +431,8 @@ describe('chat route provider payload mapping', () => {
       errorName: 'Error',
     }));
     expect(fallbackCreateMock).toHaveBeenCalledTimes(1);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('fallbackOnline');
-    await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply' });
+    expect(response.headers.get('X-Chat-Fallback')).toBe('legacy');
+    await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply.' });
   });
 
   it('reports a safe provider-timeout fallback reason when every attempted provider times out', async () => {
@@ -446,6 +466,59 @@ describe('chat route provider payload mapping', () => {
 
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('all-providers-failed');
     expect(response.headers.get('X-Chat-Fallback-Reason')).not.toContain('secret');
+  });
+
+  it('finalizes and signs static fallback replies when no provider is configured', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: null, fallbacks: [] });
+
+    const response = await POST(createChatRequest());
+    const body = await response.json() as {
+      reply: string;
+      action: null;
+      signature: string;
+      degraded: boolean;
+    };
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(body.degraded).toBe(true);
+    expect(body.reply.startsWith('~') || /[.!?…]$/.test(body.reply)).toBe(true);
+    expect(verifyAssistantMessage({
+      role: 'assistant',
+      content: body.reply,
+      action: body.action,
+      signature: body.signature,
+    })).not.toBeNull();
+  });
+
+  it('finalizes intent replies before signing without changing client-only canned prompts', async () => {
+    resolveChatIntentMock.mockReturnValue({
+      kind: 'action',
+      reply: 'Opening Cropio now',
+      action: { projectSlug: 'cropio' },
+    });
+
+    const response = await POST(createChatRequest());
+    const body = await response.json() as {
+      reply: string;
+      action: ActionExecution;
+      signature: string;
+    };
+
+    expect(body.reply).toBe('Opening Cropio now.');
+    expect(verifyAssistantMessage({
+      role: 'assistant',
+      content: body.reply,
+      action: body.action,
+      signature: body.signature,
+    })).not.toBeNull();
+
+    resolveChatIntentMock.mockReturnValue({
+      kind: 'project-info',
+      reply: '~Open the project',
+    });
+
+    const cannedResponse = await POST(createChatRequest());
+    await expect(cannedResponse.json()).resolves.toMatchObject({ reply: '~Open the project' });
   });
 
   it('rejects unknown model IDs and invalid or oversized image data URLs before provider calls', async () => {

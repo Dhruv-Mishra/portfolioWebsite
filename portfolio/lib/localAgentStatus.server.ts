@@ -12,6 +12,12 @@ export interface LocalAgentStatus {
   modelName: string;
 }
 
+export interface LocalAgentUrls {
+  providerBaseUrl: string;
+  healthUrl: string;
+  modelsUrl: string;
+}
+
 interface CachedStatus {
   expiresAt: number;
   value: LocalAgentStatus;
@@ -47,13 +53,23 @@ function getAdvertisedModelName(payload: unknown): string | null {
   return null;
 }
 
-export function deriveLocalAgentStatusUrls(baseUrlValue: string): { healthUrl: string; modelsUrl: string } {
+export function deriveLocalAgentUrls(baseUrlValue: string): LocalAgentUrls {
   if (baseUrlValue.length === 0 || baseUrlValue.length > MAX_BASE_URL_LENGTH) {
     throw new TypeError('Invalid local agent base URL');
   }
 
-  const baseUrl = new URL(baseUrlValue);
-  if (baseUrl.protocol !== 'http:' && baseUrl.protocol !== 'https:') {
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(baseUrlValue);
+  } catch {
+    throw new TypeError('Invalid local agent base URL');
+  }
+
+  if (
+    (baseUrl.protocol !== 'http:' && baseUrl.protocol !== 'https:')
+    || baseUrl.username.length > 0
+    || baseUrl.password.length > 0
+  ) {
     throw new TypeError('Invalid local agent base URL');
   }
 
@@ -64,10 +80,25 @@ export function deriveLocalAgentStatusUrls(baseUrlValue: string): { healthUrl: s
   baseUrl.search = '';
   baseUrl.hash = '';
 
+  const providerUrl = new URL(baseUrl);
+  providerUrl.pathname = `${baseUrl.pathname}v1`;
+
+  const healthUrl = new URL(baseUrl);
+  healthUrl.pathname = `${baseUrl.pathname}health`;
+
+  const modelsUrl = new URL(providerUrl);
+  modelsUrl.pathname = `${providerUrl.pathname}/models`;
+
   return {
-    healthUrl: new URL('health', baseUrl).toString(),
-    modelsUrl: new URL('v1/models', baseUrl).toString(),
+    providerBaseUrl: providerUrl.toString(),
+    healthUrl: healthUrl.toString(),
+    modelsUrl: modelsUrl.toString(),
   };
+}
+
+export function deriveLocalAgentStatusUrls(baseUrlValue: string): { healthUrl: string; modelsUrl: string } {
+  const { healthUrl, modelsUrl } = deriveLocalAgentUrls(baseUrlValue);
+  return { healthUrl, modelsUrl };
 }
 
 async function checkLocalAgentStatus(): Promise<LocalAgentStatus> {

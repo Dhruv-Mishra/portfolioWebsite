@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   __resetLocalAgentStatusCacheForTest,
+  deriveLocalAgentUrls,
   deriveLocalAgentStatusUrls,
   getLocalAgentStatus,
 } from '@/lib/localAgentStatus.server';
@@ -14,7 +15,28 @@ afterEach(() => {
 });
 
 describe('local agent status', () => {
-  it('derives health and models URLs from root and OpenAI-compatible bases', () => {
+  it('derives canonical provider, health, and models URLs from root and OpenAI-compatible bases', () => {
+    expect(deriveLocalAgentUrls('https://llm.example')).toEqual({
+      providerBaseUrl: 'https://llm.example/v1',
+      healthUrl: 'https://llm.example/health',
+      modelsUrl: 'https://llm.example/v1/models',
+    });
+    expect(deriveLocalAgentUrls('https://llm.example/v1/')).toEqual({
+      providerBaseUrl: 'https://llm.example/v1',
+      healthUrl: 'https://llm.example/health',
+      modelsUrl: 'https://llm.example/v1/models',
+    });
+    expect(deriveLocalAgentUrls('https://llm.example/llm?discard=true#fragment')).toEqual({
+      providerBaseUrl: 'https://llm.example/llm/v1',
+      healthUrl: 'https://llm.example/llm/health',
+      modelsUrl: 'https://llm.example/llm/v1/models',
+    });
+    expect(deriveLocalAgentUrls('https://llm.example/llm/v1')).toEqual({
+      providerBaseUrl: 'https://llm.example/llm/v1',
+      healthUrl: 'https://llm.example/llm/health',
+      modelsUrl: 'https://llm.example/llm/v1/models',
+    });
+
     expect(deriveLocalAgentStatusUrls('https://llm.example')).toEqual({
       healthUrl: 'https://llm.example/health',
       modelsUrl: 'https://llm.example/v1/models',
@@ -23,6 +45,15 @@ describe('local agent status', () => {
       healthUrl: 'https://llm.example/health',
       modelsUrl: 'https://llm.example/v1/models',
     });
+  });
+
+  it.each([
+    'ftp://llm.example',
+    'https://local-agent-key@llm.example',
+    'not a URL',
+    `https://llm.example/${'a'.repeat(2_048)}`,
+  ])('rejects unsafe or invalid base URL %s', (baseUrl) => {
+    expect(() => deriveLocalAgentUrls(baseUrl)).toThrow('Invalid local agent base URL');
   });
 
   it('checks health before authenticated discovery and caches coalesced results', async () => {

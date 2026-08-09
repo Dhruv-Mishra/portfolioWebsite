@@ -7,6 +7,7 @@ import {
   type ChatImageInputOrder,
   type ChatModelId,
 } from '@/lib/chatModels';
+import { deriveLocalAgentUrls } from '@/lib/localAgentStatus.server';
 
 export type LLMProviderKind = 'groq' | 'nvidia' | 'openai';
 
@@ -63,9 +64,16 @@ function getGroqQwenProvider(): LLMProvider | null {
 
 function getLocalAgentProvider(): LLMProvider | null {
   const apiKey = process.env.LOCAL_AGENT_API_KEY;
-  const baseURL = process.env.LOCAL_AGENT_BASE_URL;
+  const baseUrlValue = process.env.LOCAL_AGENT_BASE_URL;
   const model = getChatModel('qwen-3.5-4b-local');
-  if (!apiKey?.trim() || !baseURL?.trim() || !model || model.provider !== 'local') return null;
+  if (!apiKey?.trim() || !baseUrlValue?.trim() || !model || model.provider !== 'local') return null;
+
+  let baseURL: string;
+  try {
+    baseURL = deriveLocalAgentUrls(baseUrlValue.trim()).providerBaseUrl;
+  } catch {
+    return null;
+  }
 
   return {
     kind: 'openai',

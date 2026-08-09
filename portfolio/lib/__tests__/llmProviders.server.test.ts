@@ -111,17 +111,22 @@ describe('getSuggestionsProviders', () => {
     expect(getChatProviders('glm-5.2')).toEqual({ primary: null, fallbacks: [] });
   });
 
-  it('uses the local Gemma agent only when its complete server-only configuration is present', () => {
+  it.each([
+    ['https://llm.whoisdhruv.com', 'https://llm.whoisdhruv.com/v1'],
+    ['https://llm.whoisdhruv.com/v1/', 'https://llm.whoisdhruv.com/v1'],
+    ['https://llm.whoisdhruv.com/llm?discard=true#fragment', 'https://llm.whoisdhruv.com/llm/v1'],
+    ['https://llm.whoisdhruv.com/llm/v1', 'https://llm.whoisdhruv.com/llm/v1'],
+  ])('uses the local Gemma agent with canonical base URL %s', (configuredBaseUrl, baseURL) => {
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
     vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
-    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com/v1');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', configuredBaseUrl);
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
 
     expect(getChatProviders('qwen-3.5-4b-local')).toEqual({
       primary: {
         kind: 'openai',
         apiKey: 'local-agent-key',
-        baseURL: 'https://llm.whoisdhruv.com/v1',
+        baseURL,
         model: 'gemma-4-e2b-phone',
         modelId: 'qwen-3.5-4b-local',
         label: 'Local agent',
@@ -135,6 +140,19 @@ describe('getSuggestionsProviders', () => {
       },
       fallbacks: [],
     });
+  });
+
+  it.each([
+    'ftp://llm.whoisdhruv.com',
+    'https://local-agent-key@llm.whoisdhruv.com',
+    'not a URL',
+    `https://llm.whoisdhruv.com/${'a'.repeat(2_048)}`,
+  ])('returns the static local fallback without throwing for invalid local base URL %s', (configuredBaseUrl) => {
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', configuredBaseUrl);
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+
+    expect(() => getChatProviders('qwen-3.5-4b-local')).not.toThrow();
+    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
   });
 
   it('uses the static local reply when either local agent variable is unavailable', () => {

@@ -30,10 +30,6 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 |---|---|
 | ![Settings and model controls](docs/screenshots/settings-desktop.webp) | ![Guestbook wall](docs/screenshots/guestbook-desktop.webp) |
 
-<p align="center">
-	<img src="docs/screenshots/chat-mobile.webp" width="390" alt="Mobile AI chat">
-</p>
-
 ## Experience
 
 - **Sketchbook UI:** responsive themes, terminal navigation, page turns, command palette, sound, and hidden interactions.

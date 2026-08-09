@@ -38,7 +38,12 @@ describe('release version promotion', () => {
     ).toBe(packageJson.version);
   });
 
-  it('increments the minor version for each genuinely new staging release', () => {
+  it('prepares each staging release as a minor-version pull request', () => {
+    expect(stagingPromotion).toContain('mode:');
+    expect(stagingPromotion).toContain('default: prepare-release');
+    expect(stagingPromotion).toContain('- prepare-release');
+    expect(stagingPromotion).toContain('- promote-release');
+    expect(stagingPromotion).toContain('pull-requests: write');
     expect(stagingPromotion).toContain(
       'npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor',
     );
@@ -48,16 +53,37 @@ describe('release version promotion', () => {
     expect(stagingPromotion).toContain('git commit -m "chore(release): v${version}"');
   });
 
-  it('bumps only after detecting a real source delta and advances both branches atomically', () => {
-    const noChangeGuard = stagingPromotion.indexOf('if [ "$source_sha" = "$target_sha" ]');
-    const bump = stagingPromotion.indexOf('version minor --no-git-tag-version');
+  it('creates an idempotent reviewed release branch without pushing dev/lkg', () => {
+    const prepareRelease = stagingPromotion.slice(
+      stagingPromotion.indexOf('  prepare-release:'),
+      stagingPromotion.indexOf('  promote-release:'),
+    );
 
-    expect(noChangeGuard).toBeGreaterThan(-1);
-    expect(bump).toBeGreaterThan(noChangeGuard);
-    expect(stagingPromotion).toContain('git push --atomic origin');
-    expect(stagingPromotion).toContain('"HEAD:refs/heads/${SOURCE_BRANCH}"');
-    expect(stagingPromotion).toContain('"HEAD:refs/heads/${TARGET_BRANCH}"');
-    expect(stagingPromotion).toContain('gh workflow run deploy-staging.yml --ref "$TARGET_BRANCH"');
+    expect(prepareRelease).toContain('if [ "$SOURCE_BRANCH" != "dev/lkg" ]');
+    expect(prepareRelease).toContain('git merge-base --is-ancestor "$target_sha" "$source_sha"');
+    expect(prepareRelease).toContain('release_branch="release/staging-v${next_version}"');
+    expect(prepareRelease).toContain('git push origin "HEAD:refs/heads/${release_branch}"');
+    expect(prepareRelease).toContain('gh pr list --head "$release_branch" --base "$SOURCE_BRANCH"');
+    expect(prepareRelease).toContain('gh pr create --base "$SOURCE_BRANCH" --head "$release_branch"');
+    expect(prepareRelease).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(stagingPromotion).not.toContain('git push --atomic origin');
+    expect(stagingPromotion).not.toContain('"HEAD:refs/heads/${SOURCE_BRANCH}"');
+  });
+
+  it('promotes only an exact approved release head to deployed/staging and dispatches staging', () => {
+    const promoteRelease = stagingPromotion.slice(stagingPromotion.indexOf('  promote-release:'));
+
+    expect(promoteRelease).toContain('if [ -z "${RELEASE_SHA:-}" ]');
+    expect(promoteRelease).toContain('if [ "$RELEASE_SHA" != "$source_sha" ]');
+    expect(promoteRelease).toContain('if [ "$release_subject" != "chore(release): v${version}" ]');
+    expect(promoteRelease).toContain(
+      'git push origin "${RELEASE_SHA}:refs/heads/${TARGET_BRANCH}"',
+    );
+    expect(promoteRelease).not.toContain('version minor');
+    expect(promoteRelease).not.toContain('npm version');
+    expect(promoteRelease).not.toContain('refs/heads/${SOURCE_BRANCH}"');
+    expect(promoteRelease).toContain('gh workflow run deploy-staging.yml --ref "$TARGET_BRANCH"');
+    expect(promoteRelease).toContain('GH_TOKEN: ${{ github.token }}');
   });
 
   it('promotes the exact staged release to production without another version bump', () => {

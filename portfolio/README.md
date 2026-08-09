@@ -44,7 +44,7 @@ Copy [.env.example](.env.example) for local setup. Provider keys, signing secret
 ## Delivery
 
 - [Dockerfile](Dockerfile) builds the multi-architecture image with the standalone app and Pocket TTS runtime.
-- `dev/lkg` promotes to `deployed/staging`; production fast-forwards the approved staged release to `deployed/production`.
+- `prepare-release` creates a reviewed minor-version PR into `dev/lkg`; after it merges, `promote-release` fast-forwards that exact release SHA to `deployed/staging`. Production fast-forwards the approved staged release to `deployed/production`.
 - Staging serves `staging.whoisdhruv.com` as `portfolio-staging` on port `3010`; production serves `whoisdhruv.com` as `portfolio`.
 
 ## Focused Guides

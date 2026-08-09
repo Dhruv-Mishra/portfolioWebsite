@@ -8,7 +8,8 @@ Production delivery is branch-promoted and container-based. The workflow files a
 dev/lkg -> deployed/staging -> deployed/production
 ```
 
-- The staging promotion workflow accepts only `dev/lkg`, creates a minor package release when the SHA is new, atomically advances `dev/lkg` and `deployed/staging`, then dispatches staging deployment.
+- Staging uses two manual dispatches. First run `promote-staging.yml` with `prepare-release`: it accepts only `dev/lkg`, verifies `deployed/staging` is an ancestor, creates `release/staging-v<version>` with the minor package bump, and opens or reports its PR into `dev/lkg`.
+- After the required PR review and merge, run `promote-staging.yml` with `promote-release` and the exact merged `dev/lkg` release SHA. It verifies the release commit, fast-forwards only `deployed/staging`, then dispatches staging deployment.
 - The production promotion workflow fast-forwards `deployed/production` from `deployed/staging` after a GitHub production-environment approval, then dispatches production deployment.
 - Production deployment has a separate production-environment approval before it mutates hosts.
 

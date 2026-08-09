@@ -44,7 +44,6 @@ on:
     paths-ignore:
       - 'README.md'
       - 'AGENTS.md'
-      - 'StagingDeploymentPrompt.md'
       - 'docs/**'
       - 'portfolio/README.md'
       - 'portfolio/projectContext.md'
@@ -61,6 +60,8 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  DEPLOY_SITE: ${{ inputs.site || 'portfolio' }}
+  DEPLOY_SKIP_NGINX: ${{ inputs.skip_nginx || 'false' }}
   DOMAIN: whoisdhruv.com
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
@@ -87,6 +88,13 @@ jobs:
         run: |
           if [ "${{ github.ref }}" != "refs/heads/deployed/production" ]; then
             echo "::error::Production deploys must run from refs/heads/deployed/production, not ${{ github.ref }}"
+            exit 1
+          fi
+
+      - name: Require Nginx hardening
+        run: |
+          if [ "${DEPLOY_SKIP_NGINX:-false}" = "true" ]; then
+            echo "::error::Production nginx hardening cannot be skipped"
             exit 1
           fi
 
@@ -122,10 +130,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -185,15 +193,15 @@ jobs:
 
       - name: Set up QEMU
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
 
       - name: Set up Docker Buildx
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Login to GHCR
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -202,7 +210,7 @@ jobs:
       - name: Build and push Docker image
         if: env.DEPLOY_MODE == 'image'
         id: docker-build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: portfolio
           file: portfolio/Dockerfile
@@ -340,17 +348,24 @@ jobs:
           fi
 
       - name: Validate production VM contract
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        env:
+          DEPLOY_SITE: ${{ env.DEPLOY_SITE }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 3m
+          envs: DEPLOY_SITE
           script: |
             set -euo pipefail
 
-            SITE="${{ inputs.site || 'portfolio' }}"
+            if [ "${DEPLOY_SITE:-}" != "portfolio" ]; then
+              echo "ERROR: production site must be portfolio, got ${DEPLOY_SITE:-unset}" >&2
+              exit 1
+            fi
+            SITE="$DEPLOY_SITE"
             DOMAIN="${{ env.DOMAIN }}"
             PORT="3000"
             CONF="/etc/deploy/sites/${SITE}.conf"
@@ -437,7 +452,12 @@ jobs:
             command -v docker >/dev/null 2>&1 || fail "docker is not installed"
             sudo docker info >/dev/null || fail "docker daemon is not reachable"
             command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
-            sudo nginx -t
+            if sudo test -s /etc/nginx/cloudflare-policy/trusted-proxies.conf \
+              && sudo test -s /etc/nginx/conf.d/cloudflare-peer-map.conf; then
+              sudo nginx -t
+            else
+              echo "Cloudflare origin policy not installed yet; deploy kit will install and validate it before deploy.sh runs."
+            fi
 
             sudo test -f "$MACHINE_CONF" || fail "missing machine config: $MACHINE_CONF"
             memory_high_mb="$(read_machine_conf MEMORY_HIGH_MB)"
@@ -540,18 +560,18 @@ jobs:
           echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Site | ${{ inputs.site || 'portfolio' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Site | $DEPLOY_SITE |" >> $GITHUB_STEP_SUMMARY
           echo "| Mode | ${{ env.DEPLOY_MODE }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Download build artifact
         if: env.DEPLOY_MODE == 'artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: portfolio-bundle
 
       - name: Copy artifact to VM
         if: env.DEPLOY_MODE == 'artifact'
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -564,7 +584,7 @@ jobs:
 
       - name: Checkout deploy kit
         if: env.DEPLOY_MODE == 'image'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Package deploy kit
         if: env.DEPLOY_MODE == 'image'
@@ -572,6 +592,7 @@ jobs:
           set -euo pipefail
           mkdir -p deploy-kit
           cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio/scripts/update-cloudflare-origin-policy.sh deploy-kit/update-cloudflare-origin-policy.sh
           cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
           cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
           cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
@@ -579,7 +600,7 @@ jobs:
 
       - name: Copy deploy kit to VM
         if: env.DEPLOY_MODE == 'image'
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -592,8 +613,10 @@ jobs:
 
       - name: Deploy on ${{ matrix.server.name }}
         id: deploy
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         env:
+          DEPLOY_SITE: ${{ env.DEPLOY_SITE }}
+          DEPLOY_SKIP_NGINX: ${{ env.DEPLOY_SKIP_NGINX }}
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
@@ -608,12 +631,24 @@ jobs:
           # print the deploy log, then exit with the captured status.
           script_stop: false
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_HF_TOKEN
+          envs: DEPLOY_SITE,DEPLOY_SKIP_NGINX,GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_HF_TOKEN
           script: |
             set -euo pipefail
 
             SHA="${{ github.sha }}"
-            SITE="${{ inputs.site || 'portfolio' }}"
+            if [ "${DEPLOY_SITE:-}" != "portfolio" ]; then
+              echo "ERROR: production site must be portfolio, got ${DEPLOY_SITE:-unset}"
+              exit 1
+            fi
+            if [ "${DEPLOY_SKIP_NGINX:-}" != "true" ] && [ "${DEPLOY_SKIP_NGINX:-}" != "false" ]; then
+              echo "ERROR: DEPLOY_SKIP_NGINX must be true or false"
+              exit 1
+            fi
+            if [ "${DEPLOY_SKIP_NGINX:-false}" = "true" ]; then
+              echo "ERROR: Production nginx hardening cannot be skipped"
+              exit 1
+            fi
+            SITE="$DEPLOY_SITE"
             DOMAIN="${{ env.DOMAIN }}"
             TTS_MODE="${{ matrix.server.tts_mode }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
@@ -755,6 +790,10 @@ jobs:
                 echo "deploy.sh missing - deploy kit corrupt"
                 exit 1
               fi
+              if [ ! -f "$STAGING/update-cloudflare-origin-policy.sh" ]; then
+                echo "Cloudflare policy updater missing - deploy kit corrupt"
+                exit 1
+              fi
               if [ ! -f "$STAGING/nginx-cloudflare.conf" ]; then
                 echo "nginx template missing - deploy kit corrupt"
                 exit 1
@@ -764,6 +803,19 @@ jobs:
                 exit 1
               fi
               sudo chmod +x "$STAGING/deploy.sh"
+              sudo install -m 0700 -o root -g root "$STAGING/update-cloudflare-origin-policy.sh" \
+                /usr/local/sbin/update-cloudflare-origin-policy
+              echo "Refreshing Cloudflare origin policy"
+              sudo /usr/local/sbin/update-cloudflare-origin-policy
+              sudo test -s /etc/nginx/cloudflare-policy/trusted-proxies.conf \
+                || { echo "Cloudflare trusted-proxy policy was not installed"; exit 1; }
+              sudo test -s /etc/nginx/conf.d/cloudflare-peer-map.conf \
+                || { echo "Cloudflare peer policy was not installed"; exit 1; }
+              sudo nginx -t
+              sudo systemctl is-active --quiet nginx \
+                || { echo "nginx is not active after Cloudflare policy refresh"; exit 1; }
+              sudo ufw status | grep -Fx 'Status: active' >/dev/null \
+                || { echo "UFW is not active after Cloudflare policy refresh"; exit 1; }
 
               if [ -n "${GHCR_READ_TOKEN:-}" ]; then
                 DOCKER_CONFIG_DIR="$(mktemp -d)"
@@ -776,9 +828,6 @@ jobs:
               echo "Invoking image deploy script"
               deploy_status=0
               deploy_args=(--image "$IMAGE_REF" --sha "$SHA" --site "$SITE")
-              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                deploy_args+=(--skip-nginx)
-              fi
               if [ -n "$DOCKER_CONFIG_DIR" ]; then
                 sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" "${deploy_args[@]}" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               else
@@ -825,11 +874,7 @@ jobs:
               # migrating .env.local from the legacy location, etc).
               echo "Invoking artifact deploy script"
               deploy_status=0
-              if [ "${{ inputs.skip_nginx || 'false' }}" = "true" ]; then
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" --skip-nginx > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              else
-                sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
-              fi
+              sudo bash "$STAGING/.deploy/deploy.sh" --release-dir "$STAGING" --sha "$SHA" --site "$SITE" > "$DEPLOY_CMD_LOG" 2>&1 || deploy_status=$?
               cat "$DEPLOY_CMD_LOG" || true
               if [ "$deploy_status" -ne 0 ]; then
                 echo "deploy.sh artifact mode failed with status $deploy_status"
@@ -851,17 +896,24 @@ jobs:
 
       - name: Verify Deployment (${{ matrix.server.name }})
         if: success()
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        env:
+          DEPLOY_SITE: ${{ env.DEPLOY_SITE }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 6m
+          envs: DEPLOY_SITE
           script: |
             set -euo pipefail
 
-            SITE="${{ inputs.site || 'portfolio' }}"
+            if [ "${DEPLOY_SITE:-}" != "portfolio" ]; then
+              echo "ERROR: production site must be portfolio, got ${DEPLOY_SITE:-unset}" >&2
+              exit 1
+            fi
+            SITE="$DEPLOY_SITE"
             EXPECTED_DOMAIN="${{ env.DOMAIN }}"
             SITE_CONF="/etc/deploy/sites/${SITE}.conf"
             DEPLOY_ROOT="/opt/${SITE}"
@@ -1050,7 +1102,11 @@ jobs:
           echo "## ❌ ${{ matrix.server.name }}: Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Troubleshooting (requires SSH access — if none, open a new workflow run):**" >> $GITHUB_STEP_SUMMARY
-          SITE="${{ inputs.site || 'portfolio' }}"
+          if [ "${DEPLOY_SITE:-}" != "portfolio" ]; then
+            echo "Unexpected deployment site; details omitted." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          SITE="$DEPLOY_SITE"
           echo "1. Deploy logs:     \`sudo ls -lt /var/log/${SITE}-deploy/ | head\`" >> $GITHUB_STEP_SUMMARY
           echo "2. Service status:  \`sudo systemctl status ${SITE}\`" >> $GITHUB_STEP_SUMMARY
           echo "3. Journal:         \`sudo journalctl -u ${SITE} --no-pager -n 80\`" >> $GITHUB_STEP_SUMMARY

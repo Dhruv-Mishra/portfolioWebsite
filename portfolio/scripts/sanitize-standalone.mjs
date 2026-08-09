@@ -4,11 +4,27 @@ import path from 'node:path';
 const standaloneDir = path.resolve('.next', 'standalone');
 const removablePaths = [
   path.join(standaloneDir, '.cache'),
-  path.join(standaloneDir, 'node_modules', '@img'),
-  path.join(standaloneDir, 'node_modules', 'onnxruntime-node'),
-  path.join(standaloneDir, 'node_modules', 'sharp'),
 ];
+const optionalNativePackageNames = new Set(['@img', 'onnxruntime-node', 'sharp']);
 const nativeExtensions = new Set(['.dll', '.dylib', '.node', '.so']);
+
+async function removeOptionalNativePackageTrees(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const entryPath = path.join(directory, entry.name);
+    if (path.basename(directory) === 'node_modules' && optionalNativePackageNames.has(entry.name)) {
+      await rm(entryPath, { force: true, recursive: true });
+      continue;
+    }
+
+    await removeOptionalNativePackageTrees(entryPath);
+  }
+}
 
 async function collectNativeFiles(directory) {
   const nativeFiles = [];
@@ -36,6 +52,7 @@ try {
 for (const removablePath of removablePaths) {
   await rm(removablePath, { force: true, recursive: true });
 }
+await removeOptionalNativePackageTrees(standaloneDir);
 
 const nativeFiles = await collectNativeFiles(standaloneDir);
 if (nativeFiles.length > 0) {
@@ -44,4 +61,4 @@ if (nativeFiles.length > 0) {
   );
 }
 
-console.log('[sanitize-standalone] Removed optional native packages and local caches.');
+console.log('[sanitize-standalone] Removed optional native package trees and local caches.');

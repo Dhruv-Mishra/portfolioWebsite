@@ -2,6 +2,14 @@
 
 This directory contains the Next.js app for [whoisdhruv.com](https://whoisdhruv.com). The root [README](../README.md) is the public overview; this file is the package-level reference for local work, runtime notes, and deployment contracts.
 
+## Focused Documentation
+
+- [Architecture](../docs/architecture.md)
+- [API](../docs/api.md)
+- [AI and RAG](../docs/ai-and-rag.md)
+- [TTS](../docs/tts.md)
+- [Deployment](../docs/deployment.md)
+
 ## Commands
 
 ```bash

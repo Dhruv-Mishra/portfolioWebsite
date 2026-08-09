@@ -101,7 +101,7 @@ jobs:
           fi
 
       - name: Checkout deploy kit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: deployed/production
 
@@ -114,7 +114,7 @@ jobs:
           tar czf portfolio-rollback-kit-${{ github.run_id }}.tar.gz -C deploy-kit .
 
       - name: Copy rollback kit to VM
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -126,7 +126,7 @@ jobs:
           command_timeout: 3m
 
       - name: Roll back on ${{ matrix.server.name }}
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         env:
           SITE: ${{ inputs.site || 'portfolio' }}
           REQUESTED_SHA: ${{ inputs.rollback_to_sha }}
@@ -234,7 +234,7 @@ jobs:
             exit 0
 
       - name: Verify rollback on ${{ matrix.server.name }}
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}

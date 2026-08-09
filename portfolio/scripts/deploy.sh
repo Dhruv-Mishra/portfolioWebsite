@@ -197,6 +197,8 @@ readonly NGINX_CONF_TEMPLATE="${NGINX_CONF_TEMPLATE:-nginx-cloudflare.conf}"
 readonly NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 readonly NGINX_SITES_ENABLED="${NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}"
 readonly NGINX_CONF_D="${NGINX_CONF_D:-/etc/nginx/conf.d}"
+readonly CLOUDFLARE_TRUSTED_PROXIES_CONF="/etc/nginx/cloudflare-policy/trusted-proxies.conf"
+readonly CLOUDFLARE_PEER_MAP_CONF="${NGINX_CONF_D}/cloudflare-peer-map.conf"
 
 # Backups & logs
 readonly BACKUP_DIR="${BACKUP_DIR:-/var/backups/${SERVICE_NAME}}"
@@ -626,6 +628,19 @@ check_dependencies() {
         detect_docker_host_architecture
     fi
     log SUCCESS "All dependencies present"
+}
+
+check_cloudflare_origin_policy() {
+    log STEP "Checking Cloudflare origin policy..."
+    if [[ ! -s "${CLOUDFLARE_TRUSTED_PROXIES_CONF}" ]] || [[ ! -s "${CLOUDFLARE_PEER_MAP_CONF}" ]]; then
+        log ERROR "Cloudflare origin policy is missing. Run /usr/local/sbin/update-cloudflare-origin-policy before deploying."
+        exit 1
+    fi
+    if ! grep -Fq 'geo $realip_remote_addr $cloudflare_peer_allowed' "${CLOUDFLARE_PEER_MAP_CONF}"; then
+        log ERROR "Cloudflare peer map is malformed: ${CLOUDFLARE_PEER_MAP_CONF}"
+        exit 1
+    fi
+    log SUCCESS "Cloudflare origin policy present"
 }
 
 detect_docker_host_architecture() {
@@ -2979,6 +2994,7 @@ main() {
     check_root
     validate_site_contract
     check_dependencies
+    check_cloudflare_origin_policy
     check_disk_space
     cleanup_old_artifacts
 

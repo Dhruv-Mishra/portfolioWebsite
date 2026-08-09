@@ -24,6 +24,7 @@ apt-get install -y --no-install-recommends \
     lsb-release \
     nginx \
     openssl \
+    python3 \
     ufw
 
 install -m 0755 -d /etc/apt/keyrings
@@ -65,6 +66,19 @@ fi
 if [[ -f "${SCRIPT_DIR}/portfolio.conf.example" && ! -f "/etc/deploy/sites/${SITE_NAME}.conf" ]]; then
     install -m 0600 "${SCRIPT_DIR}/portfolio.conf.example" "/etc/deploy/sites/${SITE_NAME}.conf"
 fi
+
+POLICY_UPDATER_SOURCE="${SCRIPT_DIR}/update-cloudflare-origin-policy.sh"
+POLICY_UPDATER='/usr/local/sbin/update-cloudflare-origin-policy'
+if [[ ! -f "${POLICY_UPDATER_SOURCE}" ]]; then
+    echo "ERROR: Cloudflare policy updater not found: ${POLICY_UPDATER_SOURCE}" >&2
+    exit 1
+fi
+install -m 0700 -o root -g root "${POLICY_UPDATER_SOURCE}" "${POLICY_UPDATER}"
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp comment 'SSH'
+"${POLICY_UPDATER}"
+ufw --force enable
 
 cat << EOF
 

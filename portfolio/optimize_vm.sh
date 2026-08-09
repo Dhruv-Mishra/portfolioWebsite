@@ -36,6 +36,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "========================================="
 echo " VM Optimization — Production Web Server"
@@ -491,15 +492,11 @@ http {
         application/vnd.ms-fontobject;
 
     # ── Rate limiting ────────────────────────────────────────────────────
-    # Uses Cloudflare's real client IP when available, falls back to
-    # remote_addr for direct access. Shared across all sites.
-    map $http_cf_connecting_ip $rate_limit_key {
-        ""      $binary_remote_addr;
-        default $http_cf_connecting_ip;
-    }
-    limit_req_zone $rate_limit_key zone=general:2m rate=10r/s;
-    limit_req_zone $rate_limit_key zone=api:2m rate=5r/s;
-    limit_conn_zone $rate_limit_key zone=connlimit:2m;
+    # $remote_addr is rewritten only after the generated Cloudflare trust
+    # policy accepts the connection, so this key cannot be client-spoofed.
+    limit_req_zone $binary_remote_addr zone=general:2m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=api:2m rate=5r/s;
+    limit_conn_zone $binary_remote_addr zone=connlimit:2m;
 
     # ── Default server — reject unmatched hostnames ──────────────────────
     server {
@@ -530,10 +527,16 @@ sudo apt-get install -y ufw 2>/dev/null || true
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow 22/tcp comment 'SSH'
-sudo ufw allow 80/tcp comment 'HTTP'
-sudo ufw allow 443/tcp comment 'HTTPS'
+POLICY_UPDATER_SOURCE="${SCRIPT_DIR}/scripts/update-cloudflare-origin-policy.sh"
+POLICY_UPDATER="/usr/local/sbin/update-cloudflare-origin-policy"
+if [ ! -f "$POLICY_UPDATER_SOURCE" ]; then
+    echo "ERROR: Cloudflare policy updater not found: $POLICY_UPDATER_SOURCE" >&2
+    exit 1
+fi
+sudo install -m 0700 -o root -g root "$POLICY_UPDATER_SOURCE" "$POLICY_UPDATER"
+sudo "$POLICY_UPDATER"
 echo "y" | sudo ufw enable
-echo "  ✓ UFW active (SSH + HTTP + HTTPS)"
+echo "  ✓ UFW active (SSH + Cloudflare-only HTTP + HTTPS)"
 
 # ---------------------------------------------------------------------------
 # 10. LOGROTATE & /etc/deploy/ STRUCTURE
@@ -561,7 +564,6 @@ sudo chmod 755 /etc/deploy
 sudo chmod 755 /etc/deploy/sites
 
 # Copy example configs if this script is run from a cloned repo
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/scripts/machine.conf.example" ]; then
     EXAMPLE_DIR="${SCRIPT_DIR}/scripts"
 elif [ -f "${SCRIPT_DIR}/../scripts/machine.conf.example" ]; then

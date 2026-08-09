@@ -4,6 +4,14 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 
 [Visit production](https://whoisdhruv.com) · [Preview staging](https://staging.whoisdhruv.com) · [Read the app guide](portfolio/README.md)
 
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [API](docs/api.md)
+- [AI and RAG](docs/ai-and-rag.md)
+- [TTS](docs/tts.md)
+- [Deployment](docs/deployment.md)
+
 ## Screenshots
 
 | Home and terminal | Project wall |
@@ -19,7 +27,7 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 - **Sketchbook interface:** responsive light and dark themes, page-turn transitions, tactile details, a command palette, keyboard shortcuts, and optional sound effects.
 - **Interactive terminal:** navigates the site, opens content, changes UI state, and hides a few surprises behind a familiar shell vocabulary.
 - **Grounded AI chat:** answers from a local Markdown fact corpus and committed embedding fallback instead of inventing portfolio details.
-- **Multimodal model picker:** switches between Groq Qwen and seven NVIDIA-hosted models, exposing image attachment only when the active model supports vision.
+- **Multimodal model picker:** switches between the Groq default, eight NVIDIA-hosted models, and an optional local agent, exposing image attachment only when the active model supports vision.
 - **Voice in and out:** local browser transcription, a custom Pocket TTS server voice, persistent generated-audio caching, and device-speech fallback.
 - **Real product surfaces:** project modals, resume and Markdown routes, stickers, settings, a GitHub-backed guestbook, and private feedback workflows.
 - **Machine-readable content:** public Markdown and `llms.txt` routes make the portfolio useful to people, crawlers, and AI clients.
@@ -37,7 +45,7 @@ Image attachments are request-scoped and never persisted to local storage. Befor
 3. Downscales the longest edge to at most 1280 px.
 4. Encodes JPEG at a quality floor of 0.60, progressively reducing dimensions until the image is at most 128 KiB.
 
-This keeps enough detail for screenshots and visual questions while reducing base64 overhead, provider latency, and request-size failures. Vision requests retain an image-capable online fallback when the selected provider is unavailable.
+This keeps enough detail for screenshots and visual questions while reducing base64 overhead, provider latency, and request-size failures. When a selected provider is unavailable, the route returns the local static fallback rather than silently switching models.
 
 ### Models
 
@@ -46,11 +54,13 @@ This keeps enough detail for screenshots and visual questions while reducing bas
 | Groq | Qwen 3.6 27B | Recommended, fast, vision |
 | NVIDIA | GLM 5.2 | Reasoning |
 | NVIDIA | Inkling | Fast, vision |
-| NVIDIA | MiniMax M3 | Preview, vision |
-| NVIDIA | DiffusionGemma 26B | Vision fallback |
-| NVIDIA | Kimi K2.6 | Reasoning, vision |
+| NVIDIA | MiniMax M3 | Preview, vision; non-commercial use only |
+| NVIDIA | DiffusionGemma 26B | Vision |
 | NVIDIA | DeepSeek V4 Flash | Fast |
-| NVIDIA | DeepSeek V4 Pro | Reasoning |
+| NVIDIA | Gemma 4 31B IT | Vision |
+| NVIDIA | Nemotron 3 Super 120B | Reasoning |
+| NVIDIA | GPT OSS 120B | Reasoning |
+| Local agent | Local model | Optional, text-only |
 
 ### Chat Actions
 

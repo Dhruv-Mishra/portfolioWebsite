@@ -13,7 +13,6 @@ on:
     paths-ignore:
       - "README.md"
       - "AGENTS.md"
-      - "StagingDeploymentPrompt.md"
       - "docs/**"
       - "portfolio/README.md"
       - "portfolio/projectContext.md"
@@ -30,6 +29,7 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  DEPLOY_SKIP_NGINX: "false"
   STAGING_SITE: portfolio-staging
   STAGING_DOMAIN: staging.whoisdhruv.com
   STAGING_PORT: "3010"
@@ -58,6 +58,13 @@ jobs:
         run: |
           if [ "${{ github.ref }}" != "refs/heads/deployed/staging" ]; then
             echo "::error::Staging deploys must run from refs/heads/deployed/staging, not ${{ github.ref }}"
+            exit 1
+          fi
+
+      - name: Require Nginx hardening
+        run: |
+          if [ "${DEPLOY_SKIP_NGINX:-false}" = "true" ]; then
+            echo "::error::Staging nginx hardening cannot be skipped"
             exit 1
           fi
 
@@ -94,10 +101,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -149,15 +156,15 @@ jobs:
 
       - name: Set up QEMU
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
 
       - name: Set up Docker Buildx
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
 
       - name: Login to GHCR
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -166,7 +173,7 @@ jobs:
       - name: Build and push Docker image
         if: env.DEPLOY_MODE == 'image'
         id: docker-build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: portfolio
           file: portfolio/Dockerfile
@@ -280,7 +287,7 @@ jobs:
           fi
 
       - name: Validate staging VM contract
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -349,7 +356,12 @@ jobs:
             command -v docker >/dev/null 2>&1 || fail "docker is not installed"
             sudo docker info >/dev/null || fail "docker daemon is not reachable"
             command -v nginx >/dev/null 2>&1 || fail "nginx is not installed"
-            sudo nginx -t
+            if sudo test -s /etc/nginx/cloudflare-policy/trusted-proxies.conf \
+              && sudo test -s /etc/nginx/conf.d/cloudflare-peer-map.conf; then
+              sudo nginx -t
+            else
+              echo "Cloudflare origin policy not installed yet; deploy kit will install and validate it before deploy.sh runs."
+            fi
 
             sudo test -f "$MACHINE_CONF" || fail "missing machine config: $MACHINE_CONF"
             memory_high_mb="$(read_machine_conf MEMORY_HIGH_MB)"
@@ -421,13 +433,13 @@ jobs:
 
       - name: Download build artifact
         if: env.DEPLOY_MODE == 'artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: portfolio-bundle
 
       - name: Copy artifact to staging VM
         if: env.DEPLOY_MODE == 'artifact'
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -440,7 +452,7 @@ jobs:
 
       - name: Checkout deploy kit
         if: env.DEPLOY_MODE == 'image'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Package deploy kit
         if: env.DEPLOY_MODE == 'image'
@@ -448,6 +460,7 @@ jobs:
           set -euo pipefail
           mkdir -p deploy-kit
           cp portfolio/scripts/deploy.sh deploy-kit/deploy.sh
+          cp portfolio/scripts/update-cloudflare-origin-policy.sh deploy-kit/update-cloudflare-origin-policy.sh
           cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
           cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
           cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
@@ -455,7 +468,7 @@ jobs:
 
       - name: Copy deploy kit to staging VM
         if: env.DEPLOY_MODE == 'image'
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -468,7 +481,7 @@ jobs:
 
       - name: Deploy on ${{ matrix.server.name }}
         id: deploy
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
@@ -628,6 +641,10 @@ jobs:
                 echo "deploy.sh missing - deploy kit corrupt"
                 exit 1
               fi
+              if [ ! -f "$STAGING/update-cloudflare-origin-policy.sh" ]; then
+                echo "Cloudflare policy updater missing - deploy kit corrupt"
+                exit 1
+              fi
               if [ ! -f "$STAGING/nginx-cloudflare.conf" ]; then
                 echo "nginx template missing - deploy kit corrupt"
                 exit 1
@@ -637,6 +654,19 @@ jobs:
                 exit 1
               fi
               sudo chmod +x "$STAGING/deploy.sh"
+              sudo install -m 0700 -o root -g root "$STAGING/update-cloudflare-origin-policy.sh" \
+                /usr/local/sbin/update-cloudflare-origin-policy
+              echo "Refreshing Cloudflare origin policy"
+              sudo /usr/local/sbin/update-cloudflare-origin-policy
+              sudo test -s /etc/nginx/cloudflare-policy/trusted-proxies.conf \
+                || { echo "Cloudflare trusted-proxy policy was not installed"; exit 1; }
+              sudo test -s /etc/nginx/conf.d/cloudflare-peer-map.conf \
+                || { echo "Cloudflare peer policy was not installed"; exit 1; }
+              sudo nginx -t
+              sudo systemctl is-active --quiet nginx \
+                || { echo "nginx is not active after Cloudflare policy refresh"; exit 1; }
+              sudo ufw status | grep -Fx 'Status: active' >/dev/null \
+                || { echo "UFW is not active after Cloudflare policy refresh"; exit 1; }
 
               DOCKER_CONFIG_DIR="$(mktemp -d)"
               sudo chmod 700 "$DOCKER_CONFIG_DIR"
@@ -705,7 +735,7 @@ jobs:
 
       - name: Verify staging deployment (${{ matrix.server.name }})
         if: success()
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}

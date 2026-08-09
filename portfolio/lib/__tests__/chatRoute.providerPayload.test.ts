@@ -15,6 +15,11 @@ type NvidiaStreamCreate = (
   options?: { signal?: AbortSignal },
 ) => Promise<AsyncIterable<{ choices: Array<{ delta: { content: string } }> }>>;
 
+type NvidiaCompletionCreate = (
+  payload: Record<string, unknown>,
+  options?: { signal?: AbortSignal },
+) => Promise<{ choices: Array<{ message: { content: string } }> }>;
+
 const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock } = vi.hoisted(() => ({
   buildPromptPartsMock: vi.fn(async () => ({
     stable: 'stable system prompt',
@@ -98,19 +103,21 @@ const NVIDIA_VISION_PROVIDER = {
   sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
 };
 
-const NVIDIA_TEXT_FIRST_VISION_PROVIDERS = [
-  {
-    kind: 'nvidia' as const,
-    label: 'nvidia-inkling',
-    apiKey: 'nvidia-key',
-    baseURL: 'https://integrate.api.nvidia.com/v1',
-    model: 'thinkingmachines/inkling',
-    modelId: 'inkling' as const,
-    supportsImages: true,
-    imageInputOrder: 'text-first' as const,
-    acceptsSystemMessages: true,
-    sampling: { temperature: 0.6, maxTokens: 384 },
-  },
+const NVIDIA_INKLING_PROVIDER = {
+  kind: 'nvidia' as const,
+  label: 'nvidia-inkling',
+  apiKey: 'nvidia-key',
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  model: 'thinkingmachines/inkling',
+  modelId: 'inkling' as const,
+  supportsImages: true,
+  imageInputOrder: 'text-first' as const,
+  acceptsSystemMessages: true,
+  streamResponses: false,
+  sampling: { temperature: 0.6, maxTokens: 384 },
+};
+
+const NVIDIA_STREAMING_TEXT_FIRST_VISION_PROVIDERS = [
   {
     kind: 'nvidia' as const,
     label: 'nvidia-minimax',
@@ -330,7 +337,7 @@ describe('chat route provider payload mapping', () => {
     });
   });
 
-  it.each(NVIDIA_TEXT_FIRST_VISION_PROVIDERS)(
+  it.each(NVIDIA_STREAMING_TEXT_FIRST_VISION_PROVIDERS)(
     'keeps the image in the $modelId NVIDIA stream payload',
     async (provider) => {
       getChatProvidersMock.mockReturnValue({ primary: provider, fallbacks: [] });
@@ -359,6 +366,26 @@ describe('chat route provider payload mapping', () => {
       });
     },
   );
+
+  it('uses a normal NVIDIA completion for Inkling', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_INKLING_PROVIDER, fallbacks: [] });
+    const inklingCreateMock = vi.fn<NvidiaCompletionCreate>(async () => ({
+      choices: [{ message: { content: 'Inkling completion reply' } }],
+    }));
+    createProviderClientMock.mockReturnValue({
+      chat: { completions: { create: inklingCreateMock } },
+    });
+
+    const response = await POST(createChatRequest(undefined, { model: 'inkling' }));
+
+    expect(inklingCreateMock).toHaveBeenCalledTimes(1);
+    expect(inklingCreateMock.mock.calls[0]?.[0]?.stream).toBe(false);
+    expect(response.headers.get('X-Chat-Fallback')).toBe('primaryOnline');
+    await expect(response.json()).resolves.toMatchObject({
+      reply: 'Inkling completion reply',
+      modelId: 'inkling',
+    });
+  });
 
   it('propagates request cancellation and returns a stable fallback reason code', async () => {
     vi.useFakeTimers();

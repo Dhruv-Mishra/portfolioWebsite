@@ -411,8 +411,8 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Call a single LLM provider, stream the upstream completion server-side,
- * and return the aggregated reply/action payload expected by the client.
+ * Call a single LLM provider and return the reply/action payload expected by
+ * the client.
  */
 async function callProvider(
   provider: import('@/lib/llmProviders.server').LLMProvider,
@@ -446,28 +446,42 @@ async function callProvider(
         ? foldSystemMessagesIntoFirstUser(messages)
         : collapseLeadingSystemMessages(messages);
       const client = createProviderClient(provider);
-      const completion = await client.chat.completions.create({
+      const completionParams = {
         model: provider.model,
         messages: collapsedMessages,
         temperature: provider.sampling.temperature,
         ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
         ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
         ...provider.sampling.extraBody,
-        stream: true,
-      }, {
-        signal,
-      });
-      let streamedContent = '';
-      for await (const chunk of completion) {
+      };
+
+      if (provider.streamResponses === false) {
+        const completion = await client.chat.completions.create({
+          ...completionParams,
+          stream: false,
+        }, {
+          signal,
+        });
+        rawContent = completion.choices?.[0]?.message?.content;
+      } else {
+        const completion = await client.chat.completions.create({
+          ...completionParams,
+          stream: true,
+        }, {
+          signal,
+        });
+        let streamedContent = '';
+        for await (const chunk of completion) {
+          if (signal.aborted) {
+            throw new OpenAI.APIUserAbortError();
+          }
+          streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
+        }
         if (signal.aborted) {
           throw new OpenAI.APIUserAbortError();
         }
-        streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
+        rawContent = streamedContent;
       }
-      if (signal.aborted) {
-        throw new OpenAI.APIUserAbortError();
-      }
-      rawContent = streamedContent;
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
         ? foldSystemMessagesIntoFirstUser(messages)

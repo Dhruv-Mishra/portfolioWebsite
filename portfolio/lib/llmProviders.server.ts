@@ -21,6 +21,7 @@ export interface LLMProvider {
   supportsImages: boolean;
   imageInputOrder?: ChatImageInputOrder;
   acceptsSystemMessages?: boolean;
+  streamResponses?: boolean;
   sampling: {
     temperature: number;
     topP?: number;
@@ -122,6 +123,7 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     acceptsSystemMessages: model.id !== 'diffusiongemma-26b',
+    ...(model.id === 'inkling' ? { streamResponses: false } : {}),
     sampling: {
       temperature: 0.6,
       maxTokens: 384,

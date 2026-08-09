@@ -208,8 +208,20 @@ describe('release version promotion', () => {
     expect(stagingCanaryJob).toContain('deploymentCanaryModelIds');
     expect(stagingCanaryJob).toContain('mapfile -t DEPLOYMENT_CANARY_MODEL_IDS');
     expect(stagingCanaryJob).toContain('for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do');
-    expect(stagingCanaryJob).toContain('::error::Staging model-status route failed');
-    expect(stagingCanaryJob).toContain('::error::Staging model-status response schema is invalid');
+    expect(stagingCanaryJob).toContain(
+      'Model probes skipped because the core model-status route was unavailable:',
+    );
+    expect(stagingCanaryJob).toContain(
+      'Model probes skipped because \\`deploymentCanaryModelIds\\` was missing or invalid.',
+    );
+    expect(stagingCanaryJob).toMatch(
+      /echo "::warning::Staging model-status route failed: \$MODEL_STATUS_URL"\n\s+exit 0/,
+    );
+    expect(stagingCanaryJob).toMatch(
+      /echo "::warning::Staging model-status response schema is invalid"\n\s+exit 0/,
+    );
+    expect(stagingCanaryJob).not.toContain('::error::Staging model-status route failed');
+    expect(stagingCanaryJob).not.toContain('::error::Staging model-status response schema is invalid');
     expect(stagingCanaryJob).toContain('::warning::Staging chat canary degraded:');
     expect(stagingCanaryJob).toContain('## Staging model canary audit');
     expect(stagingCanaryJob).toContain('jq -nc --arg model "$CHAT_MODEL"');

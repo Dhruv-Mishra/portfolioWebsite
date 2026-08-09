@@ -56,6 +56,8 @@ type FallbackReason =
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 300_000;
 const MAX_IMAGE_BYTES = 180 * 1024;
+const INVALID_PROVIDER_RESPONSE_RETRY_TIMEOUT_MS = 20_000;
+const MIN_INVALID_PROVIDER_RESPONSE_RETRY_MS = 2_000;
 
 function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessage[] {
   const sanitized: SanitizedChatMessage[] = [];
@@ -345,38 +347,47 @@ export async function POST(request: NextRequest) {
       ? Math.floor(LLM_PROVIDER_FALLBACK_RESERVE_MS / (providers.length - 1))
       : 0;
 
-    for (let i = 0; i < providers.length; i += 1) {
+    providerLoop: for (let i = 0; i < providers.length; i += 1) {
       const provider = providers[i];
-      const remainingMs = routeDeadlineAt - Date.now();
       const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
-      const attemptTimeoutMs = Math.min(
-        LLM_PROVIDER_TIMEOUT_MS,
-        Math.max(0, remainingMs - fallbackReserveMs),
-      );
-      if (routeSignal.aborted) break;
-      if (attemptTimeoutMs <= 0) continue;
+      const apiMessages = [
+        ...promptMessages,
+        ...toProviderMessages(
+          providerConversation,
+          image ?? undefined,
+          provider.imageInputOrder,
+        ),
+      ];
+      const providerBudgetDeadline = Date.now() + LLM_PROVIDER_TIMEOUT_MS;
 
-      try {
-        const apiMessages = [
-          ...promptMessages,
-          ...toProviderMessages(
-            providerConversation,
-            image ?? undefined,
-            provider.imageInputOrder,
-          ),
-        ];
-        result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
-        succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
-        break;
-      } catch (err) {
-        const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
-        providerFailureCodes.push(code);
-        providerErrors.push(`${provider.label}: ${code}`);
-        console.warn('LLM provider failed', {
-          provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
-          code,
-          errorName: err instanceof Error ? err.name : 'UnknownError',
-        });
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const remainingProviderBudgetMs = providerBudgetDeadline - Date.now();
+        const remainingRouteBudgetMs = routeDeadlineAt - Date.now() - fallbackReserveMs;
+        const allowedAttemptMs = Math.max(0, Math.min(remainingProviderBudgetMs, remainingRouteBudgetMs));
+        const attemptTimeoutMs = Math.min(
+          attempt === 0 ? LLM_PROVIDER_TIMEOUT_MS : INVALID_PROVIDER_RESPONSE_RETRY_TIMEOUT_MS,
+          allowedAttemptMs,
+        );
+
+        if (routeSignal.aborted) break providerLoop;
+        if (attemptTimeoutMs <= 0 || (attempt === 1 && attemptTimeoutMs < MIN_INVALID_PROVIDER_RESPONSE_RETRY_MS)) break;
+
+        try {
+          result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
+          succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
+          break providerLoop;
+        } catch (err) {
+          const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
+          providerFailureCodes.push(code);
+          providerErrors.push(`${provider.label}: ${code}`);
+          console.warn('LLM provider failed', {
+            provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
+            code,
+            errorName: err instanceof Error ? err.name : 'UnknownError',
+          });
+
+          if (code !== 'invalid-provider-response') break;
+        }
       }
     }
 

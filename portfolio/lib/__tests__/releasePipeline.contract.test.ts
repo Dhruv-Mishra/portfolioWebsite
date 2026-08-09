@@ -90,6 +90,40 @@ describe('release version promotion', () => {
     );
   });
 
+  it('validates production edge resources while safely skipping a confirmed Cloudflare challenge', () => {
+    const productionResourceSmoke = productionDeploy.slice(
+      productionDeploy.indexOf('- name: Verify public resources at the edge'),
+    );
+
+    expect(productionResourceSmoke).toContain('headers_file="$(mktemp)"');
+    expect(productionResourceSmoke).toContain('body_file="$(mktemp)"');
+    expect(productionResourceSmoke).toContain('-D "$headers_file" -o "$body_file"');
+    expect(productionResourceSmoke).toContain('echo "${resource_path}: HTTP ${resource_status}"');
+    expect(productionResourceSmoke).toContain(
+      "grep -Ei '^(content-type:|content-range:|cache-control:|cf-cache-status:|cf-ray:|cf-mitigated:|server:)'",
+    );
+    expect(productionResourceSmoke).not.toContain('cat "$body_file"');
+    expect(productionResourceSmoke).not.toContain('head -c');
+    expect(productionResourceSmoke).toContain(
+      "grep -qiE '^cf-mitigated:[[:space:]]*challenge' \"$headers_file\"",
+    );
+    expect(productionResourceSmoke).toContain("grep -qi '<title>Just a moment' \"$body_file\"");
+    expect(productionResourceSmoke).toContain("grep -qi 'challenges.cloudflare.com' \"$body_file\"");
+    expect(productionResourceSmoke).toContain('::warning::Cloudflare returned a bot challenge');
+    expect(productionResourceSmoke).toContain('## Production edge resource smoke skipped');
+    expect(productionResourceSmoke).toContain('>> "$GITHUB_STEP_SUMMARY"');
+    expect(productionResourceSmoke).toContain('rm -f "$headers_file" "$body_file"');
+    expect(productionResourceSmoke).toContain('exit 0');
+    expect(productionResourceSmoke).toContain('resource_status" != "206"');
+    expect(productionResourceSmoke).toContain(
+      '^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)',
+    );
+    expect(productionResourceSmoke).toContain(
+      '^content-range:[[:space:]]*bytes[[:space:]]+0-0/[0-9]+[[:space:]]*$',
+    );
+    expect(productionResourceSmoke).toContain('::error::Production public resource failed through Cloudflare');
+  });
+
   it('requires, syncs, and locally verifies every staging chat model through Nginx', () => {
     const stagingCanaryJob = stagingDeploy.slice(
       stagingDeploy.indexOf('deploy-staging-canary:'),

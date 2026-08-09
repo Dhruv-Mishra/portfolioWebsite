@@ -1166,22 +1166,38 @@ jobs:
             resource_path="${resource_spec%%:*}"
             expected_mime="${resource_spec#*:}"
             headers_file="$(mktemp)"
-            trap 'rm -f "$headers_file"' EXIT
+            body_file="$(mktemp)"
+            trap 'rm -f "$headers_file" "$body_file"' EXIT
 
-            resource_status="$(curl -sS -r 0-0 -D "$headers_file" -o /dev/null -w "%{http_code}" \
+            resource_status="$(curl -sS -r 0-0 -D "$headers_file" -o "$body_file" -w "%{http_code}" \
               --retry 3 --retry-delay 2 --max-time 15 \
               -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36" \
               "https://${{ env.DOMAIN }}${resource_path}" 2>/dev/null || echo "000")"
 
             echo "${resource_path}: HTTP ${resource_status}"
-            grep -Ei '^(content-type:|content-range:|cache-control:|cf-cache-status:|cf-ray:|server:)' "$headers_file" || true
+            grep -Ei '^(content-type:|content-range:|cache-control:|cf-cache-status:|cf-ray:|cf-mitigated:|server:)' "$headers_file" || true
+
+            if grep -qiE '^cf-mitigated:[[:space:]]*challenge' "$headers_file" \
+              || grep -qi '<title>Just a moment' "$body_file" \
+              || grep -qi 'challenges.cloudflare.com' "$body_file"; then
+              echo "::warning::Cloudflare returned a bot challenge to the GitHub runner for ${resource_path}. Skipping production edge resource assertions after VM-local health checks passed."
+              {
+                echo "## Production edge resource smoke skipped"
+                echo ""
+                echo "Cloudflare returned a bot challenge to the GitHub runner for \`${resource_path}\` after VM-local health checks passed. Edge resource assertions were skipped."
+              } >> "$GITHUB_STEP_SUMMARY"
+              rm -f "$headers_file" "$body_file"
+              trap - EXIT
+              exit 0
+            fi
 
             if [ "$resource_status" != "206" ] \
-              || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$headers_file"; then
-              echo "::error::Production public resource failed through Cloudflare: ${resource_path} (HTTP ${resource_status}, expected 206 ${expected_mime})"
+              || ! grep -qiE "^content-type:[[:space:]]*${expected_mime}([;[:space:]]|$)" "$headers_file" \
+              || ! grep -qiE '^content-range:[[:space:]]*bytes[[:space:]]+0-0/[0-9]+[[:space:]]*$' "$headers_file"; then
+              echo "::error::Production public resource failed through Cloudflare: ${resource_path} (HTTP ${resource_status}, expected 206 ${expected_mime} with bytes 0-0 content range)"
               exit 1
             fi
 
-            rm -f "$headers_file"
+            rm -f "$headers_file" "$body_file"
             trap - EXIT
           done

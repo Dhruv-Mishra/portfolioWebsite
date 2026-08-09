@@ -3,7 +3,6 @@ name: Prepare or Promote a Staging Release
 permissions:
   actions: write
   contents: write
-  pull-requests: write
 
 on:
   workflow_dispatch:
@@ -54,10 +53,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Prepare release branch and pull request
+      - name: Prepare release branch
         id: prepare
         env:
-          GH_TOKEN: ${{ github.token }}
           SOURCE_BRANCH: ${{ inputs.source_branch || 'dev/lkg' }}
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
         run: |
@@ -125,30 +123,12 @@ jobs:
             changed=true
           fi
 
-          pr_json="$(gh pr list --head "$release_branch" --base "$SOURCE_BRANCH" --state all --json number,state,url --limit 1)"
-          pr_details="$(printf '%s' "$pr_json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => { const pr = JSON.parse(data)[0]; process.stdout.write(pr ? [pr.number, pr.state, pr.url].join(' ') : ''); });")"
-          pr_number=""
-          pr_state=""
-          pr_url=""
-          if [ -n "$pr_details" ]; then
-            read -r pr_number pr_state pr_url <<< "$pr_details"
-          fi
-
-          if [ -n "${pr_number:-}" ]; then
-            if [ "$pr_state" != "OPEN" ]; then
-              echo "::error::Existing release PR #${pr_number} is ${pr_state}; refusing to create another PR from ${release_branch}."
-              exit 1
-            fi
-          else
-            pr_url="$(gh pr create --base "$SOURCE_BRANCH" --head "$release_branch" --title "chore(release): v${next_version}" --body "Prepared staging release v${next_version}. Merge this reviewed PR before running promote-release.")"
-            pr_number="${pr_url##*/}"
-          fi
+          compare_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${SOURCE_BRANCH}...${release_branch}"
 
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
           echo "release_branch=$release_branch" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
-          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+          echo "compare_url=$compare_url" >> "$GITHUB_OUTPUT"
           echo "version=$next_version" >> "$GITHUB_OUTPUT"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
@@ -162,7 +142,7 @@ jobs:
           echo "| Release branch | \`${{ steps.prepare.outputs.release_branch }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Release SHA | \`${{ steps.prepare.outputs.release_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Version | \`${{ steps.prepare.outputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Pull request | [#${{ steps.prepare.outputs.pr_number }}](${{ steps.prepare.outputs.pr_url }}) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Open release PR | [Open release PR](${{ steps.prepare.outputs.compare_url }}) |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Branch created | \`${{ steps.prepare.outputs.changed }}\` |" >> "$GITHUB_STEP_SUMMARY"
 
   promote-release:

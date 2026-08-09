@@ -466,33 +466,23 @@ async function callProvider(
         ...provider.sampling.extraBody,
       };
 
-      if (provider.streamResponses === false) {
-        const completion = await client.chat.completions.create({
-          ...completionParams,
-          stream: false,
-        }, {
-          signal,
-        });
-        rawContent = completion.choices?.[0]?.message?.content;
-      } else {
-        const completion = await client.chat.completions.create({
-          ...completionParams,
-          stream: true,
-        }, {
-          signal,
-        });
-        let streamedContent = '';
-        for await (const chunk of completion) {
-          if (signal.aborted) {
-            throw new OpenAI.APIUserAbortError();
-          }
-          streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
-        }
+      const completion = await client.chat.completions.create({
+        ...completionParams,
+        stream: true,
+      }, {
+        signal,
+      });
+      let streamedContent = '';
+      for await (const chunk of completion) {
         if (signal.aborted) {
           throw new OpenAI.APIUserAbortError();
         }
-        rawContent = streamedContent;
+        streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
       }
+      if (signal.aborted) {
+        throw new OpenAI.APIUserAbortError();
+      }
+      rawContent = streamedContent;
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
         ? foldSystemMessagesIntoFirstUser(messages)

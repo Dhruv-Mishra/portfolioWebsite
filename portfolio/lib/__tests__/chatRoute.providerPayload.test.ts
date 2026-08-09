@@ -15,11 +15,6 @@ type NvidiaStreamCreate = (
   options?: { signal?: AbortSignal },
 ) => Promise<AsyncIterable<{ choices: Array<{ delta: { content: string } }> }>>;
 
-type NvidiaCompletionCreate = (
-  payload: Record<string, unknown>,
-  options?: { signal?: AbortSignal },
-) => Promise<{ choices: Array<{ message: { content: string } }> }>;
-
 const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock } = vi.hoisted(() => ({
   buildPromptPartsMock: vi.fn(async () => ({
     stable: 'stable system prompt',
@@ -101,20 +96,6 @@ const NVIDIA_VISION_PROVIDER = {
   imageInputOrder: 'image-first' as const,
   acceptsSystemMessages: false,
   sampling: { temperature: 0.6, maxTokens: 384, extraBody: { chat_template_kwargs: { enable_thinking: false } } },
-};
-
-const NVIDIA_INKLING_PROVIDER = {
-  kind: 'nvidia' as const,
-  label: 'nvidia-inkling',
-  apiKey: 'nvidia-key',
-  baseURL: 'https://integrate.api.nvidia.com/v1',
-  model: 'thinkingmachines/inkling',
-  modelId: 'inkling' as const,
-  supportsImages: true,
-  imageInputOrder: 'text-first' as const,
-  acceptsSystemMessages: true,
-  streamResponses: false,
-  sampling: { temperature: 0.6, maxTokens: 384 },
 };
 
 const NVIDIA_STREAMING_TEXT_FIRST_VISION_PROVIDERS = [
@@ -367,46 +348,6 @@ describe('chat route provider payload mapping', () => {
     },
   );
 
-  it('uses a normal NVIDIA completion for Inkling', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_INKLING_PROVIDER, fallbacks: [] });
-    const inklingCreateMock = vi.fn<NvidiaCompletionCreate>(async () => ({
-      choices: [{ message: { content: 'Inkling completion reply' } }],
-    }));
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: inklingCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, { model: 'inkling' }));
-
-    expect(inklingCreateMock).toHaveBeenCalledTimes(1);
-    expect(inklingCreateMock.mock.calls[0]?.[0]?.stream).toBe(false);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('primaryOnline');
-    await expect(response.json()).resolves.toMatchObject({
-      reply: 'Inkling completion reply',
-      modelId: 'inkling',
-    });
-  });
-
-  it('retries an empty Inkling completion once and keeps it primary online', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_INKLING_PROVIDER, fallbacks: [] });
-    const inklingCreateMock = vi.fn<NvidiaCompletionCreate>()
-      .mockResolvedValueOnce({ choices: [{ message: { content: '   ' } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: 'Inkling retry reply' } }] });
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: inklingCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, { model: 'inkling' }));
-
-    expect(inklingCreateMock).toHaveBeenCalledTimes(2);
-    expect(inklingCreateMock.mock.calls.map(([payload]) => payload.stream)).toEqual([false, false]);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('primaryOnline');
-    await expect(response.json()).resolves.toMatchObject({
-      reply: 'Inkling retry reply',
-      modelId: 'inkling',
-    });
-  });
-
   it('skips a late invalid-response retry once the provider budget has under two seconds left', async () => {
     let now = 0;
     const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
@@ -422,22 +363,6 @@ describe('chat route provider payload mapping', () => {
     expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('invalid-provider-response');
     dateNowSpy.mockRestore();
-  });
-
-  it('uses a local invalid-provider-response fallback after two empty Inkling completions', async () => {
-    getChatProvidersMock.mockReturnValue({ primary: NVIDIA_INKLING_PROVIDER, fallbacks: [] });
-    const inklingCreateMock = vi.fn<NvidiaCompletionCreate>()
-      .mockResolvedValue({ choices: [{ message: { content: '   ' } }] });
-    createProviderClientMock.mockReturnValue({
-      chat: { completions: { create: inklingCreateMock } },
-    });
-
-    const response = await POST(createChatRequest(undefined, { model: 'inkling' }));
-
-    expect(inklingCreateMock).toHaveBeenCalledTimes(2);
-    expect(inklingCreateMock.mock.calls.map(([payload]) => payload.stream)).toEqual([false, false]);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
-    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('invalid-provider-response');
   });
 
   it('propagates request cancellation and returns a stable fallback reason code', async () => {

@@ -789,7 +789,6 @@ jobs:
 
             STAGING_CHAT_MODELS=(
               qwen-3.6-27b
-              inkling
               minimax-m3
               diffusiongemma-26b
               deepseek-v4-flash
@@ -798,6 +797,7 @@ jobs:
               gpt-oss-120b
               qwen-3.5-4b-local
             )
+            CHAT_CANARY_FAILURES=()
 
             for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do
               CHAT_HEADERS_FILE="$(mktemp)"
@@ -846,19 +846,14 @@ jobs:
                   ;;
               esac
               CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} fallback=${CHAT_FALLBACK} reason=${CHAT_FALLBACK_REASON} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"
+              CHAT_CANARY_FAILURE=""
               if [ "$CHAT_HTTP_CODE" != "200" ]; then
-                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected HTTP 200"
-              fi
-              if ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
-                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected JSON content type"
-              fi
-              if ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$' "$CHAT_HEADERS_FILE"; then
-                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected primaryOnline fallback header"
-              fi
-              if ! CHAT_MODEL="$CHAT_MODEL" node - "$CHAT_BODY_FILE" <<'NODE'
+                CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected HTTP 200"
+              elif ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
+                CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected JSON content type"
+              elif ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$' "$CHAT_HEADERS_FILE"; then
+                CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected primaryOnline fallback header"
+              elif ! CHAT_MODEL="$CHAT_MODEL" node - "$CHAT_BODY_FILE" <<'NODE'
             const fs = require('node:fs');
             let body;
 
@@ -877,12 +872,20 @@ jobs:
             }
             NODE
               then
-                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-                fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; response contract invalid"
+                CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; response contract invalid"
               fi
               rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+              if [ -n "$CHAT_CANARY_FAILURE" ]; then
+                CHAT_CANARY_FAILURES+=("$CHAT_CANARY_FAILURE")
+                continue
+              fi
               echo "Staging chat canary verified: ${CHAT_MODEL}"
             done
+
+            if [ "${#CHAT_CANARY_FAILURES[@]}" -gt 0 ]; then
+              printf '%s\n' "${CHAT_CANARY_FAILURES[@]}" >&2
+              fail "Staging chat canary failed for ${#CHAT_CANARY_FAILURES[@]} model(s)"
+            fi
 
             TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \

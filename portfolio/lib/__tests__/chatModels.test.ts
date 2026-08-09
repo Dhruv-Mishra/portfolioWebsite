@@ -11,10 +11,9 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(9);
+    expect(CHAT_MODELS).toHaveLength(8);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
-      'thinkingmachines/inkling',
       'minimaxai/minimax-m3',
       'google/diffusiongemma-26b-a4b-it',
       'deepseek-ai/deepseek-v4-flash-0731',
@@ -44,7 +43,6 @@ describe('chat model catalog', () => {
   it('declares picker capabilities explicitly for every model', () => {
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [model.id, model.capabilities]))).toEqual({
       'qwen-3.6-27b': ['fast', 'image'],
-      inkling: ['fast', 'image'],
       'minimax-m3': ['image'],
       'diffusiongemma-26b': ['image'],
       'deepseek-v4-flash': ['fast'],
@@ -58,7 +56,6 @@ describe('chat model catalog', () => {
   it('advertises images only for documented vision models with an explicit payload order', () => {
     expect(CHAT_MODELS.filter((model) => model.supportsImages).map((model) => model.id)).toEqual([
       'qwen-3.6-27b',
-      'inkling',
       'minimax-m3',
       'diffusiongemma-26b',
       'gemma-4-31b-it',
@@ -68,7 +65,6 @@ describe('chat model catalog', () => {
       'imageInputOrder' in model ? model.imageInputOrder : null,
     ]))).toEqual({
       'qwen-3.6-27b': 'text-first',
-      inkling: 'text-first',
       'minimax-m3': 'text-first',
       'diffusiongemma-26b': 'image-first',
       'deepseek-v4-flash': null,

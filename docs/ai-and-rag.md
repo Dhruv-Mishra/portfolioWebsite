@@ -4,10 +4,11 @@ The chat route accepts only model IDs defined in [the model registry](../portfol
 
 ## Current Model Registry
 
+The active catalog contains eight selections: one Groq default, six NVIDIA models, and one optional local agent.
+
 | Group | Model | Image input | Registry role |
 |---|---|---:|---|
 | Recommended | Groq Qwen 3.6 27B | Yes | Default selection |
-| NVIDIA | Inkling | Yes | Fast |
 | NVIDIA | MiniMax M3 | Yes | Preview; non-commercial use only |
 | NVIDIA | DiffusionGemma 26B | Yes | Vision |
 | NVIDIA | DeepSeek V4 Flash | No | Fast |

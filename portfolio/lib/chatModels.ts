@@ -35,17 +35,6 @@ export const CHAT_MODELS = [
     isRecommended: true,
   },
   {
-    id: 'inkling',
-    provider: 'nvidia',
-    group: 'NVIDIA',
-    upstreamModel: 'thinkingmachines/inkling',
-    label: 'Inkling',
-    quality: 'Fast',
-    supportsImages: true,
-    imageInputOrder: 'text-first',
-    capabilities: ['fast', 'image'],
-  },
-  {
     id: 'minimax-m3',
     provider: 'nvidia',
     group: 'NVIDIA',

@@ -104,7 +104,6 @@ describe('release version promotion', () => {
     );
     const expectedStagingChatModels = [
       'qwen-3.6-27b',
-      'inkling',
       'minimax-m3',
       'diffusiongemma-26b',
       'deepseek-v4-flash',
@@ -154,6 +153,7 @@ describe('release version promotion', () => {
     expect(verificationScript).toContain('command_timeout: 20m');
     expect(verificationScript).toContain('STAGING_CHAT_MODELS=(');
     expect(verificationScript).toContain('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do');
+    expect(verificationScript).toContain('CHAT_CANARY_FAILURES=()');
     expect(
       modelMatrix?.[1]
         .trim()
@@ -188,6 +188,23 @@ describe('release version promotion', () => {
     expect(modelCanaryLoop).toContain(
       'CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} fallback=${CHAT_FALLBACK} reason=${CHAT_FALLBACK_REASON} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"',
     );
+    expect(modelCanaryLoop).toContain('CHAT_CANARY_FAILURE=""');
+    expect(modelCanaryLoop).toContain(
+      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected HTTP 200"',
+    );
+    expect(modelCanaryLoop).toContain(
+      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected JSON content type"',
+    );
+    expect(modelCanaryLoop).toContain(
+      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected primaryOnline fallback header"',
+    );
+    expect(modelCanaryLoop).toContain(
+      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; response contract invalid"',
+    );
+    expect(modelCanaryLoop).toContain('CHAT_CANARY_FAILURES+=("$CHAT_CANARY_FAILURE")');
+    expect(modelCanaryLoop).toContain('continue');
+    expect(modelCanaryLoop).toContain('echo "Staging chat canary verified: ${CHAT_MODEL}"');
+    expect(modelCanaryLoop).not.toContain('fail "Staging chat canary failed:');
     expect(modelCanaryLoop).not.toContain('cat "$CHAT_HEADERS_FILE"');
     expect(modelCanaryLoop).not.toContain('cat "$CHAT_BODY_FILE"');
     expect(verificationScript).toContain('content-type:[[:space:]]*application/json');
@@ -195,7 +212,16 @@ describe('release version promotion', () => {
     expect(verificationScript).toContain('body?.modelId !== process.env.CHAT_MODEL');
     expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
     expect(verificationScript).toContain(
-      'fail "Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS};',
+      "printf '%s\\n' \"${CHAT_CANARY_FAILURES[@]}\" >&2",
+    );
+    expect(verificationScript).toContain(
+      'fail "Staging chat canary failed for ${#CHAT_CANARY_FAILURES[@]} model(s)"',
+    );
+    expect(verificationScript.indexOf('CHAT_CANARY_FAILURES=()')).toBeLessThan(
+      verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do'),
+    );
+    expect(verificationScript.indexOf('if [ "${#CHAT_CANARY_FAILURES[@]}" -gt 0 ]; then')).toBeGreaterThan(
+      verificationScript.indexOf('\n            done', verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do')),
     );
   });
 });

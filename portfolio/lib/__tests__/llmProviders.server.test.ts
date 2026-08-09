@@ -72,10 +72,6 @@ describe('getSuggestionsProviders', () => {
       chat_template_kwargs: { thinking_mode: 'disabled' },
     });
 
-    expect(getChatProviders('inkling').primary).toMatchObject({
-      supportsImages: true,
-      imageInputOrder: 'text-first',
-    });
     expect(getChatProviders('diffusiongemma-26b').primary).toMatchObject({
       supportsImages: true,
       imageInputOrder: 'image-first',

@@ -58,7 +58,7 @@ const NVIDIA_PROVIDER = {
   label: 'nvidia-suggestions',
   apiKey: 'nvidia-key',
   baseURL: 'https://integrate.api.nvidia.com/v1',
-  model: 'deepseek-ai/deepseek-v4-flash',
+  model: 'deepseek-ai/deepseek-v4-flash-0731',
   sampling: {
     temperature: 0.6,
     maxTokens: 384,
@@ -153,7 +153,7 @@ describe('chat suggestions route deadlines', () => {
     await POST(createSuggestionsRequest());
 
     expect(createMock).toHaveBeenCalledWith({
-      model: 'deepseek-ai/deepseek-v4-flash',
+      model: 'deepseek-ai/deepseek-v4-flash-0731',
       messages: [
         { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
         { role: 'user', content: 'What do you build?' },

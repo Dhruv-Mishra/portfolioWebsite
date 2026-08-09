@@ -7,6 +7,7 @@ import {
   type ChatImageInputOrder,
   type ChatModelId,
 } from '@/lib/chatModels';
+import { deriveLocalAgentUrls } from '@/lib/localAgentStatus.server';
 
 export type LLMProviderKind = 'groq' | 'nvidia' | 'openai';
 
@@ -63,9 +64,16 @@ function getGroqQwenProvider(): LLMProvider | null {
 
 function getLocalAgentProvider(): LLMProvider | null {
   const apiKey = process.env.LOCAL_AGENT_API_KEY;
-  const baseURL = process.env.LOCAL_AGENT_BASE_URL;
+  const baseUrlValue = process.env.LOCAL_AGENT_BASE_URL;
   const model = getChatModel('qwen-3.5-4b-local');
-  if (!apiKey?.trim() || !baseURL?.trim() || !model || model.provider !== 'local') return null;
+  if (!apiKey?.trim() || !baseUrlValue?.trim() || !model || model.provider !== 'local') return null;
+
+  let baseURL: string;
+  try {
+    baseURL = deriveLocalAgentUrls(baseUrlValue.trim()).providerBaseUrl;
+  } catch {
+    return null;
+  }
 
   return {
     kind: 'openai',
@@ -96,7 +104,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
       case 'minimax-m3':
         return { chat_template_kwargs: { thinking_mode: 'disabled' } };
       case 'deepseek-v4-flash':
-      case 'deepseek-v4-pro':
         return { chat_template_kwargs: { thinking: false } };
       default:
         return undefined;

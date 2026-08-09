@@ -53,6 +53,29 @@ describe('settings chat model contract', () => {
     expect(picker).toContain('group-hover:opacity-100');
   });
 
+  it('checks local status on open and renders its accessible healthy state without cropped text', () => {
+    const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
+    const openPicker = picker.match(/const openPicker = \(\) => \{([\s\S]*?)\n  \};/);
+
+    expect(picker).toContain("fetch('/api/chat/local-status')");
+    expect(picker).not.toContain("fetch('/api/chat/local-status',");
+    expect(openPicker?.[1]).toContain('requestLocalAgentStatus();');
+    expect(picker).not.toContain('setInterval');
+    expect(picker).not.toContain('truncate');
+    expect(picker).toContain('aria-label="Local model is healthy"');
+    expect(picker).toContain('title="Local model is healthy"');
+    expect(picker.match(/<LocalModelHealthDot \/>/g)).toHaveLength(2);
+  });
+
+  it('uses neutral/emerald model selection styling and a local provider label', () => {
+    const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
+
+    expect(picker).toContain("model.id === value && 'border-l-emerald-600");
+    expect(picker).not.toContain("model.id === activeModelId && 'bg-amber");
+    expect(picker).not.toContain('focus-visible:ring-amber');
+    expect(source).toContain("selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'");
+  });
+
   it('places the model listbox within the available viewport space', () => {
     const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
     expect(picker).toContain('useLayoutEffect');
@@ -97,6 +120,7 @@ describe('settings chat model contract', () => {
     expect(source).toContain("const modelControl = document.getElementById('chat-model')");
     expect(source).toContain('modelControl.focus({ preventScroll: true })');
     expect(source).toContain('modelTargetActive &&');
-    expect(source).toContain("shadow-[inset_4px_0_0_rgba(245,158,11,0.65)]");
+    expect(source).toContain("border-l-4 border-[var(--c-ink)]/45 bg-[var(--c-ink)]/5");
+    expect(source).not.toContain("shadow-[inset_4px_0_0_rgba(245,158,11,0.65)]");
   });
 });

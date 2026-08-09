@@ -11,23 +11,25 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(8);
+    expect(CHAT_MODELS).toHaveLength(10);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
       'z-ai/glm-5.2',
       'thinkingmachines/inkling',
       'minimaxai/minimax-m3',
       'google/diffusiongemma-26b-a4b-it',
-      'deepseek-ai/deepseek-v4-flash',
-      'deepseek-ai/deepseek-v4-pro',
-      'qwen3.5-4b-q4_k_m',
+      'deepseek-ai/deepseek-v4-flash-0731',
+      'google/gemma-4-31b-it',
+      'nvidia/nemotron-3-super-120b-a12b',
+      'openai/gpt-oss-120b',
+      'gemma-4-e2b-phone',
     ]);
     expect(getChatModel('qwen-3.5-4b-local')).toEqual({
       id: 'qwen-3.5-4b-local',
       provider: 'local',
       group: 'Local agent',
-      upstreamModel: 'qwen3.5-4b-q4_k_m',
-      label: 'Qwen 3.5 4B',
+      upstreamModel: 'gemma-4-e2b-phone',
+      label: 'Local model',
       quality: 'Local agent',
       supportsImages: false,
       capabilities: ['slow'],
@@ -48,7 +50,9 @@ describe('chat model catalog', () => {
       'minimax-m3': ['image'],
       'diffusiongemma-26b': ['image'],
       'deepseek-v4-flash': ['fast'],
-      'deepseek-v4-pro': ['reasoning', 'slow'],
+      'gemma-4-31b-it': ['image'],
+      'nemotron-3-super-120b-a12b': ['reasoning', 'slow'],
+      'gpt-oss-120b': ['reasoning', 'slow'],
       'qwen-3.5-4b-local': ['slow'],
     });
   });
@@ -59,6 +63,7 @@ describe('chat model catalog', () => {
       'inkling',
       'minimax-m3',
       'diffusiongemma-26b',
+      'gemma-4-31b-it',
     ]);
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [
       model.id,
@@ -70,7 +75,9 @@ describe('chat model catalog', () => {
       'minimax-m3': 'text-first',
       'diffusiongemma-26b': 'image-first',
       'deepseek-v4-flash': null,
-      'deepseek-v4-pro': null,
+      'gemma-4-31b-it': 'text-first',
+      'nemotron-3-super-120b-a12b': null,
+      'gpt-oss-120b': null,
       'qwen-3.5-4b-local': null,
     });
     for (const model of CHAT_MODELS) {

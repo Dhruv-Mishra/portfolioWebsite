@@ -14,29 +14,32 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 
 ## Screenshots
 
-The repository contains five curated product screenshots covering the home interaction, project browsing, guestbook, settings, and mobile chat surface.
-
-| Home and terminal | Project wall |
+| Home | About |
 |---|---|
-| ![Dark sketchbook home page with an interactive terminal](docs/screenshots/home-desktop.png) | ![Dark sketchbook project wall with illustrated project cards](docs/screenshots/projects-desktop.png) |
+| ![Sketchbook home and terminal](docs/screenshots/home-desktop.webp) | ![About page](docs/screenshots/about-desktop.webp) |
 
-| Guestbook | Settings and model controls |
+| Resume | Chat |
 |---|---|
-| ![Guestbook wall with voice input and public visitor notes](docs/screenshots/guestbook-desktop.webp) | ![Settings screen with model, voice, motion, and appearance controls](docs/screenshots/settings-desktop.webp) |
+| ![Resume page](docs/screenshots/resume-desktop.webp) | ![Chat page](docs/screenshots/chat-desktop.webp) |
+
+| Projects | Stickers |
+|---|---|
+| ![Project wall](docs/screenshots/projects-desktop.webp) | ![Sticker collection](docs/screenshots/stickers-desktop.webp) |
+
+| Settings | Guestbook |
+|---|---|
+| ![Settings and model controls](docs/screenshots/settings-desktop.webp) | ![Guestbook wall](docs/screenshots/guestbook-desktop.webp) |
 
 <p align="center">
-	<img src="docs/screenshots/chat-mobile.png" width="390" alt="Mobile AI chat with model selection, voice input, suggestions, and validated action controls">
+	<img src="docs/screenshots/chat-mobile.webp" width="390" alt="Mobile AI chat">
 </p>
 
 ## Experience
 
-- **Sketchbook shell:** responsive light and dark themes, page-turn transitions, a command palette, keyboard shortcuts, optional sound, and small discoverable interactions.
-- **Terminal navigation:** a shell-inspired command surface opens portfolio areas, changes allowed presentation state, and keeps the less-obvious interactions part of the experience.
-- **Projects and public content:** case-study cards and modals sit alongside resume, Markdown, `llms.txt`, and sitemap routes for people, crawlers, and AI clients.
-- **Grounded chat:** server-built context combines a local Markdown fact corpus with its committed embeddings bundle; the browser never receives provider credentials.
-- **Model selection with boundaries:** the picker exposes one Groq default, three NVIDIA-hosted choices, and an optional OpenAI-compatible local agent: five selections total. Model IDs are server allowlisted, and image input appears only for vision-capable choices.
-- **Voice in and out:** users can choose browser-native recognition or local Whisper transcription in a Web Worker. Server custom voice uses Pocket TTS, streams generated audio, caches playback in the browser, and can fall back to device speech.
-- **Product workflows:** a GitHub-backed guestbook, private feedback, stickers, settings, and deterministic chat actions extend the portfolio beyond a static presentation.
+- **Sketchbook UI:** responsive themes, terminal navigation, page turns, command palette, sound, and hidden interactions.
+- **Grounded chat:** a local Markdown corpus and committed embeddings shape server-built context; credentials remain server-side.
+- **Exact model selection:** five allowlisted choices: Groq Qwen 3.6 27B, three NVIDIA models, and an optional text-only local agent. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
+- **Voice and workflows:** browser-native or local Whisper input, Pocket TTS with device-speech fallback, plus guestbook, feedback, stickers, and validated chat actions.
 
 For the component, API, runtime, and delivery boundaries behind these surfaces, read the [architecture HLD](docs/architecture.md).
 
@@ -63,7 +66,9 @@ This keeps enough detail for screenshots and visual questions while reducing bas
 | NVIDIA | MiniMax M3 | Preview, vision; non-commercial use only |
 | NVIDIA | DeepSeek V4 Flash | Fast |
 | NVIDIA | Nemotron 3 Super 120B | Reasoning |
-| Local agent | Local model | Optional, text-only |
+| Local agent | Optional configured model | Text-only; healthy backend name shown when available |
+
+The picker reads a short-lived, same-origin status snapshot. It can flag configured-unavailable models, display deployment-canary models, and replace the local-agent label with its healthy backend model name. A failed request marks that model as having issues for the current tab; it never causes a silent model switch.
 
 ### Chat Actions
 
@@ -80,21 +85,34 @@ The LLM is not given arbitrary browser or operating-system access. Recognized re
 
 Action chips and contextual follow-up suggestions cover the same allowlist, so suggested actions cannot grant capabilities beyond those the router already validates.
 
-## Architecture
+## High-Level Design
 
 ```mermaid
 flowchart LR
-	Browser[Browser] --> Edge[Cloudflare]
+	Browser[Browser] --> Edge[Cloudflare edge]
 	Edge --> Nginx[Nginx on Linux VMs]
-	Nginx --> Next[Next.js standalone server]
-	Next --> BrowserUI[React client and App Router]
-	Next --> Routes[API routes]
-	Routes --> Retrieval[Markdown facts + embeddings]
-	Routes --> Providers[Groq and NVIDIA APIs]
-	Routes --> GitHub[Guestbook and feedback workflows]
-	Routes --> TTS[Pocket TTS gateway]
-	BrowserUI --> Whisper[Browser Whisper worker]
+	Nginx --> App[Next.js standalone app]
+	App --> Pages[App Router pages]
+	App --> Chat[Chat API]
+	Chat --> Facts[Markdown facts and embeddings]
+	Chat --> Models[Groq, NVIDIA, or local model]
+	App --> TTS[Pocket TTS gateway]
+	App --> GitHub[Guestbook and feedback]
+	Browser --> Whisper[Browser Whisper worker]
 ```
+
+```mermaid
+flowchart LR
+	Dev[dev/lkg] --> CI[Checks and multi-architecture image]
+	CI --> Stage[deployed/staging]
+	Stage --> Approval[Production approval]
+	Approval --> Prod[deployed/production]
+	Prod --> Fleet[Linux VM fleet]
+	Fleet --> Status[Model status API]
+	Status --> Picker[Model picker]
+```
+
+Deploy health checks validate each VM, release SHA, and TTS synthesis before activation. A runner-only Cloudflare bot challenge is warning-only after those VM-local checks pass; other public-edge non-200 responses fail the deployment.
 
 ### Stack
 
@@ -154,7 +172,7 @@ dev/lkg -> deployed/staging -> deployed/production
 - `deployed/staging` deploys Docker images to [staging.whoisdhruv.com](https://staging.whoisdhruv.com).
 - `deployed/production` deploys to [whoisdhruv.com](https://whoisdhruv.com) after the production environment gate.
 - Each environment has separate signing, access, provider, and speech credentials.
-- Deploy workflows validate VM identity and image architecture, run health checks, verify the deployed SHA, and retain rollback releases.
+- Deploy workflows validate VM identity, image architecture, runtime health, TTS synthesis, and deployed SHA before retaining a rollback release. A runner-only Cloudflare bot challenge is warning-only only after VM-local checks pass; other public-edge non-200 responses remain fatal.
 
 Cloudflare provides the public edge; Nginx routes traffic to the standalone Next.js service on the VM fleet. The complete operational contract lives in [portfolio/README.md](portfolio/README.md).
 

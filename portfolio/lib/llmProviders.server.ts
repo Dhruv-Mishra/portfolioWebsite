@@ -101,6 +101,8 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
     switch (model.id) {
       case 'diffusiongemma-26b':
         return { chat_template_kwargs: { enable_thinking: false } };
+      case 'gemma-4-31b-it':
+        return { chat_template_kwargs: { enable_thinking: false } };
       case 'minimax-m3':
         return { chat_template_kwargs: { thinking_mode: 'disabled' } };
       case 'deepseek-v4-flash':

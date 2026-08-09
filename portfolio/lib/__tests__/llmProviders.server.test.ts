@@ -87,6 +87,9 @@ describe('getSuggestionsProviders', () => {
       supportsImages: true,
       imageInputOrder: 'text-first',
     });
+    expect(getChatProviders('gemma-4-31b-it').primary?.sampling.extraBody).toEqual({
+      chat_template_kwargs: { enable_thinking: false },
+    });
     expect(getChatProviders('nemotron-3-super-120b-a12b').primary).toMatchObject({
       kind: 'nvidia',
       model: 'nvidia/nemotron-3-super-120b-a12b',

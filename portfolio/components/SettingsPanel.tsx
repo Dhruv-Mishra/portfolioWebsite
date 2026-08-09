@@ -373,8 +373,8 @@ export default function SettingsPanel() {
           title="AI model"
           icon={Bot}
           className={cn(
-            'transition-[background-color,box-shadow] duration-300',
-            modelTargetActive && 'bg-amber-200/20 shadow-[inset_4px_0_0_rgba(245,158,11,0.65)] dark:bg-amber-300/10',
+            'transition-[background-color,border-color] duration-300',
+            modelTargetActive && 'border-l-4 border-[var(--c-ink)]/45 bg-[var(--c-ink)]/5',
           )}
         >
           <label className="block font-hand text-base text-[var(--c-heading)] md:text-lg" htmlFor="chat-model">
@@ -387,7 +387,7 @@ export default function SettingsPanel() {
           />
           {selectedModel ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
-              <span>{selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>
+              <span>{selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>
               <span className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-ink)]/20 px-2 py-0.5">
                 <ImageIcon size={14} aria-hidden />
                 {selectedModel.supportsImages ? 'Vision' : 'Text'}

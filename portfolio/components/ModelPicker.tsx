@@ -38,8 +38,15 @@ const PROVIDER_LABELS = {
 const VIEWPORT_MARGIN = 12;
 const LISTBOX_GAP = 8;
 const NAVIGATION_MARGIN = 8;
+const LOCAL_MODEL_ID = 'qwen-3.5-4b-local';
+const MAX_LOCAL_MODEL_NAME_LENGTH = 128;
 
 type ListboxPlacement = 'top' | 'bottom';
+
+interface LocalAgentStatus {
+  healthy: boolean;
+  modelName: string;
+}
 
 interface ModelPickerProps {
   id: string;
@@ -47,17 +54,46 @@ interface ModelPickerProps {
   onValueChange: (modelId: ChatModelId) => void;
 }
 
+function parseLocalAgentStatus(value: unknown): LocalAgentStatus | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { healthy, modelName } = value as Record<string, unknown>;
+  if (typeof healthy !== 'boolean' || typeof modelName !== 'string') return null;
+
+  const normalizedModelName = modelName.trim();
+  if (normalizedModelName.length === 0 || normalizedModelName.length > MAX_LOCAL_MODEL_NAME_LENGTH) return null;
+
+  return { healthy, modelName: normalizedModelName };
+}
+
+function LocalModelHealthDot() {
+  return (
+    <span
+      role="img"
+      aria-label="Local model is healthy"
+      title="Local model is healthy"
+      className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"
+    />
+  );
+}
+
 export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [activeModelId, setActiveModelId] = useState<ChatModelId>(value);
   const [placement, setPlacement] = useState<ListboxPlacement>('bottom');
   const [listboxMaxHeight, setListboxMaxHeight] = useState(0);
+  const [localAgentStatus, setLocalAgentStatus] = useState<LocalAgentStatus | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Partial<Record<ChatModelId, HTMLDivElement>>>({});
   const listboxId = useId();
   const selectedModel = CHAT_MODELS.find((model) => model.id === value);
   const activeIndex = CHAT_MODELS.findIndex((model) => model.id === activeModelId);
+  const displayModelName = (model: (typeof CHAT_MODELS)[number]) => (
+    model.id === LOCAL_MODEL_ID && localAgentStatus?.healthy
+      ? localAgentStatus.modelName
+      : model.label
+  );
+  const selectedModelIsHealthyLocal = selectedModel?.id === LOCAL_MODEL_ID && localAgentStatus?.healthy;
 
   useEffect(() => {
     if (!open) return;
@@ -101,9 +137,20 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
     if (restoreFocus) triggerRef.current?.focus();
   };
 
+  const requestLocalAgentStatus = () => {
+    void fetch('/api/chat/local-status')
+      .then(async (response): Promise<LocalAgentStatus | null> => {
+        if (!response.ok) return null;
+        return parseLocalAgentStatus(await response.json());
+      })
+      .then(setLocalAgentStatus)
+      .catch(() => setLocalAgentStatus(null));
+  };
+
   const openPicker = () => {
     setActiveModelId(value);
     setOpen(true);
+    requestLocalAgentStatus();
   };
 
   const selectModel = (modelId: ChatModelId) => {
@@ -161,11 +208,14 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
         aria-expanded={open}
         aria-controls={listboxId}
         onClick={() => (open ? closePicker(false) : openPicker())}
-        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-sm border-2 border-dashed border-[var(--c-ink)]/30 bg-[var(--c-paper)] px-3 py-2 text-left font-hand text-base text-[var(--c-heading)] shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-lg"
+        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-sm border-2 border-dashed border-[var(--c-ink)]/30 bg-[var(--c-paper)] px-3 py-2 text-left font-hand text-base text-[var(--c-heading)] shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)] md:text-lg"
       >
-        <span className="min-w-0">
-          <span className="block truncate font-bold">{selectedModel?.label}</span>
-          <span className="block truncate text-sm text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? PROVIDER_LABELS[selectedModel.provider] : null}</span>
+        <span className="flex min-w-0 flex-1 items-start gap-2">
+          <span className="min-w-0">
+            <span className="block break-words font-bold leading-tight">{selectedModel ? displayModelName(selectedModel) : null}</span>
+            <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? PROVIDER_LABELS[selectedModel.provider] : null}</span>
+          </span>
+          {selectedModelIsHealthyLocal ? <LocalModelHealthDot /> : null}
         </span>
         <ChevronDown className={cn('shrink-0 transition-transform', open && 'rotate-180')} size={20} aria-hidden />
       </button>
@@ -179,7 +229,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                 type="button"
                 aria-label={detail.label}
                 title={detail.label}
-                className={cn('inline-flex h-7 w-7 items-center justify-center rounded-sm border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500', detail.badgeClassName)}
+                className={cn('inline-flex h-7 w-7 items-center justify-center rounded-sm border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]', detail.badgeClassName)}
               >
                 <Icon size={14} aria-hidden />
                 <span className="sr-only">{detail.label}</span>
@@ -203,8 +253,11 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
           {MODEL_GROUPS.map((group) => (
             <div key={group} role="group" aria-label={group} className="px-1">
               <p className="px-3 pb-1 pt-2 font-code text-[10px] uppercase text-[var(--c-ink)]/50">{group}</p>
-              {CHAT_MODELS.filter((model) => model.group === group).map((model) => (
-                <div
+              {CHAT_MODELS.filter((model) => model.group === group).map((model) => {
+                const modelIsHealthyLocal = model.id === LOCAL_MODEL_ID && localAgentStatus?.healthy;
+
+                return (
+                  <div
                   key={model.id}
                   ref={(element) => {
                     if (element) optionRefs.current[model.id] = element;
@@ -215,14 +268,15 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                   onClick={() => selectModel(model.id)}
                   onKeyDown={handleOptionKeyDown}
                   className={cn(
-                    'flex min-h-12 cursor-pointer items-center gap-3 border-t border-dashed border-[var(--c-ink)]/18 px-3 py-2 font-hand outline-none first:border-t-0',
-                    model.id === activeModelId && 'bg-amber-300/20',
-                    'focus-visible:bg-amber-300/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-500',
+                    'flex min-h-12 cursor-pointer items-center gap-3 border-l-4 border-t border-l-transparent border-t-dashed border-[var(--c-ink)]/18 px-3 py-2 font-hand outline-none transition-colors first:border-t-0',
+                    model.id === value && 'border-l-emerald-600 bg-emerald-500/10 shadow-[inset_3px_0_0_rgba(5,150,105,0.7)] dark:border-l-emerald-300',
+                    model.id === activeModelId && 'bg-[var(--c-ink)]/5',
+                    'focus-visible:bg-[var(--c-ink)]/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--c-ink)]',
                   )}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base font-bold text-[var(--c-heading)]">{model.label}</span>
-                    <span className="block truncate text-sm text-[var(--c-ink)]/60">{PROVIDER_LABELS[model.provider]} · {model.quality}</span>
+                    <span className="block break-words text-base font-bold leading-tight text-[var(--c-heading)]">{displayModelName(model)}</span>
+                    <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{PROVIDER_LABELS[model.provider]} · {model.quality}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1" aria-label={model.capabilities.map((capability) => CAPABILITY_DETAILS[capability].label).join(', ')}>
                     {model.capabilities.map((capability) => {
@@ -244,8 +298,10 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                     })}
                   </span>
                   {model.id === value ? <Check className="shrink-0 text-emerald-700 dark:text-emerald-300" size={18} aria-label="Selected" /> : null}
-                </div>
-              ))}
+                  {modelIsHealthyLocal ? <LocalModelHealthDot /> : null}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

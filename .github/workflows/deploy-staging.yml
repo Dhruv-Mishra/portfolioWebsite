@@ -737,7 +737,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
-          command_timeout: 6m
+          command_timeout: 12m
           script: |
             set -euo pipefail
 
@@ -785,31 +785,66 @@ jobs:
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
             TTS_STREAM_FILE="$(mktemp)"
-            CHAT_HEADERS_FILE="$(mktemp)"
-            CHAT_BODY_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE" "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"' EXIT
-            CHAT_HTTP_CODE=$(curl -sk --max-time 45 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
-              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
-              -H "Origin: https://${SVC_DOMAIN}" -H "Referer: https://${SVC_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
-              --data '{"model":"qwen-3.5-4b-local","messages":[{"role":"user","content":"Reply with exactly: STAGING_LOCAL_AGENT_OK"}]}' \
-              -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/chat/respond" 2>/dev/null || echo "000")
-            [ "$CHAT_HTTP_CODE" = "200" ] || fail "Local-agent HTTPS chat route returned HTTP $CHAT_HTTP_CODE"
-            grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE" \
-              || fail "Local-agent HTTPS chat route returned a non-JSON response"
-            grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline([[:space:]]|$)' "$CHAT_HEADERS_FILE" \
-              || fail "Local-agent HTTPS chat route did not use the primary provider"
-            if ! node - "$CHAT_BODY_FILE" <<'NODE'
-            const fs = require('node:fs');
-            const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE"' EXIT
 
-            if (body?.modelId !== 'qwen-3.5-4b-local' || typeof body?.reply !== 'string' || !body.reply.trim()) {
-              throw new Error('Chat response did not contain a non-empty local-agent reply');
+            STAGING_CHAT_MODELS=(
+              qwen-3.6-27b
+              glm-5.2
+              inkling
+              minimax-m3
+              diffusiongemma-26b
+              deepseek-v4-flash
+              gemma-4-31b-it
+              nemotron-3-super-120b-a12b
+              gpt-oss-120b
+              qwen-3.5-4b-local
+            )
+
+            for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do
+              CHAT_HEADERS_FILE="$(mktemp)"
+              CHAT_BODY_FILE="$(mktemp)"
+              CHAT_HTTP_CODE=$(curl -sk --max-time 45 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
+                -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
+                -H "Origin: https://${SVC_DOMAIN}" -H "Referer: https://${SVC_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
+                --data "{\"model\":\"${CHAT_MODEL}\",\"messages\":[{\"role\":\"user\",\"content\":\"Staging deployment canary health check. Please provide a brief acknowledgement.\"}]}" \
+                -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/chat/respond" 2>/dev/null || echo "000")
+              if [ "$CHAT_HTTP_CODE" != "200" ]; then
+                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE}; expected HTTP 200"
+              fi
+              if ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
+                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE}; expected JSON content type"
+              fi
+              if ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$' "$CHAT_HEADERS_FILE"; then
+                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE}; expected primaryOnline fallback header"
+              fi
+              if ! CHAT_MODEL="$CHAT_MODEL" node - "$CHAT_BODY_FILE" <<'NODE'
+            const fs = require('node:fs');
+            let body;
+
+            try {
+              body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+            } catch {
+              process.exit(1);
+            }
+
+            if (
+              body?.modelId !== process.env.CHAT_MODEL ||
+              typeof body?.reply !== 'string' ||
+              !body.reply.trim()
+            ) {
+              process.exit(1);
             }
             NODE
-            then
-              fail "Local-agent HTTPS chat response was invalid"
-            fi
-            echo "Local-agent HTTPS chat topology verified"
+              then
+                rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+                fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE}; response contract invalid"
+              fi
+              rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+              echo "Staging chat canary verified: ${CHAT_MODEL}"
+            done
 
             TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \

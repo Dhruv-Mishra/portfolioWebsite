@@ -90,10 +90,23 @@ describe('release version promotion', () => {
     );
   });
 
-  it('requires, syncs, and locally verifies the staging Qwen agent', () => {
+  it('requires, syncs, and locally verifies every staging chat model through Nginx', () => {
     const verificationScript = stagingDeploy.slice(
       stagingDeploy.indexOf('- name: Verify staging deployment'),
     );
+    const expectedStagingChatModels = [
+      'qwen-3.6-27b',
+      'glm-5.2',
+      'inkling',
+      'minimax-m3',
+      'diffusiongemma-26b',
+      'deepseek-v4-flash',
+      'gemma-4-31b-it',
+      'nemotron-3-super-120b-a12b',
+      'gpt-oss-120b',
+      'qwen-3.5-4b-local',
+    ];
+    const modelMatrix = verificationScript.match(/STAGING_CHAT_MODELS=\(\n([\s\S]*?)\n\s*\)/);
 
     expect(stagingDeploy).toMatch(
       /STAGING_LOCAL_AGENT_BASE_URL:\s*https:\/\/llm\.whoisdhruv\.com\/v1/,
@@ -130,12 +143,31 @@ describe('release version promotion', () => {
 
     expect(verificationScript).toContain('--resolve "${SVC_DOMAIN}:443:127.0.0.1"');
     expect(verificationScript).toContain('"https://${SVC_DOMAIN}/chat/respond"');
-    expect(verificationScript).toContain('"model":"qwen-3.5-4b-local"');
+    expect(verificationScript).toContain('command_timeout: 12m');
+    expect(verificationScript).toContain('STAGING_CHAT_MODELS=(');
+    expect(verificationScript).toContain('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do');
+    expect(
+      modelMatrix?.[1]
+        .trim()
+        .split('\n')
+        .map((modelId) => modelId.trim()),
+    ).toEqual(expectedStagingChatModels);
+    expect(verificationScript).toContain('CHAT_HEADERS_FILE="$(mktemp)"');
+    expect(verificationScript).toContain('CHAT_BODY_FILE="$(mktemp)"');
+    expect(verificationScript).toContain('\\"model\\":\\"${CHAT_MODEL}\\"');
+    expect(verificationScript).toContain(
+      'Staging deployment canary health check. Please provide a brief acknowledgement.',
+    );
     expect(verificationScript).toContain('-H "Origin: https://${SVC_DOMAIN}"');
+    expect(verificationScript).toContain('-H "Referer: https://${SVC_DOMAIN}/"');
     expect(verificationScript).toContain('-H "Sec-Fetch-Site: same-origin"');
-    expect(verificationScript).toContain('application/json');
-    expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline');
-    expect(verificationScript).toContain("body?.modelId !== 'qwen-3.5-4b-local'");
+    expect(verificationScript).toContain('-H "Accept: application/json" -H "Content-Type: application/json"');
+    expect(verificationScript).toContain('content-type:[[:space:]]*application/json');
+    expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$');
+    expect(verificationScript).toContain('body?.modelId !== process.env.CHAT_MODEL');
     expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
+    expect(verificationScript).toContain(
+      'fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE};',
+    );
   });
 });

@@ -14,7 +14,7 @@ describe('chat model preference', () => {
   it('uses the catalog default and rejects unrecognized stored values', () => {
     expect(readChatModelPref(null)).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(readChatModelPref('not-a-model')).toBe(DEFAULT_CHAT_MODEL_ID);
-    expect(readChatModelPref('gpt-oss-120b')).toBe('gpt-oss-120b');
+    expect(readChatModelPref('gpt-oss-120b')).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(source).toContain('useSyncExternalStore<ChatModelId>');
   });
 

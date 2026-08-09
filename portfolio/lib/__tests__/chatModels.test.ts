@@ -11,15 +11,13 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(8);
+    expect(CHAT_MODELS).toHaveLength(6);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.6-27b',
       'minimaxai/minimax-m3',
       'google/diffusiongemma-26b-a4b-it',
       'deepseek-ai/deepseek-v4-flash-0731',
-      'google/gemma-4-31b-it',
       'nvidia/nemotron-3-super-120b-a12b',
-      'openai/gpt-oss-120b',
       'gemma-4-e2b-phone',
     ]);
     expect(getChatModel('qwen-3.5-4b-local')).toEqual({
@@ -46,9 +44,7 @@ describe('chat model catalog', () => {
       'minimax-m3': ['image'],
       'diffusiongemma-26b': ['image'],
       'deepseek-v4-flash': ['fast'],
-      'gemma-4-31b-it': ['image'],
       'nemotron-3-super-120b-a12b': ['reasoning', 'slow'],
-      'gpt-oss-120b': ['reasoning', 'slow'],
       'qwen-3.5-4b-local': ['slow'],
     });
   });
@@ -58,7 +54,6 @@ describe('chat model catalog', () => {
       'qwen-3.6-27b',
       'minimax-m3',
       'diffusiongemma-26b',
-      'gemma-4-31b-it',
     ]);
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [
       model.id,
@@ -68,9 +63,7 @@ describe('chat model catalog', () => {
       'minimax-m3': 'text-first',
       'diffusiongemma-26b': 'image-first',
       'deepseek-v4-flash': null,
-      'gemma-4-31b-it': 'text-first',
       'nemotron-3-super-120b-a12b': null,
-      'gpt-oss-120b': null,
       'qwen-3.5-4b-local': null,
     });
     for (const model of CHAT_MODELS) {

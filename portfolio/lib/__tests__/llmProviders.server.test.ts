@@ -77,23 +77,9 @@ describe('getSuggestionsProviders', () => {
       imageInputOrder: 'image-first',
       acceptsSystemMessages: false,
     });
-    expect(getChatProviders('gemma-4-31b-it').primary).toMatchObject({
-      kind: 'nvidia',
-      model: 'google/gemma-4-31b-it',
-      supportsImages: true,
-      imageInputOrder: 'text-first',
-    });
-    expect(getChatProviders('gemma-4-31b-it').primary?.sampling.extraBody).toEqual({
-      chat_template_kwargs: { enable_thinking: false },
-    });
     expect(getChatProviders('nemotron-3-super-120b-a12b').primary).toMatchObject({
       kind: 'nvidia',
       model: 'nvidia/nemotron-3-super-120b-a12b',
-      supportsImages: false,
-    });
-    expect(getChatProviders('gpt-oss-120b').primary).toMatchObject({
-      kind: 'nvidia',
-      model: 'openai/gpt-oss-120b',
       supportsImages: false,
     });
   });
@@ -102,7 +88,7 @@ describe('getSuggestionsProviders', () => {
     vi.stubEnv('NVIDIA_API_KEY', '');
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
 
-    expect(getChatProviders('gpt-oss-120b')).toEqual({ primary: null, fallbacks: [] });
+    expect(getChatProviders('nemotron-3-super-120b-a12b')).toEqual({ primary: null, fallbacks: [] });
   });
 
   it.each([

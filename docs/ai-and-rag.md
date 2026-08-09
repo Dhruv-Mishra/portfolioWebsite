@@ -4,7 +4,7 @@ The chat route accepts only model IDs defined in [the model registry](../portfol
 
 ## Current Model Registry
 
-The active catalog contains eight selections: one Groq default, six NVIDIA models, and one optional local agent.
+The active catalog contains six selections: one Groq default, four NVIDIA models, and one optional local agent.
 
 | Group | Model | Image input | Registry role |
 |---|---|---:|---|
@@ -12,9 +12,7 @@ The active catalog contains eight selections: one Groq default, six NVIDIA model
 | NVIDIA | MiniMax M3 | Yes | Preview; non-commercial use only |
 | NVIDIA | DiffusionGemma 26B | Yes | Vision |
 | NVIDIA | DeepSeek V4 Flash | No | Fast |
-| NVIDIA | Gemma 4 31B IT | Yes | Vision |
 | NVIDIA | Nemotron 3 Super 120B | No | Strong reasoning |
-| NVIDIA | GPT OSS 120B | No | Strong reasoning |
 | Local agent | Local model | No | Optional OpenAI-compatible endpoint |
 
 The local-agent entry requires both `LOCAL_AGENT_BASE_URL` and `LOCAL_AGENT_API_KEY`. The default entry requires `GROQ_API_KEY`; NVIDIA selections require `NVIDIA_API_KEY`. An unsupported ID is rejected before a provider is called.

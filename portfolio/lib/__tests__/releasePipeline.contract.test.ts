@@ -107,9 +107,7 @@ describe('release version promotion', () => {
       'minimax-m3',
       'diffusiongemma-26b',
       'deepseek-v4-flash',
-      'gemma-4-31b-it',
       'nemotron-3-super-120b-a12b',
-      'gpt-oss-120b',
       'qwen-3.5-4b-local',
     ];
     const modelMatrix = verificationScript.match(/STAGING_CHAT_MODELS=\(\n([\s\S]*?)\n\s*\)/);

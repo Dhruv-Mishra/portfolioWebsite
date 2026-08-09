@@ -124,7 +124,7 @@ The retrieval bundle is built from the Markdown fact corpus and committed so run
 | Selection | Current provider path | Capability handling | Failure behavior |
 |---|---|---|---|
 | Recommended default | Groq Qwen 3.6 27B | Vision-capable | Local static fallback when unavailable |
-| NVIDIA selections | NVIDIA's OpenAI-compatible endpoint | Per-model vision and system-message compatibility | Local static fallback when unavailable |
+| 4 NVIDIA selections | NVIDIA's OpenAI-compatible endpoint | Per-model vision and system-message compatibility | Local static fallback when unavailable |
 | Local agent | Configured OpenAI-compatible endpoint | Optional and text-only | Local static fallback when unavailable |
 
 The route accepts only IDs in the model registry. A model selection maps to its configured provider path; the application does not silently swap the user's selected model for a different model after a provider failure. See [AI and RAG](ai-and-rag.md) for the active registry and configuration requirements.

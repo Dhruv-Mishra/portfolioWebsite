@@ -22,7 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   DOMAIN: whoisdhruv.com
 
 jobs:
@@ -101,7 +100,7 @@ jobs:
           fi
 
       - name: Checkout deploy kit
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: deployed/production
 
@@ -114,7 +113,7 @@ jobs:
           tar czf portfolio-rollback-kit-${{ github.run_id }}.tar.gz -C deploy-kit .
 
       - name: Copy rollback kit to VM
-        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -126,7 +125,7 @@ jobs:
           command_timeout: 3m
 
       - name: Roll back on ${{ matrix.server.name }}
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         env:
           SITE: ${{ inputs.site || 'portfolio' }}
           REQUESTED_SHA: ${{ inputs.rollback_to_sha }}
@@ -234,7 +233,7 @@ jobs:
             exit 0
 
       - name: Verify rollback on ${{ matrix.server.name }}
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}

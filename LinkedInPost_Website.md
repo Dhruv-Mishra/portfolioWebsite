@@ -1,13 +1,11 @@
-# Website Update Draft
+# First Project Reveal: An End-to-End Portfolio
 
-I have been tightening the engineering behind my portfolio site, not just the front-end presentation.
+This is the first project where I have owned the whole path, not only the interface: sketchbook-style frontend, Next.js backend, browser speech input, Pocket TTS, grounded RAG chat, model selection, and the release pipeline.
 
-The chat experience is grounded in a Markdown fact corpus with a committed embeddings bundle. The default chat selection uses Groq Qwen when its server-side configuration is present, while an optional OpenAI-compatible local agent can be selected when the separate self-hosted endpoint is configured. NVIDIA-hosted models remain selectable through the same server-side allowlist.
+The chat uses a Markdown fact corpus and committed embeddings bundle, with allowlisted Groq, NVIDIA, and optional local model paths. Voice input can use browser-native recognition or local Whisper in a Web Worker; custom output runs through a Pocket TTS Python worker. The parts I care about most are the boundaries: input limits, origin checks, signed assistant history, deterministic UI actions, and useful fallbacks when an upstream provider is unavailable.
 
-For voice, custom speech runs through Pocket TTS in a Python worker. The deployment supports one local TTS gateway role and remote application nodes that forward only TTS traffic over the private network. The browser can still fall back to device speech when custom voice is unavailable.
+I also own the review and delivery loop. The guestbook and feedback flow are GitHub-backed, so comments have a real moderation and follow-up path. GitHub Actions runs linting, TypeScript checks, and Vitest; it builds a multi-architecture container image, promotes through staging, and requires approval before production.
 
-The delivery path is also deliberately boring: CI runs linting, type checks, and tests, then publishes a multi-architecture container image. Changes promote through staging before production, production uses environment approvals, and the deploy path validates host contracts, health checks releases, and can roll back retained versions.
+The infrastructure is deliberately built from free-tier building blocks: Linux VMs behind Cloudflare and Nginx, with a separate TTS gateway role where needed. That constraint made tradeoffs tangible: cache what is expensive, put limits at the request boundary, and design a useful fallback before reaching for more hardware.
 
-On the request boundary, the site validates allowed origins, bounds request payloads, and applies Nginx plus in-process IP rate limits. The in-process limits are per Node process, so they complement rather than replace edge and reverse-proxy controls.
-
-It is a small personal site, but it has become a useful place to practice the operational parts of AI features: model selection, retrieval, voice serving, container delivery, and failure handling.
+It is still a personal portfolio, but building it end to end has been a practical way to learn where frontend polish meets backend tradeoffs, voice UX, AI reliability, CI/CD, and release review.

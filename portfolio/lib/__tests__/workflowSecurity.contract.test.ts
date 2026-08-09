@@ -21,15 +21,15 @@ const standaloneSanitizer = fs.readFileSync(
   'utf8',
 );
 const expectedActionRefs: Record<string, string> = {
-  'actions/checkout': '11d5960a326750d5838078e36cf38b85af677262',
-  'actions/setup-node': '49933ea5288caeca8642d1e84afbd3f7d6820020',
-  'actions/download-artifact': 'd3f86a106a0bac45b974a628896c90dbdf5c8093',
-  'docker/setup-qemu-action': 'c7c53464625b32c7a7e944ae62b3e17d2b600130',
-  'docker/setup-buildx-action': '8d2750c68a42422c14e847fe6c8ac0403b4cbd6f',
-  'docker/login-action': 'c94ce9fb468520275223c153574b00df6fe4bcc9',
-  'docker/build-push-action': '10e90e3645eae34f1e60eeb005ba3a3d33f178e8',
-  'appleboy/scp-action': '917f8b81dfc1ccd331fef9e2d61bdc6c8be94634',
-  'appleboy/ssh-action': '7eaf76671a0d7eec5d98ee897acda4f968735a17',
+  'actions/checkout': '3d3c42e5aac5ba805825da76410c181273ba90b1',
+  'actions/setup-node': '820762786026740c76f36085b0efc47a31fe5020',
+  'actions/download-artifact': '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c',
+  'docker/setup-qemu-action': '96fe6ef7f33517b61c61be40b68a1882f3264fb8',
+  'docker/setup-buildx-action': 'bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
+  'docker/login-action': 'dbcb813823bdd20940b903addbd779551569679f',
+  'docker/build-push-action': '53b7df96c91f9c12dcc8a07bcb9ccacbed38856a',
+  'appleboy/scp-action': 'ff85246acaad7bdce478db94a363cd2bf7c90345',
+  'appleboy/ssh-action': '0ff4204d59e8e51228ff73bce53f80d53301dee2',
 };
 
 function workflowReferences(filename: string): string[] {

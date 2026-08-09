@@ -14,23 +14,31 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 
 ## Screenshots
 
+The repository contains five curated product screenshots covering the home interaction, project browsing, guestbook, settings, and mobile chat surface.
+
 | Home and terminal | Project wall |
 |---|---|
 | ![Dark sketchbook home page with an interactive terminal](docs/screenshots/home-desktop.png) | ![Dark sketchbook project wall with illustrated project cards](docs/screenshots/projects-desktop.png) |
 
+| Guestbook | Settings and model controls |
+|---|---|
+| ![Guestbook wall with voice input and public visitor notes](docs/screenshots/guestbook-desktop.webp) | ![Settings screen with model, voice, motion, and appearance controls](docs/screenshots/settings-desktop.webp) |
+
 <p align="center">
-	<img src="docs/screenshots/chat-mobile.png" width="390" alt="Mobile AI chat with model capability, image attachment, voice, suggestions, and action controls">
+	<img src="docs/screenshots/chat-mobile.png" width="390" alt="Mobile AI chat with model selection, voice input, suggestions, and validated action controls">
 </p>
 
 ## Experience
 
-- **Sketchbook interface:** responsive light and dark themes, page-turn transitions, tactile details, a command palette, keyboard shortcuts, and optional sound effects.
-- **Interactive terminal:** navigates the site, opens content, changes UI state, and hides a few surprises behind a familiar shell vocabulary.
-- **Grounded AI chat:** answers from a local Markdown fact corpus and committed embedding fallback instead of inventing portfolio details.
-- **Multimodal model picker:** switches between the Groq default, eight NVIDIA-hosted models, and an optional local agent, exposing image attachment only when the active model supports vision.
-- **Voice in and out:** local browser transcription, a custom Pocket TTS server voice, persistent generated-audio caching, and device-speech fallback.
-- **Real product surfaces:** project modals, resume and Markdown routes, stickers, settings, a GitHub-backed guestbook, and private feedback workflows.
-- **Machine-readable content:** public Markdown and `llms.txt` routes make the portfolio useful to people, crawlers, and AI clients.
+- **Sketchbook shell:** responsive light and dark themes, page-turn transitions, a command palette, keyboard shortcuts, optional sound, and small discoverable interactions.
+- **Terminal navigation:** a shell-inspired command surface opens portfolio areas, changes allowed presentation state, and keeps the less-obvious interactions part of the experience.
+- **Projects and public content:** case-study cards and modals sit alongside resume, Markdown, `llms.txt`, and sitemap routes for people, crawlers, and AI clients.
+- **Grounded chat:** server-built context combines a local Markdown fact corpus with its committed embeddings bundle; the browser never receives provider credentials.
+- **Model selection with boundaries:** the picker exposes a Groq default, eight NVIDIA-hosted choices, and an optional OpenAI-compatible local agent. Model IDs are server allowlisted, and image input appears only for vision-capable choices.
+- **Voice in and out:** users can choose browser-native recognition or local Whisper transcription in a Web Worker. Server custom voice uses Pocket TTS, streams generated audio, caches playback in the browser, and can fall back to device speech.
+- **Product workflows:** a GitHub-backed guestbook, private feedback, stickers, settings, and deterministic chat actions extend the portfolio beyond a static presentation.
+
+For the component, API, runtime, and delivery boundaries behind these surfaces, read the [architecture HLD](docs/architecture.md).
 
 Some commands and interactions intentionally remain undocumented so the site keeps its discovery layer.
 

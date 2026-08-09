@@ -28,7 +28,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   DEPLOY_SKIP_NGINX: "false"
   STAGING_SITE: portfolio-staging
   STAGING_DOMAIN: staging.whoisdhruv.com
@@ -101,10 +100,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -156,15 +155,15 @@ jobs:
 
       - name: Set up QEMU
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
 
       - name: Set up Docker Buildx
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
 
       - name: Login to GHCR
         if: env.DEPLOY_MODE == 'image'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -173,7 +172,7 @@ jobs:
       - name: Build and push Docker image
         if: env.DEPLOY_MODE == 'image'
         id: docker-build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: portfolio
           file: portfolio/Dockerfile
@@ -287,7 +286,7 @@ jobs:
           fi
 
       - name: Validate staging VM contract
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -433,13 +432,13 @@ jobs:
 
       - name: Download build artifact
         if: env.DEPLOY_MODE == 'artifact'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: portfolio-bundle
 
       - name: Copy artifact to staging VM
         if: env.DEPLOY_MODE == 'artifact'
-        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -452,7 +451,7 @@ jobs:
 
       - name: Checkout deploy kit
         if: env.DEPLOY_MODE == 'image'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Package deploy kit
         if: env.DEPLOY_MODE == 'image'
@@ -468,7 +467,7 @@ jobs:
 
       - name: Copy deploy kit to staging VM
         if: env.DEPLOY_MODE == 'image'
-        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}
@@ -481,7 +480,7 @@ jobs:
 
       - name: Deploy on ${{ matrix.server.name }}
         id: deploy
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         env:
           GHCR_OWNER: ${{ github.repository_owner }}
           GHCR_READ_TOKEN: ${{ secrets[matrix.server.ghcr_secret] }}
@@ -495,9 +494,6 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
-          # Keep this false so our script can capture deploy.sh failures,
-          # print the deploy log, then exit with the captured status.
-          script_stop: false
           command_timeout: 20m
           envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
@@ -735,7 +731,7 @@ jobs:
 
       - name: Verify staging deployment (${{ matrix.server.name }})
         if: success()
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
           username: ${{ secrets[matrix.server.user_secret] }}

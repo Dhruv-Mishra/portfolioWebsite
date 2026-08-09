@@ -151,6 +151,11 @@ export async function getLocalAgentStatus(): Promise<LocalAgentStatus> {
   }
 }
 
+export function getKnownLocalAgentStatus(): LocalAgentStatus | null {
+  if (!cachedStatus || cachedStatus.expiresAt <= Date.now()) return null;
+  return cachedStatus.value;
+}
+
 export function __resetLocalAgentStatusCacheForTest(): void {
   cachedStatus = null;
   pendingStatus = null;

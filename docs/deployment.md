@@ -23,6 +23,12 @@ The staging and production workflows:
 
 The image contains Node 22 standalone output, static assets, Python, and the CPU Pocket TTS runtime. The production container serves port 3000; staging is configured as the separate `portfolio-staging` service on port 3010.
 
+## Advisory Model Health
+
+Model-health publishing is operational telemetry, not a release gate. `.github/workflows/publish-model-health.yml` runs every 10 minutes for staging and production, reads each deployed model-status route, probes only the returned deployment canaries, and writes sanitized snapshots to the private `Dhruv-Mishra/portfolio-model-health` repository. Missing workflow credentials, runtime status failures, malformed responses, GitHub API failures, and write conflicts warn and exit successfully.
+
+Configure `MODEL_HEALTH_TOKEN` as a GitHub Actions secret with contents access to that private repository. Configure each runtime environment with `GITHUB_MODEL_HEALTH_REPO=Dhruv-Mishra/portfolio-model-health`, a server-only `GITHUB_MODEL_HEALTH_TOKEN`, and the matching `MODEL_HEALTH_ENVIRONMENT` value. The runtime token is read-only in normal operation; do not put either token in image build arguments or tracked environment files.
+
 ## Host Contract
 
 Each site has a protected `/etc/deploy/sites/<site>.conf` configuration. It provides the domain, service name, port, branch identity, container policy, TTS role, and paths. Runtime environment files hold secrets and per-environment values; do not add them to the repository.

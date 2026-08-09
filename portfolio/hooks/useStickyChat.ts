@@ -17,6 +17,7 @@ import {
   CHAT_MODEL_SWITCH_CLEAR_EVENT,
   getChatModelPref,
 } from '@/lib/chatModelPref';
+import { markChatModelFacingIssues } from '@/lib/chatModelStatus';
 import type { ChatImageAttachment } from '@/lib/chatImageCompression';
 import {
   advanceInterrogation,
@@ -760,6 +761,7 @@ export function useStickyChat(): UseStickyChat {
     }
     setRateLimitRemaining(null);
     setError(null);
+    const requestedModelId = getChatModelPref();
 
     // Add user message
     const userMsg: ChatMessage = {
@@ -787,7 +789,7 @@ export function useStickyChat(): UseStickyChat {
     saveMessages(optimisticMessages);
     savePendingChatRecovery({
       assistantId,
-      modelId: getChatModelPref(),
+      modelId: requestedModelId,
       prompt: trimmed,
       timestamp: pendingAssistant.timestamp,
       userId: userMsg.id,
@@ -869,7 +871,7 @@ export function useStickyChat(): UseStickyChat {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: conversationMessages,
-          model: getChatModelPref(),
+          model: requestedModelId,
           ...(image ? { image: { dataUrl: image.dataUrl } } : {}),
         }),
         signal: controller.signal,
@@ -878,6 +880,9 @@ export function useStickyChat(): UseStickyChat {
       clearTimeout(timeoutId);
       clearFillerTimers();
       if (abortControllerRef.current !== controller) return;
+      if (response.headers.get('X-Chat-Fallback') === 'localStatic') {
+        markChatModelFacingIssues(requestedModelId);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));

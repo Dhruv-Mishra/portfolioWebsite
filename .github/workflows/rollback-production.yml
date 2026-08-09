@@ -183,9 +183,9 @@ jobs:
             }
             trap cleanup EXIT
 
-            DOCKER_CONFIG_DIR="$(mktemp -d)"
-            sudo chmod 700 "$DOCKER_CONFIG_DIR"
             if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+              DOCKER_CONFIG_DIR="$(mktemp -d)"
+              sudo chmod 700 "$DOCKER_CONFIG_DIR"
               printf '%s' "$GHCR_READ_TOKEN" | sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" docker login ghcr.io \
                 -u "$GHCR_OWNER" --password-stdin
             fi
@@ -220,7 +220,11 @@ jobs:
             fi
 
             rollback_status=0
-            sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" "${rollback_args[@]}" > "$LOG" 2>&1 || rollback_status=$?
+            if [ -n "$DOCKER_CONFIG_DIR" ]; then
+              sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash "$STAGING/deploy.sh" "${rollback_args[@]}" > "$LOG" 2>&1 || rollback_status=$?
+            else
+              sudo bash "$STAGING/deploy.sh" "${rollback_args[@]}" > "$LOG" 2>&1 || rollback_status=$?
+            fi
             cat "$LOG" || true
             if [ "$rollback_status" -ne 0 ]; then
               latest_log=$(sudo find "/var/log/${SITE}-deploy" -name 'deploy-*.log' -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2- || true)

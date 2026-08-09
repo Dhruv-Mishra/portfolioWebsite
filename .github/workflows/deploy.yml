@@ -339,13 +339,6 @@ jobs:
             exit 1
           fi
 
-      - name: Warn when GHCR token is absent
-        if: env.DEPLOY_MODE == 'image'
-        run: |
-          if [ -z "${{ secrets.GHCR_READ_TOKEN }}" ]; then
-            echo "::warning::GHCR_READ_TOKEN is not configured for ${{ matrix.server.name }}. This is only OK if the GHCR package is public or the VM already has pull access."
-          fi
-
       - name: Validate production VM contract
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         env:

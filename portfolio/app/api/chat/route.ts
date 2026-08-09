@@ -6,7 +6,7 @@ import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
 import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
-import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
+import { finalizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import {
   DEFAULT_CHAT_MODEL_ID,
@@ -179,7 +179,7 @@ function createFallbackResponse(
   latestUserMessage: string,
   reason?: FallbackReason,
 ) {
-  const reply = getContextualFallback(latestUserMessage);
+  const reply = finalizeAssistantReplyText(getContextualFallback(latestUserMessage));
   const headers: Record<string, string> = {
     'Cache-Control': 'no-store',
     'X-Chat-Fallback': 'localStatic',
@@ -294,20 +294,22 @@ export async function POST(request: NextRequest) {
     const intent = resolveChatIntent(latestUserMessage);
 
     if (intent?.kind === 'action') {
+      const reply = finalizeAssistantReplyText(intent.reply);
       return Response.json({
-        reply: intent.reply,
+        reply,
         action: intent.action,
-        signature: signAssistantMessage(intent.reply, intent.action),
+        signature: signAssistantMessage(reply, intent.action),
       }, {
         headers: { 'Cache-Control': 'no-store' },
       });
     }
 
     if (intent?.kind === 'project-info') {
+      const reply = finalizeAssistantReplyText(intent.reply);
       return Response.json({
-        reply: intent.reply,
+        reply,
         action: null,
-        signature: signAssistantMessage(intent.reply, null),
+        signature: signAssistantMessage(reply, null),
       }, {
         headers: { 'Cache-Control': 'no-store' },
       });
@@ -339,7 +341,6 @@ export async function POST(request: NextRequest) {
     }
 
     let result: ProviderCallResult | null = null;
-    let succeededTier: 'primaryOnline' | 'fallbackOnline' | null = null;
     const providerErrors: string[] = [];
     const providerFailureCodes: ProviderFailureCode[] = [];
 
@@ -374,7 +375,6 @@ export async function POST(request: NextRequest) {
 
         try {
           result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
-          succeededTier = i === 0 ? 'primaryOnline' : 'fallbackOnline';
           break providerLoop;
         } catch (err) {
           const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
@@ -410,7 +410,7 @@ export async function POST(request: NextRequest) {
     }, {
       headers: {
         'Cache-Control': 'no-store',
-        'X-Chat-Fallback': succeededTier ?? 'primaryOnline',
+        'X-Chat-Fallback': result.modelId,
       },
     });
   } catch (err) {
@@ -503,7 +503,7 @@ async function callProvider(
     }
 
     const rawReply = stripThinkTags(getDeltaText(rawContent));
-    const reply = sanitizeAssistantReplyText(rawReply);
+    const reply = finalizeAssistantReplyText(rawReply);
 
     if (!reply) {
       throw new Error('Provider returned an empty or invalid reply');

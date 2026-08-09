@@ -11,6 +11,10 @@ const chatSource = fs.readFileSync(
   path.join(process.cwd(), 'components', 'StickyNoteChat.tsx'),
   'utf8',
 );
+const statusSource = fs.readFileSync(
+  path.join(process.cwd(), 'lib', 'chatModelStatus.ts'),
+  'utf8',
+);
 
 describe('settings chat model contract', () => {
   it('renders every catalog model under its catalog groups with selected-model capabilities', () => {
@@ -53,18 +57,23 @@ describe('settings chat model contract', () => {
     expect(picker).toContain('group-hover:opacity-100');
   });
 
-  it('checks local status on open and renders its accessible healthy state without cropped text', () => {
+  it('uses shared model status on open and renders healthy and issue states without disabling options', () => {
     const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
     const openPicker = picker.match(/const openPicker = \(\) => \{([\s\S]*?)\n  \};/);
 
-    expect(picker).toContain("fetch('/api/chat/local-status')");
-    expect(picker).not.toContain("fetch('/api/chat/local-status',");
-    expect(openPicker?.[1]).toContain('requestLocalAgentStatus();');
+    expect(statusSource).toContain("fetch('/api/chat/model-status')");
+    expect(statusSource).toContain('useChatModelStatus');
+    expect(picker).toContain('useChatModelStatus();');
+    expect(picker).not.toContain('/api/chat/local-status');
+    expect(openPicker?.[1]).toContain('void refreshChatModelStatus();');
     expect(picker).not.toContain('setInterval');
     expect(picker).not.toContain('truncate');
     expect(picker).toContain('aria-label="Local model is healthy"');
     expect(picker).toContain('title="Local model is healthy"');
     expect(picker.match(/<LocalModelHealthDot \/>/g)).toHaveLength(2);
+    expect(picker).toContain('Facing issues');
+    expect(picker).toContain('isChatModelFacingIssues(model.id, modelStatus)');
+    expect(picker).not.toContain('aria-disabled');
   });
 
   it('uses neutral/emerald model selection styling and a local provider label', () => {
@@ -111,9 +120,11 @@ describe('settings chat model contract', () => {
 
   it('links the current chat model to a focused, visibly marked settings target', () => {
     expect(chatSource).toContain('href="/settings?focus=ai-model"');
-    expect(chatSource).toContain('Current AI model: ${selectedModel.label}. Change in Settings');
+    expect(chatSource).toContain('const selectedModelDisplayName = getChatModelDisplayName(selectedModel, modelStatus.local);');
+    expect(chatSource).toContain('Current AI model: ${selectedModelDisplayName}. Change in Settings');
+    expect(chatSource).toContain('Current AI model: ${modelDisplayName}. Change in Settings');
+    expect(chatSource.match(/title=\{selectedModelDisplayName\}/g)).toHaveLength(2);
     expect(chatSource).toContain('data-chat-model-settings-link');
-    expect(chatSource).toContain('Current AI model: ${model.label}. Change in Settings');
     expect(chatSource.match(/href="\/settings\?focus=ai-model"/g)).toHaveLength(3);
     expect(source).toContain("get('focus') !== 'ai-model'");
     expect(source).toContain("document.getElementById('ai-model-setting')");

@@ -23,6 +23,9 @@ const stagingPromotion = readWorkflow('promote-staging.yml');
 const productionPromotion = readWorkflow('promote-production.yml');
 const stagingDeploy = readWorkflow('deploy-staging.yml');
 const productionDeploy = readWorkflow('deploy.yml');
+const productionRollback = readWorkflow('rollback-production.yml');
+const modelCatalogAudit = readWorkflow('model-catalog-audit.yml');
+const modelHealthPublisher = readWorkflow('publish-model-health.yml');
 const dockerfile = fs.readFileSync(path.join(projectRoot, 'Dockerfile'), 'utf8');
 const deployScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'deploy.sh'), 'utf8');
 
@@ -124,26 +127,11 @@ describe('release version promotion', () => {
     expect(productionResourceSmoke).toContain('::error::Production public resource failed through Cloudflare');
   });
 
-  it('requires, syncs, and locally verifies every staging chat model through Nginx', () => {
+  it('discovers staging canaries at runtime and reports model degradation without blocking deployment', () => {
     const stagingCanaryJob = stagingDeploy.slice(
       stagingDeploy.indexOf('deploy-staging-canary:'),
       stagingDeploy.indexOf('deploy-staging:', stagingDeploy.indexOf('deploy-staging-canary:')),
     );
-    const verificationScript = stagingDeploy.slice(
-      stagingDeploy.indexOf('- name: Verify staging deployment'),
-    );
-    const modelCanaryLoop = verificationScript.slice(
-      verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do'),
-      verificationScript.indexOf('\n            done', verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do')),
-    );
-    const expectedStagingChatModels = [
-      'qwen-3.6-27b',
-      'minimax-m3',
-      'deepseek-v4-flash',
-      'nemotron-3-super-120b-a12b',
-      'qwen-3.5-4b-local',
-    ];
-    const modelMatrix = verificationScript.match(/STAGING_CHAT_MODELS=\(\n([\s\S]*?)\n\s*\)/);
 
     expect(stagingDeploy).toMatch(
       /STAGING_LOCAL_AGENT_BASE_URL:\s*https:\/\/llm\.whoisdhruv\.com\/v1/,
@@ -177,82 +165,69 @@ describe('release version promotion', () => {
     expect(stagingDeploy).toContain(
       "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
     );
-
-    expect(verificationScript).toContain('--resolve "${SVC_DOMAIN}:443:127.0.0.1"');
-    expect(verificationScript).toContain('"https://${SVC_DOMAIN}/chat/respond"');
     expect(stagingCanaryJob).toContain('timeout-minutes: 45');
-    expect(verificationScript).toContain('command_timeout: 20m');
-    expect(verificationScript).toContain('STAGING_CHAT_MODELS=(');
-    expect(verificationScript).toContain('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do');
-    expect(verificationScript).toContain('CHAT_CANARY_FAILURES=()');
-    expect(
-      modelMatrix?.[1]
-        .trim()
-        .split('\n')
-        .map((modelId) => modelId.trim()),
-    ).toEqual(expectedStagingChatModels);
-    expect(verificationScript).toContain('CHAT_HEADERS_FILE="$(mktemp)"');
-    expect(verificationScript).toContain('CHAT_BODY_FILE="$(mktemp)"');
-    expect(verificationScript).toContain('\\"model\\":\\"${CHAT_MODEL}\\"');
-    expect(verificationScript).toContain(
-      'Staging deployment canary health check. Please provide a brief acknowledgement.',
+
+    expect(stagingCanaryJob).toContain('Audit staging model canaries');
+    expect(stagingCanaryJob).toContain('https://${{ env.STAGING_DOMAIN }}/api/chat/model-status');
+    expect(stagingCanaryJob).toContain('deploymentCanaryModelIds');
+    expect(stagingCanaryJob).toContain('mapfile -t DEPLOYMENT_CANARY_MODEL_IDS');
+    expect(stagingCanaryJob).toContain('for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do');
+    expect(stagingCanaryJob).toContain('::error::Staging model-status route failed');
+    expect(stagingCanaryJob).toContain('::error::Staging model-status response schema is invalid');
+    expect(stagingCanaryJob).toContain('::warning::Staging chat canary degraded:');
+    expect(stagingCanaryJob).toContain('## Staging model canary audit');
+    expect(stagingCanaryJob).toContain('jq -nc --arg model "$CHAT_MODEL"');
+    expect(stagingCanaryJob).not.toContain('STAGING_CHAT_MODELS=(');
+    expect(stagingCanaryJob).not.toContain('CHAT_CANARY_FAILURES=()');
+    expect(stagingCanaryJob).not.toContain('fail "Staging chat canary failed');
+    expect(stagingCanaryJob).not.toContain('qwen-3.6-27b');
+
+    expect(stagingDeploy).toContain('Note GHCR credential fallback');
+    expect(stagingDeploy).toContain('::notice::GHCR_READ_TOKEN is not configured');
+    expect(stagingDeploy).toContain('if [ -n "${GHCR_READ_TOKEN:-}" ]; then\n                DOCKER_CONFIG_DIR="$(mktemp -d)"');
+    expect(stagingDeploy).toContain('if [ -n "$DOCKER_CONFIG_DIR" ]; then\n                sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash');
+    expect(productionDeploy).not.toContain('Warn when GHCR token is absent');
+    expect(productionDeploy).not.toContain('::warning::GHCR_READ_TOKEN is not configured');
+    expect(productionRollback).toContain(
+      'if [ -n "${GHCR_READ_TOKEN:-}" ]; then\n              DOCKER_CONFIG_DIR="$(mktemp -d)"',
     );
-    expect(verificationScript).toContain('-H "Origin: https://${SVC_DOMAIN}"');
-    expect(verificationScript).toContain('-H "Referer: https://${SVC_DOMAIN}/"');
-    expect(verificationScript).toContain('-H "Sec-Fetch-Site: same-origin"');
-    expect(verificationScript).toContain('-H "Accept: application/json" -H "Content-Type: application/json"');
-    expect(modelCanaryLoop).toContain('--max-time 100');
-    expect(modelCanaryLoop).not.toContain('--max-time 45');
-    expect(modelCanaryLoop).toMatch(
-      /if CHAT_CURL_METRICS="\$\(curl -sk --max-time 100[\s\S]*?-w '%\{http_code\} %\{time_total\}'[\s\S]*?\)"; then\n\s+CHAT_CURL_EXIT=0\n\s+else\n\s+CHAT_CURL_EXIT=\$\?\n\s+fi/,
+    expect(productionRollback).toContain(
+      'if [ -n "$DOCKER_CONFIG_DIR" ]; then\n              sudo env DOCKER_CONFIG="$DOCKER_CONFIG_DIR" bash',
     );
-    expect(modelCanaryLoop).not.toContain('|| echo "000"');
-    expect(modelCanaryLoop).toContain('CHAT_ELAPSED_SECONDS="unknown"');
-    expect(modelCanaryLoop).toContain('CHAT_HTTP_CODE="${BASH_REMATCH[1]}"');
-    expect(modelCanaryLoop).toContain('CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"');
-    expect(modelCanaryLoop).toContain('CHAT_FALLBACK="unknown"');
-    expect(modelCanaryLoop).toContain('primaryOnline|fallbackOnline|localStatic');
-    expect(modelCanaryLoop).toContain('CHAT_FALLBACK_REASON="unknown"');
-    expect(modelCanaryLoop).toContain(
-      'all-providers-failed|no-providers-configured|request-aborted|server-deadline-exceeded|provider-timeout|invalid-provider-response',
-    );
-    expect(modelCanaryLoop).toContain(
-      'CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} fallback=${CHAT_FALLBACK} reason=${CHAT_FALLBACK_REASON} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"',
-    );
-    expect(modelCanaryLoop).toContain('CHAT_CANARY_FAILURE=""');
-    expect(modelCanaryLoop).toContain(
-      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected HTTP 200"',
-    );
-    expect(modelCanaryLoop).toContain(
-      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected JSON content type"',
-    );
-    expect(modelCanaryLoop).toContain(
-      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; expected primaryOnline fallback header"',
-    );
-    expect(modelCanaryLoop).toContain(
-      'CHAT_CANARY_FAILURE="Staging chat canary failed: ${CHAT_CANARY_DIAGNOSTICS}; response contract invalid"',
-    );
-    expect(modelCanaryLoop).toContain('CHAT_CANARY_FAILURES+=("$CHAT_CANARY_FAILURE")');
-    expect(modelCanaryLoop).toContain('continue');
-    expect(modelCanaryLoop).toContain('echo "Staging chat canary verified: ${CHAT_MODEL}"');
-    expect(modelCanaryLoop).not.toContain('fail "Staging chat canary failed:');
-    expect(modelCanaryLoop).not.toContain('cat "$CHAT_HEADERS_FILE"');
-    expect(modelCanaryLoop).not.toContain('cat "$CHAT_BODY_FILE"');
-    expect(verificationScript).toContain('content-type:[[:space:]]*application/json');
-    expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$');
-    expect(verificationScript).toContain('body?.modelId !== process.env.CHAT_MODEL');
-    expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
-    expect(verificationScript).toContain(
-      "printf '%s\\n' \"${CHAT_CANARY_FAILURES[@]}\" >&2",
-    );
-    expect(verificationScript).toContain(
-      'fail "Staging chat canary failed for ${#CHAT_CANARY_FAILURES[@]} model(s)"',
-    );
-    expect(verificationScript.indexOf('CHAT_CANARY_FAILURES=()')).toBeLessThan(
-      verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do'),
-    );
-    expect(verificationScript.indexOf('if [ "${#CHAT_CANARY_FAILURES[@]}" -gt 0 ]; then')).toBeGreaterThan(
-      verificationScript.indexOf('\n            done', verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do')),
-    );
+
+    expect(modelCatalogAudit).toContain('workflow_dispatch:');
+    expect(modelCatalogAudit).toContain('schedule:');
+    expect(modelCatalogAudit).toContain('https://${STAGING_DOMAIN}/api/chat/model-status');
+    expect(modelCatalogAudit).toContain('(.models | type == "array")');
+    expect(modelCatalogAudit).toContain('invalid models[].id schema');
+    expect(modelCatalogAudit).toContain("mapfile -t CHAT_MODEL_IDS < <(jq -r '.models[].id'");
+    expect(modelCatalogAudit).toContain('for CHAT_MODEL in "${CHAT_MODEL_IDS[@]}"; do');
+    expect(modelCatalogAudit).toContain('"$CHAT_RETURNED_MODEL_ID" = "localStatic"');
+    expect(modelCatalogAudit).toContain('"$CHAT_RETURNED_MODEL_ID" != "$CHAT_MODEL"');
+    expect(modelCatalogAudit).toContain('::warning::Runtime chat catalog model degraded:');
+    expect(modelCatalogAudit).not.toContain('deploymentCanaryModelIds');
+    expect(modelCatalogAudit).toContain('## Staging model catalog audit');
+    expect(modelCatalogAudit).not.toContain('exit 1');
+
+    expect(modelHealthPublisher).toContain('workflow_dispatch:');
+    expect(modelHealthPublisher).toContain('cron: "*/10 * * * *"');
+    expect(modelHealthPublisher).toContain('concurrency:');
+    expect(modelHealthPublisher).toContain('publish-model-health-${{ matrix.environment }}');
+    expect(modelHealthPublisher).toContain('MODEL_HEALTH_TOKEN: ${{ secrets.MODEL_HEALTH_TOKEN }}');
+    expect(modelHealthPublisher).toContain('https://${MODEL_HEALTH_SITE_DOMAIN}/api/chat/model-status');
+    expect(modelHealthPublisher).toContain('deploymentCanaryModelIds');
+    expect(modelHealthPublisher).toContain('mapfile -t DEPLOYMENT_CANARY_MODEL_IDS');
+    expect(modelHealthPublisher).toContain('for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do');
+    expect(modelHealthPublisher).not.toContain('mapfile -t CHAT_MODEL_IDS');
+    expect(modelHealthPublisher).toContain('"$returned_model" = "localStatic"');
+    expect(modelHealthPublisher).toContain('"$returned_model" != "$chat_model"');
+    expect(modelHealthPublisher).toContain('.modelId == $model');
+    expect(modelHealthPublisher).toContain('status/v1/${MODEL_HEALTH_ENVIRONMENT}.json');
+    expect(modelHealthPublisher).toContain('consecutiveFailures');
+    expect(modelHealthPublisher).toContain('if $consecutiveFailures >= 2 then "unhealthy" else "degraded" end');
+    expect(modelHealthPublisher).toContain('if [ "$write_status" = "409" ] && [ "$attempt" -eq 1 ]; then');
+    expect(modelHealthPublisher).toContain('::warning::${message}');
+    expect(modelHealthPublisher).toContain('exit 0');
+    expect(modelHealthPublisher).not.toContain('exit 1');
   });
 });

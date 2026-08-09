@@ -76,6 +76,15 @@ export function sanitizeAssistantReplyText(text: string): string {
   return sanitized;
 }
 
+export function finalizeAssistantReplyText(text: string): string {
+  const sanitized = sanitizeAssistantReplyText(text);
+  if (!sanitized || sanitized.startsWith('~') || /[.!?…]$/.test(sanitized)) {
+    return sanitized;
+  }
+
+  return `${sanitized}.`;
+}
+
 export function parseSuggestionResponse(
   rawText: string,
   context: { recentUserMessage?: string; recentAssistantMessage?: string } = {},

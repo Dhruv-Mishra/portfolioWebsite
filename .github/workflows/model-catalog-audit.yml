@@ -1,0 +1,116 @@
+name: Audit Staging Chat Model Catalog
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+env:
+  STAGING_DOMAIN: staging.whoisdhruv.com
+
+jobs:
+  audit-model-catalog:
+    name: Audit runtime model catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Probe runtime model catalog
+        shell: bash
+        run: |
+          set -u
+
+          MODEL_STATUS_URL="https://${STAGING_DOMAIN}/api/chat/model-status"
+          MODEL_STATUS_FILE="$(mktemp)"
+          trap 'rm -f "$MODEL_STATUS_FILE"' EXIT
+
+          {
+            echo "## Staging model catalog audit"
+            echo ""
+            echo "| Model | HTTP | Result |"
+            echo "|---|---:|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if ! curl -fsS --max-time 15 -H "Accept: application/json" \
+            -o "$MODEL_STATUS_FILE" "$MODEL_STATUS_URL"; then
+            echo "::warning::Runtime model-status route failed: $MODEL_STATUS_URL"
+            echo "| _catalog unavailable_ | - | Warning: model-status route failed |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if ! jq -e '
+            (.models | type == "array") and
+            (.models | all(
+              .[];
+              type == "object" and
+              (.id | if type == "string" then length > 0 and test("^[^\\r\\n]+$") else false end)
+            )) and
+            (([.models[].id] | length) == ([.models[].id] | unique | length))
+          ' "$MODEL_STATUS_FILE" >/dev/null; then
+            echo "::warning::Runtime model-status response schema is invalid"
+            echo "| _catalog unavailable_ | - | Warning: invalid models[].id schema |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          mapfile -t CHAT_MODEL_IDS < <(jq -r '.models[].id' "$MODEL_STATUS_FILE")
+          if [ "${#CHAT_MODEL_IDS[@]}" -eq 0 ]; then
+            echo "::warning::Runtime model-status returned no selectable model IDs"
+            echo "| _none returned_ | - | Warning: no selectable runtime models |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          for CHAT_MODEL in "${CHAT_MODEL_IDS[@]}"; do
+            CHAT_HEADERS_FILE="$(mktemp)"
+            CHAT_BODY_FILE="$(mktemp)"
+            CHAT_HTTP_CODE="000"
+            CHAT_ELAPSED_SECONDS="unknown"
+            CHAT_CURL_METRICS=""
+            if CHAT_CURL_METRICS="$(curl -sk --max-time 100 \
+              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
+              -H "Origin: https://${STAGING_DOMAIN}" -H "Referer: https://${STAGING_DOMAIN}/" -H "Sec-Fetch-Site: same-origin" \
+              --data "$(jq -nc --arg model "$CHAT_MODEL" '{model: $model, messages: [{role: "user", content: "Scheduled model catalog audit. Please provide a brief acknowledgement."}]}')" \
+              -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w '%{http_code} %{time_total}' "https://${STAGING_DOMAIN}/chat/respond" 2>/dev/null)"; then
+              CHAT_CURL_EXIT=0
+            else
+              CHAT_CURL_EXIT=$?
+            fi
+            if [[ "$CHAT_CURL_METRICS" =~ ^([0-9]{3})[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
+              CHAT_HTTP_CODE="${BASH_REMATCH[1]}"
+              CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"
+            fi
+
+            CHAT_RETURNED_MODEL_ID="$(awk 'BEGIN { IGNORECASE = 1 } /^x-chat-fallback:/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit }' "$CHAT_HEADERS_FILE")"
+            CHAT_CATALOG_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"
+            CHAT_CATALOG_FAILURE=""
+            if [ "$CHAT_HTTP_CODE" != "200" ]; then
+              CHAT_CATALOG_FAILURE="expected HTTP 200"
+            elif ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
+              CHAT_CATALOG_FAILURE="expected JSON content type"
+            elif [ "$CHAT_RETURNED_MODEL_ID" = "localStatic" ]; then
+              if jq -e '(.reply | type == "string" and length > 0) and .degraded == true' "$CHAT_BODY_FILE" >/dev/null; then
+                CHAT_CATALOG_FAILURE="received local static fallback"
+              else
+                CHAT_CATALOG_FAILURE="static fallback response contract invalid"
+              fi
+            elif [ "$CHAT_RETURNED_MODEL_ID" != "$CHAT_MODEL" ]; then
+              CHAT_CATALOG_FAILURE="returned model header did not match requested model"
+            elif ! jq -e --arg model "$CHAT_MODEL" '
+              .modelId == $model and (.reply | type == "string" and length > 0)
+            ' "$CHAT_BODY_FILE" >/dev/null; then
+              CHAT_CATALOG_FAILURE="response contract invalid"
+            fi
+            rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+
+            if [ -n "$CHAT_CATALOG_FAILURE" ]; then
+              echo "::warning::Runtime chat catalog model degraded: ${CHAT_CATALOG_DIAGNOSTICS}; ${CHAT_CATALOG_FAILURE}"
+              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Warning: ${CHAT_CATALOG_FAILURE} |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Runtime chat catalog model verified: ${CHAT_MODEL}"
+              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Verified |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          exit 0

@@ -91,8 +91,16 @@ describe('release version promotion', () => {
   });
 
   it('requires, syncs, and locally verifies every staging chat model through Nginx', () => {
+    const stagingCanaryJob = stagingDeploy.slice(
+      stagingDeploy.indexOf('deploy-staging-canary:'),
+      stagingDeploy.indexOf('deploy-staging:', stagingDeploy.indexOf('deploy-staging-canary:')),
+    );
     const verificationScript = stagingDeploy.slice(
       stagingDeploy.indexOf('- name: Verify staging deployment'),
+    );
+    const modelCanaryLoop = verificationScript.slice(
+      verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do'),
+      verificationScript.indexOf('\n            done', verificationScript.indexOf('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do')),
     );
     const expectedStagingChatModels = [
       'qwen-3.6-27b',
@@ -143,7 +151,8 @@ describe('release version promotion', () => {
 
     expect(verificationScript).toContain('--resolve "${SVC_DOMAIN}:443:127.0.0.1"');
     expect(verificationScript).toContain('"https://${SVC_DOMAIN}/chat/respond"');
-    expect(verificationScript).toContain('command_timeout: 12m');
+    expect(stagingCanaryJob).toContain('timeout-minutes: 45');
+    expect(verificationScript).toContain('command_timeout: 20m');
     expect(verificationScript).toContain('STAGING_CHAT_MODELS=(');
     expect(verificationScript).toContain('for CHAT_MODEL in "${STAGING_CHAT_MODELS[@]}"; do');
     expect(
@@ -162,12 +171,18 @@ describe('release version promotion', () => {
     expect(verificationScript).toContain('-H "Referer: https://${SVC_DOMAIN}/"');
     expect(verificationScript).toContain('-H "Sec-Fetch-Site: same-origin"');
     expect(verificationScript).toContain('-H "Accept: application/json" -H "Content-Type: application/json"');
+    expect(modelCanaryLoop).toContain('--max-time 100');
+    expect(modelCanaryLoop).not.toContain('--max-time 45');
+    expect(modelCanaryLoop).toMatch(
+      /if CHAT_HTTP_CODE="\$\(curl -sk --max-time 100[\s\S]*?-w '%\{http_code\}'[\s\S]*?\)"; then\n\s+CHAT_CURL_EXIT=0\n\s+else\n\s+CHAT_CURL_EXIT=\$\?\n\s+CHAT_HTTP_CODE="000"\n\s+fi/,
+    );
+    expect(modelCanaryLoop).not.toContain('|| echo "000"');
     expect(verificationScript).toContain('content-type:[[:space:]]*application/json');
     expect(verificationScript).toContain('x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$');
     expect(verificationScript).toContain('body?.modelId !== process.env.CHAT_MODEL');
     expect(verificationScript).toContain("typeof body?.reply !== 'string' || !body.reply.trim()");
     expect(verificationScript).toContain(
-      'fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE};',
+      'fail "Staging chat canary failed: model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT};',
     );
   });
 });

@@ -96,7 +96,6 @@ function getNvidiaProvider(modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-
       case 'minimax-m3':
         return { chat_template_kwargs: { thinking_mode: 'disabled' } };
       case 'deepseek-v4-flash':
-      case 'deepseek-v4-pro':
         return { chat_template_kwargs: { thinking: false } };
       default:
         return undefined;

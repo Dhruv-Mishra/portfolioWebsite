@@ -18,7 +18,7 @@ describe('getSuggestionsProviders', () => {
 
     expect(providers.primary).toMatchObject({
       kind: 'nvidia',
-      model: 'deepseek-ai/deepseek-v4-flash',
+      model: 'deepseek-ai/deepseek-v4-flash-0731',
       sampling: { maxTokens: 384, extraBody: { chat_template_kwargs: { thinking: false } } },
     });
     expect(providers.fallback).toBeNull();
@@ -85,6 +85,23 @@ describe('getSuggestionsProviders', () => {
       supportsImages: false,
     });
     expect(getChatProviders('glm-5.2').primary).not.toHaveProperty('imageInputOrder');
+
+    expect(getChatProviders('gemma-4-31b-it').primary).toMatchObject({
+      kind: 'nvidia',
+      model: 'google/gemma-4-31b-it',
+      supportsImages: true,
+      imageInputOrder: 'text-first',
+    });
+    expect(getChatProviders('nemotron-3-super-120b-a12b').primary).toMatchObject({
+      kind: 'nvidia',
+      model: 'nvidia/nemotron-3-super-120b-a12b',
+      supportsImages: false,
+    });
+    expect(getChatProviders('gpt-oss-120b').primary).toMatchObject({
+      kind: 'nvidia',
+      model: 'openai/gpt-oss-120b',
+      supportsImages: false,
+    });
   });
 
   it('returns no online chat provider when the selected model key is unavailable', () => {
@@ -94,7 +111,7 @@ describe('getSuggestionsProviders', () => {
     expect(getChatProviders('glm-5.2')).toEqual({ primary: null, fallbacks: [] });
   });
 
-  it('uses the local Qwen agent only when its complete server-only configuration is present', () => {
+  it('uses the local Gemma agent only when its complete server-only configuration is present', () => {
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
     vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
     vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com/v1');
@@ -105,7 +122,7 @@ describe('getSuggestionsProviders', () => {
         kind: 'openai',
         apiKey: 'local-agent-key',
         baseURL: 'https://llm.whoisdhruv.com/v1',
-        model: 'qwen3.5-4b-q4_k_m',
+        model: 'gemma-4-e2b-phone',
         modelId: 'qwen-3.5-4b-local',
         label: 'Local agent',
         supportsImages: false,

@@ -78,7 +78,7 @@ scripts/          embeddings and deployment helpers
 ## Runtime Notes
 
 - Runtime markdown routes and `content/facts/**/*.md` are product content, not documentation bloat. They feed public markdown surfaces and chat retrieval.
-- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default, a selected NVIDIA model, or the optional local Qwen agent. Provider failures degrade to the local fallback reply instead of silently switching models.
+- Chat requests use exactly the model selected by the visitor: Groq Qwen for the default, a selected NVIDIA model, or the optional local agent. Provider failures degrade to the local fallback reply instead of silently switching models.
 - Each deployed environment requires a dedicated `CHAT_HISTORY_SIGNING_SECRET`; provider API keys are never used to sign chat history.
 - Each deployed environment requires a dedicated `MATRIX_NOTES_ACCESS_SECRET`; Matrix Notes pages and APIs reject requests without a valid signed HttpOnly cookie.
 - Guestbook, feedback, and notes flows are GitHub-backed. Visitor IPs and browser user-agent details are not persisted. Optional feedback contact information is written to the configured feedback issue for follow-up, so deployments that retain contact must use a private repository.
@@ -113,12 +113,14 @@ scripts/          embeddings and deployment helpers
 |---|---|
 | `GROQ_API_KEY` | Runs the default `qwen/qwen3.6-27b` chat model on Groq; the main-chat model is fixed by the server allowlist. |
 | `NVIDIA_API_KEY` | Runs selectable NVIDIA models and NVIDIA-backed suggestions. Suggestions return empty rather than consuming Groq quota when NVIDIA is unavailable. |
-| `LOCAL_AGENT_BASE_URL`, `LOCAL_AGENT_API_KEY` | Optional server-only configuration for `qwen3.5-4b-q4_k_m`; both are required for the selectable Local agent model. Use a container-reachable base URL in Docker, for example `https://llm.whoisdhruv.com/v1`. |
+| `LOCAL_AGENT_BASE_URL`, `LOCAL_AGENT_API_KEY` | Optional server-only configuration for the stable `qwen-3.5-4b-local` selection, which falls back to `gemma-4-e2b-phone`; both are required. The base URL may be the service root (for example `https://llm.whoisdhruv.com`) or its OpenAI-compatible `/v1` URL. |
 | `LLM_API_KEY`, `LLM_BASE_URL` | Optional compatibility credentials used by embeddings and development admin authentication; they are not chat model fallbacks. |
 | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL` | Optional embeddings provider; API key falls back to `LLM_API_KEY` |
 | `EMBEDDINGS_MODE=local` | Generate deterministic hashed n-gram embeddings for dev/CI |
 | `SKIP_EMBEDDINGS_BUILD=1` | Reuse committed `lib/facts.embeddings.json` |
 
 Main NVIDIA chat completions stream within a 90-second server deadline and a 100-second client budget so queued vision work is not treated as an empty response. Decorative suggestions keep their separate 8-second client deadline.
+
+When the model picker opens, the server checks the local agent's unauthenticated `/health` endpoint and, only after a successful response, its authenticated `/v1/models` endpoint. The sanitized same-origin result is cached for five minutes and may update the picker name; the local base URL and API key never reach the browser.
 
 When no embeddings key is configured and local mode is off, builds reuse the committed embeddings bundle. Public client configuration such as `NEXT_PUBLIC_SITE_URL`, analytics toggles, and analytics IDs must remain safe to expose; provider credentials are server-only.

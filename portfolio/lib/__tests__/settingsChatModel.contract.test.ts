@@ -126,6 +126,9 @@ describe('settings chat model contract', () => {
     expect(chatSource).toContain('Current AI model: ${modelDisplayName}. Change in Settings');
     expect(chatSource.match(/title=\{selectedModelDisplayName\}/g)).toHaveLength(2);
     expect(chatSource).toContain('data-chat-model-settings-link');
+    expect(chatSource).toContain('data-chat-model-float');
+    expect(chatSource).toContain('pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2');
+    expect(chatSource).toContain('!compact && "pt-12"');
     expect(chatSource.match(/href="\/settings\?focus=ai-model"/g)).toHaveLength(3);
     expect(source).toContain("get('focus') !== 'ai-model'");
     expect(source).toContain("document.getElementById('ai-model-setting')");

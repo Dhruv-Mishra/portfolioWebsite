@@ -2146,17 +2146,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
             Pass me a note
           </m.h1>
           <WavyUnderline />
-          {selectedModel ? (
-            <Link
-              href="/settings?focus=ai-model"
-              prefetch={false}
-              className="mt-1 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate px-2 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
-              title={selectedModelDisplayName}
-              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
-            >
-              {selectedModelDisplayName}
-            </Link>
-          ) : null}
           <m.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -2187,6 +2176,26 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Messages + Input (overlaid) ─── */}
       <div className="relative flex-1 min-h-0">
+      {!compact && selectedModel ? (
+        <div
+          data-chat-model-float
+          className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"
+          />
+          <Link
+            href="/settings?focus=ai-model"
+            prefetch={false}
+            className="pointer-events-auto relative mt-0.5 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate rounded-full bg-[var(--c-paper)]/70 px-3 font-hand text-xs font-bold text-[var(--c-ink)]/65 shadow-sm underline decoration-dotted underline-offset-4 backdrop-blur-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
+            title={selectedModelDisplayName}
+            aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
+          >
+            {selectedModelDisplayName}
+          </Link>
+        </div>
+      ) : null}
       {/* ─── Custom pill scrollbar ─── */}
       <PillScrollbar scrollRef={messagesScrollRef} />
       {/* ─── Messages Area ─── */}
@@ -2194,6 +2203,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         ref={messagesScrollRef}
         className={cn(
         "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
+        !compact && "pt-12",
         compact && "px-2 pt-4 gap-4",
       )}
         style={{

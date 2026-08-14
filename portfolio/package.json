@@ -1,6 +1,6 @@
 {
   "name": "portfolio",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "packageManager": "npm@10.9.8",
   "engines": {

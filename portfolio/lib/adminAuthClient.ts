@@ -3,9 +3,9 @@
  *
  * The actual HMAC signing happens on the server; the client's job is to:
  *   1. Post credentials to /api/admin/unlock.
- *   2. Mirror the returned token into sessionStorage so the terminal's
- *      puzzle-stage detector can tell "user is currently authed" without
- *      an extra server call.
+ *   2. Store a sessionStorage sentinel (`cookie-verified`) so the
+ *      terminal's puzzle-stage detector can tell "user is currently
+ *      authed" without an extra server call or the HMAC token.
  *   3. Clear both on logout.
  *
  * The source of truth for access to /admin remains the httpOnly cookie,
@@ -20,9 +20,9 @@ export interface AdminUnlockResult {
 }
 
 /**
- * Post credentials. Returns `{ ok: true }` on success (token also
- * stashed into sessionStorage). Returns `{ ok: false, error }` on any
- * failure — rate-limited, wrong creds, server down.
+ * Post credentials. Returns `{ ok: true }` on success (a non-secret
+ * sentinel is stashed into sessionStorage). Returns `{ ok: false, error }`
+ * on any failure — rate-limited, wrong creds, server down.
  */
 export async function unlockAdmin(
   username: string,
@@ -47,13 +47,10 @@ export async function unlockAdmin(
     if (!res.ok) {
       return { ok: false, error: `Unexpected status ${res.status}` };
     }
-    const data = await res.json() as { token?: string };
-    if (data.token) {
-      try {
-        window.sessionStorage.setItem(MATRIX_PUZZLE_KEYS.adminAuthToken, data.token);
-      } catch {
-        /* ignore — token still lives in the httpOnly cookie */
-      }
+    try {
+      window.sessionStorage.setItem(MATRIX_PUZZLE_KEYS.adminAuthToken, 'cookie-verified');
+    } catch {
+      /* ignore — auth still lives in the httpOnly cookie */
     }
     return { ok: true };
   } catch (err) {

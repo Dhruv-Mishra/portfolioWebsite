@@ -15,13 +15,14 @@ type NvidiaStreamCreate = (
   options?: { signal?: AbortSignal },
 ) => Promise<AsyncIterable<{ choices: Array<{ delta: { content: string } }> }>>;
 
-const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, groqCreateMock, resolveChatIntentMock } = vi.hoisted(() => ({
+const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, getLocalAgentStatusMock, groqCreateMock, resolveChatIntentMock } = vi.hoisted(() => ({
   buildPromptPartsMock: vi.fn(async () => ({
     stable: 'stable system prompt',
     conditional: 'conditional system prompt',
   })),
   createProviderClientMock: vi.fn(),
   getChatProvidersMock: vi.fn(),
+  getLocalAgentStatusMock: vi.fn(async () => ({ healthy: true, modelName: 'gemma-4-e2b-phone' })),
   groqCreateMock: vi.fn<GroqCreate>(async () => ({
     choices: [{ message: { content: 'provider reply' } }],
   })),
@@ -50,6 +51,10 @@ vi.mock('@/lib/validateOrigin', () => ({
 vi.mock('@/lib/llmProviders.server', () => ({
   getChatProviders: getChatProvidersMock,
   createProviderClient: createProviderClientMock,
+}));
+
+vi.mock('@/lib/localAgentStatus.server', () => ({
+  getLocalAgentStatus: getLocalAgentStatusMock,
 }));
 
 vi.mock('groq-sdk', () => ({
@@ -545,4 +550,14 @@ describe('chat route provider payload mapping', () => {
     expect(groqCreateMock).not.toHaveBeenCalled();
   });
 
+  it('rechecks local-agent health on each local-model request and fails closed when it is down', async () => {
+    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: false, modelName: 'Local model' });
+
+    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+
+    expect(getLocalAgentStatusMock).toHaveBeenCalledWith({ force: true });
+    expect(getChatProvidersMock).not.toHaveBeenCalled();
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('local-agent-unhealthy');
+  });
 });

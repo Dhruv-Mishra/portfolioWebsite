@@ -87,7 +87,8 @@ describe('chat model status', () => {
   it('uses one TTL-bound in-flight request and keeps backend status out of storage', () => {
     expect(source).toContain('CHAT_MODEL_STATUS_TTL_MS = 30_000');
     expect(source).toContain('let inFlightRequest: Promise<ChatModelStatusSnapshot> | null = null;');
-    expect(source).toContain("fetch('/api/chat/model-status')");
+    expect(source).toContain("const statusUrl = options?.force ? '/api/chat/model-status?fresh=1' : '/api/chat/model-status'");
+    expect(source).toContain('inFlightRequest = fetch(statusUrl)');
     expect(source).toContain('if (inFlightRequest) return inFlightRequest;');
     expect(source).not.toContain('localStorage');
     expect(source).not.toContain('sessionStorage');

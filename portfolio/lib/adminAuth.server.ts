@@ -19,9 +19,11 @@ import 'server-only';
  *   can't linger for weeks.
  *
  * SECRET
- *   Reads `ADMIN_UNLOCK_SECRET`. Falls back to `CHAT_HISTORY_SIGNING_SECRET`
- *   (or the legacy `LLM_API_KEY`) so dev/staging never crashes. In prod
- *   we log a warning if the dedicated secret isn't set.
+ *   Production requires `ADMIN_UNLOCK_SECRET` and fails closed without it.
+ *   Do not fall back to `CHAT_HISTORY_SIGNING_SECRET`, `LLM_API_KEY`,
+ *   `LLM_FALLBACK_API_KEY`, or a hardcoded secret in production.
+ *   Dev/test may use `CHAT_HISTORY_SIGNING_SECRET`, then
+ *   `development-admin-unlock-secret`.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -30,19 +32,20 @@ const TOKEN_PREFIX = 'admin-unlock';
 const TOKEN_VALIDITY_MS = 8 * 60 * 60 * 1000; // 8h
 const SECRET_FALLBACK = 'development-admin-unlock-secret';
 
-function getAdminSecret(): string {
-  return (
-    process.env.ADMIN_UNLOCK_SECRET
-    || process.env.CHAT_HISTORY_SIGNING_SECRET
-    || process.env.LLM_API_KEY
-    || process.env.LLM_FALLBACK_API_KEY
-    || SECRET_FALLBACK
-  );
+function resolveAdminSecret(): string | null {
+  const dedicated = process.env.ADMIN_UNLOCK_SECRET?.trim();
+  if (dedicated) return dedicated;
+
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
+
+  return process.env.CHAT_HISTORY_SIGNING_SECRET?.trim() || SECRET_FALLBACK;
 }
 
-function sign(issuedAtMs: number): string {
+function sign(issuedAtMs: number, secret: string): string {
   const payload = `${TOKEN_PREFIX}|${issuedAtMs}`;
-  return createHmac('sha256', getAdminSecret()).update(payload).digest('hex');
+  return createHmac('sha256', secret).update(payload).digest('hex');
 }
 
 /**
@@ -50,8 +53,12 @@ function sign(issuedAtMs: number): string {
  * match the puzzle-known values.
  */
 export function issueAdminToken(): string {
+  const secret = resolveAdminSecret();
+  if (!secret) {
+    throw new Error('ADMIN_UNLOCK_SECRET is required in production.');
+  }
   const issuedAtMs = Date.now();
-  const signature = sign(issuedAtMs);
+  const signature = sign(issuedAtMs, secret);
   return `${issuedAtMs.toString(36)}.${signature}`;
 }
 
@@ -68,6 +75,8 @@ export function issueAdminToken(): string {
  */
 export function verifyAdminToken(token: string | null | undefined): boolean {
   if (!token || typeof token !== 'string') return false;
+  const secret = resolveAdminSecret();
+  if (!secret) return false;
   const parts = token.split('.');
   if (parts.length !== 2) return false;
   const [rawTs, providedSig] = parts;
@@ -79,7 +88,7 @@ export function verifyAdminToken(token: string | null | undefined): boolean {
   if (issuedAt > now + 60_000) return false; // future-dated tokens (clock skew allowance: 1 min)
   if (now - issuedAt > TOKEN_VALIDITY_MS) return false;
 
-  const expected = sign(issuedAt);
+  const expected = sign(issuedAt, secret);
   const expectedBuf = Buffer.from(expected, 'utf8');
   const providedBuf = Buffer.from(providedSig, 'utf8');
   if (expectedBuf.length !== providedBuf.length) return false;
@@ -92,9 +101,10 @@ export function verifyAdminToken(token: string | null | undefined): boolean {
 
 /**
  * Cookie name used to carry the token from the unlock endpoint to the
- * /admin route. HttpOnly so client JS can't read it; the client holds
- * a MIRROR of the same token in sessionStorage so the in-terminal
- * progress-detection can tell "user was authed on /admin at some point
- * this session" without issuing a server call on every key press.
+ * /admin route. HttpOnly so client JS can't read it; Path=/admin so it
+ * is not sent to other site routes. The client stores a sessionStorage
+ * sentinel (`cookie-verified`) so the in-terminal progress-detection
+ * can tell "user was authed on /admin at some point this session"
+ * without issuing a server call on every key press.
  */
 export const ADMIN_COOKIE_NAME = 'dhruv_admin_unlock';

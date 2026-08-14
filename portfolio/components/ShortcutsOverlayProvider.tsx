@@ -27,13 +27,24 @@ const ShortcutsOverlay = dynamic(() => import('@/components/ShortcutsOverlay'), 
  * Sits at the root (inside providers) — mounted by `EagerEnhancements`.
  */
 export default function ShortcutsOverlayProvider() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [overlay, setOverlay] = useState({ isOpen: false, hasOpened: false });
+  const { isOpen, hasOpened } = overlay;
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const discoActive = useDiscoActive();
 
-  const handleOpen = useCallback(() => setIsOpen(true), []);
-  const handleClose = useCallback(() => setIsOpen(false), []);
+  const handleOpen = useCallback(() => {
+    setOverlay((current) => (
+      current.isOpen && current.hasOpened
+        ? current
+        : { isOpen: true, hasOpened: true }
+    ));
+  }, []);
+  const handleClose = useCallback(() => {
+    setOverlay((current) => (
+      current.isOpen ? { ...current, isOpen: false } : current
+    ));
+  }, []);
 
   // Bridge from CustomEvent (used by the palette).
   useEffect(() => {
@@ -56,6 +67,8 @@ export default function ShortcutsOverlayProvider() {
     openShortcuts: handleOpen,
     toggleTheme,
   });
+
+  if (!hasOpened) return null;
 
   return <ShortcutsOverlay isOpen={isOpen} onClose={handleClose} />;
 }

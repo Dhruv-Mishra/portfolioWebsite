@@ -1,6 +1,6 @@
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://www.googletagmanager.com https://www.google-analytics.com https://v2.jokeapi.dev https://static.cloudflareinsights.com",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
@@ -9,6 +9,8 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
+  "object-src 'self'",
+  "upgrade-insecure-requests",
 ].join('; ') + ';';
 
 export const DEVELOPMENT_CONTENT_SECURITY_POLICY = CONTENT_SECURITY_POLICY

@@ -16,6 +16,7 @@ import { createProviderClient, getSuggestionsProviders, type LLMProvider } from 
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
+import { verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { SUGGESTIONS_SYSTEM_PROMPT } from '@/lib/chatSuggestionsPrompt.server';
 
 export const runtime = 'nodejs';
@@ -83,10 +84,28 @@ export async function POST(request: NextRequest) {
     // System/tool roles are blocked here so a hostile caller cannot inject
     // prompt-system context through the suggestions endpoint (P1-6).
     const rawMessages = Array.isArray(body.messages) ? body.messages : [];
-    const messages: SuggestionMessage[] = rawMessages
-      .filter((m): m is { role: 'user' | 'assistant'; content: unknown } =>
-        typeof m === 'object' && m !== null && isClientChatMessage(m as { role?: unknown; content?: unknown }))
-      .map((m) => ({ role: m.role, content: String(m.content) }));
+    const messages: SuggestionMessage[] = [];
+    for (const raw of rawMessages) {
+      if (typeof raw !== 'object' || raw === null || !isClientChatMessage(raw as { role?: unknown; content?: unknown })) {
+        continue;
+      }
+
+      const message = raw as { role: 'user' | 'assistant'; content: unknown; signature?: unknown; action?: unknown };
+      if (message.role === 'user') {
+        messages.push({ role: 'user', content: String(message.content) });
+        continue;
+      }
+
+      const verified = verifyAssistantMessage({
+        role: 'assistant',
+        content: String(message.content),
+        signature: typeof message.signature === 'string' ? message.signature : undefined,
+        action: message.action ?? null,
+      });
+      if (verified) {
+        messages.push({ role: 'assistant', content: verified.content });
+      }
+    }
 
     // Take last 4 messages for context (lightweight)
     const context = normalizeSuggestionContext(messages

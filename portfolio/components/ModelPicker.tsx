@@ -203,7 +203,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                 type="button"
                 aria-label={detail.label}
                 title={detail.label}
-                className={cn('inline-flex h-7 w-7 items-center justify-center rounded-sm border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]', detail.badgeClassName)}
+                className={cn('inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]', detail.badgeClassName)}
               >
                 <Icon size={14} aria-hidden />
                 <span className="sr-only">{detail.label}</span>

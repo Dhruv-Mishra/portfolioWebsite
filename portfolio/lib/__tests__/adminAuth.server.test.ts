@@ -4,13 +4,18 @@
  *
  * Uses a fixed secret via env var so the tests are deterministic.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { afterEach, describe, it, expect, beforeAll, vi } from 'vitest';
 
 beforeAll(() => {
   process.env.ADMIN_UNLOCK_SECRET = 'test-admin-secret';
 });
 
 describe('admin auth tokens', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    process.env.ADMIN_UNLOCK_SECRET = 'test-admin-secret';
+  });
+
   it('round-trips a fresh token', async () => {
     const { issueAdminToken, verifyAdminToken } = await import('@/lib/adminAuth.server');
     const token = issueAdminToken();
@@ -53,5 +58,17 @@ describe('admin auth tokens', () => {
 
     // Restore for other tests.
     process.env.ADMIN_UNLOCK_SECRET = 'test-admin-secret';
+  });
+
+  it('fails closed in production without ADMIN_UNLOCK_SECRET', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ADMIN_UNLOCK_SECRET', '');
+    vi.stubEnv('CHAT_HISTORY_SIGNING_SECRET', '');
+    vi.stubEnv('LLM_API_KEY', 'provider-key-must-not-unlock-admin');
+    vi.stubEnv('LLM_FALLBACK_API_KEY', 'fallback-key-must-not-unlock-admin');
+
+    const { issueAdminToken, verifyAdminToken } = await import('@/lib/adminAuth.server');
+    expect(verifyAdminToken('n1.deadbeef')).toBe(false);
+    expect(() => issueAdminToken()).toThrow('ADMIN_UNLOCK_SECRET is required in production.');
   });
 });

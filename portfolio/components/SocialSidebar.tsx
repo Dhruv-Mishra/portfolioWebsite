@@ -306,6 +306,7 @@ function MobileSocialBar({ children, initiallyRouteHidden }: React.PropsWithChil
                 bottom: 'var(--c-mobile-dock-bottom)',
                 left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
                 maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
+                pointerEvents: isVisible ? 'auto' : 'none',
             }}
         >
             <div

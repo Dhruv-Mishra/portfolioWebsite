@@ -1,13 +1,15 @@
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { SHADOW_TOKENS } from '@/lib/designTokens';
 import DeferredResumePdf from '@/components/DeferredResumePdf';
+import ResumeOpenPdfButton from '@/components/ResumeOpenPdfButton';
 import { RESUME_PDF_URL } from '@/lib/siteVersion';
 
 export const revalidate = 3600;
 
 export default function ResumePage() {
     return (
-        <div className="h-full min-h-[24rem] px-1 py-2 sm:px-4 md:min-h-[36rem] md:px-12 md:py-8 flex flex-col items-center justify-center relative z-10 box-border">
+        <div className="h-full min-h-[24rem] px-1 pt-2 pb-24 sm:px-4 md:min-h-[36rem] md:px-12 md:py-8 flex flex-col items-center justify-center relative z-10 box-border">
+            <ResumeOpenPdfButton href={RESUME_PDF_URL} />
             {/* The Resume "Paper" */}
             <div
                 className="animate-page-sheet relative h-full min-h-[22rem] w-full max-w-5xl bg-white p-[1px] shadow-2xl md:min-h-[32rem]"
@@ -34,17 +36,16 @@ export default function ResumePage() {
                         <DeferredResumePdf />
                     </div>
 
-                    {/* External Link Overlay - Left on mobile, Right on desktop */}
                     <a
                         href={RESUME_PDF_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="absolute top-2 left-2 md:top-4 md:left-auto md:right-4 z-30 group"
+                        className="absolute top-4 right-4 z-30 hidden min-h-11 items-center md:flex group"
                         title="Open PDF in new tab"
                     >
-                        <div className="bg-yellow-100 text-gray-800 px-3 py-1.5 md:px-5 md:py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-[transform] font-hand font-bold flex items-center gap-1.5 md:gap-2 text-sm md:text-lg">
+                        <div className="bg-yellow-100 text-gray-800 min-h-11 px-5 py-2.5 rounded-lg shadow-lg border border-yellow-200/50 transform -rotate-2 group-hover:rotate-0 group-hover:scale-105 transition-[transform] font-hand font-bold flex items-center gap-2 text-lg">
                             <span>Open PDF</span>
-                            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </div>
                     </a>
                 </div>

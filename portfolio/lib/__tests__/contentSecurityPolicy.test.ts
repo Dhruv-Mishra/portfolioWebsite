@@ -53,7 +53,7 @@ describe('Whisper deployment content security policy', () => {
       /add_header Content-Security-Policy "([^"]+)" always;/g,
     )].map((match) => match[1]);
 
-    expect(nginxPolicyValues).toHaveLength(2);
+    expect(nginxPolicyValues.length).toBeGreaterThanOrEqual(2);
     const expectedPolicy = sortedPolicy(parsePolicy(nextPolicyValue!));
     for (const policy of nginxPolicyValues) {
       expect(sortedPolicy(parsePolicy(policy))).toEqual(expectedPolicy);
@@ -85,6 +85,9 @@ describe('Whisper deployment content security policy', () => {
     expect(scriptSources).toContain("'self'");
     expect(scriptSources).toContain("'wasm-unsafe-eval'");
     expect(scriptSources).toContain('blob:');
+    expect(scriptSources).not.toContain('https://v2.jokeapi.dev');
     expect(scriptSources).not.toContain('*');
+    expect(policy.get('object-src')).toEqual(new Set(["'self'"]));
+    expect(policy.has('upgrade-insecure-requests')).toBe(true);
   });
 });

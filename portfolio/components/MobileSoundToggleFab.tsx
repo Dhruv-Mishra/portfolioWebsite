@@ -73,11 +73,11 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
     }
   }, [muted, toggleHaptic]);
 
-  // Hide on the dedicated chat route — the chat page owns the bottom-right
-  // corner with the input bar/controls and the mute toggle adds visual
-  // clutter without value during a chat session. Gate AFTER hooks so
-  // React's hook-call order stays stable across renders.
-  if (pathname === '/chat') return null;
+  // Hide on dedicated chat and guestbook routes — those pages own the
+  // bottom-right corner (chat input / Pin to wall). Gate AFTER hooks so
+  // React's hook-call order stays stable across renders. Keep the FAB on
+  // /settings so the model picker uses a content gutter instead.
+  if (pathname.startsWith('/chat') || pathname === '/guestbook' || pathname.startsWith('/guestbook/')) return null;
 
   return (
     <m.button

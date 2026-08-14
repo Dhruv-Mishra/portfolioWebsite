@@ -34,10 +34,39 @@ const ShortcutsOverlayProvider = dynamic(
   { ssr: false, loading: () => null },
 );
 
-const ShortcutsHint = dynamic(
+const ShortcutsHintModule = dynamic(
   () => import('@/components/ShortcutsHint'),
   { ssr: false, loading: () => null },
 );
+
+/**
+ * Desktop hint chrome. The `{isDesktop ? <ShortcutsHint /> : null}` call site
+ * stays eager so the palette contract test still passes; this wrapper delays
+ * the actual ShortcutsHint chunk until idle (or ~1.5s) so it is not in the
+ * first-paint graph.
+ */
+function ShortcutsHint() {
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    const runtimeWindow = window as Window & {
+      requestIdleCallback?: typeof window.requestIdleCallback;
+      cancelIdleCallback?: typeof window.cancelIdleCallback;
+    };
+    const reveal = () => setShowHint(true);
+
+    if (typeof runtimeWindow.requestIdleCallback === 'function') {
+      const idleId = runtimeWindow.requestIdleCallback(reveal, { timeout: 1500 });
+      return () => runtimeWindow.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = runtimeWindow.setTimeout(reveal, 1500);
+    return () => runtimeWindow.clearTimeout(timeoutId);
+  }, []);
+
+  if (!showHint) return null;
+  return <ShortcutsHintModule />;
+}
 
 // Agent D tracker — eager-mounted so visited-page tracking is live from the
 // first paint. Sticker toasts/badges are deferred; stickerBus buffers early

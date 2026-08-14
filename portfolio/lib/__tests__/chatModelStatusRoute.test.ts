@@ -2,9 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { NextRequest } from 'next/server';
 import { GET } from '@/app/api/chat/model-status/route';
 import { __resetLocalAgentStatusCacheForTest, getLocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { __resetModelHealthCacheForTest } from '@/lib/modelHealth.server';
+
+function statusRequest(search = ''): NextRequest {
+  return new Request(`http://localhost/api/chat/model-status${search}`) as unknown as NextRequest;
+}
 
 const routeSource = fs.readFileSync(
   path.join(process.cwd(), 'app', 'api', 'chat', 'model-status', 'route.ts'),
@@ -31,7 +36,7 @@ describe('chat model status route', () => {
     await getLocalAgentStatus();
     fetchMock.mockClear();
 
-    const response = await GET();
+    const response = await GET(statusRequest());
 
     expect(response.headers.get('cache-control')).toBe('no-store');
     await expect(response.json()).resolves.toEqual({
@@ -47,6 +52,27 @@ describe('chat model status route', () => {
       advisoryHealth: null,
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rechecks live local-agent health when fresh=1 is requested', async () => {
+    vi.stubEnv('GROQ_API_KEY', 'groq-key');
+    vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await getLocalAgentStatus();
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+
+    const response = await GET(statusRequest('?fresh=1'));
+    const body = await response.json() as { localModelStatus: { healthy: boolean; modelName: string } };
+
+    expect(body.localModelStatus).toEqual({ healthy: false, modelName: 'Local model' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('exposes only the safe advisory shape and never reader configuration or snapshot internals', async () => {
@@ -74,7 +100,7 @@ describe('chat model status route', () => {
       encoding: 'base64',
     })));
 
-    const body = await (await GET()).json() as Record<string, unknown>;
+    const body = await (await GET(statusRequest())).json() as Record<string, unknown>;
     const serializedBody = JSON.stringify(body);
 
     expect(body.advisoryHealth).toEqual({

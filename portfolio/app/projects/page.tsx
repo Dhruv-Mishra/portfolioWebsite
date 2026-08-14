@@ -264,7 +264,7 @@ export default function Projects() {
                                         rel="noopener noreferrer"
                                         onClick={() => { stickerBus.emit('repo-hunter'); }}
                                         aria-label={`View source for ${proj.name}`}
-                                        className="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
+                                        className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >
                                         Source <ExternalLink size={16} />
                                     </a>
@@ -273,7 +273,7 @@ export default function Projects() {
                                         data-clickable
                                         onClick={() => openProject(i)}
                                         aria-label={`View details for ${proj.name}`}
-                                        className="flex items-center gap-1.5 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity pr-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                                        className="flex min-h-11 items-center gap-1.5 px-3 pr-6 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                                     >
                                         <Maximize2 size={14} /> View details
                                     </button>

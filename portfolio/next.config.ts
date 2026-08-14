@@ -150,6 +150,9 @@ const nextConfig: NextConfig = {
             value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
           },
           { key: 'Content-Security-Policy', value: contentSecurityPolicy },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
       {

@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
     const title = `[${TITLE_PREFIX[body.category]}] ${sanitizedMessage.slice(0, 60)}${sanitizedMessage.length > 60 ? '...' : ''}`;
 
     const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
-    const page = sanitizeMarkdown(String(body.page || 'Unknown'));
+    const rawPage = String(body.page || 'Unknown').trim().slice(0, 200);
+    const page = sanitizeMarkdown(rawPage.startsWith('/') ? rawPage : 'Unknown');
 
     const metadataLines = [
       ...(contact ? [`**Contact:** ${contact}`] : []),

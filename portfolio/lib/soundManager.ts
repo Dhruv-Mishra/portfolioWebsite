@@ -46,8 +46,8 @@
  *   soundManager.startLoop('disco-loop');
  *   soundManager.stopLoop('disco-loop');
  *
- * React consumers should go through `hooks/useSounds.ts`, which reads the
- * mute preference from the sticker store.
+ * React consumers should read mute via `useSoundsMuted` from the sticker
+ * store and call `soundManager` directly.
  *
  * Teardown: never needed under normal operation. The module lives for the
  * lifetime of the page; tear-down only matters in tests.

@@ -3,8 +3,8 @@
  *
  * Accepts `{ username, password }` from the terminal's `sudo admin` login
  * sequence. If credentials match the puzzle's known values, mints an
- * HMAC-signed token and returns it — both as an httpOnly cookie AND in
- * the JSON body so the terminal can mirror it into sessionStorage.
+ * HMAC-signed token as an httpOnly Path=/admin cookie. The JSON body is
+ * `{ ok: true }` only — the HMAC token is never returned to JS.
  *
  * This is intentionally a "puzzle" gate, not a real auth system — the
  * username + password are hardcoded client-visible puzzle content. The
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const token = issueAdminToken();
 
   return new Response(
-    JSON.stringify({ ok: true, token }),
+    JSON.stringify({ ok: true }),
     {
       status: 200,
       headers: {
@@ -102,10 +102,10 @@ export async function POST(request: NextRequest): Promise<Response> {
         'Cache-Control': 'no-store',
         'Set-Cookie': [
           `${ADMIN_COOKIE_NAME}=${token}`,
-          'Path=/',
+          'Path=/admin',
           `Max-Age=${TOKEN_MAX_AGE_SECONDS}`,
           'HttpOnly',
-          'SameSite=Lax',
+          'SameSite=Strict',
           // Secure flag only in production; omitted in dev so http://localhost works.
           process.env.NODE_ENV === 'production' ? 'Secure' : '',
         ].filter(Boolean).join('; '),

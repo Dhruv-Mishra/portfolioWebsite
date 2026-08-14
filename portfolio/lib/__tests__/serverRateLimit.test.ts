@@ -17,12 +17,12 @@ describe('getClientIP', () => {
     expect(getClientIP(request)).toBe('203.0.113.8');
   });
 
-  it('uses the first forwarded address when no normalized header exists', () => {
+  it('ignores client-controlled forwarded addresses when no normalized header exists', () => {
     const request = requestWithHeaders({
       'x-forwarded-for': '198.51.100.7, 192.0.2.4',
     });
 
-    expect(getClientIP(request)).toBe('198.51.100.7');
+    expect(getClientIP(request)).toBe('unknown');
   });
 
   it('returns a stable fallback when no address is available', () => {

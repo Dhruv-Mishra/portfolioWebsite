@@ -134,8 +134,12 @@ async function checkLocalAgentStatus(): Promise<LocalAgentStatus> {
   }
 }
 
-export async function getLocalAgentStatus(): Promise<LocalAgentStatus> {
-  if (cachedStatus && cachedStatus.expiresAt > Date.now()) return cachedStatus.value;
+export async function getLocalAgentStatus(
+  options?: { force?: boolean },
+): Promise<LocalAgentStatus> {
+  if (!options?.force && cachedStatus && cachedStatus.expiresAt > Date.now()) {
+    return cachedStatus.value;
+  }
   if (pendingStatus) return pendingStatus;
 
   const statusRequest = checkLocalAgentStatus().then((value) => {

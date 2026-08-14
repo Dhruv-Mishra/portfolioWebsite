@@ -28,6 +28,7 @@ vi.mock('@/lib/llmProviders.server', () => ({
 }));
 
 import { POST } from '@/app/api/chat/suggestions/route';
+import { signAssistantMessage } from '@/lib/chatHistory.server';
 import { SUGGESTIONS_SYSTEM_PROMPT } from '@/lib/chatSuggestionsPrompt.server';
 
 const PRIMARY_PROVIDER = {
@@ -66,11 +67,19 @@ const NVIDIA_PROVIDER = {
   },
 };
 
+function signedAssistant(content: string) {
+  return {
+    role: 'assistant' as const,
+    content,
+    signature: signAssistantMessage(content, null),
+  };
+}
+
 function createSuggestionsRequest(
   signal?: AbortSignal,
-  messages = [
+  messages: Array<{ role: string; content: string; signature?: string }> = [
     { role: 'user', content: 'What do you build?' },
-    { role: 'assistant', content: 'I build reliable AI systems.' },
+    signedAssistant('I build reliable AI systems.'),
   ],
 ): NextRequest {
   const body = JSON.stringify({
@@ -178,10 +187,10 @@ describe('chat suggestions route deadlines', () => {
     getSuggestionsProvidersMock.mockReturnValue({ primary: NVIDIA_PROVIDER, fallback: null, legacyFallback: null });
 
     await POST(createSuggestionsRequest(undefined, [
-      { role: 'assistant', content: 'Leading reply to ignore' },
+      signedAssistant('Leading reply to ignore'),
       { role: 'user', content: 'First user turn' },
       { role: 'user', content: 'Second user turn' },
-      { role: 'assistant', content: 'A response' },
+      signedAssistant('A response'),
       { role: 'user', content: 'Final user turn' },
     ]));
 

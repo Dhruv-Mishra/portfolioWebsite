@@ -138,11 +138,12 @@ function getServerSnapshot(): ChatModelStatusSnapshot {
   return EMPTY_CHAT_MODEL_STATUS;
 }
 
-export function refreshChatModelStatus(): Promise<ChatModelStatusSnapshot> {
-  if (Date.now() - fetchedAt < CHAT_MODEL_STATUS_TTL_MS) return Promise.resolve(snapshot);
+export function refreshChatModelStatus(options?: { force?: boolean }): Promise<ChatModelStatusSnapshot> {
+  if (!options?.force && Date.now() - fetchedAt < CHAT_MODEL_STATUS_TTL_MS) return Promise.resolve(snapshot);
   if (inFlightRequest) return inFlightRequest;
 
-  inFlightRequest = fetch('/api/chat/model-status')
+  const statusUrl = options?.force ? '/api/chat/model-status?fresh=1' : '/api/chat/model-status';
+  inFlightRequest = fetch(statusUrl)
     .then(async (response) => {
       if (!response.ok) return null;
       return parseChatModelStatusPayload(await response.json());

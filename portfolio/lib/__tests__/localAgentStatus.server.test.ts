@@ -6,7 +6,12 @@ import {
   deriveLocalAgentStatusUrls,
   getLocalAgentStatus,
 } from '@/lib/localAgentStatus.server';
+import type { NextRequest } from 'next/server';
 import { GET } from '@/app/api/chat/local-status/route';
+
+function statusRequest(): NextRequest {
+  return new Request('http://localhost/api/chat/local-status') as unknown as NextRequest;
+}
 
 afterEach(() => {
   __resetLocalAgentStatusCacheForTest();
@@ -104,11 +109,25 @@ describe('local agent status', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('rechecks health immediately when force is requested after a cached result', async () => {
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getLocalAgentStatus()).resolves.toEqual({ healthy: true, modelName: 'gemma-4-e2b-phone' });
+    await expect(getLocalAgentStatus({ force: true })).resolves.toEqual({ healthy: false, modelName: 'Local model' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('returns only the cacheable public status from the route', async () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', '');
     vi.stubEnv('LOCAL_AGENT_API_KEY', '');
 
-    const response = await GET();
+    const response = await GET(statusRequest());
 
     expect(response.headers.get('cache-control')).toBe('private, max-age=300');
     await expect(response.json()).resolves.toEqual({ healthy: false, modelName: 'Local model' });

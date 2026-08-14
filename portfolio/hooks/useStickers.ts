@@ -934,9 +934,8 @@ export function getDiscoActiveSync(): boolean {
 }
 
 /**
- * Synchronous read of the sounds-muted preference. Used by the visibility
- * listener in `hooks/useSounds.ts` to restore the manager's mute state when
- * the tab becomes visible again (no React subscription available there).
+ * Synchronous read of the sounds-muted preference. Used by non-render
+ * paths that need the current mute flag without a React subscription.
  */
 export function getSoundsMutedSync(): boolean {
   initializeStoreOnce();

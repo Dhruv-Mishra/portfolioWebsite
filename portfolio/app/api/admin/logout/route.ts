@@ -24,10 +24,10 @@ export async function POST(request: NextRequest): Promise<Response> {
         'Cache-Control': 'no-store',
         'Set-Cookie': [
           `${ADMIN_COOKIE_NAME}=`,
-          'Path=/',
+          'Path=/admin',
           'Max-Age=0',
           'HttpOnly',
-          'SameSite=Lax',
+          'SameSite=Strict',
           process.env.NODE_ENV === 'production' ? 'Secure' : '',
         ].filter(Boolean).join('; '),
       },

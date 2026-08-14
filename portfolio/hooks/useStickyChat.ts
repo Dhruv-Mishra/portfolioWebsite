@@ -17,7 +17,7 @@ import {
   CHAT_MODEL_SWITCH_CLEAR_EVENT,
   getChatModelPref,
 } from '@/lib/chatModelPref';
-import { markChatModelFacingIssues } from '@/lib/chatModelStatus';
+import { markChatModelFacingIssues, refreshChatModelStatus } from '@/lib/chatModelStatus';
 import type { ChatImageAttachment } from '@/lib/chatImageCompression';
 import {
   advanceInterrogation,
@@ -762,6 +762,9 @@ export function useStickyChat(): UseStickyChat {
     setRateLimitRemaining(null);
     setError(null);
     const requestedModelId = getChatModelPref();
+    if (requestedModelId === 'qwen-3.5-4b-local') {
+      void refreshChatModelStatus({ force: true });
+    }
 
     // Add user message
     const userMsg: ChatMessage = {

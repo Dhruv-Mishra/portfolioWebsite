@@ -61,7 +61,8 @@ describe('settings chat model contract', () => {
     const picker = fs.readFileSync(path.join(process.cwd(), 'components', 'ModelPicker.tsx'), 'utf8');
     const openPicker = picker.match(/const openPicker = \(\) => \{([\s\S]*?)\n  \};/);
 
-    expect(statusSource).toContain("fetch('/api/chat/model-status')");
+    expect(statusSource).toContain("const statusUrl = options?.force ? '/api/chat/model-status?fresh=1' : '/api/chat/model-status'");
+    expect(statusSource).toContain('inFlightRequest = fetch(statusUrl)');
     expect(statusSource).toContain('useChatModelStatus');
     expect(picker).toContain('useChatModelStatus();');
     expect(picker).not.toContain('/api/chat/local-status');

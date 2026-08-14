@@ -26,6 +26,7 @@ import {
   stripThinkTags,
 } from '@/lib/llmConfig';
 import { createProviderClient, getChatProviders, type LLMProvider } from '@/lib/llmProviders.server';
+import { getLocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
@@ -48,6 +49,7 @@ type ProviderFailureCode =
 type FallbackReason =
   | 'all-providers-failed'
   | 'invalid-provider-response'
+  | 'local-agent-unhealthy'
   | 'no-providers-configured'
   | 'provider-timeout'
   | 'request-aborted'
@@ -330,7 +332,14 @@ export async function POST(request: NextRequest) {
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
     ];
+if (selectedModelId === 'qwen-3.5-4b-local') {
+      const localStatus = await getLocalAgentStatus({ force: true });
+      if (!localStatus.healthy) {
+        return createFallbackResponse(latestUserMessage, 'local-agent-unhealthy');
+      }
+    }
 
+    
     const { primary, fallbacks } = getChatProviders(selectedModelId);
     const providers = getOrderedProviders(primary, fallbacks)
       .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder));

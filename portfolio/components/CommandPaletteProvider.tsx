@@ -28,7 +28,23 @@ const CommandPalette = dynamic(() => import('@/components/CommandPalette'), {
  * `EagerEnhancements`.
  */
 export default function CommandPaletteProvider() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [palette, setPalette] = useState({ isOpen: false, hasOpened: false });
+  const { isOpen, hasOpened } = palette;
+
+  const openPalette = useCallback(() => {
+    setPalette((current) => (
+      current.isOpen && current.hasOpened
+        ? current
+        : { isOpen: true, hasOpened: true }
+    ));
+  }, []);
+
+  const togglePalette = useCallback(() => {
+    setPalette((current) => {
+      const isOpen = !current.isOpen;
+      return { isOpen, hasOpened: current.hasOpened || isOpen };
+    });
+  }, []);
 
   // ── Global (Ctrl/⌘)+K listener ────────────────────────────────
   useEffect(() => {
@@ -45,23 +61,24 @@ export default function CommandPaletteProvider() {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.altKey || e.shiftKey) return;
       e.preventDefault();
-      setIsOpen((open) => !open);
+      togglePalette();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [togglePalette]);
 
   // ── Custom event: external opens ─────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleOpen = () => {
-      setIsOpen(true);
-    };
-    window.addEventListener('open-command-palette', handleOpen);
-    return () => window.removeEventListener('open-command-palette', handleOpen);
-  }, []);
+    window.addEventListener('open-command-palette', openPalette);
+    return () => window.removeEventListener('open-command-palette', openPalette);
+  }, [openPalette]);
 
-  const handleClose = useCallback(() => setIsOpen(false), []);
+  const handleClose = useCallback(() => {
+    setPalette((current) => (
+      current.isOpen ? { ...current, isOpen: false } : current
+    ));
+  }, []);
 
   // Bridge out to the rest of the app via CustomEvents.
   const openFeedback = useCallback(() => {
@@ -75,6 +92,8 @@ export default function CommandPaletteProvider() {
       window.dispatchEvent(new CustomEvent('open-shortcuts'));
     }
   }, []);
+
+  if (!hasOpened) return null;
 
   return (
     <CommandPalette

@@ -8,6 +8,8 @@ import {
   verifyMatrixNotesAccessToken,
 } from '@/lib/matrixNotesAccess.server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * `/matrix-notes` — the secret post-escape notes wall.
  *

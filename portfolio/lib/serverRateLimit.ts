@@ -74,9 +74,7 @@ export function createServerRateLimiter(config: RateLimitConfig) {
   return { check };
 }
 
-/** Extract the client IP normalized by the trusted reverse proxy. */
+/** Extract the client IP from the trusted reverse-proxy header only. */
 export function getClientIP(request: { headers: { get(name: string): string | null } }): string {
-  return request.headers.get('x-real-ip')?.trim()
-    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || 'unknown';
+  return request.headers.get('x-real-ip')?.trim() || 'unknown';
 }

@@ -330,7 +330,7 @@ export default function SettingsPanel() {
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-3xl px-4 pb-20 pt-14 md:px-8 md:pt-12">
+    <div className="relative mx-auto w-full max-w-3xl pl-4 pr-14 pb-28 pt-14 md:px-8 md:pb-20 md:pt-12">
       <div className="pointer-events-none absolute left-2 top-10 h-24 w-1 -rotate-2 bg-rose-400/55 md:left-5" aria-hidden />
       <header className="relative px-1 text-center">
         <TapeStrip size="sm" className="-top-5 rotate-2 opacity-75 md:-top-6" />

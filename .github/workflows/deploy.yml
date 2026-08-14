@@ -62,6 +62,7 @@ env:
   DEPLOY_SITE: ${{ inputs.site || 'portfolio' }}
   DEPLOY_SKIP_NGINX: ${{ inputs.skip_nginx || 'false' }}
   DOMAIN: whoisdhruv.com
+  PRODUCTION_LOCAL_AGENT_BASE_URL: https://llm.whoisdhruv.com/v1
   NODE_VERSION: '22'
   CI_NPM_VERSION: '10.9.8'
   DEPLOY_MODE: image
@@ -81,6 +82,7 @@ jobs:
     env:
       PRODUCTION_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
       PRODUCTION_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
+      PRODUCTION_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}
 
     steps:
       - name: Require deployed/production for production deploys
@@ -107,6 +109,10 @@ jobs:
           fi
           if [[ ! "${PRODUCTION_MATRIX_NOTES_ACCESS_SECRET:-}" =~ ^[[:xdigit:]]{64}$ ]]; then
             echo "::error::PRODUCTION_MATRIX_NOTES_ACCESS_SECRET must be configured as exactly 64 hexadecimal characters"
+            missing=1
+          fi
+          if [ -z "${PRODUCTION_LOCAL_AGENT_API_KEY:-}" ]; then
+            echo "::error::PRODUCTION_LOCAL_AGENT_API_KEY must be configured for the production local agent"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -613,6 +619,8 @@ jobs:
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.PRODUCTION_CHAT_HISTORY_SIGNING_SECRET }}
           RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.PRODUCTION_MATRIX_NOTES_ACCESS_SECRET }}
+          RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}
+          RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.PRODUCTION_LOCAL_AGENT_BASE_URL }}
           RUNTIME_HF_TOKEN: ${{ matrix.server.tts_mode == 'local' && secrets.PRODUCTION_HF_TOKEN || '' }}
         with:
           host: ${{ secrets[matrix.server.host_secret] }}
@@ -620,7 +628,7 @@ jobs:
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 20m
-          envs: DEPLOY_SITE,DEPLOY_SKIP_NGINX,GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_HF_TOKEN
+          envs: DEPLOY_SITE,DEPLOY_SKIP_NGINX,GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
             set -euo pipefail
 
@@ -708,6 +716,18 @@ jobs:
                 echo "Production Matrix Notes access secret is missing or malformed"
                 exit 1
               fi
+              if [ -z "${RUNTIME_LOCAL_AGENT_API_KEY:-}" ]; then
+                echo "Production local agent API key is missing"
+                exit 1
+              fi
+              if [ -z "${RUNTIME_LOCAL_AGENT_BASE_URL:-}" ]; then
+                echo "Production local agent base URL is missing"
+                exit 1
+              fi
+              if [[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]; then
+                echo "Production local agent base URL must use https://"
+                exit 1
+              fi
               if [ "$TTS_MODE" = "local" ] && [ -z "${RUNTIME_HF_TOKEN:-}" ]; then
                 echo "Production Hugging Face runtime token is missing"
                 exit 1
@@ -725,10 +745,12 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/' \
                 "$source_env" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_AGENT_BASE_URL=%s\n' "$RUNTIME_LOCAL_AGENT_BASE_URL" >> "$RUNTIME_ENV_TEMP"
+              printf 'LOCAL_AGENT_API_KEY=%s\n' "$RUNTIME_LOCAL_AGENT_API_KEY" >> "$RUNTIME_ENV_TEMP"
               printf 'TTS_NODE_MODE=%s\n' "$TTS_MODE" >> "$RUNTIME_ENV_TEMP"
               if [ "$TTS_MODE" = "local" ]; then
                 printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"

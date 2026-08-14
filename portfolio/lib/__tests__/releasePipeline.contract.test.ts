@@ -201,6 +201,39 @@ describe('release version promotion', () => {
     expect(stagingDeploy).toContain(
       "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
     );
+
+    expect(productionDeploy).toMatch(
+      /PRODUCTION_LOCAL_AGENT_BASE_URL:\s*https:\/\/llm\.whoisdhruv\.com\/v1/,
+    );
+    expect(productionDeploy).toContain(
+      'PRODUCTION_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}',
+    );
+    expect(productionDeploy).toMatch(
+      /if \[ -z "\$\{PRODUCTION_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(productionDeploy).toContain(
+      'RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}',
+    );
+    expect(productionDeploy).toContain(
+      'RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.PRODUCTION_LOCAL_AGENT_BASE_URL }}',
+    );
+    expect(productionDeploy).toMatch(
+      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
+    );
+    expect(productionDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(productionDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_BASE_URL:-\}" \]; then/,
+    );
+    expect(productionDeploy).toContain('[[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]');
+    expect(productionDeploy).toContain('$1 !~ /^LOCAL_AGENT_/');
+    expect(productionDeploy).toContain(
+      "printf 'LOCAL_AGENT_BASE_URL=%s\\n' \"$RUNTIME_LOCAL_AGENT_BASE_URL\"",
+    );
+    expect(productionDeploy).toContain(
+      "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
+    );
     expect(stagingCanaryJob).toContain('timeout-minutes: 45');
 
     expect(stagingCanaryJob).toContain('Audit staging model canaries');

@@ -50,6 +50,8 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('html[data-voice-mode="intro"]');
     expect(css).toContain('.voice-orb-core');
     expect(css).toContain('voice-orb-speak');
+    expect(css).toContain('voice-orb-ripple');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-ring');
+    expect(css).toContain('html[data-motion="reduced"] .voice-orb-ripple');
   });
 });

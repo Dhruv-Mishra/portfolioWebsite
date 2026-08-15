@@ -35,8 +35,11 @@ export default function VoiceModeController() {
       resolvedTheme,
       discoActive,
       openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
-      openProject: () => {
-        requestPageTurnNavigation(router, { href: '/projects', mode: 'push' });
+      openProject: (slug) => {
+        requestPageTurnNavigation(router, {
+          href: slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects',
+          mode: 'push',
+        });
       },
     });
   }, [discoActive, resolvedTheme, router, setTheme]);

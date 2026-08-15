@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useSyncExternalStore } from 'react';
+import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { Z_INDEX } from '@/lib/designTokens';
+import { OPEN_CHAT_EVENT } from '@/lib/siteActionEvents';
 
 const MiniChatPanel = dynamic(() => import('./MiniChatPanel'), {
   ssr: false,
@@ -90,6 +91,23 @@ export default function MiniChat() {
       return { pathname, isOpen: nextIsOpen };
     });
   }, [pathname]);
+
+  const handleOpen = useCallback(() => {
+    setChatState(previousState => {
+      if (previousState.pathname === pathname && previousState.isOpen) return previousState;
+      stickerBus.emit('note-passer');
+      return { pathname, isOpen: true };
+    });
+  }, [pathname]);
+
+  useEffect(() => {
+    const handler = (raw: Event) => {
+      handleOpen();
+      raw.preventDefault();
+    };
+    window.addEventListener(OPEN_CHAT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, handler);
+  }, [handleOpen]);
 
   // Don't show on /chat page (or any nested /chat/* route)
   if (pathname?.startsWith('/chat')) return null;

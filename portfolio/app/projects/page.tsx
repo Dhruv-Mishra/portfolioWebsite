@@ -1,6 +1,7 @@
 "use client";
-import { useState, useCallback, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react';
+import { useState, useCallback, useEffect, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
@@ -9,10 +10,17 @@ import { PaperClip } from '@/components/DoodleIcons';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
+import { isProjectSlug } from '@/lib/projectCatalog';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { stickerBus } from '@/lib/stickerBus';
 import { recordOpenedProjectImperative } from '@/hooks/useStickers';
 import { getPageTurnSnapshot, getServerPageTurnSnapshot, subscribeToPageTurn } from '@/lib/pageTurn';
+import {
+  OPEN_PROJECT_EVENT,
+  attachSiteActionResult,
+  readProjectSlugFromSearch,
+  type OpenProjectEventDetail,
+} from '@/lib/siteActionEvents';
 
 // Dynamic import — ProjectModal only renders on user click.
 const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
@@ -83,8 +91,24 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 });
 
 export default function Projects() {
-    const [selectedProject, setSelectedProject] = useState<number | null>(null);
-    const [hasOpenedProject, setHasOpenedProject] = useState(false);
+    const searchParams = useSearchParams();
+    const querySlug = readProjectSlugFromSearch(searchParams.toString());
+    const queryProjectIndex = (() => {
+        if (!querySlug || !isProjectSlug(querySlug)) return null;
+        const index = PROJECTS.findIndex(project => project.slug === querySlug);
+        return index >= 0 ? index : null;
+    })();
+    const [selectedProject, setSelectedProject] = useState<number | null>(queryProjectIndex);
+    const [appliedQuerySlug, setAppliedQuerySlug] = useState(querySlug);
+    const [hasOpenedProject, setHasOpenedProject] = useState(() => queryProjectIndex !== null);
+
+    if (querySlug !== appliedQuerySlug) {
+        setAppliedQuerySlug(querySlug);
+        if (queryProjectIndex !== null) {
+            setSelectedProject(queryProjectIndex);
+            setHasOpenedProject(true);
+        }
+    }
     const isMobile = useIsMobile();
     const pageTurn = useSyncExternalStore(
         subscribeToPageTurn,
@@ -117,6 +141,38 @@ export default function Projects() {
         closePanel();
         setSelectedProject(null);
     }, [closePanel]);
+
+    const openProjectBySlug = useCallback((slug: string) => {
+        if (!isProjectSlug(slug)) return false;
+        const index = PROJECTS.findIndex(project => project.slug === slug);
+        if (index < 0) return false;
+        openProject(index);
+        return true;
+    }, [openProject]);
+
+    useEffect(() => {
+        if (queryProjectIndex === null) return;
+        openPanel();
+        const proj = PROJECTS[queryProjectIndex];
+        if (!proj) return;
+        recordOpenedProjectImperative(proj.slug);
+        stickerBus.emit('project-explorer');
+    }, [openPanel, queryProjectIndex]);
+
+    useEffect(() => {
+        const handler = (raw: Event) => {
+            const event = raw as CustomEvent<OpenProjectEventDetail>;
+            const slug = event.detail?.slug;
+            if (!slug || !openProjectBySlug(slug)) return;
+            attachSiteActionResult(event, {
+                ok: true,
+                spokenText: 'Queued that project to open.',
+                data: { slug, accepted: true, nextAction: 'I can play, pause, mute, or unmute the preview if it has a video.' },
+            });
+        };
+        window.addEventListener(OPEN_PROJECT_EVENT, handler);
+        return () => window.removeEventListener(OPEN_PROJECT_EVENT, handler);
+    }, [openProjectBySlug]);
 
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">

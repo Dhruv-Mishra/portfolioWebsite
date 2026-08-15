@@ -21,6 +21,7 @@ describe('voice output preference contract', () => {
 
   it('preserves an explicit device selection and synchronizes preference events', () => {
     expect(source).toContain("window.localStorage.getItem(STORAGE_KEY) === 'device' ? 'device' : DEFAULT_PREF");
+    expect(source).toContain('export function setVoiceOutputPref');
     expect(source).toContain('window.localStorage.setItem(STORAGE_KEY, next)');
     expect(source).toContain('window.dispatchEvent(new Event(EVENT_NAME))');
     expect(source).toContain("window.addEventListener('storage', onStoreChange)");

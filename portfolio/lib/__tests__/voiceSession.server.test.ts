@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VOICE_AGENT_MODEL_ID, VOICE_AUTH_TOKEN_URLS } from '@/lib/voiceAgentConfig';
+import { VOICE_WELCOME_VARIATIONS } from '@/lib/voiceAgentProtocol';
 import {
   buildLockedLiveSetup,
   buildSlimLiveSetup,
@@ -72,6 +73,12 @@ describe('voice session mint request contract', () => {
 
     expect(lockedSetup.model).toBe(`models/${VOICE_AGENT_MODEL_ID}`);
     expect(lockedSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
+    const lockedPrompt = lockedSetup.systemInstruction.parts[0]?.text ?? '';
+    expect(lockedPrompt).toContain('contextually relevant next-step question');
+    for (const variation of VOICE_WELCOME_VARIATIONS) {
+      expect(lockedPrompt).not.toContain(variation.greeting);
+      expect(lockedPrompt).not.toContain(variation.hint);
+    }
     expect(slimSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
     expect(
       lockedSetup.tools[0]?.functionDeclarations.some(tool => tool.name === 'start_voice_session'),
@@ -102,7 +109,8 @@ describe('voice session mint request contract', () => {
       .mockResolvedValueOnce(jsonResponse(200, { name: 'token-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(mintVoiceSession({ lowNetwork: false })).resolves.toMatchObject({
+    const minted = await mintVoiceSession({ lowNetwork: false });
+    expect(minted).toMatchObject({
       token: 'token-1',
       setup: {
         modelLabel: 'native-live',
@@ -111,6 +119,8 @@ describe('voice session mint request contract', () => {
         lowNetwork: false,
       },
     });
+    expect(VOICE_WELCOME_VARIATIONS.some(variation => variation.greeting === minted.setup.welcomeGreeting)).toBe(true);
+    expect(VOICE_WELCOME_VARIATIONS.some(variation => variation.hint === minted.setup.welcomeHint)).toBe(true);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
 

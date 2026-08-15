@@ -57,11 +57,21 @@ Shared names:
 - `navigate_to`
 - `set_theme`
 - `open_project`
+- `control_project_video`
 - `open_link`
 - `open_feedback`
 - `open_command_palette`
+- `open_shortcuts`
+- `open_chat`
+- `browse_history`
+- `scroll_page`
+- `send_chat_message`
+- `run_terminal_command`
 - `fill_field`
 - `set_preference`
+- `set_voice_output`
+- `set_voice_backend`
+- `set_motion_preference`
 - `submit_guestbook`
 - `lookup_site_facts`
 - `start_voice_session`
@@ -71,7 +81,7 @@ Live voice tools omit `start_voice_session`. Chat/text can still offer it.
 
 ## Welcome
 
-On connect the agent greets, explains voice in one short beat, and
-ends with: `Try saying, open projects`. After that first spoken turn
-finishes, the veil settles into a floating dock and the rest of the
-site stays interactive.
+On connect, the host selects one concise greeting and suggestion from a
+hardcoded catalog for that session. The catalog and random selection stay out
+of the model prompt. After the first spoken turn finishes, the veil settles
+into a floating dock and the rest of the site stays interactive.

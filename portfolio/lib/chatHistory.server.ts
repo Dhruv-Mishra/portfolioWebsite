@@ -62,7 +62,6 @@ function normalizeAction(action: ActionExecution | null | undefined): ActionExec
     normalized.fieldFill = {
       field: action.fieldFill.field,
       value: action.fieldFill.value,
-      ...(action.fieldFill.submit ? { submit: true } : {}),
     };
   }
 

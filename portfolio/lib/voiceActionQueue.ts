@@ -2,6 +2,9 @@ export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'lookup_site_facts',
   'set_theme',
   'set_preference',
+  'set_voice_output',
+  'set_voice_backend',
+  'set_motion_preference',
   'fill_field',
   'submit_guestbook',
 ] as const;
@@ -12,13 +15,24 @@ export const DEFERRED_VOICE_TOOL_NAMES = [
   'open_link',
   'open_feedback',
   'open_command_palette',
+  'open_shortcuts',
+  'open_chat',
+  'browse_history',
+  'scroll_page',
   'end_voice_session',
+] as const;
+
+export const DEPENDENT_VOICE_TOOL_NAMES = [
+  'control_project_video',
+  'send_chat_message',
+  'run_terminal_command',
 ] as const;
 
 export const END_VOICE_SESSION_SAFETY_MS = 8_000;
 
 export type ImmediateVoiceToolName = (typeof IMMEDIATE_VOICE_TOOL_NAMES)[number];
 export type DeferredVoiceToolName = (typeof DEFERRED_VOICE_TOOL_NAMES)[number];
+export type DependentVoiceToolName = (typeof DEPENDENT_VOICE_TOOL_NAMES)[number];
 
 export function isDeferredVoiceTool(name: string): name is DeferredVoiceToolName {
   return (DEFERRED_VOICE_TOOL_NAMES as readonly string[]).includes(name);
@@ -26,6 +40,29 @@ export function isDeferredVoiceTool(name: string): name is DeferredVoiceToolName
 
 export function isImmediateVoiceTool(name: string): name is ImmediateVoiceToolName {
   return (IMMEDIATE_VOICE_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+export function isDependentVoiceTool(name: string): name is DependentVoiceToolName {
+  return (DEPENDENT_VOICE_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+export type VoiceDependentHostId = 'project-video' | 'chat' | 'terminal';
+
+export function dependentHostIdForTool(name: string): VoiceDependentHostId | null {
+  if (name === 'control_project_video') return 'project-video';
+  if (name === 'send_chat_message') return 'chat';
+  if (name === 'run_terminal_command') return 'terminal';
+  return null;
+}
+
+export function openerHostIdForTool(
+  name: string,
+  args?: { path?: string } | null,
+): VoiceDependentHostId | null {
+  if (name === 'open_project') return 'project-video';
+  if (name === 'open_chat') return 'chat';
+  if (name === 'navigate_to' && args?.path === '/') return 'terminal';
+  return null;
 }
 
 export type VoiceQueuedCommit = () => void | Promise<void>;
@@ -37,13 +74,18 @@ export interface VoiceActionQueueOptions {
   cancel?: (handle: unknown) => void;
 }
 
+export interface VoiceQueueEnqueueOptions {
+  ready?: () => boolean;
+}
+
 interface QueueItem {
   run: VoiceQueuedCommit;
   hangup: boolean;
+  ready?: () => boolean;
 }
 
 export interface VoiceActionQueue {
-  enqueue(run: VoiceQueuedCommit): void;
+  enqueue(run: VoiceQueuedCommit, options?: VoiceQueueEnqueueOptions): void;
   enqueueHangup(run: VoiceQueuedCommit, options?: { force?: boolean; timeoutMs?: number }): void;
   notifyReady(): void;
   reset(): void;
@@ -83,7 +125,7 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
       const next = items[0];
       const ready = next?.hangup
         ? (options.canHangup ?? options.canCommit)()
-        : options.canCommit();
+        : options.canCommit() && (next.ready?.() ?? true);
       if (!ready) return;
       const item = items.shift();
       if (!item) return;
@@ -123,8 +165,8 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
   }
 
   return {
-    enqueue(run) {
-      items.push({ run, hangup: false });
+    enqueue(run, enqueueOptions) {
+      items.push({ run, hangup: false, ready: enqueueOptions?.ready });
       void pump();
     },
     enqueueHangup,

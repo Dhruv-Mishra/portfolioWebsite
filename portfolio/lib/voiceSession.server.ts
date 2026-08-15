@@ -11,7 +11,11 @@ import {
   resolveVoiceAgentApiKey,
 } from '@/lib/voiceAgentConfig';
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
-import type { VoiceHealthStatus, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
+import {
+  pickVoiceWelcome,
+  type VoiceHealthStatus,
+  type VoiceSessionHandle,
+} from '@/lib/voiceAgentProtocol';
 
 function toIso(msFromNow: number): string {
   return new Date(Date.now() + msFromNow).toISOString();
@@ -139,6 +143,7 @@ export async function mintFromUrl(
 }
 
 function toSessionHandle(token: GeminiAuthTokenResponse, lowNetwork: boolean): VoiceSessionHandle {
+  const welcome = pickVoiceWelcome();
   return {
     token: token.name as string,
     expiresAt: token.expireTime ?? toIso(VOICE_TOKEN_TTL_MS),
@@ -150,6 +155,8 @@ function toSessionHandle(token: GeminiAuthTokenResponse, lowNetwork: boolean): V
       outputSampleRate: 24_000,
       greetOnConnect: true,
       lowNetwork,
+      welcomeGreeting: welcome.greeting,
+      welcomeHint: welcome.hint,
     },
   };
 }

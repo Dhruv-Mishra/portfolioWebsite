@@ -26,6 +26,16 @@ function subscribe(onStoreChange: () => void): () => void {
   };
 }
 
+export function setVoiceOutputPref(next: VoiceOutputPref): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, next);
+  } catch { /* no-op */ }
+  try {
+    window.dispatchEvent(new Event(EVENT_NAME));
+  } catch { /* no-op */ }
+}
+
 export function useVoiceOutputPref(): {
   pref: VoiceOutputPref;
   setPref: (next: VoiceOutputPref) => void;
@@ -33,12 +43,7 @@ export function useVoiceOutputPref(): {
   const pref = useSyncExternalStore<VoiceOutputPref>(subscribe, readPref, () => DEFAULT_PREF);
 
   const setPref = useCallback((next: VoiceOutputPref) => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch { /* no-op */ }
-    try {
-      window.dispatchEvent(new Event(EVENT_NAME));
-    } catch { /* no-op */ }
+    setVoiceOutputPref(next);
   }, []);
 
   return { pref, setPref };

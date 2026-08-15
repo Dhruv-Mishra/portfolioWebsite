@@ -1,6 +1,6 @@
 "use client";
 import { X, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,13 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
 import { stickerBus } from '@/lib/stickerBus';
 import type { ProjectRecord } from '@/lib/projects';
+import {
+  CONTROL_PROJECT_VIDEO_EVENT,
+  attachSiteActionResult,
+  registerSiteActionHost,
+  type ControlProjectVideoEventDetail,
+} from '@/lib/siteActionEvents';
+import type { SiteToolResult } from '@/lib/siteTools';
 
 interface ProjectModalProps {
     /** Pass null when no project is selected — the modal will be hidden */
@@ -71,17 +78,86 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
     const playVideo = useCallback(async () => {
         const video = videoRef.current;
-        if (!video) return;
+        if (!video) return false;
 
         tap();
 
         try {
             await video.play();
             setShowPlayButton(false);
+            return true;
         } catch {
             setShowPlayButton(true);
+            return false;
         }
     }, [tap]);
+
+    const pauseVideo = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return false;
+        video.pause();
+        setShowPlayButton(true);
+        return true;
+    }, []);
+
+    const setMuted = useCallback((muted: boolean) => {
+        const video = videoRef.current;
+        if (!video) return false;
+        selection();
+        video.muted = muted;
+        setIsMuted(muted);
+        return true;
+    }, [selection]);
+
+    useEffect(() => {
+        if (!project || !hasVideo) return;
+        const unregister = registerSiteActionHost('project-video');
+        const handler = (raw: Event) => {
+            const event = raw as CustomEvent<ControlProjectVideoEventDetail>;
+            const action = event.detail?.action;
+            if (!action) return;
+
+            let result: SiteToolResult;
+            if (action === 'play') {
+                attachSiteActionResult(event, {
+                    ok: true,
+                    spokenText: 'Queued play on the preview.',
+                    data: { action, accepted: true, nextAction: 'Want me to mute or pause it?' },
+                });
+                void playVideo();
+                return;
+            }
+            if (action === 'pause') {
+                result = pauseVideo()
+                    ? { ok: true, spokenText: 'Paused the preview.', data: { action, nextAction: 'Want me to play it again?' } }
+                    : { ok: false, spokenText: 'I could not pause that preview.', errorCode: 'project-video-unavailable' };
+            } else if (action === 'mute') {
+                result = setMuted(true)
+                    ? { ok: true, spokenText: 'Muted the preview.', data: { action } }
+                    : { ok: false, spokenText: 'I could not mute that preview.', errorCode: 'project-video-unavailable' };
+            } else {
+                result = setMuted(false)
+                    ? { ok: true, spokenText: 'Unmuted the preview.', data: { action } }
+                    : { ok: false, spokenText: 'I could not unmute that preview.', errorCode: 'project-video-unavailable' };
+            }
+            attachSiteActionResult(event, result);
+        };
+        window.addEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
+        return () => {
+            unregister();
+            window.removeEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
+        };
+    }, [hasVideo, pauseVideo, playVideo, project, setMuted]);
+
+    const attemptAutoplay = useCallback((node: HTMLVideoElement, muted: boolean) => {
+        node.muted = muted;
+        void node.play()
+            .then(() => setShowPlayButton(false))
+            .catch(() => {
+                // Browser may block autoplay — show a manual play affordance.
+                setShowPlayButton(true);
+            });
+    }, []);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
@@ -94,17 +170,19 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
         videoRef.current = node;
         if (node) {
-            setIsMuted(true);
             setShowPlayButton(false);
-            node.muted = true;
-            void node.play()
-                .then(() => setShowPlayButton(false))
-                .catch(() => {
-                    // Browser may block autoplay — show a manual play affordance.
-                    setShowPlayButton(true);
-                });
+            attemptAutoplay(node, isMuted);
         }
-    }, []);
+    }, [attemptAutoplay, isMuted]);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!project || !hasVideo || !video) return;
+        video.pause();
+        video.currentTime = 0;
+        setShowPlayButton(false);
+        attemptAutoplay(video, isMuted);
+    }, [attemptAutoplay, hasVideo, isMuted, project, videoSrc]);
 
     return (
         <Modal

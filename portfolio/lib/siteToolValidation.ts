@@ -1,10 +1,21 @@
-import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
+﻿import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
+  CHAT_MESSAGE_MAX_LENGTH,
   isApprovedLinkKey,
+  isBrowseHistoryDirection,
+  isMotionPreferenceValue,
+  isPageScrollDirection,
+  isProjectVideoAction,
   isSitePreferenceKey,
   isSiteToolName,
+  isVoiceBackendMode,
   isVoiceFieldId,
+  isVoiceOutputMode,
+  resolveVoiceSafeTerminalCommand,
+  PAGE_SCROLL_AMOUNT_DEFAULT,
+  PAGE_SCROLL_AMOUNT_MAX,
+  PAGE_SCROLL_AMOUNT_MIN,
   type SiteToolArgsMap,
   type SiteToolCall,
   type SiteToolName,
@@ -22,6 +33,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function readString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === 'string' ? value.trim() : null;
+}
+
+function readBoundedScrollAmount(record: Record<string, unknown>): number | null {
+  if (record.amount === undefined) return PAGE_SCROLL_AMOUNT_DEFAULT;
+  if (typeof record.amount !== 'number' || !Number.isFinite(record.amount)) return null;
+  if (record.amount < PAGE_SCROLL_AMOUNT_MIN || record.amount > PAGE_SCROLL_AMOUNT_MAX) return null;
+  return record.amount;
 }
 
 export function parseSiteToolCall(input: {
@@ -58,6 +76,11 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       if (!slug || !SLUG_SET.has(slug)) return null;
       return { slug: slug as ProjectSlug } as SiteToolArgsMap[Name];
     }
+    case 'control_project_video': {
+      const action = readString(record, 'action');
+      if (!action || !isProjectVideoAction(action)) return null;
+      return { action } as SiteToolArgsMap[Name];
+    }
     case 'open_link': {
       const key = readString(record, 'key');
       if (!key || !isApprovedLinkKey(key)) return null;
@@ -65,21 +88,59 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
     }
     case 'open_feedback':
     case 'open_command_palette':
+    case 'open_shortcuts':
+    case 'open_chat':
     case 'start_voice_session':
       return {} as SiteToolArgsMap[Name];
+    case 'browse_history': {
+      const direction = readString(record, 'direction');
+      if (!direction || !isBrowseHistoryDirection(direction)) return null;
+      return { direction } as SiteToolArgsMap[Name];
+    }
+    case 'scroll_page': {
+      const direction = readString(record, 'direction');
+      const amount = readBoundedScrollAmount(record);
+      if (!direction || !isPageScrollDirection(direction) || amount == null) return null;
+      return { direction, amount } as SiteToolArgsMap[Name];
+    }
+    case 'send_chat_message': {
+      const message = readString(record, 'message');
+      if (!message || message.length > CHAT_MESSAGE_MAX_LENGTH) return null;
+      return { message } as SiteToolArgsMap[Name];
+    }
+    case 'run_terminal_command': {
+      const command = resolveVoiceSafeTerminalCommand(record);
+      if (!command) return null;
+      return { command } as SiteToolArgsMap[Name];
+    }
     case 'fill_field': {
       const field = readString(record, 'field');
       const value = readString(record, 'value');
       if (!field || !isVoiceFieldId(field) || value == null || value.length === 0 || value.length > 1000) {
         return null;
       }
-      if (record.submit === true) return null;
+      if ('submit' in record) return null;
       return { field, value } as SiteToolArgsMap[Name];
     }
     case 'set_preference': {
       const key = readString(record, 'key');
       if (!key || !isSitePreferenceKey(key) || typeof record.enabled !== 'boolean') return null;
       return { key, enabled: record.enabled } as SiteToolArgsMap[Name];
+    }
+    case 'set_voice_output': {
+      const mode = readString(record, 'mode');
+      if (!mode || !isVoiceOutputMode(mode)) return null;
+      return { mode } as SiteToolArgsMap[Name];
+    }
+    case 'set_voice_backend': {
+      const backend = readString(record, 'backend');
+      if (!backend || !isVoiceBackendMode(backend)) return null;
+      return { backend } as SiteToolArgsMap[Name];
+    }
+    case 'set_motion_preference': {
+      const motion = readString(record, 'motion');
+      if (!motion || !isMotionPreferenceValue(motion)) return null;
+      return { motion } as SiteToolArgsMap[Name];
     }
     case 'submit_guestbook': {
       const message = readString(record, 'message');

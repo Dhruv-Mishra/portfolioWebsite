@@ -35,31 +35,15 @@ export default function Home() {
         </h1>
 
         {/* Version Sticker - CSS animation */}
-        <div className="animate-hero-badge absolute -bottom-4 right-2 md:right-0 md:-right-12">
+        <div className="animate-hero-badge absolute -bottom-3 right-2 md:right-0 md:-right-8">
           <span
             data-disco-motion="bob"
             style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
-            className="inline-block bg-yellow-200 text-yellow-900 px-3 py-1 font-mono text-xs shadow-md"
+            className="inline-block bg-yellow-100/60 text-yellow-800/70 dark:bg-amber-950/45 dark:text-amber-100/55 px-2 py-0.5 font-mono text-[11px] tracking-tight shadow-sm"
           >
             {SITE_VERSION_LABEL}
           </span>
         </div>
-
-        <Link
-          href="/guestbook"
-          prefetch={false}
-          className="animate-hero-badge animate-hero-badge-mirror absolute -bottom-4 left-2 md:-left-16 inline-flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
-          aria-label="Sign Dhruv's sketchbook guestbook"
-        >
-          <span
-            data-disco-motion="bob"
-            style={{ '--disco-motion-delay': '240ms' } as CSSProperties}
-            className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100 px-3 py-1 font-mono text-xs shadow-md transition-transform duration-200 hover:rotate-0"
-          >
-            <PenLine size={12} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-            <span>guestbook</span>
-          </span>
-        </Link>
       </div>
 
       {/* Subtitle - CSS animation */}
@@ -76,6 +60,8 @@ export default function Home() {
           AI tools and production systems
         </strong>, turning complex technical problems into elegant, reliable solutions.
       </p>
+
+      <HomeVoiceNote />
 
       {/* The Terminal */}
       <div
@@ -143,8 +129,6 @@ export default function Home() {
           />
         </div>
       </Link>
-
-      <HomeVoiceNote />
 
       {/* Guestbook CTA — coral sibling of the chat CTA */}
       <Link

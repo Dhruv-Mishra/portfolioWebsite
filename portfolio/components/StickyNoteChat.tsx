@@ -52,6 +52,13 @@ import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/ho
 import { Tooltip } from '@/components/ui/Tooltip';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
+import {
+  OPEN_CHAT_EVENT,
+  SEND_CHAT_MESSAGE_EVENT,
+  registerSiteActionHost,
+  attachSiteActionResult,
+  type SendChatMessageEventDetail,
+} from '@/lib/siteActionEvents';
 import { compressChatImage, type ChatImageAttachment } from '@/lib/chatImageCompression';
 import { getChatModel } from '@/lib/chatModels';
 import { getChatModelDisplayName, useChatModelStatus } from '@/lib/chatModelStatus';
@@ -2069,6 +2076,39 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     });
     return accepted;
   }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
+
+  useEffect(() => {
+    const handler = (raw: Event) => {
+      const event = raw as CustomEvent<SendChatMessageEventDetail>;
+      const message = event.detail?.message?.trim();
+      if (!message) return;
+      if (isLoading) {
+        attachSiteActionResult(event, {
+          ok: false,
+          spokenText: 'Chat is busy with the current note.',
+          errorCode: 'chat-busy',
+        });
+        return;
+      }
+      attachSiteActionResult(event, {
+        ok: true,
+        spokenText: 'Queued that note.',
+        data: { accepted: true, nextAction: 'Want me to wait for the reply, or ask something else?' },
+      });
+      void handleSendFromInput(message);
+    };
+    const openHandler = (raw: Event) => {
+      raw.preventDefault();
+    };
+    const unregister = registerSiteActionHost('chat');
+    window.addEventListener(SEND_CHAT_MESSAGE_EVENT, handler);
+    window.addEventListener(OPEN_CHAT_EVENT, openHandler);
+    return () => {
+      unregister();
+      window.removeEventListener(SEND_CHAT_MESSAGE_EVENT, handler);
+      window.removeEventListener(OPEN_CHAT_EVENT, openHandler);
+    };
+  }, [handleSendFromInput, isLoading]);
 
   useEffect(() => {
     if (isLoading && !previousLoadingRef.current) {

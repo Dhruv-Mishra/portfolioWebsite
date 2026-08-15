@@ -9,14 +9,15 @@ import {
 } from '@/lib/siteActionEvents';
 import {
   createVoiceActionQueue,
-  dependentHostIdForTool,
+  hostIdForVoiceTool,
   isDeferredVoiceTool,
   isDependentVoiceTool,
   type VoiceActionQueue,
 } from '@/lib/voiceActionQueue';
 import { createVoicePlayback, startVoiceCapture, type VoicePlayback } from '@/lib/voiceAudio';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
-import type { SiteToolCall } from '@/lib/siteTools';
+import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
+import { planVoiceUtterance, type PlannedVoiceAction } from '@/lib/voiceUtterancePlan';
 import type {
   VoiceAgentPhase,
   VoiceCaller,
@@ -115,6 +116,9 @@ let farewellTurnComplete = false;
 let subtitleIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let subtitleSpeaker: 'user' | 'agent' | null = null;
+let utterancePlan: PlannedVoiceAction[] = [];
+let utterancePlanSource = '';
+const seenVoiceToolKeys = new Set<string>();
 
 function prefersReducedSubtitleMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
@@ -203,6 +207,8 @@ function applySpokenTranscript(
       agentLine: '',
       subtitlePhase: 'visible',
     });
+    syncUtterancePlanFromUserLine({ newTurn: !continuing });
+    flushUtterancePlan(generation);
     return;
   }
   patch({
@@ -293,6 +299,69 @@ function resetFarewellWait(): void {
   farewellTurnComplete = false;
 }
 
+function resetUtterancePlan(): void {
+  utterancePlan = [];
+  utterancePlanSource = '';
+  seenVoiceToolKeys.clear();
+}
+
+function canonicalToolArgs(args: unknown): string {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return JSON.stringify(args ?? {});
+  }
+  const record = args as Record<string, unknown>;
+  const sorted = Object.keys(record).sort().reduce<Record<string, unknown>>((next, key) => {
+    next[key] = record[key];
+    return next;
+  }, {});
+  return JSON.stringify(sorted);
+}
+
+function voiceToolDedupeKey(call: Pick<SiteToolCall, 'name' | 'args'>): string {
+  return `${call.name}:${canonicalToolArgs(call.args)}`;
+}
+
+function hostArgsForVoiceTool(call: SiteToolCall): { field?: string } | null {
+  return call.name === 'fill_field' ? { field: call.args.field } : null;
+}
+
+function syncUtterancePlanFromUserLine(options: { newTurn?: boolean } = {}): void {
+  const source = snapshot.userLine.trim();
+  if (!source) return;
+  if (!options.newTurn && source === utterancePlanSource) return;
+  const continuingSameTurn = !options.newTurn
+    && utterancePlanSource.length > 0
+    && source.startsWith(utterancePlanSource);
+  const lateTranscriptSameTurn = utterancePlanSource.length === 0;
+  utterancePlanSource = source;
+  utterancePlan = planVoiceUtterance(source);
+  if (!continuingSameTurn && !lateTranscriptSameTurn) seenVoiceToolKeys.clear();
+}
+
+function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
+  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
+  const deferred = isDeferredVoiceTool(call.name);
+  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
+  if (!deferred && !dependent) {
+    void executeSiteTool(call, requireHostRuntime(), { commit: true });
+    return;
+  }
+  queue?.enqueue(() => {
+    if (isStale(generation)) return;
+    void executeSiteTool(call, requireHostRuntime(), { commit: true });
+  }, hostId ? { ready: () => isSiteActionHostReady(hostId) } : undefined);
+}
+
+function flushUtterancePlan(generation: number): void {
+  if (isStale(generation)) return;
+  for (const item of utterancePlan) {
+    const key = voiceToolDedupeKey(item);
+    if (seenVoiceToolKeys.has(key)) continue;
+    seenVoiceToolKeys.add(key);
+    enqueueVoiceSideEffect(item, generation);
+  }
+}
+
 function markFarewellHeard(): void {
   if (!farewellArmed) return;
   farewellHeard = true;
@@ -375,6 +444,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   greetTurnComplete = false;
   resetSubtitleState();
   resetFarewellWait();
+  resetUtterancePlan();
   capture?.stop();
   capture = null;
   playback?.close();
@@ -417,26 +487,37 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     return;
   }
 
+  syncUtterancePlanFromUserLine();
+  const key = voiceToolDedupeKey(call);
+  const alreadySeen = seenVoiceToolKeys.has(key);
+  seenVoiceToolKeys.add(key);
+
+  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
   const deferred = isDeferredVoiceTool(call.name);
-  const dependent = isDependentVoiceTool(call.name);
+  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   const runtime = requireHostRuntime();
-  const result = await executeSiteTool(call, runtime, { commit: !deferred && !dependent });
+  let result: SiteToolResult;
+  if (alreadySeen) {
+    result = { ok: true, spokenText: 'Already handling that.' };
+  } else if (call.name === 'fill_field' && hostId) {
+    // fill_field ignores commit=false in the executor, so wait for the host.
+    result = { ok: true, spokenText: 'I will type that in.' };
+  } else {
+    result = await executeSiteTool(call, runtime, { commit: !deferred && !dependent });
+  }
   if (isStale(generation) || caller !== activeCaller) return;
   activeCaller.sendToolResult(call.id, result, call.name);
 
-  if ((!deferred && !dependent) || !result.ok) return;
-
-  if (call.name === 'end_voice_session') {
-    const reason = call.args.reason ?? 'user';
-    armAgentFarewellHangup(reason);
-    return;
+  if (!alreadySeen && result.ok) {
+    if (call.name === 'end_voice_session') {
+      const reason = call.args.reason ?? 'user';
+      armAgentFarewellHangup(reason);
+    } else if (deferred || dependent) {
+      enqueueVoiceSideEffect(call, generation);
+    }
   }
 
-  const hostId = dependent ? dependentHostIdForTool(call.name) : null;
-  queue?.enqueue(() => {
-    if (isStale(generation)) return;
-    void executeSiteTool(call, requireHostRuntime(), { commit: true });
-  }, hostId ? { ready: () => isSiteActionHostReady(hostId) } : undefined);
+  flushUtterancePlan(generation);
 }
 
 function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, generation: number): void {
@@ -480,6 +561,8 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (farewellArmed) farewellTurnComplete = true;
       tryMarkIntroComplete();
       scheduleSubtitleClear(generation);
+      syncUtterancePlanFromUserLine();
+      flushUtterancePlan(generation);
       queue?.notifyReady();
     }),
     nextCaller.on('error', message => {
@@ -614,6 +697,7 @@ export function startVoiceSession(): Promise<void> {
   greetTurnComplete = false;
   resetSubtitleState();
   resetFarewellWait();
+  resetUtterancePlan();
   previousPhase = 'entering';
   patch({
     active: true,

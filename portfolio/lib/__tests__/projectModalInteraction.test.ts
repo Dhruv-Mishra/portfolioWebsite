@@ -40,10 +40,24 @@ describe('Projects modal interaction contract', () => {
 
   it('resets and retries playback when the mounted project source changes', () => {
     expect(projectModal).toContain('registerSiteActionHost(\'project-video\')');
+    expect(projectModal).toMatch(/if \(!project \|\| !hasVideo \|\| !hasMountedVideo\) return;/);
     expect(projectModal).toMatch(/const attemptAutoplay = useCallback\(\(node: HTMLVideoElement, muted: boolean\) => \{/);
     expect(projectModal).toMatch(/node\.muted = muted;/);
     expect(projectModal).toMatch(/void node\.play\(\)[\s\S]*?\.catch\(\(\) => \{[\s\S]*?setShowPlayButton\(true\);/);
-    expect(projectModal).toMatch(/useEffect\(\(\) => \{[\s\S]*?video\.pause\(\);[\s\S]*?video\.currentTime = 0;[\s\S]*?attemptAutoplay\(video, isMuted\);[\s\S]*?\}, \[attemptAutoplay, hasVideo, isMuted, project, videoSrc\]\);/);
+    expect(projectModal).toMatch(/useEffect\(\(\) => \{[\s\S]*?video\.pause\(\);[\s\S]*?video\.currentTime = 0;[\s\S]*?attemptAutoplay\(video, isMutedRef\.current\);[\s\S]*?\}, \[attemptAutoplay, hasVideo, project, videoSrc\]\);/);
+    expect(projectModal).not.toMatch(/\[attemptAutoplay, hasVideo, isMuted, project, videoSrc\]/);
     expect(projectModal).not.toMatch(/setIsMuted\(true\);[\s\S]*?node\.muted = true;/);
+  });
+
+  it('registers the preview host only after play can be attempted', () => {
+    expect(projectModal).toMatch(/setHasMountedVideo\(node !== null\)/);
+    expect(projectModal).toMatch(/preload="metadata"/);
+    expect(projectModal).not.toMatch(/preload="none"/);
+    expect(projectModal).toMatch(/await video\.play\(\);/);
+    expect(projectModal).toMatch(/attachSiteActionResult\(event, reportPlayResult\(\)/);
+    expect(projectModal).not.toMatch(/void playVideo\(\)/);
+    expect(projectModal).toMatch(/errorCode: 'project-video-unavailable'/);
+    expect(projectModal).toContain('VIDEO_PLAY_RETRY_MS = 1000');
+    expect(projectModal).toContain('VIDEO_PLAY_RETRY_STEP_MS = 50');
   });
 });

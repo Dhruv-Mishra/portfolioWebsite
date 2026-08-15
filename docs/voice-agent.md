@@ -11,7 +11,7 @@ only require changing the voice-caller adapter.
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. New call after hangup remints and greets once. |
 | HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and the orb FLIPs into a non-modal dock. |
-| Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. |
+| Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
 | Default voice | Male `Charon`. |
@@ -81,7 +81,9 @@ Live voice tools omit `start_voice_session`. Chat/text can still offer it.
 
 ## Welcome
 
-On connect, the host selects one concise greeting and suggestion from a
-hardcoded catalog for that session. The catalog and random selection stay out
-of the model prompt. After the first spoken turn finishes, the veil settles
-into a floating dock and the rest of the site stays interactive.
+On connect, the host selects one concise first-visit greeting and an
+immediately executable hint from a hardcoded catalog. The catalog and random
+selection stay out of the model prompt. Hints are site actions such as open
+projects or show Cropio, never Jarvis trivia. After the first spoken turn
+finishes, the veil settles into a floating dock and the rest of the site stays
+interactive. The dock orb ripples from live playback energy.

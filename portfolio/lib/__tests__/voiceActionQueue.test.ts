@@ -5,6 +5,7 @@ import {
   DEPENDENT_VOICE_TOOL_NAMES,
   dependentHostIdForTool,
   END_VOICE_SESSION_SAFETY_MS,
+  hostIdForVoiceTool,
   IMMEDIATE_VOICE_TOOL_NAMES,
   isDeferredVoiceTool,
   isDependentVoiceTool,
@@ -54,6 +55,43 @@ describe('voice action queue', () => {
     expect(dependentHostIdForTool('control_project_video')).toBe('project-video');
     expect(dependentHostIdForTool('send_chat_message')).toBe('chat');
     expect(dependentHostIdForTool('run_terminal_command')).toBe('terminal');
+    expect(hostIdForVoiceTool('run_terminal_command')).toBe('terminal');
+    expect(hostIdForVoiceTool('fill_field', { field: 'terminal-input' })).toBe('terminal');
+    expect(hostIdForVoiceTool('fill_field', { field: 'chat-composer' })).toBe('chat');
+    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-message' })).toBeNull();
+  });
+
+  it('holds terminal and chat fill_field commits until those hosts are ready', async () => {
+    const idle = true;
+    let terminalReady = false;
+    let chatReady = false;
+    const committed: string[] = [];
+    const queue = createVoiceActionQueue({
+      canCommit: () => idle,
+    });
+
+    queue.enqueue(() => {
+      committed.push('fill_guestbook');
+    });
+    queue.enqueue(() => {
+      committed.push('fill_terminal');
+    }, { ready: () => terminalReady });
+    queue.enqueue(() => {
+      committed.push('fill_chat');
+    }, { ready: () => chatReady });
+
+    await Promise.resolve();
+    expect(committed).toEqual(['fill_guestbook']);
+
+    terminalReady = true;
+    queue.notifyReady();
+    await Promise.resolve();
+    expect(committed).toEqual(['fill_guestbook', 'fill_terminal']);
+
+    chatReady = true;
+    queue.notifyReady();
+    await Promise.resolve();
+    expect(committed).toEqual(['fill_guestbook', 'fill_terminal', 'fill_chat']);
   });
 
   it('holds deferred commits until playback is idle and intro is complete', () => {

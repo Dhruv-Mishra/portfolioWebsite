@@ -26,6 +26,8 @@ interface ProjectModalProps {
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const FOLD_SIZE = 30;
+const VIDEO_PLAY_RETRY_MS = 1000;
+const VIDEO_PLAY_RETRY_STEP_MS = 50;
 
 const FOLD_CLIP_PATH = `polygon(
     0% 0%,
@@ -55,9 +57,11 @@ const FOLD_COLOR_MODAL_STYLE = {
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const isMutedRef = useRef(true);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
     const [isMuted, setIsMuted] = useState(true);
     const [showPlayButton, setShowPlayButton] = useState(false);
+    const [hasMountedVideo, setHasMountedVideo] = useState(false);
 
     const hasVideo = project ? project.video !== null : false;
     const videoSrc = !project
@@ -71,14 +75,22 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         selection();
         setIsMuted(prev => {
             const next = !prev;
+            isMutedRef.current = next;
             if (videoRef.current) videoRef.current.muted = next;
             return next;
         });
     }, [selection]);
 
     const playVideo = useCallback(async () => {
-        const video = videoRef.current;
-        if (!video) return false;
+        const deadline = Date.now() + VIDEO_PLAY_RETRY_MS;
+        let video = videoRef.current;
+        while (!video) {
+            if (Date.now() >= deadline) return false;
+            await new Promise<void>((resolve) => {
+                window.setTimeout(resolve, VIDEO_PLAY_RETRY_STEP_MS);
+            });
+            video = videoRef.current;
+        }
 
         tap();
 
@@ -92,6 +104,22 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         }
     }, [tap]);
 
+    const reportPlayResult = useCallback(async (): Promise<SiteToolResult> => {
+        const played = await playVideo();
+        if (!played) {
+            return {
+                ok: false,
+                spokenText: 'I could not play that preview.',
+                errorCode: 'project-video-unavailable',
+            };
+        }
+        return {
+            ok: true,
+            spokenText: 'Playing the preview.',
+            data: { action: 'play', nextAction: 'Want me to mute or pause it?' },
+        };
+    }, [playVideo]);
+
     const pauseVideo = useCallback(() => {
         const video = videoRef.current;
         if (!video) return false;
@@ -104,13 +132,14 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         const video = videoRef.current;
         if (!video) return false;
         selection();
+        isMutedRef.current = muted;
         video.muted = muted;
         setIsMuted(muted);
         return true;
     }, [selection]);
 
     useEffect(() => {
-        if (!project || !hasVideo) return;
+        if (!project || !hasVideo || !hasMountedVideo) return;
         const unregister = registerSiteActionHost('project-video');
         const handler = (raw: Event) => {
             const event = raw as CustomEvent<ControlProjectVideoEventDetail>;
@@ -119,12 +148,8 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
             let result: SiteToolResult;
             if (action === 'play') {
-                attachSiteActionResult(event, {
-                    ok: true,
-                    spokenText: 'Queued play on the preview.',
-                    data: { action, accepted: true, nextAction: 'Want me to mute or pause it?' },
-                });
-                void playVideo();
+                // Claim now; the thenable settles only after video.play() resolves.
+                attachSiteActionResult(event, reportPlayResult() as unknown as SiteToolResult);
                 return;
             }
             if (action === 'pause') {
@@ -147,7 +172,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             unregister();
             window.removeEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
         };
-    }, [hasVideo, pauseVideo, playVideo, project, setMuted]);
+    }, [hasMountedVideo, hasVideo, pauseVideo, project, reportPlayResult, setMuted]);
 
     const attemptAutoplay = useCallback((node: HTMLVideoElement, muted: boolean) => {
         node.muted = muted;
@@ -169,11 +194,12 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         }
 
         videoRef.current = node;
+        setHasMountedVideo(node !== null);
         if (node) {
             setShowPlayButton(false);
-            attemptAutoplay(node, isMuted);
+            attemptAutoplay(node, isMutedRef.current);
         }
-    }, [attemptAutoplay, isMuted]);
+    }, [attemptAutoplay]);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -181,8 +207,8 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         video.pause();
         video.currentTime = 0;
         setShowPlayButton(false);
-        attemptAutoplay(video, isMuted);
-    }, [attemptAutoplay, hasVideo, isMuted, project, videoSrc]);
+        attemptAutoplay(video, isMutedRef.current);
+    }, [attemptAutoplay, hasVideo, project, videoSrc]);
 
     return (
         <Modal
@@ -235,7 +261,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                             muted
                                             loop
                                             playsInline
-                                            preload="none"
+                                            preload="metadata"
                                             className="w-full h-full object-cover"
                                         />
                                         {showPlayButton ? (

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
+import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle, PenLine } from "lucide-react";
 import { SITE_VERSION_LABEL } from "@/lib/siteVersion";
@@ -142,6 +143,8 @@ export default function Home() {
           />
         </div>
       </Link>
+
+      <HomeVoiceNote />
 
       {/* Guestbook CTA — coral sibling of the chat CTA */}
       <Link

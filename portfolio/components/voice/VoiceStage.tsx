@@ -1,90 +1,55 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
 import { MicOff, PhoneOff } from 'lucide-react';
-import { useDiscoActive } from '@/hooks/useStickers';
-import { Z_INDEX } from '@/lib/designTokens';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
-import { executeSiteTool } from '@/lib/siteToolExecutor';
-import { createGeminiLiveCaller } from '@/lib/geminiLiveAdapter';
-import { createVoicePlayback, startVoiceCapture } from '@/lib/voiceAudio';
-import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
-import { playVoiceSound, prefetchVoiceSounds, startVoiceAmbient, stopVoiceAmbient } from '@/lib/voiceSounds';
-import type { VoiceAgentPhase, VoiceExitReason, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { cn } from '@/lib/utils';
 import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
+import {
+  enableVoiceCapture,
+  getServerVoiceSessionSnapshot,
+  getVoiceSessionSnapshot,
+  requestVoiceHangup,
+  subscribeVoiceSession,
+} from '@/lib/voiceSessionRuntime';
 import VoiceOrb from '@/components/voice/VoiceOrb';
 
-interface VoiceStageProps {
-  onReady: () => void;
-  onExitComplete: () => void;
-  requestedExit: VoiceExitReason | null;
-}
+const VEIL_FADE_MS = 420;
+const REDUCED_VEIL_MS = 180;
+const FLIP_MS = 520;
 
-async function voiceSessionStartError(response: Response): Promise<string> {
-  if (response.status === 429) {
-    try {
-      const payload = await response.json() as { error?: unknown };
-      if (typeof payload.error === 'string' && payload.error.trim()) {
-        return payload.error;
-      }
-    } catch {
-      // Keep the generic warming-up copy when the body is missing or invalid.
-    }
-    return 'Voice session is warming up. Try again shortly.';
-  }
-  if (response.status === 403) {
-    return 'This origin is not allowed to start a voice session.';
-  }
-  return 'Unable to start voice session.';
-}
+const DESKTOP_DOCK_STYLE = {
+  left: 'max(1.25rem, env(safe-area-inset-left) + var(--c-binding-w) + 0.5rem)',
+  bottom: 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)',
+} as const;
 
-export default function VoiceStage({ onReady, onExitComplete, requestedExit }: VoiceStageProps) {
-  const router = useRouter();
-  const { setTheme, resolvedTheme } = useTheme();
-  const discoActive = useDiscoActive();
-  const [phase, setPhase] = useState<VoiceAgentPhase>('entering');
-  const [status, setStatus] = useState('Switching to agent experience');
-  const [userLine, setUserLine] = useState('');
-  const [agentLine, setAgentLine] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [micLive, setMicLive] = useState(false);
-  const callerRef = useRef(createGeminiLiveCaller());
-  const playbackRef = useRef(createVoicePlayback());
-  const captureRef = useRef<{ stop: () => void } | null>(null);
-  const exitingRef = useRef(false);
-  const sendAudioLiveRef = useRef(false);
+const MOBILE_DOCK_STYLE = {
+  top: 'calc(env(safe-area-inset-top) + 4.25rem)',
+  left: 'max(0.75rem, env(safe-area-inset-left) + 0.5rem)',
+} as const;
+
+export default function VoiceStage() {
+  const snapshot = useSyncExternalStore(
+    subscribeVoiceSession,
+    getVoiceSessionSnapshot,
+    getServerVoiceSessionSnapshot,
+  );
+  const reducedMotion = useEffectiveReducedMotion();
+  const isMobile = useIsMobile();
   const leaveButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const previousPhaseRef = useRef<VoiceAgentPhase>('entering');
-  const prefsRef = useRef(getVoiceAgentPrefsSnapshot());
-  const discoActiveRef = useRef(discoActive);
-  const resolvedThemeRef = useRef(resolvedTheme);
+  const orbSlotRef = useRef<HTMLDivElement>(null);
+  const lastOrbRectRef = useRef<DOMRect | null>(null);
 
-  useEffect(() => {
-    discoActiveRef.current = discoActive;
-    resolvedThemeRef.current = resolvedTheme;
-  }, [discoActive, resolvedTheme]);
-
-  const leave = useCallback(async (reason: VoiceExitReason) => {
-    if (exitingRef.current) return;
-    exitingRef.current = true;
-    sendAudioLiveRef.current = false;
-    setPhase('exiting');
-    setStatus(reason === 'health' ? 'Connection faded. Returning to notes.' : 'Leaving voice mode.');
-    playVoiceSound('voice-exit');
-    stopVoiceAmbient();
-    setMicLive(false);
-    captureRef.current?.stop();
-    captureRef.current = null;
-    playbackRef.current.close();
-    callerRef.current.close(reason);
-    window.setTimeout(() => {
-      onExitComplete();
-    }, 900);
-  }, [onExitComplete]);
+  const intro = snapshot.hud === 'intro' || !snapshot.introComplete;
+  const live = snapshot.hud === 'live' && snapshot.introComplete;
+  const caption = snapshot.error || snapshot.agentLine || snapshot.userLine || snapshot.status;
+  const transcript = snapshot.lowNetwork
+    ? ''
+    : (snapshot.agentLine || snapshot.userLine).trim();
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
@@ -100,211 +65,147 @@ export default function VoiceStage({ onReady, onExitComplete, requestedExit }: V
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      void leave('user');
+      requestVoiceHangup();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [leave]);
-
-  useEffect(() => {
-    if (phase === 'listening' && previousPhaseRef.current !== 'listening') {
-      playVoiceSound('voice-listen');
-    }
-    previousPhaseRef.current = phase;
-  }, [phase]);
-
-  const startCapture = useCallback(async () => {
-    const capture = await startVoiceCapture(chunk => {
-      if (sendAudioLiveRef.current) callerRef.current.sendAudio(chunk);
-    }, { lowNetwork: prefsRef.current.lowNetwork });
-    captureRef.current?.stop();
-    captureRef.current = capture;
-    setMicLive(true);
-    return capture;
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const prefs = getVoiceAgentPrefsSnapshot();
-    prefsRef.current = prefs;
-    prefetchVoiceSounds();
-    playVoiceSound('voice-enter');
-    if (prefs.ambientMusic && !prefs.lowNetwork) startVoiceAmbient(true);
+  useLayoutEffect(() => {
+    const node = orbSlotRef.current;
+    if (!node || reducedMotion || !live || !lastOrbRectRef.current) {
+      lastOrbRectRef.current = node?.getBoundingClientRect() ?? null;
+      return;
+    }
 
-    const caller = callerRef.current;
-    const playback = playbackRef.current;
-    const unsubs = [
-      caller.on('phase', next => {
-        if (!cancelled) setPhase(next);
-      }),
-      caller.on('userTranscript', text => {
-        if (!cancelled) setUserLine(current => `${current}${text}`.slice(-180));
-      }),
-      caller.on('agentTranscript', text => {
-        if (!cancelled) setAgentLine(current => `${current}${text}`.slice(-220));
-      }),
-      caller.on('audio', chunk => playback.play(chunk)),
-      caller.on('interrupted', () => playback.interrupt()),
-      caller.on('toolCall', async call => {
-        playVoiceSound('voice-action');
-        const result = await executeSiteTool(call, {
-          router,
-          setTheme: next => setTheme(next),
-          resolvedTheme: resolvedThemeRef.current,
-          discoActive: discoActiveRef.current,
-          openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
-          openProject: () => requestPageTurnNavigation(router, { href: '/projects', mode: 'push' }),
-        });
-        caller.sendToolResult(call.id, result, call.name);
-      }),
-      caller.on('error', message => {
-        if (!cancelled) {
-          setError(message);
-          setPhase('error');
-        }
-      }),
-      caller.on('ended', reason => {
-        if (!cancelled && !exitingRef.current) void leave(reason);
-      }),
-    ];
+    const first = lastOrbRectRef.current;
+    const last = node.getBoundingClientRect();
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    const sx = first.width / Math.max(last.width, 1);
+    const sy = first.height / Math.max(last.height, 1);
+    lastOrbRectRef.current = last;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02) return;
 
-    void (async () => {
-      try {
-        setPhase('connecting');
-        const capture = await startCapture().catch(() => null);
-        if (cancelled) {
-          capture?.stop();
-          return;
-        }
-        if (!capture) {
-          setStatus('Microphone permission is needed.');
-          return;
-        }
+    node.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
+        { transform: 'none' },
+      ],
+      {
+        duration: FLIP_MS,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'both',
+      },
+    );
+  }, [live, reducedMotion, isMobile]);
 
-        const sessionRes = await fetch('/api/voice/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lowNetwork: prefs.lowNetwork }),
-        });
-        if (cancelled) {
-          capture?.stop();
-          return;
-        }
-        if (!sessionRes.ok) {
-          capture?.stop();
-          throw new Error(await voiceSessionStartError(sessionRes));
-        }
+  useLayoutEffect(() => {
+    if (intro) {
+      lastOrbRectRef.current = orbSlotRef.current?.getBoundingClientRect() ?? null;
+    }
+  }, [intro, snapshot.phase]);
 
-        const session = await sessionRes.json() as VoiceSessionHandle;
-        if (cancelled) {
-          capture?.stop();
-          return;
-        }
-        await caller.connect(session);
-        if (cancelled) {
-          capture?.stop();
-          return;
-        }
-        sendAudioLiveRef.current = true;
-        setStatus('Live. Ask anything, or try a site action.');
-        onReady();
-      } catch (caught) {
-        sendAudioLiveRef.current = false;
-        captureRef.current?.stop();
-        captureRef.current = null;
-        setMicLive(false);
-        if (cancelled) return;
-        setError(caught instanceof Error ? caught.message : 'Voice mode is unavailable.');
-        setPhase('error');
-      }
-    })();
+  const hangup = (
+    <button
+      ref={leaveButtonRef}
+      type="button"
+      onClick={() => requestVoiceHangup()}
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
+      aria-label="Hang up voice call"
+      title="Hang up"
+    >
+      <PhoneOff size={16} aria-hidden />
+    </button>
+  );
 
-    return () => {
-      cancelled = true;
-      sendAudioLiveRef.current = false;
-      unsubs.forEach(unsub => unsub());
-      setMicLive(false);
-      captureRef.current?.stop();
-      captureRef.current = null;
-      playback.close();
-      stopVoiceAmbient();
-      if (!exitingRef.current) caller.close('user');
-    };
-  }, [leave, onReady, router, setTheme, startCapture]);
-
-  useEffect(() => {
-    if (requestedExit) void leave(requestedExit);
-  }, [leave, requestedExit]);
-
-  const caption = useMemo(() => {
-    if (error) return error;
-    if (agentLine) return agentLine;
-    if (userLine) return userLine;
-    return status;
-  }, [agentLine, error, status, userLine]);
-
-  const showWelcomeHint = phase === 'entering' || phase === 'connecting';
+  const orb = (
+    <m.div
+      ref={orbSlotRef}
+      className="origin-center"
+      transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle, duration: 0.52 }}
+    >
+      <VoiceOrb
+        phase={snapshot.phase}
+        size={intro ? 'hero' : 'dock'}
+        showLabel={intro}
+      />
+    </m.div>
+  );
 
   return (
-    <m.div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="voice-stage-title"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 flex h-[100dvh] flex-col bg-black text-white"
+    <div
+      role={intro ? 'dialog' : 'complementary'}
+      aria-modal={intro ? true : undefined}
+      aria-label="Voice agent"
+      aria-labelledby={intro ? 'voice-stage-title' : undefined}
+      className="pointer-events-none fixed inset-0 h-[100dvh]"
       style={{ zIndex: Z_INDEX.voice }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
-      <header className="relative flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-8">
-        <p id="voice-stage-title" className="font-hand text-sm uppercase tracking-[0.32em] text-white/45">Voice</p>
-        <button
-          ref={leaveButtonRef}
-          type="button"
-          onClick={() => void leave('user')}
-          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 px-4 font-hand text-base text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
-        >
-          <PhoneOff size={16} aria-hidden />
-          Leave
-        </button>
-      </header>
-
-      <main className="relative flex flex-1 flex-col items-center justify-center px-6">
-        <VoiceOrb phase={phase} />
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-16 max-w-xl text-center font-hand text-xl leading-snug text-white/80 md:text-2xl"
-        >
-          {caption}
-        </p>
-        {showWelcomeHint ? (
-          <p className="mt-4 font-hand text-sm text-white/40">{VOICE_WELCOME_HINT}</p>
-        ) : null}
-      </main>
-
-      <footer className="relative flex items-center justify-center gap-3 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        {micLive ? (
-          <span className="inline-flex min-h-11 items-center gap-2 rounded-full border border-emerald-300/30 px-4 font-hand text-sm text-emerald-200/80">
-            Mic live
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              void startCapture().catch(() => {
-                setMicLive(false);
-                setStatus('Microphone permission is needed.');
-              });
-            }}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/15 px-4 font-hand text-sm text-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
-          >
-            <MicOff size={14} aria-hidden />
-            Enable mic
-          </button>
+      <m.div
+        aria-hidden
+        initial={false}
+        animate={{ opacity: intro ? 1 : 0 }}
+        transition={{
+          duration: (reducedMotion ? REDUCED_VEIL_MS : VEIL_FADE_MS) / 1000,
+          ease: 'easeOut',
+        }}
+        className={cn(
+          'absolute inset-0 bg-black',
+          intro ? 'pointer-events-auto' : 'pointer-events-none',
         )}
-      </footer>
-    </m.div>
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
+      </m.div>
+
+      {intro ? (
+        <div className="pointer-events-none absolute inset-0 flex h-[100dvh] flex-col">
+          <header className="relative flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-8">
+            <p id="voice-stage-title" className="font-hand text-sm uppercase tracking-[0.32em] text-white/45">Voice</p>
+            <div className="pointer-events-auto">{hangup}</div>
+          </header>
+          <div className="relative flex flex-1 flex-col items-center justify-center px-6">
+            {orb}
+            <p
+              role="status"
+              aria-live="polite"
+              className="mt-16 max-w-xl text-center font-hand text-xl leading-snug text-white/80 md:text-2xl"
+            >
+              {caption}
+            </p>
+            <p className="mt-4 font-hand text-sm text-white/40">{VOICE_WELCOME_HINT}</p>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="pointer-events-auto absolute flex max-w-[min(18rem,calc(100vw-1.5rem))] flex-col gap-3"
+          style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
+        >
+          <div className="flex items-center gap-3">
+            {orb}
+            {hangup}
+          </div>
+          {transcript ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className="voice-dock-transcript line-clamp-3 max-w-[18rem] font-hand text-sm leading-snug text-[var(--c-ink)]"
+            >
+              {transcript}
+            </p>
+          ) : null}
+          {!snapshot.micLive ? (
+            <button
+              type="button"
+              onClick={() => enableVoiceCapture()}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-black/55 px-4 font-hand text-sm text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+            >
+              <MicOff size={14} aria-hidden />
+              Enable mic
+            </button>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }

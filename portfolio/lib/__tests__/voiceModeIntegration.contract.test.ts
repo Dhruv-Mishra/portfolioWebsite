@@ -29,15 +29,27 @@ describe('voice mode integration contract', () => {
 
   it('mounts the voice controller, keeps chat on exit, and styles voice mode chrome', () => {
     const enhancements = read('components/EagerEnhancements.tsx');
+    const controller = read('components/voice/VoiceModeController.tsx');
     const stage = read('components/voice/VoiceStage.tsx');
+    const home = read('app/page.tsx');
+    const homeNote = read('components/voice/HomeVoiceNote.tsx');
     const store = read('lib/voiceModeStore.ts');
     const css = read('app/globals.css');
 
     expect(enhancements).toContain('VoiceModeController');
+    expect(controller).not.toContain("href: '/chat'");
     expect(stage).not.toContain("href: '/'");
-    expect(stage).toContain('role="dialog"');
+    expect(stage).toContain("role={intro ? 'dialog' : 'complementary'}");
+    expect(stage).toContain('aria-label="Voice agent"');
+    expect(home).toContain('HomeVoiceNote');
+    expect(homeNote).toContain('Talk to me');
+    expect(homeNote).toContain('Talk with Dhruv by voice');
+    expect(homeNote).not.toContain('href=');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
-    expect(css).toContain('html[data-voice-mode="on"]');
+    expect(css).toContain('html[data-voice-mode]');
+    expect(css).toContain('html[data-voice-mode="intro"]');
     expect(css).toContain('.voice-orb-core');
+    expect(css).toContain('voice-orb-speak');
+    expect(css).toContain('html[data-motion="reduced"] .voice-orb-ring');
   });
 });

@@ -8,8 +8,10 @@ only require changing the voice-caller adapter.
 
 | Topic | Decision |
 |---|---|
-| Entry | Chat page Voice control, command palette `Enter voice mode`, settings, and the `start_voice_session` chat tool. Not a sixth nav tab. |
-| Chat replacement | `/chat` becomes the voice stage while a session is active. Mini-chat and the composer hide. |
+| Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
+| Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. New call after hangup remints and greets once. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and the orb FLIPs into a non-modal dock. |
+| Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
 | Default voice | Male `Charon`. |
@@ -27,7 +29,7 @@ sequenceDiagram
   participant Origin as Next /api/voice
   participant Edge as Optional Worker
   participant Live as Gemini Live
-  UI->>UI: Black stage + switch-in sound
+  UI->>UI: Intro veil + switch-in sound
   par Prefetch
     UI->>Origin: POST /api/voice/session
     Origin->>Live: Create ephemeral token
@@ -65,7 +67,11 @@ Shared names:
 - `start_voice_session`
 - `end_voice_session`
 
+Live voice tools omit `start_voice_session`. Chat/text can still offer it.
+
 ## Welcome
 
-On connect the agent greets, explains the voice stage in one short beat, and
-ends with: `Try saying, open projects`.
+On connect the agent greets, explains voice in one short beat, and
+ends with: `Try saying, open projects`. After that first spoken turn
+finishes, the veil settles into a floating dock and the rest of the
+site stays interactive.

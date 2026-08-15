@@ -812,14 +812,20 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   html:not([data-motion="full"]) .animate-listening-ellipsis { animation: none; }
 }
 
-html[data-voice-mode="on"] [data-mini-chat-root],
-html[data-voice-mode="on"] [data-chat-composer] {
+html[data-voice-mode] [data-mini-chat-root],
+html[data-voice-mode] [data-chat-composer] {
   display: none !important;
 }
 
-html[data-voice-mode="on"] [data-skip-nav],
-html[data-voice-mode="on"] .disco-spotlights,
-html[data-voice-mode="on"] [data-disco-media] {
+html[data-voice-mode] [data-skip-nav],
+html[data-voice-mode] .disco-spotlights,
+html[data-voice-mode] [data-disco-media] {
+  display: none !important;
+}
+
+html[data-voice-mode="intro"] [data-social-sidebar-frame],
+html[data-voice-mode="intro"] [data-sound-toggle],
+html[data-voice-mode="intro"] [data-feedback-tab] {
   display: none !important;
 }
 
@@ -839,16 +845,41 @@ html[data-voice-mode="on"] [data-disco-media] {
   background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.85), rgba(90,140,255,0.35) 42%, rgba(10,12,20,0.9) 72%);
   box-shadow: 0 0 48px rgba(90,140,255,0.35);
 }
-.voice-orb-core.is-listening { box-shadow: 0 0 56px rgba(110,231,183,0.45); }
-.voice-orb-core.is-speaking { box-shadow: 0 0 64px rgba(147,197,253,0.55); }
+.voice-orb-core.is-listening {
+  box-shadow: 0 0 56px rgba(110,231,183,0.45);
+  animation: voice-orb-listen 2.4s ease-in-out infinite;
+}
+.voice-orb-core.is-speaking {
+  box-shadow: 0 0 64px rgba(147,197,253,0.55);
+  animation: voice-orb-speak 1.1s ease-in-out infinite;
+}
 .voice-orb-core.is-thinking,
 .voice-orb-core.is-acting { box-shadow: 0 0 56px rgba(251,191,36,0.4); }
 .voice-orb-core.is-error { box-shadow: 0 0 48px rgba(251,113,133,0.45); }
 .voice-orb-ring.is-listening { border-color: rgba(110,231,183,0.45); }
-@keyframes voice-orb-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  html:not([data-motion="full"]) .voice-orb-ring { animation: none; }
+.voice-dock-transcript {
+  background: color-mix(in srgb, var(--c-paper) 92%, #fff7d6);
+  border: 1px solid color-mix(in srgb, var(--c-ink) 12%, transparent);
+  box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.08);
+  padding: 0.65rem 0.8rem;
 }
+@keyframes voice-orb-spin { to { transform: rotate(360deg); } }
+@keyframes voice-orb-speak {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+@keyframes voice-orb-listen {
+  0%, 100% { opacity: 1; box-shadow: 0 0 40px rgba(110,231,183,0.28); }
+  50% { opacity: 0.88; box-shadow: 0 0 68px rgba(110,231,183,0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"]) .voice-orb-ring,
+  html:not([data-motion="full"]) .voice-orb-core.is-speaking,
+  html:not([data-motion="full"]) .voice-orb-core.is-listening { animation: none; }
+}
+html[data-motion="reduced"] .voice-orb-ring,
+html[data-motion="reduced"] .voice-orb-core.is-speaking,
+html[data-motion="reduced"] .voice-orb-core.is-listening { animation: none; }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Sticker album — pure-CSS idle float + entrance.

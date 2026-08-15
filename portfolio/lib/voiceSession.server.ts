@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { SITE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
+import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import {
   VOICE_AGENT_MODEL_ID,
   VOICE_AGENT_VOICE_NAME,
@@ -45,7 +45,7 @@ export function buildLockedLiveSetup(lowNetwork: boolean) {
     systemInstruction: {
       parts: [{ text: buildVoiceSystemInstruction() }],
     },
-    tools: [{ functionDeclarations: SITE_TOOL_DECLARATIONS }],
+    tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
     sessionResumption: {},
     contextWindowCompression: {
       slidingWindow: {},
@@ -154,24 +154,40 @@ function toSessionHandle(token: GeminiAuthTokenResponse, lowNetwork: boolean): V
   };
 }
 
-async function mintAcrossUrls(
-  apiKey: string,
-  body: unknown,
-): Promise<{ token: GeminiAuthTokenResponse } | { status: number; path: string }> {
-  let lastFailure = { status: 0, path: '/auth_tokens' };
-  for (const url of VOICE_AUTH_TOKEN_URLS) {
-    try {
-      return { token: await postAuthToken(url, apiKey, body) };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      const statusMatch = /Token mint failed \((\d+)\)/.exec(message);
-      lastFailure = {
-        status: statusMatch ? Number(statusMatch[1]) : 0,
-        path: authTokenUrlPath(url),
-      };
-    }
-  }
-  return lastFailure;
+type VoiceMintRecipeKind = 'unlocked' | 'locked' | 'slim';
+
+interface VoiceMintRecipe {
+  kind: VoiceMintRecipeKind;
+  wrapped: boolean;
+  url: string;
+}
+
+let cachedMintRecipe: VoiceMintRecipe | null = null;
+
+export function resetVoiceMintRecipeCache(): void {
+  cachedMintRecipe = null;
+}
+
+function buildMintBody(
+  kind: VoiceMintRecipeKind,
+  lowNetwork: boolean,
+  wrapped: boolean,
+) {
+  const setup = kind === 'unlocked'
+    ? null
+    : kind === 'locked'
+      ? buildLockedLiveSetup(lowNetwork)
+      : buildSlimLiveSetup();
+  const body = buildVoiceAuthTokenRequest(setup);
+  return wrapped ? wrapVoiceAuthTokenRequest(body) : body;
+}
+
+function recipeCandidates(): Array<Omit<VoiceMintRecipe, 'url'>> {
+  const kinds: VoiceMintRecipeKind[] = ['unlocked', 'locked', 'slim'];
+  return [
+    ...kinds.map(kind => ({ kind, wrapped: false })),
+    ...kinds.map(kind => ({ kind, wrapped: true })),
+  ];
 }
 
 export async function mintVoiceSession(options: {
@@ -182,25 +198,39 @@ export async function mintVoiceSession(options: {
     throw new Error('Voice agent API key is not configured.');
   }
 
-  const unlockedBody = buildVoiceAuthTokenRequest(null);
-  const lockedBody = buildVoiceAuthTokenRequest(buildLockedLiveSetup(options.lowNetwork));
-  const slimBody = buildVoiceAuthTokenRequest(buildSlimLiveSetup());
-  const mintBodies = [
-    unlockedBody,
-    lockedBody,
-    slimBody,
-    wrapVoiceAuthTokenRequest(unlockedBody),
-    wrapVoiceAuthTokenRequest(lockedBody),
-    wrapVoiceAuthTokenRequest(slimBody),
-  ];
-
   let lastFailure = { status: 0, path: '/auth_tokens' };
-  for (const body of mintBodies) {
-    const result = await mintAcrossUrls(apiKey, body);
-    if ('token' in result) {
-      return toSessionHandle(result.token, options.lowNetwork);
+
+  const tryRecipe = async (recipe: VoiceMintRecipe): Promise<GeminiAuthTokenResponse | null> => {
+    try {
+      const token = await postAuthToken(
+        recipe.url,
+        apiKey,
+        buildMintBody(recipe.kind, options.lowNetwork, recipe.wrapped),
+      );
+      cachedMintRecipe = recipe;
+      return token;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const statusMatch = /Token mint failed \((\d+)\)/.exec(message);
+      lastFailure = {
+        status: statusMatch ? Number(statusMatch[1]) : 0,
+        path: authTokenUrlPath(recipe.url),
+      };
+      return null;
     }
-    lastFailure = result;
+  };
+
+  if (cachedMintRecipe) {
+    const cached = await tryRecipe(cachedMintRecipe);
+    if (cached) return toSessionHandle(cached, options.lowNetwork);
+    cachedMintRecipe = null;
+  }
+
+  for (const candidate of recipeCandidates()) {
+    for (const url of VOICE_AUTH_TOKEN_URLS) {
+      const token = await tryRecipe({ ...candidate, url });
+      if (token) return toSessionHandle(token, options.lowNetwork);
+    }
   }
 
   console.error('[voice-session] mint failed', lastFailure);

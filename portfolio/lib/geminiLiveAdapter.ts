@@ -8,7 +8,7 @@ import {
   VOICE_LIVE_WS_PATH,
 } from '@/lib/voiceAgentConfig';
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
-import { SITE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
+import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import type {
   VoiceCaller,
   VoiceCallerEventMap,
@@ -29,6 +29,7 @@ function createListenerMap(): ListenerMap {
     audio: new Set(),
     interrupted: new Set(),
     toolCall: new Set(),
+    turnComplete: new Set(),
     health: new Set(),
     error: new Set(),
     ended: new Set(),
@@ -117,7 +118,7 @@ export class GeminiLiveCaller implements VoiceCaller {
               systemInstruction: {
                 parts: [{ text: buildVoiceSystemInstruction() }],
               },
-              tools: [{ functionDeclarations: SITE_TOOL_DECLARATIONS }],
+              tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
               sessionResumption: {},
               contextWindowCompression: { slidingWindow: {} },
               inputAudioTranscription: session.setup.lowNetwork ? undefined : {},
@@ -294,6 +295,7 @@ export class GeminiLiveCaller implements VoiceCaller {
 
     if (serverContent?.turnComplete || serverContent?.generationComplete) {
       this.ignoreAudioUntilTurnComplete = false;
+      this.emit('turnComplete', true);
       this.emit('phase', 'listening');
     }
 

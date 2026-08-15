@@ -7,6 +7,7 @@ import {
   buildVoiceAuthTokenRequest,
   mintFromUrl,
   mintVoiceSession,
+  resetVoiceMintRecipeCache,
   wrapVoiceAuthTokenRequest,
 } from '@/lib/voiceSession.server';
 
@@ -38,6 +39,7 @@ function expectHeaderAuth(url: unknown, init: RequestInit | undefined) {
 }
 
 afterEach(() => {
+  resetVoiceMintRecipeCache();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -71,6 +73,9 @@ describe('voice session mint request contract', () => {
     expect(lockedSetup.model).toBe(`models/${VOICE_AGENT_MODEL_ID}`);
     expect(lockedSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
     expect(slimSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
+    expect(
+      lockedSetup.tools[0]?.functionDeclarations.some(tool => tool.name === 'start_voice_session'),
+    ).toBe(false);
 
     expect(unlocked).toMatchObject({
       uses: 1,
@@ -120,6 +125,23 @@ describe('voice session mint request contract', () => {
 
     expect(String(fetchMock.mock.calls[0][0])).toContain('/v1beta/auth_tokens');
     expect(String(fetchMock.mock.calls[1][0])).toContain('/v1alpha/auth_tokens');
+  });
+
+  it('reuses the first successful body+url recipe on later mints', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(404, { error: { message: 'missing' } }))
+      .mockResolvedValueOnce(jsonResponse(200, { name: 'token-1' }))
+      .mockResolvedValueOnce(jsonResponse(200, { name: 'token-2' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mintVoiceSession({ lowNetwork: false })).resolves.toMatchObject({ token: 'token-1' });
+    await expect(mintVoiceSession({ lowNetwork: true })).resolves.toMatchObject({ token: 'token-2' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/v1alpha/auth_tokens');
+    const cachedBody = parseRequestBody(fetchMock.mock.calls[2]?.[1] as RequestInit);
+    expect(cachedBody).not.toHaveProperty('authToken');
+    expect(cachedBody).not.toHaveProperty('bidiGenerateContentSetup');
   });
 
   it('posts the unwrapped locked body from mintFromUrl with header auth', async () => {

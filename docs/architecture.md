@@ -48,7 +48,7 @@ The important distinction is that the system has ingress policies and per-proces
 
 ### Native voice agent
 
-- Chat can switch into a full-screen native voice stage. The browser talks to a live audio model over WebSocket using an ephemeral token from `/api/voice/session`.
+- Voice mode starts from the homepage note, settings, or the command palette and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a floating dock. The browser talks to a live audio model over WebSocket using an ephemeral token from `/api/voice/session`.
 - PCM does not transit the origin or a Worker. Optional edge minting may exist later; audio stays direct.
 - Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names.
 

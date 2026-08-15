@@ -46,6 +46,12 @@ The important distinction is that the system has ingress policies and per-proces
 - `next.config.ts` produces standalone output, disables runtime image optimization, sets browser-facing security and cache headers, and pins a consistent build ID for multi-origin releases.
 - Static resources and selected Next assets can bypass Node at Nginx. Public pages receive CDN-oriented cache headers; API routes are not treated as cacheable page content.
 
+### Native voice agent
+
+- Chat can switch into a full-screen native voice stage. The browser talks to a live audio model over WebSocket using an ephemeral token from `/api/voice/session`.
+- PCM does not transit the origin or a Worker. Optional edge minting may exist later; audio stays direct.
+- Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names.
+
 ### Voice and media in the browser
 
 ```mermaid

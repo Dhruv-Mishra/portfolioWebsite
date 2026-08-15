@@ -930,6 +930,10 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   border: 1px solid color-mix(in srgb, var(--c-ink) 12%, transparent);
   box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.08);
   padding: 0.65rem 0.8rem;
+  transition: opacity 280ms ease-out;
+}
+.voice-dock-transcript[data-subtitle-phase="exiting"] {
+  opacity: 0;
 }
 @keyframes voice-orb-spin { to { transform: rotate(360deg); } }
 @keyframes voice-orb-speak {
@@ -963,11 +967,13 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   html:not([data-motion="full"]) .voice-orb-ripple,
   html:not([data-motion="full"]) .voice-stage-caption,
   html:not([data-motion="full"]) .voice-dock-transcript,
+  html:not([data-motion="full"]) .voice-dock-transcript[data-subtitle-phase="exiting"],
   html:not([data-motion="full"]) .voice-orb-core.is-speaking,
   html:not([data-motion="full"]) .voice-orb-core.is-acting,
   html:not([data-motion="full"]) .voice-orb-core.is-thinking,
   html:not([data-motion="full"]) .voice-orb-core.is-listening {
     animation: none;
+    transition: none;
     transform: none;
   }
   html:not([data-motion="full"]) .voice-orb-ripple {
@@ -978,11 +984,13 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 html[data-motion="reduced"] .voice-orb-ring,
 html[data-motion="reduced"] .voice-orb-ripple,
 html[data-motion="reduced"] .voice-stage-caption,
+html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"],
 html[data-motion="reduced"] .voice-dock-transcript,
 html[data-motion="reduced"] .voice-orb-core.is-speaking,
 html[data-motion="reduced"] .voice-orb-core.is-acting,
 html[data-motion="reduced"] .voice-orb-core.is-thinking,
 html[data-motion="reduced"] .voice-orb-core.is-listening {
+  transition: none;
   animation: none;
   transform: none;
 }

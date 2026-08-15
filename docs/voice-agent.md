@@ -9,8 +9,8 @@ only require changing the voice-caller adapter.
 | Topic | Decision |
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
-| Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and the orb FLIPs into a non-modal dock. |
+| Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and the orb FLIPs into a non-modal dock. Exiting reuses that black veil with a picked “taking you back” line, then unmounts. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
@@ -73,6 +73,7 @@ Shared names:
 - `set_voice_backend`
 - `set_motion_preference`
 - `submit_guestbook`
+- `submit_feedback`
 - `lookup_site_facts`
 - `start_voice_session`
 - `end_voice_session`
@@ -81,9 +82,12 @@ Live voice tools omit `start_voice_session`. Chat/text can still offer it.
 
 ## Welcome
 
-On connect, the host selects one concise first-visit greeting and an
-immediately executable hint from a hardcoded catalog. The catalog and random
-selection stay out of the model prompt. Hints are site actions such as open
-projects or show Cropio, never Jarvis trivia. After the first spoken turn
-finishes, the veil settles into a floating dock and the rest of the site stays
-interactive. The dock orb ripples from live playback energy.
+On connect, the host picks one greeting and one hint from hardcoded
+catalogs in `voiceAgentProtocol`. Greetings open warmly, then briefly
+introduce Dhruv Mishra's portfolio. Hints are spoken site suggestions,
+not `Try saying` command phrases. After a quiet live stretch the host
+sends a picked check-in, then a hangup line, then closes the socket.
+Hangup first shows a picked exit-veil line on the black screen. Random
+selection stays out of the model prompt. After the first spoken turn
+finishes, the veil settles into a floating dock and the rest of the site
+stays interactive. The dock orb ripples from live playback energy.

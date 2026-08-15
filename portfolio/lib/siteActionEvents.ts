@@ -1,6 +1,7 @@
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import type {
   BrowseHistoryDirection,
+  FeedbackCategory,
   PageScrollDirection,
   ProjectVideoAction,
   SiteToolResult,
@@ -11,6 +12,8 @@ export const OPEN_PROJECT_EVENT = 'voice-open-project';
 export const CONTROL_PROJECT_VIDEO_EVENT = 'voice-control-project-video';
 export const SEND_CHAT_MESSAGE_EVENT = 'voice-send-chat-message';
 export const RUN_TERMINAL_COMMAND_EVENT = 'voice-run-terminal-command';
+export const SUBMIT_GUESTBOOK_EVENT = 'voice-submit-guestbook';
+export const SUBMIT_FEEDBACK_EVENT = 'voice-submit-feedback';
 export const OPEN_CHAT_EVENT = 'open-chat';
 export const OPEN_SHORTCUTS_EVENT = 'open-shortcuts';
 
@@ -32,7 +35,18 @@ export interface RunTerminalCommandEventDetail {
   command: VoiceSafeTerminalCommand;
 }
 
-export type SiteActionHostId = 'project-video' | 'chat' | 'terminal';
+export interface SubmitGuestbookEventDetail {
+  message: string;
+  name?: string;
+}
+
+export interface SubmitFeedbackEventDetail {
+  message: string;
+  contact?: string;
+  category?: FeedbackCategory;
+}
+
+export type SiteActionHostId = 'project-video' | 'chat' | 'terminal' | 'guestbook' | 'feedback';
 
 export interface SiteActionHostResult {
   handled: boolean;
@@ -103,6 +117,14 @@ export function requestSendChatMessage(message: string): SiteActionHostResult {
 
 export function requestRunTerminalCommand(command: VoiceSafeTerminalCommand): SiteActionHostResult {
   return dispatchCancellable<RunTerminalCommandEventDetail>(RUN_TERMINAL_COMMAND_EVENT, { command });
+}
+
+export function requestSubmitGuestbook(detail: SubmitGuestbookEventDetail): SiteActionHostResult {
+  return dispatchCancellable<SubmitGuestbookEventDetail>(SUBMIT_GUESTBOOK_EVENT, detail);
+}
+
+export function requestSubmitFeedback(detail: SubmitFeedbackEventDetail): SiteActionHostResult {
+  return dispatchCancellable<SubmitFeedbackEventDetail>(SUBMIT_FEEDBACK_EVENT, detail);
 }
 
 export function requestOpenChat(): boolean {

@@ -9,6 +9,8 @@ import {
   OPEN_PROJECT_EVENT,
   SEND_CHAT_MESSAGE_EVENT,
   RUN_TERMINAL_COMMAND_EVENT,
+  SUBMIT_FEEDBACK_EVENT,
+  SUBMIT_GUESTBOOK_EVENT,
   attachSiteActionResult,
   buildProjectHref,
   readProjectSlugFromSearch,
@@ -45,6 +47,18 @@ describe('site tool catalog', () => {
       name: 'submit_guestbook',
       args: { message: 'Loved the sketchbook notes.', name: 'Ada' },
     });
+
+    expect(parseSiteToolCall({
+      name: 'submit_feedback',
+      args: { message: 'The resume PDF button is hard to find.', contact: 'ada@example.com', category: 'bug' },
+    })).toMatchObject({
+      name: 'submit_feedback',
+      args: {
+        message: 'The resume PDF button is hard to find.',
+        contact: 'ada@example.com',
+        category: 'bug',
+      },
+    });
   });
 
   it('rejects unknown tools and unsafe args', () => {
@@ -52,6 +66,11 @@ describe('site tool catalog', () => {
     expect(parseSiteToolCall({ name: 'navigate_to', args: { path: '/admin' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'open_link', args: { key: 'evil' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'submit_guestbook', args: { message: 'hi' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'submit_feedback', args: { message: 'hi' } })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'submit_feedback',
+      args: { message: 'The resume PDF button is hard to find.', category: 'urgent' },
+    })).toBeNull();
     expect(parseSiteToolCall({ name: 'fill_field', args: { field: 'password', value: 'x' } })).toBeNull();
     expect(parseSiteToolCall({
       name: 'fill_field',
@@ -166,6 +185,22 @@ describe('site tool executor hosts', () => {
       ok: false,
       errorCode: 'terminal-unavailable',
     });
+    await expect(executeSiteTool({
+      id: 'gb-1',
+      name: 'submit_guestbook',
+      args: { message: 'Loved the sketchbook notes.' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'guestbook-unavailable',
+    });
+    await expect(executeSiteTool({
+      id: 'fb-1',
+      name: 'submit_feedback',
+      args: { message: 'The resume PDF button is hard to find.' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'feedback-unavailable',
+    });
   });
 
   it('uses the host chat send path when the composer is mounted', async () => {
@@ -188,6 +223,47 @@ describe('site tool executor hosts', () => {
     }, runtime as never)).resolves.toMatchObject({
       ok: true,
       spokenText: 'Queued that note.',
+      data: { accepted: true },
+    });
+    expect(dispatchEvent).toHaveBeenCalled();
+  });
+
+  it('uses the host guestbook and feedback submit paths when those forms are mounted', async () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === SUBMIT_GUESTBOOK_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Pinning that note.',
+          data: { accepted: true },
+        });
+      }
+      if (event.type === SUBMIT_FEEDBACK_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Sending that feedback.',
+          data: { accepted: true },
+        });
+      }
+      return true;
+    });
+    vi.stubGlobal('window', { dispatchEvent, open: vi.fn() });
+
+    await expect(executeSiteTool({
+      id: 'gb-2',
+      name: 'submit_guestbook',
+      args: { message: 'Loved the sketchbook notes.', name: 'Ada' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      spokenText: 'Pinning that note.',
+      data: { accepted: true },
+    });
+    await expect(executeSiteTool({
+      id: 'fb-2',
+      name: 'submit_feedback',
+      args: { message: 'The resume PDF button is hard to find.', category: 'bug' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      spokenText: 'Sending that feedback.',
       data: { accepted: true },
     });
     expect(dispatchEvent).toHaveBeenCalled();

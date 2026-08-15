@@ -78,10 +78,20 @@ export async function startVoiceCapture(
   };
 }
 
-export function createVoicePlayback() {
+export interface VoicePlayback {
+  play(chunk: ArrayBuffer): void;
+  interrupt(): void;
+  close(): void;
+  isBusy(): boolean;
+  subscribeIdle(cb: () => void): () => void;
+}
+
+export function createVoicePlayback(): VoicePlayback {
   let context: AudioContext | null = null;
   let nextTime = 0;
+  let tailTimer: ReturnType<typeof setTimeout> | null = null;
   const sources = new Set<AudioBufferSourceNode>();
+  const idleListeners = new Set<() => void>();
 
   function ensure(): AudioContext {
     if (!context) {
@@ -89,6 +99,39 @@ export function createVoicePlayback() {
       nextTime = context.currentTime;
     }
     return context;
+  }
+
+  function remainingTailMs(): number {
+    if (!context) return 0;
+    return Math.max(0, (nextTime - context.currentTime) * 1000);
+  }
+
+  function isBusy(): boolean {
+    if (sources.size > 0) return true;
+    return remainingTailMs() > 16;
+  }
+
+  function emitIdle(): void {
+    if (isBusy()) return;
+    for (const listener of idleListeners) listener();
+  }
+
+  function scheduleIdleWatch(): void {
+    if (tailTimer != null) {
+      clearTimeout(tailTimer);
+      tailTimer = null;
+    }
+    if (sources.size > 0) return;
+    const wait = remainingTailMs();
+    if (wait <= 16) {
+      emitIdle();
+      return;
+    }
+    tailTimer = setTimeout(() => {
+      tailTimer = null;
+      if (context) nextTime = context.currentTime;
+      emitIdle();
+    }, wait + 8);
   }
 
   return {
@@ -107,13 +150,19 @@ export function createVoicePlayback() {
       source.connect(audio.destination);
       source.addEventListener('ended', () => {
         sources.delete(source);
+        scheduleIdleWatch();
       });
       sources.add(source);
       const startAt = Math.max(audio.currentTime, nextTime);
       source.start(startAt);
       nextTime = startAt + buffer.duration;
+      scheduleIdleWatch();
     },
     interrupt() {
+      if (tailTimer != null) {
+        clearTimeout(tailTimer);
+        tailTimer = null;
+      }
       for (const source of sources) {
         try {
           source.stop();
@@ -123,6 +172,7 @@ export function createVoicePlayback() {
       }
       sources.clear();
       nextTime = context?.currentTime ?? 0;
+      emitIdle();
     },
     close() {
       this.interrupt();
@@ -130,6 +180,13 @@ export function createVoicePlayback() {
       void context.close();
       context = null;
       nextTime = 0;
+    },
+    isBusy,
+    subscribeIdle(cb) {
+      idleListeners.add(cb);
+      return () => {
+        idleListeners.delete(cb);
+      };
     },
   };
 }

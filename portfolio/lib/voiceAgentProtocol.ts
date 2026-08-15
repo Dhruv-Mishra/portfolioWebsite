@@ -47,6 +47,7 @@ export interface VoiceCallerEventMap {
   audio: ArrayBuffer;
   interrupted: boolean;
   toolCall: SiteToolCall;
+  turnComplete: boolean;
   health: VoiceHealthStatus;
   error: string;
   ended: VoiceExitReason;

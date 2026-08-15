@@ -148,6 +148,9 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
   },
 ];
 
+export const VOICE_LIVE_TOOL_DECLARATIONS: SiteToolDeclaration[] =
+  SITE_TOOL_DECLARATIONS.filter(tool => tool.name !== 'start_voice_session');
+
 export function getSiteToolDeclaration(name: SiteToolName): SiteToolDeclaration {
   const declaration = SITE_TOOL_DECLARATIONS.find(entry => entry.name === name);
   if (!declaration) {

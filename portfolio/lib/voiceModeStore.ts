@@ -42,6 +42,17 @@ export function getVoiceExitReason(): VoiceExitReason {
   return exitReason;
 }
 
+export function peekVoiceModeRequest(): VoiceModeRequest | null {
+  return requested;
+}
+
+export function subscribeVoiceModeBus(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function useVoiceModeRequest(): VoiceModeRequest | null {
   return useSyncExternalStore(
     (listener) => {

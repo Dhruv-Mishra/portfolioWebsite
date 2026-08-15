@@ -17,7 +17,7 @@ const FAB_BUTTON_STYLE = { transform: 'rotate(3deg)' } as const;
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
-const getVoiceModeSnapshot = () => document.documentElement.dataset.voiceMode === 'on';
+const getVoiceModeSnapshot = () => Boolean(document.documentElement.dataset.voiceMode);
 const getServerVoiceModeSnapshot = () => false;
 const subscribeToVoiceMode = (onStoreChange: () => void) => {
   window.addEventListener('voice-mode:change', onStoreChange);

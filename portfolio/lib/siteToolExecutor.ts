@@ -20,6 +20,11 @@ export interface SiteToolRuntime {
   openProject: (slug: string) => void;
 }
 
+export interface ExecuteSiteToolOptions {
+  /** When false, return spoken text without visual / navigation side effects. */
+  commit?: boolean;
+}
+
 const PREF_KEY_MAP: Partial<Record<string, SitePrefKey>> = {
   haptics: 'hapticsEnabled',
   'enhance-immersion': 'enhanceImmersion',
@@ -104,47 +109,55 @@ async function lookupFacts(query: string): Promise<SiteToolResult> {
 export async function executeSiteTool(
   call: SiteToolCall,
   runtime: SiteToolRuntime,
+  options: ExecuteSiteToolOptions = {},
 ): Promise<SiteToolResult> {
   const parsed = parseSiteToolCall(call);
   if (!parsed) return fail('That action is not available.', 'invalid-tool');
+  const commit = options.commit !== false;
 
   switch (parsed.name) {
     case 'navigate_to':
-      requestPageTurnNavigation(runtime.router, { href: parsed.args.path, mode: 'push' });
+      if (commit) {
+        requestPageTurnNavigation(runtime.router, { href: parsed.args.path, mode: 'push' });
+      }
       return ok('Taking you there.');
     case 'set_theme':
-      if (parsed.args.action === 'toggle') {
-        runThemeToggle({
-          discoActive: runtime.discoActive,
-          isDark: runtime.resolvedTheme === 'dark',
-          setTheme: runtime.setTheme,
-        });
-      } else if (parsed.args.action === 'disco') {
-        setDiscoActiveImperative(true);
-      } else if (parsed.args.action === 'disco-off') {
-        setDiscoActiveImperative(false);
-      } else {
-        runThemeSelection({
-          discoActive: runtime.discoActive,
-          theme: parsed.args.action,
-          setTheme: runtime.setTheme as (theme: 'system' | 'light' | 'dark') => void,
-        });
+      if (commit) {
+        if (parsed.args.action === 'toggle') {
+          runThemeToggle({
+            discoActive: runtime.discoActive,
+            isDark: runtime.resolvedTheme === 'dark',
+            setTheme: runtime.setTheme,
+          });
+        } else if (parsed.args.action === 'disco') {
+          setDiscoActiveImperative(true);
+        } else if (parsed.args.action === 'disco-off') {
+          setDiscoActiveImperative(false);
+        } else {
+          runThemeSelection({
+            discoActive: runtime.discoActive,
+            theme: parsed.args.action,
+            setTheme: runtime.setTheme as (theme: 'system' | 'light' | 'dark') => void,
+          });
+        }
       }
       return ok('Updated the look.');
     case 'open_project':
-      runtime.openProject(parsed.args.slug);
+      if (commit) runtime.openProject(parsed.args.slug);
       return ok('Opening that project.');
     case 'open_link': {
       const url = APPROVED_LINKS[parsed.args.key];
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (commit) window.open(url, '_blank', 'noopener,noreferrer');
       return ok('Opening that link.');
     }
     case 'open_feedback':
-      runtime.openFeedback();
-      window.dispatchEvent(new CustomEvent('open-feedback'));
+      if (commit) {
+        runtime.openFeedback();
+        window.dispatchEvent(new CustomEvent('open-feedback'));
+      }
       return ok('Opening the feedback note.');
     case 'open_command_palette':
-      window.dispatchEvent(new CustomEvent('open-command-palette'));
+      if (commit) window.dispatchEvent(new CustomEvent('open-command-palette'));
       return ok('Opening the command palette.');
     case 'fill_field':
       return fillField(parsed.args.field, parsed.args.value);
@@ -177,10 +190,10 @@ export async function executeSiteTool(
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
     case 'start_voice_session':
-      requestVoiceMode();
+      if (commit) requestVoiceMode();
       return ok('Switching to voice mode.');
     case 'end_voice_session':
-      requestVoiceModeExit(parsed.args.reason ?? 'user');
+      if (commit) requestVoiceModeExit(parsed.args.reason ?? 'user');
       return ok('Leaving voice mode.');
     default:
       return fail('That tool is not available.', 'unknown-tool');

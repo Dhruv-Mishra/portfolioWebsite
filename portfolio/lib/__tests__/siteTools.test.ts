@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SITE_TOOL_DECLARATIONS, assertCompleteToolCatalog } from '@/lib/siteToolDeclarations';
+import { SITE_TOOL_DECLARATIONS, VOICE_LIVE_TOOL_DECLARATIONS, assertCompleteToolCatalog } from '@/lib/siteToolDeclarations';
 import { SITE_TOOL_NAMES } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 
@@ -7,6 +7,8 @@ describe('site tool catalog', () => {
   it('declares every shared tool exactly once', () => {
     expect(() => assertCompleteToolCatalog()).not.toThrow();
     expect(SITE_TOOL_DECLARATIONS.map(tool => tool.name).sort()).toEqual([...SITE_TOOL_NAMES].sort());
+    expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).not.toContain('start_voice_session');
+    expect(VOICE_LIVE_TOOL_DECLARATIONS).toHaveLength(SITE_TOOL_DECLARATIONS.length - 1);
   });
 
   it('accepts valid navigate and guestbook calls', () => {

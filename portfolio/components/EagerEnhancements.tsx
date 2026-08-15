@@ -117,6 +117,11 @@ const ExperimentalFeaturesController = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const VoiceModeController = dynamic(
+  () => import('@/components/voice/VoiceModeController'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   const [DesktopContextMenu, setDesktopContextMenu] = useState<ComponentType | null>(null);
@@ -151,6 +156,7 @@ export default function EagerEnhancements() {
       <ClickSoundListener />
       <AdminPrefsController />
       <ExperimentalFeaturesController />
+      <VoiceModeController />
       <CommandPaletteProvider />
       {isDesktop ? <ShortcutsOverlayProvider /> : null}
       {isDesktop ? <ShortcutsHint /> : null}

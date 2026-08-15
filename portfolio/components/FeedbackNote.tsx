@@ -344,6 +344,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       rows={12}
                       disabled={state === 'submitting'}
                       aria-label="Feedback message"
+                      data-voice-field="feedback-message"
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
                         "px-3 pb-3 font-hand text-sm md:text-base text-[var(--c-ink)]",
@@ -369,6 +370,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       placeholder="Name / email / socials (optional)"
                       disabled={state === 'submitting'}
                       aria-label="Contact information (optional)"
+                      data-voice-field="feedback-contact"
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
                         "px-3 py-2 font-hand text-sm text-[var(--c-ink)]",

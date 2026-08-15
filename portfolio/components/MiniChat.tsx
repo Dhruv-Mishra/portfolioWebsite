@@ -17,6 +17,12 @@ const FAB_BUTTON_STYLE = { transform: 'rotate(3deg)' } as const;
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
+const getVoiceModeSnapshot = () => document.documentElement.dataset.voiceMode === 'on';
+const getServerVoiceModeSnapshot = () => false;
+const subscribeToVoiceMode = (onStoreChange: () => void) => {
+  window.addEventListener('voice-mode:change', onStoreChange);
+  return () => window.removeEventListener('voice-mode:change', onStoreChange);
+};
 
 interface MiniChatState {
   pathname: string;
@@ -59,6 +65,11 @@ export default function MiniChat() {
     getClientHydrationSnapshot,
     getServerHydrationSnapshot,
   );
+  const voiceModeActive = useSyncExternalStore(
+    subscribeToVoiceMode,
+    getVoiceModeSnapshot,
+    getServerVoiceModeSnapshot,
+  );
 
   if (chatState.pathname !== pathname) {
     setChatState({ pathname, isOpen: false });
@@ -82,6 +93,7 @@ export default function MiniChat() {
 
   // Don't show on /chat page (or any nested /chat/* route)
   if (pathname?.startsWith('/chat')) return null;
+  if (voiceModeActive) return null;
   if (!hasMounted) return null;
 
   return (

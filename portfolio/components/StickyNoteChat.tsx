@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffe
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
+import { AudioLines, ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -734,7 +734,7 @@ const StickyNote = memo(function StickyNote({
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction);
+  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit);
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
   const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
@@ -1229,6 +1229,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   return (
     <div
       ref={composerRef}
+      data-chat-composer
       className={cn(
       "absolute inset-x-0 pointer-events-none",
       // Lift the input bar off the viewport bottom on both breakpoints so
@@ -1252,7 +1253,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             controls share a single translucent themed pill so they read
             as a unified "chat utilities" cluster rather than three
             disconnected affordances. */}
-        {(hasMessages || speech.isSupported || supportsImages) && (
+        {(hasMessages || speech.isSupported || supportsImages || !compact) && (
           <div className={cn(
             "flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5",
             compact && "mb-0.5 px-0 max-[480px]:mb-0.5 max-[480px]:px-0",
@@ -1350,6 +1351,22 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 />
               </>
             )}
+            <Tooltip label="Enter voice mode">
+              <button
+                type="button"
+                onClick={() => {
+                  void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
+                }}
+                className={cn(
+                  'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-sky-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500',
+                  compact && 'md:h-8 md:w-8',
+                )}
+                aria-label="Enter native voice mode"
+                title="Enter voice mode"
+              >
+                <AudioLines size={compact ? 12 : 14} aria-hidden="true" />
+              </button>
+            </Tooltip>
             </div>
           </div>
         )}
@@ -1419,6 +1436,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 rows={1}
                 disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
                 aria-label="Chat message"
+                data-voice-field="chat-composer"
                 className={cn(
                   // Auto-grow textarea: rows=1 baseline; useLayoutEffect
                   // measures scrollHeight and applies inline height up to
@@ -1629,7 +1647,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       if (message.isOld || message.role !== 'assistant') continue;
       if (handledActionsRef.current.has(message.id)) continue;
 
-      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction;
+      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit;
       if (!hasAction) continue;
 
       handledActionsRef.current.add(message.id);
@@ -1779,6 +1797,10 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       action.feedbackAction ||
       action.projectSlug ||
       action.commandPaletteAction ||
+      action.voiceSessionAction ||
+      action.fieldFill ||
+      action.preferenceAction ||
+      action.guestbookSubmit ||
       (action.openUrls && action.openUrls.length > 0) ||
       action.navigateTo
     ) {
@@ -1826,6 +1848,31 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       setSelectedProjectSlug(action.projectSlug);
     }
 
+
+    if (action.voiceSessionAction) {
+      void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
+    }
+
+    if (action.fieldFill || action.preferenceAction || action.guestbookSubmit) {
+      void import('@/lib/siteToolExecutor').then(({ executeSiteTool }) => {
+        const call = action.fieldFill
+          ? { id: `${action.id}-fill`, name: 'fill_field' as const, args: action.fieldFill }
+          : action.preferenceAction
+            ? { id: `${action.id}-pref`, name: 'set_preference' as const, args: action.preferenceAction }
+            : { id: `${action.id}-guestbook`, name: 'submit_guestbook' as const, args: action.guestbookSubmit! };
+        void executeSiteTool(call, {
+          router,
+          setTheme,
+          resolvedTheme,
+          discoActive,
+          openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
+          openProject: slug => {
+            setProjectModalLoaded(true);
+            setSelectedProjectSlug(slug as ProjectSlug);
+          },
+        });
+      });
+    }
     if (action.commandPaletteAction) {
       openPanel();
       window.dispatchEvent(new CustomEvent('open-command-palette'));

@@ -1,4 +1,5 @@
-import { soundManager, type SoundId } from '@/lib/soundManager';
+import { getSoundsMutedSync } from '@/hooks/useStickers';
+import { soundManager } from '@/lib/soundManager';
 
 export type VoiceSoundId =
   | 'voice-enter'
@@ -13,14 +14,6 @@ const VOICE_SOUND_URLS: Record<VoiceSoundId, string> = {
   'voice-action': '/sounds/voice/action.mp3',
   'voice-listen': '/sounds/voice/listen.mp3',
   'voice-ambient': '/sounds/voice/ambient.mp3',
-};
-
-const FALLBACK: Record<VoiceSoundId, SoundId> = {
-  'voice-enter': 'superuser-fanfare',
-  'voice-exit': 'modal-close',
-  'voice-action': 'sticker-ding',
-  'voice-listen': 'chat-receive',
-  'voice-ambient': 'disco-loop',
 };
 
 const cache = new Map<VoiceSoundId, HTMLAudioElement>();
@@ -42,19 +35,20 @@ export function prefetchVoiceSounds(): void {
 }
 
 export function playVoiceSound(id: VoiceSoundId): void {
+  if (getSoundsMutedSync()) return;
   const audio = getAudio(id);
   audio.currentTime = 0;
   void audio.play().catch(() => {
-    soundManager.play(FALLBACK[id]);
+    /* keep voice cues isolated from site fallbacks */
   });
 }
 
 export function startVoiceAmbient(enabled: boolean): void {
-  if (!enabled) return;
+  if (!enabled || getSoundsMutedSync()) return;
   const audio = getAudio('voice-ambient');
   audio.volume = 0.18;
   void audio.play().catch(() => {
-    soundManager.startLoop('disco-loop');
+    /* do not start disco-loop as a voice ambient fallback */
   });
 }
 

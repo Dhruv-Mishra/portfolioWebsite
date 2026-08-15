@@ -61,7 +61,7 @@ export interface VoiceCaller {
   connect(session: VoiceSessionHandle): Promise<void>;
   sendAudio(chunk: ArrayBuffer): void;
   sendText(text: string): void;
-  sendToolResult(callId: string, result: SiteToolResult): void;
+  sendToolResult(callId: string, result: SiteToolResult, name?: string): void;
   interrupt(): void;
   close(reason?: VoiceExitReason): void;
   on<K extends keyof VoiceCallerEventMap>(event: K, listener: VoiceCallerListener<K>): () => void;

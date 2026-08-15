@@ -77,6 +77,7 @@ describe('Whisper deployment content security policy', () => {
       'https://huggingface.co',
       'https://us.aws.cdn.hf.co',
       'https://cdn.jsdelivr.net',
+      'wss://generativelanguage.googleapis.com',
     ]));
     expect(policy.get('connect-src')).not.toContain('https:');
     expect(policy.get('connect-src')).not.toContain('*');

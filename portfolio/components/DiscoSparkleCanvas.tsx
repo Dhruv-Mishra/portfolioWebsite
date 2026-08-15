@@ -175,6 +175,7 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
+      data-disco-media
       className="disco-sparkle-canvas"
       style={{
         position: 'fixed',

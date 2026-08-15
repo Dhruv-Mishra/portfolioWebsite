@@ -35,5 +35,17 @@ describe('site tool catalog', () => {
     expect(parseSiteToolCall({ name: 'open_link', args: { key: 'evil' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'submit_guestbook', args: { message: 'hi' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'fill_field', args: { field: 'password', value: 'x' } })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'fill_field',
+      args: { field: 'chat-composer', value: 'hello', submit: true },
+    })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'fill_field',
+      args: { field: 'terminal-input', value: 'help', submit: true },
+    })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'submit_guestbook',
+      args: { message: 'Visit https://example.com for more notes.' },
+    })).toBeNull();
   });
 });

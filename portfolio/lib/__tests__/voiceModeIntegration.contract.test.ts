@@ -35,6 +35,7 @@ describe('voice mode integration contract', () => {
 
     expect(enhancements).toContain('VoiceModeController');
     expect(stage).not.toContain("href: '/'");
+    expect(stage).toContain('role="dialog"');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
     expect(css).toContain('html[data-voice-mode="on"]');
     expect(css).toContain('.voice-orb-core');

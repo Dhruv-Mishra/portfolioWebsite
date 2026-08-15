@@ -90,7 +90,10 @@ describe('resolveChatIntent — voice session intents', () => {
   it('matches the action label and natural voice requests', () => {
     check('Start voice mode', { kind: 'action', voiceSessionAction: true });
     check('start voice mode', { kind: 'action', voiceSessionAction: true });
-    check('talk to me by voice', { kind: 'action', voiceSessionAction: true });
+    check('talk to me by voice', { kind: 'null' });
+    check("let's talk about rust", { kind: 'null' });
+    check('talk to me later', { kind: 'null' });
+    check('use voice chat in interviews', { kind: 'null' });
   });
 });
 

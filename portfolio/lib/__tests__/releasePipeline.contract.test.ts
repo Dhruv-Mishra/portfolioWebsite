@@ -175,31 +175,49 @@ describe('release version promotion', () => {
     expect(stagingDeploy).toContain(
       'STAGING_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}',
     );
+    expect(stagingDeploy).toContain(
+      'STAGING_VOICE_AGENT_API_KEY: ${{ secrets.STAGING_VOICE_AGENT_API_KEY }}',
+    );
     expect(stagingDeploy).toMatch(
       /if \[ -z "\$\{STAGING_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(stagingDeploy).toMatch(
+      /if \[ -z "\$\{STAGING_VOICE_AGENT_API_KEY:-\}" \]; then/,
     );
     expect(stagingDeploy).toContain(
       'RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}',
     );
     expect(stagingDeploy).toContain(
+      'RUNTIME_VOICE_AGENT_API_KEY: ${{ secrets.STAGING_VOICE_AGENT_API_KEY }}',
+    );
+    expect(stagingDeploy).toContain(
       'RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.STAGING_LOCAL_AGENT_BASE_URL }}',
     );
     expect(stagingDeploy).toMatch(
-      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
+      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_VOICE_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
     );
     expect(stagingDeploy).toMatch(
       /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(stagingDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_VOICE_AGENT_API_KEY:-\}" \]; then/,
     );
     expect(stagingDeploy).toMatch(
       /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_BASE_URL:-\}" \]; then/,
     );
     expect(stagingDeploy).toContain('[[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]');
     expect(stagingDeploy).toContain('$1 !~ /^LOCAL_AGENT_/');
+    expect(stagingDeploy).toContain('$1 != "VOICE_AGENT_API_KEY"');
+    expect(stagingDeploy).toContain('$1 != "STAGING_VOICE_AGENT_API_KEY"');
+    expect(stagingDeploy).toContain('$1 != "PRODUCTION_VOICE_AGENT_API_KEY"');
     expect(stagingDeploy).toContain(
       "printf 'LOCAL_AGENT_BASE_URL=%s\\n' \"$RUNTIME_LOCAL_AGENT_BASE_URL\"",
     );
     expect(stagingDeploy).toContain(
       "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
+    );
+    expect(stagingDeploy).toContain(
+      "printf 'VOICE_AGENT_API_KEY=%s\\n' \"$RUNTIME_VOICE_AGENT_API_KEY\"",
     );
 
     expect(productionDeploy).toMatch(
@@ -208,31 +226,49 @@ describe('release version promotion', () => {
     expect(productionDeploy).toContain(
       'PRODUCTION_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}',
     );
+    expect(productionDeploy).toContain(
+      'PRODUCTION_VOICE_AGENT_API_KEY: ${{ secrets.PRODUCTION_VOICE_AGENT_API_KEY }}',
+    );
     expect(productionDeploy).toMatch(
       /if \[ -z "\$\{PRODUCTION_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(productionDeploy).toMatch(
+      /if \[ -z "\$\{PRODUCTION_VOICE_AGENT_API_KEY:-\}" \]; then/,
     );
     expect(productionDeploy).toContain(
       'RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.PRODUCTION_LOCAL_AGENT_API_KEY }}',
     );
     expect(productionDeploy).toContain(
+      'RUNTIME_VOICE_AGENT_API_KEY: ${{ secrets.PRODUCTION_VOICE_AGENT_API_KEY }}',
+    );
+    expect(productionDeploy).toContain(
       'RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.PRODUCTION_LOCAL_AGENT_BASE_URL }}',
     );
     expect(productionDeploy).toMatch(
-      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
+      /envs:\s*[^\n]*RUNTIME_LOCAL_AGENT_API_KEY[^\n]*RUNTIME_VOICE_AGENT_API_KEY[^\n]*RUNTIME_LOCAL_AGENT_BASE_URL/,
     );
     expect(productionDeploy).toMatch(
       /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_API_KEY:-\}" \]; then/,
+    );
+    expect(productionDeploy).toMatch(
+      /if \[ -z "\$\{RUNTIME_VOICE_AGENT_API_KEY:-\}" \]; then/,
     );
     expect(productionDeploy).toMatch(
       /if \[ -z "\$\{RUNTIME_LOCAL_AGENT_BASE_URL:-\}" \]; then/,
     );
     expect(productionDeploy).toContain('[[ "$RUNTIME_LOCAL_AGENT_BASE_URL" != https://* ]]');
     expect(productionDeploy).toContain('$1 !~ /^LOCAL_AGENT_/');
+    expect(productionDeploy).toContain('$1 != "VOICE_AGENT_API_KEY"');
+    expect(productionDeploy).toContain('$1 != "STAGING_VOICE_AGENT_API_KEY"');
+    expect(productionDeploy).toContain('$1 != "PRODUCTION_VOICE_AGENT_API_KEY"');
     expect(productionDeploy).toContain(
       "printf 'LOCAL_AGENT_BASE_URL=%s\\n' \"$RUNTIME_LOCAL_AGENT_BASE_URL\"",
     );
     expect(productionDeploy).toContain(
       "printf 'LOCAL_AGENT_API_KEY=%s\\n' \"$RUNTIME_LOCAL_AGENT_API_KEY\"",
+    );
+    expect(productionDeploy).toContain(
+      "printf 'VOICE_AGENT_API_KEY=%s\\n' \"$RUNTIME_VOICE_AGENT_API_KEY\"",
     );
     expect(stagingCanaryJob).toContain('timeout-minutes: 45');
 

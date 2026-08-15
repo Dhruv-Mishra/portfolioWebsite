@@ -47,7 +47,7 @@ const NEGATION_PATTERNS = [
   /\bshould not\b/i,
   /\bnever\b/i,
 ] as const;
-const ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up|take me to|go to|navigate to|visit|switch|toggle|set|turn on|turn it|make it|report|send|leave)\b/i;
+const ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up|take me to|go to|navigate to|visit|switch|toggle|set|turn on|turn it|make it|report|send|leave|start|enter|talk|speak)\b/i;
 const PROJECT_ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up)\b/i;
 const NAVIGATION_VERB_PATTERN = /\b(go to|take me to|navigate to|bring me to|open)\b/i;
 const HOME_SHORTCUT_PATTERN = /\b(take me home|go home|head home|bring me home|back home|back to home)\b/i;
@@ -213,6 +213,10 @@ function toActionExecution(action: ActionDef): ActionExecution {
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
     commandPaletteAction: action.commandPaletteAction,
+    voiceSessionAction: action.voiceSessionAction,
+    fieldFill: action.fieldFill,
+    preferenceAction: action.preferenceAction,
+    guestbookSubmit: action.guestbookSubmit,
   };
 }
 
@@ -367,6 +371,21 @@ function resolveCommandPalette(input: string): ActionResolution | null {
   };
 }
 
+function resolveVoiceSession(input: string): ActionResolution | null {
+  if (!/\b(?:start|enter|open|switch to|talk in|use)\s+(?:the\s+)?(?:native\s+)?voice(?:\s+(?:mode|agent|session|experience))?\b/i.test(input)
+    && !/\b(?:talk|speak)\s+(?:to|with)\s+(?:me|you|dhruv)\b/i.test(input)
+    && !/\blet'?s\s+talk\b/i.test(input)) {
+    return null;
+  }
+
+  const action: ActionExecution = { voiceSessionAction: true };
+  return {
+    kind: 'action',
+    action,
+    reply: getActionFallbackReply(action) ?? 'Switching to voice mode ~',
+  };
+}
+
 function resolveFeedback(input: string): ActionResolution | null {
   if (!FEEDBACK_PHRASE_PATTERN.test(input)) {
     return null;
@@ -432,6 +451,11 @@ function resolveSingleChatIntent(normalized: string): ChatIntentResolution | nul
     return commandPalette;
   }
 
+  const voiceSession = resolveVoiceSession(normalized);
+  if (voiceSession) {
+    return voiceSession;
+  }
+
   const feedback = resolveFeedback(normalized);
   if (feedback) {
     return feedback;
@@ -470,6 +494,10 @@ function countActionEffects(action: ActionExecution): number {
     Number(Boolean(action.feedbackAction)) +
     Number(Boolean(action.projectSlug)) +
     Number(Boolean(action.commandPaletteAction)) +
+    Number(Boolean(action.voiceSessionAction)) +
+    Number(Boolean(action.fieldFill)) +
+    Number(Boolean(action.preferenceAction)) +
+    Number(Boolean(action.guestbookSubmit)) +
     (action.openUrls?.length ?? 0);
 }
 
@@ -490,7 +518,13 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
       current.projectSlug ||
       next.projectSlug ||
       current.commandPaletteAction ||
-      next.commandPaletteAction,
+      next.commandPaletteAction ||
+      current.voiceSessionAction ||
+      next.voiceSessionAction ||
+      current.fieldFill ||
+      next.fieldFill ||
+      current.guestbookSubmit ||
+      next.guestbookSubmit,
     );
   if (navigationWithInPageAction) {
     return null;
@@ -498,8 +532,15 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
 
   const transientSurfaceCount = Number(Boolean(current.feedbackAction || next.feedbackAction)) +
     Number(Boolean(current.projectSlug || next.projectSlug)) +
-    Number(Boolean(current.commandPaletteAction || next.commandPaletteAction));
+    Number(Boolean(current.commandPaletteAction || next.commandPaletteAction)) +
+    Number(Boolean(current.voiceSessionAction || next.voiceSessionAction)) +
+    Number(Boolean(current.fieldFill || next.fieldFill)) +
+    Number(Boolean(current.guestbookSubmit || next.guestbookSubmit));
   if (transientSurfaceCount > 1) {
+    return null;
+  }
+
+  if ((current.fieldFill && next.fieldFill) || (current.preferenceAction && next.preferenceAction) || (current.guestbookSubmit && next.guestbookSubmit)) {
     return null;
   }
 
@@ -515,6 +556,10 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
     feedbackAction: current.feedbackAction || next.feedbackAction || undefined,
     projectSlug: current.projectSlug ?? next.projectSlug,
     commandPaletteAction: current.commandPaletteAction || next.commandPaletteAction || undefined,
+    voiceSessionAction: current.voiceSessionAction || next.voiceSessionAction || undefined,
+    fieldFill: current.fieldFill ?? next.fieldFill,
+    preferenceAction: current.preferenceAction ?? next.preferenceAction,
+    guestbookSubmit: current.guestbookSubmit ?? next.guestbookSubmit,
   };
 
   return countActionEffects(merged) <= MAX_CHAIN_EFFECTS ? merged : null;

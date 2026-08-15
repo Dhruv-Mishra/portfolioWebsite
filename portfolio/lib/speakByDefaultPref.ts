@@ -28,19 +28,24 @@ function subscribe(onStoreChange: () => void): () => void {
   };
 }
 
+export function setSpeakByDefaultPref(nextEnabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (nextEnabled) window.localStorage.setItem(SPEAK_BY_DEFAULT_STORAGE_KEY, ENABLED_VALUE);
+    else window.localStorage.removeItem(SPEAK_BY_DEFAULT_STORAGE_KEY);
+  } catch { /* no-op */ }
+  try {
+    window.dispatchEvent(new Event(EVENT_NAME));
+  } catch { /* no-op */ }
+}
+
 export function useSpeakByDefaultPref(): {
   enabled: boolean;
   setEnabled: (enabled: boolean) => void;
 } {
   const enabled = useSyncExternalStore(subscribe, readPref, () => false);
   const setEnabled = useCallback((nextEnabled: boolean) => {
-    try {
-      if (nextEnabled) window.localStorage.setItem(SPEAK_BY_DEFAULT_STORAGE_KEY, ENABLED_VALUE);
-      else window.localStorage.removeItem(SPEAK_BY_DEFAULT_STORAGE_KEY);
-    } catch { /* no-op */ }
-    try {
-      window.dispatchEvent(new Event(EVENT_NAME));
-    } catch { /* no-op */ }
+    setSpeakByDefaultPref(nextEnabled);
   }, []);
 
   return { enabled, setEnabled };

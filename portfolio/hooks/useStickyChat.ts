@@ -49,6 +49,10 @@ export interface ChatMessage {
   feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
   commandPaletteAction?: boolean; // True when the command palette should open
+  voiceSessionAction?: boolean;
+  fieldFill?: ActionExecution['fieldFill'];
+  preferenceAction?: ActionExecution['preferenceAction'];
+  guestbookSubmit?: ActionExecution['guestbookSubmit'];
   signature?: string; // Server signature for trusted assistant history replay
   /**
    * Matrix puzzle reply kind — set by the client-side regex intercept for
@@ -849,6 +853,10 @@ export function useStickyChat(): UseStickyChat {
             feedbackAction: m.feedbackAction,
             projectSlug: m.projectSlug,
             commandPaletteAction: m.commandPaletteAction,
+            voiceSessionAction: m.voiceSessionAction,
+            fieldFill: m.fieldFill,
+            preferenceAction: m.preferenceAction,
+            guestbookSubmit: m.guestbookSubmit,
           };
 
           return {
@@ -931,6 +939,10 @@ export function useStickyChat(): UseStickyChat {
                   feedbackAction: serverAction?.feedbackAction,
                   projectSlug: serverAction?.projectSlug,
                   commandPaletteAction: serverAction?.commandPaletteAction,
+                  voiceSessionAction: serverAction?.voiceSessionAction,
+                  fieldFill: serverAction?.fieldFill,
+                  preferenceAction: serverAction?.preferenceAction,
+                  guestbookSubmit: serverAction?.guestbookSubmit,
                   signature: typeof data.signature === 'string' ? data.signature : undefined,
                 }
               : m
@@ -1085,6 +1097,10 @@ export function useStickyChat(): UseStickyChat {
       feedbackAction: action?.feedbackAction,
       projectSlug: action?.projectSlug,
       commandPaletteAction: action?.commandPaletteAction,
+      voiceSessionAction: action?.voiceSessionAction,
+      fieldFill: action?.fieldFill,
+      preferenceAction: action?.preferenceAction,
+      guestbookSubmit: action?.guestbookSubmit,
     };
     const next = [...messagesRef.current, userMsg, assistantMsg];
     setMessages(next);

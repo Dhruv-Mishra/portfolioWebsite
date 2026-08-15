@@ -54,6 +54,32 @@ function normalizeAction(action: ActionExecution | null | undefined): ActionExec
     normalized.commandPaletteAction = true;
   }
 
+  if (action.voiceSessionAction) {
+    normalized.voiceSessionAction = true;
+  }
+
+  if (action.fieldFill) {
+    normalized.fieldFill = {
+      field: action.fieldFill.field,
+      value: action.fieldFill.value,
+      ...(action.fieldFill.submit ? { submit: true } : {}),
+    };
+  }
+
+  if (action.preferenceAction) {
+    normalized.preferenceAction = {
+      key: action.preferenceAction.key,
+      enabled: action.preferenceAction.enabled,
+    };
+  }
+
+  if (action.guestbookSubmit) {
+    normalized.guestbookSubmit = {
+      message: action.guestbookSubmit.message,
+      ...(action.guestbookSubmit.name ? { name: action.guestbookSubmit.name } : {}),
+    };
+  }
+
   if (action.openUrls?.length) {
     normalized.openUrls = [...new Set(action.openUrls)];
   }

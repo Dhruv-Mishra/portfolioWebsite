@@ -1,6 +1,28 @@
 // lib/actions.ts — Chat action metadata and follow-up suggestions
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
+import {
+  isSitePreferenceKey,
+  isVoiceFieldId,
+  type SitePreferenceKey,
+  type VoiceFieldId,
+} from '@/lib/siteTools';
+
+export interface FieldFillAction {
+  field: VoiceFieldId;
+  value: string;
+  submit?: boolean;
+}
+
+export interface PreferenceAction {
+  key: SitePreferenceKey;
+  enabled: boolean;
+}
+
+export interface GuestbookSubmitAction {
+  message: string;
+  name?: string;
+}
 
 export interface ActionExecution {
   navigateTo?: string;
@@ -9,6 +31,10 @@ export interface ActionExecution {
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
   commandPaletteAction?: boolean;
+  voiceSessionAction?: boolean;
+  fieldFill?: FieldFillAction;
+  preferenceAction?: PreferenceAction;
+  guestbookSubmit?: GuestbookSubmitAction;
 }
 
 /** Action metadata for suggestion chips and prompt documentation. */
@@ -20,6 +46,10 @@ export interface ActionDef {
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
   commandPaletteAction?: boolean;
+  voiceSessionAction?: boolean;
+  fieldFill?: FieldFillAction;
+  preferenceAction?: PreferenceAction;
+  guestbookSubmit?: GuestbookSubmitAction;
 }
 
 export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat', '/guestbook', '/stickers', '/settings'] as const;
@@ -38,6 +68,10 @@ const ACTION_EXECUTION_KEYS = new Set([
   'feedbackAction',
   'projectSlug',
   'commandPaletteAction',
+  'voiceSessionAction',
+  'fieldFill',
+  'preferenceAction',
+  'guestbookSubmit',
 ]);
 
 export const DISCO_ACTION_LABEL = 'Engage disco mode';
@@ -232,6 +266,10 @@ export const ACTION_REGISTRY: ActionDef[] = [
     label: 'Report a bug',
     feedbackAction: true,
   },
+  {
+    label: 'Start voice mode',
+    voiceSessionAction: true,
+  },
 ];
 
 export function hasActionExecution(action: unknown): action is ActionExecution {
@@ -269,6 +307,46 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
     return false;
   }
 
+  if (candidate.voiceSessionAction !== undefined && candidate.voiceSessionAction !== true) {
+    return false;
+  }
+
+  if (candidate.fieldFill !== undefined) {
+    if (!candidate.fieldFill || typeof candidate.fieldFill !== 'object' || Array.isArray(candidate.fieldFill)) {
+      return false;
+    }
+    const fieldFill = candidate.fieldFill as Record<string, unknown>;
+    if (!isVoiceFieldId(fieldFill.field) || typeof fieldFill.value !== 'string' || fieldFill.value.trim().length === 0 || fieldFill.value.length > 1000) {
+      return false;
+    }
+    if (fieldFill.submit !== undefined && fieldFill.submit !== true) {
+      return false;
+    }
+  }
+
+  if (candidate.preferenceAction !== undefined) {
+    if (!candidate.preferenceAction || typeof candidate.preferenceAction !== 'object' || Array.isArray(candidate.preferenceAction)) {
+      return false;
+    }
+    const preference = candidate.preferenceAction as Record<string, unknown>;
+    if (!isSitePreferenceKey(preference.key) || typeof preference.enabled !== 'boolean') {
+      return false;
+    }
+  }
+
+  if (candidate.guestbookSubmit !== undefined) {
+    if (!candidate.guestbookSubmit || typeof candidate.guestbookSubmit !== 'object' || Array.isArray(candidate.guestbookSubmit)) {
+      return false;
+    }
+    const guestbook = candidate.guestbookSubmit as Record<string, unknown>;
+    if (typeof guestbook.message !== 'string' || guestbook.message.trim().length < 5 || guestbook.message.length > 300) {
+      return false;
+    }
+    if (guestbook.name !== undefined && (typeof guestbook.name !== 'string' || guestbook.name.trim().length < 2 || guestbook.name.length > 40)) {
+      return false;
+    }
+  }
+
   let uniqueUrls: string[] = [];
   if (candidate.openUrls !== undefined) {
     if (!Array.isArray(candidate.openUrls) || candidate.openUrls.length === 0 || candidate.openUrls.length > 2) {
@@ -288,7 +366,10 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
 
   const transientSurfaceCount = Number(candidate.feedbackAction === true) +
     Number(candidate.projectSlug !== undefined) +
-    Number(candidate.commandPaletteAction === true);
+    Number(candidate.commandPaletteAction === true) +
+    Number(candidate.voiceSessionAction === true) +
+    Number(candidate.fieldFill !== undefined) +
+    Number(candidate.guestbookSubmit !== undefined);
   if (transientSurfaceCount > 1 || (candidate.navigateTo !== undefined && transientSurfaceCount > 0)) {
     return false;
   }
@@ -298,6 +379,10 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
     Number(candidate.feedbackAction === true) +
     Number(candidate.projectSlug !== undefined) +
     Number(candidate.commandPaletteAction === true) +
+    Number(candidate.voiceSessionAction === true) +
+    Number(candidate.fieldFill !== undefined) +
+    Number(candidate.preferenceAction !== undefined) +
+    Number(candidate.guestbookSubmit !== undefined) +
     uniqueUrls.length;
 
   return effectCount > 0 && effectCount <= 3;
@@ -315,6 +400,10 @@ export function toActionExecution(action: ActionDef): ActionExecution {
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
     commandPaletteAction: action.commandPaletteAction,
+    voiceSessionAction: action.voiceSessionAction,
+    fieldFill: action.fieldFill ? { ...action.fieldFill } : undefined,
+    preferenceAction: action.preferenceAction ? { ...action.preferenceAction } : undefined,
+    guestbookSubmit: action.guestbookSubmit ? { ...action.guestbookSubmit } : undefined,
   };
 }
 
@@ -351,6 +440,22 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
   if (action.commandPaletteAction) {
     return 'Opening the command palette ~';
+  }
+
+  if (action.voiceSessionAction) {
+    return 'Switching to voice mode ~';
+  }
+
+  if (action.fieldFill) {
+    return action.fieldFill.submit ? 'Typing that in and sending it ~' : 'Typing that in for you ~';
+  }
+
+  if (action.preferenceAction) {
+    return action.preferenceAction.enabled ? 'Turning that on ~' : 'Turning that off ~';
+  }
+
+  if (action.guestbookSubmit) {
+    return 'Pinning that guestbook note ~';
   }
 
   if (action.openUrls?.length) {

@@ -55,6 +55,17 @@ export function dependentHostIdForTool(name: string): VoiceDependentHostId | nul
   return null;
 }
 
+export function hostIdForVoiceTool(
+  name: string,
+  args?: { field?: string } | null,
+): VoiceDependentHostId | null {
+  const dependent = dependentHostIdForTool(name);
+  if (dependent) return dependent;
+  if (name === 'fill_field' && args?.field === 'terminal-input') return 'terminal';
+  if (name === 'fill_field' && args?.field === 'chat-composer') return 'chat';
+  return null;
+}
+
 export function openerHostIdForTool(
   name: string,
   args?: { path?: string } | null,

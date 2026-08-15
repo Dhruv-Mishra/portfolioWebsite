@@ -73,18 +73,18 @@ export interface VoiceCaller {
 export const VOICE_WELCOME_HINT = 'Try saying, open projects';
 
 export const VOICE_WELCOME_VARIATIONS = [
-  { greeting: 'Hey, welcome in.', hint: VOICE_WELCOME_HINT },
-  { greeting: 'Good to have you here.', hint: 'Try saying, show my resume' },
-  { greeting: 'Hey. You can ask me anything on the site.', hint: 'Try asking about Microsoft' },
-  { greeting: 'Welcome to the sketchbook.', hint: 'Try saying, what are you working on' },
-  { greeting: 'Glad you dropped in.', hint: 'Try saying, open the guestbook' },
-  { greeting: 'Hey, I am here if you want a tour.', hint: 'Try saying, show Cropio' },
-  { greeting: 'Welcome. Ask about work, projects, or just poke around.', hint: 'Try saying, go to about' },
-  { greeting: 'Hey. Voice works for questions or site actions.', hint: 'Try saying, dark mode' },
-  { greeting: 'Nice timing. I can walk you through the pages.', hint: 'Try asking about Jarvis' },
-  { greeting: 'Hey, make yourself at home.', hint: 'Try saying, open feedback' },
-  { greeting: 'Welcome in. Keep it casual.', hint: 'Try saying, what should I look at' },
-  { greeting: 'Hey. Tell me what you want to see.', hint: VOICE_WELCOME_HINT },
+  { greeting: 'Hey. First look around?', hint: VOICE_WELCOME_HINT },
+  { greeting: 'You just got here. I can show you around.', hint: 'Try saying, show my resume' },
+  { greeting: 'Welcome in. What do you want to see first?', hint: 'Try saying, go to about' },
+  { greeting: 'Take a look. I can walk you through the sketchbook.', hint: 'Try saying, open the guestbook' },
+  { greeting: 'Nice, you found the place. Want a tour?', hint: 'Try saying, show Cropio' },
+  { greeting: 'Hey. Want a quick look around?', hint: 'Try saying, dark mode' },
+  { greeting: 'You just arrived. Tell me what to open first.', hint: 'Try saying, open feedback' },
+  { greeting: 'Come in. I can show you around from here.', hint: VOICE_WELCOME_HINT },
+  { greeting: 'First time here? I can give you a tour.', hint: 'Try saying, show my resume' },
+  { greeting: 'Hey. Have a look around with me.', hint: 'Try saying, go to about' },
+  { greeting: 'You made it. What should we open first?', hint: 'Try saying, open the guestbook' },
+  { greeting: 'Welcome. I can show you around.', hint: 'Try saying, show Cropio' },
 ] as const;
 
 export type VoiceWelcomeVariation = (typeof VOICE_WELCOME_VARIATIONS)[number];

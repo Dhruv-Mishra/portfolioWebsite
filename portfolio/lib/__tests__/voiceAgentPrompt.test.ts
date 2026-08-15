@@ -17,14 +17,21 @@ describe('voice system instruction', () => {
     expect(prompt).not.toMatch(/random(ly)? select/i);
     expect(prompt).not.toContain('VOICE_WELCOME_VARIATIONS');
     expect(prompt).not.toContain('pickVoiceWelcome');
+    expect(prompt).toContain('Jarvis is a project on this site');
     for (const variation of VOICE_WELCOME_VARIATIONS) {
       expect(prompt).not.toContain(variation.greeting);
       expect(prompt).not.toContain(variation.hint);
     }
   });
 
-  it('keeps a 10+ welcome catalog and builds a session-start cue from one pick', () => {
+  it('keeps a 10+ first-visit catalog with executable hints and no Jarvis dead ends', () => {
     expect(VOICE_WELCOME_VARIATIONS.length).toBeGreaterThanOrEqual(10);
+    for (const variation of VOICE_WELCOME_VARIATIONS) {
+      expect(variation.greeting).not.toMatch(/jarvis/i);
+      expect(variation.hint).not.toMatch(/jarvis/i);
+      expect(variation.hint).not.toMatch(/try saying jarvis/i);
+      expect(variation.hint).toMatch(/^Try saying,/);
+    }
     const picked = pickVoiceWelcome(() => 0);
     expect(picked).toEqual(VOICE_WELCOME_VARIATIONS[0]);
     const cue = buildVoiceSessionStartCue({

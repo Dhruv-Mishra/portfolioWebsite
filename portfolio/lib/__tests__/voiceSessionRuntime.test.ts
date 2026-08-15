@@ -3,6 +3,11 @@ import type { SiteToolCall } from '@/lib/siteTools';
 import type { VoiceCaller, VoiceCallerEventMap, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
 import type { VoicePlayback } from '@/lib/voiceAudio';
 import {
+  registerSiteActionHost,
+  resetSiteActionHostsForTests,
+  RUN_TERMINAL_COMMAND_EVENT,
+} from '@/lib/siteActionEvents';
+import {
   bindVoiceSessionHost,
   getVoiceSessionSnapshot,
   requestVoiceHangup,
@@ -102,6 +107,8 @@ describe('voice session runtime singleton', () => {
 
   afterEach(() => {
     resetVoiceSessionRuntimeForTests();
+    resetSiteActionHostsForTests();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -381,6 +388,55 @@ describe('voice session runtime singleton', () => {
     runtime.fakePlayback.setBusy(false);
     expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
 
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('queues the rest of a planned utterance after the model emits only navigate_to', async () => {
+    const dispatchEvent = vi.fn(() => true);
+    vi.stubGlobal('window', { dispatchEvent });
+
+    const runtime = await boot();
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
+
+    runtime.fakeCaller.emit('userTranscript', 'go to homepage and type help in terminal');
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'nav-home',
+      name: 'navigate_to',
+      args: { path: '/' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.push).toHaveBeenCalledWith('/');
+    expect(dispatchEvent.mock.calls.some(([event]) => (
+      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+    ))).toBe(false);
+
+    const unregister = registerSiteActionHost('terminal');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const terminalCalls = dispatchEvent.mock.calls.filter(([event]) => (
+      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+    ));
+    expect(terminalCalls).toHaveLength(1);
+    expect((terminalCalls[0]?.[0] as CustomEvent).detail).toEqual({ command: 'help' });
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'term-help',
+      name: 'run_terminal_command',
+      args: { command: 'help' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(dispatchEvent.mock.calls.filter(([event]) => (
+      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+    ))).toHaveLength(1);
+
+    unregister();
     runtime.resetVoiceSessionRuntimeForTests();
   });
 });

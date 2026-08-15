@@ -84,14 +84,74 @@ export interface VoicePlayback {
   close(): void;
   isBusy(): boolean;
   subscribeIdle(cb: () => void): () => void;
+  /** Present on live playback. Optional so unowned runtime mocks stay typed. */
+  subscribeLevel?(cb: (level: number) => void): () => void;
+  getLevel?(): number;
+}
+
+const PLAYBACK_LEVEL_EMA = 0.38;
+const PLAYBACK_LEVEL_DECAY = 0.8;
+const PLAYBACK_LEVEL_DECAY_MS = 48;
+const PLAYBACK_LEVEL_SILENCE = 0.01;
+
+let voicePlaybackLevel = 0;
+let voicePlaybackMeterOwner: symbol | null = null;
+const voicePlaybackLevelListeners = new Set<(level: number) => void>();
+
+function clamp01(value: number): number {
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
+function measurePcmLevel(samples: Int16Array): number {
+  if (samples.length === 0) return 0;
+  let sumSq = 0;
+  let peak = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = (samples[index] ?? 0) / 0x8000;
+    const abs = sample < 0 ? -sample : sample;
+    if (abs > peak) peak = abs;
+    sumSq += sample * sample;
+  }
+  const rms = Math.sqrt(sumSq / samples.length);
+  return clamp01(peak * 0.35 + rms * 1.8);
+}
+
+function publishVoicePlaybackLevel(owner: symbol, level: number, claim: boolean): void {
+  if (claim && level > 0) {
+    voicePlaybackMeterOwner = owner;
+  } else if (voicePlaybackMeterOwner !== owner) {
+    return;
+  }
+  if (level <= 0) voicePlaybackMeterOwner = null;
+  const next = clamp01(level);
+  if (next === voicePlaybackLevel) return;
+  voicePlaybackLevel = next;
+  for (const listener of voicePlaybackLevelListeners) listener(next);
+}
+
+export function getVoicePlaybackLevel(): number {
+  return voicePlaybackLevel;
+}
+
+export function subscribeVoicePlaybackLevel(cb: (level: number) => void): () => void {
+  voicePlaybackLevelListeners.add(cb);
+  return () => {
+    voicePlaybackLevelListeners.delete(cb);
+  };
 }
 
 export function createVoicePlayback(): VoicePlayback {
   let context: AudioContext | null = null;
   let nextTime = 0;
   let tailTimer: ReturnType<typeof setTimeout> | null = null;
+  let decayTimer: ReturnType<typeof setTimeout> | null = null;
+  let level = 0;
+  const owner = Symbol('voice-playback');
   const sources = new Set<AudioBufferSourceNode>();
   const idleListeners = new Set<() => void>();
+  const levelListeners = new Set<(level: number) => void>();
 
   function ensure(): AudioContext {
     if (!context) {
@@ -111,8 +171,41 @@ export function createVoicePlayback(): VoicePlayback {
     return remainingTailMs() > 16;
   }
 
+  function emitLevel(next: number, claim: boolean): void {
+    const clamped = clamp01(next);
+    const changed = clamped !== level;
+    level = clamped;
+    publishVoicePlaybackLevel(owner, clamped, claim);
+    if (!changed) return;
+    for (const listener of levelListeners) listener(clamped);
+  }
+
+  function clearDecay(): void {
+    if (decayTimer == null) return;
+    clearTimeout(decayTimer);
+    decayTimer = null;
+  }
+
+  function beginDecay(): void {
+    if (decayTimer != null) return;
+    if (level <= PLAYBACK_LEVEL_SILENCE) {
+      if (level !== 0) emitLevel(0, false);
+      return;
+    }
+    decayTimer = setTimeout(() => {
+      decayTimer = null;
+      if (level <= PLAYBACK_LEVEL_SILENCE) {
+        emitLevel(0, false);
+        return;
+      }
+      emitLevel(level * PLAYBACK_LEVEL_DECAY, false);
+      beginDecay();
+    }, PLAYBACK_LEVEL_DECAY_MS);
+  }
+
   function emitIdle(): void {
     if (isBusy()) return;
+    beginDecay();
     for (const listener of idleListeners) listener();
   }
 
@@ -137,14 +230,17 @@ export function createVoicePlayback(): VoicePlayback {
   return {
     play(chunk: ArrayBuffer) {
       if (chunk.byteLength % 2 !== 0) return;
+      const samples = new Int16Array(chunk);
+      if (samples.length === 0) return;
       const audio = ensure();
       void audio.resume();
-      const samples = new Int16Array(chunk);
       const buffer = audio.createBuffer(1, samples.length, VOICE_AGENT_OUTPUT_RATE);
       const channel = buffer.getChannelData(0);
       for (let index = 0; index < samples.length; index += 1) {
         channel[index] = (samples[index] ?? 0) / 0x8000;
       }
+      clearDecay();
+      emitLevel(level + (measurePcmLevel(samples) - level) * PLAYBACK_LEVEL_EMA, true);
       const source = audio.createBufferSource();
       source.buffer = buffer;
       source.connect(audio.destination);
@@ -172,10 +268,13 @@ export function createVoicePlayback(): VoicePlayback {
       }
       sources.clear();
       nextTime = context?.currentTime ?? 0;
+      beginDecay();
       emitIdle();
     },
     close() {
       this.interrupt();
+      clearDecay();
+      emitLevel(0, false);
       if (!context) return;
       void context.close();
       context = null;
@@ -187,6 +286,15 @@ export function createVoicePlayback(): VoicePlayback {
       return () => {
         idleListeners.delete(cb);
       };
+    },
+    subscribeLevel(cb) {
+      levelListeners.add(cb);
+      return () => {
+        levelListeners.delete(cb);
+      };
+    },
+    getLevel() {
+      return level;
     },
   };
 }

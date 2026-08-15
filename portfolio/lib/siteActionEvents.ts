@@ -76,6 +76,7 @@ function dispatchCancellable<T>(name: string, detail: T): SiteActionHostResult {
   window.dispatchEvent(event);
   // Dispatch only reports acceptance. Listeners must claim synchronously
   // before starting async work; late attaches are not observed here.
+  // A claimed result may be a thenable that settles to the final SiteToolResult.
   if (!event.defaultPrevented) {
     return { handled: false };
   }

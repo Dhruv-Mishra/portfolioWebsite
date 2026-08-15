@@ -26,6 +26,7 @@ import {
   AtSign,
   Github,
   Settings,
+  AudioLines,
 } from 'lucide-react';
 import { PERSONAL_LINKS } from '@/lib/links';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
@@ -150,6 +151,16 @@ export function buildCommandEntries(): CommandEntry[] {
         isDark: ctx.resolvedTheme === 'dark',
         setTheme: ctx.setTheme,
       }),
+    },
+    {
+      id: 'action-enter-voice-mode',
+      label: 'Enter voice mode',
+      keywords: ['voice', 'talk', 'speak', 'agent', 'live', 'call'],
+      group: 'Actions',
+      icon: AudioLines,
+      run: () => {
+        void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
+      },
     },
     {
       id: 'action-send-feedback',

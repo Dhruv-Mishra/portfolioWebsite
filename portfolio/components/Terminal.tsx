@@ -515,6 +515,7 @@ export default function Terminal() {
                                     className={`bg-transparent border-none outline-none text-white w-full ${TERMINAL_COLORS.caret}`}
                                     autoComplete="off"
                                     aria-label={activePrompt ? `Terminal prompt: ${activePrompt.id}` : "Terminal Command Input"}
+                                    data-voice-field={activePrompt ? undefined : "terminal-input"}
                                     placeholder=""
                                     style={activePrompt ? { fontSize: '16px' } : undefined}
                                     spellCheck={activePrompt ? false : undefined}

@@ -51,6 +51,7 @@ jobs:
       STAGING_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
       STAGING_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
       STAGING_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}
+      STAGING_VOICE_AGENT_API_KEY: ${{ secrets.STAGING_VOICE_AGENT_API_KEY }}
 
     steps:
       - name: Require experimental branch for staging deploys
@@ -81,6 +82,10 @@ jobs:
           fi
           if [ -z "${STAGING_LOCAL_AGENT_API_KEY:-}" ]; then
             echo "::error::STAGING_LOCAL_AGENT_API_KEY must be configured for the staging local agent"
+            missing=1
+          fi
+          if [ -z "${STAGING_VOICE_AGENT_API_KEY:-}" ]; then
+            echo "::error::STAGING_VOICE_AGENT_API_KEY must be configured for the staging voice agent"
             missing=1
           fi
           if [ "$missing" = "1" ]; then
@@ -487,6 +492,7 @@ jobs:
           RUNTIME_CHAT_HISTORY_SIGNING_SECRET: ${{ secrets.STAGING_CHAT_HISTORY_SIGNING_SECRET }}
           RUNTIME_MATRIX_NOTES_ACCESS_SECRET: ${{ secrets.STAGING_MATRIX_NOTES_ACCESS_SECRET }}
           RUNTIME_LOCAL_AGENT_API_KEY: ${{ secrets.STAGING_LOCAL_AGENT_API_KEY }}
+          RUNTIME_VOICE_AGENT_API_KEY: ${{ secrets.STAGING_VOICE_AGENT_API_KEY }}
           RUNTIME_LOCAL_AGENT_BASE_URL: ${{ env.STAGING_LOCAL_AGENT_BASE_URL }}
           RUNTIME_HF_TOKEN: ${{ matrix.server.tts_mode == 'local' && secrets.STAGING_HF_TOKEN || '' }}
         with:
@@ -495,7 +501,7 @@ jobs:
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           command_timeout: 20m
-          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
+          envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_VOICE_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
             set -euo pipefail
 
@@ -566,6 +572,10 @@ jobs:
                 echo "Staging local agent API key is missing"
                 exit 1
               fi
+              if [ -z "${RUNTIME_VOICE_AGENT_API_KEY:-}" ]; then
+                echo "Staging voice agent API key is missing"
+                exit 1
+              fi
               if [ -z "${RUNTIME_LOCAL_AGENT_BASE_URL:-}" ]; then
                 echo "Staging local agent base URL is missing"
                 exit 1
@@ -584,12 +594,13 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/ && $1 != "VOICE_AGENT_API_KEY" && $1 != "STAGING_VOICE_AGENT_API_KEY" && $1 != "PRODUCTION_VOICE_AGENT_API_KEY"' \
                 "$env_file" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'LOCAL_AGENT_BASE_URL=%s\n' "$RUNTIME_LOCAL_AGENT_BASE_URL" >> "$RUNTIME_ENV_TEMP"
               printf 'LOCAL_AGENT_API_KEY=%s\n' "$RUNTIME_LOCAL_AGENT_API_KEY" >> "$RUNTIME_ENV_TEMP"
+              printf 'VOICE_AGENT_API_KEY=%s\n' "$RUNTIME_VOICE_AGENT_API_KEY" >> "$RUNTIME_ENV_TEMP"
               printf 'TTS_NODE_MODE=%s\n' "$TTS_MODE" >> "$RUNTIME_ENV_TEMP"
               if [ "$TTS_MODE" = "local" ]; then
                 printf 'HF_TOKEN=%s\n' "$RUNTIME_HF_TOKEN" >> "$RUNTIME_ENV_TEMP"

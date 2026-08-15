@@ -32,7 +32,7 @@ Configure `MODEL_HEALTH_TOKEN` as a GitHub Actions secret with contents access t
 
 ## Host Contract
 
-Each site has a protected `/etc/deploy/sites/<site>.conf` configuration. It provides the domain, service name, port, branch identity, container policy, TTS role, and paths. Runtime environment files hold secrets and per-environment values; do not add them to the repository. Staging and production deploys both write `LOCAL_AGENT_BASE_URL=https://llm.whoisdhruv.com/v1` and `LOCAL_AGENT_API_KEY` from `STAGING_LOCAL_AGENT_API_KEY` / `PRODUCTION_LOCAL_AGENT_API_KEY`.
+Each site has a protected `/etc/deploy/sites/<site>.conf` configuration. It provides the domain, service name, port, branch identity, container policy, TTS role, and paths. Runtime environment files hold secrets and per-environment values; do not add them to the repository. Staging and production deploys both write `LOCAL_AGENT_BASE_URL=https://llm.whoisdhruv.com/v1` and `LOCAL_AGENT_API_KEY` from `STAGING_LOCAL_AGENT_API_KEY` / `PRODUCTION_LOCAL_AGENT_API_KEY`. They also inject `VOICE_AGENT_API_KEY` from `STAGING_VOICE_AGENT_API_KEY` / `PRODUCTION_VOICE_AGENT_API_KEY`.
 
 Before deployment, workflows validate the host identity, Nginx, Docker, architecture, runtime environment, and TTS role. The local TTS role is the canary; remote roles follow. The deploy script keeps retained releases, activates a new release atomically, checks health, and rolls back on failure. The production rollback workflow is serial and can use a retained SHA or each host's newest previous release.
 

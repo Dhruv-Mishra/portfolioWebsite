@@ -26,6 +26,8 @@ import {
 import { useVoiceBackendPref, type VoiceBackendPref } from '@/lib/voiceBackendPref';
 import { useVoiceOutputPref, type VoiceOutputPref } from '@/lib/voiceOutputPref';
 import { useSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
+import { useVoiceAgentPrefs } from '@/lib/voiceAgentPrefs';
+import { requestVoiceMode } from '@/lib/voiceModeStore';
 import { soundManager } from '@/lib/soundManager';
 import {
   runThemeSelection,
@@ -259,6 +261,7 @@ export default function SettingsPanel() {
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
   const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
   const { enabled: speakByDefault, setEnabled: setSpeakByDefault } = useSpeakByDefaultPref();
+  const { prefs: voiceAgentPrefs, setPref: setVoiceAgentPref } = useVoiceAgentPrefs();
   const { modelId, setModelId } = useChatModelPref();
   const hostname = useSyncExternalStore(
     subscribeToHydration,
@@ -478,6 +481,27 @@ export default function SettingsPanel() {
             checked={speakByDefault}
             onChange={setSpeakByDefault}
           />
+        </SettingsGroup>
+
+        <SettingsGroup title="Voice Agent" icon={AudioLines}>
+          <SettingToggle
+            label="Low-network mode"
+            detail="Smaller audio frames. Disables live transcripts and ambient music. Gemini Live is PCM-only."
+            checked={voiceAgentPrefs.lowNetwork}
+            onChange={(checked) => setVoiceAgentPref('lowNetwork', checked)}
+          />
+          <SettingToggle
+            label="Ambient music"
+            checked={voiceAgentPrefs.ambientMusic}
+            onChange={(checked) => setVoiceAgentPref('ambientMusic', checked)}
+          />
+          <button
+            type="button"
+            onClick={requestVoiceMode}
+            className="inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] px-3 font-hand text-base font-bold text-[var(--c-heading)] transition-colors hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            Enter voice mode
+          </button>
         </SettingsGroup>
 
         <SettingsGroup title="Appearance" icon={Brush}>

@@ -209,6 +209,18 @@ function describeAction(action: ActionExecution): string {
   if (action.commandPaletteAction) {
     return '- Already opened command palette.';
   }
+  if (action.voiceSessionAction) {
+    return '- Already started native voice mode.';
+  }
+  if (action.fieldFill) {
+    return `- Already typed into ${action.fieldFill.field}.`;
+  }
+  if (action.preferenceAction) {
+    return `- Already set ${action.preferenceAction.key} to ${action.preferenceAction.enabled ? 'on' : 'off'}.`;
+  }
+  if (action.guestbookSubmit) {
+    return '- Already submitted a guestbook note.';
+  }
   if (action.themeAction) {
     return `- Already handled a ${action.themeAction} theme action.`;
   }

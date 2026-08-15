@@ -247,6 +247,7 @@ export default function GuestbookForm() {
               maxLength={GUESTBOOK_LIMITS.maxMessageLength}
               disabled={isDisabled || speech.isListening || speech.isTranscribing}
               aria-label="Your guestbook message"
+              data-voice-field="guestbook-message"
               aria-invalid={inlineError ? 'true' : undefined}
               aria-describedby={inlineError ? 'guestbook-inline-error' : undefined}
               className={cn(
@@ -308,6 +309,7 @@ export default function GuestbookForm() {
               maxLength={GUESTBOOK_LIMITS.maxNameLength}
               disabled={isDisabled}
               autoComplete="name"
+              data-voice-field="guestbook-name"
               className={cn(
                 'flex-1 bg-transparent border-0 border-b border-dashed border-[var(--c-ink)]/30',
                 'font-hand text-sm md:text-base text-[var(--c-ink)]',

@@ -3,7 +3,7 @@ import { resolveChatIntent, type ChatIntentResolution } from '@/lib/chatActionRo
 
 type Expected =
   | { kind: 'null' }
-  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; projectSlug?: string; commandPaletteAction?: boolean; openUrlContains?: string; openUrlContainsAll?: string[] }
+  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; voiceSessionAction?: boolean; projectSlug?: string; commandPaletteAction?: boolean; openUrlContains?: string; openUrlContainsAll?: string[] }
   | { kind: 'project-info'; projectSlug: string };
 
 function check(input: string, expected: Expected) {
@@ -35,6 +35,9 @@ function check(input: string, expected: Expected) {
   }
   if (expected.feedbackAction !== undefined) {
     expect(r.action.feedbackAction, `"${input}" feedbackAction`).toBe(expected.feedbackAction);
+  }
+  if (expected.voiceSessionAction !== undefined) {
+    expect(r.action.voiceSessionAction, `"${input}" voiceSessionAction`).toBe(expected.voiceSessionAction);
   }
   if (expected.projectSlug !== undefined) {
     expect(r.action.projectSlug, `"${input}" projectSlug`).toBe(expected.projectSlug);
@@ -80,6 +83,14 @@ describe('resolveChatIntent — command palette intents', () => {
     check('open command palette', { kind: 'action', commandPaletteAction: true });
     check('show the command menu', { kind: 'action', commandPaletteAction: true });
     check('open quick actions', { kind: 'action', commandPaletteAction: true });
+  });
+});
+
+describe('resolveChatIntent — voice session intents', () => {
+  it('matches the action label and natural voice requests', () => {
+    check('Start voice mode', { kind: 'action', voiceSessionAction: true });
+    check('start voice mode', { kind: 'action', voiceSessionAction: true });
+    check('talk to me by voice', { kind: 'action', voiceSessionAction: true });
   });
 });
 

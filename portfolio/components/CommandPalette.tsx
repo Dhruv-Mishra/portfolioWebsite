@@ -413,6 +413,7 @@ function CommandPalette({
           autoCorrect="off"
           autoCapitalize="off"
           aria-label="Command palette search"
+          data-voice-field="command-palette-query"
           role="combobox"
           aria-expanded="true"
           aria-controls={listboxId}

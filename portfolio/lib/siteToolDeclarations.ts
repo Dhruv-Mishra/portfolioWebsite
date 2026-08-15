@@ -1,10 +1,20 @@
-import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
+﻿import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
 import {
   APPROVED_LINK_KEYS,
+  BROWSE_HISTORY_DIRECTIONS,
+  MOTION_PREFERENCE_VALUES,
+  PAGE_SCROLL_AMOUNT_DEFAULT,
+  PAGE_SCROLL_AMOUNT_MAX,
+  PAGE_SCROLL_AMOUNT_MIN,
+  PAGE_SCROLL_DIRECTIONS,
   PROJECT_SLUGS,
+  PROJECT_VIDEO_ACTIONS,
   SITE_PREFERENCE_KEYS,
   SITE_TOOL_NAMES,
+  VOICE_BACKEND_MODES,
   VOICE_FIELD_IDS,
+  VOICE_OUTPUT_MODES,
+  VOICE_SAFE_TERMINAL_COMMANDS,
   type SiteToolName,
 } from '@/lib/siteTools';
 
@@ -48,13 +58,25 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
   {
     name: 'open_project',
     description:
-      'Open a project modal. Invocation: visitor asks to show or open a specific project, not just hear about it.',
+      'Open a project modal after navigating to /projects. Invocation: visitor asks to show or open a specific project. After success, you can offer video play/pause/mute if that project has a preview.',
     parameters: {
       type: 'object',
       properties: {
         slug: { type: 'string', enum: [...PROJECT_SLUGS] },
       },
       required: ['slug'],
+    },
+  },
+  {
+    name: 'control_project_video',
+    description:
+      'Control the open project preview video. Invocation: visitor asks to play, pause, mute, or unmute the current project video. Fails if no modal or video is open.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: [...PROJECT_VIDEO_ACTIONS] },
+      },
+      required: ['action'],
     },
   },
   {
@@ -80,15 +102,78 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
     parameters: { type: 'object', properties: {} },
   },
   {
+    name: 'open_shortcuts',
+    description: 'Open the keyboard shortcuts overlay. Invocation: visitor asks for hotkeys or keyboard help.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'open_chat',
+    description:
+      'Open the on-page chat composer. Invocation: visitor wants to type or send a chat note. On /chat this is already open; elsewhere it opens quick chat.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
+    name: 'browse_history',
+    description: 'Go back or forward in browser history. Invocation: visitor says go back or go forward.',
+    parameters: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: [...BROWSE_HISTORY_DIRECTIONS] },
+      },
+      required: ['direction'],
+    },
+  },
+  {
+    name: 'scroll_page',
+    description:
+      'Scroll the current page container. Invocation: visitor asks to scroll up, down, to the top, or to the bottom. Amount is viewport heights, default 0.9, max 3.',
+    parameters: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: [...PAGE_SCROLL_DIRECTIONS] },
+        amount: {
+          type: 'number',
+          minimum: PAGE_SCROLL_AMOUNT_MIN,
+          maximum: PAGE_SCROLL_AMOUNT_MAX,
+          description: `Viewport heights for up/down. Default ${PAGE_SCROLL_AMOUNT_DEFAULT}.`,
+        },
+      },
+      required: ['direction'],
+    },
+  },
+  {
+    name: 'send_chat_message',
+    description:
+      'Send a chat note through the real chat composer. Invocation: visitor dictates a chat message and wants it sent now. Fails if chat is not mounted or busy. Does not clear history.',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Exact chat note to send. Max 500 characters.' },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'run_terminal_command',
+    description:
+      'Run one allowlisted terminal command with no arguments. Invocation: visitor asks to run help, about, projects, ls, joke, or another safe listed command. Never sudo, admin, puzzle, clear, or commands with arguments.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', enum: [...VOICE_SAFE_TERMINAL_COMMANDS] },
+      },
+      required: ['command'],
+    },
+  },
+  {
     name: 'fill_field',
     description:
-      'Type into a visible site field. Invocation: visitor dictates guestbook, feedback, palette, terminal, or chat text. Confirm before submit=true.',
+      'Type into a visible site field. Invocation: visitor dictates guestbook, feedback, palette, terminal, or chat text. Never submit the form.',
     parameters: {
       type: 'object',
       properties: {
         field: { type: 'string', enum: [...VOICE_FIELD_IDS] },
         value: { type: 'string', description: 'Exact text to insert.' },
-        submit: { type: 'boolean', description: 'Submit after typing. Default false.' },
       },
       required: ['field', 'value'],
     },
@@ -96,7 +181,7 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
   {
     name: 'set_preference',
     description:
-      'Flip a settings toggle. Invocation: visitor asks to change sound, haptics, stickers, immersion, or voice extras.',
+      'Flip a boolean settings toggle. Invocation: visitor asks to change sound, haptics, stickers, immersion, speak-by-default, or voice extras. Does not clear chat, enable experimental features, or activate staging.',
     parameters: {
       type: 'object',
       properties: {
@@ -104,6 +189,42 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
         enabled: { type: 'boolean' },
       },
       required: ['key', 'enabled'],
+    },
+  },
+  {
+    name: 'set_voice_output',
+    description:
+      'Choose spoken-reply output. Invocation: visitor asks for device TTS or server custom speech.',
+    parameters: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: [...VOICE_OUTPUT_MODES] },
+      },
+      required: ['mode'],
+    },
+  },
+  {
+    name: 'set_voice_backend',
+    description:
+      'Choose chat mic transcription. Invocation: visitor asks for native browser speech or on-device Whisper. Whisper may download a model.',
+    parameters: {
+      type: 'object',
+      properties: {
+        backend: { type: 'string', enum: [...VOICE_BACKEND_MODES] },
+      },
+      required: ['backend'],
+    },
+  },
+  {
+    name: 'set_motion_preference',
+    description:
+      'Set motion preference. Invocation: visitor asks to follow the device, reduce motion, or always animate.',
+    parameters: {
+      type: 'object',
+      properties: {
+        motion: { type: 'string', enum: [...MOTION_PREFERENCE_VALUES] },
+      },
+      required: ['motion'],
     },
   },
   {

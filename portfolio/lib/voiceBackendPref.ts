@@ -17,6 +17,16 @@ function readPref(): VoiceBackendPref {
   }
 }
 
+export function setVoiceBackendPref(next: VoiceBackendPref): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, next);
+  } catch { /* no-op */ }
+  try {
+    window.dispatchEvent(new Event(EVENT_NAME));
+  } catch { /* no-op */ }
+}
+
 /**
  * React hook for the user's voice-backend preference.
  * Default is `'native'` (instant, no model download). Toggling to
@@ -38,15 +48,11 @@ export function useVoiceBackendPref(): {
       window.removeEventListener('storage', onChange);
     };
   }, []);
+
   const pref = useSyncExternalStore<VoiceBackendPref>(subscribe, readPref, () => 'native');
 
   const setPref = useCallback((next: VoiceBackendPref) => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch { /* no-op */ }
-    try {
-      window.dispatchEvent(new Event(EVENT_NAME));
-    } catch { /* no-op */ }
+    setVoiceBackendPref(next);
   }, []);
 
   const togglePref = useCallback(() => {

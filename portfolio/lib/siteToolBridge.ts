@@ -15,6 +15,8 @@ export function actionFromSiteTool(call: SiteToolCall): ActionExecution | null {
       return { feedbackAction: true };
     case 'open_command_palette':
       return { commandPaletteAction: true };
+    case 'open_chat':
+      return { navigateTo: '/chat' };
     case 'fill_field':
       return { fieldFill: call.args };
     case 'set_preference':
@@ -25,6 +27,15 @@ export function actionFromSiteTool(call: SiteToolCall): ActionExecution | null {
       return { voiceSessionAction: true };
     case 'lookup_site_facts':
     case 'end_voice_session':
+    case 'control_project_video':
+    case 'open_shortcuts':
+    case 'browse_history':
+    case 'scroll_page':
+    case 'send_chat_message':
+    case 'run_terminal_command':
+    case 'set_voice_output':
+    case 'set_voice_backend':
+    case 'set_motion_preference':
       return null;
     default:
       return null;

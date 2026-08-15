@@ -4,8 +4,14 @@ import { executeSiteTool, type SiteToolRuntime } from '@/lib/siteToolExecutor';
 import { createGeminiLiveCaller } from '@/lib/geminiLiveAdapter';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import {
+  isSiteActionHostReady,
+  subscribeSiteActionHostReady,
+} from '@/lib/siteActionEvents';
+import {
   createVoiceActionQueue,
+  dependentHostIdForTool,
   isDeferredVoiceTool,
+  isDependentVoiceTool,
   type VoiceActionQueue,
 } from '@/lib/voiceActionQueue';
 import { createVoicePlayback, startVoiceCapture, type VoicePlayback } from '@/lib/voiceAudio';
@@ -17,6 +23,7 @@ import type {
   VoiceExitReason,
   VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
+import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
 import {
   consumeVoiceModeRequest,
   getVoiceExitReason,
@@ -27,6 +34,8 @@ import { playVoiceSound, prefetchVoiceSounds, startVoiceAmbient, stopVoiceAmbien
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
+export type VoiceSubtitlePhase = 'hidden' | 'visible' | 'exiting';
+
 export interface VoiceSessionSnapshot {
   active: boolean;
   hud: VoiceHudPhase;
@@ -34,13 +43,19 @@ export interface VoiceSessionSnapshot {
   status: string;
   userLine: string;
   agentLine: string;
+  subtitlePhase: VoiceSubtitlePhase;
   error: string | null;
   micLive: boolean;
   lowNetwork: boolean;
   introComplete: boolean;
   hangupPending: boolean;
   generation: number;
+  welcomeHint: string;
 }
+
+export const VOICE_SUBTITLE_IDLE_MS = 2_800;
+export const VOICE_SUBTITLE_FADE_MS = 280;
+export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
 
 export interface VoiceHangupRequest {
   force?: boolean;
@@ -68,9 +83,11 @@ const IDLE_SNAPSHOT: VoiceSessionSnapshot = {
   status: '',
   userLine: '',
   agentLine: '',
+  subtitlePhase: 'hidden',
   error: null,
   micLive: false,
   lowNetwork: false,
+  welcomeHint: VOICE_WELCOME_HINT,
   introComplete: false,
   hangupPending: false,
   generation: 0,
@@ -95,6 +112,106 @@ let farewellArmed = false;
 let farewellHeard = false;
 let farewellSawPlayback = false;
 let farewellTurnComplete = false;
+let subtitleIdleTimer: ReturnType<typeof setTimeout> | null = null;
+let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
+let subtitleSpeaker: 'user' | 'agent' | null = null;
+
+function prefersReducedSubtitleMotion(): boolean {
+  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
+    return true;
+  }
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'full') {
+    return false;
+  }
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function clearSubtitleIdleTimer(): void {
+  if (subtitleIdleTimer === null) return;
+  clearTimeout(subtitleIdleTimer);
+  subtitleIdleTimer = null;
+}
+
+function clearSubtitleFadeTimer(): void {
+  if (subtitleFadeTimer === null) return;
+  clearTimeout(subtitleFadeTimer);
+  subtitleFadeTimer = null;
+}
+
+function clearSubtitleTimers(): void {
+  clearSubtitleIdleTimer();
+  clearSubtitleFadeTimer();
+}
+
+function resetSubtitleState(): void {
+  clearSubtitleTimers();
+  subtitleSpeaker = null;
+}
+
+function clearSpokenLines(): void {
+  subtitleSpeaker = null;
+  patch({ userLine: '', agentLine: '', subtitlePhase: 'hidden' });
+}
+
+function finishSubtitleFade(generation: number): void {
+  subtitleFadeTimer = null;
+  if (isStale(generation) || stopping || !snapshot.active) return;
+  if (snapshot.subtitlePhase !== 'exiting') return;
+  clearSpokenLines();
+}
+
+function beginSubtitleFade(generation: number): void {
+  if (isStale(generation) || stopping || !snapshot.active) return;
+  if (!snapshot.userLine && !snapshot.agentLine) {
+    patch({ subtitlePhase: 'hidden' });
+    return;
+  }
+  const fadeMs = prefersReducedSubtitleMotion() ? VOICE_SUBTITLE_REDUCED_FADE_MS : VOICE_SUBTITLE_FADE_MS;
+  if (fadeMs <= 0) {
+    clearSpokenLines();
+    return;
+  }
+  patch({ subtitlePhase: 'exiting' });
+  subtitleFadeTimer = setTimeout(() => {
+    finishSubtitleFade(generation);
+  }, fadeMs);
+}
+
+function scheduleSubtitleClear(generation: number): void {
+  clearSubtitleTimers();
+  if (playback?.isBusy() || (!snapshot.userLine && !snapshot.agentLine)) return;
+  subtitleIdleTimer = setTimeout(() => {
+    subtitleIdleTimer = null;
+    if (isStale(generation) || stopping || !snapshot.active) return;
+    beginSubtitleFade(generation);
+  }, VOICE_SUBTITLE_IDLE_MS);
+}
+
+function applySpokenTranscript(
+  speaker: 'user' | 'agent',
+  text: string,
+  generation: number,
+): void {
+  if (isStale(generation)) return;
+  clearSubtitleTimers();
+  const continuing = subtitleSpeaker === speaker && snapshot.subtitlePhase !== 'exiting';
+  subtitleSpeaker = speaker;
+  if (speaker === 'user') {
+    patch({
+      userLine: `${continuing ? snapshot.userLine : ''}${text}`.slice(-180),
+      agentLine: '',
+      subtitlePhase: 'visible',
+    });
+    return;
+  }
+  patch({
+    agentLine: `${continuing ? snapshot.agentLine : ''}${text}`.slice(-220),
+    userLine: '',
+    subtitlePhase: 'visible',
+  });
+}
+
 let depsOverride: Partial<VoiceSessionRuntimeDeps> | null = null;
 
 function emit(): void {
@@ -242,9 +359,12 @@ function requireHostRuntime(): SiteToolRuntime {
         window.dispatchEvent(new CustomEvent('open-feedback'));
       }
     },
-    openProject: () => {
+    openProject: (slug) => {
       if (!hostRuntime) return;
-      requestPageTurnNavigation(hostRuntime.router, { href: '/projects', mode: 'push' });
+      requestPageTurnNavigation(hostRuntime.router, {
+        href: slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects',
+        mode: 'push',
+      });
     },
   };
 }
@@ -253,6 +373,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   sendAudioLive = false;
   socketReady = false;
   greetTurnComplete = false;
+  resetSubtitleState();
   resetFarewellWait();
   capture?.stop();
   capture = null;
@@ -297,12 +418,13 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   }
 
   const deferred = isDeferredVoiceTool(call.name);
+  const dependent = isDependentVoiceTool(call.name);
   const runtime = requireHostRuntime();
-  const result = await executeSiteTool(call, runtime, { commit: !deferred });
+  const result = await executeSiteTool(call, runtime, { commit: !deferred && !dependent });
   if (isStale(generation) || caller !== activeCaller) return;
   activeCaller.sendToolResult(call.id, result, call.name);
 
-  if (!deferred || !result.ok) return;
+  if ((!deferred && !dependent) || !result.ok) return;
 
   if (call.name === 'end_voice_session') {
     const reason = call.args.reason ?? 'user';
@@ -310,10 +432,11 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     return;
   }
 
+  const hostId = dependent ? dependentHostIdForTool(call.name) : null;
   queue?.enqueue(() => {
     if (isStale(generation)) return;
     void executeSiteTool(call, requireHostRuntime(), { commit: true });
-  });
+  }, hostId ? { ready: () => isSiteActionHostReady(hostId) } : undefined);
 }
 
 function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, generation: number): void {
@@ -332,12 +455,10 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       patch({ phase: next });
     }),
     nextCaller.on('userTranscript', text => {
-      if (isStale(generation)) return;
-      patch({ userLine: `${snapshot.userLine}${text}`.slice(-180) });
+      applySpokenTranscript('user', text, generation);
     }),
     nextCaller.on('agentTranscript', text => {
-      if (isStale(generation)) return;
-      patch({ agentLine: `${snapshot.agentLine}${text}`.slice(-220) });
+      applySpokenTranscript('agent', text, generation);
     }),
     nextCaller.on('audio', chunk => {
       if (isStale(generation)) return;
@@ -358,6 +479,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       greetTurnComplete = true;
       if (farewellArmed) farewellTurnComplete = true;
       tryMarkIntroComplete();
+      scheduleSubtitleClear(generation);
       queue?.notifyReady();
     }),
     nextCaller.on('error', message => {
@@ -384,6 +506,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
       tryMarkIntroComplete();
+      scheduleSubtitleClear(generation);
       queue?.notifyReady();
     }),
   ];
@@ -403,6 +526,10 @@ async function bootSession(): Promise<void> {
       canHangup: canHangupNow,
     });
     attachCaller(nextCaller, nextPlayback, generation);
+    unsubs.push(subscribeSiteActionHostReady(() => {
+      if (isStale(generation)) return;
+      queue?.notifyReady();
+    }));
 
     d.prefetchSounds();
     d.playEnter();
@@ -434,6 +561,7 @@ async function bootSession(): Promise<void> {
     patch({
       phase: 'listening',
       status: 'Connected. Waiting for the welcome.',
+      welcomeHint: session.setup.welcomeHint || VOICE_WELCOME_HINT,
     });
     tryMarkIntroComplete();
   } catch (caught) {
@@ -443,6 +571,7 @@ async function bootSession(): Promise<void> {
     capture = null;
     patch({
       micLive: false,
+      subtitlePhase: 'hidden',
       error: caught instanceof Error ? caught.message : 'Voice mode is unavailable.',
       phase: 'error',
       status: 'Voice mode is unavailable.',
@@ -483,6 +612,7 @@ export function startVoiceSession(): Promise<void> {
   starting = true;
   socketReady = false;
   greetTurnComplete = false;
+  resetSubtitleState();
   resetFarewellWait();
   previousPhase = 'entering';
   patch({
@@ -497,6 +627,7 @@ export function startVoiceSession(): Promise<void> {
     lowNetwork: getVoiceAgentPrefsSnapshot().lowNetwork,
     introComplete: false,
     hangupPending: false,
+    welcomeHint: VOICE_WELCOME_HINT,
     generation: snapshot.generation + 1,
   });
   return bootSession();

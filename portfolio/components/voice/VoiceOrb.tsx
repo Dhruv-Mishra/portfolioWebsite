@@ -31,6 +31,8 @@ export default function VoiceOrb({ phase, size = 'hero', showLabel = true }: Voi
       )}
       aria-hidden
     >
+      <span className={cn('voice-orb-ripple voice-orb-ripple-a', `is-${phase}`)} />
+      <span className={cn('voice-orb-ripple voice-orb-ripple-b', `is-${phase}`)} />
       <span className={cn('voice-orb-ring voice-orb-ring-a', `is-${phase}`)} />
       <span className={cn('voice-orb-ring voice-orb-ring-b', `is-${phase}`)} />
       <span className={cn('voice-orb-core', `is-${phase}`)} />

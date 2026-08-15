@@ -32,6 +32,13 @@ import {
     setActivePrompt,
     type PromptSubmitAction,
 } from "@/lib/terminalPrompts";
+import {
+    RUN_TERMINAL_COMMAND_EVENT,
+    attachSiteActionResult,
+    registerSiteActionHost,
+    type RunTerminalCommandEventDetail,
+} from "@/lib/siteActionEvents";
+import { resolveVoiceSafeTerminalCommand } from "@/lib/siteTools";
 import { WindowControls } from "./DoodleIcons";
 import PillScrollbar from "@/components/PillScrollbar";
 import { useTerminalPlaceholder } from "@/hooks/useTerminalPlaceholder";
@@ -199,6 +206,112 @@ export default function Terminal() {
         addCommand(echo, output, { skipHistory: true });
     }, [addCommand]);
 
+    const executeTerminalLine = React.useCallback(async (trimmedInput: string): Promise<boolean> => {
+        const [cmd, ...args] = trimmedInput.split(/\s+/);
+        const lowerCmd = cmd.toLowerCase();
+
+        trackTerminalCommand(lowerCmd);
+        soundManager.play('terminal-click');
+        stickerBus.emit('first-word');
+        recordTerminalCommandImperative(lowerCmd);
+
+        if (lowerCmd === 'clear') {
+            addToHistory("clear");
+            clearOutput();
+            clearHaptic();
+            return true;
+        }
+
+        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
+            submit();
+        }
+
+        let commandDef: CommandHandler | undefined;
+        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
+            try {
+                const commandRegistry = await getCommandRegistry();
+                commandDef = commandRegistry[lowerCmd];
+            } catch (error) {
+                console.error('Command registry load error:', error);
+                errorHaptic();
+                addCommand(trimmedInput, <span className={TERMINAL_COLORS.error}>Error loading command module.</span>);
+                return false;
+            }
+        }
+
+        let output: React.ReactNode;
+        let action: (() => void) | undefined;
+
+        if (commandDef) {
+            try {
+                const result = await commandDef(args);
+                output = result.output;
+                action = result.action;
+            } catch (error) {
+                console.error('Command execution error:', error);
+                errorHaptic();
+                output = <span className={TERMINAL_COLORS.error}>Error executing command.</span>;
+            }
+        } else {
+            warning();
+            output = (
+                <div>
+                    <span className={TERMINAL_COLORS.error}>Command not found: {lowerCmd}</span>
+                    <br />
+                    <span className="text-gray-400">Type <span className={TERMINAL_COLORS.prompt}>&apos;help&apos;</span> for available commands.</span>
+                </div>
+            );
+        }
+
+        addCommand(trimmedInput, output);
+        action?.();
+        return Boolean(commandDef);
+    }, [
+        addCommand,
+        addToHistory,
+        clearHaptic,
+        clearOutput,
+        errorHaptic,
+        getCommandRegistry,
+        submit,
+        warning,
+    ]);
+
+    useEffect(() => {
+        const handler = (raw: Event) => {
+            const event = raw as CustomEvent<RunTerminalCommandEventDetail>;
+            const command = resolveVoiceSafeTerminalCommand(event.detail);
+            if (!command) {
+                attachSiteActionResult(event, {
+                    ok: false,
+                    spokenText: 'That terminal command is not available.',
+                    errorCode: 'terminal-unsafe',
+                });
+                return;
+            }
+            if (activePrompt) {
+                attachSiteActionResult(event, {
+                    ok: false,
+                    spokenText: 'The terminal is waiting for a typed answer first.',
+                    errorCode: 'terminal-busy',
+                });
+                return;
+            }
+            attachSiteActionResult(event, {
+                ok: true,
+                spokenText: `Queued ${command}.`,
+                data: { command, accepted: true, nextAction: 'Want another safe command, like about or projects?' },
+            });
+            void executeTerminalLine(command);
+        };
+        const unregister = registerSiteActionHost('terminal');
+        window.addEventListener(RUN_TERMINAL_COMMAND_EVENT, handler);
+        return () => {
+            unregister();
+            window.removeEventListener(RUN_TERMINAL_COMMAND_EVENT, handler);
+        };
+    }, [activePrompt, executeTerminalLine]);
+
     const handleCommand = React.useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -226,96 +339,19 @@ export default function Terminal() {
 
         const trimmedInput = input.trim();
         if (!trimmedInput) return;
-
-        // Split into command and args
-        const [cmd, ...args] = trimmedInput.split(/\s+/);
-        const lowerCmd = cmd.toLowerCase();
-
-        // Track command usage
-        trackTerminalCommand(lowerCmd);
-
-        // Play a subtle typewriter click on command execute. Debounced
-        // inside the manager so rapid commands don't machine-gun the user.
-        soundManager.play('terminal-click');
-
-        // Sticker emits (idempotent — hook deduplicates by id)
-        stickerBus.emit('first-word');
-
-        // Track distinct command count (persisted state for future use).
-        recordTerminalCommandImperative(lowerCmd);
-
-        // Special handling for 'clear'
-        if (lowerCmd === 'clear') {
-            addToHistory("clear");
-            clearOutput();
-            clearHaptic();
-            updateInput("");
-            return;
-        }
-
-        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
-            submit();
-        }
-
-        let commandDef: CommandHandler | undefined;
-        if (TERMINAL_COMMAND_NAME_SET.has(lowerCmd)) {
-            try {
-                const commandRegistry = await getCommandRegistry();
-                commandDef = commandRegistry[lowerCmd];
-            } catch (error) {
-                console.error('Command registry load error:', error);
-                errorHaptic();
-                addCommand(trimmedInput, <span className={TERMINAL_COLORS.error}>Error loading command module.</span>);
-                updateInput("");
-                setHistoryIndex(-1);
-                return;
-            }
-        }
-        let output: React.ReactNode;
-        let action: (() => void) | undefined;
-
-        if (commandDef) {
-            try {
-                // Pass args to the command function
-                // Await result in case it's a promise
-                const result = await commandDef(args);
-                output = result.output;
-                action = result.action;
-            } catch (error) {
-                console.error('Command execution error:', error);
-                errorHaptic();
-                output = <span className={TERMINAL_COLORS.error}>Error executing command.</span>;
-            }
-        } else {
-            warning();
-            output = (
-                <div>
-                    <span className={TERMINAL_COLORS.error}>Command not found: {lowerCmd}</span>
-                    <br />
-                    <span className="text-gray-400">Type <span className={TERMINAL_COLORS.prompt}>&apos;help&apos;</span> for available commands.</span>
-                </div>
-            );
-        }
-
-        // Add original input string to history
-        addCommand(trimmedInput, output);
+        await executeTerminalLine(trimmedInput);
         updateInput("");
-        setHistoryIndex(-1); // Reset history pointer
-        action?.();
+        setHistoryIndex(-1);
     }, [
         input,
-        addCommand,
-        addToHistory,
-        clearHaptic,
-        clearOutput,
-        getCommandRegistry,
+        executeTerminalLine,
         errorHaptic,
         submit,
-        warning,
         activePrompt,
         applyPromptAction,
         updateInput,
         router,
+        addCommand,
     ]);
 
     // Better History Logic Implementation

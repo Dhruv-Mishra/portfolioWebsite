@@ -5,10 +5,23 @@ import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { APPROVED_LINKS, type SiteToolCall, type SiteToolResult } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
+import {
+  browseHistory,
+  buildProjectHref,
+  requestOpenChat,
+  requestOpenProject,
+  requestOpenShortcuts,
+  requestProjectVideoControl,
+  requestRunTerminalCommand,
+  requestSendChatMessage,
+  scrollRoutePage,
+} from '@/lib/siteActionEvents';
 import { soundManager } from '@/lib/soundManager';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { setDiscoActiveImperative } from '@/hooks/useStickers';
 import { setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
+import { setVoiceBackendPref } from '@/lib/voiceBackendPref';
+import { setVoiceOutputPref } from '@/lib/voiceOutputPref';
 import { requestVoiceMode, requestVoiceModeExit } from '@/lib/voiceModeStore';
 
 export interface SiteToolRuntime {
@@ -94,16 +107,24 @@ function draftGuestbook(message: string, name?: string): SiteToolResult {
 }
 
 async function lookupFacts(query: string): Promise<SiteToolResult> {
-  const response = await fetch('/api/voice/facts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  if (!response.ok) {
+  try {
+    const response = await fetch('/api/voice/facts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!response.ok) {
+      return fail('I could not pull those facts just now.', 'facts-failed');
+    }
+    try {
+      const payload = await response.json() as { spokenText?: string; data?: Record<string, unknown> };
+      return ok(payload.spokenText || 'No compact facts matched that question.', payload.data);
+    } catch {
+      return fail('I could not read those facts just now.', 'facts-invalid');
+    }
+  } catch {
     return fail('I could not pull those facts just now.', 'facts-failed');
   }
-  const payload = await response.json() as { spokenText?: string; data?: Record<string, unknown> };
-  return ok(payload.spokenText || 'No compact facts matched that question.', payload.data);
 }
 
 export async function executeSiteTool(
@@ -142,9 +163,28 @@ export async function executeSiteTool(
         }
       }
       return ok('Updated the look.');
-    case 'open_project':
-      if (commit) runtime.openProject(parsed.args.slug);
-      return ok('Opening that project.');
+    case 'open_project': {
+      const slug = parsed.args.slug;
+      const nextAction = 'I can play, pause, mute, or unmute the preview if it has a video.';
+      if (commit) {
+        const hosted = requestOpenProject(slug);
+        if (hosted.handled) {
+          return hosted.result ?? ok('Queued that project to open.', { slug, accepted: true, nextAction });
+        }
+        requestPageTurnNavigation(runtime.router, { href: buildProjectHref(slug), mode: 'push' });
+      }
+      return ok('Opening that project.', {
+        slug,
+        accepted: true,
+        nextAction,
+      });
+    }
+    case 'control_project_video': {
+      if (!commit) return ok('I will control that preview.', { action: parsed.args.action });
+      const hosted = requestProjectVideoControl(parsed.args.action);
+      if (hosted.result) return hosted.result;
+      return fail('No project video is open right now.', 'project-video-unavailable');
+    }
     case 'open_link': {
       const url = APPROVED_LINKS[parsed.args.key];
       if (commit) window.open(url, '_blank', 'noopener,noreferrer');
@@ -159,6 +199,43 @@ export async function executeSiteTool(
     case 'open_command_palette':
       if (commit) window.dispatchEvent(new CustomEvent('open-command-palette'));
       return ok('Opening the command palette.');
+    case 'open_shortcuts':
+      if (commit) requestOpenShortcuts();
+      return ok('Opening keyboard shortcuts.');
+    case 'open_chat':
+      if (commit) {
+        const handled = requestOpenChat();
+        if (!handled) {
+          requestPageTurnNavigation(runtime.router, { href: '/chat', mode: 'push' });
+        }
+      }
+      return ok('Opening chat.', { nextAction: 'Want me to send a note once chat is ready?' });
+    case 'browse_history':
+      if (!commit) return ok(parsed.args.direction === 'back' ? 'Going back.' : 'Going forward.');
+      return browseHistory(parsed.args.direction);
+    case 'scroll_page':
+      if (!commit) {
+        return ok(parsed.args.direction === 'top'
+          ? 'Scrolling to the top.'
+          : parsed.args.direction === 'bottom'
+            ? 'Scrolling to the bottom.'
+            : parsed.args.direction === 'down'
+              ? 'Scrolling down.'
+              : 'Scrolling up.');
+      }
+      return scrollRoutePage(parsed.args.direction, parsed.args.amount ?? 0.9);
+    case 'send_chat_message': {
+      if (!commit) return ok('I will send that note.');
+      const hosted = requestSendChatMessage(parsed.args.message);
+      if (hosted.result) return hosted.result;
+      return fail('Chat is not open right now.', 'chat-unavailable');
+    }
+    case 'run_terminal_command': {
+      if (!commit) return ok(`I will run ${parsed.args.command}.`);
+      const hosted = requestRunTerminalCommand(parsed.args.command);
+      if (hosted.result) return hosted.result;
+      return fail('The terminal is not open on this page.', 'terminal-unavailable');
+    }
     case 'fill_field':
       return fillField(parsed.args.field, parsed.args.value);
     case 'set_preference': {
@@ -185,6 +262,23 @@ export async function executeSiteTool(
       setSitePref(mapped, parsed.args.enabled);
       return ok(parsed.args.enabled ? 'Turned that on.' : 'Turned that off.');
     }
+    case 'set_voice_output':
+      setVoiceOutputPref(parsed.args.mode);
+      return ok(parsed.args.mode === 'device' ? 'Replies will use device speech.' : 'Replies will use server speech.');
+    case 'set_voice_backend':
+      setVoiceBackendPref(parsed.args.backend);
+      return ok(parsed.args.backend === 'whisper'
+        ? 'Chat mic will use on-device Whisper.'
+        : 'Chat mic will use native speech.');
+    case 'set_motion_preference':
+      setSitePref('motionPreference', parsed.args.motion);
+      return ok(
+        parsed.args.motion === 'reduced'
+          ? 'Motion is reduced.'
+          : parsed.args.motion === 'full'
+            ? 'Motion will always animate.'
+            : 'Motion will follow the device.',
+      );
     case 'submit_guestbook':
       return draftGuestbook(parsed.args.message, parsed.args.name);
     case 'lookup_site_facts':

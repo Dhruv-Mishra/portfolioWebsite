@@ -11,7 +11,6 @@ import {
 export interface FieldFillAction {
   field: VoiceFieldId;
   value: string;
-  submit?: boolean;
 }
 
 export interface PreferenceAction {
@@ -319,7 +318,7 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
     if (!isVoiceFieldId(fieldFill.field) || typeof fieldFill.value !== 'string' || fieldFill.value.trim().length === 0 || fieldFill.value.length > 1000) {
       return false;
     }
-    if (fieldFill.submit !== undefined && fieldFill.submit !== true) {
+    if (fieldFill.submit !== undefined) {
       return false;
     }
   }
@@ -447,7 +446,7 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
   }
 
   if (action.fieldFill) {
-    return action.fieldFill.submit ? 'Typing that in and sending it ~' : 'Typing that in for you ~';
+    return 'Typing that in for you ~';
   }
 
   if (action.preferenceAction) {

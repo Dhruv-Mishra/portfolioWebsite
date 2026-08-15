@@ -1,7 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SITE_TOOL_DECLARATIONS, VOICE_LIVE_TOOL_DECLARATIONS, assertCompleteToolCatalog } from '@/lib/siteToolDeclarations';
-import { SITE_TOOL_NAMES } from '@/lib/siteTools';
+import { SITE_TOOL_NAMES, resolveVoiceSafeTerminalCommand } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
+import { executeSiteTool } from '@/lib/siteToolExecutor';
+import { actionFromSiteTool } from '@/lib/siteToolBridge';
+import { hasActionExecution } from '@/lib/actions';
+import {
+  OPEN_PROJECT_EVENT,
+  SEND_CHAT_MESSAGE_EVENT,
+  RUN_TERMINAL_COMMAND_EVENT,
+  attachSiteActionResult,
+  buildProjectHref,
+  readProjectSlugFromSearch,
+  requestOpenProject,
+  requestRunTerminalCommand,
+  requestSendChatMessage,
+  scrollRoutePage,
+} from '@/lib/siteActionEvents';
 
 describe('site tool catalog', () => {
   it('declares every shared tool exactly once', () => {
@@ -9,6 +24,7 @@ describe('site tool catalog', () => {
     expect(SITE_TOOL_DECLARATIONS.map(tool => tool.name).sort()).toEqual([...SITE_TOOL_NAMES].sort());
     expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).not.toContain('start_voice_session');
     expect(VOICE_LIVE_TOOL_DECLARATIONS).toHaveLength(SITE_TOOL_DECLARATIONS.length - 1);
+    expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'fill_field')?.parameters.properties).not.toHaveProperty('submit');
   });
 
   it('accepts valid navigate and guestbook calls', () => {
@@ -45,9 +61,284 @@ describe('site tool catalog', () => {
       name: 'fill_field',
       args: { field: 'terminal-input', value: 'help', submit: true },
     })).toBeNull();
+    expect(hasActionExecution({
+      fieldFill: { field: 'chat-composer', value: 'hello', submit: true },
+    })).toBe(false);
     expect(parseSiteToolCall({
       name: 'submit_guestbook',
       args: { message: 'Visit https://example.com for more notes.' },
     })).toBeNull();
+    expect(parseSiteToolCall({ name: 'run_terminal_command', args: { command: 'sudo' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'run_terminal_command', args: { command: 'clear' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'run_terminal_command', args: { command: 'matrix' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'run_terminal_command', args: { command: 'help', extra: 'all' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'scroll_page', args: { direction: 'sideways' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'scroll_page', args: { direction: 'down', amount: 9 } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'send_chat_message', args: { message: '' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'control_project_video', args: { action: 'seek' } })).toBeNull();
+  });
+
+  it('accepts the expanded typed voice actions', () => {
+    expect(parseSiteToolCall({
+      name: 'open_project',
+      args: { slug: 'cropio' },
+    })).toEqual({
+      id: 'tool-open_project',
+      name: 'open_project',
+      args: { slug: 'cropio' },
+    });
+    expect(parseSiteToolCall({
+      name: 'control_project_video',
+      args: { action: 'play' },
+    })).toMatchObject({ name: 'control_project_video', args: { action: 'play' } });
+    expect(parseSiteToolCall({
+      name: 'send_chat_message',
+      args: { message: 'Tell me about Cropio' },
+    })).toMatchObject({ name: 'send_chat_message', args: { message: 'Tell me about Cropio' } });
+    expect(parseSiteToolCall({
+      name: 'scroll_page',
+      args: { direction: 'down' },
+    })).toMatchObject({ name: 'scroll_page', args: { direction: 'down', amount: 0.9 } });
+    expect(parseSiteToolCall({
+      name: 'run_terminal_command',
+      args: { command: 'help' },
+    })).toMatchObject({ name: 'run_terminal_command', args: { command: 'help' } });
+    expect(parseSiteToolCall({
+      name: 'set_voice_output',
+      args: { mode: 'device' },
+    })).toMatchObject({ name: 'set_voice_output', args: { mode: 'device' } });
+    expect(parseSiteToolCall({
+      name: 'set_motion_preference',
+      args: { motion: 'reduced' },
+    })).toMatchObject({ name: 'set_motion_preference', args: { motion: 'reduced' } });
+    expect(parseSiteToolCall({
+      name: 'browse_history',
+      args: { direction: 'back' },
+    })).toMatchObject({ name: 'browse_history', args: { direction: 'back' } });
+  });
+
+  it('builds a navigation-stable project href', () => {
+    expect(buildProjectHref('cropio')).toBe('/projects?project=cropio');
+    expect(readProjectSlugFromSearch('?project=cropio')).toBe('cropio');
+    expect(actionFromSiteTool({
+      id: '1',
+      name: 'open_project',
+      args: { slug: 'cropio' },
+    })).toEqual({ projectSlug: 'cropio' });
+  });
+});
+
+describe('site tool executor hosts', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  const runtime = {
+    router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() },
+    setTheme: vi.fn(),
+    resolvedTheme: 'light',
+    discoActive: false,
+    openFeedback: vi.fn(),
+    openProject: vi.fn(),
+  };
+
+  it('returns unavailable when chat or terminal hosts are missing', async () => {
+    vi.stubGlobal('window', {
+      dispatchEvent: () => true,
+      open: vi.fn(),
+    });
+
+    await expect(executeSiteTool({
+      id: 'chat-1',
+      name: 'send_chat_message',
+      args: { message: 'Hello from voice' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'chat-unavailable',
+    });
+    await expect(executeSiteTool({
+      id: 'term-1',
+      name: 'run_terminal_command',
+      args: { command: 'help' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'terminal-unavailable',
+    });
+  });
+
+  it('uses the host chat send path when the composer is mounted', async () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === SEND_CHAT_MESSAGE_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Queued that note.',
+          data: { accepted: true },
+        });
+      }
+      return true;
+    });
+    vi.stubGlobal('window', { dispatchEvent, open: vi.fn() });
+
+    await expect(executeSiteTool({
+      id: 'chat-2',
+      name: 'send_chat_message',
+      args: { message: 'Hello from voice' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      spokenText: 'Queued that note.',
+      data: { accepted: true },
+    });
+    expect(dispatchEvent).toHaveBeenCalled();
+  });
+
+  it('opens a project through the typed href when no page host claims it', async () => {
+    vi.stubGlobal('window', { dispatchEvent: () => true, open: vi.fn() });
+
+    await expect(executeSiteTool({
+      id: 'proj-1',
+      name: 'open_project',
+      args: { slug: 'cropio' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      data: { slug: 'cropio', accepted: true },
+    });
+    expect(runtime.openProject).not.toHaveBeenCalled();
+    expect(runtime.router.push).toHaveBeenCalledWith('/projects?project=cropio');
+    expect(runtime.router.push).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the hosted project acknowledgement without a second navigation', async () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === OPEN_PROJECT_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Queued that project to open.',
+          data: { slug: 'cropio', accepted: true },
+        });
+      }
+      return true;
+    });
+    vi.stubGlobal('window', { dispatchEvent, open: vi.fn() });
+
+    await expect(executeSiteTool({
+      id: 'proj-2',
+      name: 'open_project',
+      args: { slug: 'cropio' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      spokenText: 'Queued that project to open.',
+      data: { slug: 'cropio', accepted: true },
+    });
+    expect(runtime.openProject).not.toHaveBeenCalled();
+    expect(runtime.router.push).not.toHaveBeenCalled();
+  });
+
+  it('treats a synchronous host claim as accepted, not completed', () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === SEND_CHAT_MESSAGE_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Queued that note.',
+          data: { accepted: true },
+        });
+      }
+      return !event.defaultPrevented;
+    });
+    vi.stubGlobal('window', { dispatchEvent });
+
+    expect(requestSendChatMessage('Hello from voice')).toMatchObject({
+      handled: true,
+      result: { ok: true, spokenText: 'Queued that note.', data: { accepted: true } },
+    });
+    expect(requestOpenProject('cropio')).toMatchObject({ handled: false });
+  });
+
+  it('rejects unsafe terminal commands at the shared event guard', () => {
+    expect(resolveVoiceSafeTerminalCommand({ command: 'help' })).toBe('help');
+    expect(resolveVoiceSafeTerminalCommand({ command: 'sudo' })).toBeNull();
+    expect(resolveVoiceSafeTerminalCommand({ command: 'matrix' })).toBeNull();
+    expect(resolveVoiceSafeTerminalCommand({ command: 'hesoyam' })).toBeNull();
+    expect(resolveVoiceSafeTerminalCommand({ command: 'unlockstickers' })).toBeNull();
+    expect(resolveVoiceSafeTerminalCommand({ command: 'clear' })).toBeNull();
+    expect(resolveVoiceSafeTerminalCommand({ command: 'help', extra: 'all' })).toBeNull();
+
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === RUN_TERMINAL_COMMAND_EVENT) {
+        const command = resolveVoiceSafeTerminalCommand((event as CustomEvent).detail);
+        if (!command) {
+          attachSiteActionResult(event, {
+            ok: false,
+            spokenText: 'That terminal command is not available.',
+            errorCode: 'terminal-unsafe',
+          });
+        }
+      }
+      return !event.defaultPrevented;
+    });
+    vi.stubGlobal('window', { dispatchEvent });
+
+    expect(requestRunTerminalCommand('sudo' as never)).toMatchObject({
+      handled: true,
+      result: { ok: false, errorCode: 'terminal-unsafe' },
+    });
+  });
+
+  it('returns a structured facts result when fetch or JSON fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('offline');
+    }));
+
+    await expect(executeSiteTool({
+      id: 'facts-1',
+      name: 'lookup_site_facts',
+      args: { query: 'What is Cropio?' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'facts-failed',
+    });
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ spokenText: 'unused' }),
+    })));
+    await expect(executeSiteTool({
+      id: 'facts-2',
+      name: 'lookup_site_facts',
+      args: { query: 'What is Cropio?' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'facts-failed',
+    });
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => {
+        throw new Error('bad json');
+      },
+    })));
+    await expect(executeSiteTool({
+      id: 'facts-3',
+      name: 'lookup_site_facts',
+      args: { query: 'What is Cropio?' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'facts-invalid',
+    });
+  });
+
+  it('scrolls the route container and rejects a missing container', () => {
+    const container = { clientHeight: 800, scrollHeight: 2400, scrollTo: vi.fn(), scrollBy: vi.fn() };
+    vi.stubGlobal('window', { innerHeight: 800 });
+    vi.stubGlobal('document', {
+      querySelector: () => container,
+    });
+
+    expect(scrollRoutePage('down', 0.9)).toMatchObject({ ok: true, data: { direction: 'down' } });
+    expect(container.scrollBy).toHaveBeenCalledWith({ top: 720, behavior: 'smooth' });
+
+    vi.stubGlobal('document', { querySelector: () => null });
+    expect(scrollRoutePage('top', 1)).toMatchObject({ ok: false, errorCode: 'missing-scroll-container' });
   });
 });

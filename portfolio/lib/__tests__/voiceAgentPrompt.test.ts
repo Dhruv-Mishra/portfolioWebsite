@@ -1,14 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
-import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
+import {
+  buildVoiceSessionStartCue,
+  pickVoiceWelcome,
+  VOICE_WELCOME_VARIATIONS,
+} from '@/lib/voiceAgentProtocol';
 
 describe('voice system instruction', () => {
-  it('stays compact, keeps the welcome hint, and omits the tool catalog dump', () => {
+  it('stays compact, asks one next step, and keeps welcome selection out of the prompt', () => {
     const prompt = buildVoiceSystemInstruction();
     expect(prompt.length).toBeLessThan(2_000);
-    expect(prompt).toContain(VOICE_WELCOME_HINT);
     expect(prompt).toContain('end_voice_session');
+    expect(prompt).toContain('contextually relevant next-step question');
     expect(prompt).not.toMatch(/\nTools:/);
     expect(prompt).not.toContain('start_voice_session');
+    expect(prompt).not.toMatch(/random(ly)? select/i);
+    expect(prompt).not.toContain('VOICE_WELCOME_VARIATIONS');
+    expect(prompt).not.toContain('pickVoiceWelcome');
+    for (const variation of VOICE_WELCOME_VARIATIONS) {
+      expect(prompt).not.toContain(variation.greeting);
+      expect(prompt).not.toContain(variation.hint);
+    }
+  });
+
+  it('keeps a 10+ welcome catalog and builds a session-start cue from one pick', () => {
+    expect(VOICE_WELCOME_VARIATIONS.length).toBeGreaterThanOrEqual(10);
+    const picked = pickVoiceWelcome(() => 0);
+    expect(picked).toEqual(VOICE_WELCOME_VARIATIONS[0]);
+    const cue = buildVoiceSessionStartCue({
+      welcomeGreeting: picked.greeting,
+      welcomeHint: picked.hint,
+    });
+    expect(cue).toContain(picked.greeting);
+    expect(cue).toContain(picked.hint);
+    expect(cue).not.toContain(VOICE_WELCOME_VARIATIONS[1].greeting);
+    expect(cue).not.toMatch(/random/i);
+    expect(buildVoiceSystemInstruction()).not.toContain(cue);
   });
 });

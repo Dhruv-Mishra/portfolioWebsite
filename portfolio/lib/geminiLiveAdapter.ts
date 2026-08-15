@@ -9,12 +9,14 @@ import {
 } from '@/lib/voiceAgentConfig';
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
 import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
-import type {
-  VoiceCaller,
-  VoiceCallerEventMap,
-  VoiceCallerListener,
-  VoiceExitReason,
-  VoiceSessionHandle,
+import {
+  buildVoiceSessionStartCue,
+  DEFAULT_VOICE_SETUP,
+  type VoiceCaller,
+  type VoiceCallerEventMap,
+  type VoiceCallerListener,
+  type VoiceExitReason,
+  type VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
 
 type ListenerMap = {
@@ -56,6 +58,7 @@ export class GeminiLiveCaller implements VoiceCaller {
   private closed = false;
   private ready = false;
   private greetSent = false;
+  private sessionStartCue = '';
   private ignoreAudioUntilTurnComplete = false;
   private toolNames = new Map<string, string>();
   private listeners = createListenerMap();
@@ -87,6 +90,12 @@ export class GeminiLiveCaller implements VoiceCaller {
     this.closeSocket();
     this.closed = false;
     this.ready = false;
+    this.sessionStartCue = session.setup.greetOnConnect
+      ? buildVoiceSessionStartCue({
+          welcomeGreeting: session.setup.welcomeGreeting || DEFAULT_VOICE_SETUP.welcomeGreeting,
+          welcomeHint: session.setup.welcomeHint || DEFAULT_VOICE_SETUP.welcomeHint,
+        })
+      : '';
     this.greetSent = false;
     this.ignoreAudioUntilTurnComplete = false;
     this.toolNames.clear();
@@ -224,9 +233,9 @@ export class GeminiLiveCaller implements VoiceCaller {
     if (payload.setupComplete) {
       this.ready = true;
       this.emit('phase', 'listening');
-      if (!this.greetSent) {
+      if (!this.greetSent && this.sessionStartCue) {
         this.greetSent = true;
-        this.sendText('Please greet the visitor now and end with the required try-saying line.');
+        this.sendText(this.sessionStartCue);
       }
       return;
     }

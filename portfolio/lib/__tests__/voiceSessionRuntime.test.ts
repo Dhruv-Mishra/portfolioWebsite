@@ -10,7 +10,10 @@ import {
   setVoiceSessionRuntimeDepsForTests,
   startVoiceSession,
   stopVoiceSession,
+  VOICE_SUBTITLE_FADE_MS,
+  VOICE_SUBTITLE_IDLE_MS,
 } from '@/lib/voiceSessionRuntime';
+import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
 
 function createFakeCaller() {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
@@ -87,6 +90,8 @@ const sessionHandle: VoiceSessionHandle = {
     outputSampleRate: 24_000,
     greetOnConnect: true,
     lowNetwork: false,
+    welcomeGreeting: 'Hey, welcome in.',
+    welcomeHint: VOICE_WELCOME_HINT,
   },
 };
 
@@ -97,6 +102,7 @@ describe('voice session runtime singleton', () => {
 
   afterEach(() => {
     resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -149,6 +155,71 @@ describe('voice session runtime singleton', () => {
       push,
     };
   }
+
+  it('keeps only the latest spoken utterance and clears it after idle', async () => {
+    const runtime = await boot();
+    vi.useFakeTimers();
+
+    runtime.fakeCaller.emit('userTranscript', 'open projects');
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      userLine: 'open projects',
+      agentLine: '',
+    });
+
+    runtime.fakeCaller.emit('agentTranscript', 'Opening the projects page.');
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      userLine: '',
+      agentLine: 'Opening the projects page.',
+    });
+
+    runtime.fakeCaller.emit('agentTranscript', ' Want one opened?');
+    expect(runtime.getVoiceSessionSnapshot().agentLine).toBe('Opening the projects page. Want one opened?');
+
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot().agentLine).toBe('Opening the projects page. Want one opened?');
+
+    await vi.advanceTimersByTimeAsync(VOICE_SUBTITLE_IDLE_MS - 1);
+    expect(runtime.getVoiceSessionSnapshot().agentLine).toBe('Opening the projects page. Want one opened?');
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      agentLine: 'Opening the projects page. Want one opened?',
+      subtitlePhase: 'exiting',
+    });
+
+    await vi.advanceTimersByTimeAsync(VOICE_SUBTITLE_FADE_MS);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      userLine: '',
+      agentLine: '',
+      subtitlePhase: 'hidden',
+      error: null,
+    });
+
+    runtime.fakeCaller.emit('error', 'Connection faded. Stay here or hang up.');
+    await vi.advanceTimersByTimeAsync(VOICE_SUBTITLE_IDLE_MS + 50);
+    expect(runtime.getVoiceSessionSnapshot().error).toBe('Connection faded. Stay here or hang up.');
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('carries the minted welcome hint and still completes intro after the greet turn', async () => {
+    const runtime = await boot();
+    expect(runtime.getVoiceSessionSnapshot().welcomeHint).toBe(VOICE_WELCOME_HINT);
+
+    runtime.fakePlayback.setBusy(true);
+    runtime.fakeCaller.emit('turnComplete', true);
+    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(false);
+
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      hud: 'live',
+      introComplete: true,
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
 
   it('starts once, stays intro until greet turnComplete and playback idle, then goes live', async () => {
     const runtime = await boot();

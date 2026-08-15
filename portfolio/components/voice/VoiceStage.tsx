@@ -7,7 +7,6 @@ import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
-import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
 import {
   enableVoiceCapture,
   getServerVoiceSessionSnapshot,
@@ -46,10 +45,11 @@ export default function VoiceStage() {
 
   const intro = snapshot.hud === 'intro' || !snapshot.introComplete;
   const live = snapshot.hud === 'live' && snapshot.introComplete;
-  const caption = snapshot.error || snapshot.agentLine || snapshot.userLine || snapshot.status;
-  const transcript = snapshot.lowNetwork
+  const spoken = snapshot.lowNetwork
     ? ''
     : (snapshot.agentLine || snapshot.userLine).trim();
+  const caption = spoken || snapshot.status;
+  const welcomeHint = snapshot.welcomeHint;
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
@@ -144,16 +144,17 @@ export default function VoiceStage() {
     >
       <m.div
         aria-hidden
-        initial={false}
+        initial={{ opacity: 0 }}
         animate={{ opacity: intro ? 1 : 0 }}
         transition={{
           duration: (reducedMotion ? REDUCED_VEIL_MS : VEIL_FADE_MS) / 1000,
           ease: 'easeOut',
         }}
         className={cn(
-          'absolute inset-0 bg-black',
+          'voice-stage-veil absolute inset-0 bg-black',
           intro ? 'pointer-events-auto' : 'pointer-events-none',
         )}
+        data-voice-veil={intro ? 'in' : 'out'}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
       </m.div>
@@ -169,11 +170,17 @@ export default function VoiceStage() {
             <p
               role="status"
               aria-live="polite"
-              className="mt-16 max-w-xl text-center font-hand text-xl leading-snug text-white/80 md:text-2xl"
+              className="voice-stage-caption mt-16 max-w-xl text-center font-hand text-xl leading-snug text-white/80 md:text-2xl"
             >
               {caption}
             </p>
-            <p className="mt-4 font-hand text-sm text-white/40">{VOICE_WELCOME_HINT}</p>
+            {snapshot.error ? (
+              <p role="alert" className="mt-3 max-w-xl text-center font-hand text-sm text-rose-200/80">
+                {snapshot.error}
+              </p>
+            ) : (
+              <p className="mt-4 font-hand text-sm text-white/40">{welcomeHint}</p>
+            )}
           </div>
         </div>
       ) : (
@@ -185,13 +192,18 @@ export default function VoiceStage() {
             {orb}
             {hangup}
           </div>
-          {transcript ? (
+          {snapshot.error ? (
+            <p role="alert" className="max-w-[18rem] font-hand text-sm leading-snug text-rose-700 dark:text-rose-200">
+              {snapshot.error}
+            </p>
+          ) : null}
+          {spoken ? (
             <p
               role="status"
               aria-live="polite"
               className="voice-dock-transcript line-clamp-3 max-w-[18rem] font-hand text-sm leading-snug text-[var(--c-ink)]"
             >
-              {transcript}
+              {spoken}
             </p>
           ) : null}
           {!snapshot.micLive ? (

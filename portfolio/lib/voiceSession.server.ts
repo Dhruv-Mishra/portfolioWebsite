@@ -63,55 +63,69 @@ interface GeminiAuthTokenResponse {
 
 function tokenLifetimeFields() {
   return {
+    uses: VOICE_TOKEN_USES,
     expireTime: toIso(VOICE_TOKEN_TTL_MS),
     newSessionExpireTime: toIso(VOICE_NEW_SESSION_TTL_MS),
-    uses: VOICE_TOKEN_USES,
   };
 }
 
-export function buildVoiceAuthTokenRequest(setup: ReturnType<typeof buildLockedLiveSetup> | null) {
+export function buildSlimLiveSetup() {
   return {
-    authToken: {
-      ...tokenLifetimeFields(),
-      ...(setup ? { bidiGenerateContentSetup: setup } : {}),
-    },
-  };
-}
-
-function buildLiveConnectConstraintsRequest() {
-  return {
-    ...tokenLifetimeFields(),
-    liveConnectConstraints: {
-      model: `models/${VOICE_AGENT_MODEL_ID}`,
-      config: {
-        responseModalities: ['AUDIO'],
-        sessionResumption: {},
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: VOICE_AGENT_VOICE_NAME,
-            },
+    model: `models/${VOICE_AGENT_MODEL_ID}`,
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: VOICE_AGENT_VOICE_NAME,
           },
         },
       },
+      thinkingConfig: {
+        thinkingLevel: 'MINIMAL',
+      },
     },
+    sessionResumption: {},
   };
 }
 
+export function buildVoiceAuthTokenRequest(
+  setup: ReturnType<typeof buildLockedLiveSetup> | ReturnType<typeof buildSlimLiveSetup> | null,
+) {
+  return {
+    ...tokenLifetimeFields(),
+    ...(setup ? { bidiGenerateContentSetup: setup } : {}),
+  };
+}
+
+export function wrapVoiceAuthTokenRequest(
+  body: ReturnType<typeof buildVoiceAuthTokenRequest>,
+) {
+  return { authToken: body };
+}
+
+function authTokenUrlPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return '/auth_tokens';
+  }
+}
+
 async function postAuthToken(url: string, apiKey: string, body: unknown): Promise<GeminiAuthTokenResponse> {
-  const response = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body: JSON.stringify(body),
     cache: 'no-store',
   });
 
   const payload = await response.json().catch(() => ({})) as GeminiAuthTokenResponse;
-  if (!response.ok) {
+  if (!response.ok || !payload.name) {
     throw new Error(`Token mint failed (${response.status})`);
-  }
-  if (!payload.name) {
-    throw new Error('Token mint returned no name.');
   }
   return payload;
 }
@@ -119,7 +133,7 @@ async function postAuthToken(url: string, apiKey: string, body: unknown): Promis
 export async function mintFromUrl(
   url: string,
   apiKey: string,
-  setup: ReturnType<typeof buildLockedLiveSetup> | null,
+  setup: ReturnType<typeof buildLockedLiveSetup> | ReturnType<typeof buildSlimLiveSetup> | null,
 ): Promise<GeminiAuthTokenResponse> {
   return postAuthToken(url, apiKey, buildVoiceAuthTokenRequest(setup));
 }
@@ -140,15 +154,24 @@ function toSessionHandle(token: GeminiAuthTokenResponse, lowNetwork: boolean): V
   };
 }
 
-async function mintAcrossUrls(apiKey: string, body: unknown): Promise<GeminiAuthTokenResponse | null> {
+async function mintAcrossUrls(
+  apiKey: string,
+  body: unknown,
+): Promise<{ token: GeminiAuthTokenResponse } | { status: number; path: string }> {
+  let lastFailure = { status: 0, path: '/auth_tokens' };
   for (const url of VOICE_AUTH_TOKEN_URLS) {
     try {
-      return await postAuthToken(url, apiKey, body);
-    } catch {
-      // Try the next discovery path or mint body before failing closed.
+      return { token: await postAuthToken(url, apiKey, body) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const statusMatch = /Token mint failed \((\d+)\)/.exec(message);
+      lastFailure = {
+        status: statusMatch ? Number(statusMatch[1]) : 0,
+        path: authTokenUrlPath(url),
+      };
     }
   }
-  return null;
+  return lastFailure;
 }
 
 export async function mintVoiceSession(options: {
@@ -159,15 +182,27 @@ export async function mintVoiceSession(options: {
     throw new Error('Voice agent API key is not configured.');
   }
 
-  const setup = buildLockedLiveSetup(options.lowNetwork);
-  const locked = await mintAcrossUrls(apiKey, buildVoiceAuthTokenRequest(setup));
-  if (locked) return toSessionHandle(locked, options.lowNetwork);
+  const unlockedBody = buildVoiceAuthTokenRequest(null);
+  const lockedBody = buildVoiceAuthTokenRequest(buildLockedLiveSetup(options.lowNetwork));
+  const slimBody = buildVoiceAuthTokenRequest(buildSlimLiveSetup());
+  const mintBodies = [
+    unlockedBody,
+    lockedBody,
+    slimBody,
+    wrapVoiceAuthTokenRequest(unlockedBody),
+    wrapVoiceAuthTokenRequest(lockedBody),
+    wrapVoiceAuthTokenRequest(slimBody),
+  ];
 
-  const unlocked = await mintAcrossUrls(apiKey, buildVoiceAuthTokenRequest(null));
-  if (unlocked) return toSessionHandle(unlocked, options.lowNetwork);
+  let lastFailure = { status: 0, path: '/auth_tokens' };
+  for (const body of mintBodies) {
+    const result = await mintAcrossUrls(apiKey, body);
+    if ('token' in result) {
+      return toSessionHandle(result.token, options.lowNetwork);
+    }
+    lastFailure = result;
+  }
 
-  const constrained = await mintAcrossUrls(apiKey, buildLiveConnectConstraintsRequest());
-  if (constrained) return toSessionHandle(constrained, options.lowNetwork);
-
+  console.error('[voice-session] mint failed', lastFailure);
   throw new Error('Unable to mint a voice session.');
 }

@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VOICE_AGENT_MODEL_ID, VOICE_AUTH_TOKEN_URLS } from '@/lib/voiceAgentConfig';
 import {
   buildLockedLiveSetup,
+  buildSlimLiveSetup,
   buildVoiceAuthTokenRequest,
   mintFromUrl,
   mintVoiceSession,
+  wrapVoiceAuthTokenRequest,
 } from '@/lib/voiceSession.server';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -24,11 +26,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isAcceptedMintBody(body: Record<string, unknown>): boolean {
-  if (isRecord(body.authToken)) {
-    return true;
-  }
-  return isRecord(body.liveConnectConstraints);
+function requestHeaders(init: RequestInit | undefined): Record<string, string> {
+  expect(init?.headers).toBeTruthy();
+  return init?.headers as Record<string, string>;
+}
+
+function expectHeaderAuth(url: unknown, init: RequestInit | undefined) {
+  expect(String(url)).not.toContain('key=');
+  expect(requestHeaders(init)['x-goog-api-key']).toBe('test-voice-key');
+  expect(requestHeaders(init)['Content-Type']).toBe('application/json');
 }
 
 afterEach(() => {
@@ -46,27 +52,43 @@ describe('voice session mint request contract', () => {
     vi.stubEnv('MODEL_HEALTH_ENVIRONMENT', '');
   });
 
-  it('lists discovery paths with snake_case auth_tokens first', () => {
+  it('lists discovery paths with v1beta auth_tokens then v1alpha auth_tokens', () => {
     expect([...VOICE_AUTH_TOKEN_URLS]).toEqual([
-      'https://generativelanguage.googleapis.com/v1alpha/auth_tokens',
       'https://generativelanguage.googleapis.com/v1beta/auth_tokens',
-      'https://generativelanguage.googleapis.com/v1alpha/authTokens',
+      'https://generativelanguage.googleapis.com/v1alpha/auth_tokens',
       'https://generativelanguage.googleapis.com/v1beta/authTokens',
+      'https://generativelanguage.googleapis.com/v1alpha/authTokens',
     ]);
   });
 
-  it('wraps AuthToken fields and uses MINIMAL thinking when setup is present', () => {
-    const setup = buildLockedLiveSetup(false);
-    const locked = buildVoiceAuthTokenRequest(setup);
+  it('builds unlocked and constrained bodies without wrapping or liveConnectConstraints', () => {
+    const lockedSetup = buildLockedLiveSetup(false);
+    const slimSetup = buildSlimLiveSetup();
     const unlocked = buildVoiceAuthTokenRequest(null);
+    const locked = buildVoiceAuthTokenRequest(lockedSetup);
+    const slim = buildVoiceAuthTokenRequest(slimSetup);
 
-    expect(setup.model).toBe(`models/${VOICE_AGENT_MODEL_ID}`);
-    expect(setup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
-    expect(locked.authToken.bidiGenerateContentSetup).toEqual(setup);
-    expect(unlocked.authToken).not.toHaveProperty('bidiGenerateContentSetup');
-    expect(unlocked.authToken).toMatchObject({
+    expect(lockedSetup.model).toBe(`models/${VOICE_AGENT_MODEL_ID}`);
+    expect(lockedSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
+    expect(slimSetup.generationConfig.thinkingConfig.thinkingLevel).toBe('MINIMAL');
+
+    expect(unlocked).toMatchObject({
       uses: 1,
     });
+    expect(unlocked).toHaveProperty('expireTime');
+    expect(unlocked).toHaveProperty('newSessionExpireTime');
+    expect(unlocked).not.toHaveProperty('authToken');
+    expect(unlocked).not.toHaveProperty('liveConnectConstraints');
+    expect(unlocked).not.toHaveProperty('bidiGenerateContentSetup');
+
+    expect(locked).not.toHaveProperty('authToken');
+    expect(locked).not.toHaveProperty('liveConnectConstraints');
+    expect(locked.bidiGenerateContentSetup).toEqual(lockedSetup);
+
+    expect(slim).not.toHaveProperty('authToken');
+    expect(slim).not.toHaveProperty('liveConnectConstraints');
+    expect(slim.bidiGenerateContentSetup).toEqual(slimSetup);
+    expect(wrapVoiceAuthTokenRequest(unlocked)).toEqual({ authToken: unlocked });
   });
 
   it('retries a later auth token URL after a 404 and returns the minted name', async () => {
@@ -88,24 +110,19 @@ describe('voice session mint request contract', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     for (const [url, init] of fetchMock.mock.calls) {
+      expectHeaderAuth(url, init as RequestInit);
       expect(String(url)).toMatch(/auth_tokens|authTokens/);
       const body = parseRequestBody(init as RequestInit);
-      expect(isAcceptedMintBody(body)).toBe(true);
-      const setup = isRecord(body.authToken)
-        ? body.authToken.bidiGenerateContentSetup
-        : undefined;
-      if (isRecord(setup) && isRecord(setup.generationConfig)) {
-        const thinking = setup.generationConfig.thinkingConfig;
-        expect(isRecord(thinking) && thinking.thinkingLevel).toBe('MINIMAL');
-      }
+      expect(body).not.toHaveProperty('authToken');
+      expect(body).not.toHaveProperty('liveConnectConstraints');
+      expect(body).not.toHaveProperty('bidiGenerateContentSetup');
     }
 
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1alpha/auth_tokens');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/v1beta/auth_tokens');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('key=test-voice-key');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1beta/auth_tokens');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/v1alpha/auth_tokens');
   });
 
-  it('posts the wrapped authToken body from mintFromUrl', async () => {
+  it('posts the unwrapped locked body from mintFromUrl with header auth', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { name: 'token-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -114,30 +131,29 @@ describe('voice session mint request contract', () => {
     ).resolves.toEqual({ name: 'token-1' });
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(String(url)).toContain('/v1alpha/auth_tokens');
+    expect(String(url)).toBe(VOICE_AUTH_TOKEN_URLS[0]);
+    expectHeaderAuth(url, init as RequestInit);
     const body = parseRequestBody(init as RequestInit);
-    expect(body).toHaveProperty('authToken');
-    const setup = isRecord(body.authToken) ? body.authToken.bidiGenerateContentSetup : undefined;
-    expect(isRecord(setup)).toBe(true);
+    expect(body).not.toHaveProperty('authToken');
+    expect(body).not.toHaveProperty('liveConnectConstraints');
+    expect(isRecord(body.bidiGenerateContentSetup)).toBe(true);
+    const setup = body.bidiGenerateContentSetup;
     if (isRecord(setup) && isRecord(setup.generationConfig)) {
       const thinking = setup.generationConfig.thinkingConfig;
       expect(isRecord(thinking) && thinking.thinkingLevel).toBe('MINIMAL');
     }
   });
 
-  it('falls back to unlocked then liveConnectConstraints mint bodies', async () => {
+  it('tries unlocked first and can succeed later with bidiGenerateContentSetup', async () => {
     const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
       const body = parseRequestBody(init);
-      if (isRecord(body.authToken) && 'bidiGenerateContentSetup' in body.authToken) {
-        return jsonResponse(400, { error: { message: 'locked rejected' } });
+      if (body.authToken || body.liveConnectConstraints) {
+        return jsonResponse(400, { error: { message: 'wrapped rejected' } });
       }
-      if (isRecord(body.authToken)) {
+      if (!('bidiGenerateContentSetup' in body)) {
         return jsonResponse(400, { error: { message: 'unlocked rejected' } });
       }
-      if (isRecord(body.liveConnectConstraints)) {
-        return jsonResponse(200, { name: 'token-1' });
-      }
-      return jsonResponse(500, {});
+      return jsonResponse(200, { name: 'token-1' });
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -146,21 +162,75 @@ describe('voice session mint request contract', () => {
       setup: { lowNetwork: true },
     });
 
-    const lastBody = parseRequestBody(fetchMock.mock.calls.at(-1)?.[1] as RequestInit);
-    expect(lastBody).toMatchObject({
-      liveConnectConstraints: {
-        model: `models/${VOICE_AGENT_MODEL_ID}`,
-        config: {
-          responseModalities: ['AUDIO'],
-          sessionResumption: {},
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Charon' },
-            },
-          },
-        },
-      },
+    const firstBody = parseRequestBody(fetchMock.mock.calls[0]?.[1] as RequestInit);
+    expect(firstBody).not.toHaveProperty('authToken');
+    expect(firstBody).not.toHaveProperty('liveConnectConstraints');
+    expect(firstBody).not.toHaveProperty('bidiGenerateContentSetup');
+
+    const successCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = parseRequestBody(init as RequestInit);
+      return isRecord(body.bidiGenerateContentSetup) && !('authToken' in body);
     });
-    expect(lastBody).not.toHaveProperty('authToken');
+    expect(successCall).toBeTruthy();
+    const successBody = parseRequestBody(successCall?.[1] as RequestInit);
+    const setup = successBody.bidiGenerateContentSetup;
+    expect(isRecord(setup)).toBe(true);
+    if (isRecord(setup) && isRecord(setup.generationConfig)) {
+      const thinking = setup.generationConfig.thinkingConfig;
+      expect(isRecord(thinking) && thinking.thinkingLevel).toBe('MINIMAL');
+    }
+
+    for (const [url, init] of fetchMock.mock.calls) {
+      expectHeaderAuth(url, init as RequestInit);
+    }
+  });
+
+  it('accepts wrapped authToken only after official unwrapped bodies fail', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      const body = parseRequestBody(init);
+      if (isRecord(body.authToken)) {
+        return jsonResponse(200, { name: 'token-1' });
+      }
+      return jsonResponse(400, { error: { message: 'unwrapped rejected' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mintVoiceSession({ lowNetwork: false })).resolves.toMatchObject({
+      token: 'token-1',
+    });
+
+    const firstBody = parseRequestBody(fetchMock.mock.calls[0]?.[1] as RequestInit);
+    expect(firstBody).not.toHaveProperty('authToken');
+    expect(firstBody).not.toHaveProperty('liveConnectConstraints');
+
+    const wrappedCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = parseRequestBody(init as RequestInit);
+      return isRecord(body.authToken);
+    });
+    expect(wrappedCall).toBeTruthy();
+    expect(fetchMock.mock.calls.indexOf(wrappedCall!)).toBeGreaterThan(0);
+  });
+
+  it('never forwards Google error.message in thrown mint errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(403, { error: { message: 'secret google detail' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mintFromUrl(VOICE_AUTH_TOKEN_URLS[0], 'test-voice-key', null))
+      .rejects
+      .toThrow('Token mint failed (403)');
+
+    let sessionError: unknown;
+    try {
+      await mintVoiceSession({ lowNetwork: false });
+    } catch (error) {
+      sessionError = error;
+    }
+
+    expect(sessionError).toBeInstanceOf(Error);
+    expect((sessionError as Error).message).toBe('Unable to mint a voice session.');
+    expect((sessionError as Error).message).not.toContain('secret google detail');
+    expect(String(sessionError)).not.toContain('secret google detail');
   });
 });

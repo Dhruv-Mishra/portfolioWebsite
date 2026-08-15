@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from 'next/dynamic';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { consumeVoiceModeRequest, getVoiceExitReason, useVoiceModeRequest } from '@/lib/voiceModeStore';
 import type { VoiceExitReason } from '@/lib/voiceAgentProtocol';
 
@@ -13,12 +15,17 @@ const VoiceStage = dynamic(() => import('@/components/voice/VoiceStage'), {
 
 export default function VoiceModeController() {
   const request = useVoiceModeRequest();
+  const pathname = usePathname();
+  const router = useRouter();
   const [active, setActive] = useState(false);
   const [ready, setReady] = useState(false);
   const [exitReason, setExitReason] = useState<VoiceExitReason | null>(null);
 
   if (request === 'enter' && !active) {
     consumeVoiceModeRequest();
+    if (pathname !== '/chat') {
+      requestPageTurnNavigation(router, { href: '/chat', mode: 'push' });
+    }
     setActive(true);
     setReady(false);
     setExitReason(null);

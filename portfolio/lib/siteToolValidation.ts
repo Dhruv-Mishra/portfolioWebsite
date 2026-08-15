@@ -73,8 +73,8 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       if (!field || !isVoiceFieldId(field) || value == null || value.length === 0 || value.length > 1000) {
         return null;
       }
-      const submit = record.submit === undefined ? undefined : record.submit === true;
-      return { field, value, submit } as SiteToolArgsMap[Name];
+      if (record.submit === true) return null;
+      return { field, value } as SiteToolArgsMap[Name];
     }
     case 'set_preference': {
       const key = readString(record, 'key');
@@ -86,6 +86,9 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       const nameValue = readString(record, 'name') ?? undefined;
       if (!message || message.length < 5 || message.length > 300) return null;
       if (nameValue && (nameValue.length < 2 || nameValue.length > 40)) return null;
+      if (/(?:https?:\/\/|www\.)/i.test(message) || (nameValue && /(?:https?:\/\/|www\.)/i.test(nameValue))) {
+        return null;
+      }
       return { message, name: nameValue } as SiteToolArgsMap[Name];
     }
     case 'lookup_site_facts': {

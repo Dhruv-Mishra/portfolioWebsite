@@ -372,9 +372,7 @@ function resolveCommandPalette(input: string): ActionResolution | null {
 }
 
 function resolveVoiceSession(input: string): ActionResolution | null {
-  if (!/\b(?:start|enter|open|switch to|talk in|use)\s+(?:the\s+)?(?:native\s+)?voice(?:\s+(?:mode|agent|session|experience))?\b/i.test(input)
-    && !/\b(?:talk|speak)\s+(?:to|with)\s+(?:me|you|dhruv)\b/i.test(input)
-    && !/\blet'?s\s+talk\b/i.test(input)) {
+  if (!/\b(?:start|enter|open|switch to)\s+(?:the\s+)?(?:native\s+)?voice(?:\s+(?:mode|agent|session|experience))\b/i.test(input)) {
     return null;
   }
 

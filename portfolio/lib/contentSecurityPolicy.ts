@@ -4,7 +4,7 @@ export const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://www.google-analytics.com https://v2.jokeapi.dev https://analytics.google.com https://region1.google-analytics.com https://cloudflareinsights.com https://huggingface.co https://us.aws.cdn.hf.co https://cdn.jsdelivr.net",
+  "connect-src 'self' https://www.google-analytics.com https://v2.jokeapi.dev https://analytics.google.com https://region1.google-analytics.com https://cloudflareinsights.com https://huggingface.co https://us.aws.cdn.hf.co https://cdn.jsdelivr.net wss://generativelanguage.googleapis.com",
   "worker-src 'self'",
   "frame-ancestors 'self'",
   "base-uri 'self'",

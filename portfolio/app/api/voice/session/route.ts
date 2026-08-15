@@ -44,8 +44,7 @@ export async function POST(request: NextRequest) {
       lowNetwork: body?.lowNetwork === true,
     });
     return Response.json(session);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to start voice session.';
-    return Response.json({ error: message }, { status: 503 });
+  } catch {
+    return Response.json({ error: 'Unable to start voice session.' }, { status: 503 });
   }
 }

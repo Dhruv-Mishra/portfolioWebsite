@@ -817,6 +817,12 @@ html[data-voice-mode="on"] [data-chat-composer] {
   display: none !important;
 }
 
+html[data-voice-mode="on"] [data-skip-nav],
+html[data-voice-mode="on"] .disco-spotlights,
+html[data-voice-mode="on"] [data-disco-media] {
+  display: none !important;
+}
+
 .voice-orb-ring,
 .voice-orb-core {
   position: absolute;

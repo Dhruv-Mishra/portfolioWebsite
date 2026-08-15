@@ -61,12 +61,16 @@ export async function startVoiceCapture(
     pending = merged.subarray(offset);
   };
 
+  const muteGain = context.createGain();
+  muteGain.gain.value = 0;
   source.connect(processor);
-  processor.connect(context.destination);
+  processor.connect(muteGain);
+  muteGain.connect(context.destination);
 
   return {
     stop: () => {
       processor.disconnect();
+      muteGain.disconnect();
       source.disconnect();
       stream.getTracks().forEach(track => track.stop());
       void context.close();
@@ -77,6 +81,7 @@ export async function startVoiceCapture(
 export function createVoicePlayback() {
   let context: AudioContext | null = null;
   let nextTime = 0;
+  const sources = new Set<AudioBufferSourceNode>();
 
   function ensure(): AudioContext {
     if (!context) {
@@ -88,7 +93,9 @@ export function createVoicePlayback() {
 
   return {
     play(chunk: ArrayBuffer) {
+      if (chunk.byteLength % 2 !== 0) return;
       const audio = ensure();
+      void audio.resume();
       const samples = new Int16Array(chunk);
       const buffer = audio.createBuffer(1, samples.length, VOICE_AGENT_OUTPUT_RATE);
       const channel = buffer.getChannelData(0);
@@ -98,18 +105,31 @@ export function createVoicePlayback() {
       const source = audio.createBufferSource();
       source.buffer = buffer;
       source.connect(audio.destination);
+      source.addEventListener('ended', () => {
+        sources.delete(source);
+      });
+      sources.add(source);
       const startAt = Math.max(audio.currentTime, nextTime);
       source.start(startAt);
       nextTime = startAt + buffer.duration;
     },
     interrupt() {
+      for (const source of sources) {
+        try {
+          source.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      sources.clear();
+      nextTime = context?.currentTime ?? 0;
+    },
+    close() {
+      this.interrupt();
       if (!context) return;
       void context.close();
       context = null;
       nextTime = 0;
-    },
-    close() {
-      this.interrupt();
     },
   };
 }

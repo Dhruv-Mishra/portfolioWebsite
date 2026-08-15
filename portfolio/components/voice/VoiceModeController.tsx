@@ -21,18 +21,25 @@ export default function VoiceModeController() {
   const [ready, setReady] = useState(false);
   const [exitReason, setExitReason] = useState<VoiceExitReason | null>(null);
 
-  if (request === 'enter' && !active) {
-    consumeVoiceModeRequest();
-    if (pathname !== '/chat') {
-      requestPageTurnNavigation(router, { href: '/chat', mode: 'push' });
+  useEffect(() => {
+    if (request === 'enter' && !active) {
+      consumeVoiceModeRequest();
+      if (pathname !== '/chat') {
+        requestPageTurnNavigation(router, { href: '/chat', mode: 'push' });
+      }
+      // Consume the external request once, then mirror it into session state.
+      // This cannot be derived after consume() clears the store.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- activate after consume
+      setActive(true);
+      setReady(false);
+      setExitReason(null);
+      return;
     }
-    setActive(true);
-    setReady(false);
-    setExitReason(null);
-  } else if (request === 'exit' && active && exitReason == null) {
-    consumeVoiceModeRequest();
-    setExitReason(getVoiceExitReason());
-  }
+    if (request === 'exit' && active && exitReason == null) {
+      consumeVoiceModeRequest();
+      setExitReason(getVoiceExitReason());
+    }
+  }, [request, active, exitReason, pathname, router]);
 
   useEffect(() => {
     if (active) document.documentElement.dataset.voiceMode = 'on';

@@ -32,7 +32,11 @@ export function parseVoiceAgentPrefs(raw: string | null): VoiceAgentPrefs {
   }
 }
 
-function readPrefs(): VoiceAgentPrefs {
+function prefsEqual(a: VoiceAgentPrefs, b: VoiceAgentPrefs): boolean {
+  return a.lowNetwork === b.lowNetwork && a.ambientMusic === b.ambientMusic;
+}
+
+function readFromStorage(): VoiceAgentPrefs {
   if (typeof window === 'undefined') return { ...DEFAULT_PREFS };
   try {
     return parseVoiceAgentPrefs(window.localStorage.getItem(STORAGE_KEY));
@@ -41,38 +45,96 @@ function readPrefs(): VoiceAgentPrefs {
   }
 }
 
-function subscribe(onStoreChange: () => void): () => void {
-  window.addEventListener(EVENT_NAME, onStoreChange);
-  window.addEventListener('storage', onStoreChange);
+function writeToStorage(next: VoiceAgentPrefs): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+let state: VoiceAgentPrefs = DEFAULT_PREFS;
+let initialized = false;
+let storageListenerAttached = false;
+const listeners = new Set<() => void>();
+
+function emit(): void {
+  for (const listener of listeners) listener();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(EVENT_NAME));
+  }
+}
+
+function adoptPrefs(next: VoiceAgentPrefs): boolean {
+  if (prefsEqual(state, next)) return false;
+  state = next;
+  return true;
+}
+
+function handleStorageEvent(event: StorageEvent): void {
+  if (event.key !== STORAGE_KEY) return;
+  if (adoptPrefs(parseVoiceAgentPrefs(event.newValue))) emit();
+}
+
+function attachStorageListener(): void {
+  if (
+    storageListenerAttached
+    || typeof window === 'undefined'
+    || typeof window.addEventListener !== 'function'
+  ) return;
+  window.addEventListener('storage', handleStorageEvent);
+  storageListenerAttached = true;
+}
+
+function initOnce(): void {
+  if (initialized || typeof window === 'undefined') return;
+  adoptPrefs(readFromStorage());
+  initialized = true;
+  attachStorageListener();
+}
+
+function subscribe(listener: () => void): () => void {
+  initOnce();
+  listeners.add(listener);
   return () => {
-    window.removeEventListener(EVENT_NAME, onStoreChange);
-    window.removeEventListener('storage', onStoreChange);
+    listeners.delete(listener);
   };
+}
+
+function getSnapshot(): VoiceAgentPrefs {
+  initOnce();
+  return state;
+}
+
+function getServerSnapshot(): VoiceAgentPrefs {
+  return DEFAULT_PREFS;
 }
 
 export function setVoiceAgentPref<K extends keyof VoiceAgentPrefs>(
   key: K,
   value: VoiceAgentPrefs[K],
 ): void {
-  if (typeof window === 'undefined') return;
-  const next = { ...readPrefs(), [key]: value };
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* ignore quota */
+  initOnce();
+  if (state[key] === value) {
+    writeToStorage(state);
+    return;
   }
-  window.dispatchEvent(new Event(EVENT_NAME));
+  const next: VoiceAgentPrefs = { ...state, [key]: value };
+  state = next;
+  writeToStorage(next);
+  emit();
 }
 
 export function getVoiceAgentPrefsSnapshot(): VoiceAgentPrefs {
-  return readPrefs();
+  return getSnapshot();
 }
 
 export function useVoiceAgentPrefs(): {
   prefs: VoiceAgentPrefs;
   setPref: <K extends keyof VoiceAgentPrefs>(key: K, value: VoiceAgentPrefs[K]) => void;
 } {
-  const prefs = useSyncExternalStore(subscribe, readPrefs, () => DEFAULT_PREFS);
+  const prefs = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const setPref = useCallback(<K extends keyof VoiceAgentPrefs>(key: K, value: VoiceAgentPrefs[K]) => {
     setVoiceAgentPref(key, value);
   }, []);

@@ -8,6 +8,7 @@ Server custom voice uses Pocket TTS (`kyutai/pocket-tts`) through a persistent P
 - `POST /api/tts` accepts text, normalizes it for speech, and returns WAV by default.
 - Streaming is requested by `stream: true`, `?stream=1`, or the NDJSON `Accept` header. It emits `ready`, `chunk`, and `done` frames, with optional adaptive gzip framing when the client explicitly supports it.
 - One synthesis runs at a time. The default queue limit is four requests, and the default maximum input is 1,200 characters.
+- Completed PCM utterances are cached on disk under `${LOCAL_TTS_CACHE_DIR}/utterances/`. Identical in-flight requests share one worker job and do not take extra queue slots; cache hits skip the worker queue entirely.
 
 See [API](api.md) for the same-origin request contract and error responses.
 

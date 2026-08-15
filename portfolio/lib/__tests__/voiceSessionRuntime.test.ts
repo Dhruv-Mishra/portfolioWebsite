@@ -392,7 +392,7 @@ describe('voice session runtime singleton', () => {
   });
 
   it('queues the rest of a planned utterance after the model emits only navigate_to', async () => {
-    const dispatchEvent = vi.fn(() => true);
+    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
     vi.stubGlobal('window', { dispatchEvent });
 
     const runtime = await boot();
@@ -411,19 +411,20 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
 
     expect(runtime.push).toHaveBeenCalledWith('/');
-    expect(dispatchEvent.mock.calls.some(([event]) => (
-      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-    ))).toBe(false);
+    const terminalEvents = () => dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event): event is CustomEvent<{ command: string }> => (
+        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+      ));
+    expect(terminalEvents()).toHaveLength(0);
 
     const unregister = registerSiteActionHost('terminal');
     await Promise.resolve();
     await Promise.resolve();
 
-    const terminalCalls = dispatchEvent.mock.calls.filter(([event]) => (
-      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-    ));
-    expect(terminalCalls).toHaveLength(1);
-    expect((terminalCalls[0]?.[0] as CustomEvent).detail).toEqual({ command: 'help' });
+    const firstTerminalEvents = terminalEvents();
+    expect(firstTerminalEvents).toHaveLength(1);
+    expect(firstTerminalEvents[0]?.detail).toEqual({ command: 'help' });
 
     runtime.fakeCaller.emit('toolCall', {
       id: 'term-help',
@@ -432,9 +433,7 @@ describe('voice session runtime singleton', () => {
     } as SiteToolCall);
     await Promise.resolve();
     await Promise.resolve();
-    expect(dispatchEvent.mock.calls.filter(([event]) => (
-      event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-    ))).toHaveLength(1);
+    expect(terminalEvents()).toHaveLength(1);
 
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();

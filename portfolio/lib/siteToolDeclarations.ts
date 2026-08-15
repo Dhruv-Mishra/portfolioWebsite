@@ -2,6 +2,7 @@
 import {
   APPROVED_LINK_KEYS,
   BROWSE_HISTORY_DIRECTIONS,
+  FEEDBACK_CATEGORIES,
   MOTION_PREFERENCE_VALUES,
   PAGE_SCROLL_AMOUNT_DEFAULT,
   PAGE_SCROLL_AMOUNT_MAX,
@@ -236,6 +237,20 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
       properties: {
         message: { type: 'string' },
         name: { type: 'string' },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'submit_feedback',
+    description:
+      'Send the open feedback note. Invocation: only after the visitor dictated the note and confirmed they want it sent.',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Exact feedback note to send. At least 5 characters, max 1000.' },
+        contact: { type: 'string', description: 'Optional name, email, or socials. Max 120 characters.' },
+        category: { type: 'string', enum: [...FEEDBACK_CATEGORIES] },
       },
       required: ['message'],
     },

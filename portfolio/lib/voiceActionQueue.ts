@@ -6,7 +6,6 @@ export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'set_voice_backend',
   'set_motion_preference',
   'fill_field',
-  'submit_guestbook',
 ] as const;
 
 export const DEFERRED_VOICE_TOOL_NAMES = [
@@ -26,6 +25,8 @@ export const DEPENDENT_VOICE_TOOL_NAMES = [
   'control_project_video',
   'send_chat_message',
   'run_terminal_command',
+  'submit_guestbook',
+  'submit_feedback',
 ] as const;
 
 export const END_VOICE_SESSION_SAFETY_MS = 8_000;
@@ -46,12 +47,14 @@ export function isDependentVoiceTool(name: string): name is DependentVoiceToolNa
   return (DEPENDENT_VOICE_TOOL_NAMES as readonly string[]).includes(name);
 }
 
-export type VoiceDependentHostId = 'project-video' | 'chat' | 'terminal';
+export type VoiceDependentHostId = 'project-video' | 'chat' | 'terminal' | 'guestbook' | 'feedback';
 
 export function dependentHostIdForTool(name: string): VoiceDependentHostId | null {
   if (name === 'control_project_video') return 'project-video';
   if (name === 'send_chat_message') return 'chat';
   if (name === 'run_terminal_command') return 'terminal';
+  if (name === 'submit_guestbook') return 'guestbook';
+  if (name === 'submit_feedback') return 'feedback';
   return null;
 }
 
@@ -63,6 +66,12 @@ export function hostIdForVoiceTool(
   if (dependent) return dependent;
   if (name === 'fill_field' && args?.field === 'terminal-input') return 'terminal';
   if (name === 'fill_field' && args?.field === 'chat-composer') return 'chat';
+  if (name === 'fill_field' && (args?.field === 'guestbook-message' || args?.field === 'guestbook-name')) {
+    return 'guestbook';
+  }
+  if (name === 'fill_field' && (args?.field === 'feedback-message' || args?.field === 'feedback-contact')) {
+    return 'feedback';
+  }
   return null;
 }
 
@@ -72,7 +81,9 @@ export function openerHostIdForTool(
 ): VoiceDependentHostId | null {
   if (name === 'open_project') return 'project-video';
   if (name === 'open_chat') return 'chat';
+  if (name === 'open_feedback') return 'feedback';
   if (name === 'navigate_to' && args?.path === '/') return 'terminal';
+  if (name === 'navigate_to' && args?.path === '/guestbook') return 'guestbook';
   return null;
 }
 

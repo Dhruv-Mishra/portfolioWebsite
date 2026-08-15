@@ -4,6 +4,7 @@ import {
   CHAT_MESSAGE_MAX_LENGTH,
   isApprovedLinkKey,
   isBrowseHistoryDirection,
+  isFeedbackCategory,
   isMotionPreferenceValue,
   isPageScrollDirection,
   isProjectVideoAction,
@@ -151,6 +152,19 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
         return null;
       }
       return { message, name: nameValue } as SiteToolArgsMap[Name];
+    }
+    case 'submit_feedback': {
+      const message = readString(record, 'message');
+      const contactValue = readString(record, 'contact') ?? undefined;
+      const categoryValue = record.category === undefined ? undefined : readString(record, 'category');
+      if (!message || message.length < 5 || message.length > 1000) return null;
+      if (contactValue && contactValue.length > 120) return null;
+      if (categoryValue !== undefined && !isFeedbackCategory(categoryValue)) return null;
+      return {
+        message,
+        contact: contactValue,
+        category: categoryValue,
+      } as SiteToolArgsMap[Name];
     }
     case 'lookup_site_facts': {
       const query = readString(record, 'query');

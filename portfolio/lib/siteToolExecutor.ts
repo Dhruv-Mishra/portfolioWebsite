@@ -1,7 +1,6 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { setSitePref, type SitePrefKey } from '@/hooks/useSitePrefs';
 import { setSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
-import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { APPROVED_LINKS, type SiteToolCall, type SiteToolResult } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
@@ -14,6 +13,8 @@ import {
   requestProjectVideoControl,
   requestRunTerminalCommand,
   requestSendChatMessage,
+  requestSubmitFeedback,
+  requestSubmitGuestbook,
   scrollRoutePage,
 } from '@/lib/siteActionEvents';
 import { soundManager } from '@/lib/soundManager';
@@ -86,24 +87,6 @@ function fillField(field: string, value: string): SiteToolResult {
   target.dispatchEvent(new Event('input', { bubbles: true }));
   target.dispatchEvent(new Event('change', { bubbles: true }));
   return ok('Typed that in.');
-}
-
-function draftGuestbook(message: string, name?: string): SiteToolResult {
-  const trimmedMessage = message.trim();
-  if (trimmedMessage.length < GUESTBOOK_LIMITS.minMessageLength) {
-    return fail('That note is too short to pin.', 'guestbook-short');
-  }
-  if (/(?:https?:\/\/|www\.)/i.test(trimmedMessage) || (name && /(?:https?:\/\/|www\.)/i.test(name))) {
-    return fail('I will not pin a note that looks like a link.', 'guestbook-url');
-  }
-
-  const messageResult = fillField('guestbook-message', trimmedMessage);
-  if (!messageResult.ok) return messageResult;
-  if (name?.trim()) {
-    const nameResult = fillField('guestbook-name', name.trim());
-    if (!nameResult.ok) return nameResult;
-  }
-  return ok('I typed the note. Pin it when you want it on the wall.');
 }
 
 async function lookupFacts(query: string): Promise<SiteToolResult> {
@@ -279,8 +262,25 @@ export async function executeSiteTool(
             ? 'Motion will always animate.'
             : 'Motion will follow the device.',
       );
-    case 'submit_guestbook':
-      return draftGuestbook(parsed.args.message, parsed.args.name);
+    case 'submit_guestbook': {
+      if (!commit) return ok('I will pin that note.');
+      const hosted = requestSubmitGuestbook({
+        message: parsed.args.message,
+        name: parsed.args.name,
+      });
+      if (hosted.result) return hosted.result;
+      return fail('The guestbook is not open right now.', 'guestbook-unavailable');
+    }
+    case 'submit_feedback': {
+      if (!commit) return ok('I will send that feedback.');
+      const hosted = requestSubmitFeedback({
+        message: parsed.args.message,
+        contact: parsed.args.contact,
+        category: parsed.args.category,
+      });
+      if (hosted.result) return hosted.result;
+      return fail('Feedback is not open right now.', 'feedback-unavailable');
+    }
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
     case 'start_voice_session':

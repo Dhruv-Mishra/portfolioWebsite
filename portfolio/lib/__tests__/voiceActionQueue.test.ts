@@ -23,7 +23,6 @@ describe('voice action queue', () => {
       'set_voice_backend',
       'set_motion_preference',
       'fill_field',
-      'submit_guestbook',
     ]);
     expect(DEFERRED_VOICE_TOOL_NAMES).toEqual([
       'navigate_to',
@@ -41,6 +40,8 @@ describe('voice action queue', () => {
       'control_project_video',
       'send_chat_message',
       'run_terminal_command',
+      'submit_guestbook',
+      'submit_feedback',
     ]);
     expect(isImmediateVoiceTool('lookup_site_facts')).toBe(true);
     expect(isDeferredVoiceTool('navigate_to')).toBe(true);
@@ -48,17 +49,30 @@ describe('voice action queue', () => {
     expect(isImmediateVoiceTool('end_voice_session')).toBe(false);
     expect(isDependentVoiceTool('send_chat_message')).toBe(true);
     expect(isImmediateVoiceTool('send_chat_message')).toBe(false);
+    expect(isDependentVoiceTool('submit_guestbook')).toBe(true);
+    expect(isImmediateVoiceTool('submit_guestbook')).toBe(false);
+    expect(isDependentVoiceTool('submit_feedback')).toBe(true);
+    expect(isImmediateVoiceTool('submit_feedback')).toBe(false);
     expect(openerHostIdForTool('open_project')).toBe('project-video');
     expect(openerHostIdForTool('open_chat')).toBe('chat');
+    expect(openerHostIdForTool('open_feedback')).toBe('feedback');
     expect(openerHostIdForTool('navigate_to', { path: '/' })).toBe('terminal');
+    expect(openerHostIdForTool('navigate_to', { path: '/guestbook' })).toBe('guestbook');
     expect(openerHostIdForTool('navigate_to', { path: '/about' })).toBeNull();
     expect(dependentHostIdForTool('control_project_video')).toBe('project-video');
     expect(dependentHostIdForTool('send_chat_message')).toBe('chat');
     expect(dependentHostIdForTool('run_terminal_command')).toBe('terminal');
+    expect(dependentHostIdForTool('submit_guestbook')).toBe('guestbook');
+    expect(dependentHostIdForTool('submit_feedback')).toBe('feedback');
     expect(hostIdForVoiceTool('run_terminal_command')).toBe('terminal');
+    expect(hostIdForVoiceTool('submit_guestbook')).toBe('guestbook');
+    expect(hostIdForVoiceTool('submit_feedback')).toBe('feedback');
     expect(hostIdForVoiceTool('fill_field', { field: 'terminal-input' })).toBe('terminal');
     expect(hostIdForVoiceTool('fill_field', { field: 'chat-composer' })).toBe('chat');
-    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-message' })).toBeNull();
+    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-message' })).toBe('guestbook');
+    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-name' })).toBe('guestbook');
+    expect(hostIdForVoiceTool('fill_field', { field: 'feedback-message' })).toBe('feedback');
+    expect(hostIdForVoiceTool('fill_field', { field: 'feedback-contact' })).toBe('feedback');
   });
 
   it('holds terminal and chat fill_field commits until those hosts are ready', async () => {

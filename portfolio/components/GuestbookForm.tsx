@@ -25,6 +25,12 @@ import type {
   GuestbookErrorResponse,
   GuestbookSubmitResponse,
 } from '@/lib/guestbook';
+import {
+  SUBMIT_GUESTBOOK_EVENT,
+  attachSiteActionResult,
+  registerSiteActionHost,
+  type SubmitGuestbookEventDetail,
+} from '@/lib/siteActionEvents';
 
 /** Lined-notebook textarea style — hoisted to avoid per-render allocation. */
 const TEXTAREA_LINED_STYLE = {
@@ -118,18 +124,21 @@ export default function GuestbookForm() {
     speech.start();
   }, [message, setVoicePref, speech]);
 
-  const handleSubmit = useCallback(async (e?: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = useCallback(async (
+    e?: FormEvent<HTMLFormElement>,
+    overrides?: { message?: string; name?: string },
+  ) => {
     if (e) e.preventDefault();
     if (state === 'submitting' || state === 'flying') return;
 
-    const trimmedMessage = message.trim();
+    const trimmedMessage = (overrides?.message ?? message).trim();
     if (!trimmedMessage || trimmedMessage.length < GUESTBOOK_LIMITS.minMessageLength) {
       warning();
       setInlineError(`Add at least ${GUESTBOOK_LIMITS.minMessageLength} characters before pinning.`);
       return;
     }
 
-    const trimmedName = name.trim();
+    const trimmedName = (overrides?.name ?? name).trim();
     if (trimmedName && trimmedName.length < GUESTBOOK_LIMITS.minNameLength) {
       warning();
       setInlineError(`Use at least ${GUESTBOOK_LIMITS.minNameLength} characters for your name, or leave it blank.`);
@@ -200,6 +209,44 @@ export default function GuestbookForm() {
       setErrorMsg('the pin fell out — try again ~');
     }
   }, [state, message, name, website, speech, submit, success, warning, router]);
+
+  useEffect(() => {
+    const handler = (raw: Event) => {
+      const event = raw as CustomEvent<SubmitGuestbookEventDetail>;
+      const nextMessage = event.detail?.message?.trim();
+      if (!nextMessage) return;
+      if (state === 'submitting' || state === 'flying') {
+        attachSiteActionResult(event, {
+          ok: false,
+          spokenText: 'The guestbook is busy pinning the current note.',
+          errorCode: 'guestbook-busy',
+        });
+        return;
+      }
+      const nextName = event.detail?.name?.trim();
+      const pinnedMessage = nextMessage.slice(0, GUESTBOOK_LIMITS.maxMessageLength);
+      const pinnedName = nextName ? nextName.slice(0, GUESTBOOK_LIMITS.maxNameLength) : undefined;
+      setMessage(pinnedMessage);
+      if (pinnedName) {
+        setName(pinnedName);
+      }
+      attachSiteActionResult(event, {
+        ok: true,
+        spokenText: 'Pinning that note.',
+        data: { accepted: true },
+      });
+      void handleSubmit(undefined, {
+        message: pinnedMessage,
+        name: pinnedName,
+      });
+    };
+    const unregister = registerSiteActionHost('guestbook');
+    window.addEventListener(SUBMIT_GUESTBOOK_EVENT, handler);
+    return () => {
+      unregister();
+      window.removeEventListener(SUBMIT_GUESTBOOK_EVENT, handler);
+    };
+  }, [handleSubmit, state]);
 
   const charCount = message.length;
   const charCountDanger = charCount > 280;

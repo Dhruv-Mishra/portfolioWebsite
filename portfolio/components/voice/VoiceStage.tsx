@@ -43,12 +43,15 @@ export default function VoiceStage() {
   const orbSlotRef = useRef<HTMLDivElement>(null);
   const lastOrbRectRef = useRef<DOMRect | null>(null);
 
-  const intro = snapshot.hud === 'intro' || !snapshot.introComplete;
+  const exiting = snapshot.hud === 'exiting';
+  const intro = !exiting && (snapshot.hud === 'intro' || !snapshot.introComplete);
   const live = snapshot.hud === 'live' && snapshot.introComplete;
   const spoken = snapshot.lowNetwork
     ? ''
     : (snapshot.agentLine || snapshot.userLine).trim();
-  const caption = spoken || snapshot.status;
+  const caption = exiting
+    ? (snapshot.exitLine || snapshot.status)
+    : (spoken || snapshot.status);
   const welcomeHint = snapshot.welcomeHint;
 
   useEffect(() => {
@@ -127,39 +130,39 @@ export default function VoiceStage() {
     >
       <VoiceOrb
         phase={snapshot.phase}
-        size={intro ? 'hero' : 'dock'}
-        showLabel={intro}
+        size={intro || exiting ? 'hero' : 'dock'}
+        showLabel={intro || exiting}
       />
     </m.div>
   );
 
   return (
     <div
-      role={intro ? 'dialog' : 'complementary'}
-      aria-modal={intro ? true : undefined}
+      role={intro || exiting ? 'dialog' : 'complementary'}
+      aria-modal={intro || exiting ? true : undefined}
       aria-label="Voice agent"
-      aria-labelledby={intro ? 'voice-stage-title' : undefined}
+      aria-labelledby={intro || exiting ? 'voice-stage-title' : undefined}
       className="pointer-events-none fixed inset-0 h-[100dvh]"
       style={{ zIndex: Z_INDEX.voice }}
     >
       <m.div
         aria-hidden
         initial={{ opacity: 0 }}
-        animate={{ opacity: intro ? 1 : 0 }}
+        animate={{ opacity: intro || exiting ? 1 : 0 }}
         transition={{
           duration: (reducedMotion ? REDUCED_VEIL_MS : VEIL_FADE_MS) / 1000,
           ease: 'easeOut',
         }}
         className={cn(
           'voice-stage-veil absolute inset-0 bg-black',
-          intro ? 'pointer-events-auto' : 'pointer-events-none',
+          intro || exiting ? 'pointer-events-auto' : 'pointer-events-none',
         )}
-        data-voice-veil={intro ? 'in' : 'out'}
+        data-voice-veil={intro || exiting ? 'in' : 'out'}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
       </m.div>
 
-      {intro ? (
+      {intro || exiting ? (
         <div className="pointer-events-none absolute inset-0 flex h-[100dvh] flex-col">
           <header className="relative flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-8">
             <p id="voice-stage-title" className="font-hand text-sm uppercase tracking-[0.32em] text-white/45">Voice</p>
@@ -178,14 +181,14 @@ export default function VoiceStage() {
               <p role="alert" className="mt-3 max-w-xl text-center font-hand text-sm text-rose-200/80">
                 {snapshot.error}
               </p>
-            ) : (
+            ) : intro ? (
               <p className="mt-4 font-hand text-sm text-white/40">{welcomeHint}</p>
-            )}
+            ) : null}
           </div>
         </div>
       ) : (
         <div
-          className="pointer-events-auto absolute flex max-w-[min(18rem,calc(100vw-1.5rem))] flex-col gap-3"
+          className="pointer-events-auto absolute flex max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3"
           style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
         >
           <div className="flex items-center gap-3">
@@ -198,13 +201,14 @@ export default function VoiceStage() {
             </p>
           ) : null}
           {spoken ? (
-            <p
+            <div
               role="status"
               aria-live="polite"
-              className="voice-dock-transcript line-clamp-3 max-w-[18rem] font-hand text-sm leading-snug text-[var(--c-ink)]"
+              data-subtitle-phase={snapshot.subtitlePhase}
+              className="voice-dock-transcript flex max-h-[7.5rem] max-w-[min(24rem,calc(100vw-1.5rem))] flex-col justify-end overflow-hidden font-hand text-sm leading-snug text-[var(--c-ink)]"
             >
-              {spoken}
-            </p>
+              <p className="whitespace-pre-wrap">{spoken}</p>
+            </div>
           ) : null}
           {!snapshot.micLive ? (
             <button

@@ -24,7 +24,13 @@ import type {
   VoiceExitReason,
   VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
-import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
+import {
+  VOICE_WELCOME_HINT,
+  buildVoiceExactSpeakCue,
+  pickVoiceExitVeil,
+  pickVoiceIdleCheckIn,
+  pickVoiceIdleHangup,
+} from '@/lib/voiceAgentProtocol';
 import {
   consumeVoiceModeRequest,
   getVoiceExitReason,
@@ -52,11 +58,16 @@ export interface VoiceSessionSnapshot {
   hangupPending: boolean;
   generation: number;
   welcomeHint: string;
+  exitLine: string;
 }
 
 export const VOICE_SUBTITLE_IDLE_MS = 2_800;
 export const VOICE_SUBTITLE_FADE_MS = 280;
 export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
+export const VOICE_IDLE_CHECKIN_MS = 90_000;
+export const VOICE_IDLE_HANGUP_MS = 30_000;
+export const VOICE_EXIT_VEIL_MS = 1_400;
+export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 
 export interface VoiceHangupRequest {
   force?: boolean;
@@ -84,6 +95,7 @@ const IDLE_SNAPSHOT: VoiceSessionSnapshot = {
   status: '',
   userLine: '',
   agentLine: '',
+  exitLine: '',
   subtitlePhase: 'hidden',
   error: null,
   micLive: false,
@@ -115,6 +127,11 @@ let farewellSawPlayback = false;
 let farewellTurnComplete = false;
 let subtitleIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
+let idleCheckInTimer: ReturnType<typeof setTimeout> | null = null;
+let idleHangupTimer: ReturnType<typeof setTimeout> | null = null;
+let exitVeilTimer: ReturnType<typeof setTimeout> | null = null;
+let idleCheckedIn = false;
+let pendingStopReason: VoiceExitReason = 'user';
 let subtitleSpeaker: 'user' | 'agent' | null = null;
 let utterancePlan: PlannedVoiceAction[] = [];
 let utterancePlanSource = '';
@@ -146,6 +163,34 @@ function clearSubtitleFadeTimer(): void {
 function clearSubtitleTimers(): void {
   clearSubtitleIdleTimer();
   clearSubtitleFadeTimer();
+}
+
+function clearIdleCheckInTimer(): void {
+  if (idleCheckInTimer === null) return;
+  clearTimeout(idleCheckInTimer);
+  idleCheckInTimer = null;
+}
+
+function clearIdleHangupTimer(): void {
+  if (idleHangupTimer === null) return;
+  clearTimeout(idleHangupTimer);
+  idleHangupTimer = null;
+}
+
+function clearIdleTimers(): void {
+  clearIdleCheckInTimer();
+  clearIdleHangupTimer();
+}
+
+function clearExitVeilTimer(): void {
+  if (exitVeilTimer === null) return;
+  clearTimeout(exitVeilTimer);
+  exitVeilTimer = null;
+}
+
+function resetIdleWatch(): void {
+  clearIdleTimers();
+  idleCheckedIn = false;
 }
 
 function resetSubtitleState(): void {
@@ -203,7 +248,7 @@ function applySpokenTranscript(
   subtitleSpeaker = speaker;
   if (speaker === 'user') {
     patch({
-      userLine: `${continuing ? snapshot.userLine : ''}${text}`.slice(-180),
+      userLine: `${continuing ? snapshot.userLine : ''}${text}`.slice(-280),
       agentLine: '',
       subtitlePhase: 'visible',
     });
@@ -212,7 +257,7 @@ function applySpokenTranscript(
     return;
   }
   patch({
-    agentLine: `${continuing ? snapshot.agentLine : ''}${text}`.slice(-220),
+    agentLine: `${continuing ? snapshot.agentLine : ''}${text}`.slice(-360),
     userLine: '',
     subtitlePhase: 'visible',
   });
@@ -384,6 +429,7 @@ function canHangupNow(): boolean {
 
 function armAgentFarewellHangup(reason: VoiceExitReason): void {
   if (snapshot.hangupPending || queue?.hasHangup()) return;
+  resetIdleWatch();
   farewellArmed = true;
   farewellHeard = playback?.isBusy() === true;
   farewellSawPlayback = farewellHeard;
@@ -397,6 +443,86 @@ function armAgentFarewellHangup(reason: VoiceExitReason): void {
   });
 }
 
+function canWatchIdle(): boolean {
+  return (
+    snapshot.active
+    && snapshot.introComplete
+    && snapshot.hud === 'live'
+    && !snapshot.hangupPending
+    && !stopping
+    && socketReady
+  );
+}
+
+function scheduleIdleCheckIn(): void {
+  clearIdleTimers();
+  if (idleCheckedIn || !canWatchIdle()) return;
+  const generation = currentGeneration();
+  idleCheckInTimer = setTimeout(() => {
+    idleCheckInTimer = null;
+    if (isStale(generation)) return;
+    beginIdleCheckIn();
+  }, VOICE_IDLE_CHECKIN_MS);
+}
+
+function beginIdleCheckIn(): void {
+  if (idleCheckedIn || !canWatchIdle() || !caller) return;
+  idleCheckedIn = true;
+  caller.sendText(buildVoiceExactSpeakCue(pickVoiceIdleCheckIn()));
+  const generation = currentGeneration();
+  idleHangupTimer = setTimeout(() => {
+    idleHangupTimer = null;
+    if (isStale(generation)) return;
+    beginIdleHangup();
+  }, VOICE_IDLE_HANGUP_MS);
+}
+
+function beginIdleHangup(): void {
+  if (!idleCheckedIn || !canWatchIdle() || !caller) return;
+  caller.sendText(buildVoiceExactSpeakCue(pickVoiceIdleHangup()));
+  sendAudioLive = false;
+  armAgentFarewellHangup('user');
+}
+
+function noteVoiceActivity(
+  source: 'user' | 'agent' | 'tool' | 'connect' | 'mic' | 'hangup',
+): void {
+  if (source === 'hangup') {
+    resetIdleWatch();
+    return;
+  }
+  if (idleCheckedIn && source === 'agent') return;
+  if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping) {
+    resetIdleWatch();
+    return;
+  }
+  resetIdleWatch();
+  scheduleIdleCheckIn();
+}
+
+function beginExitVeil(reason: VoiceExitReason): void {
+  pendingStopReason = reason;
+  resetIdleWatch();
+  stopping = true;
+  sendAudioLive = false;
+  const exitLine = pickVoiceExitVeil();
+  resolveDeps().playExit();
+  patch({
+    hud: 'exiting',
+    phase: 'exiting',
+    status: exitLine,
+    exitLine,
+    active: true,
+  });
+  const generation = currentGeneration();
+  const veilMs = prefersReducedSubtitleMotion() ? VOICE_EXIT_VEIL_REDUCED_MS : VOICE_EXIT_VEIL_MS;
+  exitVeilTimer = setTimeout(() => {
+    exitVeilTimer = null;
+    if (isStale(generation)) return;
+    finishStop(pendingStopReason);
+  }, veilMs);
+}
+
 function tryMarkIntroComplete(): void {
   if (snapshot.introComplete || stopping || !snapshot.active) return;
   if (!socketReady || !greetTurnComplete) return;
@@ -406,6 +532,7 @@ function tryMarkIntroComplete(): void {
     hud: 'live',
     status: 'Live. Ask anything, or try a site action.',
   });
+  noteVoiceActivity('connect');
   queue?.notifyReady();
 }
 
@@ -442,6 +569,8 @@ function teardownMedia(reason: VoiceExitReason): void {
   sendAudioLive = false;
   socketReady = false;
   greetTurnComplete = false;
+  resetIdleWatch();
+  clearExitVeilTimer();
   resetSubtitleState();
   resetFarewellWait();
   resetUtterancePlan();
@@ -537,9 +666,11 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     }),
     nextCaller.on('userTranscript', text => {
       applySpokenTranscript('user', text, generation);
+      noteVoiceActivity('user');
     }),
     nextCaller.on('agentTranscript', text => {
       applySpokenTranscript('agent', text, generation);
+      noteVoiceActivity('agent');
     }),
     nextCaller.on('audio', chunk => {
       if (isStale(generation)) return;
@@ -553,6 +684,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       queue?.notifyReady();
     }),
     nextCaller.on('toolCall', call => {
+      noteVoiceActivity('tool');
       void onToolCall(call);
     }),
     nextCaller.on('turnComplete', () => {
@@ -574,6 +706,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (reason === 'health') {
         sendAudioLive = false;
         socketReady = false;
+        resetIdleWatch();
         patch({
           error: 'Connection faded. Stay here or hang up.',
           phase: 'error',
@@ -646,6 +779,7 @@ async function bootSession(): Promise<void> {
       status: 'Connected. Waiting for the welcome.',
       welcomeHint: session.setup.welcomeHint || VOICE_WELCOME_HINT,
     });
+    noteVoiceActivity('connect');
     tryMarkIntroComplete();
   } catch (caught) {
     if (isStale(generation)) return;
@@ -697,6 +831,8 @@ export function startVoiceSession(): Promise<void> {
   greetTurnComplete = false;
   resetSubtitleState();
   resetFarewellWait();
+  resetIdleWatch();
+  clearExitVeilTimer();
   resetUtterancePlan();
   previousPhase = 'entering';
   patch({
@@ -712,27 +848,44 @@ export function startVoiceSession(): Promise<void> {
     introComplete: false,
     hangupPending: false,
     welcomeHint: VOICE_WELCOME_HINT,
+    exitLine: '',
     generation: snapshot.generation + 1,
   });
   return bootSession();
 }
 
-export function stopVoiceSession(reason: VoiceExitReason = 'user'): void {
+export function stopVoiceSession(reason: VoiceExitReason = 'user', options: { force?: boolean } = {}): void {
   if (!snapshot.active && !starting) {
     queue?.reset();
     return;
   }
+  if (snapshot.hud === 'exiting') {
+    if (options.force === true) {
+      finishStop(reason);
+    }
+    return;
+  }
   if (stopping) return;
-  resolveDeps().playExit();
-  finishStop(reason);
+  if (options.force === true) {
+    resolveDeps().playExit();
+    finishStop(reason);
+    return;
+  }
+  beginExitVeil(reason);
 }
 
 export function requestVoiceHangup(options: VoiceHangupRequest = {}): void {
   if (!snapshot.active && !starting) return;
   const reason = options.reason ?? 'user';
-  const force = options.force === true || snapshot.hangupPending;
+  noteVoiceActivity('hangup');
+  const alreadyExiting = snapshot.hud === 'exiting';
+  const force = options.force === true || snapshot.hangupPending || alreadyExiting;
+  if (alreadyExiting) {
+    stopVoiceSession(reason, { force: true });
+    return;
+  }
   if (force || !queue) {
-    stopVoiceSession(reason);
+    stopVoiceSession(reason, { force });
     return;
   }
   patch({
@@ -764,6 +917,7 @@ export function enableVoiceCapture(): void {
   if (!snapshot.active || capture) return;
   const generation = currentGeneration();
   const d = resolveDeps();
+  noteVoiceActivity('mic');
   void d.startCapture(chunk => {
     if (sendAudioLive) caller?.sendAudio(chunk);
   }, { lowNetwork: snapshot.lowNetwork }).then(nextCapture => {
@@ -789,9 +943,12 @@ export function setVoiceSessionRuntimeDepsForTests(deps: Partial<VoiceSessionRun
 
 export function resetVoiceSessionRuntimeForTests(): void {
   stopping = true;
+  resetIdleWatch();
+  clearExitVeilTimer();
   teardownMedia('user');
   starting = false;
   stopping = false;
+  pendingStopReason = 'user';
   snapshot = IDLE_SNAPSHOT;
   hostRuntime = null;
   depsOverride = null;

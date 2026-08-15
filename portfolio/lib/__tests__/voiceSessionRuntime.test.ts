@@ -15,14 +15,23 @@ import {
   setVoiceSessionRuntimeDepsForTests,
   startVoiceSession,
   stopVoiceSession,
+  VOICE_EXIT_VEIL_MS,
+  VOICE_IDLE_CHECKIN_MS,
+  VOICE_IDLE_HANGUP_MS,
   VOICE_SUBTITLE_FADE_MS,
   VOICE_SUBTITLE_IDLE_MS,
 } from '@/lib/voiceSessionRuntime';
-import { VOICE_WELCOME_HINT } from '@/lib/voiceAgentProtocol';
+import {
+  VOICE_EXIT_VEIL_VARIATIONS,
+  VOICE_IDLE_CHECKIN_VARIATIONS,
+  VOICE_IDLE_HANGUP_VARIATIONS,
+  VOICE_WELCOME_HINT,
+} from '@/lib/voiceAgentProtocol';
 
 function createFakeCaller() {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const toolResults: Array<{ id: string; result: unknown; name?: string }> = [];
+  const sentTexts: string[] = [];
   let connectCount = 0;
 
   const caller: VoiceCaller = {
@@ -31,7 +40,9 @@ function createFakeCaller() {
       connectCount += 1;
     },
     sendAudio() {},
-    sendText() {},
+    sendText(text) {
+      sentTexts.push(text);
+    },
     sendToolResult(id, result, name) {
       toolResults.push({ id, result, name });
     },
@@ -49,7 +60,11 @@ function createFakeCaller() {
     for (const listener of listeners.get(event) ?? []) listener(payload);
   }
 
-  return { caller, emit, toolResults, getConnectCount: () => connectCount };
+  return { caller, emit, toolResults, sentTexts, getConnectCount: () => connectCount };
+}
+
+function cueContainsCatalog(sent: readonly string[], catalog: readonly string[]): boolean {
+  return sent.some(text => catalog.some(line => text.includes(line)));
 }
 
 function createFakePlayback() {
@@ -161,6 +176,16 @@ describe('voice session runtime singleton', () => {
       openProject,
       push,
     };
+  }
+
+  function goLive(runtime: Awaited<ReturnType<typeof boot>>) {
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      hud: 'live',
+      introComplete: true,
+      active: true,
+    });
   }
 
   it('keeps only the latest spoken utterance and clears it after idle', async () => {
@@ -325,11 +350,34 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('stops immediately on user hangup while playback is idle', async () => {
+  it('shows the exit veil on user hangup while playback is idle', async () => {
+    vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().hud).toBe('live');
+    goLive(runtime);
+
+    runtime.requestVoiceHangup();
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
+    expect(VOICE_EXIT_VEIL_VARIATIONS).toContain(runtime.getVoiceSessionSnapshot().exitLine);
+
+    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
+    expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('finishes immediately on a second hangup during the exit veil', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.requestVoiceHangup();
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
 
     runtime.requestVoiceHangup();
     expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
@@ -337,11 +385,103 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('waits for goodbye audio after end_voice_session while idle', async () => {
+  it('sends an idle check-in after the quiet window and stays live', async () => {
+    vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
+    goLive(runtime);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'live',
+      hangupPending: false,
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('cancels idle hangup when the visitor speaks after check-in', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
+
+    runtime.fakeCaller.emit('userTranscript', 'still here');
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'live',
+      hangupPending: false,
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('hangs up after a silent check-in, then finishes through farewell and the exit veil', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(true);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hangupPending: true,
+    });
+
+    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
     runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().hud).toBe('live');
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
+
+    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
+    expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('does not start idle hangup after a health drop', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.fakeCaller.emit('ended', 'health');
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'live',
+      phase: 'error',
+      error: 'Connection faded. Stay here or hang up.',
+    });
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS + VOICE_IDLE_HANGUP_MS);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(false);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'live',
+      hangupPending: false,
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('waits for goodbye audio after end_voice_session while idle', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
 
     runtime.fakeCaller.emit('toolCall', {
       id: 'end-1',
@@ -364,12 +504,20 @@ describe('voice session runtime singleton', () => {
     expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
 
     runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
+
+    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
     expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
 
     runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 
   it('waits for idle when end_voice_session arrives during goodbye playback', async () => {
+    vi.useFakeTimers();
     const runtime = await boot();
     runtime.fakeCaller.emit('turnComplete', true);
     runtime.fakePlayback.setBusy(true);
@@ -386,9 +534,16 @@ describe('voice session runtime singleton', () => {
     expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
 
     runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
+
+    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
     expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
 
     runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 
   it('queues the rest of a planned utterance after the model emits only navigate_to', async () => {

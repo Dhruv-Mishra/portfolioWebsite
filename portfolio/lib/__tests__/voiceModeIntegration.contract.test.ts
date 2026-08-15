@@ -21,8 +21,12 @@ describe('voice mode integration contract', () => {
     expect(chat).toContain('data-voice-field="chat-composer"');
     expect(guestbook).toContain('data-voice-field="guestbook-message"');
     expect(guestbook).toContain('data-voice-field="guestbook-name"');
+    expect(guestbook).toContain("registerSiteActionHost('guestbook')");
+    expect(guestbook).toContain('SUBMIT_GUESTBOOK_EVENT');
     expect(feedback).toContain('data-voice-field="feedback-message"');
     expect(feedback).toContain('data-voice-field="feedback-contact"');
+    expect(feedback).toContain("registerSiteActionHost('feedback')");
+    expect(feedback).toContain('SUBMIT_FEEDBACK_EVENT');
     expect(palette).toContain('data-voice-field="command-palette-query"');
     expect(terminal).toContain('data-voice-field={activePrompt ? undefined : "terminal-input"}');
   });
@@ -39,7 +43,7 @@ describe('voice mode integration contract', () => {
     expect(enhancements).toContain('VoiceModeController');
     expect(controller).not.toContain("href: '/chat'");
     expect(stage).not.toContain("href: '/'");
-    expect(stage).toContain("role={intro ? 'dialog' : 'complementary'}");
+    expect(stage).toContain("role={intro || exiting ? 'dialog' : 'complementary'}");
     expect(stage).toContain('aria-label="Voice agent"');
     expect(home).toContain('HomeVoiceNote');
     expect(homeNote).toContain('Talk to me');
@@ -53,5 +57,13 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('voice-orb-ripple');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-ring');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-ripple');
+    expect(stage).not.toContain('line-clamp-3');
+    expect(stage).not.toContain('-webkit-line-clamp');
+    expect(stage).toContain('data-subtitle-phase={snapshot.subtitlePhase}');
+    expect(stage).toContain('max-h-[7.5rem]');
+    expect(stage).toContain('max-w-[min(24rem,calc(100vw-1.5rem))]');
+    expect(stage).toContain('justify-end');
+    expect(stage).toContain('overflow-hidden');
+    expect(css).toContain('.voice-dock-transcript[data-subtitle-phase="exiting"]');
   });
 });

@@ -14,6 +14,13 @@ import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { TIMING_TOKENS, LAYOUT_TOKENS, FEEDBACK_COLORS, SHADOW_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import {
+  SUBMIT_FEEDBACK_EVENT,
+  attachSiteActionResult,
+  registerSiteActionHost,
+  type SubmitFeedbackEventDetail,
+} from '@/lib/siteActionEvents';
+import { isFeedbackCategory } from '@/lib/siteTools';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';
@@ -170,10 +177,14 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     };
   }, []);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (overrides?: {
+    message?: string;
+    contact?: string;
+    category?: FeedbackCategory;
+  }) => {
     if (state === 'submitting') return;
 
-    const trimmed = message.trim();
+    const trimmed = (overrides?.message ?? message).trim();
     if (!trimmed || trimmed.length < 5) {
       warning();
       setErrorMsg('Please write at least 5 characters.');
@@ -197,9 +208,9 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          category,
+          category: overrides?.category ?? category,
           message: trimmed,
-          contact: contact.trim() || undefined,
+          contact: (overrides?.contact ?? contact).trim() || undefined,
           page: pathname,
           theme: resolvedTheme || 'unknown',
           viewport: `${window.innerWidth}x${window.innerHeight}`,
@@ -229,6 +240,53 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
     }
   }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft, errorHaptic, submit, success, warning]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (raw: Event) => {
+      const event = raw as CustomEvent<SubmitFeedbackEventDetail>;
+      const nextMessage = event.detail?.message?.trim();
+      if (!nextMessage) return;
+      if (state === 'submitting' || state === 'success') {
+        attachSiteActionResult(event, {
+          ok: false,
+          spokenText: 'Feedback is busy sending the current note.',
+          errorCode: 'feedback-busy',
+        });
+        return;
+      }
+      const pinnedMessage = nextMessage.slice(0, MAX_MESSAGE_LENGTH);
+      const pinnedContact = event.detail?.contact !== undefined
+        ? event.detail.contact.trim().slice(0, LAYOUT_TOKENS.contactMaxLength)
+        : undefined;
+      const pinnedCategory = isFeedbackCategory(event.detail?.category)
+        ? event.detail.category
+        : undefined;
+      setMessage(pinnedMessage);
+      if (pinnedContact !== undefined) {
+        setContact(pinnedContact);
+      }
+      if (pinnedCategory) {
+        setCategory(pinnedCategory);
+      }
+      attachSiteActionResult(event, {
+        ok: true,
+        spokenText: 'Sending that feedback.',
+        data: { accepted: true },
+      });
+      void handleSubmit({
+        message: pinnedMessage,
+        contact: pinnedContact,
+        category: pinnedCategory,
+      });
+    };
+    const unregister = registerSiteActionHost('feedback');
+    window.addEventListener(SUBMIT_FEEDBACK_EVENT, handler);
+    return () => {
+      unregister();
+      window.removeEventListener(SUBMIT_FEEDBACK_EVENT, handler);
+    };
+  }, [handleSubmit, isOpen, state]);
 
   const handleCategorySelect = useCallback((nextCategory: FeedbackCategory) => {
     selection();
@@ -399,7 +457,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                             "flex min-h-11 items-center gap-1 px-2.5 py-1.5 rounded-md",
                             "border-2 border-dashed border-[var(--c-grid)]/40",
                             "text-[var(--c-ink)] opacity-50 hover:opacity-80",
-                            "font-hand text-sm transition-opacity",
+                            "font-hand text-xs transition-opacity",
                           )}
                           title="Clear text"
                         >
@@ -410,7 +468,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                       <m.button
                         whileHover={{ scale: 1.05, rotate: -1 }}
                         whileTap={{ scale: 0.92 }}
-                        onClick={handleSubmit}
+                        onClick={() => { void handleSubmit(); }}
                         disabled={!message.trim() || state === 'submitting'}
                         className={cn(
                           "flex min-h-11 items-center gap-1.5 px-4 py-1.5 rounded-md",

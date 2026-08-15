@@ -22,6 +22,7 @@ export const SITE_TOOL_NAMES = [
   'set_voice_backend',
   'set_motion_preference',
   'submit_guestbook',
+  'submit_feedback',
   'lookup_site_facts',
   'start_voice_session',
   'end_voice_session',
@@ -78,6 +79,9 @@ export type VoiceBackendMode = (typeof VOICE_BACKEND_MODES)[number];
 
 export const MOTION_PREFERENCE_VALUES = ['system', 'reduced', 'full'] as const;
 export type MotionPreferenceValue = (typeof MOTION_PREFERENCE_VALUES)[number];
+
+export const FEEDBACK_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 
 export const CHAT_MESSAGE_MAX_LENGTH = 500;
 
@@ -168,6 +172,7 @@ export type SiteToolArgsMap = {
   set_voice_backend: { backend: VoiceBackendMode };
   set_motion_preference: { motion: MotionPreferenceValue };
   submit_guestbook: { message: string; name?: string };
+  submit_feedback: { message: string; contact?: string; category?: FeedbackCategory };
   lookup_site_facts: { query: string };
   start_voice_session: Record<string, never>;
   end_voice_session: { reason?: 'user' | 'health' | 'error' };
@@ -229,6 +234,10 @@ export function isVoiceBackendMode(value: unknown): value is VoiceBackendMode {
 
 export function isMotionPreferenceValue(value: unknown): value is MotionPreferenceValue {
   return typeof value === 'string' && (MOTION_PREFERENCE_VALUES as readonly string[]).includes(value);
+}
+
+export function isFeedbackCategory(value: unknown): value is FeedbackCategory {
+  return typeof value === 'string' && (FEEDBACK_CATEGORIES as readonly string[]).includes(value);
 }
 
 export function isVoiceSafeTerminalCommand(value: unknown): value is VoiceSafeTerminalCommand {

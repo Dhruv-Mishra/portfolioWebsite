@@ -6,10 +6,9 @@ import {
   isTtsRequestAbortedError,
   isTtsQueueFullError,
   resolveLocalTtsOptions,
-  runWithLocalTtsSlot,
   splitTextForLocalTts,
-  streamLocalTts,
-  synthesizeLocalTts,
+  streamLocalTtsCached,
+  synthesizeLocalTtsCached,
 } from '@/lib/localTts.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { acceptsTtsFrameGzip, createTtsStreamAudioFrame } from '@/lib/ttsStreamFrames.server';
@@ -182,33 +181,31 @@ export async function POST(request: NextRequest): Promise<Response> {
         };
 
         try {
-          await runWithLocalTtsSlot(async () => {
-            let sentReady = false;
+          let sentReady = false;
 
-            for await (const chunk of streamLocalTts(text, options, request.signal)) {
-              if (!sentReady) {
-                if (!safeEnqueue({
-                  codec: 'pcm_s16le',
-                  provider: getPublicLocalTtsSettings().provider,
-                  sampleRate: chunk.sampleRate,
-                  compression: acceptsGzip ? 'adaptive-gzip' : 'none',
-                  type: 'ready',
-                  voiceRevision: chunk.voiceRevision,
-                })) return;
-                sentReady = true;
-              }
+          for await (const chunk of streamLocalTtsCached(text, options, request.signal)) {
+            if (!sentReady) {
               if (!safeEnqueue({
-                ...createTtsStreamAudioFrame(chunk.audio, acceptsGzip),
-                durationMs: chunk.durationMs,
-                index: chunk.index,
+                codec: 'pcm_s16le',
+                provider: getPublicLocalTtsSettings().provider,
                 sampleRate: chunk.sampleRate,
-                type: 'chunk',
+                compression: acceptsGzip ? 'adaptive-gzip' : 'none',
+                type: 'ready',
+                voiceRevision: chunk.voiceRevision,
               })) return;
+              sentReady = true;
             }
+            if (!safeEnqueue({
+              ...createTtsStreamAudioFrame(chunk.audio, acceptsGzip),
+              durationMs: chunk.durationMs,
+              index: chunk.index,
+              sampleRate: chunk.sampleRate,
+              type: 'chunk',
+            })) return;
+          }
 
-            if (!sentReady) throw new Error('Local TTS produced no audio chunks.');
-            safeEnqueue({ type: 'done' });
-          }, request.signal);
+          if (!sentReady) throw new Error('Local TTS produced no audio chunks.');
+          safeEnqueue({ type: 'done' });
         } catch (error) {
           if (isTtsRequestAbortedError(error) || request.signal.aborted) {
             return;
@@ -236,7 +233,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const wav = await runWithLocalTtsSlot(() => synthesizeLocalTts(text, options, request.signal), request.signal);
+    const wav = await synthesizeLocalTtsCached(text, options, request.signal);
     return new NextResponse(toArrayBuffer(wav), {
       headers: {
         'Cache-Control': 'no-store',

@@ -15,8 +15,8 @@ const localTtsMocks = vi.hoisted(() => ({
   resolveOptions: vi.fn(),
   runWithSlot: vi.fn(),
   splitText: vi.fn(),
-  stream: vi.fn(),
-  synthesize: vi.fn(),
+  streamCached: vi.fn(),
+  synthesizeCached: vi.fn(),
 }));
 
 vi.mock('@/lib/localTts.server', () => ({
@@ -28,8 +28,8 @@ vi.mock('@/lib/localTts.server', () => ({
   resolveLocalTtsOptions: localTtsMocks.resolveOptions,
   runWithLocalTtsSlot: localTtsMocks.runWithSlot,
   splitTextForLocalTts: localTtsMocks.splitText,
-  streamLocalTts: localTtsMocks.stream,
-  synthesizeLocalTts: localTtsMocks.synthesize,
+  streamLocalTtsCached: localTtsMocks.streamCached,
+  synthesizeLocalTtsCached: localTtsMocks.synthesizeCached,
 }));
 
 import { GET, POST } from '@/app/api/tts/route';

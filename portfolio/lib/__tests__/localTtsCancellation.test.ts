@@ -14,6 +14,12 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('node:fs/promises', () => ({
   mkdir: mkdirMock,
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  readdir: vi.fn(),
+  stat: vi.fn(),
+  unlink: vi.fn(),
+  rm: vi.fn(),
 }));
 
 import {

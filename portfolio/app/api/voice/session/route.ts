@@ -44,7 +44,11 @@ export async function POST(request: NextRequest) {
       lowNetwork: body?.lowNetwork === true,
     });
     return Response.json(session);
-  } catch {
-    return Response.json({ error: 'Unable to start voice session.' }, { status: 503 });
+  } catch (error) {
+    console.error('[voice-session] mint failed', error);
+    return Response.json(
+      { error: 'Unable to start voice session.', code: 'mint-failed' },
+      { status: 503 },
+    );
   }
 }

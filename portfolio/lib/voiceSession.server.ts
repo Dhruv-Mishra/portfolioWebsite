@@ -39,7 +39,7 @@ export function buildLockedLiveSetup(lowNetwork: boolean) {
         },
       },
       thinkingConfig: {
-        thinkingLevel: 'minimal',
+        thinkingLevel: 'MINIMAL',
       },
     },
     systemInstruction: {
@@ -61,24 +61,94 @@ interface GeminiAuthTokenResponse {
   newSessionExpireTime?: string;
 }
 
-async function mintFromUrl(url: string, apiKey: string, setup: ReturnType<typeof buildLockedLiveSetup>): Promise<GeminiAuthTokenResponse> {
+function tokenLifetimeFields() {
+  return {
+    expireTime: toIso(VOICE_TOKEN_TTL_MS),
+    newSessionExpireTime: toIso(VOICE_NEW_SESSION_TTL_MS),
+    uses: VOICE_TOKEN_USES,
+  };
+}
+
+export function buildVoiceAuthTokenRequest(setup: ReturnType<typeof buildLockedLiveSetup> | null) {
+  return {
+    authToken: {
+      ...tokenLifetimeFields(),
+      ...(setup ? { bidiGenerateContentSetup: setup } : {}),
+    },
+  };
+}
+
+function buildLiveConnectConstraintsRequest() {
+  return {
+    ...tokenLifetimeFields(),
+    liveConnectConstraints: {
+      model: `models/${VOICE_AGENT_MODEL_ID}`,
+      config: {
+        responseModalities: ['AUDIO'],
+        sessionResumption: {},
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: VOICE_AGENT_VOICE_NAME,
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+async function postAuthToken(url: string, apiKey: string, body: unknown): Promise<GeminiAuthTokenResponse> {
   const response = await fetch(`${url}?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      expireTime: toIso(VOICE_TOKEN_TTL_MS),
-      newSessionExpireTime: toIso(VOICE_NEW_SESSION_TTL_MS),
-      uses: VOICE_TOKEN_USES,
-      bidiGenerateContentSetup: setup,
-    }),
+    body: JSON.stringify(body),
     cache: 'no-store',
   });
 
-  const payload = await response.json().catch(() => ({})) as GeminiAuthTokenResponse & { error?: { message?: string } };
+  const payload = await response.json().catch(() => ({})) as GeminiAuthTokenResponse;
   if (!response.ok) {
-    throw new Error(payload.error?.message || `Token mint failed (${response.status})`);
+    throw new Error(`Token mint failed (${response.status})`);
+  }
+  if (!payload.name) {
+    throw new Error('Token mint returned no name.');
   }
   return payload;
+}
+
+export async function mintFromUrl(
+  url: string,
+  apiKey: string,
+  setup: ReturnType<typeof buildLockedLiveSetup> | null,
+): Promise<GeminiAuthTokenResponse> {
+  return postAuthToken(url, apiKey, buildVoiceAuthTokenRequest(setup));
+}
+
+function toSessionHandle(token: GeminiAuthTokenResponse, lowNetwork: boolean): VoiceSessionHandle {
+  return {
+    token: token.name as string,
+    expiresAt: token.expireTime ?? toIso(VOICE_TOKEN_TTL_MS),
+    newSessionExpiresAt: token.newSessionExpireTime ?? toIso(VOICE_NEW_SESSION_TTL_MS),
+    setup: {
+      modelLabel: 'native-live',
+      voiceLabel: 'male',
+      inputSampleRate: 16_000,
+      outputSampleRate: 24_000,
+      greetOnConnect: true,
+      lowNetwork,
+    },
+  };
+}
+
+async function mintAcrossUrls(apiKey: string, body: unknown): Promise<GeminiAuthTokenResponse | null> {
+  for (const url of VOICE_AUTH_TOKEN_URLS) {
+    try {
+      return await postAuthToken(url, apiKey, body);
+    } catch {
+      // Try the next discovery path or mint body before failing closed.
+    }
+  }
+  return null;
 }
 
 export async function mintVoiceSession(options: {
@@ -90,30 +160,14 @@ export async function mintVoiceSession(options: {
   }
 
   const setup = buildLockedLiveSetup(options.lowNetwork);
-  let lastError: unknown;
-  for (const url of VOICE_AUTH_TOKEN_URLS) {
-    try {
-      const token = await mintFromUrl(url, apiKey, setup);
-      if (!token.name) {
-        throw new Error('Token mint returned no name.');
-      }
-      return {
-        token: token.name,
-        expiresAt: token.expireTime ?? toIso(VOICE_TOKEN_TTL_MS),
-        newSessionExpiresAt: token.newSessionExpireTime ?? toIso(VOICE_NEW_SESSION_TTL_MS),
-        setup: {
-          modelLabel: 'native-live',
-          voiceLabel: 'male',
-          inputSampleRate: 16_000,
-          outputSampleRate: 24_000,
-          greetOnConnect: true,
-          lowNetwork: options.lowNetwork,
-        },
-      };
-    } catch (error) {
-      lastError = error;
-    }
-  }
+  const locked = await mintAcrossUrls(apiKey, buildVoiceAuthTokenRequest(setup));
+  if (locked) return toSessionHandle(locked, options.lowNetwork);
 
-  throw lastError instanceof Error ? lastError : new Error('Unable to mint a voice session.');
+  const unlocked = await mintAcrossUrls(apiKey, buildVoiceAuthTokenRequest(null));
+  if (unlocked) return toSessionHandle(unlocked, options.lowNetwork);
+
+  const constrained = await mintAcrossUrls(apiKey, buildLiveConnectConstraintsRequest());
+  if (constrained) return toSessionHandle(constrained, options.lowNetwork);
+
+  throw new Error('Unable to mint a voice session.');
 }

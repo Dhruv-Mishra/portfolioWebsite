@@ -3,7 +3,7 @@ import 'server-only';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -19,6 +19,11 @@ const DEFAULT_SPEED = 1;
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
 const DEFAULT_VOICE = 'custom-dhruv';
+const UTTERANCE_CACHE_VERSION = 'v8';
+const UTTERANCE_CACHE_CODEC = 'pcm_s16le';
+const UTTERANCE_CACHE_SUBDIR = 'utterances';
+const MAX_UTTERANCE_CACHE_FILES = 64;
+const MAX_UTTERANCE_CACHE_BYTES = 64 * 1024 * 1024;
 
 export type LocalTtsVoice = typeof DEFAULT_VOICE;
 
@@ -768,4 +773,402 @@ export async function* streamLocalTts(text: string, options: LocalTtsOptions, si
       voiceRevision: chunk.voiceRevision,
     };
   }
+}
+
+export interface CachedUtterance {
+  durationMs: number;
+  pcm: Buffer;
+  sampleRate: number;
+  voiceRevision: string;
+}
+
+export interface TtsUtteranceCacheWriteMeta {
+  durationMs: number;
+  sampleRate: number;
+  voiceRevision: string;
+}
+
+interface UtteranceCacheMeta extends TtsUtteranceCacheWriteMeta {
+  byteLength: number;
+  createdAt: number;
+  key: string;
+}
+
+interface UtteranceCacheIndexEntry {
+  byteLength: number;
+  createdAt: number;
+  digest: string;
+  metaPath: string;
+  pcmPath: string;
+}
+
+const pendingByKey = new Map<string, Promise<CachedUtterance>>();
+
+function formatUtteranceCacheSpeed(speed: number): string {
+  return String(Math.round(clampSpeed(speed) * 1000) / 1000);
+}
+
+function hashUtteranceCacheValue(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function getUtteranceCacheDir(): string {
+  return path.join(getSettings().cacheDir, UTTERANCE_CACHE_SUBDIR);
+}
+
+function getUtteranceCachePaths(key: string): { digest: string; metaPath: string; pcmPath: string } {
+  const digest = hashUtteranceCacheValue(key);
+  const dir = getUtteranceCacheDir();
+  return {
+    digest,
+    metaPath: path.join(dir, `${digest}.meta.json`),
+    pcmPath: path.join(dir, `${digest}.pcm`),
+  };
+}
+
+function parseUtteranceCacheMeta(raw: string): UtteranceCacheMeta | null {
+  try {
+    const value = JSON.parse(raw) as Partial<UtteranceCacheMeta>;
+    if (
+      typeof value.key !== 'string'
+      || value.key.length === 0
+      || !isValidSampleRate(value.sampleRate)
+      || typeof value.voiceRevision !== 'string'
+      || value.voiceRevision.length === 0
+      || !isNonNegativeFiniteNumber(value.durationMs)
+      || !isNonNegativeInteger(value.byteLength)
+      || !isNonNegativeFiniteNumber(value.createdAt)
+    ) {
+      return null;
+    }
+    return {
+      byteLength: value.byteLength,
+      createdAt: value.createdAt,
+      durationMs: value.durationMs,
+      key: value.key,
+      sampleRate: value.sampleRate,
+      voiceRevision: value.voiceRevision,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getUtteranceCacheKeyParts(key: string): { sampleRate: number; voiceRevision: string } | null {
+  const parts = key.split(':');
+  if (parts.length !== 9) return null;
+  const sampleRate = Number(parts[8]);
+  if (!isValidSampleRate(sampleRate)) return null;
+  return { sampleRate, voiceRevision: parts[5] ?? '' };
+}
+
+export function buildTtsUtteranceCacheKey(
+  text: string,
+  options: LocalTtsOptions,
+  voiceRevision: string,
+): string {
+  const spokenText = normalizeText(text, getSettings().maxTextChars);
+  const textHash = hashUtteranceCacheValue(spokenText);
+  return [
+    'tts',
+    UTTERANCE_CACHE_VERSION,
+    PROVIDER,
+    textHash,
+    options.voice,
+    voiceRevision,
+    formatUtteranceCacheSpeed(options.speed),
+    UTTERANCE_CACHE_CODEC,
+    String(SAMPLE_RATE),
+  ].join(':');
+}
+
+export function getTtsUtteranceCacheKey(
+  text: string,
+  options: LocalTtsOptions,
+  voiceRevision: string,
+): string {
+  return buildTtsUtteranceCacheKey(text, options, voiceRevision);
+}
+
+export async function readTtsUtteranceCache(key: string): Promise<CachedUtterance | null> {
+  const expected = getUtteranceCacheKeyParts(key);
+  if (!expected) return null;
+
+  const { metaPath, pcmPath } = getUtteranceCachePaths(key);
+  try {
+    const [pcm, rawMeta] = await Promise.all([
+      readFile(pcmPath),
+      readFile(metaPath, 'utf8'),
+    ]);
+    const meta = parseUtteranceCacheMeta(rawMeta);
+    if (
+      !meta
+      || meta.key !== key
+      || meta.voiceRevision !== expected.voiceRevision
+      || meta.sampleRate !== expected.sampleRate
+      || pcm.byteLength !== meta.byteLength
+      || pcm.byteLength % 2 !== 0
+    ) {
+      return null;
+    }
+
+    return {
+      durationMs: meta.durationMs,
+      pcm,
+      sampleRate: meta.sampleRate,
+      voiceRevision: meta.voiceRevision,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function indexUtteranceCache(dir: string): Promise<UtteranceCacheIndexEntry[]> {
+  const names = await readdir(dir);
+  const byDigest = new Map<string, { metaName?: string; pcmName?: string }>();
+
+  for (const name of names) {
+    if (name.endsWith('.meta.json')) {
+      const digest = name.slice(0, -'.meta.json'.length);
+      const entry = byDigest.get(digest) ?? {};
+      entry.metaName = name;
+      byDigest.set(digest, entry);
+      continue;
+    }
+    if (name.endsWith('.pcm')) {
+      const digest = name.slice(0, -'.pcm'.length);
+      const entry = byDigest.get(digest) ?? {};
+      entry.pcmName = name;
+      byDigest.set(digest, entry);
+    }
+  }
+
+  const entries: UtteranceCacheIndexEntry[] = [];
+  for (const [digest, files] of byDigest) {
+    const metaPath = files.metaName ? path.join(dir, files.metaName) : '';
+    const pcmPath = files.pcmName ? path.join(dir, files.pcmName) : '';
+    let createdAt = 0;
+    let byteLength = 0;
+
+    if (metaPath) {
+      try {
+        const meta = parseUtteranceCacheMeta(await readFile(metaPath, 'utf8'));
+        if (meta) {
+          createdAt = meta.createdAt;
+          byteLength = meta.byteLength;
+        }
+      } catch {
+        // Fall back to pcm mtime/size below.
+      }
+    }
+
+    if (pcmPath) {
+      try {
+        const info = await stat(pcmPath);
+        if (!createdAt) createdAt = info.mtimeMs;
+        if (!byteLength) byteLength = info.size;
+      } catch {
+        // Skip a missing pcm; the entry can still be pruned via its meta file.
+      }
+    } else if (metaPath && !createdAt) {
+      try {
+        createdAt = (await stat(metaPath)).mtimeMs;
+      } catch {
+        createdAt = 0;
+      }
+    }
+
+    entries.push({ byteLength, createdAt, digest, metaPath, pcmPath });
+  }
+
+  return entries;
+}
+
+async function pruneUtteranceCache(dir: string): Promise<void> {
+  const entries = await indexUtteranceCache(dir);
+  entries.sort((left, right) => left.createdAt - right.createdAt || left.digest.localeCompare(right.digest));
+
+  let fileCount = entries.filter(entry => entry.pcmPath).length;
+  let totalBytes = entries.reduce((sum, entry) => sum + entry.byteLength, 0);
+
+  for (const entry of entries) {
+    if (fileCount <= MAX_UTTERANCE_CACHE_FILES && totalBytes <= MAX_UTTERANCE_CACHE_BYTES) {
+      return;
+    }
+
+    try {
+      if (entry.pcmPath) {
+        await unlink(entry.pcmPath);
+        fileCount -= 1;
+        totalBytes = Math.max(0, totalBytes - entry.byteLength);
+      }
+    } catch {
+      // Best-effort prune.
+    }
+
+    if (entry.metaPath) {
+      try {
+        await unlink(entry.metaPath);
+      } catch {
+        // Best-effort prune.
+      }
+    }
+  }
+}
+
+export async function rememberTtsUtterance(
+  key: string,
+  pcm: Buffer,
+  meta: TtsUtteranceCacheWriteMeta,
+): Promise<void> {
+  if (pcm.byteLength % 2 !== 0) return;
+
+  const expected = getUtteranceCacheKeyParts(key);
+  if (
+    !expected
+    || meta.voiceRevision !== expected.voiceRevision
+    || meta.sampleRate !== expected.sampleRate
+  ) {
+    return;
+  }
+
+  const dir = getUtteranceCacheDir();
+  const { metaPath, pcmPath } = getUtteranceCachePaths(key);
+  const record: UtteranceCacheMeta = {
+    byteLength: pcm.byteLength,
+    createdAt: Date.now(),
+    durationMs: meta.durationMs,
+    key,
+    sampleRate: meta.sampleRate,
+    voiceRevision: meta.voiceRevision,
+  };
+
+  await mkdir(dir, { recursive: true });
+  await writeFile(pcmPath, pcm);
+  await writeFile(metaPath, JSON.stringify(record));
+
+  try {
+    await pruneUtteranceCache(dir);
+  } catch {
+    // Best-effort prune.
+  }
+}
+
+export async function runCoalescedTtsJob(
+  key: string,
+  factory: () => Promise<CachedUtterance>,
+): Promise<CachedUtterance> {
+  const pending = pendingByKey.get(key);
+  if (pending) return pending;
+
+  const job = factory().finally(() => {
+    if (pendingByKey.get(key) === job) {
+      pendingByKey.delete(key);
+    }
+  });
+  pendingByKey.set(key, job);
+  return job;
+}
+
+async function createUtteranceFromWorker(
+  text: string,
+  options: LocalTtsOptions,
+  voiceRevision: string,
+  signal?: AbortSignal,
+): Promise<CachedUtterance> {
+  const parts: Buffer[] = [];
+  let sampleRate = SAMPLE_RATE;
+
+  for await (const chunk of streamLocalTts(text, options, signal)) {
+    parts.push(chunk.audio);
+    sampleRate = chunk.sampleRate;
+  }
+
+  const pcm = Buffer.concat(parts);
+  return {
+    durationMs: Math.round(pcm.length / 2 / sampleRate * 1000),
+    pcm,
+    sampleRate,
+    voiceRevision,
+  };
+}
+
+async function getOrCreateCachedUtterance(
+  text: string,
+  options: LocalTtsOptions,
+  signal?: AbortSignal,
+): Promise<CachedUtterance> {
+  throwIfAborted(signal);
+  const voiceRevision = await getLocalTtsVoiceRevision();
+  throwIfAborted(signal);
+  const key = buildTtsUtteranceCacheKey(text, options, voiceRevision);
+
+  const cached = await readTtsUtteranceCache(key);
+  if (cached) {
+    throwIfAborted(signal);
+    return cached;
+  }
+
+  return runCoalescedTtsJob(key, async () => {
+    throwIfAborted(signal);
+    const raced = await readTtsUtteranceCache(key);
+    if (raced) return raced;
+
+    const created = await runWithLocalTtsSlot(
+      () => createUtteranceFromWorker(text, options, voiceRevision, signal),
+      signal,
+    );
+
+    if (created.sampleRate === SAMPLE_RATE && created.pcm.byteLength % 2 === 0) {
+      try {
+        await rememberTtsUtterance(key, created.pcm, {
+          durationMs: created.durationMs,
+          sampleRate: created.sampleRate,
+          voiceRevision,
+        });
+      } catch {
+        // Serving the just-synthesized audio is more important than persisting it.
+      }
+    }
+
+    return created;
+  });
+}
+
+export async function synthesizeLocalTtsCached(
+  text: string,
+  options: LocalTtsOptions,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  const chunks = splitTextForLocalTts(text);
+  if (chunks.length === 0) {
+    return encodePcm16BufferWav(Buffer.alloc(0), SAMPLE_RATE);
+  }
+
+  const utterance = await getOrCreateCachedUtterance(text, options, signal);
+  return encodePcm16BufferWav(utterance.pcm, utterance.sampleRate);
+}
+
+export async function* streamLocalTtsCached(
+  text: string,
+  options: LocalTtsOptions,
+  signal?: AbortSignal,
+): AsyncGenerator<LocalTtsChunk> {
+  const chunks = splitTextForLocalTts(text);
+  if (chunks.length === 0) return;
+
+  const utterance = await getOrCreateCachedUtterance(text, options, signal);
+  throwIfAborted(signal);
+  yield {
+    audio: utterance.pcm,
+    durationMs: utterance.durationMs,
+    index: 0,
+    sampleRate: utterance.sampleRate,
+    text: chunks[0] ?? '',
+    voiceRevision: utterance.voiceRevision,
+  };
+}
+
+export function __resetTtsUtteranceCacheForTests(): void {
+  pendingByKey.clear();
 }

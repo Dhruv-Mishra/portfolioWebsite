@@ -23,6 +23,24 @@ interface VoiceStageProps {
   requestedExit: VoiceExitReason | null;
 }
 
+async function voiceSessionStartError(response: Response): Promise<string> {
+  if (response.status === 429) {
+    try {
+      const payload = await response.json() as { error?: unknown };
+      if (typeof payload.error === 'string' && payload.error.trim()) {
+        return payload.error;
+      }
+    } catch {
+      // Keep the generic warming-up copy when the body is missing or invalid.
+    }
+    return 'Voice session is warming up. Try again shortly.';
+  }
+  if (response.status === 403) {
+    return 'This origin is not allowed to start a voice session.';
+  }
+  return 'Unable to start voice session.';
+}
+
 export default function VoiceStage({ onReady, onExitComplete, requestedExit }: VoiceStageProps) {
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
@@ -174,7 +192,7 @@ export default function VoiceStage({ onReady, onExitComplete, requestedExit }: V
         }
         if (!sessionRes.ok) {
           capture?.stop();
-          throw new Error('Unable to start voice session.');
+          throw new Error(await voiceSessionStartError(sessionRes));
         }
 
         const session = await sessionRes.json() as VoiceSessionHandle;

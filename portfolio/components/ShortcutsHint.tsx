@@ -80,6 +80,7 @@ export default function ShortcutsHint() {
     <AnimatePresence>
       {show && (
         <m.div
+          data-shortcuts-hint
           initial={MOTION_INITIAL}
           animate={MOTION_ANIMATE}
           exit={MOTION_EXIT}

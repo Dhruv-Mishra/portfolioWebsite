@@ -101,7 +101,7 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
       className={cn(
         'voice-orb relative grid place-items-center',
         `is-${phase}`,
-        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]',
+        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-20 md:w-20',
       )}
       style={{ '--voice-level': formatVoiceLevel(0) } as CSSProperties}
       aria-hidden
@@ -129,7 +129,7 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
           />
         )}
       </div>
-      <span className="voice-orb-sheen" aria-hidden />
+      <span className={cn('voice-orb-sheen', `is-${phase}`)} aria-hidden />
       {showLabel ? (
         <span className={cn(
           'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',

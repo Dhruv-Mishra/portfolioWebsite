@@ -88,7 +88,7 @@ describe('voice mode integration contract', () => {
     expect(stage).toMatch(/style=\{isMobile \? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE\}/);
     expect(stage).toContain('aria-label="Hang up voice call"');
     expect(stage).toContain('import { MicOff, Phone } from \'lucide-react\'');
-    expect(stage).toContain('<Phone size={16} aria-hidden className="-rotate-[135deg]" />');
+    expect(stage).toContain('<Phone size={17} aria-hidden className="rotate-[135deg]" />');
     expect(stage).not.toContain('PhoneOff');
     expect(stage).toContain('flex flex-row items-center gap-3');
     expect(stage).not.toContain('flex-col-reverse');

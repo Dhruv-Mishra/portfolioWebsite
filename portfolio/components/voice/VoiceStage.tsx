@@ -24,7 +24,7 @@ const EXIT_VEIL_FADE_MS = VOICE_EXIT_VEIL_MS - EXIT_TEARDOWN_MARGIN_MS;
 const FLIP_MS = 520;
 
 const DESKTOP_DOCK_STYLE = {
-  left: 'max(1.25rem, env(safe-area-inset-left) + var(--c-binding-w) + 0.5rem)',
+  left: 'max(6.5rem, env(safe-area-inset-left) + var(--c-binding-w-md) + 4rem)',
   bottom: 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)',
 } as const;
 
@@ -154,7 +154,7 @@ export default function VoiceStage() {
       aria-label="Hang up voice call"
       title="Hang up"
     >
-      <Phone size={16} aria-hidden className="-rotate-[135deg]" />
+      <Phone size={17} aria-hidden className="rotate-[135deg]" />
     </button>
   );
 
@@ -270,7 +270,7 @@ export default function VoiceStage() {
             <div className="flex flex-row items-center gap-3">
               <div
                 ref={dockSlotRef}
-                className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]"
+                className="h-16 w-16 md:h-20 md:w-20"
                 aria-hidden
               />
               {hangup}

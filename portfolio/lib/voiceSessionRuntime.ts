@@ -37,7 +37,7 @@ import {
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
-import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, startVoiceAmbient, stopVoiceAmbient } from '@/lib/voiceSounds';
+import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, startVoiceAmbient, stopVoiceAmbient, unlockVoiceAudio } from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -318,7 +318,7 @@ function defaultDeps(): VoiceSessionRuntimeDeps {
     createPlayback: createVoicePlayback,
     startCapture: startVoiceCapture,
     fetchSession: mintBrowserVoiceSession,
-    playEnter: () => playVoiceSound('voice-toggle'),
+    playEnter: () => { unlockVoiceAudio(); playVoiceSound('voice-toggle'); },
     playExit: () => playVoiceSound('voice-toggle'),
     playAction: () => playVoiceSound('voice-action'),
     startAmbient: startVoiceAmbient,
@@ -807,6 +807,10 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
         markFarewellHeard();
         notifyVoiceActionQueueReady();
       }
+      if (next === 'listening' && nextPlayback.isBusy()) {
+        patch({ phase: snapshot.phase === 'acting' ? 'acting' : 'speaking' });
+        return;
+      }
       patch({ phase: next });
     }),
     nextCaller.on('userTranscript', text => {
@@ -866,6 +870,9 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     }),
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
+      if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
+        patch({ phase: 'listening' });
+      }
       tryMarkIntroComplete();
       scheduleSubtitleClear(generation);
       notifyVoiceActionQueueReady();

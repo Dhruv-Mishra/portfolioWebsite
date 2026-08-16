@@ -60,6 +60,11 @@ describe('voice mode integration contract', () => {
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
     expect(css).toMatch(/@keyframes voice-orb-speak \{[\s\S]*scale\(1\.12\)[\s\S]*scale\(1\)/);
+    expect(css).toContain('@keyframes voice-orb-act-halo');
+    expect(css).not.toMatch(/\.voice-orb-media \{[^}]*mask-image/);
+    expect(css).toContain('object-position: 0% 50%');
+    expect(css).toContain('object-fit: cover');
+    expect(css).toContain('color-mix(in srgb, var(--c-paper) 56%, transparent)');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-gif');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-still');
     expect(css).toContain('html:not([data-motion="full"]) .voice-orb-gif');
@@ -82,6 +87,12 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain('activeAnimation.cancel()');
     expect(stage).toMatch(/style=\{isMobile \? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE\}/);
     expect(stage).toContain('aria-label="Hang up voice call"');
+    expect(stage).toContain('import { MicOff, Phone } from \'lucide-react\'');
+    expect(stage).toContain('<Phone size={16} aria-hidden className="-rotate-[135deg]" />');
+    expect(stage).not.toContain('PhoneOff');
+    expect(stage).toContain('flex flex-row items-center gap-3');
+    expect(stage).not.toContain('flex-col-reverse');
+    expect(stage).toContain('font-hand text-xs leading-snug');
     expect(orb).toMatch(/\{reducedMotion \? \([\s\S]*voice-orb-still[\s\S]*\) : \([\s\S]*voice-orb-gif/);
     expect(orb.match(/<img\b/g) ?? []).toHaveLength(2);
     expect(orb).toMatch(/if \(reducedMotion\) \{[\s\S]*return;[\s\S]*subscribeVoicePlaybackLevel/);

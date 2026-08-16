@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
-import { MicOff, PhoneOff } from 'lucide-react';
+import { MicOff, Phone } from 'lucide-react';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Z_INDEX } from '@/lib/designTokens';
@@ -154,7 +154,7 @@ export default function VoiceStage() {
       aria-label="Hang up voice call"
       title="Hang up"
     >
-      <PhoneOff size={16} aria-hidden />
+      <Phone size={16} aria-hidden className="-rotate-[135deg]" />
     </button>
   );
 
@@ -267,7 +267,7 @@ export default function VoiceStage() {
             className="pointer-events-auto absolute flex flex-col gap-3"
             style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
           >
-            <div className={cn('flex items-center gap-3', isMobile && 'flex-col-reverse')}>
+            <div className="flex flex-row items-center gap-3">
               <div
                 ref={dockSlotRef}
                 className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]"
@@ -293,7 +293,7 @@ export default function VoiceStage() {
                 role="status"
                 aria-live="polite"
                 data-subtitle-phase={snapshot.subtitlePhase}
-                className="voice-dock-transcript flex max-h-[7.5rem] max-w-[min(24rem,calc(100vw-1.5rem))] flex-col justify-end overflow-hidden font-hand text-sm leading-snug text-[var(--c-ink)]"
+                className="voice-dock-transcript flex max-h-[7.5rem] max-w-[min(24rem,calc(100vw-1.5rem))] flex-col justify-end overflow-hidden font-hand text-xs leading-snug text-[var(--c-ink)]"
               >
                 <p className="whitespace-pre-wrap">{spoken}</p>
               </div>

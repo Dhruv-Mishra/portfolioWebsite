@@ -101,11 +101,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
         try {
             await video.play();
-            if (playGeneration !== playGenerationRef.current) return false;
+            if (playGeneration !== playGenerationRef.current || videoRef.current !== video) return false;
             setShowPlayButton(false);
             return true;
         } catch {
-            if (playGeneration !== playGenerationRef.current) return false;
+            if (playGeneration !== playGenerationRef.current || videoRef.current !== video) return false;
             setShowPlayButton(true);
             return false;
         }
@@ -186,11 +186,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         node.muted = muted;
         void node.play()
             .then(() => {
-                if (playGeneration !== playGenerationRef.current) return;
+                if (playGeneration !== playGenerationRef.current || videoRef.current !== node) return;
                 setShowPlayButton(false);
             })
             .catch(() => {
-                if (playGeneration !== playGenerationRef.current) return;
+                if (playGeneration !== playGenerationRef.current || videoRef.current !== node) return;
                 // Browser may block autoplay — show a manual play affordance.
                 setShowPlayButton(true);
             });
@@ -199,10 +199,9 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
         const previousVideo = videoRef.current;
+        if (previousVideo !== node) playGenerationRef.current += 1;
         if (previousVideo && previousVideo !== node) {
             previousVideo.pause();
-            previousVideo.removeAttribute('src');
-            previousVideo.load();
         }
 
         videoRef.current = node;
@@ -212,6 +211,12 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             attemptAutoplay(node, isMutedRef.current);
         }
     }, [attemptAutoplay]);
+
+    useEffect(() => {
+        return () => {
+            playGenerationRef.current += 1;
+        };
+    }, []);
 
     useEffect(() => {
         const video = videoRef.current;

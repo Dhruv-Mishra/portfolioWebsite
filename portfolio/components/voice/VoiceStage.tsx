@@ -13,11 +13,14 @@ import {
   getVoiceSessionSnapshot,
   requestVoiceHangup,
   subscribeVoiceSession,
+  VOICE_EXIT_VEIL_MS,
 } from '@/lib/voiceSessionRuntime';
 import VoiceOrb from '@/components/voice/VoiceOrb';
 
 const VEIL_FADE_MS = 420;
-const REDUCED_VEIL_MS = 180;
+const REDUCED_VEIL_MS = 0;
+const EXIT_TEARDOWN_MARGIN_MS = 80;
+const EXIT_VEIL_FADE_MS = VOICE_EXIT_VEIL_MS - EXIT_TEARDOWN_MARGIN_MS;
 const FLIP_MS = 520;
 
 const DESKTOP_DOCK_STYLE = {
@@ -44,6 +47,7 @@ export default function VoiceStage() {
   const dockSlotRef = useRef<HTMLDivElement>(null);
   const orbNodeRef = useRef<HTMLDivElement>(null);
   const lastOrbRectRef = useRef<DOMRect | null>(null);
+  const orbAnimationRef = useRef<Animation | null>(null);
 
   const exiting = snapshot.hud === 'exiting';
   const intro = !exiting && (snapshot.hud === 'intro' || !snapshot.introComplete);
@@ -55,6 +59,7 @@ export default function VoiceStage() {
     ? (snapshot.exitLine || snapshot.status)
     : (spoken || snapshot.status);
   const welcomeHint = snapshot.welcomeHint;
+  const exitStartedWithVisibleVeil = exiting && !snapshot.introComplete;
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
@@ -77,6 +82,12 @@ export default function VoiceStage() {
   }, []);
 
   useLayoutEffect(() => {
+    const activeAnimation = orbAnimationRef.current;
+    if (activeAnimation) {
+      activeAnimation.cancel();
+      orbAnimationRef.current = null;
+    }
+
     const slot = (intro || exiting) ? heroSlotRef.current : dockSlotRef.current;
     const node = orbNodeRef.current;
     if (!slot || !node) return;
@@ -100,7 +111,7 @@ export default function VoiceStage() {
     const sy = first.height / Math.max(last.height, 1);
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02) return;
 
-    node.animate(
+    const animation = node.animate(
       [
         { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
         { transform: 'none' },
@@ -111,6 +122,17 @@ export default function VoiceStage() {
         fill: 'both',
       },
     );
+    orbAnimationRef.current = animation;
+    const clearAnimation = () => {
+      if (orbAnimationRef.current === animation) orbAnimationRef.current = null;
+    };
+    animation.addEventListener('finish', clearAnimation, { once: true });
+    animation.addEventListener('cancel', clearAnimation, { once: true });
+    return () => {
+      if (orbAnimationRef.current !== animation) return;
+      animation.cancel();
+      orbAnimationRef.current = null;
+    };
   }, [exiting, intro, live, reducedMotion, isMobile, snapshot.phase]);
 
   const hangup = (
@@ -137,23 +159,68 @@ export default function VoiceStage() {
     >
       <m.div
         aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: intro || exiting ? 1 : 0 }}
+        initial={{
+          opacity: reducedMotion
+            ? (intro || exiting ? 1 : 0)
+            : (intro || exitStartedWithVisibleVeil ? (intro ? 0 : 1) : 0),
+        }}
+        animate={{
+          opacity: reducedMotion
+            ? (intro || exiting ? 1 : 0)
+            : exiting
+              ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 0])
+              : (intro ? 1 : 0),
+        }}
         transition={{
-          duration: (reducedMotion ? REDUCED_VEIL_MS : VEIL_FADE_MS) / 1000,
+          duration: (
+            reducedMotion
+              ? REDUCED_VEIL_MS
+              : exiting
+                ? EXIT_VEIL_FADE_MS
+                : VEIL_FADE_MS
+          ) / 1000,
+          times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
           ease: 'easeOut',
         }}
         className={cn(
           'voice-stage-veil absolute inset-0 bg-black',
           intro || exiting ? 'pointer-events-auto' : 'pointer-events-none',
         )}
-        data-voice-veil={intro || exiting ? 'in' : 'out'}
+        data-voice-veil={exiting ? 'exiting' : intro ? 'in' : 'out'}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
       </m.div>
 
       {intro || exiting ? (
-        <div className="pointer-events-none absolute inset-0 flex h-[100dvh] flex-col">
+        <m.div
+          initial={{
+            opacity: reducedMotion
+              ? 1
+              : intro || exitStartedWithVisibleVeil
+                ? (intro ? 0 : 1)
+                : 0,
+          }}
+          animate={{
+            opacity: reducedMotion
+              ? 1
+              : exiting
+                ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 0])
+                : 1,
+          }}
+          transition={{
+            duration: (
+              reducedMotion
+                ? REDUCED_VEIL_MS
+                : exiting
+                  ? EXIT_VEIL_FADE_MS
+                  : VEIL_FADE_MS
+            ) / 1000,
+            times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
+            ease: 'easeOut',
+          }}
+          className="pointer-events-none absolute inset-0 flex h-[100dvh] flex-col"
+          data-voice-exit-chrome={exiting ? 'true' : undefined}
+        >
           <header className="relative flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-8">
             <p id="voice-stage-title" className="font-hand text-sm uppercase tracking-[0.32em] text-white/45">Voice</p>
             <div className="pointer-events-auto">{hangup}</div>
@@ -179,7 +246,7 @@ export default function VoiceStage() {
               <p className="mt-4 font-hand text-sm text-white/40">{welcomeHint}</p>
             ) : null}
           </div>
-        </div>
+        </m.div>
       ) : (
         <div
           className="pointer-events-auto absolute flex max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3"
@@ -221,16 +288,31 @@ export default function VoiceStage() {
         </div>
       )}
 
-      <div
+      <m.div
         ref={orbNodeRef}
         className="pointer-events-none fixed origin-center"
+        initial={{ opacity: 1 }}
+        animate={{
+          opacity: reducedMotion
+            ? 1
+            : exiting
+              ? [1, 0, 0]
+              : 1,
+        }}
+        transition={{
+          duration: (!reducedMotion && exiting ? EXIT_VEIL_FADE_MS : 0) / 1000,
+          times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
+          ease: 'easeOut',
+        }}
+        data-voice-exit-orb={exiting ? 'true' : undefined}
       >
         <VoiceOrb
           phase={snapshot.phase}
+          reducedMotion={reducedMotion}
           size={intro || exiting ? 'hero' : 'dock'}
           showLabel={intro || exiting}
         />
-      </div>
+      </m.div>
     </div>
   );
 }

@@ -68,14 +68,13 @@ export const VOICE_IDLE_CHECKIN_MS = 90_000;
 export const VOICE_IDLE_HANGUP_MS = 30_000;
 export const VOICE_EXIT_VEIL_MS = 1_400;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
+export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
 
 export interface VoiceHangupRequest {
   force?: boolean;
   reason?: VoiceExitReason;
 }
 
-export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
-export const VOICE_AMBIENT_START_MS = 420;
 export const VOICE_ACTION_CUE_COALESCE_MS = 220;
 export const VOICE_AMBIENT_FADE_OUT_MS = 320;
 
@@ -163,8 +162,9 @@ let subtitleSpeaker: 'user' | 'agent' | null = null;
 let utterancePlan: PlannedVoiceAction[] = [];
 let utterancePlanSource = '';
 const seenVoiceToolKeys = new Set<string>();
-let ambientStartTimer: ReturnType<typeof setTimeout> | null = null;
 let actionCueTimer: ReturnType<typeof setTimeout> | null = null;
+const projectVideoWaiters = new Set<() => void>();
+const projectVideoWaiterCancellers = new Set<() => void>();
 
 function prefersReducedSubtitleMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
@@ -365,6 +365,88 @@ function canCommitSideEffects(): boolean {
   return snapshot.introComplete && !playback?.isBusy() && !stopping;
 }
 
+function notifyProjectVideoWaiters(): void {
+  for (const waiter of [...projectVideoWaiters]) waiter();
+}
+
+function notifyVoiceActionQueueReady(): void {
+  queue?.notifyReady();
+  notifyProjectVideoWaiters();
+}
+
+function cancelProjectVideoWaiters(): void {
+  for (const cancel of [...projectVideoWaiterCancellers]) cancel();
+}
+
+function projectVideoUnavailableResult(): SiteToolResult {
+  return {
+    ok: false,
+    spokenText: 'No project video is open right now.',
+    errorCode: 'project-video-unavailable',
+  };
+}
+
+function waitForProjectVideoControl(
+  call: SiteToolCall,
+  generation: number,
+): Promise<SiteToolResult> {
+  return new Promise(resolve => {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribeHost = () => {};
+
+    function cleanup(): void {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      unsubscribeHost();
+      projectVideoWaiters.delete(check);
+      projectVideoWaiterCancellers.delete(cancel);
+    }
+
+    function finish(result: SiteToolResult): void {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    }
+
+    function cancel(): void {
+      finish(projectVideoUnavailableResult());
+    }
+
+    function check(): void {
+      if (settled) return;
+      if (isStale(generation) || stopping || !snapshot.active) {
+        finish(projectVideoUnavailableResult());
+        return;
+      }
+      if (!canCommitSideEffects()) return;
+      if (timeout === null) {
+        timeout = setTimeout(() => {
+          timeout = null;
+          finish(projectVideoUnavailableResult());
+        }, VOICE_PROJECT_VIDEO_WAIT_MS);
+      }
+      if (!isSiteActionHostReady('project-video')) return;
+
+      const runtime = requireHostRuntime();
+      cleanup();
+      playCommittedActionCue(call.name);
+      void executeSiteTool(call, runtime, { commit: true }).then(
+        result => finish(result),
+        () => finish(projectVideoUnavailableResult()),
+      );
+    }
+
+    projectVideoWaiters.add(check);
+    projectVideoWaiterCancellers.add(cancel);
+    unsubscribeHost = subscribeSiteActionHostReady(check);
+    check();
+  });
+}
+
 function resetFarewellWait(): void {
   farewellArmed = false;
   farewellHeard = false;
@@ -411,12 +493,6 @@ function syncUtterancePlanFromUserLine(options: { newTurn?: boolean } = {}): voi
   if (!continuingSameTurn && !lateTranscriptSameTurn) seenVoiceToolKeys.clear();
 }
 
-function clearAmbientStartTimer(): void {
-  if (ambientStartTimer === null) return;
-  clearTimeout(ambientStartTimer);
-  ambientStartTimer = null;
-}
-
 function clearActionCueTimer(): void {
   if (actionCueTimer === null) return;
   clearTimeout(actionCueTimer);
@@ -434,36 +510,6 @@ function playCommittedActionCue(name: SiteToolCall['name']): void {
   actionCueTimer = setTimeout(() => {
     actionCueTimer = null;
   }, VOICE_ACTION_CUE_COALESCE_MS);
-}
-
-function waitForProjectVideoReady(generation: number): Promise<boolean> {
-  if (canCommitSideEffects() && isSiteActionHostReady('project-video')) return Promise.resolve(true);
-  return new Promise(resolve => {
-    const startedAt = Date.now();
-    const finish = (ready: boolean) => {
-      clearInterval(poll);
-      unsub();
-      resolve(ready);
-    };
-    const check = () => {
-      if (isStale(generation) || stopping) {
-        finish(false);
-        return;
-      }
-      if (canCommitSideEffects() && isSiteActionHostReady('project-video')) {
-        finish(true);
-        return;
-      }
-      if (Date.now() - startedAt >= VOICE_PROJECT_VIDEO_WAIT_MS) {
-        finish(false);
-      }
-    };
-    const unsub = subscribeSiteActionHostReady(() => {
-      check();
-    });
-    const poll = setInterval(check, 40);
-    check();
-  });
 }
 
 function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
@@ -586,11 +632,11 @@ function noteVoiceActivity(
 }
 
 function beginExitVeil(reason: VoiceExitReason): void {
+  cancelProjectVideoWaiters();
   pendingStopReason = reason;
   resetIdleWatch();
   stopping = true;
   sendAudioLive = false;
-  clearAmbientStartTimer();
   const exitLine = pickVoiceExitVeil();
   const fadeMs = prefersReducedSubtitleMotion() ? 120 : VOICE_AMBIENT_FADE_OUT_MS;
   resolveDeps().stopAmbient({ fadeMs });
@@ -624,7 +670,7 @@ function tryMarkIntroComplete(): void {
     status: 'Live. Ask anything, or try a site action.',
   });
   noteVoiceActivity('connect');
-  queue?.notifyReady();
+  notifyVoiceActionQueueReady();
 }
 
 function requireHostRuntime(): SiteToolRuntime {
@@ -665,8 +711,8 @@ function teardownMedia(reason: VoiceExitReason): void {
   resetSubtitleState();
   resetFarewellWait();
   resetUtterancePlan();
-  clearAmbientStartTimer();
   clearActionCueTimer();
+  cancelProjectVideoWaiters();
   capture?.stop();
   capture = null;
   playback?.close();
@@ -721,18 +767,7 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
   } else if (call.name === 'control_project_video') {
-    const ready = await waitForProjectVideoReady(generation);
-    if (isStale(generation) || caller !== activeCaller) return;
-    if (!ready) {
-      result = {
-        ok: false,
-        spokenText: 'The preview is not ready yet.',
-        errorCode: 'project-video-unavailable',
-      };
-    } else {
-      playCommittedActionCue(call.name);
-      result = await executeSiteTool(call, runtime, { commit: true });
-    }
+    result = await waitForProjectVideoControl(call, generation);
   } else if (call.name === 'fill_field' && hostId) {
     // fill_field ignores commit=false in the executor, so wait for the host.
     result = { ok: true, spokenText: 'I will type that in.' };
@@ -747,7 +782,7 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     if (call.name === 'end_voice_session') {
       const reason = call.args.reason ?? 'user';
       armAgentFarewellHangup(reason);
-    } else if (call.name !== 'control_project_video' && (deferred || dependent)) {
+    } else if (deferred || (dependent && call.name !== 'control_project_video')) {
       enqueueVoiceSideEffect(call, generation);
     }
   }
@@ -761,7 +796,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (isStale(generation)) return;
       if (next === 'speaking') {
         markFarewellHeard();
-        queue?.notifyReady();
+        notifyVoiceActionQueueReady();
       }
       patch({ phase: next });
     }),
@@ -777,12 +812,12 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (isStale(generation)) return;
       markFarewellPlayback();
       nextPlayback.play(chunk);
-      queue?.notifyReady();
+      notifyVoiceActionQueueReady();
     }),
     nextCaller.on('interrupted', () => {
       if (isStale(generation)) return;
       nextPlayback.interrupt();
-      queue?.notifyReady();
+      notifyVoiceActionQueueReady();
     }),
     nextCaller.on('toolCall', call => {
       noteVoiceActivity('tool');
@@ -796,7 +831,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       scheduleSubtitleClear(generation);
       syncUtterancePlanFromUserLine();
       flushUtterancePlan(generation);
-      queue?.notifyReady();
+      notifyVoiceActionQueueReady();
     }),
     nextCaller.on('error', message => {
       if (isStale(generation)) return;
@@ -824,7 +859,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (isStale(generation)) return;
       tryMarkIntroComplete();
       scheduleSubtitleClear(generation);
-      queue?.notifyReady();
+      notifyVoiceActionQueueReady();
     }),
   ];
 }
@@ -845,18 +880,14 @@ async function bootSession(): Promise<void> {
     attachCaller(nextCaller, nextPlayback, generation);
     unsubs.push(subscribeSiteActionHostReady(() => {
       if (isStale(generation)) return;
-      queue?.notifyReady();
+      notifyVoiceActionQueueReady();
     }));
 
     d.prefetchSounds();
     prefetchVoiceVisuals();
     d.playEnter();
     if (prefs.ambientMusic && !prefs.lowNetwork) {
-      ambientStartTimer = setTimeout(() => {
-        ambientStartTimer = null;
-        if (isStale(generation) || stopping) return;
-        d.startAmbient(true);
-      }, VOICE_AMBIENT_START_MS);
+      d.startAmbient(true);
     }
     const nextCapture = await d.startCapture(chunk => {
       if (sendAudioLive) caller?.sendAudio(chunk);

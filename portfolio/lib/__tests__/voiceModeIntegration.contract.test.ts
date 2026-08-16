@@ -52,11 +52,12 @@ describe('voice mode integration contract', () => {
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
     expect(css).toContain('html[data-voice-mode]');
     expect(css).toContain('html[data-voice-mode="intro"]');
-    expect(css).toContain('.voice-orb-core');
+    expect(css).toContain('.voice-orb-gif');
+    expect(css).toContain('.voice-orb-still');
+    expect(css).toContain('.voice-orb-wash');
     expect(css).toContain('voice-orb-speak');
-    expect(css).toContain('voice-orb-ripple');
-    expect(css).toContain('html[data-motion="reduced"] .voice-orb-ring');
-    expect(css).toContain('html[data-motion="reduced"] .voice-orb-ripple');
+    expect(css).toContain('html[data-motion="reduced"] .voice-orb-gif');
+    expect(css).toContain('html[data-motion="reduced"] .voice-orb-still');
     expect(stage).not.toContain('line-clamp-3');
     expect(stage).not.toContain('-webkit-line-clamp');
     expect(stage).toContain('data-subtitle-phase={snapshot.subtitlePhase}');

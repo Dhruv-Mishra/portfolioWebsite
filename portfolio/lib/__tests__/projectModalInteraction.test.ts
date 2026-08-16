@@ -29,10 +29,12 @@ describe('Projects modal interaction contract', () => {
   });
 
   it('keeps query opening, event opening, and close as top-level hooks', () => {
-    expect(projectsPage).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedProject\(null\);\s*\}, \[closePanel\]\);/);
+    expect(projectsPage).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedProject\(null\);\s*if \(querySlug\) \{\s*requestPageTurnNavigation\(router, \{ href: '\/projects', mode: 'replace' \}\);\s*\}\s*\}, \[closePanel, querySlug, router\]\);/);
+    expect(projectsPage).toContain('CLOSE_PROJECT_EVENT');
     expect(projectsPage).toContain('readProjectSlugFromSearch');
     expect(projectsPage).toMatch(/if \(querySlug !== appliedQuerySlug\)/);
     expect(projectsPage).toMatch(/window\.addEventListener\(OPEN_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(OPEN_PROJECT_EVENT, handler\);/);
+    expect(projectsPage).toMatch(/window\.addEventListener\(CLOSE_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(CLOSE_PROJECT_EVENT, handler\);/);
     expect(projectsPage).not.toMatch(/const handleCloseModal = useCallback\([\s\S]*useEffect\([\s\S]*\}, \[closePanel\]\)/);
     expect(projectsPage).not.toMatch(/setSelectedPr\s*$/m);
     expect(projectsPage).not.toMatch(/openProjectBySlug\]\);oject/);

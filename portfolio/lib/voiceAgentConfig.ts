@@ -5,7 +5,7 @@ export const VOICE_AGENT_OUTPUT_RATE = 24_000;
 export const VOICE_TOKEN_USES = 1;
 export const VOICE_TOKEN_TTL_MS = 30 * 60 * 1000;
 export const VOICE_NEW_SESSION_TTL_MS = 60 * 1000;
-export const VOICE_FACTS_LIMIT = 3;
+export const VOICE_FACTS_LIMIT = 6;
 export const VOICE_AUDIO_FRAME_MS = 40;
 export const VOICE_LOW_NETWORK_FRAME_MS = 60;
 

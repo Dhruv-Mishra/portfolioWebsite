@@ -30,6 +30,7 @@
 
 /** Was prefetch already scheduled in this session? Guards repeat calls. */
 let scheduled = false;
+let voiceScheduled = false;
 
 /**
  * Network Information API surface. Not universally available (Safari lacks
@@ -121,18 +122,44 @@ export function scheduleSuperuserPrefetch(): void {
   }, 1500);
 }
 
+/**
+ * Warm the voice HUD GIF, still frame, toggle, ambient, and action cues
+ * during idle time. Also safe to call on voice-mode enter — the latch
+ * makes repeat calls a no-op.
+ */
+export function scheduleVoiceAssetPrefetch(): void {
+  if (typeof window === 'undefined') return;
+  if (voiceScheduled) return;
+  if (!shouldPrefetch()) return;
+  voiceScheduled = true;
+
+  scheduleIdle(() => {
+    void import('@/lib/voiceSounds')
+      .then(({ prefetchVoiceSounds, prefetchVoiceVisuals }) => {
+        prefetchVoiceSounds();
+        prefetchVoiceVisuals();
+      })
+      .catch(() => {
+        /* best-effort — bootSession also prefetches on enter */
+      });
+  }, 1800);
+}
+
 /** @internal — reset the scheduled latch for tests. */
 export function __resetAssetPrefetchForTest(): void {
   scheduled = false;
+  voiceScheduled = false;
 }
 
 /** @internal — inspect current prefetch state for tests. */
 export function __getPrefetchDebug(): {
   readonly scheduled: boolean;
+  readonly voiceScheduled: boolean;
   readonly shouldPrefetch: boolean;
 } {
   return Object.freeze({
     scheduled,
+    voiceScheduled,
     shouldPrefetch: shouldPrefetch(),
   });
 }

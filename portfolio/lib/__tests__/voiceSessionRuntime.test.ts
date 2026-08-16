@@ -3,6 +3,8 @@ import type { SiteToolCall } from '@/lib/siteTools';
 import type { VoiceCaller, VoiceCallerEventMap, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
 import type { VoicePlayback } from '@/lib/voiceAudio';
 import {
+  attachSiteActionResult,
+  CONTROL_PROJECT_VIDEO_EVENT,
   registerSiteActionHost,
   resetSiteActionHostsForTests,
   RUN_TERMINAL_COMMAND_EVENT,
@@ -15,6 +17,9 @@ import {
   setVoiceSessionRuntimeDepsForTests,
   startVoiceSession,
   stopVoiceSession,
+  VOICE_ACTION_CUE_COALESCE_MS,
+  VOICE_AMBIENT_FADE_OUT_MS,
+  VOICE_AMBIENT_START_MS,
   VOICE_EXIT_VEIL_MS,
   VOICE_IDLE_CHECKIN_MS,
   VOICE_IDLE_HANGUP_MS,
@@ -134,18 +139,23 @@ describe('voice session runtime singleton', () => {
     const captureStop = vi.fn();
     const openProject = vi.fn();
     const push = vi.fn();
+    const playEnter = vi.fn();
+    const playExit = vi.fn();
+    const playAction = vi.fn();
+    const startAmbient = vi.fn();
+    const stopAmbient = vi.fn();
+    const prefetchSounds = vi.fn();
     setVoiceSessionRuntimeDepsForTests({
       createCaller: () => fakeCaller.caller,
       createPlayback: () => fakePlayback.playback,
       startCapture: async () => ({ stop: captureStop }),
       fetchSession: async () => sessionHandle,
-      playEnter: vi.fn(),
-      playExit: vi.fn(),
-      playAction: vi.fn(),
-      playListen: vi.fn(),
-      startAmbient: vi.fn(),
-      stopAmbient: vi.fn(),
-      prefetchSounds: vi.fn(),
+      playEnter,
+      playExit,
+      playAction,
+      startAmbient,
+      stopAmbient,
+      prefetchSounds,
     });
     bindVoiceSessionHost({
       router: { push, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -170,6 +180,12 @@ describe('voice session runtime singleton', () => {
       fakePlayback,
       startVoiceSession,
       stopVoiceSession,
+      playEnter,
+      playExit,
+      playAction,
+      startAmbient,
+      stopAmbient,
+      prefetchSounds,
       requestVoiceHangup,
       getVoiceSessionSnapshot,
       resetVoiceSessionRuntimeForTests,
@@ -592,5 +608,99 @@ describe('voice session runtime singleton', () => {
 
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('plays toggle on enter, then starts ambient after the switch-in delay', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    expect(runtime.prefetchSounds).toHaveBeenCalledTimes(1);
+    expect(runtime.playEnter).toHaveBeenCalledTimes(1);
+    expect(runtime.startAmbient).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_START_MS);
+    expect(runtime.startAmbient).toHaveBeenCalledTimes(1);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('fades ambient then plays toggle on a normal hangup', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.requestVoiceHangup();
+    expect(runtime.stopAmbient).toHaveBeenCalledWith({ fadeMs: VOICE_AMBIENT_FADE_OUT_MS });
+    expect(runtime.playExit).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_FADE_OUT_MS);
+    expect(runtime.playExit).toHaveBeenCalledTimes(1);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('commits play only after the project-video host is ready and coalesces action cues', async () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === CONTROL_PROJECT_VIDEO_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Playing the preview.',
+        });
+      }
+      return true;
+    });
+    vi.stubGlobal('window', { dispatchEvent });
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'play-1',
+      name: 'control_project_video',
+      args: { action: 'play' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
+    expect(runtime.playAction).not.toHaveBeenCalled();
+
+    const unregister = registerSiteActionHost('project-video');
+    await vi.advanceTimersByTimeAsync(40);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
+      ok: true,
+      spokenText: 'Playing the preview.',
+    });
+    expect(runtime.playAction).toHaveBeenCalledTimes(1);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'close-1',
+      name: 'close_project',
+      args: {},
+    } as SiteToolCall);
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'theme-1',
+      name: 'set_theme',
+      args: { action: 'toggle' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.playAction).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(VOICE_ACTION_CUE_COALESCE_MS + 1);
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'theme-2',
+      name: 'set_theme',
+      args: { action: 'dark' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    expect(runtime.playAction).toHaveBeenCalledTimes(2);
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 });

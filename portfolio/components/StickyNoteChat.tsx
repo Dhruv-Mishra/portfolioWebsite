@@ -53,6 +53,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import {
+  CLOSE_PROJECT_EVENT,
   OPEN_CHAT_EVENT,
   SEND_CHAT_MESSAGE_EVENT,
   registerSiteActionHost,
@@ -2183,6 +2184,18 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     closePanel();
     setSelectedProjectSlug(null);
   }, [closePanel]);
+
+  useEffect(() => {
+    const handler = (raw: Event) => {
+      handleCloseProjectModal();
+      attachSiteActionResult(raw, {
+        ok: true,
+        spokenText: 'Closing that project.',
+      });
+    };
+    window.addEventListener(CLOSE_PROJECT_EVENT, handler);
+    return () => window.removeEventListener(CLOSE_PROJECT_EVENT, handler);
+  }, [handleCloseProjectModal]);
 
   const handleEnterMatrix = useCallback(() => {
     selection();

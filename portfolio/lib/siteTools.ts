@@ -6,6 +6,7 @@ export const SITE_TOOL_NAMES = [
   'navigate_to',
   'set_theme',
   'open_project',
+  'close_project',
   'control_project_video',
   'open_link',
   'open_feedback',
@@ -156,6 +157,7 @@ export type SiteToolArgsMap = {
   navigate_to: { path: (typeof VALID_NAVIGATION_PATHS)[number] };
   set_theme: { action: (typeof VALID_THEME_ACTIONS)[number] };
   open_project: { slug: ProjectSlug };
+  close_project: Record<string, never>;
   control_project_video: { action: ProjectVideoAction };
   open_link: { key: ApprovedLinkKey };
   open_feedback: Record<string, never>;

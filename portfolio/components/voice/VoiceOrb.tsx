@@ -68,15 +68,23 @@ export default function VoiceOrb({ phase, size = 'hero', showLabel = true }: Voi
       style={{ '--voice-level': formatVoiceLevel(0) } as CSSProperties}
       aria-hidden
     >
-      <span className={cn('voice-orb-ripple voice-orb-ripple-a', `is-${phase}`)} />
-      <span className={cn('voice-orb-ripple voice-orb-ripple-b', `is-${phase}`)} />
-      <span className={cn('voice-orb-ripple voice-orb-ripple-c', `is-${phase}`)} />
-      <span className={cn('voice-orb-ring voice-orb-ring-a', `is-${phase}`)} />
-      <span className={cn('voice-orb-ring voice-orb-ring-b', `is-${phase}`)} />
-      <span className={cn('voice-orb-ring voice-orb-ring-c', `is-${phase}`)} />
-      <span className={cn('voice-orb-core', `is-${phase}`)}>
-        <span className="voice-orb-core-glow" />
-      </span>
+      <span className="voice-orb-wash" aria-hidden />
+      {/* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */}
+      <img
+        src="/voice/ai-ripple.gif"
+        alt=""
+        draggable={false}
+        decoding="async"
+        className={cn('voice-orb-gif', `is-${phase}`)}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */}
+      <img
+        src="/voice/ai-ripple-still.webp"
+        alt=""
+        draggable={false}
+        decoding="async"
+        className={cn('voice-orb-still', `is-${phase}`)}
+      />
       {showLabel ? (
         <span className={cn(
           'pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',

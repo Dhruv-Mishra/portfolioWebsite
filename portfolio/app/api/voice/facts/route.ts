@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   const facts = await getRelevantFactContext(query, { limit: VOICE_FACTS_LIMIT });
   return Response.json({
     ok: true,
-    spokenText: facts || 'No compact facts matched that question.',
+    spokenText: facts || 'I have the sketchbook open — let me grab the project note.',
     data: { facts },
   });
 }

@@ -37,7 +37,7 @@ import {
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
-import { playVoiceSound, prefetchVoiceSounds, startVoiceAmbient, stopVoiceAmbient } from '@/lib/voiceSounds';
+import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, startVoiceAmbient, stopVoiceAmbient } from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -74,6 +74,35 @@ export interface VoiceHangupRequest {
   reason?: VoiceExitReason;
 }
 
+export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
+export const VOICE_AMBIENT_START_MS = 420;
+export const VOICE_ACTION_CUE_COALESCE_MS = 220;
+export const VOICE_AMBIENT_FADE_OUT_MS = 320;
+
+const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
+  'navigate_to',
+  'open_project',
+  'open_link',
+  'open_feedback',
+  'open_command_palette',
+  'open_shortcuts',
+  'open_chat',
+  'close_project',
+  'set_theme',
+  'control_project_video',
+  'browse_history',
+  'scroll_page',
+  'send_chat_message',
+  'run_terminal_command',
+  'fill_field',
+  'set_preference',
+  'set_voice_output',
+  'set_voice_backend',
+  'set_motion_preference',
+  'submit_guestbook',
+  'submit_feedback',
+]);
+
 export interface VoiceSessionRuntimeDeps {
   createCaller: () => VoiceCaller;
   createPlayback: () => VoicePlayback;
@@ -82,9 +111,8 @@ export interface VoiceSessionRuntimeDeps {
   playEnter: () => void;
   playExit: () => void;
   playAction: () => void;
-  playListen: () => void;
   startAmbient: (enabled: boolean) => void;
-  stopAmbient: () => void;
+  stopAmbient: (options?: { fadeMs?: number }) => void;
   prefetchSounds: () => void;
 }
 
@@ -120,7 +148,6 @@ let greetTurnComplete = false;
 let starting = false;
 let stopping = false;
 let busAttached = false;
-let previousPhase: VoiceAgentPhase = 'idle';
 let farewellArmed = false;
 let farewellHeard = false;
 let farewellSawPlayback = false;
@@ -136,6 +163,8 @@ let subtitleSpeaker: 'user' | 'agent' | null = null;
 let utterancePlan: PlannedVoiceAction[] = [];
 let utterancePlanSource = '';
 const seenVoiceToolKeys = new Set<string>();
+let ambientStartTimer: ReturnType<typeof setTimeout> | null = null;
+let actionCueTimer: ReturnType<typeof setTimeout> | null = null;
 
 function prefersReducedSubtitleMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
@@ -281,10 +310,9 @@ function defaultDeps(): VoiceSessionRuntimeDeps {
     createPlayback: createVoicePlayback,
     startCapture: startVoiceCapture,
     fetchSession: mintBrowserVoiceSession,
-    playEnter: () => playVoiceSound('voice-enter'),
-    playExit: () => playVoiceSound('voice-exit'),
+    playEnter: () => playVoiceSound('voice-toggle'),
+    playExit: () => playVoiceSound('voice-toggle'),
     playAction: () => playVoiceSound('voice-action'),
-    playListen: () => playVoiceSound('voice-listen'),
     startAmbient: startVoiceAmbient,
     stopAmbient: stopVoiceAmbient,
     prefetchSounds: prefetchVoiceSounds,
@@ -383,16 +411,73 @@ function syncUtterancePlanFromUserLine(options: { newTurn?: boolean } = {}): voi
   if (!continuingSameTurn && !lateTranscriptSameTurn) seenVoiceToolKeys.clear();
 }
 
+function clearAmbientStartTimer(): void {
+  if (ambientStartTimer === null) return;
+  clearTimeout(ambientStartTimer);
+  ambientStartTimer = null;
+}
+
+function clearActionCueTimer(): void {
+  if (actionCueTimer === null) return;
+  clearTimeout(actionCueTimer);
+  actionCueTimer = null;
+}
+
+function shouldPlayVisualActionCue(name: SiteToolCall['name']): boolean {
+  return VISUAL_VOICE_ACTION_TOOLS.has(name);
+}
+
+function playCommittedActionCue(name: SiteToolCall['name']): void {
+  if (!shouldPlayVisualActionCue(name)) return;
+  if (actionCueTimer !== null) return;
+  resolveDeps().playAction();
+  actionCueTimer = setTimeout(() => {
+    actionCueTimer = null;
+  }, VOICE_ACTION_CUE_COALESCE_MS);
+}
+
+function waitForProjectVideoReady(generation: number): Promise<boolean> {
+  if (canCommitSideEffects() && isSiteActionHostReady('project-video')) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const startedAt = Date.now();
+    const finish = (ready: boolean) => {
+      clearInterval(poll);
+      unsub();
+      resolve(ready);
+    };
+    const check = () => {
+      if (isStale(generation) || stopping) {
+        finish(false);
+        return;
+      }
+      if (canCommitSideEffects() && isSiteActionHostReady('project-video')) {
+        finish(true);
+        return;
+      }
+      if (Date.now() - startedAt >= VOICE_PROJECT_VIDEO_WAIT_MS) {
+        finish(false);
+      }
+    };
+    const unsub = subscribeSiteActionHostReady(() => {
+      check();
+    });
+    const poll = setInterval(check, 40);
+    check();
+  });
+}
+
 function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
   const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
   const deferred = isDeferredVoiceTool(call.name);
   const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   if (!deferred && !dependent) {
+    playCommittedActionCue(call.name);
     void executeSiteTool(call, requireHostRuntime(), { commit: true });
     return;
   }
   queue?.enqueue(() => {
     if (isStale(generation)) return;
+    playCommittedActionCue(call.name);
     void executeSiteTool(call, requireHostRuntime(), { commit: true });
   }, hostId ? { ready: () => isSiteActionHostReady(hostId) } : undefined);
 }
@@ -505,8 +590,14 @@ function beginExitVeil(reason: VoiceExitReason): void {
   resetIdleWatch();
   stopping = true;
   sendAudioLive = false;
+  clearAmbientStartTimer();
   const exitLine = pickVoiceExitVeil();
-  resolveDeps().playExit();
+  const fadeMs = prefersReducedSubtitleMotion() ? 120 : VOICE_AMBIENT_FADE_OUT_MS;
+  resolveDeps().stopAmbient({ fadeMs });
+  setTimeout(() => {
+    if (isStale(currentGeneration())) return;
+    resolveDeps().playExit();
+  }, fadeMs);
   patch({
     hud: 'exiting',
     phase: 'exiting',
@@ -574,6 +665,8 @@ function teardownMedia(reason: VoiceExitReason): void {
   resetSubtitleState();
   resetFarewellWait();
   resetUtterancePlan();
+  clearAmbientStartTimer();
+  clearActionCueTimer();
   capture?.stop();
   capture = null;
   playback?.close();
@@ -584,7 +677,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   unsubs = [];
   queue?.reset();
   queue = null;
-  resolveDeps().stopAmbient();
+  resolveDeps().stopAmbient({ fadeMs: 0 });
   if (activeCaller) activeCaller.close(reason);
 }
 
@@ -606,7 +699,6 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   const generation = currentGeneration();
   const activeCaller = caller;
   if (!activeCaller || isStale(generation)) return;
-  resolveDeps().playAction();
 
   if (call.name === 'start_voice_session') {
     activeCaller.sendToolResult(call.id, {
@@ -628,10 +720,24 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   let result: SiteToolResult;
   if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
+  } else if (call.name === 'control_project_video') {
+    const ready = await waitForProjectVideoReady(generation);
+    if (isStale(generation) || caller !== activeCaller) return;
+    if (!ready) {
+      result = {
+        ok: false,
+        spokenText: 'The preview is not ready yet.',
+        errorCode: 'project-video-unavailable',
+      };
+    } else {
+      playCommittedActionCue(call.name);
+      result = await executeSiteTool(call, runtime, { commit: true });
+    }
   } else if (call.name === 'fill_field' && hostId) {
     // fill_field ignores commit=false in the executor, so wait for the host.
     result = { ok: true, spokenText: 'I will type that in.' };
   } else {
+    if (!deferred && !dependent) playCommittedActionCue(call.name);
     result = await executeSiteTool(call, runtime, { commit: !deferred && !dependent });
   }
   if (isStale(generation) || caller !== activeCaller) return;
@@ -641,7 +747,7 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     if (call.name === 'end_voice_session') {
       const reason = call.args.reason ?? 'user';
       armAgentFarewellHangup(reason);
-    } else if (deferred || dependent) {
+    } else if (call.name !== 'control_project_video' && (deferred || dependent)) {
       enqueueVoiceSideEffect(call, generation);
     }
   }
@@ -650,7 +756,6 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
 }
 
 function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, generation: number): void {
-  const d = resolveDeps();
   unsubs = [
     nextCaller.on('phase', next => {
       if (isStale(generation)) return;
@@ -658,10 +763,6 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
         markFarewellHeard();
         queue?.notifyReady();
       }
-      if (next === 'listening' && previousPhase !== 'listening' && snapshot.introComplete) {
-        d.playListen();
-      }
-      previousPhase = next;
       patch({ phase: next });
     }),
     nextCaller.on('userTranscript', text => {
@@ -748,8 +849,15 @@ async function bootSession(): Promise<void> {
     }));
 
     d.prefetchSounds();
+    prefetchVoiceVisuals();
     d.playEnter();
-    if (prefs.ambientMusic && !prefs.lowNetwork) d.startAmbient(true);
+    if (prefs.ambientMusic && !prefs.lowNetwork) {
+      ambientStartTimer = setTimeout(() => {
+        ambientStartTimer = null;
+        if (isStale(generation) || stopping) return;
+        d.startAmbient(true);
+      }, VOICE_AMBIENT_START_MS);
+    }
     const nextCapture = await d.startCapture(chunk => {
       if (sendAudioLive) caller?.sendAudio(chunk);
     }, { lowNetwork: prefs.lowNetwork }).catch(() => null);
@@ -834,7 +942,6 @@ export function startVoiceSession(): Promise<void> {
   resetIdleWatch();
   clearExitVeilTimer();
   resetUtterancePlan();
-  previousPhase = 'entering';
   patch({
     active: true,
     hud: 'intro',
@@ -886,6 +993,10 @@ export function requestVoiceHangup(options: VoiceHangupRequest = {}): void {
   }
   if (force || !queue) {
     stopVoiceSession(reason, { force });
+    return;
+  }
+  if (canHangupNow()) {
+    stopVoiceSession(reason);
     return;
   }
   patch({

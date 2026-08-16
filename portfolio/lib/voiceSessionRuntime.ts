@@ -64,8 +64,8 @@ export interface VoiceSessionSnapshot {
 export const VOICE_SUBTITLE_IDLE_MS = 700;
 export const VOICE_SUBTITLE_FADE_MS = 280;
 export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
-export const VOICE_IDLE_CHECKIN_MS = 90_000;
-export const VOICE_IDLE_HANGUP_MS = 30_000;
+export const VOICE_IDLE_CHECKIN_MS = 15_000;
+export const VOICE_IDLE_HANGUP_MS = 25_000;
 export const VOICE_EXIT_VEIL_MS = 2_200;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
@@ -602,18 +602,17 @@ function scheduleIdleCheckIn(): void {
     if (isStale(generation)) return;
     beginIdleCheckIn();
   }, VOICE_IDLE_CHECKIN_MS);
+  idleHangupTimer = setTimeout(() => {
+    idleHangupTimer = null;
+    if (isStale(generation)) return;
+    beginIdleHangup();
+  }, VOICE_IDLE_HANGUP_MS);
 }
 
 function beginIdleCheckIn(): void {
   if (idleCheckedIn || !canWatchIdle() || !caller) return;
   idleCheckedIn = true;
   caller.sendText(buildVoiceExactSpeakCue(pickVoiceIdleCheckIn()));
-  const generation = currentGeneration();
-  idleHangupTimer = setTimeout(() => {
-    idleHangupTimer = null;
-    if (isStale(generation)) return;
-    beginIdleHangup();
-  }, VOICE_IDLE_HANGUP_MS);
 }
 
 function beginIdleHangup(): void {

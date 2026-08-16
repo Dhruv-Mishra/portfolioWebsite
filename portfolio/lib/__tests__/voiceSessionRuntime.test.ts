@@ -429,7 +429,7 @@ describe('voice session runtime singleton', () => {
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
 
     runtime.fakeCaller.emit('userTranscript', 'still here');
-    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS - VOICE_IDLE_CHECKIN_MS);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
@@ -449,7 +449,7 @@ describe('voice session runtime singleton', () => {
     await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
 
-    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS - VOICE_IDLE_CHECKIN_MS);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(true);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
@@ -483,7 +483,7 @@ describe('voice session runtime singleton', () => {
       error: 'Connection faded. Stay here or hang up.',
     });
 
-    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS + VOICE_IDLE_HANGUP_MS);
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(false);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({

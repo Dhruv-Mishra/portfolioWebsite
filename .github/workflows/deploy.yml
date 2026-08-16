@@ -581,7 +581,7 @@ jobs:
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           source: portfolio-${{ github.sha }}.tar.gz
-          target: /tmp/
+          target: /var/tmp/
           timeout: 60s
           command_timeout: 3m
 
@@ -610,7 +610,7 @@ jobs:
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
           source: portfolio-deploy-kit-${{ github.sha }}.tar.gz
-          target: /tmp/
+          target: /var/tmp/
           timeout: 60s
           command_timeout: 3m
 
@@ -655,10 +655,10 @@ jobs:
             DOMAIN="${{ env.DOMAIN }}"
             TTS_MODE="${{ matrix.server.tts_mode }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
-            TARBALL="/tmp/portfolio-${SHA}.tar.gz"
-            STAGING="/tmp/portfolio-stage-${SHA}"
-            DEPLOY_KIT="/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
-            DEPLOY_CMD_LOG="/tmp/${SITE}-deploy-command-${SHA}.log"
+            TARBALL="/var/tmp/portfolio-${SHA}.tar.gz"
+            STAGING="/var/tmp/portfolio-stage-${SHA}"
+            DEPLOY_KIT="/var/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
+            DEPLOY_CMD_LOG="/var/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
             DOCKER_CONFIG_DIR=""
             RUNTIME_ENV_TEMP=""
@@ -825,10 +825,13 @@ jobs:
                 exit 1
               fi
               sudo chmod +x "$STAGING/deploy.sh"
+              POLICY_UPDATER_TARGET="/usr/local/sbin/update-cloudflare-origin-policy"
+              POLICY_UPDATER_NEXT="${POLICY_UPDATER_TARGET}.next.${SHA}.$$"
               sudo install -m 0700 -o root -g root "$STAGING/update-cloudflare-origin-policy.sh" \
-                /usr/local/sbin/update-cloudflare-origin-policy
+                "$POLICY_UPDATER_NEXT"
+              sudo mv -f "$POLICY_UPDATER_NEXT" "$POLICY_UPDATER_TARGET"
               echo "Refreshing Cloudflare origin policy"
-              sudo /usr/local/sbin/update-cloudflare-origin-policy
+              sudo "$POLICY_UPDATER_TARGET"
               sudo test -s /etc/nginx/cloudflare-policy/trusted-proxies.conf \
                 || { echo "Cloudflare trusted-proxy policy was not installed"; exit 1; }
               sudo test -s /etc/nginx/conf.d/cloudflare-peer-map.conf \

@@ -5,7 +5,7 @@ import { m } from 'framer-motion';
 import { MicOff, PhoneOff } from 'lucide-react';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { Z_INDEX } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 import {
   enableVoiceCapture,
@@ -40,7 +40,9 @@ export default function VoiceStage() {
   const isMobile = useIsMobile();
   const leaveButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const orbSlotRef = useRef<HTMLDivElement>(null);
+  const heroSlotRef = useRef<HTMLDivElement>(null);
+  const dockSlotRef = useRef<HTMLDivElement>(null);
+  const orbNodeRef = useRef<HTMLDivElement>(null);
   const lastOrbRectRef = useRef<DOMRect | null>(null);
 
   const exiting = snapshot.hud === 'exiting';
@@ -75,19 +77,27 @@ export default function VoiceStage() {
   }, []);
 
   useLayoutEffect(() => {
-    const node = orbSlotRef.current;
-    if (!node || reducedMotion || !live || !lastOrbRectRef.current) {
-      lastOrbRectRef.current = node?.getBoundingClientRect() ?? null;
+    const slot = (intro || exiting) ? heroSlotRef.current : dockSlotRef.current;
+    const node = orbNodeRef.current;
+    if (!slot || !node) return;
+
+    const last = slot.getBoundingClientRect();
+    node.style.left = `${last.left}px`;
+    node.style.top = `${last.top}px`;
+    node.style.width = `${last.width}px`;
+    node.style.height = `${last.height}px`;
+
+    if (reducedMotion || !lastOrbRectRef.current) {
+      lastOrbRectRef.current = last;
       return;
     }
 
     const first = lastOrbRectRef.current;
-    const last = node.getBoundingClientRect();
+    lastOrbRectRef.current = last;
     const dx = first.left - last.left;
     const dy = first.top - last.top;
     const sx = first.width / Math.max(last.width, 1);
     const sy = first.height / Math.max(last.height, 1);
-    lastOrbRectRef.current = last;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02) return;
 
     node.animate(
@@ -101,13 +111,7 @@ export default function VoiceStage() {
         fill: 'both',
       },
     );
-  }, [live, reducedMotion, isMobile]);
-
-  useLayoutEffect(() => {
-    if (intro) {
-      lastOrbRectRef.current = orbSlotRef.current?.getBoundingClientRect() ?? null;
-    }
-  }, [intro, snapshot.phase]);
+  }, [exiting, intro, live, reducedMotion, isMobile, snapshot.phase]);
 
   const hangup = (
     <button
@@ -120,20 +124,6 @@ export default function VoiceStage() {
     >
       <PhoneOff size={16} aria-hidden />
     </button>
-  );
-
-  const orb = (
-    <m.div
-      ref={orbSlotRef}
-      className="origin-center"
-      transition={{ type: 'spring', ...ANIMATION_TOKENS.spring.gentle, duration: 0.52 }}
-    >
-      <VoiceOrb
-        phase={snapshot.phase}
-        size={intro || exiting ? 'hero' : 'dock'}
-        showLabel={intro || exiting}
-      />
-    </m.div>
   );
 
   return (
@@ -169,7 +159,11 @@ export default function VoiceStage() {
             <div className="pointer-events-auto">{hangup}</div>
           </header>
           <div className="relative flex flex-1 flex-col items-center justify-center px-6">
-            {orb}
+            <div
+              ref={heroSlotRef}
+              className="h-44 w-44 md:h-56 md:w-56"
+              aria-hidden
+            />
             <p
               role="status"
               aria-live="polite"
@@ -192,7 +186,11 @@ export default function VoiceStage() {
           style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
         >
           <div className="flex items-center gap-3">
-            {orb}
+            <div
+              ref={dockSlotRef}
+              className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]"
+              aria-hidden
+            />
             {hangup}
           </div>
           {snapshot.error ? (
@@ -222,6 +220,17 @@ export default function VoiceStage() {
           ) : null}
         </div>
       )}
+
+      <div
+        ref={orbNodeRef}
+        className="pointer-events-none fixed origin-center"
+      >
+        <VoiceOrb
+          phase={snapshot.phase}
+          size={intro || exiting ? 'hero' : 'dock'}
+          showLabel={intro || exiting}
+        />
+      </div>
     </div>
   );
 }

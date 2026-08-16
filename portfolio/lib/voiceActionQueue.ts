@@ -6,6 +6,7 @@ export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'set_voice_backend',
   'set_motion_preference',
   'fill_field',
+  'close_project',
 ] as const;
 
 export const DEFERRED_VOICE_TOOL_NAMES = [
@@ -154,11 +155,14 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
       if (item.hangup) clearHangupTimer();
 
       const token = generation;
-      committing = true;
-      try {
-        await item.run();
-      } finally {
-        if (token === generation) committing = false;
+      const result = item.run();
+      if (result && typeof result.then === 'function') {
+        committing = true;
+        try {
+          await result;
+        } finally {
+          if (token === generation) committing = false;
+        }
       }
       if (token !== generation) return;
       if (!options.canCommit()) return;

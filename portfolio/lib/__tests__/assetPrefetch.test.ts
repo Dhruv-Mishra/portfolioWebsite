@@ -146,3 +146,32 @@ describe('scheduleSuperuserPrefetch', () => {
     expect(timeoutCalls.length).toBeGreaterThan(0);
   });
 });
+
+describe('scheduleVoiceAssetPrefetch', () => {
+  it('schedules a single idle callback on first call', async () => {
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    expect(idleCalls.length).toBe(1);
+  });
+
+  it('is idempotent — a second call does not enqueue another idle callback', async () => {
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    scheduleVoiceAssetPrefetch();
+    expect(idleCalls.length).toBe(1);
+  });
+
+  it('skips entirely when Data Saver is on', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { connection: { saveData: true } },
+      configurable: true,
+      writable: true,
+    });
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    expect(idleCalls.length).toBe(0);
+  });
+});

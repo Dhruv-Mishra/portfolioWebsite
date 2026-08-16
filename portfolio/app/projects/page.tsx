@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
@@ -14,8 +14,9 @@ import { isProjectSlug } from '@/lib/projectCatalog';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { stickerBus } from '@/lib/stickerBus';
 import { recordOpenedProjectImperative } from '@/hooks/useStickers';
-import { getPageTurnSnapshot, getServerPageTurnSnapshot, subscribeToPageTurn } from '@/lib/pageTurn';
+import { getPageTurnSnapshot, getServerPageTurnSnapshot, requestPageTurnNavigation, subscribeToPageTurn } from '@/lib/pageTurn';
 import {
+  CLOSE_PROJECT_EVENT,
   OPEN_PROJECT_EVENT,
   attachSiteActionResult,
   readProjectSlugFromSearch,
@@ -91,6 +92,7 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 });
 
 export default function Projects() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const querySlug = readProjectSlugFromSearch(searchParams.toString());
     const queryProjectIndex = (() => {
@@ -140,7 +142,10 @@ export default function Projects() {
     const handleCloseModal = useCallback(() => {
         closePanel();
         setSelectedProject(null);
-    }, [closePanel]);
+        if (querySlug) {
+            requestPageTurnNavigation(router, { href: '/projects', mode: 'replace' });
+        }
+    }, [closePanel, querySlug, router]);
 
     const openProjectBySlug = useCallback((slug: string) => {
         if (!isProjectSlug(slug)) return false;
@@ -173,6 +178,18 @@ export default function Projects() {
         window.addEventListener(OPEN_PROJECT_EVENT, handler);
         return () => window.removeEventListener(OPEN_PROJECT_EVENT, handler);
     }, [openProjectBySlug]);
+
+    useEffect(() => {
+        const handler = (raw: Event) => {
+            handleCloseModal();
+            attachSiteActionResult(raw, {
+                ok: true,
+                spokenText: 'Closing that project.',
+            });
+        };
+        window.addEventListener(CLOSE_PROJECT_EVENT, handler);
+        return () => window.removeEventListener(CLOSE_PROJECT_EVENT, handler);
+    }, [handleCloseModal]);
 
     return (
         <div className="flex flex-col h-full pt-16 md:pt-0">

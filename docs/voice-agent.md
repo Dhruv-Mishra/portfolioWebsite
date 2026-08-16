@@ -10,7 +10,7 @@ only require changing the voice-caller adapter.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and the orb FLIPs into a non-modal dock. Exiting reuses that black veil with a picked “taking you back” line, then unmounts. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. Toggle plays on enter/exit, ambient fades in after the toggle and out before exit, and one action cue fires per committed visual tool. Assets prefetch on idle or enter. Exiting reuses that black veil with a picked “taking you back” line, then unmounts. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
@@ -57,6 +57,7 @@ Shared names:
 - `navigate_to`
 - `set_theme`
 - `open_project`
+- `close_project`
 - `control_project_video`
 - `open_link`
 - `open_feedback`

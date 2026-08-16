@@ -107,6 +107,15 @@ describe('site tool catalog', () => {
       args: { slug: 'cropio' },
     });
     expect(parseSiteToolCall({
+      name: 'close_project',
+      args: {},
+    })).toMatchObject({ name: 'close_project', args: {} });
+    expect(actionFromSiteTool({
+      id: 'close-1',
+      name: 'close_project',
+      args: {},
+    })).toBeNull();
+    expect(parseSiteToolCall({
       name: 'control_project_video',
       args: { action: 'play' },
     })).toMatchObject({ name: 'control_project_video', args: { action: 'play' } });

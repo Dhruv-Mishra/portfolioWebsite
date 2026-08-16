@@ -22,6 +22,27 @@ describe('planVoiceUtterance', () => {
     expect(planVoiceUtterance('what is this site')).toEqual([]);
   });
 
+  it('plans close_project for close, dismiss, and hide requests', () => {
+    expect(planVoiceUtterance('close the project')).toEqual([
+      { id: 'plan-1', name: 'close_project', args: {} },
+    ]);
+    expect(planVoiceUtterance('dismiss this modal')).toEqual([
+      { id: 'plan-1', name: 'close_project', args: {} },
+    ]);
+    expect(planVoiceUtterance('hide that preview')).toEqual([
+      { id: 'plan-1', name: 'close_project', args: {} },
+    ]);
+  });
+
+  it('plans preview control for play it and pause it', () => {
+    expect(planVoiceUtterance('play it')).toEqual([
+      { id: 'plan-1', name: 'control_project_video', args: { action: 'play' } },
+    ]);
+    expect(planVoiceUtterance('pause it')).toEqual([
+      { id: 'plan-1', name: 'control_project_video', args: { action: 'pause' } },
+    ]);
+  });
+
   it('maps explicit page, theme, and then/also chains and fails closed otherwise', () => {
     expect(planVoiceUtterance('go to about then switch to dark mode')).toEqual([
       { id: 'plan-1', name: 'navigate_to', args: { path: '/about' } },

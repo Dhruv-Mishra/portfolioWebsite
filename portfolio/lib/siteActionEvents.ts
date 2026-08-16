@@ -9,6 +9,7 @@ import type {
 } from '@/lib/siteTools';
 
 export const OPEN_PROJECT_EVENT = 'voice-open-project';
+export const CLOSE_PROJECT_EVENT = 'voice-close-project';
 export const CONTROL_PROJECT_VIDEO_EVENT = 'voice-control-project-video';
 export const SEND_CHAT_MESSAGE_EVENT = 'voice-send-chat-message';
 export const RUN_TERMINAL_COMMAND_EVENT = 'voice-run-terminal-command';
@@ -98,13 +99,20 @@ function dispatchCancellable<T>(name: string, detail: T): SiteActionHostResult {
   return { handled: true, result };
 }
 
-export function attachSiteActionResult(event: Event, result: SiteToolResult): void {
+export function attachSiteActionResult(
+  event: Event,
+  result: SiteToolResult | Promise<SiteToolResult>,
+): void {
   Object.assign(event, { siteActionResult: result });
   if ('preventDefault' in event) event.preventDefault();
 }
 
 export function requestOpenProject(slug: ProjectSlug): SiteActionHostResult {
   return dispatchCancellable<OpenProjectEventDetail>(OPEN_PROJECT_EVENT, { slug });
+}
+
+export function requestCloseProject(): SiteActionHostResult {
+  return dispatchCancellable(CLOSE_PROJECT_EVENT, {});
 }
 
 export function requestProjectVideoControl(action: ProjectVideoAction): SiteActionHostResult {

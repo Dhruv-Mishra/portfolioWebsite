@@ -70,6 +70,15 @@ const VIDEO_ACTION_PATTERN = new RegExp(
   'i',
 );
 
+const PROJECT_CONTEXT_PATTERN = /\b(?:project|modal|preview|video|note)\b/i;
+const CLOSE_PROJECT_PATTERN = /\b(?:close|dismiss|hide)\b/i;
+const CLOSE_PROJECT_TARGET_PATTERN = /\b(?:it|this|that|the\s+)?(?:project|modal|note|preview)\b/i;
+const PRONOUN_VIDEO_PATTERN = /\b(?:it|that|this)\b/i;
+const BARE_VIDEO_ACTION_PATTERN = new RegExp(
+  `^(?:${PROJECT_VIDEO_ACTIONS.join('|')})\\s+(?:it|that|this|(?:the\\s+)?(?:video|preview))$`,
+  'i',
+);
+
 function normalizeUtterance(text: string): string {
   return text
     .toLowerCase()
@@ -112,13 +121,21 @@ function resolveProjectSlug(clause: string): ProjectSlug | null {
 }
 
 function resolvePreviewAction(clause: string): ProjectVideoAction | null {
-  if (!/\b(?:preview|video)\b/i.test(clause)) return null;
   const match = clause.match(VIDEO_ACTION_PATTERN);
   if (!match?.[1]) return null;
   const action = match[1].toLowerCase();
-  return (PROJECT_VIDEO_ACTIONS as readonly string[]).includes(action)
-    ? action as ProjectVideoAction
-    : null;
+  if (!(PROJECT_VIDEO_ACTIONS as readonly string[]).includes(action)) return null;
+  const hasPreviewWord = /\b(?:preview|video)\b/i.test(clause);
+  const hasProjectContext = PROJECT_CONTEXT_PATTERN.test(clause);
+  const isBarePronounAction = BARE_VIDEO_ACTION_PATTERN.test(clause)
+    || (PRONOUN_VIDEO_PATTERN.test(clause) && hasPreviewWord);
+  if (!hasPreviewWord && !hasProjectContext && !isBarePronounAction) return null;
+  return action as ProjectVideoAction;
+}
+
+function resolveCloseProject(clause: string): boolean {
+  if (!CLOSE_PROJECT_PATTERN.test(clause)) return false;
+  return CLOSE_PROJECT_TARGET_PATTERN.test(clause) || /\b(?:it|this|that)\b/i.test(clause);
 }
 
 function resolveThemeAction(clause: string): (typeof VALID_THEME_ACTIONS)[number] | null {
@@ -150,6 +167,8 @@ function resolveNavigationPath(clause: string): (typeof VALID_NAVIGATION_PATHS)[
 function resolveClause(clause: string, id: string): PlannedVoiceAction | null {
   const terminal = resolveTerminalCommand(clause);
   if (terminal) return plannedCall(id, 'run_terminal_command', terminal);
+
+  if (resolveCloseProject(clause)) return plannedCall(id, 'close_project', {});
 
   const slug = resolveProjectSlug(clause);
   if (slug) return plannedCall(id, 'open_project', { slug });

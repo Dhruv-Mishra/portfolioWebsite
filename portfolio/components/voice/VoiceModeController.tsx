@@ -6,6 +6,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { useDiscoActive } from '@/hooks/useStickers';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
+import { scheduleVoiceAssetPrefetch } from '@/lib/assetPrefetch';
 import {
   bindVoiceSessionHost,
   getServerVoiceSessionSnapshot,
@@ -27,6 +28,10 @@ export default function VoiceModeController() {
     getVoiceSessionSnapshot,
     getServerVoiceSessionSnapshot,
   );
+
+  useEffect(() => {
+    scheduleVoiceAssetPrefetch();
+  }, []);
 
   useEffect(() => {
     bindVoiceSessionHost({

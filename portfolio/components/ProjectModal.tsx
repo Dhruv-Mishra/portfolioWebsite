@@ -58,6 +58,7 @@ const FOLD_COLOR_MODAL_STYLE = {
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const isMutedRef = useRef(true);
+    const playGenerationRef = useRef(0);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
     const [isMuted, setIsMuted] = useState(true);
     const [showPlayButton, setShowPlayButton] = useState(false);
@@ -82,9 +83,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     }, [selection]);
 
     const playVideo = useCallback(async () => {
+        const playGeneration = ++playGenerationRef.current;
         const deadline = Date.now() + VIDEO_PLAY_RETRY_MS;
         let video = videoRef.current;
         while (!video) {
+            if (playGeneration !== playGenerationRef.current) return false;
             if (Date.now() >= deadline) return false;
             await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, VIDEO_PLAY_RETRY_STEP_MS);
@@ -92,13 +95,17 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             video = videoRef.current;
         }
 
+        if (playGeneration !== playGenerationRef.current) return false;
         tap();
+        video.muted = isMutedRef.current;
 
         try {
             await video.play();
+            if (playGeneration !== playGenerationRef.current) return false;
             setShowPlayButton(false);
             return true;
         } catch {
+            if (playGeneration !== playGenerationRef.current) return false;
             setShowPlayButton(true);
             return false;
         }
@@ -149,7 +156,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             let result: SiteToolResult;
             if (action === 'play') {
                 // Claim now; the thenable settles only after video.play() resolves.
-                attachSiteActionResult(event, reportPlayResult() as unknown as SiteToolResult);
+                attachSiteActionResult(event, reportPlayResult());
                 return;
             }
             if (action === 'pause') {
@@ -175,10 +182,15 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     }, [hasMountedVideo, hasVideo, pauseVideo, project, reportPlayResult, setMuted]);
 
     const attemptAutoplay = useCallback((node: HTMLVideoElement, muted: boolean) => {
+        const playGeneration = ++playGenerationRef.current;
         node.muted = muted;
         void node.play()
-            .then(() => setShowPlayButton(false))
+            .then(() => {
+                if (playGeneration !== playGenerationRef.current) return;
+                setShowPlayButton(false);
+            })
             .catch(() => {
+                if (playGeneration !== playGenerationRef.current) return;
                 // Browser may block autoplay — show a manual play affordance.
                 setShowPlayButton(true);
             });

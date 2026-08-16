@@ -8,6 +8,7 @@ import {
   browseHistory,
   buildProjectHref,
   requestOpenChat,
+  requestCloseProject,
   requestOpenProject,
   requestOpenShortcuts,
   requestProjectVideoControl,
@@ -101,7 +102,7 @@ async function lookupFacts(query: string): Promise<SiteToolResult> {
     }
     try {
       const payload = await response.json() as { spokenText?: string; data?: Record<string, unknown> };
-      return ok(payload.spokenText || 'No compact facts matched that question.', payload.data);
+      return ok(payload.spokenText || 'Let me fetch that from the sketchbook.', payload.data);
     } catch {
       return fail('I could not read those facts just now.', 'facts-invalid');
     }
@@ -162,10 +163,21 @@ export async function executeSiteTool(
         nextAction,
       });
     }
+    case 'close_project': {
+      if (commit) {
+        const hosted = requestCloseProject();
+        if (hosted.handled) {
+          if (hosted.result) return await Promise.resolve(hosted.result);
+          return ok('Closing that project.');
+        }
+        return ok('That project is already closed.');
+      }
+      return ok('Closing that project.');
+    }
     case 'control_project_video': {
-      if (!commit) return ok('I will control that preview.', { action: parsed.args.action });
+      if (!commit) return fail('The preview is not ready yet.', 'project-video-unavailable');
       const hosted = requestProjectVideoControl(parsed.args.action);
-      if (hosted.result) return hosted.result;
+      if (hosted.result) return await Promise.resolve(hosted.result);
       return fail('No project video is open right now.', 'project-video-unavailable');
     }
     case 'open_link': {

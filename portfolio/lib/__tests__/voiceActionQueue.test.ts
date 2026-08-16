@@ -23,6 +23,7 @@ describe('voice action queue', () => {
       'set_voice_backend',
       'set_motion_preference',
       'fill_field',
+      'close_project',
     ]);
     expect(DEFERRED_VOICE_TOOL_NAMES).toEqual([
       'navigate_to',

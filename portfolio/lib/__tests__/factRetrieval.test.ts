@@ -138,6 +138,14 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(ids).toContain('project-cropio');
   });
 
+  it('force-includes the matching project fact even at a three-fact limit', async () => {
+    const cropio = await retrieveRelevantFacts('tell me about cropio', { limit: 3 });
+    expect(cropio.map((fact) => fact.id)).toContain('project-cropio');
+
+    const jarvis = await retrieveRelevantFacts('tell me about jarvis voice agent', { limit: 3 });
+    expect(jarvis.map((fact) => fact.id)).toContain('project-jarvis-voice-agent');
+  });
+
   it('surfaces terminal-related facts when asked about terminal commands', async () => {
     const facts = await retrieveRelevantFacts('what commands can I type in the terminal', { limit: 8 });
     const ids = facts.map((f) => f.id);

@@ -20,7 +20,7 @@ import OpenAI from 'openai';
 import embeddingsBundle from '@/lib/facts.embeddings.json';
 import type { EmbeddedFact, EmbeddingsBundle, Fact } from '@/lib/factTypes';
 import { l2Normalize, LOCAL_EMBEDDING_MODEL_ID, localEmbed } from '@/lib/localEmbedding';
-import type { ProjectSlug } from '@/lib/projectCatalog';
+import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
 // ── Bundle initialisation (one-time) ────────────────────────────────
 
@@ -295,6 +295,19 @@ export async function retrieveRelevantFacts(
   if (PC_SPECS_QUERY_PATTERN.test(query)) {
     const pcFact = LOADED.facts.find((fact) => fact.id === PC_BUILD_FACT_ID);
     if (pcFact) return [pcFact];
+  }
+
+  const projectMatches = PROJECT_ACTIONS.filter((project) =>
+    project.keywords.some((keyword) => new RegExp(keyword, 'i').test(query))
+      || new RegExp(`\\b${project.slug.replace(/-/g, '[-\\s]?')}\\b`, 'i').test(query),
+  );
+  if (projectMatches.length === 1) {
+    const projectFact = getFactBySlug(projectMatches[0].slug);
+    if (projectFact) {
+      const { anchors } = partitionFacts(LOADED.facts);
+      const extras = anchors.filter((fact) => fact.id !== projectFact.id);
+      return [projectFact, ...extras].slice(0, limit);
+    }
   }
 
   const { anchors, rankable } = partitionFacts(LOADED.facts);

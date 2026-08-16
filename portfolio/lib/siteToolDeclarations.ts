@@ -69,6 +69,12 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
     },
   },
   {
+    name: 'close_project',
+    description:
+      'Close the open project modal. Invocation: visitor asks to close, dismiss, or hide the current project, modal, note, or preview.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
     name: 'control_project_video',
     description:
       'Control the open project preview video. Invocation: visitor asks to play, pause, mute, or unmute the current project video. Fails if no modal or video is open.',

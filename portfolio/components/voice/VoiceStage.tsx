@@ -19,7 +19,7 @@ import VoiceOrb from '@/components/voice/VoiceOrb';
 
 const VEIL_FADE_MS = 420;
 const REDUCED_VEIL_MS = 0;
-const EXIT_TEARDOWN_MARGIN_MS = 80;
+const EXIT_TEARDOWN_MARGIN_MS = 160;
 const EXIT_VEIL_FADE_MS = VOICE_EXIT_VEIL_MS - EXIT_TEARDOWN_MARGIN_MS;
 const FLIP_MS = 520;
 
@@ -29,9 +29,19 @@ const DESKTOP_DOCK_STYLE = {
 } as const;
 
 const MOBILE_DOCK_STYLE = {
-  top: 'calc(env(safe-area-inset-top) + 4.25rem)',
-  left: 'max(0.75rem, env(safe-area-inset-left) + 0.5rem)',
+  left: '50%',
+  bottom: 'max(1rem, env(safe-area-inset-bottom) + 0.75rem)',
+  transform: 'translateX(-50%)',
+  alignItems: 'center',
 } as const;
+
+const CAPTION_LAYER_STYLE = {
+  left: '50%',
+  transform: 'translateX(-50%)',
+} as const;
+
+const MOBILE_CAPTION_BOTTOM = 'calc(max(1rem, env(safe-area-inset-bottom) + 0.75rem) + 8.25rem)';
+const DESKTOP_CAPTION_BOTTOM = 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)';
 
 export default function VoiceStage() {
   const snapshot = useSyncExternalStore(
@@ -168,7 +178,7 @@ export default function VoiceStage() {
           opacity: reducedMotion
             ? (intro || exiting ? 1 : 0)
             : exiting
-              ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 0])
+              ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 1, 0])
               : (intro ? 1 : 0),
         }}
         transition={{
@@ -179,7 +189,9 @@ export default function VoiceStage() {
                 ? EXIT_VEIL_FADE_MS
                 : VEIL_FADE_MS
           ) / 1000,
-          times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
+          times: !reducedMotion && exiting
+            ? (exitStartedWithVisibleVeil ? [0, 0.62, 1] : [0, 0.18, 0.62, 1])
+            : undefined,
           ease: 'easeOut',
         }}
         className={cn(
@@ -204,7 +216,7 @@ export default function VoiceStage() {
             opacity: reducedMotion
               ? 1
               : exiting
-                ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 0])
+                ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 1, 0])
                 : 1,
           }}
           transition={{
@@ -215,7 +227,9 @@ export default function VoiceStage() {
                   ? EXIT_VEIL_FADE_MS
                   : VEIL_FADE_MS
             ) / 1000,
-            times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
+            times: !reducedMotion && exiting
+              ? (exitStartedWithVisibleVeil ? [0, 0.62, 1] : [0, 0.18, 0.62, 1])
+              : undefined,
             ease: 'easeOut',
           }}
           className="pointer-events-none absolute inset-0 flex h-[100dvh] flex-col"
@@ -248,44 +262,54 @@ export default function VoiceStage() {
           </div>
         </m.div>
       ) : (
-        <div
-          className="pointer-events-auto absolute flex max-w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3"
-          style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              ref={dockSlotRef}
-              className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]"
-              aria-hidden
-            />
-            {hangup}
-          </div>
-          {snapshot.error ? (
-            <p role="alert" className="max-w-[18rem] font-hand text-sm leading-snug text-rose-700 dark:text-rose-200">
-              {snapshot.error}
-            </p>
-          ) : null}
-          {spoken ? (
-            <div
-              role="status"
-              aria-live="polite"
-              data-subtitle-phase={snapshot.subtitlePhase}
-              className="voice-dock-transcript flex max-h-[7.5rem] max-w-[min(24rem,calc(100vw-1.5rem))] flex-col justify-end overflow-hidden font-hand text-sm leading-snug text-[var(--c-ink)]"
-            >
-              <p className="whitespace-pre-wrap">{spoken}</p>
+        <>
+          <div
+            className="pointer-events-auto absolute flex flex-col gap-3"
+            style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
+          >
+            <div className={cn('flex items-center gap-3', isMobile && 'flex-col-reverse')}>
+              <div
+                ref={dockSlotRef}
+                className="h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]"
+                aria-hidden
+              />
+              {hangup}
             </div>
-          ) : null}
-          {!snapshot.micLive ? (
-            <button
-              type="button"
-              onClick={() => enableVoiceCapture()}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-black/55 px-4 font-hand text-sm text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
-            >
-              <MicOff size={14} aria-hidden />
-              Enable mic
-            </button>
-          ) : null}
-        </div>
+          </div>
+          <div
+            className="pointer-events-none absolute flex w-[min(24rem,calc(100vw-2.5rem))] flex-col items-center gap-3 px-3"
+            style={{
+              ...CAPTION_LAYER_STYLE,
+              bottom: isMobile ? MOBILE_CAPTION_BOTTOM : DESKTOP_CAPTION_BOTTOM,
+            }}
+          >
+            {snapshot.error ? (
+              <p role="alert" className="max-w-[18rem] text-center font-hand text-sm leading-snug text-rose-700 dark:text-rose-200">
+                {snapshot.error}
+              </p>
+            ) : null}
+            {spoken ? (
+              <div
+                role="status"
+                aria-live="polite"
+                data-subtitle-phase={snapshot.subtitlePhase}
+                className="voice-dock-transcript flex max-h-[7.5rem] max-w-[min(24rem,calc(100vw-1.5rem))] flex-col justify-end overflow-hidden font-hand text-sm leading-snug text-[var(--c-ink)]"
+              >
+                <p className="whitespace-pre-wrap">{spoken}</p>
+              </div>
+            ) : null}
+            {!snapshot.micLive ? (
+              <button
+                type="button"
+                onClick={() => enableVoiceCapture()}
+                className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-black/55 px-4 font-hand text-sm text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+              >
+                <MicOff size={14} aria-hidden />
+                Enable mic
+              </button>
+            ) : null}
+          </div>
+        </>
       )}
 
       <m.div
@@ -296,12 +320,12 @@ export default function VoiceStage() {
           opacity: reducedMotion
             ? 1
             : exiting
-              ? [1, 0, 0]
+              ? [1, 1, 0, 0]
               : 1,
         }}
         transition={{
           duration: (!reducedMotion && exiting ? EXIT_VEIL_FADE_MS : 0) / 1000,
-          times: !reducedMotion && exiting ? [0, 0.32, 1] : undefined,
+          times: !reducedMotion && exiting ? [0, 0.18, 0.62, 1] : undefined,
           ease: 'easeOut',
         }}
         data-voice-exit-orb={exiting ? 'true' : undefined}

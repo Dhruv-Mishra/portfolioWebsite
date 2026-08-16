@@ -12,6 +12,7 @@ import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import {
   buildVoiceSessionStartCue,
   DEFAULT_VOICE_SETUP,
+  VOICE_LIVE_REALTIME_INPUT_CONFIG,
   type VoiceCaller,
   type VoiceCallerEventMap,
   type VoiceCallerListener,
@@ -130,6 +131,7 @@ export class GeminiLiveCaller implements VoiceCaller {
               tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
               sessionResumption: {},
               contextWindowCompression: { slidingWindow: {} },
+              realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
               inputAudioTranscription: session.setup.lowNetwork ? undefined : {},
               outputAudioTranscription: session.setup.lowNetwork ? undefined : {},
             },

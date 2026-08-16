@@ -13,6 +13,7 @@ import {
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
 import {
   pickVoiceWelcome,
+  VOICE_LIVE_REALTIME_INPUT_CONFIG,
   type VoiceHealthStatus,
   type VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
@@ -54,6 +55,7 @@ export function buildLockedLiveSetup(lowNetwork: boolean) {
     contextWindowCompression: {
       slidingWindow: {},
     },
+    realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
     inputAudioTranscription: lowNetwork ? undefined : {},
     outputAudioTranscription: lowNetwork ? undefined : {},
   };
@@ -90,6 +92,7 @@ export function buildSlimLiveSetup() {
       },
     },
     sessionResumption: {},
+    realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
   };
 }
 

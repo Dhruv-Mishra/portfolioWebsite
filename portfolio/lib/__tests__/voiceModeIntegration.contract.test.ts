@@ -59,7 +59,7 @@ describe('voice mode integration contract', () => {
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
-    expect(css).toMatch(/@keyframes voice-orb-speak \{[\s\S]*scale\(1\.05\)[\s\S]*scale\(1\.06\)/);
+    expect(css).toMatch(/@keyframes voice-orb-speak \{[\s\S]*scale\(1\.12\)[\s\S]*scale\(1\)/);
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-gif');
     expect(css).toContain('html[data-motion="reduced"] .voice-orb-still');
     expect(css).toContain('html:not([data-motion="full"]) .voice-orb-gif');

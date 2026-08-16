@@ -34,19 +34,36 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+
+    const setRipple = (value: number) => {
+      root.style.setProperty('--voice-ripple', value.toFixed(3));
+    };
+
     if (reducedMotion) {
       root.style.setProperty('--voice-level', formatVoiceLevel(0));
+      setRipple(1);
       return;
     }
 
     let frame = 0;
     let pending = getVoicePlaybackLevel();
+    let rippleTimer = 0;
+    const speaking = phase === 'speaking';
 
     const apply = (level: number) => {
       root.style.setProperty('--voice-level', formatVoiceLevel(level));
     };
 
+    const pickRipple = () => 0.9 + Math.random() * 0.3;
+    const scheduleRipple = () => {
+      setRipple(pickRipple());
+      rippleTimer = window.setTimeout(scheduleRipple, 320 + Math.random() * 160);
+    };
+
     apply(pending);
+    if (speaking) scheduleRipple();
+    else setRipple(1);
+
     const unsubscribe = subscribeVoicePlaybackLevel(level => {
       pending = level;
       if (frame) return;
@@ -59,8 +76,9 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
     return () => {
       unsubscribe();
       if (frame) cancelAnimationFrame(frame);
+      if (rippleTimer) window.clearTimeout(rippleTimer);
     };
-  }, [reducedMotion]);
+  }, [phase, reducedMotion]);
 
   return (
     <div
@@ -68,31 +86,36 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
       data-voice-orb-size={size}
       className={cn(
         'voice-orb relative grid place-items-center',
+        `is-${phase}`,
         size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-[4.5rem] md:w-[4.5rem]',
       )}
       style={{ '--voice-level': formatVoiceLevel(0) } as CSSProperties}
       aria-hidden
     >
-      <span className="voice-orb-wash" aria-hidden />
-      {reducedMotion ? (
-        /* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */
-        <img
-          src="/voice/ai-ripple-still.webp"
-          alt=""
-          draggable={false}
-          decoding="async"
-          className={cn('voice-orb-still', `is-${phase}`)}
-        />
-      ) : (
-        /* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */
-        <img
-          src="/voice/ai-ripple.gif"
-          alt=""
-          draggable={false}
-          decoding="async"
-          className={cn('voice-orb-gif', `is-${phase}`)}
-        />
-      )}
+      <span className={cn('voice-orb-halo', `is-${phase}`)} aria-hidden />
+      <span className={cn('voice-orb-wash', `is-${phase}`)} aria-hidden />
+      <div className={cn('voice-orb-media', `is-${phase}`)}>
+        {reducedMotion ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */
+          <img
+            src="/voice/ai-ripple-still.webp"
+            alt=""
+            draggable={false}
+            decoding="async"
+            className={cn('voice-orb-still', `is-${phase}`)}
+          />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */
+          <img
+            src="/voice/ai-ripple.gif"
+            alt=""
+            draggable={false}
+            decoding="async"
+            className={cn('voice-orb-gif', `is-${phase}`)}
+          />
+        )}
+      </div>
+      <span className="voice-orb-sheen" aria-hidden />
       {showLabel ? (
         <span className={cn(
           'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',

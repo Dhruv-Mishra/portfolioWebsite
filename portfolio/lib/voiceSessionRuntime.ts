@@ -61,14 +61,15 @@ export interface VoiceSessionSnapshot {
   exitLine: string;
 }
 
-export const VOICE_SUBTITLE_IDLE_MS = 2_800;
+export const VOICE_SUBTITLE_IDLE_MS = 700;
 export const VOICE_SUBTITLE_FADE_MS = 280;
 export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
 export const VOICE_IDLE_CHECKIN_MS = 90_000;
 export const VOICE_IDLE_HANGUP_MS = 30_000;
-export const VOICE_EXIT_VEIL_MS = 1_400;
+export const VOICE_EXIT_VEIL_MS = 2_200;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
+export const VOICE_AMBIENT_START_DELAY_MS = 800;
 
 export interface VoiceHangupRequest {
   force?: boolean;
@@ -156,6 +157,7 @@ let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let idleCheckInTimer: ReturnType<typeof setTimeout> | null = null;
 let idleHangupTimer: ReturnType<typeof setTimeout> | null = null;
 let exitVeilTimer: ReturnType<typeof setTimeout> | null = null;
+let ambientStartTimer: ReturnType<typeof setTimeout> | null = null;
 let idleCheckedIn = false;
 let pendingStopReason: VoiceExitReason = 'user';
 let subtitleSpeaker: 'user' | 'agent' | null = null;
@@ -215,6 +217,12 @@ function clearExitVeilTimer(): void {
   if (exitVeilTimer === null) return;
   clearTimeout(exitVeilTimer);
   exitVeilTimer = null;
+}
+
+function clearAmbientStartTimer(): void {
+  if (ambientStartTimer === null) return;
+  clearTimeout(ambientStartTimer);
+  ambientStartTimer = null;
 }
 
 function resetIdleWatch(): void {
@@ -708,6 +716,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   greetTurnComplete = false;
   resetIdleWatch();
   clearExitVeilTimer();
+  clearAmbientStartTimer();
   resetSubtitleState();
   resetFarewellWait();
   resetUtterancePlan();
@@ -887,10 +896,15 @@ async function bootSession(): Promise<void> {
     prefetchVoiceVisuals();
     d.playEnter();
     if (prefs.ambientMusic && !prefs.lowNetwork) {
-      d.startAmbient(true);
+      clearAmbientStartTimer();
+      ambientStartTimer = setTimeout(() => {
+        ambientStartTimer = null;
+        if (isStale(generation) || !snapshot.active || stopping) return;
+        d.startAmbient(true);
+      }, VOICE_AMBIENT_START_DELAY_MS);
     }
     const nextCapture = await d.startCapture(chunk => {
-      if (sendAudioLive) caller?.sendAudio(chunk);
+      if (sendAudioLive && !playback?.isBusy()) caller?.sendAudio(chunk);
     }, { lowNetwork: prefs.lowNetwork }).catch(() => null);
     if (isStale(generation)) {
       nextCapture?.stop();
@@ -1061,7 +1075,7 @@ export function enableVoiceCapture(): void {
   const d = resolveDeps();
   noteVoiceActivity('mic');
   void d.startCapture(chunk => {
-    if (sendAudioLive) caller?.sendAudio(chunk);
+    if (sendAudioLive && !playback?.isBusy()) caller?.sendAudio(chunk);
   }, { lowNetwork: snapshot.lowNetwork }).then(nextCapture => {
     if (isStale(generation)) {
       nextCapture.stop();

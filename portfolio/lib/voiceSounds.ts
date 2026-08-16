@@ -17,7 +17,7 @@ const VOICE_VISUAL_URLS = [
 
 const TOGGLE_VOLUME = 0.38;
 const ACTION_VOLUME = 0.30;
-const AMBIENT_VOLUME = 0.10;
+const AMBIENT_VOLUME = 0.14;
 const AMBIENT_FADE_IN_MS = 900;
 const AMBIENT_FADE_OUT_MS = 320;
 const AMBIENT_FADE_OUT_REDUCED_MS = 120;
@@ -119,6 +119,7 @@ export function playVoiceSound(id: VoiceCueId): void {
 }
 
 export function startVoiceAmbient(enabled: boolean): void {
+  soundManager.stopLoop('disco-loop');
   if (!enabled || getSoundsMutedSync()) return;
   if (ambientPhase === 'in' || ambientPhase === 'playing' || ambientPhase === 'out') return;
   const audio = getAudio('voice-ambient');
@@ -164,6 +165,7 @@ export function stopVoiceAmbient(options: { fadeMs?: number } = {}): void {
 
 export function __resetVoiceSoundsForTest(): void {
   cancelAmbientFade();
+  soundManager.stopLoop('disco-loop');
   ambientPhase = 'idle';
   for (const audio of cache.values()) {
     audio.pause();

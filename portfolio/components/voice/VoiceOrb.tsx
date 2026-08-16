@@ -7,6 +7,7 @@ import { getVoicePlaybackLevel, subscribeVoicePlaybackLevel } from '@/lib/voiceA
 
 interface VoiceOrbProps {
   phase: VoiceAgentPhase;
+  reducedMotion: boolean;
   size?: 'hero' | 'dock';
   showLabel?: boolean;
 }
@@ -27,12 +28,16 @@ function formatVoiceLevel(level: number): string {
   return (Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000).toFixed(3);
 }
 
-export default function VoiceOrb({ phase, size = 'hero', showLabel = true }: VoiceOrbProps) {
+export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabel = true }: VoiceOrbProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    if (reducedMotion) {
+      root.style.setProperty('--voice-level', formatVoiceLevel(0));
+      return;
+    }
 
     let frame = 0;
     let pending = getVoicePlaybackLevel();
@@ -55,7 +60,7 @@ export default function VoiceOrb({ phase, size = 'hero', showLabel = true }: Voi
       unsubscribe();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <div
@@ -69,25 +74,28 @@ export default function VoiceOrb({ phase, size = 'hero', showLabel = true }: Voi
       aria-hidden
     >
       <span className="voice-orb-wash" aria-hidden />
-      {/* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */}
-      <img
-        src="/voice/ai-ripple.gif"
-        alt=""
-        draggable={false}
-        decoding="async"
-        className={cn('voice-orb-gif', `is-${phase}`)}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */}
-      <img
-        src="/voice/ai-ripple-still.webp"
-        alt=""
-        draggable={false}
-        decoding="async"
-        className={cn('voice-orb-still', `is-${phase}`)}
-      />
+      {reducedMotion ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */
+        <img
+          src="/voice/ai-ripple-still.webp"
+          alt=""
+          draggable={false}
+          decoding="async"
+          className={cn('voice-orb-still', `is-${phase}`)}
+        />
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */
+        <img
+          src="/voice/ai-ripple.gif"
+          alt=""
+          draggable={false}
+          decoding="async"
+          className={cn('voice-orb-gif', `is-${phase}`)}
+        />
+      )}
       {showLabel ? (
         <span className={cn(
-          'pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',
+          'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',
           size === 'hero' ? '-bottom-8 text-sm' : '-bottom-5 text-[0.65rem] tracking-[0.18em]',
         )}
         >

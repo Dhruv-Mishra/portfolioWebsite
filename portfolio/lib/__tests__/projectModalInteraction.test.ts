@@ -62,4 +62,14 @@ describe('Projects modal interaction contract', () => {
     expect(projectModal).toContain('VIDEO_PLAY_RETRY_MS = 1000');
     expect(projectModal).toContain('VIDEO_PLAY_RETRY_STEP_MS = 50');
   });
+
+  it('pauses detached video without destroying src and cancels stale generations', () => {
+    expect(projectModal).toMatch(/if \(previousVideo !== node\) playGenerationRef\.current \+= 1;/);
+    expect(projectModal).toMatch(/if \(previousVideo && previousVideo !== node\) \{\s*previousVideo\.pause\(\);\s*\}/);
+    expect(projectModal).not.toMatch(/previousVideo\.removeAttribute\(['"]src['"]\)/);
+    expect(projectModal).not.toMatch(/previousVideo\.load\(\)/);
+    expect(projectModal).toMatch(/return \(\) => \{\s*playGenerationRef\.current \+= 1;/);
+    expect(projectModal).toMatch(/playGeneration !== playGenerationRef\.current \|\| videoRef\.current !== video/);
+    expect(projectModal).toMatch(/playGeneration !== playGenerationRef\.current \|\| videoRef\.current !== node/);
+  });
 });

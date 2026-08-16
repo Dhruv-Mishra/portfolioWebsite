@@ -4,6 +4,9 @@ Production voice mode for the sketchbook. The browser talks to a native
 audio model. Site tools stay model-agnostic. Switching providers should
 only require changing the voice-caller adapter.
 
+Release `v0.24.0` carries the polished welcome flow, HUD, audio timing, and
+barge-in behavior described below.
+
 ## Decisions
 
 | Topic | Decision |

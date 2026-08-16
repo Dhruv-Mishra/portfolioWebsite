@@ -98,6 +98,13 @@ describe('workflow supply-chain hardening', () => {
     for (const source of [productionDeploy, stagingDeploy]) {
       const installUpdater =
         'sudo install -m 0700 -o root -g root "$STAGING/update-cloudflare-origin-policy.sh"';
+      const updaterTarget =
+        'POLICY_UPDATER_TARGET="/usr/local/sbin/update-cloudflare-origin-policy"';
+      const updaterNext =
+        'POLICY_UPDATER_NEXT="${POLICY_UPDATER_TARGET}.next.${SHA}.$$"';
+      const moveUpdater =
+        'sudo mv -f "$POLICY_UPDATER_NEXT" "$POLICY_UPDATER_TARGET"';
+      const invokeUpdater = 'sudo "$POLICY_UPDATER_TARGET"';
 
       expect(source).toContain(
         'cp portfolio/scripts/update-cloudflare-origin-policy.sh deploy-kit/update-cloudflare-origin-policy.sh',
@@ -106,13 +113,18 @@ describe('workflow supply-chain hardening', () => {
         'Cloudflare origin policy not installed yet; deploy kit will install and validate it before deploy.sh runs.',
       );
       expect(source).toContain(installUpdater);
-      expect(source).toContain('sudo /usr/local/sbin/update-cloudflare-origin-policy');
+      expect(source).toContain('STAGING="/var/tmp/portfolio-stage-${SHA}"');
+      expect(source).toContain(updaterTarget);
+      expect(source).toContain(updaterNext);
+      expect(source).toContain(moveUpdater);
+      expect(source).toContain(invokeUpdater);
       expect(source).toContain('sudo systemctl is-active --quiet nginx');
       expect(source).toContain("sudo ufw status | grep -Fx 'Status: active'");
-      expect(source.indexOf(installUpdater)).toBeLessThan(
-        source.indexOf('sudo /usr/local/sbin/update-cloudflare-origin-policy'),
-      );
-      expect(source.indexOf('sudo /usr/local/sbin/update-cloudflare-origin-policy')).toBeLessThan(
+      expect(source.indexOf(updaterTarget)).toBeLessThan(source.indexOf(updaterNext));
+      expect(source.indexOf(updaterNext)).toBeLessThan(source.indexOf(installUpdater));
+      expect(source.indexOf(installUpdater)).toBeLessThan(source.indexOf(moveUpdater));
+      expect(source.indexOf(moveUpdater)).toBeLessThan(source.indexOf(invokeUpdater));
+      expect(source.indexOf(invokeUpdater)).toBeLessThan(
         source.indexOf('Invoking image deploy script'),
       );
     }

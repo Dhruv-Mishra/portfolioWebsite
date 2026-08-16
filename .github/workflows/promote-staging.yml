@@ -189,9 +189,31 @@ jobs:
           fi
 
           version="$(git show "${RELEASE_SHA}:portfolio/package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).version));")"
-          release_subject="$(git log -1 --format=%s "$RELEASE_SHA")"
+          release_commit="$RELEASE_SHA"
+          release_subject="$(git log -1 --format=%s "$release_commit")"
           if [ "$release_subject" != "chore(release): v${version}" ]; then
-            echo "::error::release_sha must be the merged release commit for portfolio/package.json version ${version}."
+            parent_count="$(git rev-list --parents -n 1 "$RELEASE_SHA" | awk '{print NF - 1}')"
+            if [ "$parent_count" -ne 2 ]; then
+              echo "::error::release_sha must be a release commit or its reviewed two-parent merge commit."
+              exit 1
+            fi
+
+            base_parent="$(git rev-parse "${RELEASE_SHA}^1")"
+            release_commit="$(git rev-parse "${RELEASE_SHA}^2")"
+            release_parent_count="$(git rev-list --parents -n 1 "$release_commit" | awk '{print NF - 1}')"
+            release_parent="$(git rev-parse "${release_commit}^1")"
+            if [ "$release_parent_count" -ne 1 ] || [ "$release_parent" != "$base_parent" ]; then
+              echo "::error::The reviewed release commit must be based directly on the merge commit's first parent."
+              exit 1
+            fi
+            if ! git diff --quiet "$release_commit" "$RELEASE_SHA" --; then
+              echo "::error::The merged release tree differs from the reviewed release commit."
+              exit 1
+            fi
+            release_subject="$(git log -1 --format=%s "$release_commit")"
+          fi
+          if [ "$release_subject" != "chore(release): v${version}" ]; then
+            echo "::error::The reviewed release commit does not match portfolio/package.json version ${version}."
             echo "Expected subject: chore(release): v${version}"
             echo "Received subject: ${release_subject}"
             exit 1

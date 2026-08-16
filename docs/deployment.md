@@ -9,7 +9,7 @@ dev/lkg -> deployed/staging -> deployed/production
 ```
 
 - Staging uses two manual dispatches. First run `promote-staging.yml` with `prepare-release`: it accepts only `dev/lkg`, verifies `deployed/staging` is an ancestor, creates or reuses `release/staging-v<version>` with the minor package bump, and reports an **Open release PR** compare link.
-- Open that link manually in GitHub (or with an authorized client), create the release PR into `dev/lkg`, and merge it after the required review. Then run `promote-staging.yml` with `promote-release` and the exact merged `dev/lkg` release SHA. It verifies the release commit, fast-forwards only `deployed/staging`, then dispatches staging deployment.
+- Open that link manually in GitHub (or with an authorized client), create the release PR into `dev/lkg`, and merge it after the required review. Then run `promote-staging.yml` with `promote-release` and the exact merged `dev/lkg` release SHA. It verifies the reviewed release commit and merge lineage, fast-forwards only `deployed/staging`, then dispatches staging deployment.
 - The production promotion workflow fast-forwards `deployed/production` from `deployed/staging` after a GitHub production-environment approval, then dispatches production deployment.
 - Production deployment has a separate production-environment approval before it mutates hosts.
 

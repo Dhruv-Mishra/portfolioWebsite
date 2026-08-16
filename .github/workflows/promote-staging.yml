@@ -201,8 +201,12 @@ jobs:
             base_parent="$(git rev-parse "${RELEASE_SHA}^1")"
             release_commit="$(git rev-parse "${RELEASE_SHA}^2")"
             release_parent_count="$(git rev-list --parents -n 1 "$release_commit" | awk '{print NF - 1}')"
+            if [ "$release_parent_count" -ne 1 ]; then
+              echo "::error::The reviewed release commit must have exactly one parent."
+              exit 1
+            fi
             release_parent="$(git rev-parse "${release_commit}^1")"
-            if [ "$release_parent_count" -ne 1 ] || [ "$release_parent" != "$base_parent" ]; then
+            if [ "$release_parent" != "$base_parent" ]; then
               echo "::error::The reviewed release commit must be based directly on the merge commit's first parent."
               exit 1
             fi

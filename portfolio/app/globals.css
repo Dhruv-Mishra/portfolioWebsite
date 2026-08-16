@@ -846,16 +846,16 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   pointer-events: none;
 }
 .voice-orb-media {
-  border-radius: 9999px;
+  border-radius: 50%;
   overflow: hidden;
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 74%);
-  mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 74%);
+  aspect-ratio: 1;
   transform: scale(var(--voice-ripple, 1));
-  transition: transform 380ms ease-out;
+  transition: transform 180ms ease-out;
 }
 .voice-orb-gif,
 .voice-orb-still {
-  object-fit: contain;
+  object-fit: cover;
+  object-position: 0% 50%;
   -webkit-user-drag: none;
   user-select: none;
   mix-blend-mode: normal;
@@ -869,28 +869,28 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   mix-blend-mode: screen;
 }
 .voice-orb-halo {
-  border-radius: 9999px;
+  border-radius: 50%;
   background: radial-gradient(circle at 50% 50%, transparent 42%, color-mix(in srgb, var(--c-ink) 16%, rgba(59, 110, 220, 0.2)) 58%, transparent 74%);
   opacity: 0.7;
   transform: scale(1);
-  transition: opacity 380ms ease-out, transform 380ms ease-out;
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
 .dark .voice-orb-halo {
   background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(120, 170, 255, 0.46) 58%, transparent 76%);
   opacity: 0.92;
 }
 .voice-orb-wash {
-  border-radius: 9999px;
+  border-radius: 50%;
   background: radial-gradient(circle at 50% 48%, rgba(120, 164, 255, 0.18), transparent 62%);
   mix-blend-mode: multiply;
   opacity: calc(0.22 + var(--voice-level, 0) * 0.38);
-  transition: opacity 380ms ease-out;
+  transition: opacity 180ms ease-out;
 }
 .dark .voice-orb-wash {
   mix-blend-mode: screen;
 }
 .voice-orb-sheen {
-  border-radius: 9999px;
+  border-radius: 50%;
   background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.16), transparent 46%);
   opacity: 0.4;
 }
@@ -901,19 +901,40 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   display: block;
 }
 .voice-orb.is-speaking .voice-orb-media,
-.voice-orb.is-speaking .voice-orb-halo {
-  will-change: transform;
+.voice-orb.is-speaking .voice-orb-halo,
+.voice-orb.is-acting .voice-orb-media,
+.voice-orb.is-acting .voice-orb-halo,
+.voice-orb[data-voice-orb-speaking] .voice-orb-media,
+.voice-orb[data-voice-orb-speaking] .voice-orb-halo {
+  will-change: transform, opacity;
 }
 .voice-orb-halo.is-speaking {
   animation: voice-orb-speak 1.1s ease-in-out infinite;
 }
-.voice-orb-wash.is-speaking {
+.voice-orb[data-voice-orb-speaking] .voice-orb-media,
+.voice-orb.is-acting .voice-orb-media {
+  animation: none;
+  transform: scale(calc(var(--voice-ripple, 1) + var(--voice-level, 0) * 0.06));
+}
+.voice-orb[data-voice-orb-speaking]:not(.is-acting) .voice-orb-halo {
+  animation: none;
+  transform: scale(calc(var(--voice-ripple, 1) + var(--voice-level, 0) * 0.1));
+  opacity: calc(0.52 + var(--voice-level, 0) * 0.4 + (var(--voice-ripple, 1) - 1) * 1.2);
+}
+.voice-orb-wash.is-speaking,
+.voice-orb[data-voice-orb-speaking] .voice-orb-wash {
   opacity: calc(0.22 + var(--voice-level, 0) * 0.38 + (var(--voice-ripple, 1) - 1) * 0.35);
 }
 .voice-orb-halo.is-error {
   background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(251, 113, 133, 0.42) 58%, transparent 76%);
 }
-.voice-orb-media.is-acting,
+.voice-orb-halo.is-acting {
+  background: radial-gradient(circle at 50% 50%, transparent 40%, color-mix(in srgb, var(--c-ink) 10%, rgba(196, 132, 42, 0.34)) 56%, color-mix(in srgb, var(--c-ink) 6%, rgba(124, 92, 196, 0.22)) 68%, transparent 80%);
+  animation: voice-orb-act-halo 0.86s ease-out infinite;
+}
+.dark .voice-orb-halo.is-acting {
+  background: radial-gradient(circle at 50% 50%, transparent 38%, rgba(186, 148, 255, 0.52) 54%, rgba(80, 214, 176, 0.28) 68%, transparent 80%);
+}
 .voice-orb-media.is-thinking {
   animation: voice-orb-act 1.8s ease-in-out infinite;
 }
@@ -925,7 +946,7 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   animation: voice-caption-in 0.28s ease-out;
 }
 .voice-dock-transcript {
-  background: color-mix(in srgb, var(--c-paper) 72%, transparent);
+  background: color-mix(in srgb, var(--c-paper) 56%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid color-mix(in srgb, var(--c-ink) 16%, transparent);
@@ -945,6 +966,11 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 @keyframes voice-orb-act {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.03); opacity: 0.92; }
+}
+@keyframes voice-orb-act-halo {
+  0% { transform: scale(1); opacity: 0.42; }
+  28% { transform: scale(1.2); opacity: 0.96; }
+  100% { transform: scale(1.05); opacity: 0.5; }
 }
 @keyframes voice-orb-listen {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -968,7 +994,10 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   html:not([data-motion="full"]) .voice-orb-media.is-acting,
   html:not([data-motion="full"]) .voice-orb-media.is-thinking,
   html:not([data-motion="full"]) .voice-orb-media.is-listening,
-  html:not([data-motion="full"]) .voice-orb-halo.is-speaking {
+  html:not([data-motion="full"]) .voice-orb-halo.is-speaking,
+  html:not([data-motion="full"]) .voice-orb-halo.is-acting,
+  html:not([data-motion="full"]) .voice-orb[data-voice-orb-speaking] .voice-orb-media,
+  html:not([data-motion="full"]) .voice-orb[data-voice-orb-speaking] .voice-orb-halo {
     animation: none;
     transition: none;
     transform: none;
@@ -996,7 +1025,10 @@ html[data-motion="reduced"] .voice-orb-gif.is-listening,
 html[data-motion="reduced"] .voice-orb-media.is-acting,
 html[data-motion="reduced"] .voice-orb-media.is-thinking,
 html[data-motion="reduced"] .voice-orb-media.is-listening,
-html[data-motion="reduced"] .voice-orb-halo.is-speaking {
+html[data-motion="reduced"] .voice-orb-halo.is-speaking,
+html[data-motion="reduced"] .voice-orb-halo.is-acting,
+html[data-motion="reduced"] .voice-orb[data-voice-orb-speaking] .voice-orb-media,
+html[data-motion="reduced"] .voice-orb[data-voice-orb-speaking] .voice-orb-halo {
   transition: none;
   animation: none;
   transform: none;

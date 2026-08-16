@@ -54,6 +54,7 @@ describe('voice system instruction', () => {
     expect(prompt).toContain('Never say you do not have enough info');
     expect(prompt).toContain('Confirm before pinning a guestbook note or sending feedback');
     expect(prompt).toContain('If the host sends an exact-speak cue, speak that line and stop.');
+    expect(prompt).toContain('talk about the website');
     for (const name of PICKER_NAMES) {
       expect(prompt).not.toContain(name);
     }

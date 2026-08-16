@@ -13,7 +13,7 @@ barge-in behavior described below.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. Toggle plays on enter/exit, ambient becomes audible after the toggle and fades out before exit, and one action cue fires per committed visual tool. Dock captions fade after ~700ms. Assets prefetch on idle or enter. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. The landscape GIF is left-cropped into a hard circle. Speaking ripples follow playback level, not caption lifetime. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in, and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on idle or enter. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
@@ -96,5 +96,7 @@ Hangup first shows a picked exit-veil line on the black screen for ~2.2s;
 the fade must finish before unmount. Random selection stays out of the
 model prompt. After the first spoken turn finishes, the veil settles into
 a floating dock and the rest of the site stays interactive. Dock captions
-fade after ~700ms. Gemini VAD uses LOW start/end sensitivity with padding.
-Ambient becomes audible after the toggle.
+fade after ~700ms; orb ripples stay up while PCM is still playing. Gemini
+VAD uses LOW start/end sensitivity with padding. Ambient unlocks on the
+enter gesture and becomes audible after the toggle. Off-topic asks get a
+short in-character redirect back to the site.

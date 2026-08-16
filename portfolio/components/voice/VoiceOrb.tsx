@@ -42,27 +42,41 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
     if (reducedMotion) {
       root.style.setProperty('--voice-level', formatVoiceLevel(0));
       setRipple(1);
+      root.removeAttribute('data-voice-orb-speaking');
       return;
     }
 
     let frame = 0;
     let pending = getVoicePlaybackLevel();
     let rippleTimer = 0;
-    const speaking = phase === 'speaking';
+    const SPEAKING_LEVEL = 0.02;
+
+    const pickRipple = () => 0.97 + Math.random() * 0.25;
+    const stopRipple = () => {
+      if (rippleTimer) {
+        window.clearTimeout(rippleTimer);
+        rippleTimer = 0;
+      }
+      setRipple(1);
+    };
+    const scheduleRipple = () => {
+      setRipple(pickRipple());
+      rippleTimer = window.setTimeout(scheduleRipple, 160 + Math.random() * 120);
+    };
 
     const apply = (level: number) => {
       root.style.setProperty('--voice-level', formatVoiceLevel(level));
-    };
-
-    const pickRipple = () => 0.9 + Math.random() * 0.3;
-    const scheduleRipple = () => {
-      setRipple(pickRipple());
-      rippleTimer = window.setTimeout(scheduleRipple, 320 + Math.random() * 160);
+      const speakingNow = phase === 'speaking' || level > SPEAKING_LEVEL;
+      const rippleNow = speakingNow || phase === 'acting';
+      root.toggleAttribute('data-voice-orb-speaking', speakingNow);
+      if (rippleNow) {
+        if (!rippleTimer) scheduleRipple();
+        return;
+      }
+      stopRipple();
     };
 
     apply(pending);
-    if (speaking) scheduleRipple();
-    else setRipple(1);
 
     const unsubscribe = subscribeVoicePlaybackLevel(level => {
       pending = level;
@@ -76,7 +90,7 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
     return () => {
       unsubscribe();
       if (frame) cancelAnimationFrame(frame);
-      if (rippleTimer) window.clearTimeout(rippleTimer);
+      stopRipple();
     };
   }, [phase, reducedMotion]);
 

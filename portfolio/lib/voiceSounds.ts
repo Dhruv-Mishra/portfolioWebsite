@@ -1,13 +1,16 @@
 import { getSoundsMutedSync } from '@/hooks/useStickers';
+import { SITE_VERSION } from '@/lib/siteVersion';
 import { soundManager } from '@/lib/soundManager';
 
 export type VoiceCueId = 'voice-toggle' | 'voice-action';
 export type VoiceSoundId = VoiceCueId | 'voice-ambient';
 
+type AmbientPhase = 'idle' | 'primed' | 'in' | 'playing' | 'out';
+
 const VOICE_SOUND_URLS: Record<VoiceSoundId, string> = {
-  'voice-toggle': '/sounds/voice/toggle.mp3',
-  'voice-action': '/sounds/voice/action.mp3',
-  'voice-ambient': '/sounds/voice/ambient.mp3',
+  'voice-toggle': `/sounds/voice/toggle.mp3?v=${SITE_VERSION}`,
+  'voice-action': `/sounds/voice/action.mp3?v=${SITE_VERSION}`,
+  'voice-ambient': `/sounds/voice/ambient.mp3?v=${SITE_VERSION}`,
 };
 
 const VOICE_VISUAL_URLS = [
@@ -16,14 +19,14 @@ const VOICE_VISUAL_URLS = [
 ] as const;
 
 const TOGGLE_VOLUME = 0.38;
-const ACTION_VOLUME = 0.30;
+const ACTION_VOLUME = 0.38;
 const AMBIENT_VOLUME = 0.36;
 const AMBIENT_FADE_IN_MS = 900;
 const AMBIENT_FADE_OUT_MS = 320;
 const AMBIENT_FADE_OUT_REDUCED_MS = 120;
 
 const cache = new Map<VoiceSoundId, HTMLAudioElement>();
-let ambientPhase: 'idle' | 'in' | 'playing' | 'out' = 'idle';
+let ambientPhase: AmbientPhase = 'idle';
 let ambientFadeFrame = 0;
 let ambientFadeToken = 0;
 
@@ -38,8 +41,8 @@ function getAudio(id: VoiceSoundId): HTMLAudioElement {
   return audio;
 }
 
-function isCuePlaying(audio: HTMLAudioElement): boolean {
-  return !audio.paused && audio.currentTime > 0 && !audio.ended;
+function isAmbientPlaying(audio: HTMLAudioElement): boolean {
+  return !audio.paused && !audio.ended;
 }
 
 function prefersReducedVoiceMotion(): boolean {
@@ -107,14 +110,33 @@ export function prefetchVoiceVisuals(): void {
   }
 }
 
+export function unlockVoiceAudio(): void {
+  if (typeof Audio === 'undefined') return;
+  const toggle = getAudio('voice-toggle');
+  const action = getAudio('voice-action');
+  const ambient = getAudio('voice-ambient');
+  toggle.load();
+  action.load();
+  ambient.load();
+  ambient.loop = true;
+  ambient.volume = 0;
+  if (ambientPhase !== 'idle') return;
+  ambientPhase = 'primed';
+  const playResult = ambient.play();
+  if (playResult && typeof playResult.then === 'function') {
+    void playResult.catch(() => {
+      if (ambientPhase === 'primed') ambientPhase = 'idle';
+    });
+  }
+}
+
 export function playVoiceSound(id: VoiceCueId): void {
   if (getSoundsMutedSync()) return;
   const audio = getAudio(id);
-  if (isCuePlaying(audio)) return;
   audio.volume = id === 'voice-toggle' ? TOGGLE_VOLUME : ACTION_VOLUME;
   audio.currentTime = 0;
   void audio.play().catch(() => {
-    /* keep voice cues isolated from site fallbacks */
+    cache.delete(id);
   });
 }
 
@@ -123,6 +145,18 @@ export function startVoiceAmbient(enabled: boolean): void {
   if (!enabled || getSoundsMutedSync()) return;
   if (ambientPhase === 'in' || ambientPhase === 'playing' || ambientPhase === 'out') return;
   const audio = getAudio('voice-ambient');
+  audio.loop = true;
+
+  if (ambientPhase === 'primed' && isAmbientPlaying(audio)) {
+    ambientPhase = 'in';
+    fadeAmbientVolume(audio, audio.volume || 0, AMBIENT_VOLUME, AMBIENT_FADE_IN_MS, () => {
+      if (ambientPhase !== 'in') return;
+      ambientPhase = 'playing';
+      audio.volume = AMBIENT_VOLUME;
+    });
+    return;
+  }
+
   ambientPhase = 'in';
   audio.volume = 0;
   const playResult = audio.play();

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SITE_VERSION } from '@/lib/siteVersion';
 import {
   __resetVoiceSoundsForTest,
   startVoiceAmbient,
   stopVoiceAmbient,
+  unlockVoiceAudio,
 } from '@/lib/voiceSounds';
 
 const soundManagerMock = vi.hoisted(() => ({
@@ -129,5 +131,54 @@ describe('voice ambient sound', () => {
     expect(audio?.currentTime).toBe(0);
     expect(audio?.volume).toBe(0);
     expect(soundManagerMock.stopLoop).toHaveBeenCalledWith('disco-loop');
+  });
+
+  it('unlocks ambient on the enter gesture then fades the same looping element', async () => {
+    unlockVoiceAudio();
+
+    const byId = Object.fromEntries(
+      (soundManagerMock.instances as FakeAudio[]).map(audio => {
+        const id = audio.src.match(/voice\/(\w+)\.mp3/)?.[1] ?? audio.src;
+        return [id, audio];
+      }),
+    );
+    expect(soundManagerMock.instances.map(audio => (audio as FakeAudio).src)).toEqual([
+      `/sounds/voice/toggle.mp3?v=${SITE_VERSION}`,
+      `/sounds/voice/action.mp3?v=${SITE_VERSION}`,
+      `/sounds/voice/ambient.mp3?v=${SITE_VERSION}`,
+    ]);
+    expect(byId.ambient?.play).toHaveBeenCalledTimes(1);
+    expect(byId.ambient?.loop).toBe(true);
+    expect(byId.ambient?.volume).toBe(0);
+
+    startVoiceAmbient(true);
+    await Promise.resolve();
+
+    expect(soundManagerMock.instances).toHaveLength(3);
+    expect(byId.ambient?.play).toHaveBeenCalledTimes(1);
+    expect(byId.ambient?.loop).toBe(true);
+    expect(byId.ambient?.volume).toBeCloseTo(0.36);
+  });
+
+  it('reverts a rejected unlock so start can retry ambient', async () => {
+    class RejectUnlockAudio extends FakeAudio {
+      override readonly play = vi.fn(() => Promise.reject(new Error('NotAllowedError')));
+    }
+    vi.stubGlobal('Audio', RejectUnlockAudio);
+
+    unlockVoiceAudio();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const ambient = (soundManagerMock.instances as RejectUnlockAudio[]).find(audio => (
+      audio.src.includes('/sounds/voice/ambient.mp3')
+    ));
+    expect(ambient?.play).toHaveBeenCalledTimes(1);
+    expect(ambient?.volume).toBe(0);
+
+    startVoiceAmbient(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ambient?.play).toHaveBeenCalledTimes(2);
   });
 });

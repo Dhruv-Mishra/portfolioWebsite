@@ -37,6 +37,7 @@ export async function startVoiceCapture(
     audio: {
       echoCancellation: true,
       noiseSuppression: true,
+      autoGainControl: false,
       channelCount: 1,
     },
   });

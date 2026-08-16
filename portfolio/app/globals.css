@@ -831,69 +831,116 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 
 .voice-orb {
   --voice-level: 0;
+  --voice-ripple: 1;
 }
+.voice-orb-media,
+.voice-orb-halo,
 .voice-orb-gif,
 .voice-orb-still,
-.voice-orb-wash {
+.voice-orb-wash,
+.voice-orb-sheen {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
 }
+.voice-orb-media {
+  border-radius: 9999px;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 74%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 64%, transparent 74%);
+  transform: scale(var(--voice-ripple, 1));
+  transition: transform 380ms ease-out;
+}
 .voice-orb-gif,
 .voice-orb-still {
   object-fit: contain;
   -webkit-user-drag: none;
   user-select: none;
+  mix-blend-mode: normal;
 }
-.voice-orb-gif {
-  display: block;
-  mix-blend-mode: screen;
-  filter: drop-shadow(0 0 18px rgba(90, 140, 255, 0.22));
-}
+.voice-orb-gif,
 .voice-orb-still {
   display: block;
+}
+.dark .voice-orb-gif,
+.dark .voice-orb-still {
   mix-blend-mode: screen;
+}
+.voice-orb-halo {
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 50%, transparent 42%, color-mix(in srgb, var(--c-ink) 16%, rgba(59, 110, 220, 0.2)) 58%, transparent 74%);
+  opacity: 0.7;
+  transform: scale(1);
+  transition: opacity 380ms ease-out, transform 380ms ease-out;
+}
+.dark .voice-orb-halo {
+  background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(120, 170, 255, 0.46) 58%, transparent 76%);
+  opacity: 0.92;
 }
 .voice-orb-wash {
   border-radius: 9999px;
   background: radial-gradient(circle at 50% 48%, rgba(120, 164, 255, 0.18), transparent 62%);
+  mix-blend-mode: multiply;
   opacity: calc(0.22 + var(--voice-level, 0) * 0.38);
+  transition: opacity 380ms ease-out;
+}
+.dark .voice-orb-wash {
+  mix-blend-mode: screen;
+}
+.voice-orb-sheen {
+  border-radius: 9999px;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.16), transparent 46%);
+  opacity: 0.4;
+}
+.dark .voice-orb-sheen {
+  opacity: 0.22;
 }
 .voice-orb-label {
   display: block;
 }
-.voice-orb-gif.is-speaking {
+.voice-orb.is-speaking .voice-orb-media,
+.voice-orb.is-speaking .voice-orb-halo {
+  will-change: transform;
+}
+.voice-orb-halo.is-speaking {
   animation: voice-orb-speak 1.1s ease-in-out infinite;
 }
-.voice-orb-gif.is-acting,
-.voice-orb-gif.is-thinking {
+.voice-orb-wash.is-speaking {
+  opacity: calc(0.22 + var(--voice-level, 0) * 0.38 + (var(--voice-ripple, 1) - 1) * 0.35);
+}
+.voice-orb-halo.is-error {
+  background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(251, 113, 133, 0.42) 58%, transparent 76%);
+}
+.voice-orb-media.is-acting,
+.voice-orb-media.is-thinking {
   animation: voice-orb-act 1.8s ease-in-out infinite;
 }
-.voice-orb-gif.is-listening {
+.voice-orb-media.is-listening {
   animation: voice-orb-listen 2.8s ease-in-out infinite;
-}
-.voice-orb-gif.is-error {
-  filter: drop-shadow(0 0 22px rgba(251, 113, 133, 0.4));
 }
 .voice-stage-caption,
 .voice-dock-transcript {
   animation: voice-caption-in 0.28s ease-out;
 }
 .voice-dock-transcript {
-  background: color-mix(in srgb, var(--c-paper) 92%, #fff7d6);
-  border: 1px solid color-mix(in srgb, var(--c-ink) 12%, transparent);
+  background: color-mix(in srgb, var(--c-paper) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--c-ink) 16%, transparent);
   box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.08);
   padding: 0.65rem 0.8rem;
+  border-radius: 0.75rem;
   transition: opacity 280ms ease-out;
 }
 .voice-dock-transcript[data-subtitle-phase="exiting"] {
   opacity: 0;
 }
 @keyframes voice-orb-speak {
-  0%, 100% { transform: scale(1.05); }
-  50% { transform: scale(1.06); }
+  0% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.12); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0.55; }
 }
 @keyframes voice-orb-act {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -909,13 +956,19 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 }
 @media (prefers-reduced-motion: reduce) {
   html:not([data-motion="full"]) .voice-orb-gif,
+  html:not([data-motion="full"]) .voice-orb-media,
+  html:not([data-motion="full"]) .voice-orb-halo,
   html:not([data-motion="full"]) .voice-stage-caption,
   html:not([data-motion="full"]) .voice-dock-transcript,
   html:not([data-motion="full"]) .voice-dock-transcript[data-subtitle-phase="exiting"],
   html:not([data-motion="full"]) .voice-orb-gif.is-speaking,
   html:not([data-motion="full"]) .voice-orb-gif.is-acting,
   html:not([data-motion="full"]) .voice-orb-gif.is-thinking,
-  html:not([data-motion="full"]) .voice-orb-gif.is-listening {
+  html:not([data-motion="full"]) .voice-orb-gif.is-listening,
+  html:not([data-motion="full"]) .voice-orb-media.is-acting,
+  html:not([data-motion="full"]) .voice-orb-media.is-thinking,
+  html:not([data-motion="full"]) .voice-orb-media.is-listening,
+  html:not([data-motion="full"]) .voice-orb-halo.is-speaking {
     animation: none;
     transition: none;
     transform: none;
@@ -931,13 +984,19 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   }
 }
 html[data-motion="reduced"] .voice-orb-gif,
+html[data-motion="reduced"] .voice-orb-media,
+html[data-motion="reduced"] .voice-orb-halo,
 html[data-motion="reduced"] .voice-stage-caption,
 html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"],
 html[data-motion="reduced"] .voice-dock-transcript,
 html[data-motion="reduced"] .voice-orb-gif.is-speaking,
 html[data-motion="reduced"] .voice-orb-gif.is-acting,
 html[data-motion="reduced"] .voice-orb-gif.is-thinking,
-html[data-motion="reduced"] .voice-orb-gif.is-listening {
+html[data-motion="reduced"] .voice-orb-gif.is-listening,
+html[data-motion="reduced"] .voice-orb-media.is-acting,
+html[data-motion="reduced"] .voice-orb-media.is-thinking,
+html[data-motion="reduced"] .voice-orb-media.is-listening,
+html[data-motion="reduced"] .voice-orb-halo.is-speaking {
   transition: none;
   animation: none;
   transform: none;

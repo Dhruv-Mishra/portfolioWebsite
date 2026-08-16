@@ -19,6 +19,7 @@ import {
   stopVoiceSession,
   VOICE_ACTION_CUE_COALESCE_MS,
   VOICE_AMBIENT_FADE_OUT_MS,
+  VOICE_AMBIENT_START_DELAY_MS,
   VOICE_EXIT_VEIL_MS,
   VOICE_IDLE_CHECKIN_MS,
   VOICE_IDLE_HANGUP_MS,
@@ -611,16 +612,21 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('plays toggle on enter, then starts ambient synchronously when allowed', async () => {
+  it('plays toggle on enter, then starts ambient after the toggle attack', async () => {
+    vi.useFakeTimers();
     const runtime = await boot();
     expect(runtime.prefetchSounds).toHaveBeenCalledTimes(1);
     expect(runtime.playEnter).toHaveBeenCalledTimes(1);
+    expect(runtime.startAmbient).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_START_DELAY_MS);
     expect(runtime.startAmbient).toHaveBeenCalledWith(true);
     expect(runtime.playEnter.mock.invocationCallOrder[0]).toBeLessThan(
       runtime.startAmbient.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
 
     runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 
   it('skips ambient when low-network mode is on', async () => {

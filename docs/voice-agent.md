@@ -10,7 +10,7 @@ only require changing the voice-caller adapter.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. Toggle plays on enter/exit, ambient fades in after the toggle and out before exit, and one action cue fires per committed visual tool. Assets prefetch on idle or enter. Exiting reuses that black veil with a picked “taking you back” line, then unmounts. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. Toggle plays on enter/exit, ambient becomes audible after the toggle and fades out before exit, and one action cue fires per committed visual tool. Dock captions fade after ~700ms. Assets prefetch on idle or enter. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
 | Worker | Optional edge mint + health on a Worker. Audio stays direct. |
@@ -83,12 +83,15 @@ Live voice tools omit `start_voice_session`. Chat/text can still offer it.
 
 ## Welcome
 
-On connect, the host picks one greeting and one hint from hardcoded
+On connect, the host picks one greeting and one invitation from hardcoded
 catalogs in `voiceAgentProtocol`. Greetings open warmly, then briefly
-introduce Dhruv Mishra's portfolio. Hints are spoken site suggestions,
-not `Try saying` command phrases. After a quiet live stretch the host
-sends a picked check-in, then a hangup line, then closes the socket.
-Hangup first shows a picked exit-veil line on the black screen. Random
-selection stays out of the model prompt. After the first spoken turn
-finishes, the veil settles into a floating dock and the rest of the site
-stays interactive. The dock orb ripples from live playback energy.
+introduce Dhruv Mishra's portfolio. Invitations may use natural
+“try saying” phrasing. The spoken cue concatenates greeting + invitation
+as one exact line and has no `Hint:` label. After a quiet live stretch the
+host sends a picked check-in, then a hangup line, then closes the socket.
+Hangup first shows a picked exit-veil line on the black screen for ~2.2s;
+the fade must finish before unmount. Random selection stays out of the
+model prompt. After the first spoken turn finishes, the veil settles into
+a floating dock and the rest of the site stays interactive. Dock captions
+fade after ~700ms. Gemini VAD uses LOW start/end sensitivity with padding.
+Ambient becomes audible after the toggle.

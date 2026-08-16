@@ -69,7 +69,7 @@ describe('voice ambient sound', () => {
       audio?.play.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     expect(audio?.loop).toBe(true);
-    expect(audio?.volume).toBeCloseTo(0.14);
+    expect(audio?.volume).toBeCloseTo(0.36);
   });
 
   it('keeps ambient silent when sound mute is enabled', () => {
@@ -116,7 +116,7 @@ describe('voice ambient sound', () => {
     await Promise.resolve();
     expect(audio?.play).toHaveBeenCalledTimes(2);
     expect(audio?.loop).toBe(true);
-    expect(audio?.volume).toBeCloseTo(0.14);
+    expect(audio?.volume).toBeCloseTo(0.36);
   });
 
   it('stops and resets the cached ambient element', () => {

@@ -70,23 +70,23 @@ export interface VoiceCaller {
   on<K extends keyof VoiceCallerEventMap>(event: K, listener: VoiceCallerListener<K>): () => void;
 }
 
-export const VOICE_WELCOME_HINT = 'Try saying, open projects';
+export const VOICE_WELCOME_HINT = 'Try saying open projects, or just ask what I can show you.';
 
 export const VOICE_SUGGESTION_VARIATIONS: readonly string[] = [
-  'Might I suggest a look at the projects page.',
-  'If you want to explore, I can show you the projects page.',
-  'Curious about the work? We could open the projects page and wander a little.',
+  'Try saying open projects if you want to wander the work.',
+  'You could ask me to open the projects page and look around.',
+  'Curious about the work? Try saying show me the projects.',
   'Have you tried the easter egg yet? Go to the terminal and type hint.',
   'There is a small easter egg hiding in the terminal if you type hint.',
-  'I can open the resume if you want the shorter path through the work.',
-  'If you would rather see the paper trail, I can pull up the resume.',
-  'Want the story first? I can take you to the about page.',
-  'The guestbook is open if you would like to leave a note.',
-  'Feel like signing the wall? I can bring up the guestbook.',
-  'Cropio is worth a look if you want one of the bigger projects.',
-  'If something is off or you have a thought, I can open the feedback note.',
-  'I can flip the site into dark mode if that is easier on the eyes.',
-  'Want a quieter look? Dark mode is one word away.',
+  'Try saying open the resume if you want the shorter path through the work.',
+  'You could ask me to pull up the resume if you would rather see the paper trail.',
+  'Want the story first? Try saying take me to about.',
+  'The guestbook is open if you would like to leave a note. Try saying open the guestbook.',
+  'Feel like signing the wall? You could ask me to bring up the guestbook.',
+  'Cropio is worth a look if you want one of the bigger projects. Try saying open Cropio.',
+  'If something is off or you have a thought, try saying open feedback.',
+  'I can flip the site into dark mode if that is easier on the eyes. Try saying dark mode.',
+  'Want a quieter look? You could ask me to switch to dark mode.',
 ];
 
 export type VoiceWelcomeVariation = { greeting: string; hint: string };
@@ -171,7 +171,7 @@ export function pickVoiceIdleHangup(random: () => number = Math.random): string 
 export function buildVoiceSessionStartCue(
   setup: Pick<VoiceSessionSetup, 'welcomeGreeting' | 'welcomeHint'>,
 ): string {
-  return `Speak this exact welcome to the visitor, then the hint, then stop. Do not replace it. Welcome: ${setup.welcomeGreeting} Hint: ${setup.welcomeHint}`;
+  return `Speak this exact welcome to the visitor, then stop. Do not replace it. Welcome: ${setup.welcomeGreeting} ${setup.welcomeHint}`;
 }
 
 export function buildVoiceExactSpeakCue(line: string): string {
@@ -188,3 +188,14 @@ export const DEFAULT_VOICE_SETUP: VoiceSessionSetup = {
   welcomeGreeting: VOICE_WELCOME_VARIATIONS[0].greeting,
   welcomeHint: VOICE_WELCOME_VARIATIONS[0].hint,
 };
+
+export const VOICE_LIVE_REALTIME_INPUT_CONFIG = {
+  automaticActivityDetection: {
+    disabled: false,
+    startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+    prefixPaddingMs: 280,
+    endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+    silenceDurationMs: 900,
+  },
+  activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+} as const;

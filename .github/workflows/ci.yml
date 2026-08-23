@@ -17,6 +17,7 @@ jobs:
         working-directory: portfolio
     env:
       SKIP_EMBEDDINGS_BUILD: '1'
+      ONNXRUNTIME_NODE_INSTALL: skip
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Checkout
@@ -51,6 +52,7 @@ jobs:
         working-directory: portfolio
     env:
       SKIP_EMBEDDINGS_BUILD: '1'
+      ONNXRUNTIME_NODE_INSTALL: skip
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Checkout
@@ -85,6 +87,7 @@ jobs:
         working-directory: portfolio
     env:
       SKIP_EMBEDDINGS_BUILD: '1'
+      ONNXRUNTIME_NODE_INSTALL: skip
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Checkout
@@ -119,6 +122,7 @@ jobs:
         working-directory: portfolio
     env:
       SKIP_EMBEDDINGS_BUILD: '1'
+      ONNXRUNTIME_NODE_INSTALL: skip
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Checkout

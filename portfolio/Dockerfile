@@ -7,7 +7,8 @@ WORKDIR /app
 ARG NPM_VERSION=10.9.8
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    SKIP_EMBEDDINGS_BUILD=1
+    SKIP_EMBEDDINGS_BUILD=1 \
+    ONNXRUNTIME_NODE_INSTALL=skip
 
 COPY package.json package-lock.json ./
 COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs

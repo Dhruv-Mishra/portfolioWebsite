@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SITE_VERSION } from '@/lib/siteVersion';
 import {
   __resetVoiceSoundsForTest,
+  playVoiceSound,
+  setVoiceAmbientDucked,
   startVoiceAmbient,
   stopVoiceAmbient,
+  stopVoiceToggleCue,
   unlockVoiceAudio,
 } from '@/lib/voiceSounds';
 
@@ -22,7 +25,6 @@ class FakeAudio {
   ended = false;
   readonly play = vi.fn(() => {
     this.paused = false;
-    this.currentTime = 0.01;
     return Promise.resolve();
   });
   readonly pause = vi.fn(() => {
@@ -98,7 +100,6 @@ describe('voice ambient sound', () => {
           return Promise.reject(new Error('NotAllowedError'));
         }
         this.paused = false;
-        this.currentTime = 0.01;
         return Promise.resolve();
       });
     }
@@ -180,5 +181,112 @@ describe('voice ambient sound', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(ambient?.play).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('voice toggle cue and ambient duck', () => {
+  beforeEach(() => {
+    soundManagerMock.muted = false;
+    soundManagerMock.instances.length = 0;
+    soundManagerMock.stopLoop.mockClear();
+    vi.stubGlobal('Audio', FakeAudio);
+  });
+
+  afterEach(() => {
+    __resetVoiceSoundsForTest();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function audioById(id: string): FakeAudio | undefined {
+    return (soundManagerMock.instances as FakeAudio[]).find(audio => audio.src.includes(`/sounds/voice/${id}.mp3`));
+  }
+
+  it('plays the toggle cue at 0.22 then fades it out after 450ms', () => {
+    vi.useFakeTimers();
+    playVoiceSound('voice-toggle');
+
+    const toggle = audioById('toggle');
+    expect(toggle?.volume).toBeCloseTo(0.22);
+    expect(toggle?.currentTime).toBe(0);
+    expect(toggle?.play).toHaveBeenCalledTimes(1);
+    expect(toggle?.pause).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(449);
+    expect(toggle?.volume).toBeCloseTo(0.22);
+    expect(toggle?.pause).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(toggle?.volume).toBe(0);
+    expect(toggle?.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the action cue at 0.38 without a delayed fade', () => {
+    vi.useFakeTimers();
+    playVoiceSound('voice-action');
+
+    const action = audioById('action');
+    expect(action?.volume).toBeCloseTo(0.38);
+    expect(action?.currentTime).toBe(0);
+    expect(action?.play).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(450);
+    expect(action?.volume).toBeCloseTo(0.38);
+    expect(action?.pause).not.toHaveBeenCalled();
+  });
+
+  it('stops the toggle cue immediately', () => {
+    vi.useFakeTimers();
+    playVoiceSound('voice-toggle');
+    stopVoiceToggleCue();
+
+    const toggle = audioById('toggle');
+    expect(toggle?.volume).toBe(0);
+    expect(toggle?.pause).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(450);
+    expect(toggle?.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('ducks playing ambient to about 0.10 without pausing, then restores 0.36', async () => {
+    startVoiceAmbient(true);
+    await Promise.resolve();
+
+    const ambient = audioById('ambient');
+    expect(ambient?.volume).toBeCloseTo(0.36);
+    expect(ambient?.paused).toBe(false);
+    const pauseCount = ambient?.pause.mock.calls.length ?? 0;
+
+    setVoiceAmbientDucked(true);
+    expect(ambient?.volume).toBeCloseTo(0.10);
+    expect(ambient?.paused).toBe(false);
+    expect(ambient?.pause).toHaveBeenCalledTimes(pauseCount);
+
+    setVoiceAmbientDucked(false);
+    expect(ambient?.volume).toBeCloseTo(0.36);
+    expect(ambient?.paused).toBe(false);
+    expect(ambient?.pause).toHaveBeenCalledTimes(pauseCount);
+  });
+
+  it('does not restart a duck fade when already ducked', async () => {
+    startVoiceAmbient(true);
+    await Promise.resolve();
+
+    const ambient = audioById('ambient');
+    expect(ambient).toBeDefined();
+    if (!ambient) return;
+
+    setVoiceAmbientDucked(true);
+    expect(ambient.volume).toBeCloseTo(0.10);
+
+    ambient.volume = 0.22;
+    setVoiceAmbientDucked(true);
+    expect(ambient.volume).toBeCloseTo(0.22);
+  });
+
+  it('no-ops ducking when ambient is idle', () => {
+    setVoiceAmbientDucked(true);
+    expect(soundManagerMock.instances).toHaveLength(0);
   });
 });

@@ -18,17 +18,25 @@ const VOICE_VISUAL_URLS = [
   '/voice/ai-ripple-still.webp',
 ] as const;
 
-const TOGGLE_VOLUME = 0.38;
+const TOGGLE_VOLUME = 0.22;
 const ACTION_VOLUME = 0.38;
 const AMBIENT_VOLUME = 0.36;
+const AMBIENT_DUCK_VOLUME = 0.10;
+const TOGGLE_PLAY_MS = 450;
+const TOGGLE_FADE_OUT_MS = 80;
 const AMBIENT_FADE_IN_MS = 900;
 const AMBIENT_FADE_OUT_MS = 320;
 const AMBIENT_FADE_OUT_REDUCED_MS = 120;
+const AMBIENT_DUCK_FADE_MS = 180;
 
 const cache = new Map<VoiceSoundId, HTMLAudioElement>();
 let ambientPhase: AmbientPhase = 'idle';
 let ambientFadeFrame = 0;
 let ambientFadeToken = 0;
+let ambientDucked = false;
+let toggleFadeTimer: ReturnType<typeof setTimeout> | null = null;
+let toggleFadeFrame = 0;
+let toggleFadeToken = 0;
 
 function getAudio(id: VoiceSoundId): HTMLAudioElement {
   const existing = cache.get(id);
@@ -64,6 +72,71 @@ function cancelAmbientFade(): void {
   ambientFadeFrame = 0;
 }
 
+function ambientTargetVolume(): number {
+  return ambientDucked ? AMBIENT_DUCK_VOLUME : AMBIENT_VOLUME;
+}
+
+function cancelToggleCue(): void {
+  toggleFadeToken += 1;
+  if (toggleFadeTimer !== null) {
+    clearTimeout(toggleFadeTimer);
+    toggleFadeTimer = null;
+  }
+  if (toggleFadeFrame && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(toggleFadeFrame);
+  }
+  toggleFadeFrame = 0;
+}
+
+function fadeMediaVolume(
+  audio: HTMLAudioElement,
+  from: number,
+  to: number,
+  ms: number,
+  isCurrent: () => boolean,
+  setFrame: (id: number) => void,
+  onDone: () => void,
+): void {
+  audio.volume = from;
+  if (ms <= 0 || typeof requestAnimationFrame !== 'function') {
+    audio.volume = to;
+    if (isCurrent()) onDone();
+    return;
+  }
+
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const step = (now: number) => {
+    if (!isCurrent()) return;
+    const elapsed = now - startedAt;
+    const t = Math.min(1, elapsed / ms);
+    audio.volume = from + (to - from) * t;
+    if (t < 1) {
+      setFrame(requestAnimationFrame(step));
+      return;
+    }
+    setFrame(0);
+    onDone();
+  };
+  setFrame(requestAnimationFrame(step));
+}
+
+function stopToggleElement(audio: HTMLAudioElement, fadeMs: number): void {
+  const token = toggleFadeToken;
+  fadeMediaVolume(
+    audio,
+    audio.volume,
+    0,
+    fadeMs,
+    () => token === toggleFadeToken,
+    (id) => { toggleFadeFrame = id; },
+    () => {
+      if (token !== toggleFadeToken) return;
+      audio.pause();
+      audio.volume = 0;
+    },
+  );
+}
+
 function fadeAmbientVolume(
   audio: HTMLAudioElement,
   from: number,
@@ -73,27 +146,15 @@ function fadeAmbientVolume(
 ): void {
   cancelAmbientFade();
   const token = ambientFadeToken;
-  audio.volume = from;
-  if (ms <= 0 || typeof requestAnimationFrame !== 'function') {
-    audio.volume = to;
-    if (token === ambientFadeToken) onDone();
-    return;
-  }
-
-  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const step = (now: number) => {
-    if (token !== ambientFadeToken) return;
-    const elapsed = now - startedAt;
-    const t = Math.min(1, elapsed / ms);
-    audio.volume = from + (to - from) * t;
-    if (t < 1) {
-      ambientFadeFrame = requestAnimationFrame(step);
-      return;
-    }
-    ambientFadeFrame = 0;
-    onDone();
-  };
-  ambientFadeFrame = requestAnimationFrame(step);
+  fadeMediaVolume(
+    audio,
+    from,
+    to,
+    ms,
+    () => token === ambientFadeToken,
+    (id) => { ambientFadeFrame = id; },
+    onDone,
+  );
 }
 
 export function prefetchVoiceSounds(): void {
@@ -133,10 +194,48 @@ export function unlockVoiceAudio(): void {
 export function playVoiceSound(id: VoiceCueId): void {
   if (getSoundsMutedSync()) return;
   const audio = getAudio(id);
-  audio.volume = id === 'voice-toggle' ? TOGGLE_VOLUME : ACTION_VOLUME;
+  if (id === 'voice-toggle') {
+    cancelToggleCue();
+    audio.volume = TOGGLE_VOLUME;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      cache.delete(id);
+    });
+    toggleFadeTimer = setTimeout(() => {
+      toggleFadeTimer = null;
+      stopToggleElement(audio, TOGGLE_FADE_OUT_MS);
+    }, TOGGLE_PLAY_MS);
+    return;
+  }
+  audio.volume = ACTION_VOLUME;
   audio.currentTime = 0;
   void audio.play().catch(() => {
     cache.delete(id);
+  });
+}
+
+export function stopVoiceToggleCue(): void {
+  const audio = cache.get('voice-toggle');
+  cancelToggleCue();
+  if (!audio) return;
+  stopToggleElement(audio, 0);
+}
+
+export function setVoiceAmbientDucked(ducked: boolean): void {
+  if (ambientDucked === ducked) return;
+  ambientDucked = ducked;
+  if (getSoundsMutedSync()) return;
+  if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
+  const audio = cache.get('voice-ambient');
+  if (!audio) return;
+  const target = ambientTargetVolume();
+  if (Math.abs(audio.volume - target) < 0.005) {
+    audio.volume = target;
+    return;
+  }
+  fadeAmbientVolume(audio, audio.volume, target, AMBIENT_DUCK_FADE_MS, () => {
+    if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
+    audio.volume = target;
   });
 }
 
@@ -149,10 +248,10 @@ export function startVoiceAmbient(enabled: boolean): void {
 
   if (ambientPhase === 'primed' && isAmbientPlaying(audio)) {
     ambientPhase = 'in';
-    fadeAmbientVolume(audio, audio.volume || 0, AMBIENT_VOLUME, AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, audio.volume || 0, ambientTargetVolume(), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = AMBIENT_VOLUME;
+      audio.volume = ambientTargetVolume();
     });
     return;
   }
@@ -162,10 +261,10 @@ export function startVoiceAmbient(enabled: boolean): void {
   const playResult = audio.play();
   const beginFade = () => {
     if (ambientPhase !== 'in') return;
-    fadeAmbientVolume(audio, 0, AMBIENT_VOLUME, AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, 0, ambientTargetVolume(), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = AMBIENT_VOLUME;
+      audio.volume = ambientTargetVolume();
     });
   };
   if (playResult && typeof playResult.then === 'function') {
@@ -182,6 +281,7 @@ export function stopVoiceAmbient(options: { fadeMs?: number } = {}): void {
   const fadeMs = options.fadeMs ?? (
     prefersReducedVoiceMotion() ? AMBIENT_FADE_OUT_REDUCED_MS : AMBIENT_FADE_OUT_MS
   );
+  ambientDucked = false;
   if (!audio || ambientPhase === 'idle') {
     soundManager.stopLoop('disco-loop');
     return;
@@ -199,8 +299,10 @@ export function stopVoiceAmbient(options: { fadeMs?: number } = {}): void {
 
 export function __resetVoiceSoundsForTest(): void {
   cancelAmbientFade();
+  cancelToggleCue();
   soundManager.stopLoop('disco-loop');
   ambientPhase = 'idle';
+  ambientDucked = false;
   for (const audio of cache.values()) {
     audio.pause();
     audio.currentTime = 0;

@@ -37,7 +37,7 @@ import {
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
-import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, startVoiceAmbient, stopVoiceAmbient, unlockVoiceAudio } from '@/lib/voiceSounds';
+import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue, unlockVoiceAudio } from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -731,6 +731,8 @@ function teardownMedia(reason: VoiceExitReason): void {
   unsubs = [];
   queue?.reset();
   queue = null;
+  stopVoiceToggleCue();
+  setVoiceAmbientDucked(false);
   resolveDeps().stopAmbient({ fadeMs: 0 });
   if (activeCaller) activeCaller.close(reason);
 }
@@ -807,6 +809,8 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
         notifyVoiceActionQueueReady();
       }
       if (next === 'listening' && nextPlayback.isBusy()) {
+        stopVoiceToggleCue();
+        setVoiceAmbientDucked(true);
         patch({ phase: snapshot.phase === 'acting' ? 'acting' : 'speaking' });
         return;
       }
@@ -823,6 +827,8 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     nextCaller.on('audio', chunk => {
       if (isStale(generation)) return;
       markFarewellPlayback();
+      stopVoiceToggleCue();
+      setVoiceAmbientDucked(true);
       nextPlayback.play(chunk);
       notifyVoiceActionQueueReady();
     }),
@@ -869,6 +875,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     }),
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
+      setVoiceAmbientDucked(false);
       if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
         patch({ phase: 'listening' });
       }

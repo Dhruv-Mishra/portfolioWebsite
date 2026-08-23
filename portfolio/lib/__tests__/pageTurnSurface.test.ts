@@ -41,6 +41,10 @@ function routeLayer(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root.find((node) => node.props['data-page-turn-layer'] === 'active');
 }
 
+function skeletonNodes(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAll((node) => node.props['data-page-turn-skeleton'] !== undefined);
+}
+
 function internalAnchor(path: string) {
   return {
     href: `https://page-turn.test${path}`,
@@ -145,6 +149,8 @@ describe('PageTurnSurface single-route lifecycle', () => {
       await Promise.resolve();
     });
 
+    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
+    expect(skeletonNodes(renderer)).toHaveLength(1);
     expect(push).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith('/projects');
     expect(prefetch).not.toHaveBeenCalled();
@@ -174,6 +180,9 @@ describe('PageTurnSurface single-route lifecycle', () => {
       await Promise.resolve();
     });
     await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
       requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
       await Promise.resolve();
     });
@@ -182,14 +191,22 @@ describe('PageTurnSurface single-route lifecycle', () => {
     expect(replace).toHaveBeenCalledWith('/about');
     expect(prefetch).toHaveBeenCalledOnce();
     expect(prefetch).toHaveBeenCalledWith('/projects');
+    expect(getPageTurnSnapshot()).toMatchObject({ fromPath: '/', toPath: '/about' });
 
     await act(async () => {
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(5_001);
     });
 
     expect(push).not.toHaveBeenCalled();
     expect(replace).toHaveBeenCalledOnce();
     expect(getPageTurnSnapshot()).toBeNull();
+
+    await act(async () => {
+      requestPageTurnNavigation({ push, replace }, { href: '/resume', mode: 'replace' });
+      await Promise.resolve();
+    });
+    expect(replace).toHaveBeenCalledTimes(2);
+    expect(replace).toHaveBeenLastCalledWith('/resume');
 
     await act(async () => renderer.unmount());
   });
@@ -213,6 +230,7 @@ describe('PageTurnSurface single-route lifecycle', () => {
     expect(layer.findByType('button').children).toEqual(['Home route']);
     expect(layer.props.className).toContain('animate-page-turn-forward-out');
     expect(layer.props.inert).toBe(true);
+    expect(skeletonNodes(renderer)).toHaveLength(1);
     expect(prefetch).toHaveBeenCalledWith('/projects');
     expect(push).not.toHaveBeenCalled();
 
@@ -356,6 +374,7 @@ describe('PageTurnSurface single-route lifecycle', () => {
     expect(active.props.className).toContain('animate-page-turn-backward-in');
     expect(active.props['data-page-turn-direction']).toBe('backward');
     expect(renderer.root.findAll((node) => node.props['data-page-turn-layer'])).toHaveLength(1);
+    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });
@@ -409,6 +428,8 @@ describe('PageTurnSurface single-route lifecycle', () => {
     });
 
     expect(routeLayer(renderer).props.className).not.toContain('animate-page-turn-forward-out');
+    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
+    expect(skeletonNodes(renderer)).toHaveLength(1);
     expect(push).toHaveBeenCalledWith('/projects');
 
     await act(async () => renderer.unmount());
@@ -456,6 +477,7 @@ describe('PageTurnSurface single-route lifecycle', () => {
     });
     expect(push).toHaveBeenCalledWith('/');
     expect(getPageTurnSnapshot()).toMatchObject({ direction: 'backward' });
+    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     reducedMotion = true;
     await act(async () => {

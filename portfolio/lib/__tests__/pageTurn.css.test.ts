@@ -143,6 +143,8 @@ describe('page-turn route transition contract', () => {
     expect(surface).toContain("activeIsIncoming && 'animate-page-turn-backward-in'");
     expect(surface).toContain('{children}');
     expect(surface).not.toContain('outgoingRoute');
+    expect(surface).toContain("import PageTurnSkeleton from '@/components/PageTurnSkeleton'");
+    expect(surface).toContain('<PageTurnSkeleton label={resolvePageTurnRoute(destinationPath).label} />');
   });
 
   it('disables the turn and shade for system and explicit reduced motion', () => {

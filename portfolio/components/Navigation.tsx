@@ -1,9 +1,14 @@
 "use client";
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { canWarmNoncriticalAssets } from '@/lib/assetPrefetch';
 import { useAppHaptics } from '@/lib/haptics';
+import {
+  getPageTurnSnapshot,
+  getServerPageTurnSnapshot,
+  subscribeToPageTurn,
+} from '@/lib/pageTurn';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
@@ -35,6 +40,12 @@ export default function Navigation() {
     const router = useRouter();
     const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+    const transition = useSyncExternalStore(
+        subscribeToPageTurn,
+        getPageTurnSnapshot,
+        getServerPageTurnSnapshot,
+    );
+    const visualPath = transition?.toPath ?? pathname;
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
     const onHoverEnd = useCallback(() => setHoveredTab(null), []);
@@ -54,7 +65,7 @@ export default function Navigation() {
                     key={item.name}
                     item={item}
                     index={i}
-                    active={pathname === item.href}
+                    active={visualPath === item.href}
                     hovered={hoveredTab === item.name}
                     onHoverStart={onHoverStart}
                     onHoverEnd={onHoverEnd}

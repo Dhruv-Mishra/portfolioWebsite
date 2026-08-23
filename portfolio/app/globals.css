@@ -69,6 +69,8 @@
     --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
     --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 8.25rem);
     --c-mobile-floating-upper-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
+    --c-page-header-h: calc(var(--c-nav-tab-pt) + var(--c-nav-tab-py) + 1.5rem);
+    --c-page-footer-h: var(--c-mobile-dock-clearance);
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
@@ -248,6 +250,15 @@
       --t-hero-md: 3rem;
       --t-hero-lg: 3rem;
       --c-quick-chat-mobile-h: min(var(--c-chat-h), 66dvh);
+    }
+  }
+
+  @media (min-width: 768px) {
+    :root,
+    [data-size="small"],
+    [data-size="large"] {
+      --c-page-header-h: calc(var(--c-nav-tab-pt-md) + var(--c-nav-tab-py-md) + 1.5rem);
+      --c-page-footer-h: 5.5rem;
     }
   }
 
@@ -555,191 +566,56 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     }
   }
 
-    /* The persistent layout keeps one live route tree. Forward turns the current
-      route before committing navigation; backward turns the real incoming route. */
-  .page-turn-layer {
-    --page-turn-duration: 600ms;
-    --page-turn-origin: left center;
-    transform-origin: var(--page-turn-origin);
+    /* Persistent host chrome reserves hanging-tab and dock zones so pages
+       never occupy those bands. Navigation still uses the page-turn event. */
+  .page-turn-stage {
+    display: flex;
+    flex-direction: column;
   }
 
-  .animate-page-turn-forward-out,
-  .animate-page-turn-backward-in {
+  .page-chrome-header,
+  .page-chrome-footer {
+    flex-shrink: 0;
     pointer-events: none;
   }
 
-  .animate-page-turn-forward-out :where(.page-turn-content, .page-turn-content *),
-  .animate-page-turn-backward-in :where(.page-turn-content, .page-turn-content *) {
-    animation-play-state: paused !important;
+  .page-chrome-header {
+    height: var(--c-page-header-h);
   }
 
-  .animate-page-turn-forward-out {
-    animation: pageTurnForwardFadeOut var(--page-turn-duration) ease-out both;
+  .page-chrome-footer {
+    height: var(--c-page-footer-h);
   }
 
-  .animate-page-turn-backward-in {
-    animation: pageTurnBackwardFadeIn var(--page-turn-duration) ease-out backwards;
+  .page-turn-layer {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
-  @keyframes pageTurnForwardFadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+  .page-route-shimmer {
+    background: linear-gradient(
+      110deg,
+      color-mix(in srgb, var(--c-ink) 8%, transparent) 8%,
+      color-mix(in srgb, var(--c-ink) 16%, transparent) 18%,
+      color-mix(in srgb, var(--c-ink) 8%, transparent) 30%
+    );
+    background-size: 200% 100%;
+    animation: pageRouteShimmer 1.4s ease-in-out infinite;
   }
 
-  @keyframes pageTurnBackwardFadeIn {
-    from { opacity: 0.72; }
-    to { opacity: 1; }
-  }
-
-  @media (max-width: 767px) and (hover: none), (max-width: 767px) and (pointer: coarse) {
-    @supports (transform: perspective(1px) rotateY(1deg)) {
-    .page-turn-layer {
-      --page-turn-forward-angle: -68deg;
-      --page-turn-backward-angle: -58deg;
-      --page-turn-forward-offset: -5%;
-      --page-turn-backward-offset: -3.5%;
-      --page-turn-perspective: 92rem;
-      backface-visibility: hidden;
-      transform-style: preserve-3d;
-    }
-
-    .animate-page-turn-forward-out {
-      animation: pageTurnForwardOut var(--page-turn-duration) cubic-bezier(0.4, 0, 0.2, 1) both;
-      will-change: transform, opacity;
-    }
-
-    .animate-page-turn-backward-in {
-      animation: pageTurnBackwardIn var(--page-turn-duration) cubic-bezier(0.18, 0.72, 0.14, 1) backwards;
-      will-change: transform, opacity;
-    }
-
-    .animate-page-turn-forward-out::after,
-    .animate-page-turn-backward-in::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 20;
-      pointer-events: none;
-      transform-origin: var(--page-turn-origin);
-      will-change: opacity;
-    }
-
-    .animate-page-turn-forward-out::after {
-      background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--c-ink) 14%, transparent),
-        transparent 18%,
-        transparent 76%,
-        color-mix(in srgb, var(--c-ink) 8%, transparent)
-      );
-      animation: pageTurnForwardShadeOut var(--page-turn-duration) ease-out both;
-    }
-
-    .animate-page-turn-backward-in::after {
-      background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--c-ink) 18%, transparent),
-        color-mix(in srgb, var(--c-paper) 42%, transparent) 7%,
-        transparent 24%,
-        transparent 78%,
-        color-mix(in srgb, var(--c-paper) 24%, transparent) 91%,
-        color-mix(in srgb, var(--c-ink) 7%, transparent)
-      );
-      animation: pageTurnBackwardShadeIn var(--page-turn-duration) ease-out backwards;
-    }
-
-    @keyframes pageTurnForwardOut {
-      from {
-        opacity: 1;
-        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
-      }
-
-      58% {
-        opacity: 0.96;
-        transform: perspective(var(--page-turn-perspective)) translateX(-0.75%) rotateY(-22deg);
-      }
-
-      84% {
-        opacity: 0.68;
-        transform: perspective(var(--page-turn-perspective)) translateX(-3.5%) rotateY(-54deg);
-      }
-
-      to {
-        opacity: 0;
-        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-forward-offset)) rotateY(var(--page-turn-forward-angle));
-      }
-    }
-
-    @keyframes pageTurnBackwardIn {
-      from {
-        opacity: 0.34;
-        transform: perspective(var(--page-turn-perspective)) translateX(var(--page-turn-backward-offset)) rotateY(var(--page-turn-backward-angle));
-      }
-
-      72% {
-        opacity: 0.98;
-        transform: perspective(var(--page-turn-perspective)) translateX(-0.35%) rotateY(-5deg);
-      }
-
-      to {
-        opacity: 1;
-        transform: perspective(var(--page-turn-perspective)) translateX(0) rotateY(0deg);
-      }
-    }
-
-    @keyframes pageTurnForwardShadeOut {
-      from { opacity: 0; }
-      55% { opacity: 0.72; }
-      to { opacity: 0; }
-    }
-
-    @keyframes pageTurnBackwardShadeIn {
-      from { opacity: 0.82; }
-      to { opacity: 0; }
-    }
-
-    }
+  @keyframes pageRouteShimmer {
+    from { background-position: 120% 0; }
+    to { background-position: -20% 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    html:not([data-motion="full"]) .animate-page-turn-forward-out,
-    html:not([data-motion="full"]) .animate-page-turn-backward-in {
+    html:not([data-motion="full"]) .page-route-shimmer {
       animation: none !important;
-      opacity: 1;
-      pointer-events: auto;
-      transform: none;
-      will-change: auto;
-    }
-
-    html:not([data-motion="full"]) .animate-page-turn-forward-out::after,
-    html:not([data-motion="full"]) .animate-page-turn-backward-in::after {
-      content: none;
-      animation: none;
-      will-change: auto;
-    }
-
-    html:not([data-motion="full"]) :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in) :where(.page-turn-content, .page-turn-content *) {
-      animation-play-state: running !important;
     }
   }
 
-  html[data-motion="reduced"] :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in) {
+  html[data-motion="reduced"] .page-route-shimmer {
     animation: none !important;
-    opacity: 1;
-    pointer-events: auto;
-    transform: none;
-    will-change: auto;
-  }
-
-  html[data-motion="reduced"] .animate-page-turn-forward-out::after,
-  html[data-motion="reduced"] .animate-page-turn-backward-in::after {
-    content: none;
-    animation: none;
-    will-change: auto;
-  }
-
-  html[data-motion="reduced"] :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in) :where(.page-turn-content, .page-turn-content *) {
-    animation-play-state: running !important;
   }
 
 }
@@ -2837,8 +2713,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .animate-nav-tab,
       .animate-social-link,
       .animate-page-sheet,
-      .animate-page-turn-forward-out,
-      .animate-page-turn-backward-in,
+      .page-route-shimmer,
       .animate-theme-icon,
       .sketch-tooltip,
       .animate-wall-note-in,
@@ -2908,8 +2783,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .animate-nav-tab,
     .animate-social-link,
     .animate-page-sheet,
-    .animate-page-turn-forward-out,
-    .animate-page-turn-backward-in,
+    .page-route-shimmer,
     .animate-theme-icon,
     .sketch-tooltip,
     .animate-wall-note-in,

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { LoadingSpinner } from '@/components/Loading';
+import { PageRouteSkeleton } from '@/components/PageTurnSkeleton';
 
 export const metadata: Metadata = {
   title: 'Projects | Dhruv Mishra',
@@ -16,5 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<LoadingSpinner message="Loading portfolio..." />}>{children}</Suspense>;
+  return (
+    <Suspense fallback={<PageRouteSkeleton pathname="/projects" />}>
+      {children}
+    </Suspense>
+  );
 }

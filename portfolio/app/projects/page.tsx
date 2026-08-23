@@ -192,7 +192,7 @@ export default function Projects() {
     }, [handleCloseModal]);
 
     return (
-        <div className="flex flex-col h-full pt-16 md:pt-0">
+        <div className="flex flex-col h-full pt-0">
             {/* h1 needs its own padding because the outer div is full-bleed and the
                 grid below already pads itself with px-6. Keeping px-6 on the h1
                 only matches the grid's left edge on mobile, with a small ml-6 on

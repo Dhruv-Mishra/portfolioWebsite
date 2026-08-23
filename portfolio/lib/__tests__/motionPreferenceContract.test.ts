@@ -87,9 +87,9 @@ describe('motion preference contract', () => {
 
   it('lets full motion override device reduction while explicit reduction remains authoritative', () => {
     expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?html:not\(\[data-motion="full"\]\) \.animate-page-turn-forward-out/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?html:not\(\[data-motion="full"\]\) \.page-route-shimmer/,
     );
-    expect(css).toContain('html[data-motion="reduced"] :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in)');
+    expect(css).toContain('html[data-motion="reduced"] .page-route-shimmer');
     expect(reducedContract).toContain('html:not([data-motion="full"])');
     expect(css).toContain('html:not([data-motion="full"]) .voice-stage-veil');
     expect(css).toContain('html[data-motion="reduced"] .voice-stage-veil');

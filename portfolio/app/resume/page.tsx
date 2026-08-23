@@ -8,7 +8,7 @@ export const revalidate = 3600;
 
 export default function ResumePage() {
     return (
-        <div className="h-full min-h-[24rem] px-1 pt-2 pb-24 sm:px-4 md:min-h-[36rem] md:px-12 md:py-8 flex flex-col items-center justify-center relative z-10 box-border">
+        <div className="h-full min-h-[24rem] px-1 py-2 pb-8 sm:px-4 md:min-h-[36rem] md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             <ResumeOpenPdfButton href={RESUME_PDF_URL} />
             {/* The Resume "Paper" */}
             <div

@@ -136,82 +136,7 @@ afterEach(async () => {
 });
 
 describe('PageTurnSurface single-route lifecycle', () => {
-  it('commits forward navigation immediately when immersion is off', async () => {
-    enhanceImmersion = false;
-    let renderer!: TestRenderer.ReactTestRenderer;
-
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(PageTurnSurface, null, null));
-    });
-
-    await act(async () => {
-      clickListener?.(clickEvent('/projects'));
-      await Promise.resolve();
-    });
-
-    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
-    expect(skeletonNodes(renderer)).toHaveLength(1);
-    expect(push).toHaveBeenCalledOnce();
-    expect(push).toHaveBeenCalledWith('/projects');
-    expect(prefetch).not.toHaveBeenCalled();
-    expect(routeLayer(renderer).props.className).not.toContain('animate-page-turn-forward-out');
-
-    await act(async () => renderer.unmount());
-  });
-
-  it('cancels a stale immersive forward turn when immersion is disabled', async () => {
-    vi.useFakeTimers();
-    window.setTimeout = globalThis.setTimeout.bind(globalThis);
-    window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
-    let renderer!: TestRenderer.ReactTestRenderer;
-
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(PageTurnSurface, null, null));
-    });
-    await act(async () => {
-      requestPageTurnNavigation({ push, replace }, { href: '/projects', mode: 'push' });
-      await Promise.resolve();
-    });
-    expect(prefetch).toHaveBeenCalledWith('/projects');
-
-    enhanceImmersion = false;
-    await act(async () => {
-      renderer.update(React.createElement(PageTurnSurface, null, null));
-      await Promise.resolve();
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    await act(async () => {
-      requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
-      await Promise.resolve();
-    });
-
-    expect(replace).toHaveBeenCalledOnce();
-    expect(replace).toHaveBeenCalledWith('/about');
-    expect(prefetch).toHaveBeenCalledOnce();
-    expect(prefetch).toHaveBeenCalledWith('/projects');
-    expect(getPageTurnSnapshot()).toMatchObject({ fromPath: '/', toPath: '/about' });
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5_001);
-    });
-
-    expect(push).not.toHaveBeenCalled();
-    expect(replace).toHaveBeenCalledOnce();
-    expect(getPageTurnSnapshot()).toBeNull();
-
-    await act(async () => {
-      requestPageTurnNavigation({ push, replace }, { href: '/resume', mode: 'replace' });
-      await Promise.resolve();
-    });
-    expect(replace).toHaveBeenCalledTimes(2);
-    expect(replace).toHaveBeenLastCalledWith('/resume');
-
-    await act(async () => renderer.unmount());
-  });
-
-  it('turns the current route before committing forward navigation', async () => {
+  it('commits forward navigation immediately and shows a destination skeleton', async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
 
     await act(async () => {
@@ -228,27 +153,17 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     const layer = routeLayer(renderer);
     expect(layer.findByType('button').children).toEqual(['Home route']);
-    expect(layer.props.className).toContain('animate-page-turn-forward-out');
-    expect(layer.props.inert).toBe(true);
+    expect(layer.props.className).not.toContain('animate-page-turn-forward-out');
     expect(skeletonNodes(renderer)).toHaveLength(1);
-    expect(prefetch).toHaveBeenCalledWith('/projects');
-    expect(push).not.toHaveBeenCalled();
-
-    await act(async () => {
-      layer.props.onAnimationEnd({
-        target: layer,
-        currentTarget: layer,
-        animationName: 'pageTurnForwardOut',
-      });
-    });
-
+    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
     expect(push).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith('/projects');
+    expect(prefetch).not.toHaveBeenCalled();
 
     await act(async () => renderer.unmount());
   });
 
-  it('keeps the first target when two forward links are clicked synchronously', async () => {
+  it('lets a later destination replace an in-flight page switch', async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
 
     await act(async () => {
@@ -265,21 +180,11 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     expect(firstClick.preventDefault).toHaveBeenCalledOnce();
     expect(secondClick.preventDefault).toHaveBeenCalledOnce();
-    expect(prefetch).toHaveBeenCalledOnce();
-    expect(prefetch).toHaveBeenCalledWith('/projects');
-
-    const layer = routeLayer(renderer);
-    await act(async () => {
-      layer.props.onAnimationEnd({
-        target: layer,
-        currentTarget: layer,
-        animationName: 'pageTurnForwardOut',
-      });
-    });
-
-    expect(push).toHaveBeenCalledOnce();
-    expect(push).toHaveBeenCalledWith('/projects');
+    expect(push).toHaveBeenCalledTimes(2);
+    expect(push).toHaveBeenNthCalledWith(1, '/projects');
+    expect(push).toHaveBeenNthCalledWith(2, '/about');
     expect(replace).not.toHaveBeenCalled();
+    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/about' });
 
     await act(async () => renderer.unmount());
   });
@@ -295,15 +200,6 @@ describe('PageTurnSurface single-route lifecycle', () => {
       await Promise.resolve();
     });
 
-    const layer = routeLayer(renderer);
-    await act(async () => {
-      layer.props.onAnimationEnd({
-        target: layer,
-        currentTarget: layer,
-        animationName: 'pageTurnForwardOut',
-      });
-    });
-
     const newerTransition = createPageTurnTransition('/', '/projects');
     startPageTurn(newerTransition);
     await act(async () => renderer.unmount());
@@ -313,7 +209,7 @@ describe('PageTurnSurface single-route lifecycle', () => {
     await Promise.resolve();
   });
 
-  it('releases the forward lock when the navigation watchdog expires', async () => {
+  it('releases the pending snapshot when the navigation watchdog expires', async () => {
     vi.useFakeTimers();
     window.setTimeout = globalThis.setTimeout.bind(globalThis);
     window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
@@ -327,26 +223,20 @@ describe('PageTurnSurface single-route lifecycle', () => {
       await Promise.resolve();
     });
 
-    const layer = routeLayer(renderer);
+    expect(push).toHaveBeenCalledWith('/projects');
     await act(async () => {
-      layer.props.onAnimationEnd({
-        target: layer,
-        currentTarget: layer,
-        animationName: 'pageTurnForwardOut',
-      });
       await vi.advanceTimersByTimeAsync(5_001);
     });
 
     expect(getPageTurnSnapshot()).toBeNull();
-    expect(routeLayer(renderer).props.inert).toBeUndefined();
     requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
-    expect(prefetch).toHaveBeenCalledTimes(2);
-    expect(prefetch).toHaveBeenLastCalledWith('/about');
+    expect(replace).toHaveBeenCalledOnce();
+    expect(replace).toHaveBeenCalledWith('/about');
 
     await act(async () => renderer.unmount());
   });
 
-  it('animates the real incoming route from the left on backward navigation', async () => {
+  it('clears the skeleton when the destination pathname arrives', async () => {
     pathname = '/projects';
     let renderer!: TestRenderer.ReactTestRenderer;
 
@@ -371,15 +261,13 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     const active = routeLayer(renderer);
     expect(active.findByType('button').children).toEqual(['Home route']);
-    expect(active.props.className).toContain('animate-page-turn-backward-in');
-    expect(active.props['data-page-turn-direction']).toBe('backward');
     expect(renderer.root.findAll((node) => node.props['data-page-turn-layer'])).toHaveLength(1);
     expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });
 
-  it('consumes programmatic navigation while a backward turn is active', async () => {
+  it('lets a later programmatic destination replace a pending snapshot', async () => {
     pathname = '/projects';
     let renderer!: TestRenderer.ReactTestRenderer;
 
@@ -389,53 +277,20 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     const transition = createPageTurnTransition('/projects', '/', -1);
     startPageTurn(transition);
-    pathname = '/';
-    await act(async () => {
-      renderer.update(React.createElement(PageTurnSurface, null, null));
-      await Promise.resolve();
-    });
-
-    expect(routeLayer(renderer).props.className).toContain('animate-page-turn-backward-in');
     await act(async () => {
       requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
       await Promise.resolve();
     });
 
-    expect(prefetch).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
-    expect(replace).not.toHaveBeenCalled();
-    expect(getPageTurnSnapshot()).toBe(transition);
+    expect(replace).toHaveBeenCalledOnce();
+    expect(replace).toHaveBeenCalledWith('/about');
+    expect(getPageTurnSnapshot()).toMatchObject({ fromPath: '/projects', toPath: '/about' });
 
     await act(async () => renderer.unmount());
   });
 
-  it('lets reduced-motion navigation commit without interception', async () => {
-    reducedMotion = true;
-    let renderer!: TestRenderer.ReactTestRenderer;
-
-    await act(async () => {
-      renderer = TestRenderer.create(
-        React.createElement(PageTurnSurface, null,
-          React.createElement(RouteProbe, { label: 'Home route' })),
-      );
-    });
-
-    await act(async () => {
-      const event = clickEvent('/projects');
-      clickListener?.(event);
-      expect(event.preventDefault).toHaveBeenCalled();
-      await Promise.resolve();
-    });
-
-    expect(routeLayer(renderer).props.className).not.toContain('animate-page-turn-forward-out');
-    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
-    expect(skeletonNodes(renderer)).toHaveLength(1);
-    expect(push).toHaveBeenCalledWith('/projects');
-
-    await act(async () => renderer.unmount());
-  });
-
-  it('defers a programmatic forward request before committing with its requested mode', async () => {
+  it('commits programmatic requests immediately with the requested mode', async () => {
     let renderer!: TestRenderer.ReactTestRenderer;
 
     await act(async () => {
@@ -447,23 +302,14 @@ describe('PageTurnSurface single-route lifecycle', () => {
       await Promise.resolve();
     });
 
-    const layer = routeLayer(renderer);
-    expect(layer.props.className).toContain('animate-page-turn-forward-out');
-    expect(replace).not.toHaveBeenCalled();
-
-    await act(async () => {
-      layer.props.onAnimationEnd({
-        target: layer,
-        currentTarget: layer,
-        animationName: 'pageTurnForwardOut',
-      });
-    });
-
     expect(replace).toHaveBeenCalledWith('/projects');
+    expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
+    expect(skeletonNodes(renderer)).toHaveLength(1);
+
     await act(async () => renderer.unmount());
   });
 
-  it('commits programmatic backward and reduced-motion requests immediately', async () => {
+  it('commits programmatic backward requests immediately', async () => {
     pathname = '/projects';
     let renderer!: TestRenderer.ReactTestRenderer;
 
@@ -477,26 +323,14 @@ describe('PageTurnSurface single-route lifecycle', () => {
     });
     expect(push).toHaveBeenCalledWith('/');
     expect(getPageTurnSnapshot()).toMatchObject({ direction: 'backward' });
-    expect(skeletonNodes(renderer)).toHaveLength(0);
-
-    reducedMotion = true;
-    await act(async () => {
-      renderer.update(React.createElement(PageTurnSurface, null, null));
-      await Promise.resolve();
-    });
-    await act(async () => {
-      requestPageTurnNavigation({ push, replace }, { href: '/about', mode: 'replace' });
-      await Promise.resolve();
-    });
-    expect(replace).toHaveBeenCalledWith('/about');
+    expect(skeletonNodes(renderer)).toHaveLength(1);
 
     await act(async () => renderer.unmount());
   });
 
-  it('releases transition state when an immediate backward router commit throws', async () => {
+  it('releases transition state when an immediate router commit throws', async () => {
     pathname = '/projects';
     push.mockImplementationOnce(() => {
-      startPageTurn(createPageTurnTransition('/projects', '/'));
       throw new Error('backward navigation failed');
     });
     let renderer!: TestRenderer.ReactTestRenderer;
@@ -510,42 +344,6 @@ describe('PageTurnSurface single-route lifecycle', () => {
     }).toThrow('backward navigation failed');
     expect(getPageTurnSnapshot()).toBeNull();
 
-    await act(async () => renderer.unmount());
-  });
-
-  it('releases the inert forward layer when its delayed router commit throws', async () => {
-    push.mockImplementationOnce(() => {
-      startPageTurn(createPageTurnTransition('/', '/projects'));
-      throw new Error('forward navigation failed');
-    });
-    let renderer!: TestRenderer.ReactTestRenderer;
-
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(PageTurnSurface, null, null));
-    });
-    await act(async () => {
-      requestPageTurnNavigation({ push, replace }, { href: '/projects', mode: 'push' });
-      await Promise.resolve();
-    });
-
-    const layer = routeLayer(renderer);
-    let forwardError: unknown;
-    await act(async () => {
-      try {
-        layer.props.onAnimationEnd({
-          target: layer,
-          currentTarget: layer,
-          animationName: 'pageTurnForwardOut',
-        });
-      } catch (error) {
-        forwardError = error;
-      }
-      await Promise.resolve();
-    });
-
-    expect(forwardError).toMatchObject({ message: 'forward navigation failed' });
-    expect(getPageTurnSnapshot()).toBeNull();
-    expect(routeLayer(renderer).props.inert).toBeUndefined();
     await act(async () => renderer.unmount());
   });
 });

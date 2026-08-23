@@ -91,7 +91,7 @@ export default function MatrixNotesWall(): React.ReactElement {
 
   return (
     <main
-      className="relative min-h-[100dvh] pt-16 md:pt-12 pb-24 px-4 md:px-8"
+      className="relative min-h-full pt-2 pb-8 px-4 md:px-8"
       style={{
         // Pure black base + subtle matrix glyph-grid via layered gradients.
         // Cheaper than a canvas and renders identically on iOS.

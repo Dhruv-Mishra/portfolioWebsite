@@ -96,7 +96,7 @@ export default function StickerDrawerPage() {
   }, [hasSuperuser]);
 
   return (
-    <div className="min-h-[100dvh] pt-12 md:pt-16 pb-16 px-4 md:px-8 relative z-10">
+    <div className="min-h-full pt-2 pb-8 px-4 md:px-8 relative z-10">
       <div className="max-w-6xl mx-auto">
         {/* ─── Header ─── */}
         <header className="text-center mb-6 md:mb-8">

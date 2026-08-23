@@ -27,7 +27,7 @@ const CAREER_SNAPSHOT = [
 
 export default function About() {
     return (
-        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col px-1.5 py-2 pb-16 sm:px-0 md:py-10 md:pb-16">
+        <div className="mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col px-1.5 py-2 pb-8 sm:px-0">
             <div className="relative mx-auto w-full min-w-0 max-w-4xl md:px-3">
                 <div className="animate-page-sheet relative min-h-[400px] w-full min-w-0 max-w-full text-gray-800 shadow-[3px_4px_9px_rgba(0,0,0,0.18)] md:transform md:-rotate-1 md:shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}

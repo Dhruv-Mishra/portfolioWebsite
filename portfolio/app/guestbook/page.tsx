@@ -41,7 +41,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
   const noteCount = allEntries.length;
 
   return (
-    <div className="max-w-7xl mx-auto pt-16 md:pt-10 pb-24 px-4 md:px-8">
+    <div className="max-w-7xl mx-auto pt-2 pb-8 px-4 md:px-8">
       {/* ─── Page header ─── */}
       <header className="text-center">
         <h1 className="font-hand text-4xl md:text-5xl font-bold text-[var(--c-heading)] inline-block">

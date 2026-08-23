@@ -23,152 +23,55 @@ describe('page-turn route transition contract', () => {
     expect(template).toContain('return children;');
   });
 
-  it('hosts one keyed real route layer in the persistent layout', () => {
+  it('hosts reserved chrome and one keyed real route layer in the persistent layout', () => {
     expect(layout).toContain('<PageTurnSurface>{children}</PageTurnSurface>');
     expect(surface).toContain('"use client"');
     expect(surface).toContain("import { usePathname, useRouter } from 'next/navigation'");
     expect(surface).toContain('const pathname = usePathname()');
     expect(surface).toContain('useSyncExternalStore(');
-    expect(surface).toContain('uninstallHistory = installPageTurnHistory()');
-    expect(surface).toMatch(/window\.setTimeout\([\s\S]*?installPageTurnHistory\(\)[\s\S]*?,\s*0\s*\)/);
-    expect(surface).toContain('renderedPathname !== pathname');
-    expect(surface).toContain('?? createPageTurnTransition(renderedPathname, pathname)');
+    expect(surface).toContain('window.addEventListener(PAGE_TURN_NAVIGATION_EVENT, onNavigationRequest)');
+    expect(surface).toContain('event.preventDefault()');
+    expect(surface).toContain('router[request.mode](href)');
+    expect(surface).toContain('startPageTurn(nextTransition)');
+    expect(surface).toContain('finishPageTurn(nextTransition.sequence)');
     expect(surface).toContain('key={pathname}');
     expect(surface.match(/data-route-scroll-container/g)).toHaveLength(1);
     expect(surface.match(/data-page-turn-layer=/g)).toHaveLength(1);
     expect(surface).toContain('data-page-turn-layer="active"');
-    expect(surface).toMatch(/\binert\b/);
     expect(surface).toContain('document.addEventListener(\'click\', onDocumentClick, true)');
-    expect(surface).toContain('event.preventDefault()');
-    expect(surface).toContain('router[pendingForward.mode](pendingForward.href)');
-    expect(surface).toContain('const timeout = window.setTimeout(commitForwardNavigation, durationMs)');
-    expect(surface).toContain('data-page-turn-direction={activeTransition?.direction}');
-    expect(surface).toContain('data-page-turn-distance={activeTransition?.distance}');
-    expect(surface).toContain('getPageTurnDurationMs()');
-    expect(surface).toContain("'--page-turn-duration': `${durationMs}ms`");
-    expect(surface).toContain('window.setTimeout(');
-    expect(surface).toContain('durationMs,');
+    expect(surface).toContain('page-chrome-header');
+    expect(surface).toContain('page-chrome-footer');
+    expect(surface).not.toContain('installPageTurnHistory');
+    expect(surface).not.toContain('animate-page-turn-forward-out');
+    expect(surface).not.toContain('animate-page-turn-backward-in');
     expect(surface).not.toMatch(/framer-motion|startViewTransition|cloneNode/);
-    expect(surface).toContain('page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate');
+    expect(surface).toContain('page-turn-stage relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden isolate');
+    expect(surface).toContain('{children}');
+    expect(surface).toContain("import PageTurnSkeleton from '@/components/PageTurnSkeleton'");
+    expect(surface).toContain('label={resolvePageTurnRoute(destinationPath).label}');
+    expect(css).toContain('--c-page-header-h: calc(var(--c-nav-tab-pt) + var(--c-nav-tab-py) + 1.5rem)');
+    expect(css).toContain('--c-page-footer-h: var(--c-mobile-dock-clearance)');
+    expect(css).toContain('--c-page-header-h: calc(var(--c-nav-tab-pt-md) + var(--c-nav-tab-py-md) + 1.5rem)');
+    expect(css).toContain('--c-page-footer-h: 5.5rem');
+    expect(css).toContain('.page-chrome-header');
+    expect(css).toContain('.page-chrome-footer');
+    expect(css).not.toMatch(/view-transition|startViewTransition/);
   });
 
   it('uses one aligned slow timing model for CSS and state cleanup', () => {
     expect(model).toContain('PAGE_TURN_DURATION_MS = 600');
     expect(model).not.toContain('PAGE_TURN_DURATION_BY_DISTANCE_MS');
-    expect(css).toContain('--page-turn-duration: 600ms');
-    expect(css).not.toMatch(/--page-turn-duration:\s*(?:420|470|500|510|540|580)ms/);
     expect(surface).not.toMatch(/setTimeout\([\s\S]*?,\s*800\s*,?\s*\)/);
   });
 
-  it('progressively enhances a safe fade with distinct left-hinged directions', () => {
-    const pageTurnCss = css.match(
-      /\/\* The persistent layout keeps[\s\S]+?(?=\/\* Cursor handling)/,
-    )?.[0] ?? '';
-    const forwardKeyframes = pageTurnCss.match(
-      /@keyframes pageTurnForwardOut \{([\s\S]+?)(?=@keyframes pageTurnBackwardIn)/,
-    )?.[1] ?? '';
-    const backwardKeyframes = pageTurnCss.match(
-      /@keyframes pageTurnBackwardIn \{([\s\S]+?)(?=@keyframes pageTurnForwardShadeOut)/,
-    )?.[1] ?? '';
-    const shadeKeyframes = pageTurnCss.match(
-      /@keyframes pageTurnBackwardShadeIn\s*\{([\s\S]*?)^    \}/m,
-    )?.[1] ?? '';
-    const forwardProperties = Array.from(
-      forwardKeyframes.matchAll(/^\s*([\w-]+)\s*:/gm),
-      (match) => match[1],
-    );
-    const backwardProperties = Array.from(
-      backwardKeyframes.matchAll(/^\s*([\w-]+)\s*:/gm),
-      (match) => match[1],
-    );
-    const shadeProperties = Array.from(
-      shadeKeyframes.matchAll(/\b([\w-]+)\s*:/g),
-      (match) => match[1],
-    );
-
-    expect(pageTurnCss).toMatch(/animation:\s*pageTurnForwardFadeOut\s+var\(--page-turn-duration\)/);
-    expect(pageTurnCss).toMatch(/animation:\s*pageTurnBackwardFadeIn\s+var\(--page-turn-duration\)/);
-    expect(pageTurnCss).toMatch(
-      /@media \(max-width: 767px\)[\s\S]*?@supports\s*\(transform:\s*perspective\(1px\) rotateY\(1deg\)\)/,
-    );
-    expect(pageTurnCss).toMatch(/\.animate-page-turn-forward-out\s*\{\s*animation:\s*pageTurnForwardFadeOut/);
-    expect(pageTurnCss).toContain('--page-turn-origin: left center');
-    expect(pageTurnCss).not.toContain('right center');
-    expect(pageTurnCss).toContain('--page-turn-forward-angle: -68deg');
-    expect(pageTurnCss).toContain('--page-turn-backward-angle: -58deg');
-    expect(forwardKeyframes).toContain('rotateY(var(--page-turn-forward-angle))');
-    expect(backwardKeyframes).toContain('rotateY(var(--page-turn-backward-angle))');
-    expect(forwardKeyframes).not.toBe(backwardKeyframes);
-    expect(new Set(forwardProperties)).toEqual(new Set(['opacity', 'transform']));
-    expect(new Set(backwardProperties)).toEqual(new Set(['opacity', 'transform']));
-    expect(new Set(shadeProperties)).toEqual(new Set(['opacity']));
-    expect(`${forwardKeyframes}${backwardKeyframes}`).not.toMatch(
-      /\b(?:width|height|margin|padding|top|right|bottom|left)\s*:/,
-    );
-    expect(pageTurnCss).toContain('will-change: transform, opacity');
-    expect(pageTurnCss).toContain('will-change: auto');
-    expect(pageTurnCss).not.toMatch(/view-transition|startViewTransition/);
-    expect(pageTurnCss).not.toContain('right center');
-  });
-
-  it('sequences nested entry motion until the page turn releases', () => {
+  it('disables placeholder shimmer for system and explicit reduced motion', () => {
     expect(css).toMatch(
-      /\.animate-page-turn-forward-out :where\(\.page-turn-content, \.page-turn-content \*\)[\s\S]*?animation-play-state:\s*paused\s*!important/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.page-route-shimmer[\s\S]*?animation:\s*none\s*!important/,
     );
     expect(css).toMatch(
-      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-forward-out[\s\S]*?animation-play-state:\s*running\s*!important/,
-    );
-  });
-
-  it('turns the one real route tree with a transparent ink shade', () => {
-    const animatedRouteRules = Array.from(
-      css.matchAll(
-        /\.animate-page-turn-forward-out,\s*\.animate-page-turn-backward-in\s*\{([\s\S]+?)\}/g,
-      ),
-      (match) => match[1],
-    ).join('\n');
-    const pseudo = css.match(
-      /\.animate-page-turn-forward-out::after,\s*\.animate-page-turn-backward-in::after\s*\{([\s\S]+?)\}/,
-    )?.[1] ?? '';
-
-    expect(animatedRouteRules).not.toMatch(/\bbackground-(?:image|size)\s*:/);
-    expect(pseudo).toContain('position: absolute');
-    expect(pseudo).toContain('inset: 0');
-    expect(pseudo).toContain('z-index: 20');
-    expect(pseudo).toContain('pointer-events: none');
-    expect(css).toMatch(
-      /\.animate-page-turn-forward-out::after\s*\{[\s\S]*?transparent[\s\S]*?var\(--c-ink\)/,
-    );
-    expect(surface).toContain("activeIsOutgoing && 'animate-page-turn-forward-out'");
-    expect(surface).toContain("activeIsIncoming && 'animate-page-turn-backward-in'");
-    expect(surface).toContain('{children}');
-    expect(surface).not.toContain('outgoingRoute');
-    expect(surface).toContain("import PageTurnSkeleton from '@/components/PageTurnSkeleton'");
-    expect(surface).toContain('<PageTurnSkeleton label={resolvePageTurnRoute(destinationPath).label} />');
-  });
-
-  it('disables the turn and shade for system and explicit reduced motion', () => {
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-turn-forward-out[\s\S]*?animation:\s*none\s*!important/,
-    );
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-page-turn-forward-out::after[\s\S]*?content:\s*none/,
-    );
-    expect(css).toMatch(
-      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-forward-out::after[\s\S]*?content:\s*none/,
-    );
-    expect(css).toMatch(
-      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-backward-in[\s\S]*?pointer-events:\s*auto/,
-    );
-    expect(css).toMatch(
-      /html\[data-motion="reduced"\][\s\S]*?\.animate-page-turn-backward-in[\s\S]*?animation:\s*none\s*!important/,
-    );
-    expect(surface).toContain('const pageTurnEnabled = enhanceImmersion && !reducedMotion;');
-    expect(surface.indexOf('if (!pageTurnEnabled) {')).toBeLessThan(
-      surface.indexOf('navigationLockRef.current !== null'),
+      /html\[data-motion="reduced"\] \.page-route-shimmer[\s\S]*?animation:\s*none\s*!important/,
     );
     expect(surface).toContain('if (!nextTransition) {');
-    expect(surface).toContain('if (pageTurnEnabled) return');
   });
 
   it('adds no page-turn dependency', () => {

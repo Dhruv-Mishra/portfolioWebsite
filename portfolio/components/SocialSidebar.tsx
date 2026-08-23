@@ -404,7 +404,6 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                         <MessageSquare size={24} strokeWidth={2.5} className="md:h-7 md:w-7" />
                     </button>
                 )}
-                <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-gray-300 -z-20 -translate-x-1/2 hidden md:block opacity-30" />
             </div>
 
             {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area.

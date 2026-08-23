@@ -19,9 +19,12 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 - Nginx `private, no-store` cache bypass for `/admin` and `/matrix-notes`.
 - Voice HUD and agent state-machine documentation.
 - 1200x630 Open Graph image.
+- CSS-only page-turn destination skeleton while the next route is still pending.
 
 ### Changed
 
+- Nav tabs now follow the pending page-turn destination instead of waiting for `usePathname()`.
+- Reduced-motion and immersion-off navigations keep a destination snapshot until the route lands or the 5s watchdog fires.
 - Voice runtime now loads lazily on enter.
 - Tooltips now use CSS.
 - Hidden routes now return HTTP 404.

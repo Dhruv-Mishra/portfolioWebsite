@@ -14,6 +14,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useSitePrefs } from '@/hooks/useSitePrefs';
+import PageTurnSkeleton from '@/components/PageTurnSkeleton';
 import {
   createPageTurnTransition,
   finishPageTurn,
@@ -22,6 +23,7 @@ import {
   getServerPageTurnSnapshot,
   installPageTurnHistory,
   PAGE_TURN_NAVIGATION_EVENT,
+  resolvePageTurnRoute,
   startPageTurn,
   subscribeToPageTurn,
   type PageTurnNavigationRequest,
@@ -111,16 +113,24 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     navigationWatchdogRef.current = null;
   }, []);
 
-  const settleDisabledPageTurnState = useCallback(() => {
+  const clearLocalNavigationState = useCallback(() => {
     clearNavigationWatchdog();
     navigationStartedRef.current = false;
     navigationLockRef.current = null;
     setPendingForward(null);
     setIncomingTurn(null);
-
-    const activeSnapshot = getPageTurnSnapshot();
-    if (activeSnapshot) finishPageTurn(activeSnapshot.sequence);
   }, [clearNavigationWatchdog]);
+
+  const settleDisabledPageTurnState = useCallback(() => {
+    const leftoverSequence = navigationLockRef.current?.snapshotSequence;
+    if (leftoverSequence === undefined) return;
+
+    clearLocalNavigationState();
+    const activeSnapshot = getPageTurnSnapshot();
+    if (activeSnapshot?.sequence === leftoverSequence) {
+      finishPageTurn(leftoverSequence);
+    }
+  }, [clearLocalNavigationState]);
 
   if (renderedPathname !== pathname) {
     const currentSnapshot = getPageTurnSnapshot();
@@ -188,7 +198,22 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
 
     const href = `${url.pathname}${url.search}${url.hash}`;
     if (!pageTurnEnabled) {
-      settleDisabledPageTurnState();
+      clearLocalNavigationState();
+      const nextTransition = createPageTurnTransition(pathname, url.pathname);
+      if (!nextTransition) {
+        const leftoverSnapshot = getPageTurnSnapshot();
+        if (leftoverSnapshot) finishPageTurn(leftoverSnapshot.sequence);
+        router[request.mode](href);
+        return true;
+      }
+
+      startPageTurn(nextTransition);
+      const timeout = window.setTimeout(() => {
+        if (navigationWatchdogRef.current?.sequence !== nextTransition.sequence) return;
+        navigationWatchdogRef.current = null;
+        finishPageTurn(nextTransition.sequence);
+      }, 5_000);
+      navigationWatchdogRef.current = { sequence: nextTransition.sequence, timeout };
       router[request.mode](href);
       return true;
     }
@@ -257,13 +282,13 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     return true;
   }, [
     adoptNavigationSnapshot,
+    clearLocalNavigationState,
     incomingTurn,
     pathname,
     pendingForward,
     pageTurnEnabled,
     releaseNavigationLock,
     router,
-    settleDisabledPageTurnState,
   ]);
 
   useEffect(() => {
@@ -387,12 +412,12 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       transition?.toPath !== pathname
-      || transition.direction === 'backward'
+      || (pageTurnEnabled && transition.direction === 'backward')
       || forwardTurn
     ) return;
     const timeout = window.setTimeout(() => finishPageTurn(transition.sequence), 0);
     return () => window.clearTimeout(timeout);
-  }, [forwardTurn, pathname, transition]);
+  }, [forwardTurn, pageTurnEnabled, pathname, transition]);
 
   useEffect(() => {
     if (pageTurnEnabled) return;
@@ -433,6 +458,11 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const activeIsIncoming = Boolean(backwardTurn);
   const activeIsOutgoing = Boolean(forwardTurn);
   const turning = activeIsIncoming || activeIsOutgoing;
+  const destinationPath = pendingForward?.transition.toPath
+    ?? (transition && transition.toPath !== pathname ? transition.toPath : null);
+  const hideSkeletonForIncomingTurn = Boolean(backwardTurn)
+    || (pageTurnEnabled && transition?.direction === 'backward');
+  const showSkeleton = Boolean(destinationPath) && !hideSkeletonForIncomingTurn;
 
   return (
     <div className="page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate">
@@ -459,6 +489,9 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
           {children}
         </div>
       </div>
+      {showSkeleton && destinationPath ? (
+        <PageTurnSkeleton label={resolvePageTurnRoute(destinationPath).label} />
+      ) : null}
     </div>
   );
 }

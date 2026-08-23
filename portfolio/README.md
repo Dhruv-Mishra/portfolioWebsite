@@ -53,6 +53,7 @@ Copy [.env.example](.env.example) for local setup. Provider keys, signing secret
 - [API](../docs/api.md): browser-facing endpoint contracts.
 - [AI and RAG](../docs/ai-and-rag.md): model registry, retrieval, and provider configuration.
 - [TTS](../docs/tts.md): Pocket TTS roles, streaming, and smoke checks.
+- [Voice agent](../docs/voice-agent.md): native Gemini Live HUD, session, and barge-in.
 - [Deployment](../docs/deployment.md): promotion, VM delivery, rollback, and operator checks.
 
 Detailed configuration remains in the linked guides.

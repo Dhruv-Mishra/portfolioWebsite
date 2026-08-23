@@ -146,6 +146,16 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(jarvis.map((fact) => fact.id)).toContain('project-jarvis-voice-agent');
   });
 
+  it('skips forced anchors for cropio when includeAnchors is false', async () => {
+    const facts = await retrieveRelevantFacts('tell me about cropio', { limit: 3, includeAnchors: false });
+    const ids = facts.map((fact) => fact.id);
+
+    expect(ids).toContain('project-cropio');
+    expect(ids[0]).toBe('project-cropio');
+    expect(facts.filter((fact) => fact.anchor)).toHaveLength(0);
+    expect(facts).toHaveLength(3);
+  });
+
   it('surfaces terminal-related facts when asked about terminal commands', async () => {
     const facts = await retrieveRelevantFacts('what commands can I type in the terminal', { limit: 8 });
     const ids = facts.map((f) => f.id);

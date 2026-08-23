@@ -612,6 +612,144 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
+  it('queues the rest of a planned hint utterance after the model emits only navigate_to', async () => {
+    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
+    vi.stubGlobal('window', { dispatchEvent });
+
+    const runtime = await boot();
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
+
+    runtime.fakeCaller.emit('userTranscript', 'switch to home and enter hint on the terminal');
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'nav-home-hint',
+      name: 'navigate_to',
+      args: { path: '/' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.push).toHaveBeenCalledWith('/');
+    const terminalEvents = () => dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event): event is CustomEvent<{ command: string }> => (
+        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+      ));
+    expect(terminalEvents()).toHaveLength(0);
+
+    const unregister = registerSiteActionHost('terminal');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const firstTerminalEvents = terminalEvents();
+    expect(firstTerminalEvents).toHaveLength(1);
+    expect(firstTerminalEvents[0]?.detail).toEqual({ command: 'hint' });
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'term-hint',
+      name: 'run_terminal_command',
+      args: { command: 'hint' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(terminalEvents()).toHaveLength(1);
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('commits planned home navigation before a host-gated fill when the model only fills first', async () => {
+    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
+    vi.stubGlobal('window', { dispatchEvent });
+
+    const runtime = await boot();
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
+
+    runtime.fakeCaller.emit('userTranscript', 'go to home and type hello');
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'fill-hello',
+      name: 'fill_field',
+      args: { field: 'terminal-input', value: 'hello' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.push).toHaveBeenCalledWith('/');
+    const fillEvents = () => dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event): event is CustomEvent<{ field: string; value: string }> => (
+        event instanceof Event && event.type === 'voice-fill-field'
+      ));
+    expect(fillEvents()).toHaveLength(0);
+
+    const unregister = registerSiteActionHost('terminal');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const committedFills = fillEvents();
+    expect(committedFills).toHaveLength(1);
+    expect(committedFills[0]?.detail).toEqual({ field: 'terminal-input', value: 'hello' });
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('rewrites a spoken hint tool call from help to hint once', async () => {
+    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
+    vi.stubGlobal('window', { dispatchEvent });
+
+    const runtime = await boot();
+    runtime.fakeCaller.emit('turnComplete', true);
+    runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
+
+    runtime.fakeCaller.emit('userTranscript', 'enter hint on the terminal');
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'term-help-misheard',
+      name: 'run_terminal_command',
+      args: { command: 'help' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const terminalEvents = () => dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .filter((event): event is CustomEvent<{ command: string }> => (
+        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
+      ));
+    expect(terminalEvents()).toHaveLength(0);
+
+    const unregister = registerSiteActionHost('terminal');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const committed = terminalEvents();
+    expect(committed).toHaveLength(1);
+    expect(committed[0]?.detail).toEqual({ command: 'hint' });
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'term-hint-repeat',
+      name: 'run_terminal_command',
+      args: { command: 'help' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(terminalEvents()).toHaveLength(1);
+    expect(runtime.fakeCaller.toolResults.at(-1)?.result).toMatchObject({
+      ok: true,
+      spokenText: 'Already handling that.',
+    });
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
   it('plays toggle on enter, then starts ambient after the toggle attack', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
@@ -660,7 +798,7 @@ describe('voice session runtime singleton', () => {
     }
   });
 
-  it('fades ambient then plays toggle on a normal hangup', async () => {
+  it('fades ambient then plays exit on a normal hangup', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
     goLive(runtime);

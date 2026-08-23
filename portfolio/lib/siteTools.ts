@@ -89,6 +89,7 @@ export const CHAT_MESSAGE_MAX_LENGTH = 500;
 /** Bare, non-destructive terminal commands safe for voice dispatch. No args. */
 export const VOICE_SAFE_TERMINAL_COMMANDS = [
   'help',
+  'hint',
   'joke',
   'about',
   'contact',
@@ -251,5 +252,8 @@ export function resolveVoiceSafeTerminalCommand(detail: unknown): VoiceSafeTermi
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return null;
   const record = detail as Record<string, unknown>;
   if (Object.keys(record).some(key => key !== 'command')) return null;
-  return isVoiceSafeTerminalCommand(record.command) ? record.command : null;
+  const raw = record.command;
+  if (typeof raw !== 'string') return null;
+  const command = raw === '/hint' ? 'hint' : raw;
+  return isVoiceSafeTerminalCommand(command) ? command : null;
 }

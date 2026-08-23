@@ -31,6 +31,7 @@ import {
 import { PERSONAL_LINKS } from '@/lib/links';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { runThemeToggle } from '@/lib/themeToggleAction';
+import { requestVoiceMode } from '@/lib/voiceModeStore';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -158,9 +159,7 @@ export function buildCommandEntries(): CommandEntry[] {
       keywords: ['voice', 'talk', 'speak', 'agent', 'live', 'call'],
       group: 'Actions',
       icon: AudioLines,
-      run: () => {
-        void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
-      },
+      run: () => { requestVoiceMode(); },
     },
     {
       id: 'action-send-feedback',

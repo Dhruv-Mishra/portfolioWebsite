@@ -530,6 +530,31 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
+  .sketch-tooltip {
+    animation: sketchTooltipIn 0.15s ease-out both;
+    rotate: -1.5deg;
+  }
+
+  .sketch-tooltip[data-side="top"] {
+    --sketch-tooltip-from-y: 4px;
+  }
+
+  .sketch-tooltip[data-side="bottom"] {
+    --sketch-tooltip-from-y: -4px;
+  }
+
+  @keyframes sketchTooltipIn {
+    from {
+      opacity: 0;
+      translate: 0 var(--sketch-tooltip-from-y, 4px);
+    }
+
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
     /* The persistent layout keeps one live route tree. Forward turns the current
       route before committing navigation; backward turns the real incoming route. */
   .page-turn-layer {
@@ -1001,6 +1026,40 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
+.voice-stage-veil {
+  opacity: 0;
+}
+.voice-stage-veil[data-veil="intro"] {
+  animation: voice-stage-veil-intro 420ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="live"] {
+  animation: voice-stage-veil-live 420ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="exiting"] {
+  animation: voice-stage-veil-exit-live 2040ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="exiting"][data-veil-from="intro"] {
+  animation: voice-stage-veil-exit-intro 2040ms ease-out forwards;
+}
+@keyframes voice-stage-veil-intro {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes voice-stage-veil-live {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes voice-stage-veil-exit-live {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  62% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes voice-stage-veil-exit-intro {
+  0% { opacity: 1; }
+  62% { opacity: 1; }
+  100% { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   html:not([data-motion="full"]) .voice-orb-gif,
   html:not([data-motion="full"]) .voice-orb-media,
@@ -1033,6 +1092,10 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   html:not([data-motion="full"]) .voice-orb-still {
     display: block;
   }
+  html:not([data-motion="full"]) .voice-stage-veil { animation: none !important; transition: none !important; }
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="intro"],
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="live"] { opacity: 0; }
 }
 html[data-motion="reduced"] .voice-orb-gif,
 html[data-motion="reduced"] .voice-orb-media,
@@ -1062,6 +1125,10 @@ html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"
 html[data-motion="reduced"] .voice-orb-gif {
   display: none;
 }
+html[data-motion="reduced"] .voice-stage-veil { animation: none !important; transition: none !important; }
+html[data-motion="reduced"] .voice-stage-veil[data-veil="intro"],
+html[data-motion="reduced"] .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
+html[data-motion="reduced"] .voice-stage-veil[data-veil="live"] { opacity: 0; }
 html[data-motion="reduced"] .voice-orb-still {
   display: block;
 }
@@ -2773,6 +2840,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .animate-page-turn-forward-out,
       .animate-page-turn-backward-in,
       .animate-theme-icon,
+      .sketch-tooltip,
       .animate-wall-note-in,
       .animate-listening-bar,
       .animate-listening-ellipsis,
@@ -2793,7 +2861,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       transition-duration: 0.01ms !important;
     }
 
-    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
       opacity: 1 !important;
     }
 
@@ -2843,6 +2911,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .animate-page-turn-forward-out,
     .animate-page-turn-backward-in,
     .animate-theme-icon,
+    .sketch-tooltip,
     .animate-wall-note-in,
     .animate-listening-bar,
     .animate-listening-ellipsis,
@@ -2863,7 +2932,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     transition-duration: 0.01ms !important;
   }
 
-  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
     opacity: 1 !important;
   }
 

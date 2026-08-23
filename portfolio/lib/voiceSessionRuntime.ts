@@ -12,12 +12,18 @@ import {
   hostIdForVoiceTool,
   isDeferredVoiceTool,
   isDependentVoiceTool,
+  openerHostIdForTool,
   type VoiceActionQueue,
+  type VoiceDependentHostId,
 } from '@/lib/voiceActionQueue';
 import { createVoicePlayback, startVoiceCapture, type VoicePlayback } from '@/lib/voiceAudio';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
-import { planVoiceUtterance, type PlannedVoiceAction } from '@/lib/voiceUtterancePlan';
+import {
+  planVoiceUtterance,
+  spokenLineRequestsHintCommand,
+  type PlannedVoiceAction,
+} from '@/lib/voiceUtterancePlan';
 import type {
   VoiceAgentPhase,
   VoiceCaller,
@@ -37,7 +43,9 @@ import {
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
-import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, startVoiceAmbient, stopVoiceAmbient, unlockVoiceAudio } from '@/lib/voiceSounds';
+import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
+import { forceStopVoiceToggleCue, playVoiceEnterFallback, playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue } from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -169,14 +177,7 @@ const projectVideoWaiters = new Set<() => void>();
 const projectVideoWaiterCancellers = new Set<() => void>();
 
 function prefersReducedSubtitleMotion(): boolean {
-  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
-    return true;
-  }
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'full') {
-    return false;
-  }
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return getEffectiveReducedMotion(getSitePrefsSnapshot().motionPreference);
 }
 
 function clearSubtitleIdleTimer(): void {
@@ -290,7 +291,6 @@ function applySpokenTranscript(
       subtitlePhase: 'visible',
     });
     syncUtterancePlanFromUserLine({ newTurn: !continuing });
-    flushUtterancePlan(generation);
     return;
   }
   patch({
@@ -318,8 +318,8 @@ function defaultDeps(): VoiceSessionRuntimeDeps {
     createPlayback: createVoicePlayback,
     startCapture: startVoiceCapture,
     fetchSession: mintBrowserVoiceSession,
-    playEnter: () => { unlockVoiceAudio(); playVoiceSound('voice-toggle'); },
-    playExit: () => playVoiceSound('voice-toggle'),
+    playEnter: playVoiceEnterFallback,
+    playExit: () => playVoiceSound('voice-exit'),
     playAction: () => playVoiceSound('voice-action'),
     startAmbient: startVoiceAmbient,
     stopAmbient: stopVoiceAmbient,
@@ -484,8 +484,39 @@ function voiceToolDedupeKey(call: Pick<SiteToolCall, 'name' | 'args'>): string {
   return `${call.name}:${canonicalToolArgs(call.args)}`;
 }
 
+function alignTerminalCallWithUtterancePlan(call: SiteToolCall): SiteToolCall {
+  if (call.name !== 'run_terminal_command' || call.args.command === 'hint') return call;
+  const plannedHint = utterancePlan.some(
+    item => item.name === 'run_terminal_command' && item.args.command === 'hint',
+  );
+  if (!plannedHint && !spokenLineRequestsHintCommand(snapshot.userLine)) return call;
+  return { ...call, args: { command: 'hint' } };
+}
+
 function hostArgsForVoiceTool(call: SiteToolCall): { field?: string } | null {
   return call.name === 'fill_field' ? { field: call.args.field } : null;
+}
+
+function openerArgsForVoiceTool(call: SiteToolCall): { path?: string } | null {
+  return call.name === 'navigate_to' ? { path: call.args.path } : null;
+}
+
+function isUtterancePlanOpener(item: PlannedVoiceAction): boolean {
+  return item.name === 'navigate_to'
+    || item.name === 'open_chat'
+    || item.name === 'open_feedback'
+    || item.name === 'open_project'
+    || openerHostIdForTool(item.name, openerArgsForVoiceTool(item)) != null;
+}
+
+function enqueueUnseenOpenersForHost(hostId: VoiceDependentHostId, generation: number): void {
+  for (const item of utterancePlan) {
+    if (openerHostIdForTool(item.name, openerArgsForVoiceTool(item)) !== hostId) continue;
+    const key = voiceToolDedupeKey(item);
+    if (seenVoiceToolKeys.has(key)) continue;
+    seenVoiceToolKeys.add(key);
+    enqueueVoiceSideEffect(item, generation);
+  }
 }
 
 function syncUtterancePlanFromUserLine(options: { newTurn?: boolean } = {}): void {
@@ -522,6 +553,7 @@ function playCommittedActionCue(name: SiteToolCall['name']): void {
 
 function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
   const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
+  if (hostId) enqueueUnseenOpenersForHost(hostId, generation);
   const deferred = isDeferredVoiceTool(call.name);
   const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   if (!deferred && !dependent) {
@@ -538,7 +570,13 @@ function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
 
 function flushUtterancePlan(generation: number): void {
   if (isStale(generation)) return;
+  const openers: PlannedVoiceAction[] = [];
+  const rest: PlannedVoiceAction[] = [];
   for (const item of utterancePlan) {
+    if (isUtterancePlanOpener(item)) openers.push(item);
+    else rest.push(item);
+  }
+  for (const item of [...openers, ...rest]) {
     const key = voiceToolDedupeKey(item);
     if (seenVoiceToolKeys.has(key)) continue;
     seenVoiceToolKeys.add(key);
@@ -731,6 +769,8 @@ function teardownMedia(reason: VoiceExitReason): void {
   unsubs = [];
   queue?.reset();
   queue = null;
+  forceStopVoiceToggleCue();
+  setVoiceAmbientDucked(false);
   resolveDeps().stopAmbient({ fadeMs: 0 });
   if (activeCaller) activeCaller.close(reason);
 }
@@ -763,35 +803,36 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   }
 
   syncUtterancePlanFromUserLine();
-  const key = voiceToolDedupeKey(call);
+  const resolvedCall = alignTerminalCallWithUtterancePlan(call);
+  const key = voiceToolDedupeKey(resolvedCall);
   const alreadySeen = seenVoiceToolKeys.has(key);
   seenVoiceToolKeys.add(key);
 
-  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
-  const deferred = isDeferredVoiceTool(call.name);
-  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
+  const hostId = hostIdForVoiceTool(resolvedCall.name, hostArgsForVoiceTool(resolvedCall));
+  const deferred = isDeferredVoiceTool(resolvedCall.name);
+  const dependent = isDependentVoiceTool(resolvedCall.name) || hostId !== null;
   const runtime = requireHostRuntime();
   let result: SiteToolResult;
   if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
-  } else if (call.name === 'control_project_video') {
-    result = await waitForProjectVideoControl(call, generation);
-  } else if (call.name === 'fill_field' && hostId) {
+  } else if (resolvedCall.name === 'control_project_video') {
+    result = await waitForProjectVideoControl(resolvedCall, generation);
+  } else if (resolvedCall.name === 'fill_field' && hostId) {
     // fill_field ignores commit=false in the executor, so wait for the host.
     result = { ok: true, spokenText: 'I will type that in.' };
   } else {
-    if (!deferred && !dependent) playCommittedActionCue(call.name);
-    result = await executeSiteTool(call, runtime, { commit: !deferred && !dependent });
+    if (!deferred && !dependent) playCommittedActionCue(resolvedCall.name);
+    result = await executeSiteTool(resolvedCall, runtime, { commit: !deferred && !dependent });
   }
   if (isStale(generation) || caller !== activeCaller) return;
-  activeCaller.sendToolResult(call.id, result, call.name);
+  activeCaller.sendToolResult(resolvedCall.id, result, resolvedCall.name);
 
   if (!alreadySeen && result.ok) {
-    if (call.name === 'end_voice_session') {
-      const reason = call.args.reason ?? 'user';
+    if (resolvedCall.name === 'end_voice_session') {
+      const reason = resolvedCall.args.reason ?? 'user';
       armAgentFarewellHangup(reason);
-    } else if (deferred || (dependent && call.name !== 'control_project_video')) {
-      enqueueVoiceSideEffect(call, generation);
+    } else if (deferred || (dependent && resolvedCall.name !== 'control_project_video')) {
+      enqueueVoiceSideEffect(resolvedCall, generation);
     }
   }
 
@@ -807,6 +848,8 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
         notifyVoiceActionQueueReady();
       }
       if (next === 'listening' && nextPlayback.isBusy()) {
+        stopVoiceToggleCue();
+        setVoiceAmbientDucked(true);
         patch({ phase: snapshot.phase === 'acting' ? 'acting' : 'speaking' });
         return;
       }
@@ -823,6 +866,8 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     nextCaller.on('audio', chunk => {
       if (isStale(generation)) return;
       markFarewellPlayback();
+      stopVoiceToggleCue();
+      setVoiceAmbientDucked(true);
       nextPlayback.play(chunk);
       notifyVoiceActionQueueReady();
     }),
@@ -869,6 +914,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     }),
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
+      setVoiceAmbientDucked(false);
       if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
         patch({ phase: 'listening' });
       }

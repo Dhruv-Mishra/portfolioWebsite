@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev/lkg]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio
+    env:
+      SKIP_EMBEDDINGS_BUILD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm_cmd=(npx -y npm@10.9.8)
+
+          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
+            "${npm_cmd[@]}" ci --dry-run
+            exit 1
+          fi
+          "${npm_cmd[@]}" ci
+
+      - name: Lint
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio
+    env:
+      SKIP_EMBEDDINGS_BUILD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm_cmd=(npx -y npm@10.9.8)
+
+          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
+            "${npm_cmd[@]}" ci --dry-run
+            exit 1
+          fi
+          "${npm_cmd[@]}" ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio
+    env:
+      SKIP_EMBEDDINGS_BUILD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm_cmd=(npx -y npm@10.9.8)
+
+          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
+            "${npm_cmd[@]}" ci --dry-run
+            exit 1
+          fi
+          "${npm_cmd[@]}" ci
+
+      - name: Test
+        run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio
+    env:
+      SKIP_EMBEDDINGS_BUILD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm_cmd=(npx -y npm@10.9.8)
+
+          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
+            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
+            "${npm_cmd[@]}" ci --dry-run
+            exit 1
+          fi
+          "${npm_cmd[@]}" ci
+
+      - name: Build
+        run: npm run build

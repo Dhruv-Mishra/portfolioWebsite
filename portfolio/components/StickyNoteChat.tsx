@@ -52,6 +52,7 @@ import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/ho
 import { Tooltip } from '@/components/ui/Tooltip';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
+import { requestVoiceMode } from '@/lib/voiceModeStore';
 import {
   CLOSE_PROJECT_EVENT,
   OPEN_CHAT_EVENT,
@@ -1362,9 +1363,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             <Tooltip label="Enter voice mode">
               <button
                 type="button"
-                onClick={() => {
-                  void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
-                }}
+                onClick={requestVoiceMode}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-sky-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
                 aria-label="Enter native voice mode"
                 title="Enter voice mode"
@@ -1855,7 +1854,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
 
     if (action.voiceSessionAction) {
-      void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
+      requestVoiceMode();
     }
 
     if (action.fieldFill || action.preferenceAction || action.guestbookSubmit) {

@@ -10,6 +10,7 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 - [API](docs/api.md)
 - [AI and RAG](docs/ai-and-rag.md)
 - [TTS](docs/tts.md)
+- [Voice agent](docs/voice-agent.md)
 - [Deployment](docs/deployment.md)
 
 ## Screenshots
@@ -35,7 +36,7 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 - **Sketchbook UI:** responsive themes, terminal navigation, page turns, command palette, sound, and hidden interactions.
 - **Grounded chat:** a local Markdown corpus and committed embeddings shape server-built context; credentials remain server-side.
 - **Exact model selection:** five allowlisted choices: Groq Qwen 3.6 27B, three NVIDIA models, and an optional text-only local agent. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
-- **Voice and workflows:** browser-native or local Whisper input, Pocket TTS with device-speech fallback, plus guestbook, feedback, stickers, and validated chat actions.
+- **Voice and workflows:** a live voice agent over Gemini WebSocket, plus browser-native or local Whisper input and Pocket TTS with device-speech fallback in chat, along with guestbook, feedback, stickers, and validated chat actions.
 
 For the component, API, runtime, and delivery boundaries behind these surfaces, read the [architecture HLD](docs/architecture.md).
 

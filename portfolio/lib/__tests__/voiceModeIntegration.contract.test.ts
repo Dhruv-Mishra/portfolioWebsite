@@ -42,6 +42,9 @@ describe('voice mode integration contract', () => {
     const css = read('app/globals.css');
 
     expect(enhancements).toContain('VoiceModeController');
+    expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
+    expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
+    expect(controller).toContain('runtimeImport = null');
     expect(controller).not.toContain("href: '/chat'");
     expect(stage).not.toContain("href: '/'");
     expect(stage).toContain("role={intro || exiting ? 'dialog' : 'complementary'}");
@@ -51,6 +54,18 @@ describe('voice mode integration contract', () => {
     expect(homeNote).toContain('Talk with Dhruv by voice');
     expect(homeNote).not.toContain('href=');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
+    expect(store).toContain('primeVoiceEnterAudio');
+    expect(store).toMatch(/export function requestVoiceMode\(\): void \{[\s\S]*primeVoiceEnterAudio\(\);[\s\S]*emit\(\);/);
+    expect(homeNote).toContain("from '@/lib/voiceModeStore'");
+    expect(homeNote).not.toMatch(/import\(['"]@\/lib\/voiceModeStore['"]\)/);
+    expect(css).toContain('.voice-stage-veil');
+    expect(css).toContain('html:not([data-motion="full"]) .voice-stage-veil');
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*html:not\(\[data-motion="full"\]\) \.voice-stage-veil/,
+    );
+    expect(css).not.toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*html\[data-motion="full"\] \.voice-stage-veil/,
+    );
     expect(css).toContain('html[data-voice-mode]');
     expect(css).toContain('html[data-voice-mode="intro"]');
     expect(css).toContain('.voice-orb-gif');
@@ -99,5 +114,22 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain('{PHASE_LABEL[phase]}');
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
+  });
+
+  it('loads the voice runtime and prefetches media on enter, not idle mount', () => {
+    const controller = read('components/voice/VoiceModeController.tsx');
+
+    expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
+    expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
+    expect(controller).toContain(
+      "const shouldLoad = request === 'enter' || cachedRuntime !== null || runtimeImport !== null",
+    );
+    expect(controller).toContain('if (!shouldLoad) return');
+    expect(controller).toContain(
+      "const shouldRetry = request === 'enter' || runtimeImport !== null",
+    );
+    expect(controller).toContain("if (!(snapshot.active || request === 'enter')) return");
+    expect(controller).toContain('scheduleVoiceAssetPrefetch()');
+    expect(controller).not.toMatch(/if \(!runtime && !snapshot\.active\) return/);
   });
 });

@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { AudioLines } from 'lucide-react';
+import { requestVoiceMode } from '@/lib/voiceModeStore';
 
 export default function HomeVoiceNote() {
   return (
@@ -11,9 +12,7 @@ export default function HomeVoiceNote() {
       style={{ '--disco-motion-delay': '490ms' } as CSSProperties}
       className="group mt-4 relative inline-block animate-hero-subtitle"
       aria-label="Talk with Dhruv by voice"
-      onClick={() => {
-        void import('@/lib/voiceModeStore').then(({ requestVoiceMode }) => requestVoiceMode());
-      }}
+      onClick={requestVoiceMode}
     >
       <div className="relative bg-[#dbeafe] dark:bg-[#1e3a5f] px-5 py-3 shadow-sm md:shadow-md -rotate-1 md:group-hover:rotate-0 transition-transform duration-300 border border-indigo-300/40 dark:border-indigo-400/25">
         <div

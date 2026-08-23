@@ -3,8 +3,10 @@ import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   PROJECT_VIDEO_ACTIONS,
   VOICE_SAFE_TERMINAL_COMMANDS,
+  resolveVoiceSafeTerminalCommand,
   type ProjectVideoAction,
   type SiteToolCall,
+  type VoiceSafeTerminalCommand,
 } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 
@@ -60,10 +62,32 @@ const PAGE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; patte
   { path: '/settings', pattern: /\bsettings?\b/i },
 ];
 
-const TERMINAL_COMMAND_PATTERN = new RegExp(
-  `\\b(?:type|run|enter)\\s+(${VOICE_SAFE_TERMINAL_COMMANDS.join('|')})\\s+(?:in|into|on)\\s+(?:the\\s+)?terminal\\b`,
+const TERMINAL_LOCUS = '(?:in|into|on)\\s+(?:the\\s+)?terminal';
+const SAFE_TERMINAL_TOKEN = `(?:\\/hint|${VOICE_SAFE_TERMINAL_COMMANDS.join('|')})`;
+const TYPED_SAFE_COMMAND_PATTERN = new RegExp(
+  `^(?:type|run|enter)\\s+(${SAFE_TERMINAL_TOKEN})(?:\\s+${TERMINAL_LOCUS})?$`,
   'i',
 );
+const LOCUS_SAFE_COMMAND_PATTERN = new RegExp(
+  `^(${SAFE_TERMINAL_TOKEN})\\s+${TERMINAL_LOCUS}$`,
+  'i',
+);
+const TYPED_TOKEN_PATTERN = new RegExp(
+  `^(?:type|run|enter)\\s+(\\/?[a-z0-9][a-z0-9/_-]*)(?:\\s+${TERMINAL_LOCUS})?$`,
+  'i',
+);
+const UNSAFE_TERMINAL_TOKENS = new Set([
+  'sudo',
+  'matrix',
+  'clear',
+  'disco',
+  'unlockstickers',
+  'hesoyam',
+  'cat',
+  'open',
+  'init',
+  'sign',
+]);
 
 const VIDEO_ACTION_PATTERN = new RegExp(
   `\\b(${PROJECT_VIDEO_ACTIONS.join('|')})\\b`,
@@ -79,11 +103,17 @@ const BARE_VIDEO_ACTION_PATTERN = new RegExp(
   'i',
 );
 
+const HINT_TOKEN_PATTERN = /(?:\/hint\b|\bhint\b)/i;
+const HINT_DISPATCH_PATTERN = /\b(?:type|run|enter)\s+\/?hint\b/i;
+const TERMINAL_CONTEXT_PATTERN = /\bterminal\b/i;
+const TERMINAL_VERB_PATTERN = /\b(?:type|run|enter)\b/i;
+const MATRIX_COMMAND_PATTERN = /\bmatrix\b/i;
+
 function normalizeUtterance(text: string): string {
   return text
     .toLowerCase()
     .replace(/[“”‘’"'`]/g, '')
-    .replace(/[^a-z0-9+\s,.-]/g, ' ')
+    .replace(/[^a-z0-9+\s,./-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -104,12 +134,44 @@ function plannedCall(id: string, name: SiteToolCall['name'], args: SiteToolCall[
   return parseSiteToolCall({ id, name, args });
 }
 
-function resolveTerminalCommand(clause: string): PlannedVoiceAction['args'] | null {
-  const match = clause.match(TERMINAL_COMMAND_PATTERN);
-  if (!match?.[1]) return null;
-  const command = match[1].toLowerCase();
-  if (!(VOICE_SAFE_TERMINAL_COMMANDS as readonly string[]).includes(command)) return null;
-  return { command } as Extract<SiteToolCall, { name: 'run_terminal_command' }>['args'];
+function clauseRequestsHintCommand(clause: string): boolean {
+  if (MATRIX_COMMAND_PATTERN.test(clause) || !HINT_TOKEN_PATTERN.test(clause)) return false;
+  return HINT_DISPATCH_PATTERN.test(clause)
+    || TERMINAL_CONTEXT_PATTERN.test(clause)
+    || TERMINAL_VERB_PATTERN.test(clause);
+}
+
+export function spokenLineRequestsHintCommand(text: string): boolean {
+  const normalized = normalizeUtterance(text);
+  if (!normalized || includesNegation(normalized) || isExplanationRequest(normalized)) {
+    return false;
+  }
+  return splitClauses(normalized).some(clauseRequestsHintCommand)
+    || clauseRequestsHintCommand(normalized);
+}
+
+type TerminalClauseIntent =
+  | { kind: 'command'; command: VoiceSafeTerminalCommand }
+  | { kind: 'fill'; value: string }
+  | { kind: 'skip' };
+
+function resolveTerminalIntent(clause: string): TerminalClauseIntent | null {
+  if (MATRIX_COMMAND_PATTERN.test(clause)) return { kind: 'skip' };
+
+  const commandMatch = clause.match(TYPED_SAFE_COMMAND_PATTERN) ?? clause.match(LOCUS_SAFE_COMMAND_PATTERN);
+  if (commandMatch?.[1]) {
+    const command = resolveVoiceSafeTerminalCommand({ command: commandMatch[1].toLowerCase() });
+    return command ? { kind: 'command', command } : { kind: 'skip' };
+  }
+
+  const typed = clause.match(TYPED_TOKEN_PATTERN);
+  if (!typed?.[1]) return null;
+  const token = typed[1].toLowerCase();
+  const normalized = token.replace(/^\//, '');
+  if (UNSAFE_TERMINAL_TOKENS.has(normalized)) return { kind: 'skip' };
+  const command = resolveVoiceSafeTerminalCommand({ command: token });
+  if (command) return { kind: 'command', command };
+  return { kind: 'fill', value: token };
 }
 
 function resolveProjectSlug(clause: string): ProjectSlug | null {
@@ -165,8 +227,14 @@ function resolveNavigationPath(clause: string): (typeof VALID_NAVIGATION_PATHS)[
 }
 
 function resolveClause(clause: string, id: string): PlannedVoiceAction | null {
-  const terminal = resolveTerminalCommand(clause);
-  if (terminal) return plannedCall(id, 'run_terminal_command', terminal);
+  const terminal = resolveTerminalIntent(clause);
+  if (terminal?.kind === 'skip') return null;
+  if (terminal?.kind === 'command') {
+    return plannedCall(id, 'run_terminal_command', { command: terminal.command });
+  }
+  if (terminal?.kind === 'fill') {
+    return plannedCall(id, 'fill_field', { field: 'terminal-input', value: terminal.value });
+  }
 
   if (resolveCloseProject(clause)) return plannedCall(id, 'close_project', {});
 
@@ -195,9 +263,9 @@ export function planVoiceUtterance(text: string): PlannedVoiceAction[] {
   if (clauses.length === 0 || clauses.length > MAX_PLANNED_ACTIONS) return [];
 
   const planned: PlannedVoiceAction[] = [];
-  for (const [index, clause] of clauses.entries()) {
-    const action = resolveClause(clause, `plan-${index + 1}`);
-    if (!action) return [];
+  for (const clause of clauses) {
+    const action = resolveClause(clause, `plan-${planned.length + 1}`);
+    if (!action) continue;
     planned.push(action);
   }
   return planned;

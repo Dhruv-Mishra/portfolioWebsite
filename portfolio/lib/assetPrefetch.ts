@@ -6,10 +6,11 @@
  *     server.
  *   - Respects user and network preferences — skips prefetch entirely on
  *     Data Saver (`connection.saveData === true`) and on slow effective
- *     connections (`2g`, `slow-2g`).
- *   - All prefetches are scheduled via `requestIdleCallback` (with a short
- *     `setTimeout` fallback for Safari / older mobile) so they never compete
- *     with the main-thread work that happens around first paint.
+ *     connections (`2g`, `slow-2g`, `3g`).
+ *   - All prefetches are scheduled via `requestIdleCallback` (with a
+ *     `setTimeout` fallback using the real deadline for Safari / older
+ *     mobile) so they never compete with the main-thread work that happens
+ *     around first paint.
  *   - Completely idempotent — each prefetch has a latch so repeat calls are
  *     a no-op. Safe to call multiple times.
  *
@@ -24,8 +25,10 @@
  * Integration:
  *   - `components/AssetPrefetchController.tsx` owns the React mount. It
  *     subscribes to the narrow `useSuperuserUnlocked` selector and calls
- *     `schedulePostInteractivePrefetch` exactly once per session after the
+ *     `scheduleSuperuserPrefetch` exactly once per session after the
  *     flag flips true.
+ *   - `scheduleVoiceAssetPrefetch` is for voice enter / explicit warm, not
+ *     idle first paint. The controller and `bootSession` call it on enter.
  */
 
 /** Was prefetch already scheduled in this session? Guards repeat calls. */
@@ -57,10 +60,23 @@ function shouldPrefetch(): boolean {
   const conn = getConnection();
   if (!conn) return true;
   if (conn.saveData === true) return false;
-  if (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g') {
+  if (
+    conn.effectiveType === '2g'
+    || conn.effectiveType === 'slow-2g'
+    || conn.effectiveType === '3g'
+  ) {
     return false;
   }
   return true;
+}
+
+/**
+ * Shared Save-Data / 2g / 3g gate for non-critical warmup (superuser
+ * prefetch, voice enter prefetch, nav intent prefetch). Same semantics as
+ * `shouldPrefetch`. Missing Network Information API still allows warmup.
+ */
+export function canWarmNoncriticalAssets(): boolean {
+  return shouldPrefetch();
 }
 
 /**
@@ -76,7 +92,7 @@ function scheduleIdle(cb: () => void, timeoutMs: number): void {
   if (typeof w.requestIdleCallback === 'function') {
     w.requestIdleCallback(cb, { timeout: timeoutMs });
   } else {
-    window.setTimeout(cb, Math.min(timeoutMs, 400));
+    window.setTimeout(cb, timeoutMs);
   }
 }
 
@@ -123,9 +139,9 @@ export function scheduleSuperuserPrefetch(): void {
 }
 
 /**
- * Warm the voice HUD GIF, still frame, toggle, ambient, and action cues
- * during idle time. Also safe to call on voice-mode enter — the latch
- * makes repeat calls a no-op.
+ * Warm the voice HUD GIF, still frame, enter, exit, ambient, and action cues.
+ * Call this on voice enter or another explicit warm path — not idle first
+ * paint. The latch makes repeat calls a no-op.
  */
 export function scheduleVoiceAssetPrefetch(): void {
   if (typeof window === 'undefined') return;

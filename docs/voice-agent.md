@@ -4,8 +4,8 @@ Production voice mode for the sketchbook. The browser talks to a native
 audio model. Site tools stay model-agnostic. Switching providers should
 only require changing the voice-caller adapter.
 
-Release `v0.24.0` carries the polished welcome flow, HUD, audio timing, and
-barge-in behavior described below.
+The HUD, welcome, audio timing, and barge-in polish shipped in `v0.24.0`.
+The app is `0.30.0` and later.
 
 ## Decisions
 
@@ -13,16 +13,76 @@ barge-in behavior described below.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. The landscape GIF is left-cropped into a hard circle. Speaking ripples follow playback level, not caption lifetime. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in, and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on idle or enter. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. The landscape GIF is left-cropped into a hard circle. Speaking ripples follow playback level, not caption lifetime. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in, and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on enter, not on idle page load. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
-| Transport | Client-to-model WebSocket with ephemeral tokens. Do not proxy PCM through the origin or a Worker. |
-| Worker | Optional edge mint + health on a Worker. Audio stays direct. |
+| Transport | Client-to-model WebSocket with ephemeral tokens minted by `POST /api/voice/session`. PCM does not transit the origin. There is no Cloudflare Worker in the request path. |
 | Default voice | Male `Charon`. |
 | Context | Tiny system prompt plus on-demand `lookup_site_facts`. No full fact bank in the live session. |
 | Tools | Shared `siteTools` registry. Chat and voice use the same names. |
-| Compression | Gemini Live is PCM only (16 kHz in, 24 kHz out). The settings toggle is **low-network mode**: smaller frames, no live transcripts, no ambient music. True Opus would add a Worker hop and extra latency, so it is off by default. |
+| Compression | Gemini Live is PCM only (16 kHz in, 24 kHz out). The settings toggle is **low-network mode**: smaller frames, no live transcripts, no ambient music. |
 | Context window | Live `contextWindowCompression` is always enabled. |
-| Pipeline | Staging/production inject `VOICE_AGENT_API_KEY` from `STAGING_VOICE_AGENT_API_KEY` / `PRODUCTION_VOICE_AGENT_API_KEY`. Worker uses the same secret names. |
+| Pipeline | Staging/production inject `VOICE_AGENT_API_KEY` from `STAGING_VOICE_AGENT_API_KEY` / `PRODUCTION_VOICE_AGENT_API_KEY`. |
+
+## HUD and agent state
+
+HUD phases are `idle`, `intro`, `live`, and `exiting`. `VoiceAgentPhase`
+overlays that HUD while the call is active.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> intro: enter voice
+  intro --> live: socket ready + first greet complete
+  live --> exiting: hangup
+  exiting --> idle: veil fade finished
+```
+
+```mermaid
+flowchart TB
+  subgraph HUD["HUD"]
+    HIdle[idle] --> HIntro[intro]
+    HIntro --> HLive[live]
+    HLive --> HExiting[exiting]
+    HExiting --> HIdle
+  end
+  subgraph Phase["VoiceAgentPhase overlay"]
+    PIdle[idle] --> PEntering[entering]
+    PEntering --> PConnecting[connecting]
+    PConnecting --> PListening[listening]
+    PListening --> PThinking[thinking]
+    PThinking --> PSpeaking[speaking]
+    PSpeaking --> PListening
+    PSpeaking --> PActing[acting]
+    PActing --> PListening
+    PListening --> PExiting[exiting]
+    PConnecting --> PError[error]
+  end
+  HIntro -.-> PEntering
+  HLive -.-> PListening
+  HExiting -.-> PExiting
+```
+
+`VoiceAgentPhase` values are `idle`, `entering`, `connecting`, `listening`,
+`thinking`, `speaking`, `acting`, `exiting`, and `error`. The overlay diagram
+is a catalog of those labels, not a claim that every transition is used.
+
+## Live audio pipeline
+
+The browser mints a session on the origin, then opens Gemini Live directly.
+PCM does not transit the origin.
+
+```mermaid
+flowchart LR
+  UI[Voice UI] -->|POST /api/voice/session| Session[Next origin]
+  Session -->|ephemeral token + setup| UI
+  UI -->|"Gemini WSS 16 kHz in / 24 kHz out"| Live[Gemini Live]
+  Live -->|audio + tool calls| UI
+  UI -->|on-demand POST /api/voice/facts| Facts[Next origin]
+  Facts -->|compact facts| UI
+```
+Ambient HTMLAudio ducks under speech. Mic PCM is withheld while playback is
+busy. If Gemini reports an interruption, playback hard-stops; that is not a
+full local barge-in / echo-cancellation redesign.
 
 ## Flow
 
@@ -30,7 +90,6 @@ barge-in behavior described below.
 sequenceDiagram
   participant UI as Voice UI
   participant Origin as Next /api/voice
-  participant Edge as Optional Worker
   participant Live as Gemini Live
   UI->>UI: Intro veil + switch-in sound
   par Prefetch

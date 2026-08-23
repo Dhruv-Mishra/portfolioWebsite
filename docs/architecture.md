@@ -49,8 +49,56 @@ The important distinction is that the system has ingress policies and per-proces
 ### Native voice agent
 
 - Voice mode starts from the homepage note, settings, or the command palette and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a floating dock. The browser talks to a live audio model over WebSocket using an ephemeral token from `/api/voice/session`.
-- PCM does not transit the origin or a Worker. Optional edge minting may exist later; audio stays direct.
+- PCM does not transit the origin. Audio stays on the browser-to-model WebSocket. See [Voice agent](voice-agent.md) for HUD, session, and barge-in detail.
 - Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> intro: enter voice
+  intro --> live: socket ready + first greet complete
+  live --> exiting: hangup
+  exiting --> idle: veil fade finished
+```
+
+HUD phases are `idle`, `intro`, `live`, and `exiting`. `VoiceAgentPhase` overlays that HUD: `idle`, `entering`, `connecting`, `listening`, `thinking`, `speaking`, `acting`, `exiting`, and `error`.
+
+```mermaid
+flowchart TB
+  subgraph HUD["HUD"]
+    HIdle[idle] --> HIntro[intro]
+    HIntro --> HLive[live]
+    HLive --> HExiting[exiting]
+    HExiting --> HIdle
+  end
+  subgraph Phase["VoiceAgentPhase overlay"]
+    PIdle[idle] --> PEntering[entering]
+    PEntering --> PConnecting[connecting]
+    PConnecting --> PListening[listening]
+    PListening --> PThinking[thinking]
+    PThinking --> PSpeaking[speaking]
+    PSpeaking --> PListening
+    PSpeaking --> PActing[acting]
+    PActing --> PListening
+    PListening --> PExiting[exiting]
+    PConnecting --> PError[error]
+  end
+  HIntro -.-> PEntering
+  HLive -.-> PListening
+  HExiting -.-> PExiting
+```
+
+```mermaid
+flowchart LR
+  UI[Voice UI] -->|POST /api/voice/session| Session[Next origin]
+  Session -->|ephemeral token + setup| UI
+  UI -->|"Gemini WSS 16 kHz in / 24 kHz out"| Live[Gemini Live]
+  Live -->|audio + tool calls| UI
+  UI -->|on-demand POST /api/voice/facts| Facts[Next origin]
+  Facts -->|compact facts| UI
+```
+
+PCM never goes through the origin. Ambient audio ducks under speech. Barge-in hard-stops PCM playback.
 
 ### Voice and media in the browser
 
@@ -214,4 +262,5 @@ The deployment mechanics and rollback procedures live in [Deployment](deployment
 | [API](api.md) | Browser-facing endpoint contracts and controls |
 | [AI and RAG](ai-and-rag.md) | Model selection, retrieval, and server configuration |
 | [TTS](tts.md) | Pocket TTS behavior and gateway operations |
+| [Voice agent](voice-agent.md) | Native Gemini Live HUD, session, and barge-in |
 | [Deployment](deployment.md) | Promotion, container delivery, rollback, and operator checks |

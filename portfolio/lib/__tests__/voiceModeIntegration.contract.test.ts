@@ -42,6 +42,9 @@ describe('voice mode integration contract', () => {
     const css = read('app/globals.css');
 
     expect(enhancements).toContain('VoiceModeController');
+    expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
+    expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
+    expect(controller).toContain('runtimeImport = null');
     expect(controller).not.toContain("href: '/chat'");
     expect(stage).not.toContain("href: '/'");
     expect(stage).toContain("role={intro || exiting ? 'dialog' : 'complementary'}");

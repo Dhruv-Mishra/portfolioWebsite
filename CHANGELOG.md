@@ -41,6 +41,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 - Voice utterance chains keep successful prefixes instead of dropping them on an unknown later clause.
 - Voice ambient no longer restarts when prefetch calls `.load()`.
 - Voice enter and exit use distinct Mixkit cues.
+- Staging/CI skip unused onnxruntime-node CUDA NuGet download.
+- fillField no longer requires document when window-only.
+- Embeddings metadata matches voice-mode fact copy.
 
 ### Security
 

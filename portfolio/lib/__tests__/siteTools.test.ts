@@ -211,6 +211,14 @@ describe('site tool executor hosts', () => {
       errorCode: 'terminal-unavailable',
     });
     await expect(executeSiteTool({
+      id: 'fill-no-doc',
+      name: 'fill_field',
+      args: { field: 'terminal-input', value: 'hello' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'no-window',
+    });
+    await expect(executeSiteTool({
       id: 'gb-1',
       name: 'submit_guestbook',
       args: { message: 'Loved the sketchbook notes.' },

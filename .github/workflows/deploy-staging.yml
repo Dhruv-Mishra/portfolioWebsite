@@ -41,6 +41,7 @@ env:
   NEXT_PUBLIC_ENABLE_ANALYTICS: "false"
   NEXT_PUBLIC_ENABLE_ERROR_TRACKING: "false"
   NEXT_TELEMETRY_DISABLED: "1"
+  ONNXRUNTIME_NODE_INSTALL: skip
 
 jobs:
   guard-staging-ref:
@@ -118,6 +119,7 @@ jobs:
         working-directory: portfolio
         env:
           SKIP_EMBEDDINGS_BUILD: "1"
+          ONNXRUNTIME_NODE_INSTALL: skip
         run: |
           npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
 

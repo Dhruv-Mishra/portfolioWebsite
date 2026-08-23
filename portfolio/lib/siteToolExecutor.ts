@@ -72,6 +72,10 @@ function fillField(field: string, value: string): SiteToolResult {
     return ok('Typed that in.');
   }
 
+  if (typeof document === 'undefined') {
+    return fail('That field is only available in the browser.', 'no-window');
+  }
+
   const target = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
     `[data-voice-field="${field}"]`,
   );

@@ -73,6 +73,7 @@ env:
   # Suppress the anonymous telemetry banner from Next.js builds; we don't act
   # on it and it pollutes CI logs.
   NEXT_TELEMETRY_DISABLED: '1'
+  ONNXRUNTIME_NODE_INSTALL: skip
 
 jobs:
   guard-production-ref:
@@ -156,6 +157,7 @@ jobs:
         # Avoids needing LLM_API_KEY as an Actions secret.
         env:
           SKIP_EMBEDDINGS_BUILD: '1'
+          ONNXRUNTIME_NODE_INSTALL: skip
         # Two-stage install: a fast dry-run first to surface lockfile drift
         # with a clear, actionable error before paying the full install cost.
         # The pre-commit hook in .githooks/ should prevent this from firing,

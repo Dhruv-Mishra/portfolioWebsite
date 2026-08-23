@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'A short query is required.' }, { status: 400 });
   }
 
-  const facts = await getRelevantFactContext(query, { limit: VOICE_FACTS_LIMIT });
+  const facts = await getRelevantFactContext(query, { limit: VOICE_FACTS_LIMIT, includeAnchors: false });
   return Response.json({
     ok: true,
     spokenText: facts || 'I have the sketchbook open — let me grab the project note.',

@@ -75,6 +75,8 @@ export interface RetrievalOptions {
   client?: OpenAI;
   /** Override the model id (defaults to the bundle model). */
   model?: string;
+  /** Prepend the four core anchors on the general path. Defaults to true. */
+  includeAnchors?: boolean;
 }
 
 const DEFAULT_LIMIT = 8;
@@ -280,16 +282,34 @@ const embedQueryCache = (() => {
   };
 })();
 
+async function fillFactsAfterForced(
+  forced: Fact,
+  query: string,
+  options: RetrievalOptions,
+  limit: number,
+): Promise<Fact[]> {
+  const remaining = Math.max(0, limit - 1);
+  if (remaining === 0) return [forced];
+  const { rankable } = partitionFacts(LOADED.facts);
+  const pool = rankable.filter((fact) => fact.id !== forced.id);
+  const queryEmbedding = await embedQuery(query, options);
+  const ranked = queryEmbedding
+    ? topKByEmbedding(pool, queryEmbedding, remaining)
+    : topKByPriority(pool, remaining);
+  return [forced, ...ranked].slice(0, limit);
+}
+
 /**
  * Main entry point — retrieve facts relevant to the user's last few messages.
- * Always returns at least the anchor facts (when the bundle is present).
- * Anchors are prepended in priority order, then the top-K non-anchor facts.
+ * Anchors are prepended in priority order unless `includeAnchors` is false,
+ * then the top-K non-anchor facts fill the remaining slots.
  */
 export async function retrieveRelevantFacts(
   query: string,
   options: RetrievalOptions = {},
 ): Promise<Fact[]> {
   const limit = options.limit ?? DEFAULT_LIMIT;
+  const includeAnchors = options.includeAnchors !== false;
   if (LOADED.facts.length === 0) return [];
 
   if (PC_SPECS_QUERY_PATTERN.test(query)) {
@@ -304,9 +324,12 @@ export async function retrieveRelevantFacts(
   if (projectMatches.length === 1) {
     const projectFact = getFactBySlug(projectMatches[0].slug);
     if (projectFact) {
-      const { anchors } = partitionFacts(LOADED.facts);
-      const extras = anchors.filter((fact) => fact.id !== projectFact.id);
-      return [projectFact, ...extras].slice(0, limit);
+      if (includeAnchors) {
+        const { anchors } = partitionFacts(LOADED.facts);
+        const extras = anchors.filter((fact) => fact.id !== projectFact.id);
+        return [projectFact, ...extras].slice(0, limit);
+      }
+      return fillFactsAfterForced(projectFact, query, options, limit);
     }
   }
 
@@ -318,17 +341,24 @@ export async function retrieveRelevantFacts(
 
   if (COMMAND_PALETTE_QUERY_PATTERN.test(query)) {
     const commandPaletteFact = LOADED.facts.find((fact) => fact.id === COMMAND_PALETTE_FACT_ID);
-    if (commandPaletteFact) return [...anchorSlice, commandPaletteFact].slice(0, limit);
+    if (commandPaletteFact) {
+      if (includeAnchors) return [...anchorSlice, commandPaletteFact].slice(0, limit);
+      return fillFactsAfterForced(commandPaletteFact, query, options, limit);
+    }
   }
 
   if (TERMINAL_OVERVIEW_QUERY_PATTERN.test(query) && !MATRIX_PUZZLE_QUERY_PATTERN.test(query)) {
     const terminalFact = LOADED.facts.find((fact) => fact.id === TERMINAL_FACT_ID);
-    if (terminalFact) return [...anchorSlice, terminalFact].slice(0, limit);
+    if (terminalFact) {
+      if (includeAnchors) return [...anchorSlice, terminalFact].slice(0, limit);
+      return fillFactsAfterForced(terminalFact, query, options, limit);
+    }
   }
 
-  const remaining = Math.max(0, limit - anchorSlice.length);
+  const prepended = includeAnchors ? anchorSlice : [];
+  const remaining = Math.max(0, limit - prepended.length);
   if (remaining === 0) {
-    return anchorSlice.slice(0, limit);
+    return prepended.slice(0, limit);
   }
 
   const queryEmbedding = await embedQuery(query, options);
@@ -338,7 +368,7 @@ export async function retrieveRelevantFacts(
 
   const seen = new Set<string>();
   const out: Fact[] = [];
-  for (const fact of [...anchorSlice, ...ranked]) {
+  for (const fact of [...prepended, ...ranked]) {
     if (seen.has(fact.id)) continue;
     seen.add(fact.id);
     out.push(fact);

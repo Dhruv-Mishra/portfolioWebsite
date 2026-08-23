@@ -61,17 +61,16 @@ export default function VoiceModeController() {
   );
 
   useEffect(() => {
-    const shouldLoad = request === 'enter' || cachedRuntime !== null || runtimeImport !== null;
-    if (!shouldLoad) return;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let attempts = 0;
+    const shouldRetry = request === 'enter' || cachedRuntime !== null || runtimeImport !== null;
 
     const tryLoad = () => {
       void loadVoiceSessionRuntime().then((mod) => {
         if (!cancelled) setRuntime(mod);
       }).catch(() => {
-        if (cancelled || attempts >= 2) return;
+        if (cancelled || !shouldRetry || attempts >= 2) return;
         attempts += 1;
         retryTimer = setTimeout(tryLoad, 400);
       });

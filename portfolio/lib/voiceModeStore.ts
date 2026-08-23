@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { VoiceExitReason } from '@/lib/voiceAgentProtocol';
+import { primeVoiceEnterAudio } from '@/lib/voiceSounds';
 
 export type VoiceModeRequest = 'enter' | 'exit';
 
@@ -22,6 +23,7 @@ function emit(): void {
 
 export function requestVoiceMode(): void {
   requested = 'enter';
+  primeVoiceEnterAudio();
   emit();
 }
 

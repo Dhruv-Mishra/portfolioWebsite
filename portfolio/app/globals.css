@@ -1026,6 +1026,40 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
+.voice-stage-veil {
+  opacity: 0;
+}
+.voice-stage-veil[data-veil="intro"] {
+  animation: voice-stage-veil-intro 420ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="live"] {
+  animation: voice-stage-veil-live 420ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="exiting"] {
+  animation: voice-stage-veil-exit-live 2040ms ease-out forwards;
+}
+.voice-stage-veil[data-veil="exiting"][data-veil-from="intro"] {
+  animation: voice-stage-veil-exit-intro 2040ms ease-out forwards;
+}
+@keyframes voice-stage-veil-intro {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes voice-stage-veil-live {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes voice-stage-veil-exit-live {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  62% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes voice-stage-veil-exit-intro {
+  0% { opacity: 1; }
+  62% { opacity: 1; }
+  100% { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   html:not([data-motion="full"]) .voice-orb-gif,
   html:not([data-motion="full"]) .voice-orb-media,
@@ -1058,6 +1092,10 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   html:not([data-motion="full"]) .voice-orb-still {
     display: block;
   }
+  html:not([data-motion="full"]) .voice-stage-veil { animation: none !important; transition: none !important; }
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="intro"],
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="live"] { opacity: 0; }
 }
 html[data-motion="reduced"] .voice-orb-gif,
 html[data-motion="reduced"] .voice-orb-media,
@@ -1087,6 +1125,10 @@ html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"
 html[data-motion="reduced"] .voice-orb-gif {
   display: none;
 }
+html[data-motion="reduced"] .voice-stage-veil { animation: none !important; transition: none !important; }
+html[data-motion="reduced"] .voice-stage-veil[data-veil="intro"],
+html[data-motion="reduced"] .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
+html[data-motion="reduced"] .voice-stage-veil[data-veil="live"] { opacity: 0; }
 html[data-motion="reduced"] .voice-orb-still {
   display: block;
 }

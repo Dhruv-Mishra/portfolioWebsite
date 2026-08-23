@@ -37,7 +37,9 @@ import {
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
-import { playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue, unlockVoiceAudio } from '@/lib/voiceSounds';
+import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
+import { forceStopVoiceToggleCue, playVoiceEnterFallback, playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue } from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -169,14 +171,7 @@ const projectVideoWaiters = new Set<() => void>();
 const projectVideoWaiterCancellers = new Set<() => void>();
 
 function prefersReducedSubtitleMotion(): boolean {
-  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced') {
-    return true;
-  }
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'full') {
-    return false;
-  }
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return getEffectiveReducedMotion(getSitePrefsSnapshot().motionPreference);
 }
 
 function clearSubtitleIdleTimer(): void {
@@ -318,7 +313,7 @@ function defaultDeps(): VoiceSessionRuntimeDeps {
     createPlayback: createVoicePlayback,
     startCapture: startVoiceCapture,
     fetchSession: mintBrowserVoiceSession,
-    playEnter: () => { unlockVoiceAudio(); playVoiceSound('voice-toggle'); },
+    playEnter: playVoiceEnterFallback,
     playExit: () => playVoiceSound('voice-toggle'),
     playAction: () => playVoiceSound('voice-action'),
     startAmbient: startVoiceAmbient,
@@ -731,7 +726,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   unsubs = [];
   queue?.reset();
   queue = null;
-  stopVoiceToggleCue();
+  forceStopVoiceToggleCue();
   setVoiceAmbientDucked(false);
   resolveDeps().stopAmbient({ fadeMs: 0 });
   if (activeCaller) activeCaller.close(reason);

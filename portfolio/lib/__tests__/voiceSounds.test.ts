@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SITE_VERSION } from '@/lib/siteVersion';
 import {
   __resetVoiceSoundsForTest,
+  playVoiceEnterFallback,
   playVoiceSound,
+  primeVoiceEnterAudio,
   setVoiceAmbientDucked,
   startVoiceAmbient,
   stopVoiceAmbient,
@@ -19,10 +21,19 @@ const soundManagerMock = vi.hoisted(() => ({
 class FakeAudio {
   preload = '';
   loop = false;
-  volume = 1;
   currentTime = 0;
   paused = true;
   ended = false;
+  #volume = 1;
+  get volume(): number {
+    return this.#volume;
+  }
+  set volume(value: number) {
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new DOMException(`IndexSizeError: ${value}`, 'IndexSizeError');
+    }
+    this.#volume = value;
+  }
   readonly play = vi.fn(() => {
     this.paused = false;
     return Promise.resolve();
@@ -236,17 +247,47 @@ describe('voice toggle cue and ambient duck', () => {
     expect(action?.pause).not.toHaveBeenCalled();
   });
 
-  it('stops the toggle cue immediately', () => {
+  it('does not pause the toggle cue during the 450ms play window unless forced', () => {
     vi.useFakeTimers();
     playVoiceSound('voice-toggle');
-    stopVoiceToggleCue();
 
     const toggle = audioById('toggle');
+    stopVoiceToggleCue();
+    expect(toggle?.volume).toBeCloseTo(0.22);
+    expect(toggle?.pause).not.toHaveBeenCalled();
+
+    stopVoiceToggleCue({ force: true });
     expect(toggle?.volume).toBe(0);
     expect(toggle?.pause).toHaveBeenCalledTimes(1);
+  });
 
-    vi.advanceTimersByTime(450);
-    expect(toggle?.pause).toHaveBeenCalledTimes(1);
+  it('primes the enter cue once and skips an immediate fallback replay', () => {
+    primeVoiceEnterAudio();
+    const toggle = audioById('toggle');
+    expect(toggle?.volume).toBeCloseTo(0.22);
+    expect(toggle?.play).toHaveBeenCalledTimes(1);
+
+    playVoiceEnterFallback();
+    expect(toggle?.play).toHaveBeenCalledTimes(1);
+
+    __resetVoiceSoundsForTest();
+    playVoiceEnterFallback();
+    expect(audioById('toggle')?.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('never assigns an out-of-range HTMLAudio volume during fade, duck, or stop', async () => {
+    startVoiceAmbient(true);
+    await Promise.resolve();
+    setVoiceAmbientDucked(true);
+    setVoiceAmbientDucked(false);
+    playVoiceSound('voice-toggle');
+    stopVoiceToggleCue({ force: true });
+    stopVoiceAmbient({ fadeMs: 0 });
+
+    for (const audio of soundManagerMock.instances as FakeAudio[]) {
+      expect(audio.volume).toBeGreaterThanOrEqual(0);
+      expect(audio.volume).toBeLessThanOrEqual(1);
+    }
   });
 
   it('ducks playing ambient to about 0.10 without pausing, then restores 0.36', async () => {

@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+import { LoadingSpinner } from '@/components/Loading';
 
 export const metadata: Metadata = {
   title: 'Projects | Dhruv Mishra',
@@ -15,5 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return <Suspense fallback={<LoadingSpinner message="Loading portfolio..." />}>{children}</Suspense>;
 }

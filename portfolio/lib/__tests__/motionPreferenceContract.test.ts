@@ -91,5 +91,7 @@ describe('motion preference contract', () => {
     );
     expect(css).toContain('html[data-motion="reduced"] :where(.animate-page-turn-forward-out, .animate-page-turn-backward-in)');
     expect(reducedContract).toContain('html:not([data-motion="full"])');
+    expect(css).toContain('html:not([data-motion="full"]) .voice-stage-veil');
+    expect(css).toContain('html[data-motion="reduced"] .voice-stage-veil');
   });
 });

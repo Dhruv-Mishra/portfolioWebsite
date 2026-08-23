@@ -54,6 +54,18 @@ describe('voice mode integration contract', () => {
     expect(homeNote).toContain('Talk with Dhruv by voice');
     expect(homeNote).not.toContain('href=');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
+    expect(store).toContain('primeVoiceEnterAudio');
+    expect(store).toMatch(/export function requestVoiceMode\(\): void \{[\s\S]*primeVoiceEnterAudio\(\);[\s\S]*emit\(\);/);
+    expect(homeNote).toContain("from '@/lib/voiceModeStore'");
+    expect(homeNote).not.toMatch(/import\(['"]@\/lib\/voiceModeStore['"]\)/);
+    expect(css).toContain('.voice-stage-veil');
+    expect(css).toContain('html:not([data-motion="full"]) .voice-stage-veil');
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*html:not\(\[data-motion="full"\]\) \.voice-stage-veil/,
+    );
+    expect(css).not.toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*html\[data-motion="full"\] \.voice-stage-veil/,
+    );
     expect(css).toContain('html[data-voice-mode]');
     expect(css).toContain('html[data-voice-mode="intro"]');
     expect(css).toContain('.voice-orb-gif');

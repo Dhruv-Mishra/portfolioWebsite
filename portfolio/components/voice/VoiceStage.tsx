@@ -169,35 +169,12 @@ export default function VoiceStage() {
     >
       <m.div
         aria-hidden
-        initial={{
-          opacity: reducedMotion
-            ? (intro || exiting ? 1 : 0)
-            : (intro || exitStartedWithVisibleVeil ? (intro ? 0 : 1) : 0),
-        }}
-        animate={{
-          opacity: reducedMotion
-            ? (intro || exiting ? 1 : 0)
-            : exiting
-              ? (exitStartedWithVisibleVeil ? [1, 1, 0] : [0, 1, 1, 0])
-              : (intro ? 1 : 0),
-        }}
-        transition={{
-          duration: (
-            reducedMotion
-              ? REDUCED_VEIL_MS
-              : exiting
-                ? EXIT_VEIL_FADE_MS
-                : VEIL_FADE_MS
-          ) / 1000,
-          times: !reducedMotion && exiting
-            ? (exitStartedWithVisibleVeil ? [0, 0.62, 1] : [0, 0.18, 0.62, 1])
-            : undefined,
-          ease: 'easeOut',
-        }}
         className={cn(
           'voice-stage-veil absolute inset-0 bg-black',
           intro || exiting ? 'pointer-events-auto' : 'pointer-events-none',
         )}
+        data-veil={intro ? 'intro' : exiting ? 'exiting' : 'live'}
+        data-veil-from={exitStartedWithVisibleVeil ? 'intro' : undefined}
         data-voice-veil={exiting ? 'exiting' : intro ? 'in' : 'out'}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />

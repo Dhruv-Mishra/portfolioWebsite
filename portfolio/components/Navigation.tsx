@@ -114,6 +114,7 @@ const NavTab = React.memo(function NavTab({
             // off by the tab's jagged bottom edge and keyboard users can reach
             // every nav tab with a clear indicator.
             className="rounded-b-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            {...(active ? { 'aria-current': 'page' as const } : {})}
         >
             <div
                 onMouseEnter={() => {
@@ -134,7 +135,6 @@ const NavTab = React.memo(function NavTab({
                     backgroundColor: color.bg,
                     transform: `translateY(${y}px)`,
                 }}
-                {...(active ? { 'aria-current': 'page' as const } : {})}
             >
                 {item.name}
             </div>

@@ -530,6 +530,31 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     to { opacity: 1; transform: rotate(0deg) scale(1); }
   }
 
+  .sketch-tooltip {
+    animation: sketchTooltipIn 0.15s ease-out both;
+    rotate: -1.5deg;
+  }
+
+  .sketch-tooltip[data-side="top"] {
+    --sketch-tooltip-from-y: 4px;
+  }
+
+  .sketch-tooltip[data-side="bottom"] {
+    --sketch-tooltip-from-y: -4px;
+  }
+
+  @keyframes sketchTooltipIn {
+    from {
+      opacity: 0;
+      translate: 0 var(--sketch-tooltip-from-y, 4px);
+    }
+
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
     /* The persistent layout keeps one live route tree. Forward turns the current
       route before committing navigation; backward turns the real incoming route. */
   .page-turn-layer {
@@ -2773,6 +2798,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .animate-page-turn-forward-out,
       .animate-page-turn-backward-in,
       .animate-theme-icon,
+      .sketch-tooltip,
       .animate-wall-note-in,
       .animate-listening-bar,
       .animate-listening-ellipsis,
@@ -2793,7 +2819,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       transition-duration: 0.01ms !important;
     }
 
-    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
       opacity: 1 !important;
     }
 
@@ -2843,6 +2869,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .animate-page-turn-forward-out,
     .animate-page-turn-backward-in,
     .animate-theme-icon,
+    .sketch-tooltip,
     .animate-wall-note-in,
     .animate-listening-bar,
     .animate-listening-ellipsis,
@@ -2863,7 +2890,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     transition-duration: 0.01ms !important;
   }
 
-  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .animate-wall-note-in, .sticker-card) {
+  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
     opacity: 1 !important;
   }
 

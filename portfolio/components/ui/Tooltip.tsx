@@ -5,8 +5,8 @@
  *
  * Why hand-rolled (not Radix): adding `@radix-ui/react-tooltip` would ship
  * ~6KB gzipped of FloatingUI + Radix runtime to every page just for hint
- * text. We already have Framer Motion in the bundle for fade animation
- * and React's portal for overlay rendering. Hand-rolled stays under 1KB.
+ * text. Fade uses a scoped CSS keyframe and React's portal for overlay
+ * rendering. Hand-rolled stays under 1KB.
  *
  * Behaviour:
  *  - Renders nothing on touch devices (`useDesktopOnly`) so mobile pays
@@ -33,7 +33,6 @@ import {
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, m } from 'framer-motion';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
 import { cn } from '@/lib/utils';
 
@@ -139,36 +138,30 @@ export function Tooltip({
 
   const portal = open && coords && typeof document !== 'undefined'
     ? createPortal(
-        <AnimatePresence>
-          <m.div
-            key="tt"
-            id={id}
-            role="tooltip"
-            initial={{ opacity: 0, y: coords.flipped ? -4 : 4, rotate: -1.5 }}
-            animate={{ opacity: 1, y: 0, rotate: -1.5 }}
-            exit={{ opacity: 0, y: coords.flipped ? -4 : 4, rotate: -1.5 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            style={{
-              position: 'fixed',
-              left: coords.left,
-              top: coords.top,
-              transform: `translate(-50%, ${coords.flipped ? '0%' : '-100%'})`,
-              pointerEvents: 'none',
-              zIndex: 9999,
-            }}
-            className={cn(
-              'px-2 py-1 rounded-md',
-              'bg-[var(--c-paper)] text-[var(--c-ink)]',
-              'border border-[var(--c-ink)]/30',
-              'shadow-[1px_2px_4px_rgba(0,0,0,0.18)]',
-              'font-hand text-[12px] leading-tight font-bold tracking-wide',
-              'whitespace-nowrap select-none',
-              className,
-            )}
-          >
-            {label}
-          </m.div>
-        </AnimatePresence>,
+        <div
+          id={id}
+          role="tooltip"
+          data-side={coords.flipped ? 'bottom' : 'top'}
+          style={{
+            position: 'fixed',
+            left: coords.left,
+            top: coords.top,
+            transform: `translate(-50%, ${coords.flipped ? '0%' : '-100%'})`,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+          className={cn(
+            'sketch-tooltip px-2 py-1 rounded-md',
+            'bg-[var(--c-paper)] text-[var(--c-ink)]',
+            'border border-[var(--c-ink)]/30',
+            'shadow-[1px_2px_4px_rgba(0,0,0,0.18)]',
+            'font-hand text-[12px] leading-tight font-bold tracking-wide',
+            'whitespace-nowrap select-none',
+            className,
+          )}
+        >
+          {label}
+        </div>,
         document.body,
       )
     : null;

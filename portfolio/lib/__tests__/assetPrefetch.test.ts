@@ -5,7 +5,7 @@
  *   - Idempotent — second call is a no-op even if the first is still in
  *     flight.
  *   - Respects Data Saver (`connection.saveData === true`) — skips entirely.
- *   - Respects slow-connection hints (`effectiveType` of `2g` / `slow-2g`)
+ *   - Respects slow-connection hints (`effectiveType` of `2g` / `slow-2g` / `3g`)
  *     — skips entirely.
  *   - Fires a `requestIdleCallback` (or `setTimeout` fallback) when it does
  *     run.
@@ -115,6 +115,23 @@ describe('scheduleSuperuserPrefetch', () => {
     expect(idleCalls.length).toBe(0);
   });
 
+  it('skips entirely on 3g', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { connection: { effectiveType: '3g' } },
+      configurable: true,
+      writable: true,
+    });
+    const {
+      scheduleSuperuserPrefetch,
+      __resetAssetPrefetchForTest,
+      canWarmNoncriticalAssets,
+    } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    expect(canWarmNoncriticalAssets()).toBe(false);
+    scheduleSuperuserPrefetch();
+    expect(idleCalls.length).toBe(0);
+  });
+
   it('prefetches normally on 4g', async () => {
     Object.defineProperty(globalThis, 'navigator', {
       value: { connection: { effectiveType: '4g' } },
@@ -127,7 +144,7 @@ describe('scheduleSuperuserPrefetch', () => {
     expect(idleCalls.length).toBe(1);
   });
 
-  it('falls back to setTimeout when requestIdleCallback is not available', async () => {
+  it('falls back to the real 1500ms deadline when requestIdleCallback is not available', async () => {
     const windowShim: WindowShim = {
       setTimeout: ((fn: () => void, ms: number) => {
         timeoutCalls.push({ fn, ms });
@@ -144,6 +161,7 @@ describe('scheduleSuperuserPrefetch', () => {
     __resetAssetPrefetchForTest();
     scheduleSuperuserPrefetch();
     expect(timeoutCalls.length).toBeGreaterThan(0);
+    expect(timeoutCalls[0]?.ms).toBe(1500);
   });
 });
 
@@ -173,5 +191,49 @@ describe('scheduleVoiceAssetPrefetch', () => {
     __resetAssetPrefetchForTest();
     scheduleVoiceAssetPrefetch();
     expect(idleCalls.length).toBe(0);
+  });
+
+  it('skips entirely on 2g', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { connection: { effectiveType: '2g' } },
+      configurable: true,
+      writable: true,
+    });
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    expect(idleCalls.length).toBe(0);
+  });
+
+  it('skips entirely on 3g', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { connection: { effectiveType: '3g' } },
+      configurable: true,
+      writable: true,
+    });
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    expect(idleCalls.length).toBe(0);
+  });
+
+  it('falls back to the real 1800ms deadline when requestIdleCallback is missing', async () => {
+    const windowShim: WindowShim = {
+      setTimeout: ((fn: () => void, ms: number) => {
+        timeoutCalls.push({ fn, ms });
+        return 0 as unknown as NodeJS.Timeout;
+      }) as unknown as typeof setTimeout,
+      clearTimeout: (() => undefined) as unknown as typeof clearTimeout,
+    };
+    Object.defineProperty(globalThis, 'window', {
+      value: windowShim,
+      configurable: true,
+      writable: true,
+    });
+    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    __resetAssetPrefetchForTest();
+    scheduleVoiceAssetPrefetch();
+    expect(timeoutCalls.length).toBeGreaterThan(0);
+    expect(timeoutCalls[0]?.ms).toBe(1800);
   });
 });

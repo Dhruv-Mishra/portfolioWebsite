@@ -39,4 +39,12 @@ describe('nginx cache header contract', () => {
     expect(pages).toContain('proxy_cache __SERVICE_NAME___cache;');
     expect(pages).not.toContain('proxy_cache off;');
   });
+
+  it('serves /voice/ from disk with immutable cache and missing-asset fallback', () => {
+    const voice = extractLocationBlock('/voice/');
+
+    expect(voice).toContain('alias __STANDALONE_DIR__/public/voice/;');
+    expect(voice).toContain('add_header Cache-Control "public, max-age=31536000, immutable";');
+    expect(voice).toContain('error_page 404 = @missing_asset;');
+  });
 });

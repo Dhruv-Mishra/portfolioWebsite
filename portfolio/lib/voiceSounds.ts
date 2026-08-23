@@ -4,13 +4,15 @@ import { getSoundsMutedSync } from '@/hooks/useStickers';
 import { SITE_VERSION } from '@/lib/siteVersion';
 import { soundManager } from '@/lib/soundManager';
 
-export type VoiceCueId = 'voice-toggle' | 'voice-action';
+export type VoiceCueId = 'voice-enter' | 'voice-exit' | 'voice-action';
 export type VoiceSoundId = VoiceCueId | 'voice-ambient';
 
 type AmbientPhase = 'idle' | 'primed' | 'in' | 'playing' | 'out';
 
+// Enter/exit: Mixkit "Software interface start" (2574) + "Software interface back" (2575), Mixkit SFX Free License. https://mixkit.co/free-sound-effects/interface/ https://mixkit.co/license/#sfxFree
 const VOICE_SOUND_URLS: Record<VoiceSoundId, string> = {
-  'voice-toggle': `/sounds/voice/toggle.mp3?v=${SITE_VERSION}`,
+  'voice-enter': `/sounds/voice/enter.mp3?v=${SITE_VERSION}`,
+  'voice-exit': `/sounds/voice/exit.mp3?v=${SITE_VERSION}`,
   'voice-action': `/sounds/voice/action.mp3?v=${SITE_VERSION}`,
   'voice-ambient': `/sounds/voice/ambient.mp3?v=${SITE_VERSION}`,
 };
@@ -51,7 +53,7 @@ function getAudio(id: VoiceSoundId): HTMLAudioElement {
   const existing = cache.get(id);
   if (existing) return existing;
   const audio = new Audio(VOICE_SOUND_URLS[id]);
-  audio.preload = 'auto';
+  audio.preload = 'none';
   audio.loop = id === 'voice-ambient';
   if (id === 'voice-ambient') audio.volume = clampMediaVolume(0);
   cache.set(id, audio);
@@ -60,6 +62,13 @@ function getAudio(id: VoiceSoundId): HTMLAudioElement {
 
 function isAmbientPlaying(audio: HTMLAudioElement): boolean {
   return !audio.paused && !audio.ended;
+}
+
+function shouldPrefetchLoad(id: VoiceSoundId, audio: HTMLAudioElement): boolean {
+  if (isAmbientPlaying(audio)) return false;
+  if (id === 'voice-ambient' && ambientPhase !== 'idle') return false;
+  if (audio.readyState > 0) return false;
+  return true;
 }
 
 function prefersReducedVoiceMotion(): boolean {
@@ -164,7 +173,9 @@ function fadeAmbientVolume(
 
 export function prefetchVoiceSounds(): void {
   (Object.keys(VOICE_SOUND_URLS) as VoiceSoundId[]).forEach(id => {
-    getAudio(id).load();
+    const audio = getAudio(id);
+    if (!shouldPrefetchLoad(id, audio)) return;
+    audio.load();
   });
 }
 
@@ -178,15 +189,18 @@ export function prefetchVoiceVisuals(): void {
 
 export function unlockVoiceAudio(): void {
   if (typeof Audio === 'undefined') return;
-  const toggle = getAudio('voice-toggle');
+  const enter = getAudio('voice-enter');
   const action = getAudio('voice-action');
   const ambient = getAudio('voice-ambient');
-  toggle.load();
-  action.load();
-  ambient.load();
+  if (!isAmbientPlaying(enter) && enter.readyState === 0) enter.load();
+  if (!isAmbientPlaying(action) && action.readyState === 0) action.load();
+
+  const ambientLive = ambientPhase !== 'idle' || isAmbientPlaying(ambient);
+  if (ambientLive) return;
+
+  if (ambient.readyState === 0) ambient.load();
   ambient.loop = true;
   ambient.volume = clampMediaVolume(0);
-  if (ambientPhase !== 'idle') return;
   ambientPhase = 'primed';
   const playResult = ambient.play();
   if (playResult && typeof playResult.then === 'function') {
@@ -199,7 +213,7 @@ export function unlockVoiceAudio(): void {
 export function playVoiceSound(id: VoiceCueId): void {
   if (getSoundsMutedSync()) return;
   const audio = getAudio(id);
-  if (id === 'voice-toggle') {
+  if (id === 'voice-enter') {
     cancelToggleCue();
     audio.volume = clampMediaVolume(TOGGLE_VOLUME);
     audio.currentTime = 0;
@@ -213,7 +227,7 @@ export function playVoiceSound(id: VoiceCueId): void {
     }, TOGGLE_PLAY_MS);
     return;
   }
-  audio.volume = clampMediaVolume(ACTION_VOLUME);
+  audio.volume = clampMediaVolume(id === 'voice-exit' ? TOGGLE_VOLUME : ACTION_VOLUME);
   audio.currentTime = 0;
   void audio.play().catch(() => {
     cache.delete(id);
@@ -222,7 +236,7 @@ export function playVoiceSound(id: VoiceCueId): void {
 
 export function primeVoiceEnterAudio(): void {
   unlockVoiceAudio();
-  playVoiceSound('voice-toggle');
+  playVoiceSound('voice-enter');
   enterCuePrimed = true;
 }
 
@@ -232,12 +246,12 @@ export function playVoiceEnterFallback(): void {
     return;
   }
   unlockVoiceAudio();
-  playVoiceSound('voice-toggle');
+  playVoiceSound('voice-enter');
 }
 
 export function stopVoiceToggleCue(options: { force?: boolean } = {}): void {
   if (!options.force && Date.now() < togglePlayUntil) return;
-  const audio = cache.get('voice-toggle');
+  const audio = cache.get('voice-enter');
   cancelToggleCue();
   togglePlayUntil = 0;
   if (!audio) return;

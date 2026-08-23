@@ -999,10 +999,32 @@ function decodeArrayBuffer(ctx: AudioContext, bytes: ArrayBuffer): Promise<Audio
   }
 }
 
+function isSuperuserWaveId(id: SoundId): boolean {
+  return (SUPERUSER_WAVE_IDS as readonly SoundId[]).includes(id);
+}
+
+/**
+ * Inline Save-Data / 2g / 3g check so superuser URL fetches can re-check
+ * even after an earlier idle latch. Intentionally duplicated from
+ * `assetPrefetch` — that module dynamically imports this one.
+ */
+function canWarmSuperuserSoundUrls(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  const conn = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  if (!conn) return true;
+  if (conn.saveData === true) return false;
+  return conn.effectiveType !== '2g'
+    && conn.effectiveType !== 'slow-2g'
+    && conn.effectiveType !== '3g';
+}
+
 async function warmupSound(ctx: AudioContext, id: SoundId, url: string): Promise<void> {
   // Dedupe: skip if already cached, already attempted, or a concurrent call
   // is already in flight for this id.
   if (bufferCache.has(id) || warmupAttempted.has(id) || warmupInflight.has(id)) return;
+  if (isSuperuserWaveId(id) && !canWarmSuperuserSoundUrls()) return;
   warmupInflight.add(id);
   warmupAttempted.add(id);
   if (typeof fetch !== 'function') {
@@ -1097,9 +1119,11 @@ function scheduleSecondWave(ctx: AudioContext): void {
  * no-op; the scheduler waits for the first user gesture to run it.
  */
 function warmupSuperuserWave(ctx: AudioContext): void {
+  if (!canWarmSuperuserSoundUrls()) return;
   if (superuserWaveScheduled) return;
   superuserWaveScheduled = true;
   scheduleIdle(() => {
+    if (!canWarmSuperuserSoundUrls()) return;
     for (const id of SUPERUSER_WAVE_IDS) {
       const spec = SOUND_SPECS[id];
       if (!spec.url) continue;
@@ -1548,6 +1572,7 @@ export const soundManager: SoundManager = {
   },
 
   warmupSuperuserSounds(): void {
+    if (!canWarmSuperuserSoundUrls()) return;
     const s = state;
     if (s) {
       warmupSuperuserWave(s.ctx);

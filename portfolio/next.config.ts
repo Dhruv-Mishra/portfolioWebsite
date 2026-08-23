@@ -158,7 +158,7 @@ const nextConfig: NextConfig = {
       {
         // Static pages: let Cloudflare cache at edge for 1 hour, browsers revalidate.
         // Dynamic and cookie-gated routes must retain Next's private/no-store policy.
-        source: '/((?!api|admin|guestbook|matrix-notes|_next/static|_next/image|resources).*)',
+        source: '/((?!api|admin|guestbook|matrix-notes|_next/static|_next/image|resources|voice).*)',
         headers: [
           { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },
@@ -166,6 +166,12 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/resources/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/voice/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],

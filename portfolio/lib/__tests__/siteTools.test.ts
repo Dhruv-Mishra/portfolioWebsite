@@ -128,9 +128,25 @@ describe('site tool catalog', () => {
       args: { direction: 'down' },
     })).toMatchObject({ name: 'scroll_page', args: { direction: 'down', amount: 0.9 } });
     expect(parseSiteToolCall({
+      name: 'fill_field',
+      args: { field: 'terminal-input', value: 'hello' },
+    })).toEqual({
+      id: 'tool-fill_field',
+      name: 'fill_field',
+      args: { field: 'terminal-input', value: 'hello' },
+    });
+    expect(parseSiteToolCall({
       name: 'run_terminal_command',
       args: { command: 'help' },
     })).toMatchObject({ name: 'run_terminal_command', args: { command: 'help' } });
+    expect(parseSiteToolCall({
+      name: 'run_terminal_command',
+      args: { command: 'hint' },
+    })).toMatchObject({ name: 'run_terminal_command', args: { command: 'hint' } });
+    expect(parseSiteToolCall({
+      name: 'run_terminal_command',
+      args: { command: '/hint' },
+    })).toMatchObject({ name: 'run_terminal_command', args: { command: 'hint' } });
     expect(parseSiteToolCall({
       name: 'set_voice_output',
       args: { mode: 'device' },
@@ -342,6 +358,8 @@ describe('site tool executor hosts', () => {
 
   it('rejects unsafe terminal commands at the shared event guard', () => {
     expect(resolveVoiceSafeTerminalCommand({ command: 'help' })).toBe('help');
+    expect(resolveVoiceSafeTerminalCommand({ command: 'hint' })).toBe('hint');
+    expect(resolveVoiceSafeTerminalCommand({ command: '/hint' })).toBe('hint');
     expect(resolveVoiceSafeTerminalCommand({ command: 'sudo' })).toBeNull();
     expect(resolveVoiceSafeTerminalCommand({ command: 'matrix' })).toBeNull();
     expect(resolveVoiceSafeTerminalCommand({ command: 'hesoyam' })).toBeNull();

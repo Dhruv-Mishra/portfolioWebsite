@@ -64,7 +64,10 @@ export default function VoiceModeController() {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let attempts = 0;
-    const shouldRetry = request === 'enter' || cachedRuntime !== null || runtimeImport !== null;
+    const shouldLoad = request === 'enter' || cachedRuntime !== null || runtimeImport !== null;
+    const shouldRetry = request === 'enter' || runtimeImport !== null;
+
+    if (!shouldLoad) return;
 
     const tryLoad = () => {
       void loadVoiceSessionRuntime().then((mod) => {
@@ -101,9 +104,9 @@ export default function VoiceModeController() {
   }, [discoActive, resolvedTheme, router, runtime, setTheme]);
 
   useEffect(() => {
-    if (!runtime && !snapshot.active) return;
+    if (!(snapshot.active || request === 'enter')) return;
     scheduleVoiceAssetPrefetch();
-  }, [runtime, snapshot.active]);
+  }, [request, snapshot.active]);
 
   useEffect(() => {
     if (!runtime) return;

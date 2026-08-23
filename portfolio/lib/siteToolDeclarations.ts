@@ -163,7 +163,7 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
   {
     name: 'run_terminal_command',
     description:
-      'Run one allowlisted terminal command with no arguments. Invocation: visitor asks to run help, about, projects, ls, joke, or another safe listed command. Never sudo, admin, puzzle, clear, or commands with arguments.',
+      'Run one allowlisted bare terminal command with no arguments, including hint. Never sudo, admin, puzzle, matrix, clear, or commands with arguments.',
     parameters: {
       type: 'object',
       properties: {

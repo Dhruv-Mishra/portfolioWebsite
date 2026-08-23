@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { canWarmNoncriticalAssets } from '@/lib/assetPrefetch';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
@@ -25,19 +26,8 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
 
-interface NetworkInformationLike {
-    effectiveType?: string;
-    saveData?: boolean;
-}
-
-interface NavigatorWithConnection extends Navigator {
-    connection?: NetworkInformationLike;
-}
-
 function shouldIntentPrefetch() {
-    const connection = (navigator as NavigatorWithConnection).connection;
-    if (connection?.saveData) return false;
-    return connection?.effectiveType !== '2g' && connection?.effectiveType !== 'slow-2g';
+    return canWarmNoncriticalAssets();
 }
 
 export default function Navigation() {

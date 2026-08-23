@@ -35,6 +35,12 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 - Navigation `aria-current` is on the `Link`.
 - `not-found` and `error` no longer depend on Framer Motion.
+- Voice enter cue plays on the click stack; HTMLAudio fades clamp to `[0, 1]`.
+- Voice veil fades with CSS; Settings Always animate overrides OS reduced-motion.
+- `/projects` shows the portfolio spinner instead of a blank pane.
+- Voice utterance chains keep successful prefixes instead of dropping them on an unknown later clause.
+- Voice ambient no longer restarts when prefetch calls `.load()`.
+- Voice enter and exit use distinct Mixkit cues.
 
 ### Security
 

@@ -115,4 +115,21 @@ describe('voice mode integration contract', () => {
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
   });
+
+  it('loads the voice runtime and prefetches media on enter, not idle mount', () => {
+    const controller = read('components/voice/VoiceModeController.tsx');
+
+    expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
+    expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
+    expect(controller).toContain(
+      "const shouldLoad = request === 'enter' || cachedRuntime !== null || runtimeImport !== null",
+    );
+    expect(controller).toContain('if (!shouldLoad) return');
+    expect(controller).toContain(
+      "const shouldRetry = request === 'enter' || runtimeImport !== null",
+    );
+    expect(controller).toContain("if (!(snapshot.active || request === 'enter')) return");
+    expect(controller).toContain('scheduleVoiceAssetPrefetch()');
+    expect(controller).not.toMatch(/if \(!runtime && !snapshot\.active\) return/);
+  });
 });

@@ -94,9 +94,10 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY requirements-tts.txt /tmp/requirements-tts.txt
-RUN python3 -m venv /opt/tts-venv \
-    && /opt/tts-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && /opt/tts-venv/bin/pip install --no-cache-dir -r /tmp/requirements-tts.txt \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m venv /opt/tts-venv \
+    && /opt/tts-venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/tts-venv/bin/pip install -r /tmp/requirements-tts.txt \
     && /opt/tts-venv/bin/python -c "import pocket_tts, soundfile, torch" \
     && rm -f /tmp/requirements-tts.txt
 

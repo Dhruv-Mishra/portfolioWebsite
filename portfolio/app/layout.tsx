@@ -58,6 +58,9 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "jobTitle": "Software Engineer",
       "worksFor": { "@type": "Organization", "name": "Microsoft" },
       "description": "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and performance-critical infrastructure.",
+      "image": `${SITE.url}/resources/aboutPhoto.webp`,
+      "email": PERSONAL_LINKS.email.replace(/^mailto:/, ''),
+      "alumniOf": { "@type": "CollegeOrUniversity", "name": "IIIT Delhi" },
       "knowsAbout": ["AI agents", "LLM tooling", "voice AI", "production systems", "distributed systems", "performance optimization", "cloud infrastructure"],
       "sameAs": [PERSONAL_LINKS.linkedin, PERSONAL_LINKS.github]
     }
@@ -119,25 +122,21 @@ export const metadata: Metadata = {
     siteName: "Dhruv Mishra Portfolio",
     images: [
       {
-        // Use the 512x512 PWA icon as the social preview. Square is non-canonical
-        // for OG (which prefers 1.91:1) but every major consumer (Twitter, Slack,
-        // Discord, LinkedIn, Facebook) renders square images cleanly — and this
-        // asset is already in /public, already optimized, and recognizable.
-        url: '/icon-512.png',
-        width: 512,
-        height: 512,
+        // 1200x630 sketchbook card generated from /resources/aboutPhoto.webp.
+        // Prefer this wide asset over the 512 PWA icon so OG/Twitter can use
+        // the canonical 1.91:1 large-image slot without stretching a square.
+        url: '/resources/og-image.png',
+        width: 1200,
+        height: 630,
         alt: 'Dhruv Mishra - Software Engineer Portfolio',
       },
     ],
   },
   twitter: {
-    // 512x512 is square (1:1), not 2:1 — use `summary` rather than
-    // `summary_large_image` so Twitter renders the icon in the small square
-    // card slot it was designed for instead of stretching/cropping.
-    card: 'summary',
+    card: 'summary_large_image',
     title: "Dhruv Mishra | AI & Software Engineer",
     description: "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and reliable cloud infrastructure.",
-    images: ['/icon-512.png'],
+    images: ['/resources/og-image.png'],
   },
   robots: {
     index: true,

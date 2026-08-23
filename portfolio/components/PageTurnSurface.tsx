@@ -29,7 +29,7 @@ interface NavigationWatchdog {
 }
 
 const ROUTE_SCROLL_CLASSES =
-  'min-h-0 min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 py-6 sm:px-5 sm:py-8 md:p-12 ruler-scrollbar';
+  'min-h-0 min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 sm:px-5 md:px-12 pt-[var(--c-page-header-h)] pb-[var(--c-page-footer-h)] ruler-scrollbar';
 
 export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -148,15 +148,14 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const isChatRoute = pathname.startsWith('/chat');
 
   return (
-    <div className="page-turn-stage relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden isolate">
-      <div className="page-chrome-header" aria-hidden="true" />
+    <div className="page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate">
       <div
         ref={routeScrollRef}
         key={pathname}
         className={cn(
-          'page-turn-layer page-turn-active relative z-10',
+          'page-turn-layer page-turn-active relative z-10 h-full',
           isChatRoute
-            ? 'min-h-0 min-w-0 max-w-full overflow-hidden p-0'
+            ? 'min-h-0 min-w-0 max-w-full overflow-hidden p-0 pt-[var(--c-page-header-h)]'
             : ROUTE_SCROLL_CLASSES,
         )}
         data-page-turn-layer="active"
@@ -172,7 +171,6 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
           />
         ) : null}
       </div>
-      {!isChatRoute ? <div className="page-chrome-footer" aria-hidden="true" /> : null}
     </div>
   );
 }

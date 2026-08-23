@@ -39,13 +39,15 @@ describe('page-turn route transition contract', () => {
     expect(surface.match(/data-page-turn-layer=/g)).toHaveLength(1);
     expect(surface).toContain('data-page-turn-layer="active"');
     expect(surface).toContain('document.addEventListener(\'click\', onDocumentClick, true)');
-    expect(surface).toContain('page-chrome-header');
-    expect(surface).toContain('page-chrome-footer');
+    expect(surface).toContain('pt-[var(--c-page-header-h)]');
+    expect(surface).toContain('pb-[var(--c-page-footer-h)]');
+    expect(surface).not.toContain('page-chrome-header');
+    expect(surface).not.toContain('page-chrome-footer');
     expect(surface).not.toContain('installPageTurnHistory');
     expect(surface).not.toContain('animate-page-turn-forward-out');
     expect(surface).not.toContain('animate-page-turn-backward-in');
     expect(surface).not.toMatch(/framer-motion|startViewTransition|cloneNode/);
-    expect(surface).toContain('page-turn-stage relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden isolate');
+    expect(surface).toContain('page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate');
     expect(surface).toContain('{children}');
     expect(surface).toContain("import PageTurnSkeleton from '@/components/PageTurnSkeleton'");
     expect(surface).toContain('label={resolvePageTurnRoute(destinationPath).label}');
@@ -53,8 +55,8 @@ describe('page-turn route transition contract', () => {
     expect(css).toContain('--c-page-footer-h: var(--c-mobile-dock-clearance)');
     expect(css).toContain('--c-page-header-h: calc(var(--c-nav-tab-pt-md) + var(--c-nav-tab-py-md) + 1.5rem)');
     expect(css).toContain('--c-page-footer-h: 5.5rem');
-    expect(css).toContain('.page-chrome-header');
-    expect(css).toContain('.page-chrome-footer');
+    expect(css).not.toContain('.page-chrome-header');
+    expect(css).not.toContain('.page-chrome-footer');
     expect(css).not.toMatch(/view-transition|startViewTransition/);
   });
 

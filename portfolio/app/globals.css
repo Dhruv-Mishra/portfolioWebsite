@@ -566,29 +566,10 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     }
   }
 
-    /* Persistent host chrome reserves hanging-tab and dock zones so pages
-       never occupy those bands. Navigation still uses the page-turn event. */
-  .page-turn-stage {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .page-chrome-header,
-  .page-chrome-footer {
-    flex-shrink: 0;
-    pointer-events: none;
-  }
-
-  .page-chrome-header {
-    height: var(--c-page-header-h);
-  }
-
-  .page-chrome-footer {
-    height: var(--c-page-footer-h);
-  }
-
+  /* Header/footer tokens live as scroll-container padding so first paint
+     clears hanging tabs / dock, but content can scroll underneath. */
   .page-turn-layer {
-    flex: 1 1 auto;
+    height: 100%;
     min-height: 0;
   }
 

@@ -178,6 +178,10 @@ export function buildVoiceExactSpeakCue(line: string): string {
   return `Speak this exact line to the visitor, then stop. Do not replace it. Line: ${line}`;
 }
 
+export const VOICE_MIC_PERMISSION_PROMPT = "Seems like you haven't provided the permission to use the microphone. I would need that to hear you.";
+export const VOICE_MIC_PERMISSION_TIMEOUT_LINE = "I couldn't access the microphone, disconnecting now. Feel free to call again.";
+export const VOICE_MIC_PERMISSION_WAIT_MS = 10_000;
+
 export const DEFAULT_VOICE_SETUP: VoiceSessionSetup = {
   modelLabel: 'native-live',
   voiceLabel: 'male',

@@ -76,15 +76,21 @@ describe('voice playback idle tracking', () => {
 
     context.sources[0]?.ended?.();
     expect(playback.isBusy()).toBe(true);
+    expect(idle).not.toHaveBeenCalled();
 
+    const { VOICE_PLAYBACK_HANGOVER_MS } = await import('@/lib/voiceAudio');
     await vi.advanceTimersByTimeAsync(1_020);
+    expect(playback.isBusy()).toBe(true);
+    expect(idle).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_PLAYBACK_HANGOVER_MS);
     expect(playback.isBusy()).toBe(false);
-    expect(idle).toHaveBeenCalled();
+    expect(idle).toHaveBeenCalledTimes(1);
     playback.close();
   });
 
-  it('becomes idle immediately after interrupt', async () => {
-    const { createVoicePlayback } = await import('@/lib/voiceAudio');
+  it('stays busy after interrupt until hangover elapses, then emits idle once', async () => {
+    const { createVoicePlayback, VOICE_PLAYBACK_HANGOVER_MS } = await import('@/lib/voiceAudio');
     const playback = createVoicePlayback();
     const idle = vi.fn();
     playback.subscribeIdle(idle);
@@ -93,8 +99,12 @@ describe('voice playback idle tracking', () => {
     expect(playback.isBusy()).toBe(true);
 
     playback.interrupt();
+    expect(playback.isBusy()).toBe(true);
+    expect(idle).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_PLAYBACK_HANGOVER_MS);
     expect(playback.isBusy()).toBe(false);
-    expect(idle).toHaveBeenCalled();
+    expect(idle).toHaveBeenCalledTimes(1);
     playback.close();
   });
 

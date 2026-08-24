@@ -13,7 +13,7 @@ The app is `0.30.0` and later.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades and one persistent GIF orb FLIPs into a non-modal dock. The landscape GIF is left-cropped into a hard circle. Speaking ripples follow playback level, not caption lifetime. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in, and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on enter, not on idle page load. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
+| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades via a CSS opacity transition and one persistent GIF orb FLIPs into a non-modal dock. FLIP ignores agent phase (`listening`/`speaking`) and only restarts when the hero/dock slot, reduced motion, or mobile layout changes. The landscape GIF is left-cropped into a hard circle. The speaking attribute is gated on `phase === 'speaking'`; playback level scales ripple only. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in at ~0.12 (duck 0.04; quieter on coarse pointers), and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on enter, not on idle page load. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
 | Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue and keeps successful prefixes when a later clause is unknown. Unknown `type <token>` fills `terminal-input` without submit; unsafe tokens are skipped. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
 | Transport | Client-to-model WebSocket with ephemeral tokens minted by `POST /api/voice/session`. PCM does not transit the origin. There is no Cloudflare Worker in the request path. |
 | Default voice | Male `Charon`. |
@@ -80,9 +80,15 @@ flowchart LR
   UI -->|on-demand POST /api/voice/facts| Facts[Next origin]
   Facts -->|compact facts| UI
 ```
-Ambient HTMLAudio ducks under speech. Mic PCM is withheld while playback is
-busy. If Gemini reports an interruption, playback hard-stops; that is not a
-full local barge-in / echo-cancellation redesign.
+Ambient HTMLAudio fades in at about 0.12 and ducks to 0.04 under speech
+(about 0.084 / 0.028 on coarse pointers). Mic PCM is withheld while playback is
+busy, including a 320ms hangover after the last scheduled PCM and after an
+interrupt, so inter-chunk gaps do not ungate the mic. If Gemini reports an
+interruption, playback hard-stops and that hangover still mutes capture; that
+is not a full local barge-in / echo-cancellation redesign. If the browser
+denies the microphone, the session still connects, speaks a permission
+prompt, waits 10s, then speaks a timeout line and hangs up after that audio.
+A late grant starts capture and sends the withheld welcome without reminting.
 
 ## Flow
 

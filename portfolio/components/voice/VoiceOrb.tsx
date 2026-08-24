@@ -49,7 +49,6 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
     let frame = 0;
     let pending = getVoicePlaybackLevel();
     let rippleTimer = 0;
-    const SPEAKING_LEVEL = 0.02;
 
     const pickRipple = () => 0.97 + Math.random() * 0.25;
     const stopRipple = () => {
@@ -66,7 +65,7 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
 
     const apply = (level: number) => {
       root.style.setProperty('--voice-level', formatVoiceLevel(level));
-      const speakingNow = phase === 'speaking' || level > SPEAKING_LEVEL;
+      const speakingNow = phase === 'speaking';
       const rippleNow = speakingNow || phase === 'acting';
       root.toggleAttribute('data-voice-orb-speaking', speakingNow);
       if (rippleNow) {

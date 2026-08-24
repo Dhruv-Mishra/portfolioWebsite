@@ -11,6 +11,7 @@ import {
 } from '@/lib/siteActionEvents';
 import {
   bindVoiceSessionHost,
+  enableVoiceCapture,
   getVoiceSessionSnapshot,
   requestVoiceHangup,
   resetVoiceSessionRuntimeForTests,
@@ -28,9 +29,14 @@ import {
   VOICE_SUBTITLE_IDLE_MS,
 } from '@/lib/voiceSessionRuntime';
 import {
+  buildVoiceExactSpeakCue,
+  buildVoiceSessionStartCue,
   VOICE_EXIT_VEIL_VARIATIONS,
   VOICE_IDLE_CHECKIN_VARIATIONS,
   VOICE_IDLE_HANGUP_VARIATIONS,
+  VOICE_MIC_PERMISSION_PROMPT,
+  VOICE_MIC_PERMISSION_TIMEOUT_LINE,
+  VOICE_MIC_PERMISSION_WAIT_MS,
   VOICE_WELCOME_HINT,
 } from '@/lib/voiceAgentProtocol';
 import { getVoiceAgentPrefsSnapshot, setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
@@ -39,14 +45,19 @@ function createFakeCaller() {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const toolResults: Array<{ id: string; result: unknown; name?: string }> = [];
   const sentTexts: string[] = [];
+  const sentAudio: ArrayBuffer[] = [];
+  const connectedSessions: VoiceSessionHandle[] = [];
   let connectCount = 0;
 
   const caller: VoiceCaller = {
     id: 'fake-live',
-    async connect() {
+    async connect(session) {
       connectCount += 1;
+      connectedSessions.push(session);
     },
-    sendAudio() {},
+    sendAudio(chunk) {
+      sentAudio.push(chunk);
+    },
     sendText(text) {
       sentTexts.push(text);
     },
@@ -67,7 +78,15 @@ function createFakeCaller() {
     for (const listener of listeners.get(event) ?? []) listener(payload);
   }
 
-  return { caller, emit, toolResults, sentTexts, getConnectCount: () => connectCount };
+  return {
+    caller,
+    emit,
+    toolResults,
+    sentTexts,
+    sentAudio,
+    connectedSessions,
+    getConnectCount: () => connectCount,
+  };
 }
 
 function cueContainsCatalog(sent: readonly string[], catalog: readonly string[]): boolean {
@@ -147,11 +166,16 @@ describe('voice session runtime singleton', () => {
     const startAmbient = vi.fn();
     const stopAmbient = vi.fn();
     const prefetchSounds = vi.fn();
+    let captureFrame: ((chunk: ArrayBuffer) => void) | null = null;
+    const fetchSession = vi.fn(async () => sessionHandle);
     setVoiceSessionRuntimeDepsForTests({
       createCaller: () => fakeCaller.caller,
       createPlayback: () => fakePlayback.playback,
-      startCapture: async () => ({ stop: captureStop }),
-      fetchSession: async () => sessionHandle,
+      startCapture: async onFrame => {
+        captureFrame = onFrame;
+        return { stop: captureStop };
+      },
+      fetchSession,
       playEnter,
       playExit,
       playAction,
@@ -193,6 +217,11 @@ describe('voice session runtime singleton', () => {
       resetVoiceSessionRuntimeForTests,
       openProject,
       push,
+      captureStop,
+      fetchSession,
+      pushCaptureFrame(chunk: ArrayBuffer) {
+        captureFrame?.(chunk);
+      },
     };
   }
 
@@ -971,5 +1000,150 @@ describe('voice session runtime singleton', () => {
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('connects after mic deny, speaks the permission prompt, then times out', async () => {
+    vi.useFakeTimers();
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    const fetchSession = vi.fn(async () => sessionHandle);
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async () => {
+        throw new Error('denied');
+      },
+      fetchSession,
+      playEnter: vi.fn(),
+      playExit: vi.fn(),
+      playAction: vi.fn(),
+      startAmbient: vi.fn(),
+      stopAmbient: vi.fn(),
+      prefetchSounds: vi.fn(),
+    });
+    bindVoiceSessionHost({
+      router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      discoActive: false,
+      openFeedback: vi.fn(),
+      openProject: vi.fn(),
+    });
+
+    await startVoiceSession();
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+    expect(fakeCaller.getConnectCount()).toBe(1);
+    expect(fakeCaller.connectedSessions[0]?.setup.greetOnConnect).toBe(false);
+    expect(fakeCaller.sentTexts).toContain(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_PROMPT));
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      micLive: false,
+      error: 'Microphone permission is needed.',
+      status: VOICE_MIC_PERMISSION_PROMPT,
+    });
+    expect(getVoiceSessionSnapshot().phase).not.toBe('error');
+
+    await vi.advanceTimersByTimeAsync(VOICE_MIC_PERMISSION_WAIT_MS);
+    expect(fakeCaller.sentTexts).toContain(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_TIMEOUT_LINE));
+    expect(getVoiceSessionSnapshot().hangupPending).toBe(true);
+
+    fakeCaller.emit('audio', new ArrayBuffer(2));
+    fakePlayback.setBusy(false);
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+    });
+
+    resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('enables a late mic grant without reminting and sends the withheld welcome', async () => {
+    vi.useFakeTimers();
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    const fetchSession = vi.fn(async () => sessionHandle);
+    let captureAttempts = 0;
+    const captureState: { onFrame: ((chunk: ArrayBuffer) => void) | null } = { onFrame: null };
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async onFrame => {
+        captureAttempts += 1;
+        if (captureAttempts === 1) throw new Error('denied');
+        captureState.onFrame = onFrame;
+        return { stop: vi.fn() };
+      },
+      fetchSession,
+      playEnter: vi.fn(),
+      playExit: vi.fn(),
+      playAction: vi.fn(),
+      startAmbient: vi.fn(),
+      stopAmbient: vi.fn(),
+      prefetchSounds: vi.fn(),
+    });
+    bindVoiceSessionHost({
+      router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      discoActive: false,
+      openFeedback: vi.fn(),
+      openProject: vi.fn(),
+    });
+
+    await startVoiceSession();
+    expect(fakeCaller.getConnectCount()).toBe(1);
+    enableVoiceCapture();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      micLive: true,
+      error: null,
+    });
+    expect(fakeCaller.sentTexts).toContain(buildVoiceSessionStartCue({
+      welcomeGreeting: sessionHandle.setup.welcomeGreeting,
+      welcomeHint: sessionHandle.setup.welcomeHint,
+    }));
+
+    fakePlayback.setBusy(false);
+    expect(captureState.onFrame).toEqual(expect.any(Function));
+    captureState.onFrame?.(new ArrayBuffer(4));
+    expect(fakeCaller.sentAudio).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(VOICE_MIC_PERMISSION_WAIT_MS);
+    expect(fakeCaller.sentTexts).not.toContain(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_TIMEOUT_LINE));
+    expect(fakeCaller.getConnectCount()).toBe(1);
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+
+    resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('does not send mic PCM while playback is busy', async () => {
+    const runtime = await boot();
+    runtime.fakePlayback.setBusy(true);
+    runtime.pushCaptureFrame(new ArrayBuffer(4));
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(0);
+
+    runtime.fakePlayback.setBusy(false);
+    runtime.pushCaptureFrame(new ArrayBuffer(4));
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(1);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('keeps speaking when the adapter emits listening during playback', async () => {
+    const runtime = await boot();
+    runtime.fakeCaller.emit('phase', 'speaking');
+    runtime.fakePlayback.setBusy(true);
+    runtime.fakeCaller.emit('phase', 'listening');
+    expect(runtime.getVoiceSessionSnapshot().phase).toBe('speaking');
+
+    runtime.fakeCaller.emit('phase', 'acting');
+    runtime.fakeCaller.emit('phase', 'listening');
+    expect(runtime.getVoiceSessionSnapshot().phase).toBe('acting');
+
+    runtime.resetVoiceSessionRuntimeForTests();
   });
 });

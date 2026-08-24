@@ -90,6 +90,8 @@ export interface VoicePlayback {
   getLevel?(): number;
 }
 
+export const VOICE_PLAYBACK_HANGOVER_MS = 320;
+
 const PLAYBACK_LEVEL_EMA = 0.38;
 const PLAYBACK_LEVEL_DECAY = 0.8;
 const PLAYBACK_LEVEL_DECAY_MS = 48;
@@ -147,6 +149,8 @@ export function createVoicePlayback(): VoicePlayback {
   let context: AudioContext | null = null;
   let nextTime = 0;
   let tailTimer: ReturnType<typeof setTimeout> | null = null;
+  let hangoverTimer: ReturnType<typeof setTimeout> | null = null;
+  let hangoverUntil = 0;
   let decayTimer: ReturnType<typeof setTimeout> | null = null;
   let level = 0;
   const owner = Symbol('voice-playback');
@@ -167,9 +171,25 @@ export function createVoicePlayback(): VoicePlayback {
     return Math.max(0, (nextTime - context.currentTime) * 1000);
   }
 
+  function hangoverRemainingMs(): number {
+    return Math.max(0, hangoverUntil - Date.now());
+  }
+
   function isBusy(): boolean {
     if (sources.size > 0) return true;
-    return remainingTailMs() > 16;
+    if (remainingTailMs() > 16) return true;
+    return hangoverRemainingMs() > 0;
+  }
+
+  function clearHangoverTimer(): void {
+    if (hangoverTimer == null) return;
+    clearTimeout(hangoverTimer);
+    hangoverTimer = null;
+  }
+
+  function clearHangover(): void {
+    clearHangoverTimer();
+    hangoverUntil = 0;
   }
 
   function emitLevel(next: number, claim: boolean): void {
@@ -215,17 +235,27 @@ export function createVoicePlayback(): VoicePlayback {
       clearTimeout(tailTimer);
       tailTimer = null;
     }
+    clearHangoverTimer();
     if (sources.size > 0) return;
     const wait = remainingTailMs();
-    if (wait <= 16) {
-      emitIdle();
+    if (wait > 16) {
+      tailTimer = setTimeout(() => {
+        tailTimer = null;
+        if (context) nextTime = context.currentTime;
+        scheduleIdleWatch();
+      }, wait + 8);
       return;
     }
-    tailTimer = setTimeout(() => {
-      tailTimer = null;
-      if (context) nextTime = context.currentTime;
-      emitIdle();
-    }, wait + 8);
+    const hangoverWait = hangoverRemainingMs();
+    if (hangoverWait > 0) {
+      hangoverTimer = setTimeout(() => {
+        hangoverTimer = null;
+        hangoverUntil = 0;
+        emitIdle();
+      }, hangoverWait);
+      return;
+    }
+    emitIdle();
   }
 
   return {
@@ -253,6 +283,10 @@ export function createVoicePlayback(): VoicePlayback {
       const startAt = Math.max(audio.currentTime, nextTime);
       source.start(startAt);
       nextTime = startAt + buffer.duration;
+      hangoverUntil = Math.max(
+        hangoverUntil,
+        Date.now() + remainingTailMs() + VOICE_PLAYBACK_HANGOVER_MS,
+      );
       scheduleIdleWatch();
     },
     interrupt() {
@@ -260,6 +294,7 @@ export function createVoicePlayback(): VoicePlayback {
         clearTimeout(tailTimer);
         tailTimer = null;
       }
+      hangoverUntil = Date.now() + VOICE_PLAYBACK_HANGOVER_MS;
       for (const source of sources) {
         try {
           source.stop();
@@ -270,10 +305,11 @@ export function createVoicePlayback(): VoicePlayback {
       sources.clear();
       nextTime = context?.currentTime ?? 0;
       beginDecay();
-      emitIdle();
+      scheduleIdleWatch();
     },
     close() {
       this.interrupt();
+      clearHangover();
       clearDecay();
       emitLevel(0, false);
       if (!context) return;

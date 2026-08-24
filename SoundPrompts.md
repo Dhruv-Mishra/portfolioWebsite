@@ -4,7 +4,7 @@ Paste one fenced prompt at a time into a Gemini music/audio agent. Goal: **premi
 
 **Skip list (do not regenerate):** `disco-start.mp3`, `disco-loop.mp3`, `matrix.mp3` (matrix loop), button-click, guestbook, command-palette pop, and `portfolio/public/sounds/voice/TTSReference.mp3`. Those already have a job on the site. Only generate the sections below.
 
-**Wiring note for enter / exit / ambient:** enter/exit are wired to Mixkit "Software interface start" / "Software interface back" (`enter.mp3` / `exit.mp3`, Mixkit SFX Free License: https://mixkit.co/license/#sfxFree , source https://mixkit.co/free-sound-effects/interface/). Ambient still unlocks on enter and fades in after 800ms at volume `0.36`. Design the bed so it still feels barely-there after that fade.
+**Wiring note for enter / exit / ambient:** enter/exit are wired to Mixkit "Software interface start" / "Software interface back" (`enter.mp3` / `exit.mp3`, Mixkit SFX Free License: https://mixkit.co/license/#sfxFree , source https://mixkit.co/free-sound-effects/interface/). Ambient still unlocks on enter and fades in after 800ms at volume `0.12` (about `0.084` on coarse pointers). Design the bed so it still feels barely-there after that fade.
 
 **Family bible (keep every cue in one sketchbook):** dusk studio, warm paper, felt, wood, glass, analog tape, close-mic intimacy. Same “room” across the set. Male spoken voice (Gemini Live `Charon`) will sit on top of ambient — never fight 150–400 Hz.
 
@@ -14,7 +14,7 @@ Paste one fenced prompt at a time into a Gemini music/audio agent. Goal: **premi
 
 ## Voice ambient — live session bed
 
-**Purpose / when it plays.** Looping bed while a native voice-agent session is live. It does **not** play on the rest of the site. Unlocks on enter, then fades in after 800ms at volume `0.36`. Must duck under male spoken voice the entire time.
+**Purpose / when it plays.** Looping bed while a native voice-agent session is live. It does **not** play on the rest of the site. Unlocks on enter, then fades in after 800ms at volume `0.12`. Must duck under male spoken voice the entire time.
 
 **Target file:** `portfolio/public/sounds/voice/ambient.mp3`  
 **Replace:** current ~12s loop at ~64 kbps.
@@ -24,7 +24,7 @@ Paste one fenced prompt at a time into a Gemini music/audio agent. Goal: **premi
 | Duration | 20–32 seconds, **seamless loop** |
 | Loudness | integrated about **-28 to -24 LUFS**; leave **6–8 dB** true-peak headroom |
 | Loop vs one-shot | Seamless loop (first sample must match last; no fade-in/out envelope that clicks on wrap) |
-| Playback | Stereo, under speech, volume 0.36 after an 800ms fade-in |
+| Playback | Stereo, under speech, volume 0.12 after an 800ms fade-in |
 
 ### Exact Gemini prompt
 

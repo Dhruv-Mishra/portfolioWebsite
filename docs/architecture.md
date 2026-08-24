@@ -98,7 +98,7 @@ flowchart LR
   Facts -->|compact facts| UI
 ```
 
-PCM never goes through the origin. Ambient audio ducks under speech. Barge-in hard-stops PCM playback.
+PCM never goes through the origin. Ambient audio ducks under speech (~0.12 idle, quieter on phones). Barge-in hard-stops PCM playback. Voice HUD FLIP ignores agent listen/speak phase.
 
 ### Voice and media in the browser
 

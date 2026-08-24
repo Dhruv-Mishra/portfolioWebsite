@@ -24,8 +24,9 @@ const VOICE_VISUAL_URLS = [
 
 const TOGGLE_VOLUME = 0.22;
 const ACTION_VOLUME = 0.38;
-const AMBIENT_VOLUME = 0.36;
-const AMBIENT_DUCK_VOLUME = 0.10;
+const AMBIENT_VOLUME = 0.12;
+const AMBIENT_DUCK_VOLUME = 0.04;
+const COARSE_POINTER_AMBIENT_SCALE = 0.7;
 const TOGGLE_PLAY_MS = 450;
 const TOGGLE_FADE_OUT_MS = 80;
 const AMBIENT_FADE_IN_MS = 900;
@@ -83,8 +84,27 @@ function cancelAmbientFade(): void {
   ambientFadeFrame = 0;
 }
 
+function prefersCoarsePointer(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  try {
+    return window.matchMedia('(pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
+
+function ambientIdleVolume(): number {
+  return AMBIENT_VOLUME * (prefersCoarsePointer() ? COARSE_POINTER_AMBIENT_SCALE : 1);
+}
+
+function ambientDuckVolume(): number {
+  return AMBIENT_DUCK_VOLUME * (prefersCoarsePointer() ? COARSE_POINTER_AMBIENT_SCALE : 1);
+}
+
 function ambientTargetVolume(): number {
-  return ambientDucked ? AMBIENT_DUCK_VOLUME : AMBIENT_VOLUME;
+  return ambientDucked ? ambientDuckVolume() : ambientIdleVolume();
 }
 
 function cancelToggleCue(): void {

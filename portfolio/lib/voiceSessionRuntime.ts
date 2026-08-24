@@ -31,8 +31,12 @@ import type {
   VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
 import {
+  VOICE_MIC_PERMISSION_PROMPT,
+  VOICE_MIC_PERMISSION_TIMEOUT_LINE,
+  VOICE_MIC_PERMISSION_WAIT_MS,
   VOICE_WELCOME_HINT,
   buildVoiceExactSpeakCue,
+  buildVoiceSessionStartCue,
   pickVoiceExitVeil,
   pickVoiceIdleCheckIn,
   pickVoiceIdleHangup,
@@ -166,6 +170,8 @@ let idleCheckInTimer: ReturnType<typeof setTimeout> | null = null;
 let idleHangupTimer: ReturnType<typeof setTimeout> | null = null;
 let exitVeilTimer: ReturnType<typeof setTimeout> | null = null;
 let ambientStartTimer: ReturnType<typeof setTimeout> | null = null;
+let micPermissionWaitTimer: ReturnType<typeof setTimeout> | null = null;
+let withheldWelcome: { welcomeGreeting: string; welcomeHint: string } | null = null;
 let idleCheckedIn = false;
 let pendingStopReason: VoiceExitReason = 'user';
 let subtitleSpeaker: 'user' | 'agent' | null = null;
@@ -224,6 +230,27 @@ function clearAmbientStartTimer(): void {
   if (ambientStartTimer === null) return;
   clearTimeout(ambientStartTimer);
   ambientStartTimer = null;
+}
+
+function clearMicPermissionWait(): void {
+  if (micPermissionWaitTimer === null) return;
+  clearTimeout(micPermissionWaitTimer);
+  micPermissionWaitTimer = null;
+}
+
+function resetMicPermissionWait(): void {
+  clearMicPermissionWait();
+  withheldWelcome = null;
+}
+
+function startMicPermissionWait(generation: number): void {
+  clearMicPermissionWait();
+  micPermissionWaitTimer = setTimeout(() => {
+    micPermissionWaitTimer = null;
+    if (isStale(generation) || capture || stopping || !snapshot.active) return;
+    caller?.sendText(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_TIMEOUT_LINE));
+    armAgentFarewellHangup('error');
+  }, VOICE_MIC_PERMISSION_WAIT_MS);
 }
 
 function resetIdleWatch(): void {
@@ -754,6 +781,7 @@ function teardownMedia(reason: VoiceExitReason): void {
   resetIdleWatch();
   clearExitVeilTimer();
   clearAmbientStartTimer();
+  resetMicPermissionWait();
   resetSubtitleState();
   resetFarewellWait();
   resetUtterancePlan();
@@ -962,28 +990,50 @@ async function bootSession(): Promise<void> {
       nextCapture?.stop();
       return;
     }
-    if (!nextCapture) {
+    if (nextCapture) {
+      capture = nextCapture;
+      patch({ micLive: true });
+    } else {
       patch({
-        status: 'Microphone permission is needed.',
+        micLive: false,
+        status: VOICE_MIC_PERMISSION_PROMPT,
         error: 'Microphone permission is needed.',
-        phase: 'error',
       });
-      return;
     }
-    capture = nextCapture;
-    patch({ micLive: true });
 
     const session = await d.fetchSession(prefs.lowNetwork);
     if (isStale(generation)) return;
-    await nextCaller.connect(session);
+    const hasMic = capture != null;
+    const connectSession = hasMic
+      ? session
+      : {
+          ...session,
+          setup: {
+            ...session.setup,
+            greetOnConnect: false,
+          },
+        };
+    if (!hasMic) {
+      withheldWelcome = {
+        welcomeGreeting: session.setup.welcomeGreeting,
+        welcomeHint: session.setup.welcomeHint,
+      };
+    }
+    await nextCaller.connect(connectSession);
     if (isStale(generation)) return;
-    sendAudioLive = true;
+    sendAudioLive = hasMic;
     socketReady = true;
     patch({
       phase: 'listening',
-      status: 'Connected. Waiting for the welcome.',
+      status: hasMic ? 'Connected. Waiting for the welcome.' : VOICE_MIC_PERMISSION_PROMPT,
       welcomeHint: session.setup.welcomeHint || VOICE_WELCOME_HINT,
+      error: hasMic ? snapshot.error : 'Microphone permission is needed.',
+      micLive: hasMic,
     });
+    if (!hasMic) {
+      nextCaller.sendText(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_PROMPT));
+      startMicPermissionWait(generation);
+    }
     noteVoiceActivity('connect');
     tryMarkIntroComplete();
   } catch (caught) {
@@ -1038,6 +1088,7 @@ export function startVoiceSession(): Promise<void> {
   resetFarewellWait();
   resetIdleWatch();
   clearExitVeilTimer();
+  resetMicPermissionWait();
   resetUtterancePlan();
   patch({
     active: true,
@@ -1126,6 +1177,7 @@ export function enableVoiceCapture(): void {
   const generation = currentGeneration();
   const d = resolveDeps();
   noteVoiceActivity('mic');
+  clearMicPermissionWait();
   void d.startCapture(chunk => {
     if (sendAudioLive && !playback?.isBusy()) caller?.sendAudio(chunk);
   }, { lowNetwork: snapshot.lowNetwork }).then(nextCapture => {
@@ -1134,14 +1186,32 @@ export function enableVoiceCapture(): void {
       return;
     }
     capture = nextCapture;
-    patch({ micLive: true, error: snapshot.error === 'Microphone permission is needed.' ? null : snapshot.error });
+    sendAudioLive = socketReady;
+    clearMicPermissionWait();
+    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending;
+    const welcome = withheldWelcome;
+    if (shouldSendWelcome) withheldWelcome = null;
+    patch({
+      micLive: true,
+      error: snapshot.error === 'Microphone permission is needed.' ? null : snapshot.error,
+      status: shouldSendWelcome ? 'Connected. Waiting for the welcome.' : snapshot.status,
+    });
+    if (shouldSendWelcome && welcome && caller) {
+      caller.sendText(buildVoiceSessionStartCue({
+        welcomeGreeting: welcome.welcomeGreeting,
+        welcomeHint: welcome.welcomeHint || VOICE_WELCOME_HINT,
+      }));
+    }
   }).catch(() => {
     if (isStale(generation)) return;
     patch({
       micLive: false,
-      status: 'Microphone permission is needed.',
+      status: VOICE_MIC_PERMISSION_PROMPT,
       error: 'Microphone permission is needed.',
     });
+    if (socketReady && !stopping && snapshot.active && !capture && !snapshot.hangupPending) {
+      startMicPermissionWait(generation);
+    }
   });
 }
 

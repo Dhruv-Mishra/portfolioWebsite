@@ -58,6 +58,11 @@ export default function VoiceStage() {
   const orbNodeRef = useRef<HTMLDivElement>(null);
   const lastOrbRectRef = useRef<DOMRect | null>(null);
   const orbAnimationRef = useRef<Animation | null>(null);
+  const flipTargetRef = useRef<{
+    slot: 'hero' | 'dock' | null;
+    reducedMotion: boolean;
+    isMobile: boolean;
+  }>({ slot: null, reducedMotion: false, isMobile: false });
 
   const exiting = snapshot.hud === 'exiting';
   const intro = !exiting && (snapshot.hud === 'intro' || !snapshot.introComplete);
@@ -92,13 +97,24 @@ export default function VoiceStage() {
   }, []);
 
   useLayoutEffect(() => {
+    const targetSlot: 'hero' | 'dock' = live ? 'dock' : 'hero';
+    const previousTarget = flipTargetRef.current;
+    const slotChanged = previousTarget.slot !== targetSlot;
+    const motionChanged = previousTarget.reducedMotion !== reducedMotion;
+    const mobileChanged = previousTarget.isMobile !== isMobile;
+    if (previousTarget.slot !== null && !slotChanged && !motionChanged && !mobileChanged) {
+      return;
+    }
+
+    flipTargetRef.current = { slot: targetSlot, reducedMotion, isMobile };
+
     const activeAnimation = orbAnimationRef.current;
     if (activeAnimation) {
       activeAnimation.cancel();
       orbAnimationRef.current = null;
     }
 
-    const slot = (intro || exiting) ? heroSlotRef.current : dockSlotRef.current;
+    const slot = targetSlot === 'hero' ? heroSlotRef.current : dockSlotRef.current;
     const node = orbNodeRef.current;
     if (!slot || !node) return;
 
@@ -143,7 +159,7 @@ export default function VoiceStage() {
       animation.cancel();
       orbAnimationRef.current = null;
     };
-  }, [exiting, intro, live, reducedMotion, isMobile, snapshot.phase]);
+  }, [exiting, intro, live, reducedMotion, isMobile]);
 
   const hangup = (
     <button
@@ -235,6 +251,16 @@ export default function VoiceStage() {
               </p>
             ) : intro ? (
               <p className="mt-4 font-hand text-sm text-white/40">{welcomeHint}</p>
+            ) : null}
+            {intro && !snapshot.micLive && snapshot.error === 'Microphone permission is needed.' ? (
+              <button
+                type="button"
+                onClick={() => enableVoiceCapture()}
+                className="pointer-events-auto mt-5 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 font-hand text-sm text-white/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+              >
+                <MicOff size={14} aria-hidden />
+                Enable mic
+              </button>
             ) : null}
           </div>
         </m.div>

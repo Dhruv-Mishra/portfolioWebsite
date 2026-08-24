@@ -61,6 +61,7 @@ export class GeminiLiveCaller implements VoiceCaller {
   private greetSent = false;
   private sessionStartCue = '';
   private ignoreAudioUntilTurnComplete = false;
+  private pendingTexts: string[] = [];
   private toolNames = new Map<string, string>();
   private listeners = createListenerMap();
 
@@ -99,6 +100,7 @@ export class GeminiLiveCaller implements VoiceCaller {
       : '';
     this.greetSent = false;
     this.ignoreAudioUntilTurnComplete = false;
+    this.pendingTexts = [];
     this.toolNames.clear();
     this.emit('phase', 'connecting');
 
@@ -181,10 +183,20 @@ export class GeminiLiveCaller implements VoiceCaller {
 
   sendText(text: string): void {
     const socket = this.socket;
-    if (!this.ready || !isOpen(socket)) return;
+    if (!this.ready || !isOpen(socket)) {
+      if (!this.closed) this.pendingTexts.push(text);
+      return;
+    }
     socket.send(JSON.stringify({
       realtimeInput: { text },
     }));
+  }
+
+  private flushPendingTexts(): void {
+    if (this.pendingTexts.length === 0) return;
+    const queued = this.pendingTexts;
+    this.pendingTexts = [];
+    for (const text of queued) this.sendText(text);
   }
 
   sendToolResult(callId: string, result: SiteToolResult, name?: string): void {
@@ -235,6 +247,7 @@ export class GeminiLiveCaller implements VoiceCaller {
     if (payload.setupComplete) {
       this.ready = true;
       this.emit('phase', 'listening');
+      this.flushPendingTexts();
       if (!this.greetSent && this.sessionStartCue) {
         this.greetSent = true;
         this.sendText(this.sessionStartCue);
@@ -252,7 +265,6 @@ export class GeminiLiveCaller implements VoiceCaller {
     const input = serverContent?.inputTranscription as { text?: string } | undefined;
     if (input?.text) {
       this.emit('userTranscript', input.text);
-      this.emit('phase', 'listening');
     }
 
     const output = serverContent?.outputTranscription as { text?: string } | undefined;
@@ -304,7 +316,7 @@ export class GeminiLiveCaller implements VoiceCaller {
       }
     }
 
-    if (serverContent?.turnComplete || serverContent?.generationComplete) {
+    if (serverContent?.turnComplete) {
       this.ignoreAudioUntilTurnComplete = false;
       this.emit('turnComplete', true);
       this.emit('phase', 'listening');

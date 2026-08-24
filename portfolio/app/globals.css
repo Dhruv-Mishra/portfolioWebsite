@@ -885,26 +885,20 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 }
 .voice-stage-veil {
   opacity: 0;
+  transition: opacity 420ms ease-out;
 }
 .voice-stage-veil[data-veil="intro"] {
-  animation: voice-stage-veil-intro 420ms ease-out forwards;
+  opacity: 1;
 }
 .voice-stage-veil[data-veil="live"] {
-  animation: voice-stage-veil-live 420ms ease-out forwards;
+  opacity: 0;
 }
 .voice-stage-veil[data-veil="exiting"] {
+  transition: none;
   animation: voice-stage-veil-exit-live 2040ms ease-out forwards;
 }
 .voice-stage-veil[data-veil="exiting"][data-veil-from="intro"] {
   animation: voice-stage-veil-exit-intro 2040ms ease-out forwards;
-}
-@keyframes voice-stage-veil-intro {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes voice-stage-veil-live {
-  from { opacity: 1; }
-  to { opacity: 0; }
 }
 @keyframes voice-stage-veil-exit-live {
   0% { opacity: 0; }

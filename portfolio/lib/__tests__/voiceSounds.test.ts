@@ -90,7 +90,7 @@ describe('voice ambient sound', () => {
       audio?.play.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     expect(audio?.loop).toBe(true);
-    expect(audio?.volume).toBeCloseTo(0.36);
+    expect(audio?.volume).toBeCloseTo(0.12);
   });
 
   it('keeps ambient silent when sound mute is enabled', () => {
@@ -136,7 +136,7 @@ describe('voice ambient sound', () => {
     await Promise.resolve();
     expect(audio?.play).toHaveBeenCalledTimes(2);
     expect(audio?.loop).toBe(true);
-    expect(audio?.volume).toBeCloseTo(0.36);
+    expect(audio?.volume).toBeCloseTo(0.12);
   });
 
   it('stops and resets the cached ambient element', () => {
@@ -178,7 +178,7 @@ describe('voice ambient sound', () => {
     expect(soundManagerMock.instances).toHaveLength(3);
     expect(byId.ambient?.play).toHaveBeenCalledTimes(1);
     expect(byId.ambient?.loop).toBe(true);
-    expect(byId.ambient?.volume).toBeCloseTo(0.36);
+    expect(byId.ambient?.volume).toBeCloseTo(0.12);
   });
 
   it('does not load() a live ambient loop after unlock + start', async () => {
@@ -221,7 +221,7 @@ describe('voice ambient sound', () => {
     expect(ambient.load).toHaveBeenCalledTimes(loadCount);
     expect(ambient.pause).toHaveBeenCalledTimes(pauseCount);
     expect(ambient.paused).toBe(false);
-    expect(ambient.volume).toBeCloseTo(0.36);
+    expect(ambient.volume).toBeCloseTo(0.12);
     expect(ambient.currentTime).toBe(3.5);
   });
 
@@ -357,22 +357,22 @@ describe('voice toggle cue and ambient duck', () => {
     }
   });
 
-  it('ducks playing ambient to about 0.10 without pausing, then restores 0.36', async () => {
+  it('ducks playing ambient to about 0.04 without pausing, then restores 0.12', async () => {
     startVoiceAmbient(true);
     await Promise.resolve();
 
     const ambient = audioById('ambient');
-    expect(ambient?.volume).toBeCloseTo(0.36);
+    expect(ambient?.volume).toBeCloseTo(0.12);
     expect(ambient?.paused).toBe(false);
     const pauseCount = ambient?.pause.mock.calls.length ?? 0;
 
     setVoiceAmbientDucked(true);
-    expect(ambient?.volume).toBeCloseTo(0.10);
+    expect(ambient?.volume).toBeCloseTo(0.04);
     expect(ambient?.paused).toBe(false);
     expect(ambient?.pause).toHaveBeenCalledTimes(pauseCount);
 
     setVoiceAmbientDucked(false);
-    expect(ambient?.volume).toBeCloseTo(0.36);
+    expect(ambient?.volume).toBeCloseTo(0.12);
     expect(ambient?.paused).toBe(false);
     expect(ambient?.pause).toHaveBeenCalledTimes(pauseCount);
   });
@@ -386,7 +386,7 @@ describe('voice toggle cue and ambient duck', () => {
     if (!ambient) return;
 
     setVoiceAmbientDucked(true);
-    expect(ambient.volume).toBeCloseTo(0.10);
+    expect(ambient.volume).toBeCloseTo(0.04);
 
     ambient.volume = 0.22;
     setVoiceAmbientDucked(true);
@@ -396,5 +396,22 @@ describe('voice toggle cue and ambient duck', () => {
   it('no-ops ducking when ambient is idle', () => {
     setVoiceAmbientDucked(true);
     expect(soundManagerMock.instances).toHaveLength(0);
+  });
+
+  it('fades coarse-pointer ambient to about 0.084 and ducks to about 0.028', async () => {
+    vi.stubGlobal('window', {
+      matchMedia: (query: string) => ({ matches: query === '(pointer: coarse)' }),
+    });
+
+    startVoiceAmbient(true);
+    await Promise.resolve();
+
+    const ambient = audioById('ambient');
+    expect(ambient?.volume).toBeCloseTo(0.084);
+    expect(ambient?.paused).toBe(false);
+
+    setVoiceAmbientDucked(true);
+    expect(ambient?.volume).toBeCloseTo(0.028);
+    expect(ambient?.paused).toBe(false);
   });
 });

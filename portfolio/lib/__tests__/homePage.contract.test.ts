@@ -8,11 +8,11 @@ describe('homepage hero contract', () => {
   it('places one Talk to me CTA between the intro and the terminal', () => {
     const home = read('app/page.tsx');
     const homeNote = read('components/voice/HomeVoiceNote.tsx');
-    const mounts = home.match(/<HomeVoiceNote\s*\/>/g) ?? [];
+    const mounts = home.match(/<HomeVoiceNote\b/g) ?? [];
     const introIdx = home.indexOf(
       'turning complex technical problems into elegant, reliable solutions.',
     );
-    const voiceIdx = home.indexOf('<HomeVoiceNote />');
+    const voiceIdx = home.indexOf('<HomeVoiceNote');
     const terminalIdx = home.indexOf('data-disco-home-terminal');
 
     expect(mounts).toHaveLength(1);

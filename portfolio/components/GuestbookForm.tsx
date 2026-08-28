@@ -129,20 +129,20 @@ export default function GuestbookForm() {
     overrides?: { message?: string; name?: string },
   ) => {
     if (e) e.preventDefault();
-    if (state === 'submitting' || state === 'flying') return;
+    if (state === 'submitting' || state === 'flying') return false;
 
     const trimmedMessage = (overrides?.message ?? message).trim();
     if (!trimmedMessage || trimmedMessage.length < GUESTBOOK_LIMITS.minMessageLength) {
       warning();
       setInlineError(`Add at least ${GUESTBOOK_LIMITS.minMessageLength} characters before pinning.`);
-      return;
+      return false;
     }
 
     const trimmedName = (overrides?.name ?? name).trim();
     if (trimmedName && trimmedName.length < GUESTBOOK_LIMITS.minNameLength) {
       warning();
       setInlineError(`Use at least ${GUESTBOOK_LIMITS.minNameLength} characters for your name, or leave it blank.`);
-      return;
+      return false;
     }
 
     speech.reset();
@@ -171,7 +171,7 @@ export default function GuestbookForm() {
         warning();
         setState('error');
         setErrorMsg(copy);
-        return;
+        return false;
       }
 
       // Fly-to-wall animation, then toast, then fresh form.
@@ -203,10 +203,12 @@ export default function GuestbookForm() {
       toastTimerRef.current = setTimeout(() => {
         setShowToast(false);
       }, GUESTBOOK_ANIMATION.toastAutoDismissMs);
+      return true;
     } catch {
       warning();
       setState('error');
       setErrorMsg('the pin fell out — try again ~');
+      return false;
     }
   }, [state, message, name, website, speech, submit, success, warning, router]);
 
@@ -230,15 +232,14 @@ export default function GuestbookForm() {
       if (pinnedName) {
         setName(pinnedName);
       }
-      attachSiteActionResult(event, {
-        ok: true,
-        spokenText: 'Pinning that note.',
-        data: { accepted: true },
-      });
-      void handleSubmit(undefined, {
+      attachSiteActionResult(event, handleSubmit(undefined, {
         message: pinnedMessage,
         name: pinnedName,
-      });
+      }).then((accepted) => (
+        accepted
+          ? { ok: true, spokenText: 'Pinning that note.', data: { accepted: true } }
+          : { ok: false, spokenText: 'The guestbook is not open right now.', errorCode: 'guestbook-unavailable' }
+      )));
     };
     const unregister = registerSiteActionHost('guestbook');
     window.addEventListener(SUBMIT_GUESTBOOK_EVENT, handler);

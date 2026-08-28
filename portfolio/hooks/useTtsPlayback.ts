@@ -8,6 +8,7 @@ import {
   putCachedTtsAudio,
   type CachedTtsAudio,
 } from '@/lib/ttsAudioCache';
+import { getEffectiveMasterVolumeSync, subscribeMasterVolume } from '@/hooks/useStickers';
 import { adaptTextForSpeech } from '@/lib/ttsPrompts';
 
 export type TtsPlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
@@ -296,6 +297,8 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
   const [playbackSpeed, setPlaybackSpeedState] = useState<TtsPlaybackSpeed>(DEFAULT_PLAYBACK_SPEED);
   const abortRef = useRef<AbortController | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
+  const volumeUnsubscribeRef = useRef<(() => void) | null>(null);
   const browserSpeechCancelRef = useRef<(() => void) | null>(null);
   const browserSpeechRestartRef = useRef<(() => void) | null>(null);
   const browserUtterancesRef = useRef<SpeechSynthesisUtterance[]>([]);
@@ -338,6 +341,11 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     if (playbackIdRef.current !== playbackId) return;
     if (!streamDoneRef.current || pendingSourcesRef.current > 0) return;
 
+    const master = masterGainRef.current;
+    masterGainRef.current = null;
+    if (master) {
+      try { master.disconnect(); } catch { /* no-op */ }
+    }
     const context = audioContextRef.current;
     audioContextRef.current = null;
     audioUnlockPromiseRef.current = null;
@@ -346,6 +354,41 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     }
     setState(INITIAL_STATE);
   }, []);
+
+  const applyTtsMasterVolume = useCallback((volume = getEffectiveMasterVolumeSync()) => {
+    const clamped = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    const master = masterGainRef.current;
+    if (master) {
+      try {
+        const now = audioContextRef.current?.currentTime ?? 0;
+        master.gain.cancelScheduledValues(now);
+        master.gain.setValueAtTime(master.gain.value, now);
+        master.gain.linearRampToValueAtTime(clamped, now + 0.04);
+      } catch {
+        master.gain.value = clamped;
+      }
+    }
+    if (fallbackAudioRef.current) fallbackAudioRef.current.volume = clamped;
+    browserUtterancesRef.current.forEach((utterance) => {
+      utterance.volume = clamped;
+    });
+  }, []);
+
+  const bindTtsMasterVolume = useCallback(() => {
+    if (volumeUnsubscribeRef.current) return;
+    volumeUnsubscribeRef.current = subscribeMasterVolume((next) => {
+      applyTtsMasterVolume(next);
+    });
+  }, [applyTtsMasterVolume]);
+
+  const attachTtsMasterGain = useCallback((context: AudioContext) => {
+    if (masterGainRef.current) return;
+    const master = context.createGain();
+    master.gain.value = getEffectiveMasterVolumeSync();
+    master.connect(context.destination);
+    masterGainRef.current = master;
+    bindTtsMasterVolume();
+  }, [bindTtsMasterVolume]);
 
   const clearGeneratedAudio = useCallback(() => {
     streamDoneRef.current = false;
@@ -358,6 +401,12 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       try { source.disconnect(); } catch { /* no-op */ }
     });
     sourceRefs.current.clear();
+
+    const master = masterGainRef.current;
+    masterGainRef.current = null;
+    if (master) {
+      try { master.disconnect(); } catch { /* no-op */ }
+    }
 
     const context = audioContextRef.current;
     audioContextRef.current = null;
@@ -388,6 +437,14 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     clearFallbackAudio();
     settleFallbackPlayback?.();
   }, [clearFallbackAudio]);
+
+  useEffect(() => {
+    bindTtsMasterVolume();
+    return () => {
+      volumeUnsubscribeRef.current?.();
+      volumeUnsubscribeRef.current = null;
+    };
+  }, [bindTtsMasterVolume]);
 
   const cleanup = useCallback((resetState: boolean) => {
     playbackIdRef.current += 1;
@@ -460,6 +517,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       context = createAudioContext();
       audioContextRef.current = context;
       scheduledUntilRef.current = context.currentTime + SCHEDULE_AHEAD_SECONDS;
+      attachTtsMasterGain(context);
     }
 
     playSilentUnlockBuffer(context);
@@ -468,7 +526,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       audioUnlockPromiseRef.current = unlockPromise;
       void unlockPromise.catch(() => {});
     }
-  }, []);
+  }, [attachTtsMasterGain]);
 
   const ensureAudioContext = useCallback(async (): Promise<AudioContext> => {
     let context = audioContextRef.current;
@@ -476,6 +534,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       context = createAudioContext();
       audioContextRef.current = context;
       scheduledUntilRef.current = context.currentTime + SCHEDULE_AHEAD_SECONDS;
+      attachTtsMasterGain(context);
     }
     const unlockPromise = audioUnlockPromiseRef.current;
     if (unlockPromise) {
@@ -489,7 +548,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       await context.resume();
     }
     return context;
-  }, []);
+  }, [attachTtsMasterGain]);
 
   const schedulePcmChunk = useCallback((buffer: ArrayBuffer, sampleRate: number, playbackId: number, playbackRate: number): void => {
     const context = audioContextRef.current;
@@ -503,7 +562,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
     source.playbackRate.value = playbackRate;
-    source.connect(context.destination);
+    source.connect(masterGainRef.current ?? context.destination);
 
     const startAt = Math.max(context.currentTime + SCHEDULE_AHEAD_SECONDS, scheduledUntilRef.current);
     scheduledUntilRef.current = startAt + (audioBuffer.duration / playbackRate);
@@ -557,6 +616,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     fallbackObjectUrlRef.current = objectUrl;
     const audio = new Audio(objectUrl);
     audio.playbackRate = getGeneratedAudioPlaybackRate(playbackSpeedRef.current);
+    audio.volume = getEffectiveMasterVolumeSync();
     fallbackAudioRef.current = audio;
 
     await new Promise<void>((resolve, reject) => {
@@ -821,7 +881,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         utterance.lang = voice?.lang ?? 'en-US';
         utterance.pitch = 1;
         utterance.rate = playbackSpeedRef.current;
-        utterance.volume = 1;
+        utterance.volume = getEffectiveMasterVolumeSync();
         if (voice) utterance.voice = voice;
         currentUtterance = utterance;
         browserUtterancesRef.current = [utterance];

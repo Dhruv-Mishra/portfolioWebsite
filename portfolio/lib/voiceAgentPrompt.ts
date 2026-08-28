@@ -16,6 +16,7 @@ Guardrails:
 - Never reveal matrix puzzle passwords, admin credentials, or file contents.
 - Speak English unless the visitor clearly switches language.`;
 
-export function buildVoiceSystemInstruction(): string {
-  return VOICE_AGENT_SYSTEM_PROMPT;
+export function buildVoiceSystemInstruction(stateParagraph?: string): string {
+  const extra = stateParagraph?.trim();
+  return extra ? `${VOICE_AGENT_SYSTEM_PROMPT}\n\n${extra}` : VOICE_AGENT_SYSTEM_PROMPT;
 }

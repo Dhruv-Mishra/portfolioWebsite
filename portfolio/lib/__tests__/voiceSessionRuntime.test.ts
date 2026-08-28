@@ -369,7 +369,7 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({ ok: true, spokenText: 'Taking you there.' });
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
     expect(runtime.push).not.toHaveBeenCalled();
 
     runtime.fakeCaller.emit('turnComplete', true);
@@ -377,7 +377,11 @@ describe('voice session runtime singleton', () => {
 
     runtime.fakePlayback.setBusy(false);
     await Promise.resolve();
+    await Promise.resolve();
     expect(runtime.push).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({ ok: true, spokenText: 'Taking you there.' });
+    });
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -770,7 +774,8 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(terminalEvents()).toHaveLength(1);
-    expect(runtime.fakeCaller.toolResults.at(-1)?.result).toMatchObject({
+    const repeatResult = runtime.fakeCaller.toolResults.find(result => result.id === 'term-hint-repeat');
+    expect(repeatResult?.result).toMatchObject({
       ok: true,
       spokenText: 'Already handling that.',
     });

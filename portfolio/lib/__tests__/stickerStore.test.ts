@@ -71,6 +71,7 @@ describe('parseStoredState migration', () => {
     expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
     expect(state.matrixActive).toBe(false);
+    expect(state.masterVolume).toBe(1);
   });
 
   it('malformed JSON yields defaultState (graceful)', async () => {
@@ -131,6 +132,7 @@ describe('parseStoredState migration', () => {
     // export. The sitewide `soundsMuted` default of `false` is what we get.
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
     expect(state.soundsMuted).toBe(false);
+    expect(state.masterVolume).toBe(1);
   });
 
   it('forces discoActive=false even for current-version blobs (stale flag cleanup)', async () => {
@@ -193,8 +195,9 @@ describe('parseStoredState migration', () => {
     expect(state.version).toBe(STORAGE_VERSION);
     expect(state.unlocked).toContain('superuser');
     expect((state as unknown as Record<string, unknown>).discoMuted).toBeUndefined();
-    // New v4 defaults carried into v5/v6.
+    // New v4 defaults carried into v5/v6. v8 masterVolume defaults to 1.
     expect(state.soundsMuted).toBe(false);
+    expect(state.masterVolume).toBe(1);
     expect(state.superuserRevealedAt).toBe(0);
     // v6 new field defaults to false.
     expect(state.matrixActive).toBe(false);
@@ -225,6 +228,7 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v4);
     expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.masterVolume).toBe(1);
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
     // v6 new field defaults to false even when migrating from older versions.
@@ -250,6 +254,7 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v6);
     expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.masterVolume).toBe(1);
     expect(state.soundsMuted).toBe(true);
     expect(state.superuserRevealedAt).toBe(5000);
     // v6 — matrix state persists across reloads (unlike disco).
@@ -279,6 +284,7 @@ describe('parseStoredState migration', () => {
     // v6 new field defaults.
     expect(state.matrixActive).toBe(false);
     // v7 new fields default for v5 blobs.
+    expect(state.masterVolume).toBe(1);
     expect(state.matrixEscaped).toBe(false);
     expect(state.matrixEscapedAt).toBe(0);
   });
@@ -304,6 +310,7 @@ describe('parseStoredState migration', () => {
     expect(state.matrixActive).toBe(true);
     expect(state.superuserRevealedAt).toBe(6000);
     // v7 new fields default to false/0 for v6 blobs.
+    expect(state.masterVolume).toBe(1);
     expect(state.matrixEscaped).toBe(false);
     expect(state.matrixEscapedAt).toBe(0);
   });
@@ -311,7 +318,7 @@ describe('parseStoredState migration', () => {
   it('preserves matrixEscaped + matrixEscapedAt when already v7', async () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v7 = JSON.stringify({
-      version: STORAGE_VERSION,
+      version: 7,
       unlocked: ['superuser'],
       unlockedAt: { superuser: 7000 },
       lastEarnedAt: 7000,
@@ -326,6 +333,7 @@ describe('parseStoredState migration', () => {
       matrixEscapedAt: 7777,
     });
     const state = parseStoredState(v7);
+    expect(state.masterVolume).toBe(1);
     expect(state.version).toBe(STORAGE_VERSION);
     expect(state.matrixEscaped).toBe(true);
     expect(state.matrixEscapedAt).toBe(7777);
@@ -652,8 +660,10 @@ describe('unlockSticker superuser auto-award', () => {
     const raw = memoryStorage.getItem('dhruv-stickers');
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw as string).soundsMuted).toBe(true);
+    expect(JSON.parse(raw as string).masterVolume).toBe(1);
     const reloaded = parseStoredState(raw);
     expect(reloaded.soundsMuted).toBe(true);
+    expect(reloaded.masterVolume).toBe(1);
     // Toggle back.
     setSoundsMutedImperative(false);
     expect(JSON.parse(memoryStorage.getItem('dhruv-stickers') as string).soundsMuted).toBe(false);

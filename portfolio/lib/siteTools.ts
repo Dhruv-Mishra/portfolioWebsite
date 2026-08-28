@@ -19,6 +19,7 @@ export const SITE_TOOL_NAMES = [
   'run_terminal_command',
   'fill_field',
   'set_preference',
+  'set_master_volume',
   'set_voice_output',
   'set_voice_backend',
   'set_motion_preference',
@@ -80,6 +81,9 @@ export type VoiceBackendMode = (typeof VOICE_BACKEND_MODES)[number];
 
 export const MOTION_PREFERENCE_VALUES = ['system', 'reduced', 'full'] as const;
 export type MotionPreferenceValue = (typeof MOTION_PREFERENCE_VALUES)[number];
+
+export const MASTER_VOLUME_PERCENT_MIN = 0;
+export const MASTER_VOLUME_PERCENT_MAX = 100;
 
 export const FEEDBACK_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
@@ -171,6 +175,7 @@ export type SiteToolArgsMap = {
   run_terminal_command: { command: VoiceSafeTerminalCommand };
   fill_field: { field: VoiceFieldId; value: string };
   set_preference: { key: SitePreferenceKey; enabled: boolean };
+  set_master_volume: { percent: number };
   set_voice_output: { mode: VoiceOutputMode };
   set_voice_backend: { backend: VoiceBackendMode };
   set_motion_preference: { motion: MotionPreferenceValue };

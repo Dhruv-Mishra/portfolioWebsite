@@ -1,3 +1,9 @@
+import {
+  getMasterVolumeSync,
+  setMasterVolumeImperative,
+  subscribeMasterVolume,
+} from '@/hooks/useStickers';
+
 /**
  * soundManager — sitewide hybrid sound engine.
  *
@@ -46,8 +52,8 @@
  *   soundManager.startLoop('disco-loop');
  *   soundManager.stopLoop('disco-loop');
  *
- * React consumers should read mute via `useSoundsMuted` from the sticker
- * store and call `soundManager` directly.
+ * React consumers should read mute via `useSoundsMuted` and volume via
+ * `useMasterVolume` from the sticker store, and call `soundManager` directly.
  *
  * Teardown: never needed under normal operation. The module lives for the
  * lifetime of the page; tear-down only matters in tests.
@@ -147,7 +153,7 @@ function createContext(): AudioContext | null {
  *   - Ambient cues (page-flip, modal) sit in the middle
  *
  * All values clamp to [0..1]. Keeping them below 0.3 leaves headroom for
- * the global mute ramp without clipping on cheap speakers.
+ * the global mute/master-volume ramp without clipping on cheap speakers.
  */
 const VOLUMES: Readonly<Record<SoundId, number>> = Object.freeze({
   'page-flip':          0.08,
@@ -180,6 +186,7 @@ interface ManagerState {
 
 let state: ManagerState | null = null;
 let muted = false;
+let volumeUnsubscribe: (() => void) | null = null;
 
 /** Track per-sound last-played timestamps for debouncing repeats. */
 const lastPlayedAt: Partial<Record<SoundId, number>> = {};
@@ -246,8 +253,9 @@ function ensure(): ManagerState | null {
   if (state) return state;
   const ctx = createContext();
   if (!ctx) return null;
+  bindMasterVolumeSubscription();
   const master = ctx.createGain();
-  master.gain.value = 1;
+  master.gain.value = currentMasterGain();
   master.connect(ctx.destination);
   const newState: ManagerState = {
     ctx,
@@ -1294,6 +1302,10 @@ export interface SoundManager {
   hasBuffer(id: SoundId): boolean;
   /** Set the global mute state. Pending sounds are silenced immediately. */
   setMuted(next: boolean): void;
+  /** Set the global master volume in [0..1] without changing mute. */
+  setMasterVolume(next: number): void;
+  /** Current persisted-or-applied master volume in [0..1]. */
+  getMasterVolume(): number;
   /** True if currently muted. */
   isMuted(): boolean;
   /** Is the AudioContext present and running? Diagnostic only. */
@@ -1336,6 +1348,39 @@ export interface SoundManager {
 function isTabHidden(): boolean {
   if (typeof document === 'undefined') return false;
   return document.visibilityState === 'hidden';
+}
+
+let masterVolume = 1;
+
+function currentMasterGain(): number {
+  return muted ? 0 : masterVolume;
+}
+
+function rampMasterGain(target: number): void {
+  if (!state) return;
+  const { ctx, master } = state;
+  try {
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(target, now + 0.08);
+  } catch {
+    /* best-effort */
+  }
+}
+
+function applyMasterVolume(next: number): void {
+  const clamped = Number.isFinite(next) ? Math.min(1, Math.max(0, next)) : 1;
+  masterVolume = clamped;
+  rampMasterGain(currentMasterGain());
+}
+
+function bindMasterVolumeSubscription(): void {
+  if (volumeUnsubscribe || typeof window === 'undefined') return;
+  masterVolume = getMasterVolumeSync();
+  volumeUnsubscribe = subscribeMasterVolume((next) => {
+    applyMasterVolume(next);
+  });
 }
 
 /**
@@ -1537,18 +1582,7 @@ export const soundManager: SoundManager = {
 
   setMuted(next: boolean): void {
     muted = next;
-    if (!state) return;
-    // Smooth mute by ramping the master gain to 0 rather than cutting.
-    const target = next ? 0 : 1;
-    const { ctx, master } = state;
-    try {
-      const now = ctx.currentTime;
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(target, now + 0.08);
-    } catch {
-      /* best-effort */
-    }
+    rampMasterGain(currentMasterGain());
     // Mirror into any procedural-external loop handles (e.g. disco) so
     // they also silence. Buffer-backed loops are already downstream of
     // master, so the master gain ramp covers them.
@@ -1561,6 +1595,14 @@ export const soundManager: SoundManager = {
         }
       }
     }
+  },
+
+  setMasterVolume(next: number): void {
+    applyMasterVolume(next);
+  },
+
+  getMasterVolume(): number {
+    return masterVolume;
   },
 
   isMuted(): boolean {
@@ -1632,6 +1674,11 @@ export const soundManager: SoundManager = {
       }
     }
     state = null;
+    masterVolume = 1;
+    if (volumeUnsubscribe) {
+      volumeUnsubscribe();
+      volumeUnsubscribe = null;
+    }
     muted = false;
     bufferCache.clear();
     warmupAttempted.clear();
@@ -1646,6 +1693,17 @@ export const soundManager: SoundManager = {
     }
   },
 };
+
+/**
+ * Explicit user/agent volume set. Clamps 0..1, persists independently of
+ * mute, and unmutes only when the next volume is positive.
+ */
+export function commitUserMasterVolume(volume: number): number {
+  const next = setMasterVolumeImperative(volume, { unmuteIfPositive: true });
+  soundManager.setMasterVolume(next);
+  if (next > 0) soundManager.setMuted(false);
+  return next;
+}
 
 /** @internal — exposed for unit tests to exercise private helpers. */
 export const __test = {

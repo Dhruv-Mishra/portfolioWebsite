@@ -12,6 +12,7 @@ import SocialSidebar from './SocialSidebar';
 import { ThemeToggle } from './ThemeToggle';
 import SoundToggleButton from './SoundToggleButton';
 import FeedbackTabButton from './FeedbackTabButton';
+import GlobalVoiceFab from './voice/GlobalVoiceFab';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
 
@@ -99,6 +100,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 <div className="hidden md:flex items-center gap-1 absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
                     <ThemeToggle />
                     <SoundToggleButton />
+                    <GlobalVoiceFab variant="desktop" />
                 </div>
 
                 {/* Paper Texture Noise Overlay */}
@@ -149,6 +151,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                 {/* Gate before rendering the dynamic component so desktop visitors do
                     not download or hydrate the mobile-only control. */}
                 {showMobileSoundToggle ? <MobileSoundToggleFab /> : null}
+                {showMobileSoundToggle ? <GlobalVoiceFab variant="mobile" /> : null}
 
                 {/* Feedback icon (floating bottom-right) + modal */}
                 <FeedbackTabButton onClick={openFeedback} />

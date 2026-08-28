@@ -51,22 +51,30 @@ export type SiteActionHostId = 'project-video' | 'chat' | 'terminal' | 'guestboo
 
 export interface SiteActionHostResult {
   handled: boolean;
-  result?: SiteToolResult;
+  result?: SiteToolResult | Promise<SiteToolResult>;
 }
 
-const readyHosts = new Set<SiteActionHostId>();
+const readyHostCounts = new Map<SiteActionHostId, number>();
 const hostReadyListeners = new Set<(id: SiteActionHostId) => void>();
 
 export function registerSiteActionHost(id: SiteActionHostId): () => void {
-  readyHosts.add(id);
-  for (const listener of hostReadyListeners) listener(id);
+  const next = (readyHostCounts.get(id) ?? 0) + 1;
+  readyHostCounts.set(id, next);
+  if (next === 1) {
+    for (const listener of hostReadyListeners) listener(id);
+  }
   return () => {
-    readyHosts.delete(id);
+    const current = readyHostCounts.get(id) ?? 0;
+    if (current <= 1) {
+      readyHostCounts.delete(id);
+      return;
+    }
+    readyHostCounts.set(id, current - 1);
   };
 }
 
 export function isSiteActionHostReady(id: SiteActionHostId): boolean {
-  return readyHosts.has(id);
+  return (readyHostCounts.get(id) ?? 0) > 0;
 }
 
 export function subscribeSiteActionHostReady(
@@ -79,7 +87,7 @@ export function subscribeSiteActionHostReady(
 }
 
 export function resetSiteActionHostsForTests(): void {
-  readyHosts.clear();
+  readyHostCounts.clear();
   hostReadyListeners.clear();
 }
 
@@ -95,7 +103,9 @@ function dispatchCancellable<T>(name: string, detail: T): SiteActionHostResult {
   if (!event.defaultPrevented) {
     return { handled: false };
   }
-  const result = (event as CustomEvent<T> & { siteActionResult?: SiteToolResult }).siteActionResult;
+  const result = (event as CustomEvent<T> & {
+    siteActionResult?: SiteToolResult | Promise<SiteToolResult>;
+  }).siteActionResult;
   return { handled: true, result };
 }
 
@@ -103,6 +113,7 @@ export function attachSiteActionResult(
   event: Event,
   result: SiteToolResult | Promise<SiteToolResult>,
 ): void {
+  if ('siteActionResult' in event) return;
   Object.assign(event, { siteActionResult: result });
   if ('preventDefault' in event) event.preventDefault();
 }

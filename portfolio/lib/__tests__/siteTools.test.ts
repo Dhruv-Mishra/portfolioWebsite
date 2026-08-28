@@ -95,6 +95,7 @@ describe('site tool catalog', () => {
     expect(parseSiteToolCall({ name: 'scroll_page', args: { direction: 'down', amount: 9 } })).toBeNull();
     expect(parseSiteToolCall({ name: 'send_chat_message', args: { message: '' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'control_project_video', args: { action: 'seek' } })).toBeNull();
+    expect(parseSiteToolCall({ name: 'set_master_volume', args: { percent: 101 } })).toBeNull();
   });
 
   it('accepts the expanded typed voice actions', () => {
@@ -155,6 +156,10 @@ describe('site tool catalog', () => {
       name: 'set_motion_preference',
       args: { motion: 'reduced' },
     })).toMatchObject({ name: 'set_motion_preference', args: { motion: 'reduced' } });
+    expect(parseSiteToolCall({
+      name: 'set_master_volume',
+      args: { percent: 40 },
+    })).toMatchObject({ name: 'set_master_volume', args: { percent: 40 } });
     expect(parseSiteToolCall({
       name: 'browse_history',
       args: { direction: 'back' },

@@ -2,6 +2,7 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { SHADOW_TOKENS } from '@/lib/designTokens';
 import DeferredResumePdf from '@/components/DeferredResumePdf';
 import ResumeOpenPdfButton from '@/components/ResumeOpenPdfButton';
+import HomeVoiceNote from '@/components/voice/HomeVoiceNote';
 import { RESUME_PDF_URL } from '@/lib/siteVersion';
 
 export const revalidate = 3600;
@@ -10,6 +11,12 @@ export default function ResumePage() {
     return (
         <div className="h-full min-h-[24rem] px-1 py-2 pb-8 sm:px-4 md:min-h-[36rem] md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
             <ResumeOpenPdfButton href={RESUME_PDF_URL} />
+            <HomeVoiceNote
+                label="Ask me about it"
+                ariaLabel="Ask about this resume by voice"
+                context={{ source: 'resume', topic: 'resume' }}
+                className="mb-4"
+            />
             {/* The Resume "Paper" */}
             <div
                 className="animate-page-sheet relative h-full min-h-[22rem] w-full max-w-5xl bg-white p-[1px] shadow-2xl md:min-h-[32rem]"

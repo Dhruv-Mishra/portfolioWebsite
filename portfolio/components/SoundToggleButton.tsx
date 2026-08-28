@@ -7,24 +7,35 @@
  * matches the theme toggle — rough hand-drawn circle, sketchbook ink.
  *
  * Behaviour:
- *   - Subscribes to `useSoundsMuted()` for a narrow re-render.
- *   - Click → `setSoundsMutedImperative(!muted)`; the store write propagates
- *     to `soundManager.setMuted()` via the global `useSounds` hook in the
- *     Navigation scope.
- *   - Respects the sketchbook aesthetic: rough circle hover, swapping speaker
- *     / speaker-slashed doodles.
+ *   - Subscribes to `useSoundsMuted()` / `useMasterVolume()` for a narrow re-render.
+ *   - Click → `setSoundsMutedImperative(!muted)`; mute never overwrites volume.
+ *   - Hover / keyboard focus opens a minimal vertical volume slider popover.
+ *     Dragging is an explicit user volume set: positive values unmute.
+ *   - Collapses when hover/focus leaves. Absolute popover — no layout shift.
  *   - Accessible: `aria-pressed` reflects the mute state, explicit label.
  */
 
-import { memo, useCallback } from 'react';
-import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
-import { soundManager } from '@/lib/soundManager';
+import { memo, useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  setSoundsMutedImperative,
+  useMasterVolume,
+  useSoundsMuted,
+} from '@/hooks/useStickers';
+import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
+import { useDesktopOnly } from '@/hooks/useDesktopOnly';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { cn } from '@/lib/utils';
 
 function SoundToggleButton(): React.ReactElement {
   const muted = useSoundsMuted();
+  const masterVolume = useMasterVolume();
   const { toggle: toggleHaptic } = useAppHaptics();
+  const isDesktop = useDesktopOnly();
+  const sliderId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [sliderOpen, setSliderOpen] = useState(false);
+  const percent = Math.round(masterVolume * 100);
 
   const handleClick = useCallback(() => {
     const next = !muted;
@@ -41,7 +52,49 @@ function SoundToggleButton(): React.ReactElement {
     }
   }, [muted, toggleHaptic]);
 
+  const handleVolumeChange = useCallback((nextPercent: number) => {
+    commitUserMasterVolume(nextPercent / 100);
+  }, []);
+
+  const openSlider = useCallback(() => {
+    if (!isDesktop) return;
+    setSliderOpen(true);
+  }, [isDesktop]);
+
+  const closeSliderIfLeft = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) {
+      setSliderOpen(false);
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof Node && root.contains(active)) return;
+    setSliderOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!sliderOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (event.target instanceof Node && root.contains(event.target)) return;
+      setSliderOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [sliderOpen]);
+
   return (
+    <div
+      ref={rootRef}
+      className="relative inline-flex h-11 w-11 items-center justify-center"
+      onMouseEnter={openSlider}
+      onMouseLeave={closeSliderIfLeft}
+      onFocusCapture={openSlider}
+      onBlurCapture={() => {
+        window.setTimeout(closeSliderIfLeft, 0);
+      }}
+    >
     <Tooltip label={muted ? 'Unmute sound effects' : 'Mute sound effects'}>
     <button
       type="button"
@@ -98,6 +151,36 @@ function SoundToggleButton(): React.ReactElement {
       />
     </button>
     </Tooltip>
+      {isDesktop && sliderOpen ? (
+        <div
+          className={cn(
+            'absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2',
+            'flex flex-col items-center gap-1 rounded-md px-2 py-2',
+            'border border-[var(--c-ink)]/25 bg-[var(--c-paper)]/95',
+            'shadow-[1px_2px_4px_rgba(0,0,0,0.16)]',
+          )}
+        >
+          <span className="font-hand text-[11px] font-bold text-[var(--c-ink)]/75">
+            {percent}%
+          </span>
+          <input
+            id={sliderId}
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={percent}
+            aria-label="Master volume"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-valuetext={`${percent} percent`}
+            onChange={(event) => handleVolumeChange(Number(event.target.value))}
+            className="master-volume-slider master-volume-slider--vertical"
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

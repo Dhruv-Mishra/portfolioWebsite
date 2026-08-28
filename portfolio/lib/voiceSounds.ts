@@ -1,6 +1,6 @@
 import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
-import { getSoundsMutedSync } from '@/hooks/useStickers';
+import { getEffectiveMasterVolumeSync, getSoundsMutedSync, subscribeMasterVolume } from '@/hooks/useStickers';
 import { SITE_VERSION } from '@/lib/siteVersion';
 import { soundManager } from '@/lib/soundManager';
 
@@ -48,6 +48,42 @@ let enterCuePrimed = false;
 function clampMediaVolume(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function scaledMediaVolume(relative: number): number {
+  return clampMediaVolume(relative * getEffectiveMasterVolumeSync());
+}
+
+let volumeUnsubscribe: (() => void) | null = null;
+
+function relativeToggleVolume(id: VoiceCueId): number {
+  return id === 'voice-action' ? ACTION_VOLUME : TOGGLE_VOLUME;
+}
+
+function applyVoiceMasterVolume(): void {
+  const enter = cache.get('voice-enter');
+  if (enter && !enter.paused && !enter.ended && Date.now() < togglePlayUntil) {
+    enter.volume = scaledMediaVolume(TOGGLE_VOLUME);
+  }
+  const exit = cache.get('voice-exit');
+  if (exit && !exit.paused && !exit.ended) {
+    exit.volume = scaledMediaVolume(TOGGLE_VOLUME);
+  }
+  const action = cache.get('voice-action');
+  if (action && !action.paused && !action.ended) {
+    action.volume = scaledMediaVolume(ACTION_VOLUME);
+  }
+  if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
+  const ambient = cache.get('voice-ambient');
+  if (!ambient) return;
+  ambient.volume = scaledMediaVolume(ambientTargetVolume());
+}
+
+function bindVoiceMasterVolume(): void {
+  if (volumeUnsubscribe || typeof window === 'undefined') return;
+  volumeUnsubscribe = subscribeMasterVolume(() => {
+    applyVoiceMasterVolume();
+  });
 }
 
 function getAudio(id: VoiceSoundId): HTMLAudioElement {
@@ -155,6 +191,7 @@ function fadeMediaVolume(
 }
 
 function stopToggleElement(audio: HTMLAudioElement, fadeMs: number): void {
+  bindVoiceMasterVolume();
   const token = toggleFadeToken;
   fadeMediaVolume(
     audio,
@@ -192,6 +229,7 @@ function fadeAmbientVolume(
 }
 
 export function prefetchVoiceSounds(): void {
+  bindVoiceMasterVolume();
   (Object.keys(VOICE_SOUND_URLS) as VoiceSoundId[]).forEach(id => {
     const audio = getAudio(id);
     if (!shouldPrefetchLoad(id, audio)) return;
@@ -208,6 +246,7 @@ export function prefetchVoiceVisuals(): void {
 }
 
 export function unlockVoiceAudio(): void {
+  bindVoiceMasterVolume();
   if (typeof Audio === 'undefined') return;
   const enter = getAudio('voice-enter');
   const action = getAudio('voice-action');
@@ -231,11 +270,12 @@ export function unlockVoiceAudio(): void {
 }
 
 export function playVoiceSound(id: VoiceCueId): void {
+  bindVoiceMasterVolume();
   if (getSoundsMutedSync()) return;
   const audio = getAudio(id);
   if (id === 'voice-enter') {
     cancelToggleCue();
-    audio.volume = clampMediaVolume(TOGGLE_VOLUME);
+    audio.volume = scaledMediaVolume(TOGGLE_VOLUME);
     audio.currentTime = 0;
     togglePlayUntil = Date.now() + TOGGLE_PLAY_MS;
     void audio.play().catch(() => {
@@ -247,7 +287,7 @@ export function playVoiceSound(id: VoiceCueId): void {
     }, TOGGLE_PLAY_MS);
     return;
   }
-  audio.volume = clampMediaVolume(id === 'voice-exit' ? TOGGLE_VOLUME : ACTION_VOLUME);
+  audio.volume = scaledMediaVolume(relativeToggleVolume(id));
   audio.currentTime = 0;
   void audio.play().catch(() => {
     cache.delete(id);
@@ -289,18 +329,19 @@ export function setVoiceAmbientDucked(ducked: boolean): void {
   if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
   const audio = cache.get('voice-ambient');
   if (!audio) return;
-  const target = ambientTargetVolume();
+  const target = scaledMediaVolume(ambientTargetVolume());
   if (Math.abs(audio.volume - target) < 0.005) {
-    audio.volume = clampMediaVolume(target);
+    audio.volume = target;
     return;
   }
   fadeAmbientVolume(audio, audio.volume, target, AMBIENT_DUCK_FADE_MS, () => {
     if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
-    audio.volume = clampMediaVolume(target);
+    audio.volume = scaledMediaVolume(ambientTargetVolume());
   });
 }
 
 export function startVoiceAmbient(enabled: boolean): void {
+  bindVoiceMasterVolume();
   soundManager.stopLoop('disco-loop');
   if (!enabled || getSoundsMutedSync()) return;
   if (ambientPhase === 'in' || ambientPhase === 'playing' || ambientPhase === 'out') return;
@@ -309,10 +350,10 @@ export function startVoiceAmbient(enabled: boolean): void {
 
   if (ambientPhase === 'primed' && isAmbientPlaying(audio)) {
     ambientPhase = 'in';
-    fadeAmbientVolume(audio, audio.volume || 0, ambientTargetVolume(), AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, audio.volume || 0, scaledMediaVolume(ambientTargetVolume()), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = clampMediaVolume(ambientTargetVolume());
+      audio.volume = scaledMediaVolume(ambientTargetVolume());
     });
     return;
   }
@@ -322,10 +363,10 @@ export function startVoiceAmbient(enabled: boolean): void {
   const playResult = audio.play();
   const beginFade = () => {
     if (ambientPhase !== 'in') return;
-    fadeAmbientVolume(audio, 0, ambientTargetVolume(), AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, 0, scaledMediaVolume(ambientTargetVolume()), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = clampMediaVolume(ambientTargetVolume());
+      audio.volume = scaledMediaVolume(ambientTargetVolume());
     });
   };
   if (playResult && typeof playResult.then === 'function') {
@@ -360,6 +401,10 @@ export function stopVoiceAmbient(options: { fadeMs?: number } = {}): void {
 
 export function __resetVoiceSoundsForTest(): void {
   cancelAmbientFade();
+  if (volumeUnsubscribe) {
+    volumeUnsubscribe();
+    volumeUnsubscribe = null;
+  }
   cancelToggleCue();
   soundManager.stopLoop('disco-loop');
   ambientPhase = 'idle';

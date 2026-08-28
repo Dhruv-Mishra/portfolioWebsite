@@ -18,9 +18,14 @@ import {
   requestSubmitGuestbook,
   scrollRoutePage,
 } from '@/lib/siteActionEvents';
-import { soundManager } from '@/lib/soundManager';
+import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
-import { setDiscoActiveImperative } from '@/hooks/useStickers';
+import {
+  getDiscoActiveSync,
+  getMasterVolumeSync,
+  getSoundsMutedSync,
+  setDiscoActiveImperative,
+} from '@/hooks/useStickers';
 import { setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
 import { setVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { setVoiceOutputPref } from '@/lib/voiceOutputPref';
@@ -31,6 +36,7 @@ export interface SiteToolRuntime {
   setTheme: (theme: 'light' | 'dark') => void;
   resolvedTheme?: string;
   discoActive: boolean;
+  pathname?: string;
   openFeedback: () => void;
   openProject: (slug: string) => void;
 }
@@ -56,6 +62,39 @@ function ok(spokenText: string, data?: Record<string, unknown>): SiteToolResult 
 
 function fail(spokenText: string, errorCode: string): SiteToolResult {
   return { ok: false, spokenText, errorCode };
+}
+
+function livePathname(runtime: SiteToolRuntime): string | null {
+  const raw = runtime.pathname
+    ?? (typeof window !== 'undefined' ? window.location?.pathname : null);
+  if (!raw) return null;
+  return raw.length > 1 && raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+function liveDiscoActive(runtime: SiteToolRuntime): boolean {
+  try {
+    return getDiscoActiveSync();
+  } catch {
+    return runtime.discoActive;
+  }
+}
+
+function masterVolumePercent(): number {
+  return Math.round(getMasterVolumeSync() * 100);
+}
+
+async function resolveHostedResult(
+  hosted: { handled: boolean; result?: SiteToolResult | Promise<SiteToolResult> },
+  fallback: SiteToolResult,
+): Promise<SiteToolResult> {
+  if (hosted.result) {
+    try {
+      return await Promise.resolve(hosted.result);
+    } catch {
+      return fail('That action could not finish just now.', 'host-action-failed');
+    }
+  }
+  return fallback;
 }
 
 function fillField(field: string, value: string): SiteToolResult {
@@ -125,17 +164,35 @@ export async function executeSiteTool(
   const commit = options.commit !== false;
 
   switch (parsed.name) {
-    case 'navigate_to':
+    case 'navigate_to': {
+      if (livePathname(runtime) === parsed.args.path) {
+        return ok("You're already here.");
+      }
       if (commit) {
         requestPageTurnNavigation(runtime.router, { href: parsed.args.path, mode: 'push' });
       }
       return ok('Taking you there.');
-    case 'set_theme':
+    }
+    case 'set_theme': {
+      const discoActive = liveDiscoActive(runtime);
+      const isDark = runtime.resolvedTheme === 'dark';
+      if (parsed.args.action === 'disco' && discoActive) {
+        return ok('Disco is already on.');
+      }
+      if (parsed.args.action === 'disco-off' && !discoActive) {
+        return ok('Disco is already off.');
+      }
+      if (parsed.args.action === 'dark' && !discoActive && isDark) {
+        return ok('Already on dark mode.');
+      }
+      if (parsed.args.action === 'light' && !discoActive && runtime.resolvedTheme === 'light') {
+        return ok('Already on light mode.');
+      }
       if (commit) {
         if (parsed.args.action === 'toggle') {
           runThemeToggle({
-            discoActive: runtime.discoActive,
-            isDark: runtime.resolvedTheme === 'dark',
+            discoActive,
+            isDark,
             setTheme: runtime.setTheme,
           });
         } else if (parsed.args.action === 'disco') {
@@ -144,20 +201,24 @@ export async function executeSiteTool(
           setDiscoActiveImperative(false);
         } else {
           runThemeSelection({
-            discoActive: runtime.discoActive,
+            discoActive,
             theme: parsed.args.action,
             setTheme: runtime.setTheme as (theme: 'system' | 'light' | 'dark') => void,
           });
         }
       }
       return ok('Updated the look.');
+    }
     case 'open_project': {
       const slug = parsed.args.slug;
       const nextAction = 'I can play, pause, mute, or unmute the preview if it has a video.';
       if (commit) {
         const hosted = requestOpenProject(slug);
         if (hosted.handled) {
-          return hosted.result ?? ok('Queued that project to open.', { slug, accepted: true, nextAction });
+          return resolveHostedResult(
+            hosted,
+            ok('Queued that project to open.', { slug, accepted: true, nextAction }),
+          );
         }
         requestPageTurnNavigation(runtime.router, { href: buildProjectHref(slug), mode: 'push' });
       }
@@ -171,8 +232,7 @@ export async function executeSiteTool(
       if (commit) {
         const hosted = requestCloseProject();
         if (hosted.handled) {
-          if (hosted.result) return await Promise.resolve(hosted.result);
-          return ok('Closing that project.');
+          return resolveHostedResult(hosted, ok('Closing that project.'));
         }
         return ok('That project is already closed.');
       }
@@ -181,8 +241,10 @@ export async function executeSiteTool(
     case 'control_project_video': {
       if (!commit) return fail('The preview is not ready yet.', 'project-video-unavailable');
       const hosted = requestProjectVideoControl(parsed.args.action);
-      if (hosted.result) return await Promise.resolve(hosted.result);
-      return fail('No project video is open right now.', 'project-video-unavailable');
+      return resolveHostedResult(
+        hosted,
+        fail('No project video is open right now.', 'project-video-unavailable'),
+      );
     }
     case 'open_link': {
       const url = APPROVED_LINKS[parsed.args.key];
@@ -226,19 +288,29 @@ export async function executeSiteTool(
     case 'send_chat_message': {
       if (!commit) return ok('I will send that note.');
       const hosted = requestSendChatMessage(parsed.args.message);
-      if (hosted.result) return hosted.result;
+      if (hosted.handled) {
+        return resolveHostedResult(hosted, fail('Chat is not open right now.', 'chat-unavailable'));
+      }
       return fail('Chat is not open right now.', 'chat-unavailable');
     }
     case 'run_terminal_command': {
       if (!commit) return ok(`I will run ${parsed.args.command}.`);
       const hosted = requestRunTerminalCommand(parsed.args.command);
-      if (hosted.result) return hosted.result;
+      if (hosted.handled) {
+        return resolveHostedResult(
+          hosted,
+          fail('The terminal is not open on this page.', 'terminal-unavailable'),
+        );
+      }
       return fail('The terminal is not open on this page.', 'terminal-unavailable');
     }
     case 'fill_field':
       return fillField(parsed.args.field, parsed.args.value);
     case 'set_preference': {
       if (parsed.args.key === 'sound-effects') {
+        const muted = getSoundsMutedSync();
+        if (parsed.args.enabled && !muted) return ok('Sound effects are already on.');
+        if (!parsed.args.enabled && muted) return ok('Sound effects are already off.');
         const { setSoundsMutedImperative } = await import('@/hooks/useStickers');
         setSoundsMutedImperative(!parsed.args.enabled);
         soundManager.setMuted(!parsed.args.enabled);
@@ -260,6 +332,14 @@ export async function executeSiteTool(
       if (!mapped) return fail('That preference is not available.', 'unknown-pref');
       setSitePref(mapped, parsed.args.enabled);
       return ok(parsed.args.enabled ? 'Turned that on.' : 'Turned that off.');
+    }
+    case 'set_master_volume': {
+      const percent = parsed.args.percent;
+      if (masterVolumePercent() === percent) {
+        return ok(`Volume is already at ${percent} percent.`, { percent, alreadySet: true });
+      }
+      commitUserMasterVolume(percent / 100);
+      return ok(`Volume is at ${percent} percent.`, { percent });
     }
     case 'set_voice_output':
       setVoiceOutputPref(parsed.args.mode);
@@ -284,7 +364,12 @@ export async function executeSiteTool(
         message: parsed.args.message,
         name: parsed.args.name,
       });
-      if (hosted.result) return hosted.result;
+      if (hosted.handled) {
+        return resolveHostedResult(
+          hosted,
+          fail('The guestbook is not open right now.', 'guestbook-unavailable'),
+        );
+      }
       return fail('The guestbook is not open right now.', 'guestbook-unavailable');
     }
     case 'submit_feedback': {
@@ -294,13 +379,18 @@ export async function executeSiteTool(
         contact: parsed.args.contact,
         category: parsed.args.category,
       });
-      if (hosted.result) return hosted.result;
+      if (hosted.handled) {
+        return resolveHostedResult(
+          hosted,
+          fail('Feedback is not open right now.', 'feedback-unavailable'),
+        );
+      }
       return fail('Feedback is not open right now.', 'feedback-unavailable');
     }
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
     case 'start_voice_session':
-      if (commit) requestVoiceMode();
+      if (commit) requestVoiceMode({ source: 'tool' });
       return ok('Switching to voice mode.');
     case 'end_voice_session':
       if (commit) requestVoiceModeExit(parsed.args.reason ?? 'user');

@@ -34,6 +34,7 @@ export interface VoiceSessionSetup {
   lowNetwork: boolean;
   welcomeGreeting: string;
   welcomeHint: string;
+  clientState?: string;
 }
 
 export interface VoiceHealthStatus {

@@ -3,16 +3,30 @@
 import type { CSSProperties } from 'react';
 import { AudioLines } from 'lucide-react';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
+import type { VoiceInvocationContext } from '@/lib/voiceClientSnapshot';
+import { cn } from '@/lib/utils';
 
-export default function HomeVoiceNote() {
+interface HomeVoiceNoteProps {
+  label?: string;
+  ariaLabel?: string;
+  context?: VoiceInvocationContext;
+  className?: string;
+}
+
+export default function HomeVoiceNote({
+  label = 'Talk to me',
+  ariaLabel = 'Talk with Dhruv by voice',
+  context,
+  className,
+}: HomeVoiceNoteProps) {
   return (
     <button
       type="button"
       data-disco-motion="wiggle"
       style={{ '--disco-motion-delay': '490ms' } as CSSProperties}
-      className="group mt-4 relative inline-block animate-hero-subtitle"
-      aria-label="Talk with Dhruv by voice"
-      onClick={requestVoiceMode}
+      className={cn('group mt-4 relative inline-block animate-hero-subtitle', className)}
+      aria-label={ariaLabel}
+      onClick={() => requestVoiceMode(context)}
     >
       <div className="relative bg-[#dbeafe] dark:bg-[#1e3a5f] px-5 py-3 shadow-sm md:shadow-md -rotate-1 md:group-hover:rotate-0 transition-transform duration-300 border border-indigo-300/40 dark:border-indigo-400/25">
         <div
@@ -23,7 +37,7 @@ export default function HomeVoiceNote() {
         <div className="flex items-center gap-2.5">
           <AudioLines className="w-5 h-5 text-indigo-600/80 dark:text-indigo-200/80 md:group-hover:text-indigo-700 dark:md:group-hover:text-indigo-100 transition-colors shrink-0" strokeWidth={1.8} />
           <span className="font-hand text-base md:text-lg text-indigo-950 dark:text-indigo-50 md:group-hover:text-indigo-800 dark:md:group-hover:text-white transition-colors">
-            Talk to me
+            {label}
           </span>
           <span className="text-indigo-500 dark:text-indigo-300 md:group-hover:translate-x-1 transition-transform duration-200">→</span>
         </div>

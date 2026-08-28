@@ -126,6 +126,11 @@ const AdminPrefsController = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const SiteUiStatePublisher = dynamic(
+  () => import('@/components/SiteUiStatePublisher'),
+  { ssr: false, loading: () => null },
+);
+
 export default function EagerEnhancements() {
   const isDesktop = useDesktopOnly();
   return (
@@ -140,6 +145,7 @@ export default function EagerEnhancements() {
       <MatrixNotesEntryButton />
       <EscapeToastListener />
       <AdminPrefsController />
+      <SiteUiStatePublisher />
       <AssetPrefetchController />
       {isDesktop ? <CommandPaletteProvider /> : null}
       {isDesktop ? <ShortcutsOverlayProvider /> : null}

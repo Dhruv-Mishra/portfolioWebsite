@@ -38,7 +38,9 @@ import {
 } from '@/lib/actions';
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
-import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { executeSiteAction } from '@/lib/siteActionExecutor';
+import { hasActionExecution } from '@/lib/actions';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -527,7 +529,16 @@ const StickyNote = memo(function StickyNote({
   onTypewriterDone?: () => void;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug);
+  const hasAction = hasActionExecution({
+    navigateTo: message.navigateTo,
+    themeAction: message.themeAction,
+    openUrls: message.openUrls,
+    feedbackAction: message.feedbackAction,
+    projectSlug: message.projectSlug,
+    audioAction: message.audioAction,
+    audioVolume: message.audioVolume,
+    projectVideoAction: message.projectVideoAction,
+  });
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
   const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
@@ -1055,10 +1066,10 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, sendCanned, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, sendCanned, injectGreeting, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
-  const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
+  const { clear, closePanel, error: errorHaptic, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
   // Suggestions: 2 hardcoded (immediate) + 2 contextual (LLM or fallback)
   // Start empty to prevent flash on page return — hydration effect fills them
   const [baseSuggestions, setBaseSuggestions] = useState<string[]>([]);
@@ -1075,6 +1086,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handledActionsRef = useRef<Set<string>>(new Set());
   const pendingActionsRef = useRef<Map<string, ChatMessage>>(new Map());
+  const executeActionRef = useRef<(action: ChatMessage) => void>(() => undefined);
   const hasFetchedSuggestionsRef = useRef<string | null>(null);
   const committedExtrasForIdRef = useRef<string | null>(null);
   const hasHadInteractionRef = useRef(false);
@@ -1087,11 +1099,21 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       if (message.isOld || message.role !== 'assistant') continue;
       if (handledActionsRef.current.has(message.id)) continue;
 
-      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug;
+      const hasAction = hasActionExecution({
+        navigateTo: message.navigateTo,
+        themeAction: message.themeAction,
+        openUrls: message.openUrls,
+        feedbackAction: message.feedbackAction,
+        projectSlug: message.projectSlug,
+        audioAction: message.audioAction,
+        audioVolume: message.audioVolume,
+        projectVideoAction: message.projectVideoAction,
+      });
       if (!hasAction) continue;
 
       handledActionsRef.current.add(message.id);
       pendingActionsRef.current.set(message.id, message);
+      executeActionRef.current(message);
     }
   }, [messages]);
 
@@ -1200,84 +1222,46 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       navigationTimeoutRef.current = null;
     }
 
-    // Chat-driven UI action fires → chat-conductor sticker. We check if ANY
-    // real side-effect is about to run (not just the reply text). Idempotent
-    // via the store — repeated chat actions won't re-toast.
     if (
       action.themeAction ||
       action.feedbackAction ||
       action.projectSlug ||
+      action.audioAction ||
+      action.projectVideoAction ||
       (action.openUrls && action.openUrls.length > 0) ||
       action.navigateTo
     ) {
       stickerBus.emit('chat-conductor');
     }
 
-    // Theme switching
-    if (action.themeAction) {
-      selection();
-      if (action.themeAction === 'toggle') {
-        setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-      } else if (action.themeAction === 'disco') {
-        // Pre-warm the heavy disco media chunk on the user-gesture tick
-        // so sparkles/spotlights paint without a fetch stall.
-        if (typeof window !== 'undefined') {
-          void import('@/components/DiscoMediaLayer').catch(() => {
-            /* DiscoFlagController retries lazily — best-effort */
-          });
-        }
-        setDiscoActiveImperative(true);
-      } else if (action.themeAction === 'disco-off') {
-        setDiscoActiveImperative(false);
-      } else {
-        setTheme(action.themeAction);
-      }
-    }
+    void executeSiteAction(action, {
+      id: action.id,
+      setTheme,
+      resolvedTheme,
+      openProject: (slug) => {
+        openPanel();
+        setSelectedProjectSlug(slug as ProjectSlug);
+      },
+      openFeedback: () => {
+        openPanel();
+      },
+      markOpenUrlsFailed: () => markOpenUrlsFailed(action.id),
+      navigate: (path) => {
+        navigate();
+        navigationTimeoutRef.current = setTimeout(() => {
+          navigationTimeoutRef.current = null;
+          router.push(path);
+        }, NAVIGATION_DELAY_MS);
+      },
+    });
+  }, [markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, setTheme]);
 
-    // Open feedback modal
-    if (action.feedbackAction) {
-      openPanel();
-      window.dispatchEvent(new CustomEvent('open-feedback'));
-    }
-
-    if (action.projectSlug) {
-      openPanel();
-      setSelectedProjectSlug(action.projectSlug);
-    }
-
-    // Open URLs in new tabs — handle popup blockers
-    if (action.openUrls && action.openUrls.length > 0) {
-      externalLink();
-      let anyBlocked = false;
-      for (const url of action.openUrls) {
-        const popup = window.open(url, '_blank', 'noopener,noreferrer');
-        if (!popup) anyBlocked = true;
-      }
-      if (anyBlocked) {
-        markOpenUrlsFailed(action.id);
-      }
-    }
-
-    // Page navigation — slight delay so the user can read the confirmation
-    if (action.navigateTo) {
-      navigate();
-      const dest = action.navigateTo;
-      navigationTimeoutRef.current = setTimeout(() => {
-        navigationTimeoutRef.current = null;
-        router.push(dest);
-      }, NAVIGATION_DELAY_MS);
-    }
-  }, [externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
+  executeActionRef.current = executeAction;
 
   const handleTypewriterDone = useCallback((messageId: string) => {
     setReadyForAssistantId(messageId);
-
-    const action = pendingActionsRef.current.get(messageId);
-    if (!action) return;
-
     pendingActionsRef.current.delete(messageId);
-    executeAction(action);
-  }, [executeAction]);
+  }, []);
 
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
@@ -1375,6 +1359,17 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [messages.length]);
+
+  useEffect(() => {
+    const onGreeting = (event: Event) => {
+      const detail = (event as CustomEvent<{ greeting?: string }>).detail;
+      if (typeof detail?.greeting === 'string' && detail.greeting.trim()) {
+        injectGreeting(detail.greeting.trim());
+      }
+    };
+    window.addEventListener('chat-contextual-greeting', onGreeting);
+    return () => window.removeEventListener('chat-contextual-greeting', onGreeting);
+  }, [injectGreeting]);
 
   const handleSendFromInput = useCallback((text: string) => {
     hasHadInteractionRef.current = true;

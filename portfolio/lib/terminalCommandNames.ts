@@ -7,6 +7,7 @@ export const TERMINAL_COMMAND_NAMES = [
     'guestbook',
     'sign',
     'stickers',
+    'settings',
     'init',
     'resume',
     'cv',

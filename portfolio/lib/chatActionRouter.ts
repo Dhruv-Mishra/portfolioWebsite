@@ -47,7 +47,7 @@ const NEGATION_PATTERNS = [
   /\bshould not\b/i,
   /\bnever\b/i,
 ] as const;
-const ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up|take me to|go to|navigate to|visit|switch|toggle|set|turn on|turn it|make it|report|send|leave)\b/i;
+const ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up|take me to|go to|navigate to|visit|switch|toggle|set|turn on|turn it|make it|report|send|leave|play|pause|mute|unmute|volume)\b/i;
 const PROJECT_ACTION_VERB_PATTERN = /\b(open|show|view|pull up|bring up)\b/i;
 const NAVIGATION_VERB_PATTERN = /\b(go to|take me to|navigate to|bring me to|open)\b/i;
 const HOME_SHORTCUT_PATTERN = /\b(take me home|go home|head home|bring me home|back home|back to home)\b/i;
@@ -60,6 +60,9 @@ const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; patt
   { path: '/projects', pattern: /\b(projects|projects page|portfolio page|work page|your portfolio)\b/i },
   { path: '/resume', pattern: /\b(resume|cv|resume page)\b/i },
   { path: '/chat', pattern: /\b(chat|chat page|notes|note page)\b/i },
+  { path: '/guestbook', pattern: /\b(guestbook|guest book|guest wall)\b/i },
+  { path: '/stickers', pattern: /\b(stickers?|sticker drawer|sticker album)\b/i },
+  { path: '/settings', pattern: /\b(settings|chat settings|sound settings|volume settings)\b/i },
 ];
 
 const LINK_TARGETS: Array<{ pattern: RegExp; action: ActionExecution }> = [
@@ -203,6 +206,9 @@ function toActionExecution(action: ActionDef): ActionExecution {
   return {
     navigateTo: action.navigateTo,
     themeAction: action.themeAction,
+    audioAction: action.audioAction,
+    audioVolume: action.audioVolume,
+    projectVideoAction: action.projectVideoAction,
     openUrls: action.openUrls,
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
@@ -323,6 +329,56 @@ function resolveTheme(input: string): ActionResolution | null {
   return null;
 }
 
+function resolveAudio(input: string): ActionResolution | null {
+  const mentionsPreview = /\b(preview|video|clip|film)\b/i.test(input);
+  if (mentionsPreview) return null;
+
+  if (/\b(mute|silence|quiet)\b/i.test(input) && /\b(sound|audio|site|music|volume)\b/i.test(input)) {
+    const action: ActionExecution = { audioAction: 'mute' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Muting site sounds ~' };
+  }
+  if (/\bunmute\b/i.test(input) && /\b(sound|audio|site|music|volume)\b/i.test(input)) {
+    const action: ActionExecution = { audioAction: 'unmute' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Unmuting site sounds ~' };
+  }
+  if (/\b(volume\s+up|turn(?:\s+the)?\s+volume\s+up|louder|increase\s+(?:the\s+)?volume)\b/i.test(input)) {
+    const action: ActionExecution = { audioAction: 'volume-up' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Turning the volume up ~' };
+  }
+  if (/\b(volume\s+down|turn(?:\s+the)?\s+volume\s+down|quieter|decrease\s+(?:the\s+)?volume)\b/i.test(input)) {
+    const action: ActionExecution = { audioAction: 'volume-down' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Turning the volume down ~' };
+  }
+  const setMatch = input.match(/\b(?:set|make)\s+(?:the\s+)?volume\s+(?:to\s+)?(\d{1,3})\b/i);
+  if (setMatch) {
+    const volume = Math.min(100, Math.max(0, Number(setMatch[1])));
+    const action: ActionExecution = { audioAction: 'volume-set', audioVolume: volume };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Setting the volume ~' };
+  }
+  return null;
+}
+
+function resolveProjectVideo(input: string): ActionResolution | null {
+  const mentionsPreview = /\b(preview|video|clip|film|this)\b/i.test(input);
+  if (/\bplay\b/i.test(input) && mentionsPreview) {
+    const action: ActionExecution = { projectVideoAction: 'play' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Playing the preview ~' };
+  }
+  if (/\bpause\b/i.test(input) && mentionsPreview) {
+    const action: ActionExecution = { projectVideoAction: 'pause' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Pausing the preview ~' };
+  }
+  if (/\bmute\b/i.test(input) && mentionsPreview) {
+    const action: ActionExecution = { projectVideoAction: 'mute' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Muting the preview ~' };
+  }
+  if (/\bunmute\b/i.test(input) && mentionsPreview) {
+    const action: ActionExecution = { projectVideoAction: 'unmute' };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Unmuting the preview ~' };
+  }
+  return null;
+}
+
 function resolveFeedback(input: string): ActionResolution | null {
   if (!FEEDBACK_PHRASE_PATTERN.test(input)) {
     return null;
@@ -386,6 +442,16 @@ export function resolveChatIntent(input: string): ChatIntentResolution | null {
   const theme = resolveTheme(normalized);
   if (theme) {
     return theme;
+  }
+
+  const projectVideo = resolveProjectVideo(normalized);
+  if (projectVideo) {
+    return projectVideo;
+  }
+
+  const audio = resolveAudio(normalized);
+  if (audio) {
+    return audio;
   }
 
   const feedback = resolveFeedback(normalized);

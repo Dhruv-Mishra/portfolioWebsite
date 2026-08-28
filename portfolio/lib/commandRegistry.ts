@@ -25,6 +25,7 @@ import {
   Keyboard,
   AtSign,
   Github,
+  Settings,
 } from 'lucide-react';
 import { PERSONAL_LINKS } from '@/lib/links';
 
@@ -123,6 +124,14 @@ export function buildCommandEntries(): CommandEntry[] {
       keyboardHint: 'g s',
       icon: Sticker,
       run: (ctx) => ctx.router.push('/stickers'),
+    },
+    {
+      id: 'nav-settings',
+      label: 'Settings',
+      keywords: ['settings', 'sound', 'volume', 'audio', 'mute'],
+      group: 'Navigation',
+      icon: Settings,
+      run: (ctx) => ctx.router.push('/settings'),
     },
 
     // ── Actions ─────────────────────────────────────────────────

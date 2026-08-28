@@ -27,7 +27,7 @@
  *   - Slight rotation + whileTap so it feels like a hand-placed note.
  */
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { Volume2, VolumeX } from 'lucide-react';
@@ -36,6 +36,7 @@ import { soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import MasterVolumeControl from '@/components/MasterVolumeControl';
 
 /**
  * Position anchored to the MiniChat FAB:
@@ -59,19 +60,62 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
   const muted = useSoundsMuted();
   const { toggle: toggleHaptic } = useAppHaptics();
   const pathname = usePathname();
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdOpenedRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const clearHold = useCallback(() => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
 
   const handleClick = useCallback(() => {
+    if (holdOpenedRef.current) {
+      holdOpenedRef.current = false;
+      return;
+    }
     const next = !muted;
     setSoundsMutedImperative(next);
-    // Mirror into the manager immediately so the user gesture counts as the
-    // "first gesture" for autoplay — if they're unmuting, play a subtle ack
-    // tick so the AudioContext warms up for subsequent sounds.
     soundManager.setMuted(next);
     toggleHaptic();
     if (!next) {
       soundManager.play('button-click');
     }
   }, [muted, toggleHaptic]);
+
+  const handlePointerDown = useCallback(() => {
+    holdOpenedRef.current = false;
+    clearHold();
+    holdTimerRef.current = window.setTimeout(() => {
+      holdOpenedRef.current = true;
+      setVolumeOpen(true);
+    }, 320);
+  }, [clearHold]);
+
+  const handlePointerUp = useCallback(() => {
+    clearHold();
+  }, [clearHold]);
+
+  useEffect(() => () => clearHold(), [clearHold]);
+
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setVolumeOpen(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setVolumeOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, [volumeOpen]);
 
   // Hide on the dedicated chat route — the chat page owns the bottom-right
   // corner with the input bar/controls and the mute toggle adds visual
@@ -80,10 +124,15 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
   if (pathname === '/chat') return null;
 
   return (
+    <div ref={rootRef} className="md:hidden fixed" style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}>
     <m.button
       type="button"
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       aria-pressed={muted}
+      aria-expanded={volumeOpen}
       aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
       data-sound-toggle
       whileHover={INTERACTION_TOKENS.hover.scaleUp}
@@ -91,7 +140,6 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
       initial={{ opacity: 0, scale: 0 }}
       animate={FAB_ANIMATE}
       className={cn(
-        'md:hidden fixed',
         'w-[var(--c-fab-size)] h-[var(--c-fab-size)] rounded-full',
         'flex items-center justify-center shadow-lg',
         'bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60',
@@ -101,12 +149,21 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
           : 'text-emerald-600 dark:text-emerald-400',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500',
       )}
-      style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}
       title={muted ? 'Unmute sounds' : 'Mute sounds'}
       data-disco-bounce="3"
     >
       {muted ? <VolumeX size={22} strokeWidth={2.2} /> : <Volume2 size={22} strokeWidth={2.2} />}
     </m.button>
+    {volumeOpen ? (
+      <div
+        className="absolute bottom-full right-0 mb-2 rounded-lg border border-[var(--c-grid)]/40 bg-[var(--c-paper)] px-2 py-3 shadow-md"
+        role="dialog"
+        aria-label="Master volume"
+      >
+        <MasterVolumeControl orientation="vertical" />
+      </div>
+    ) : null}
+    </div>
   );
 }
 

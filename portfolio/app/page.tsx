@@ -4,6 +4,7 @@ import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle, PenLine } from "lucide-react";
 import { APP_VERSION } from "@/lib/constants";
+import AskAboutIt from "@/components/AskAboutIt";
 
 export default function Home() {
 
@@ -100,6 +101,9 @@ export default function Home() {
         className="mt-8 text-sm font-mono text-gray-400"
       >
         Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">projects</span> to view my work...
+      </div>
+      <div className="mt-3">
+        <AskAboutIt page="home" />
       </div>
 
       {/* Passed Note — Chat CTA */}

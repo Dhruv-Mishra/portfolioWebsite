@@ -2,12 +2,18 @@
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
+export type AudioAction = 'mute' | 'unmute' | 'toggle' | 'volume-up' | 'volume-down' | 'volume-set';
+export type ProjectVideoAction = 'play' | 'pause' | 'mute' | 'unmute';
+
 export interface ActionExecution {
   navigateTo?: string;
   themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off';
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
+  audioAction?: AudioAction;
+  audioVolume?: number;
+  projectVideoAction?: ProjectVideoAction;
 }
 
 /** Action metadata for suggestion chips and prompt documentation. */
@@ -18,9 +24,13 @@ export interface ActionDef {
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
+  audioAction?: AudioAction;
+  audioVolume?: number;
+  projectVideoAction?: ProjectVideoAction;
+  suggestible?: boolean;
 }
 
-export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat'] as const;
+export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat', '/guestbook', '/stickers', '/settings'] as const;
 export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
 
 type NavigationPath = (typeof VALID_NAVIGATION_PATHS)[number];
@@ -38,6 +48,9 @@ const NAVIGATION_REPLIES: Record<NavigationPath, string> = {
   '/projects': 'Taking you to the projects page ~',
   '/resume': 'Opening the resume page ~',
   '/chat': 'Bringing you back to the chat page ~',
+  '/guestbook': 'Opening the guestbook ~',
+  '/stickers': 'Opening the sticker drawer ~',
+  '/settings': 'Opening settings ~',
 };
 
 const THEME_REPLIES: Record<ThemeAction, string> = {
@@ -117,6 +130,50 @@ export const ACTION_REGISTRY: ActionDef[] = [
     navigateTo: '/about',
   },
   {
+    label: 'Open chat settings',
+    navigateTo: '/settings',
+  },
+  {
+    label: 'Mute the site',
+    audioAction: 'mute',
+    suggestible: false,
+  },
+  {
+    label: 'Unmute the site',
+    audioAction: 'unmute',
+    suggestible: false,
+  },
+  {
+    label: 'Turn the volume up',
+    audioAction: 'volume-up',
+    suggestible: false,
+  },
+  {
+    label: 'Turn the volume down',
+    audioAction: 'volume-down',
+    suggestible: false,
+  },
+  {
+    label: 'Play the preview',
+    projectVideoAction: 'play',
+    suggestible: false,
+  },
+  {
+    label: 'Pause the preview',
+    projectVideoAction: 'pause',
+    suggestible: false,
+  },
+  {
+    label: 'Mute the preview',
+    projectVideoAction: 'mute',
+    suggestible: false,
+  },
+  {
+    label: 'Unmute the preview',
+    projectVideoAction: 'unmute',
+    suggestible: false,
+  },
+  {
     label: 'Open the Cropio repo',
     openUrls: [PROJECT_LINKS.cropio],
   },
@@ -161,6 +218,8 @@ export function hasActionExecution(action: ActionExecution | null | undefined): 
       action.themeAction ||
       action.feedbackAction ||
       action.projectSlug ||
+      action.audioAction ||
+      action.projectVideoAction ||
       (action.openUrls && action.openUrls.length > 0))
   );
 }
@@ -181,6 +240,22 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
   if (action.themeAction && THEME_ACTION_SET.has(action.themeAction)) {
     return THEME_REPLIES[action.themeAction as ThemeAction];
+  }
+
+  if (action.audioAction) {
+    if (action.audioAction === 'mute') return 'Muting site sounds ~';
+    if (action.audioAction === 'unmute') return 'Unmuting site sounds ~';
+    if (action.audioAction === 'toggle') return 'Toggling site sounds ~';
+    if (action.audioAction === 'volume-up') return 'Turning the volume up ~';
+    if (action.audioAction === 'volume-down') return 'Turning the volume down ~';
+    if (action.audioAction === 'volume-set') return 'Setting the volume ~';
+  }
+
+  if (action.projectVideoAction) {
+    if (action.projectVideoAction === 'play') return 'Playing the preview ~';
+    if (action.projectVideoAction === 'pause') return 'Pausing the preview ~';
+    if (action.projectVideoAction === 'mute') return 'Muting the preview ~';
+    if (action.projectVideoAction === 'unmute') return 'Unmuting the preview ~';
   }
 
   if (action.feedbackAction) {
@@ -204,6 +279,7 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
  */
 export function getFollowupActions(): string[] {
   return ACTION_REGISTRY
+    .filter(a => a.suggestible !== false)
     .filter(a => !a.themeAction || a.themeAction === 'disco')
     .map(a => a.label);
 }

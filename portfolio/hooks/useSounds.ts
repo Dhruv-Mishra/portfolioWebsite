@@ -20,6 +20,7 @@ import { useCallback, useEffect } from 'react';
 import { soundManager, type SoundId } from '@/lib/soundManager';
 import {
   useSoundsMuted,
+  useSoundVolume,
   setSoundsMutedImperative,
 } from '@/hooks/useStickers';
 
@@ -34,11 +35,13 @@ export interface UseSoundsReturn {
 
 export function useSounds(): UseSoundsReturn {
   const muted = useSoundsMuted();
+  const volume = useSoundVolume();
 
   // Mirror the preference into the manager. No-op if already in sync.
   useEffect(() => {
+    soundManager.setVolume(volume);
     soundManager.setMuted(muted);
-  }, [muted]);
+  }, [muted, volume]);
 
   const play = useCallback((id: SoundId) => {
     return soundManager.play(id);

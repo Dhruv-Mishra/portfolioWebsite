@@ -1,8 +1,8 @@
 ---
 id: site-chat-system
-tags: [chat, ai chat, mini chat, sticky note chat, chat page, notes, ai-me, talk, conversation, floating chat, note bubble]
+tags: [chat, ai chat, mini chat, sticky note chat, chat page, website actions, rag, notes, ai-me, talk, conversation, floating chat, note bubble, dictation]
 priority: 5
 category: site
 ---
 
-There are two chat surfaces on the site: a floating mini chat (the sticky note bubble in the corner, available on every page) and the full chat page (/chat). Both let visitors ask me questions — I answer in first person with short sticky-note-style replies. The chat can also trigger UI actions like opening projects, switching themes, or jumping to pages when the user explicitly asks.
+The site has a grounded sticky-note chat on /chat and as a floating mini chat. Both use retrieval over the local fact corpus. Mic input is dictation into the note, not a separate live voice agent. Guarded chat actions can navigate pages, open project modals, play or pause project videos, and change theme or volume when the visitor asks. The action layer cannot perform arbitrary browser or operating-system actions.

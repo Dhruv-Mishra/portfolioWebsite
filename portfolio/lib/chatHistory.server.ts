@@ -40,6 +40,18 @@ function normalizeAction(action: ActionExecution | null | undefined): ActionExec
     normalized.openUrls = [...new Set(action.openUrls)];
   }
 
+  if (action.audioAction) {
+    normalized.audioAction = action.audioAction;
+  }
+
+  if (typeof action.audioVolume === 'number') {
+    normalized.audioVolume = action.audioVolume;
+  }
+
+  if (action.projectVideoAction) {
+    normalized.projectVideoAction = action.projectVideoAction;
+  }
+
   return normalized;
 }
 

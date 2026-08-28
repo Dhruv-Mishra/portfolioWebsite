@@ -7,6 +7,7 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import AskAboutIt from '@/components/AskAboutIt';
 
 export const revalidate = 3600;
 
@@ -163,6 +164,9 @@ export default function About() {
                                     </div>
                                 </div>
                             </Link>
+                            <div className="mt-3">
+                                <AskAboutIt page="about" />
+                            </div>
                         </div>
                     </div>
                 </div>

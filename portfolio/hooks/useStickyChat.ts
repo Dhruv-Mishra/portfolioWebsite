@@ -37,6 +37,9 @@ export interface ChatMessage {
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
+  audioAction?: ActionExecution['audioAction'];
+  audioVolume?: number;
+  projectVideoAction?: ActionExecution['projectVideoAction'];
   signature?: string; // Server signature for trusted assistant history replay
   /**
    * Matrix puzzle reply kind — set by the client-side regex intercept for
@@ -60,6 +63,7 @@ interface UseStickyChat {
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   sendCanned: (userText: string, response: string) => void;
+  injectGreeting: (content: string) => void;
   clearMessages: () => void;
   markOpenUrlsFailed: (messageId: string) => void;
   rateLimitRemaining: number | null;
@@ -785,6 +789,9 @@ export function useStickyChat(): UseStickyChat {
                   openUrls: m.openUrls,
                   feedbackAction: m.feedbackAction,
                   projectSlug: m.projectSlug,
+                  audioAction: m.audioAction,
+                  audioVolume: m.audioVolume,
+                  projectVideoAction: m.projectVideoAction,
                 },
               }
             : {}),
@@ -800,7 +807,10 @@ export function useStickyChat(): UseStickyChat {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationMessages }),
+        body: JSON.stringify({
+          messages: conversationMessages,
+          uiState: typeof window === 'undefined' ? undefined : (window as Window & { __siteUiState?: unknown }).__siteUiState,
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -846,6 +856,9 @@ export function useStickyChat(): UseStickyChat {
                   isFiller: false,
                   navigateTo: serverAction?.navigateTo,
                   themeAction: serverAction?.themeAction,
+                  audioAction: serverAction?.audioAction,
+                  audioVolume: serverAction?.audioVolume,
+                  projectVideoAction: serverAction?.projectVideoAction,
                   openUrls: serverAction?.openUrls,
                   feedbackAction: serverAction?.feedbackAction,
                   projectSlug: serverAction?.projectSlug,
@@ -975,12 +988,27 @@ export function useStickyChat(): UseStickyChat {
     setError(null);
   }, []);
 
+  const injectGreeting = useCallback((content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    const greeting: ChatMessage = {
+      id: `greet-${Date.now()}`,
+      role: 'assistant',
+      content: trimmed,
+      timestamp: Date.now(),
+      isOld: true,
+      oracleEmitted: true,
+    };
+    setMessages((prev) => [...prev, greeting]);
+  }, []);
+
   return {
     messages,
     isLoading,
     error,
     sendMessage,
     sendCanned,
+    injectGreeting,
     clearMessages,
     markOpenUrlsFailed,
     rateLimitRemaining,

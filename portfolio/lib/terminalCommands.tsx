@@ -94,6 +94,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             [
                 { cmd: 'joke', desc: 'Tell a joke' },
                 { cmd: 'stickers', desc: 'Open the sticker drawer' },
+                { cmd: 'settings', desc: 'Open sound and theme settings' },
                 { cmd: 'cheatsheet', desc: 'Browse all stickers' },
                 { cmd: 'disco', desc: 'Engages disco mode (`disco yes` to confirm, `disco off` to exit)' },
                 { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
@@ -266,6 +267,10 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     projects: () => ({
         output: "Navigating to projects...",
         action: () => { setTimeout(() => router.push("/projects"), NAVIGATION_DELAY_MS); }
+    }),
+    settings: () => ({
+        output: "Opening settings...",
+        action: () => { setTimeout(() => router.push("/settings"), NAVIGATION_DELAY_MS); }
     }),
     guestbook: () => ({
         output: "Navigating to the wall...",

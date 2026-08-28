@@ -1,5 +1,6 @@
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { SHADOW_TOKENS } from '@/lib/designTokens';
+import AskAboutIt from '@/components/AskAboutIt';
 
 export const revalidate = 3600;
 
@@ -71,6 +72,9 @@ export default function ResumePage() {
                         </div>
                     </a>
                 </div>
+            </div>
+            <div className="mt-6">
+                <AskAboutIt page="resume" />
             </div>
         </main>
     );

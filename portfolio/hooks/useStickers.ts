@@ -44,6 +44,9 @@ import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v8 — added persisted `soundVolume` in [0,1] (default 1). Mute remains
+ *      independent: volume is remembered while muted. Setting volume to 0
+ *      mutes; setting it above 0 unmutes.
  * v7 — added persisted `matrixEscaped` boolean — flipped to true the first
  *      time a user clicks ESCAPE THE MATRIX inside the matrix overlay and
  *      completes the transition to `/matrix-notes`. Sticky across reloads
@@ -75,7 +78,7 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 7 as const;
+export const STORAGE_VERSION = 8 as const;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -103,6 +106,11 @@ export interface StickerState {
    * disco-only mute flag.
    */
   soundsMuted: boolean;
+  /**
+   * Persisted master volume in [0,1]. v8+. Independent of mute — turning
+   * mute on keeps this value so unmute restores the previous level.
+   */
+  soundVolume: number;
   /**
    * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
    * When `unlockedAt.superuser > superuserRevealedAt`, the banner will play
@@ -153,6 +161,12 @@ const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set<StickerId>([
  */
 const DEAD_STICKER_IDS: ReadonlySet<string> = new Set<string>(['konami']);
 
+function clampSoundVolume(value: unknown): number {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return 1;
+  return Math.min(1, Math.max(0, numeric));
+}
+
 function defaultState(): StickerState {
   return {
     version: STORAGE_VERSION,
@@ -165,6 +179,7 @@ function defaultState(): StickerState {
     openedProjects: [],
     discoActive: false,
     soundsMuted: false,
+    soundVolume: 1,
     superuserRevealedAt: 0,
     matrixActive: false,
     matrixEscaped: false,
@@ -243,6 +258,8 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     discoActive: false,
     /** v4 preference — default OFF (sounds enabled). Governs disco loop in v5+. */
     soundsMuted: parsed.soundsMuted === true,
+    /** v8 — master volume 0..1. Missing/invalid values default to 1. */
+    soundVolume: clampSoundVolume(parsed.soundVolume),
     /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
     superuserRevealedAt: typeof parsed.superuserRevealedAt === 'number' ? parsed.superuserRevealedAt : 0,
     /** v6 — persisted matrix overlay state. Defaults to false for v1–v5 blobs. */
@@ -288,6 +305,7 @@ export function parseStoredState(raw: string | null): StickerState {
     version === 4 ||
     version === 5 ||
     version === 6 ||
+    version === 7 ||
     version === STORAGE_VERSION
   ) {
     return migrateToCurrent(obj);
@@ -677,6 +695,23 @@ export function setSoundsMutedImperative(muted: boolean): void {
   emitChange();
 }
 
+/** Persist master volume in [0,1]. Setting 0 also mutes; >0 unmutes. */
+export function setSoundVolumeImperative(volume: number): void {
+  initializeStoreOnce();
+  const nextVolume = clampSoundVolume(volume);
+  const muted = nextVolume <= 0;
+  const current = store.state;
+  if (current.soundVolume === nextVolume && current.soundsMuted === muted) return;
+  const next: StickerState = {
+    ...current,
+    soundVolume: nextVolume,
+    soundsMuted: muted,
+  };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+}
+
 /**
  * Record that the superuser banner has played its reveal fanfare. Caller
  * passes the current `unlockedAt.superuser` value so subsequent mounts can
@@ -941,6 +976,25 @@ export function getDiscoActiveSync(): boolean {
 export function getSoundsMutedSync(): boolean {
   initializeStoreOnce();
   return store.state.soundsMuted;
+}
+
+function getSoundVolumeSnapshot(): number {
+  initializeStoreOnce();
+  return store.state.soundVolume;
+}
+
+function getSoundVolumeServerSnapshot(): number {
+  return 1;
+}
+
+/** Subscribe to the persisted master volume (v8+). */
+export function useSoundVolume(): number {
+  return useSyncExternalStore(subscribe, getSoundVolumeSnapshot, getSoundVolumeServerSnapshot);
+}
+
+export function getSoundVolumeSync(): number {
+  initializeStoreOnce();
+  return store.state.soundVolume;
 }
 
 /**

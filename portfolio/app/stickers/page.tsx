@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { STICKER_TOKENS } from '@/lib/designTokens';
 import SuperuserBanner from '@/components/SuperuserBanner';
 import EscapeBanner from '@/components/matrix/EscapeBanner';
+import AskAboutIt from '@/components/AskAboutIt';
 
 export default function StickerDrawerPage() {
   const { unlocked, total, unlockedAt, markAlbumSeen, hasSuperuser } = useStickers();
@@ -104,6 +105,9 @@ export default function StickerDrawerPage() {
           <p className="mt-2 font-hand text-lg md:text-xl text-[var(--c-ink)] opacity-60">
             Collect them by poking around ~
           </p>
+          <div className="mt-3">
+            <AskAboutIt page="stickers" />
+          </div>
         </header>
 
         {/* ─── Escape-the-Matrix banner — rarest achievement, top placement ─── */}

@@ -5,6 +5,7 @@ import { createGeminiLiveCaller } from '@/lib/geminiLiveAdapter';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import {
   isSiteActionHostReady,
+  readProjectSlugFromSearch,
   subscribeSiteActionHostReady,
 } from '@/lib/siteActionEvents';
 import {
@@ -42,11 +43,19 @@ import {
   pickVoiceIdleHangup,
 } from '@/lib/voiceAgentProtocol';
 import {
+  consumeVoiceInvocationContext,
   consumeVoiceModeRequest,
   getVoiceExitReason,
   peekVoiceModeRequest,
   subscribeVoiceModeBus,
 } from '@/lib/voiceModeStore';
+import {
+  parseVoiceClientSnapshot,
+  topicFromPath,
+  type VoiceClientSnapshot,
+  type VoiceInvocationContext,
+} from '@/lib/voiceClientSnapshot';
+import { getDiscoActiveSync, getMasterVolumeSync, getSoundsMutedSync } from '@/hooks/useStickers';
 import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
 import { forceStopVoiceToggleCue, playVoiceEnterFallback, playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue } from '@/lib/voiceSounds';
@@ -90,6 +99,7 @@ export interface VoiceHangupRequest {
 
 export const VOICE_ACTION_CUE_COALESCE_MS = 220;
 export const VOICE_AMBIENT_FADE_OUT_MS = 320;
+export const VOICE_HOST_READY_TIMEOUT_MS = 6_000;
 
 const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
   'navigate_to',
@@ -108,6 +118,7 @@ const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
   'run_terminal_command',
   'fill_field',
   'set_preference',
+  'set_master_volume',
   'set_voice_output',
   'set_voice_backend',
   'set_motion_preference',
@@ -119,7 +130,7 @@ export interface VoiceSessionRuntimeDeps {
   createCaller: () => VoiceCaller;
   createPlayback: () => VoicePlayback;
   startCapture: typeof startVoiceCapture;
-  fetchSession: (lowNetwork: boolean) => Promise<VoiceSessionHandle>;
+  fetchSession: (lowNetwork: boolean, snapshot?: VoiceClientSnapshot) => Promise<VoiceSessionHandle>;
   playEnter: () => void;
   playExit: () => void;
   playAction: () => void;
@@ -160,6 +171,7 @@ let greetTurnComplete = false;
 let starting = false;
 let stopping = false;
 let busAttached = false;
+let pendingMintSnapshot: VoiceClientSnapshot | undefined;
 let farewellArmed = false;
 let farewellHeard = false;
 let farewellSawPlayback = false;
@@ -376,11 +388,61 @@ async function voiceSessionStartError(response: Response): Promise<string> {
   return 'Unable to start voice session.';
 }
 
-async function mintBrowserVoiceSession(lowNetwork: boolean): Promise<VoiceSessionHandle> {
+function livePathname(): string {
+  if (hostRuntime?.pathname) return hostRuntime.pathname;
+  if (typeof window === 'undefined') return '/';
+  const path = window.location?.pathname;
+  if (!path) return '/';
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+function themeFromRuntime(): 'light' | 'dark' | undefined {
+  return hostRuntime?.resolvedTheme === 'dark'
+    ? 'dark'
+    : hostRuntime?.resolvedTheme === 'light'
+      ? 'light'
+      : undefined;
+}
+
+function buildMintSnapshot(context?: VoiceInvocationContext | null): VoiceClientSnapshot | undefined {
+  const route = livePathname();
+  const openProject = typeof window === 'undefined' || !window.location
+    ? undefined
+    : readProjectSlugFromSearch(window.location.search);
+  let disco: boolean | undefined;
+  let muted: boolean | undefined;
+  let volume: number | undefined;
+  try {
+    disco = getDiscoActiveSync();
+    muted = getSoundsMutedSync();
+    volume = Math.round(getMasterVolumeSync() * 100);
+  } catch {
+    disco = hostRuntime?.discoActive;
+  }
+  const snapshot: VoiceClientSnapshot = {
+    route: parseVoiceClientSnapshot({ route })?.route,
+    theme: themeFromRuntime(),
+    disco,
+    muted,
+    volume,
+    source: context?.source,
+    topic: context?.topic ?? topicFromPath(route),
+    openProject: parseVoiceClientSnapshot({ openProject })?.openProject,
+  };
+  return parseVoiceClientSnapshot(snapshot);
+}
+
+async function mintBrowserVoiceSession(
+  lowNetwork: boolean,
+  snapshot?: VoiceClientSnapshot,
+): Promise<VoiceSessionHandle> {
   const sessionRes = await fetch('/api/voice/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lowNetwork }),
+    body: JSON.stringify({
+      lowNetwork,
+      ...(snapshot ? { snapshot } : {}),
+    }),
   });
   if (!sessionRes.ok) {
     throw new Error(await voiceSessionStartError(sessionRes));
@@ -419,6 +481,37 @@ function projectVideoUnavailableResult(): SiteToolResult {
     spokenText: 'No project video is open right now.',
     errorCode: 'project-video-unavailable',
   };
+}
+
+function hostUnavailableResult(hostId: VoiceDependentHostId): SiteToolResult {
+  const spokenText: Record<VoiceDependentHostId, string> = {
+    'project-video': 'No project video is open right now.',
+    chat: 'Chat is not open right now.',
+    terminal: 'The terminal is not open on this page.',
+    guestbook: 'The guestbook is not open right now.',
+    feedback: 'Feedback is not open right now.',
+  };
+  return {
+    ok: false,
+    spokenText: spokenText[hostId],
+    errorCode: `${hostId}-unavailable`,
+  };
+}
+
+async function executeSiteToolSafely(
+  call: SiteToolCall,
+  runtime: SiteToolRuntime,
+  commit: boolean,
+): Promise<SiteToolResult> {
+  try {
+    return await executeSiteTool(call, runtime, { commit });
+  } catch {
+    return {
+      ok: false,
+      spokenText: 'That action could not finish just now.',
+      errorCode: 'action-failed',
+    };
+  }
 }
 
 function waitForProjectVideoControl(
@@ -578,21 +671,33 @@ function playCommittedActionCue(name: SiteToolCall['name']): void {
   }, VOICE_ACTION_CUE_COALESCE_MS);
 }
 
-function enqueueVoiceSideEffect(call: SiteToolCall, generation: number): void {
+async function enqueueVoiceSideEffect(
+  call: SiteToolCall,
+  generation: number,
+): Promise<SiteToolResult> {
   const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
   if (hostId) enqueueUnseenOpenersForHost(hostId, generation);
   const deferred = isDeferredVoiceTool(call.name);
   const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   if (!deferred && !dependent) {
     playCommittedActionCue(call.name);
-    void executeSiteTool(call, requireHostRuntime(), { commit: true });
-    return;
+    return executeSiteToolSafely(call, requireHostRuntime(), true);
   }
-  queue?.enqueue(() => {
+  let result: SiteToolResult | undefined;
+  const outcome = await queue?.enqueue(async () => {
     if (isStale(generation)) return;
     playCommittedActionCue(call.name);
-    void executeSiteTool(call, requireHostRuntime(), { commit: true });
-  }, hostId ? { ready: () => isSiteActionHostReady(hostId) } : undefined);
+    result = await executeSiteToolSafely(call, requireHostRuntime(), true);
+  }, hostId ? {
+    ready: () => isSiteActionHostReady(hostId),
+    readyTimeoutMs: VOICE_HOST_READY_TIMEOUT_MS,
+  } : undefined);
+  if (outcome === 'timed-out' && hostId) return hostUnavailableResult(hostId);
+  return result ?? {
+    ok: false,
+    spokenText: 'That action was cancelled before it could finish.',
+    errorCode: 'action-cancelled',
+  };
 }
 
 function flushUtterancePlan(generation: number): void {
@@ -607,7 +712,7 @@ function flushUtterancePlan(generation: number): void {
     const key = voiceToolDedupeKey(item);
     if (seenVoiceToolKeys.has(key)) continue;
     seenVoiceToolKeys.add(key);
-    enqueueVoiceSideEffect(item, generation);
+    void enqueueVoiceSideEffect(item, generation);
   }
 }
 
@@ -759,6 +864,7 @@ function requireHostRuntime(): SiteToolRuntime {
     setTheme: () => undefined,
     resolvedTheme: undefined,
     discoActive: false,
+    pathname: livePathname(),
     openFeedback: () => {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-feedback'));
@@ -843,14 +949,15 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
   let result: SiteToolResult;
   if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
+  } else if (resolvedCall.name === 'end_voice_session') {
+    result = await executeSiteToolSafely(resolvedCall, runtime, false);
   } else if (resolvedCall.name === 'control_project_video') {
     result = await waitForProjectVideoControl(resolvedCall, generation);
-  } else if (resolvedCall.name === 'fill_field' && hostId) {
-    // fill_field ignores commit=false in the executor, so wait for the host.
-    result = { ok: true, spokenText: 'I will type that in.' };
+  } else if (deferred || dependent) {
+    result = await enqueueVoiceSideEffect(resolvedCall, generation);
   } else {
-    if (!deferred && !dependent) playCommittedActionCue(resolvedCall.name);
-    result = await executeSiteTool(resolvedCall, runtime, { commit: !deferred && !dependent });
+    playCommittedActionCue(resolvedCall.name);
+    result = await executeSiteToolSafely(resolvedCall, runtime, true);
   }
   if (isStale(generation) || caller !== activeCaller) return;
   activeCaller.sendToolResult(resolvedCall.id, result, resolvedCall.name);
@@ -859,8 +966,6 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     if (resolvedCall.name === 'end_voice_session') {
       const reason = resolvedCall.args.reason ?? 'user';
       armAgentFarewellHangup(reason);
-    } else if (deferred || (dependent && resolvedCall.name !== 'control_project_video')) {
-      enqueueVoiceSideEffect(resolvedCall, generation);
     }
   }
 
@@ -1001,7 +1106,8 @@ async function bootSession(): Promise<void> {
       });
     }
 
-    const session = await d.fetchSession(prefs.lowNetwork);
+    const session = await d.fetchSession(prefs.lowNetwork, pendingMintSnapshot);
+    pendingMintSnapshot = undefined;
     if (isStale(generation)) return;
     const hasMic = capture != null;
     const connectSession = hasMic
@@ -1081,6 +1187,7 @@ export function bindVoiceSessionHost(runtime: SiteToolRuntime): void {
 export function startVoiceSession(): Promise<void> {
   ensureBus();
   if (starting || stopping || snapshot.active) return Promise.resolve();
+  pendingMintSnapshot = buildMintSnapshot(consumeVoiceInvocationContext());
   starting = true;
   socketReady = false;
   greetTurnComplete = false;
@@ -1229,6 +1336,7 @@ export function resetVoiceSessionRuntimeForTests(): void {
   pendingStopReason = 'user';
   snapshot = IDLE_SNAPSHOT;
   hostRuntime = null;
+  pendingMintSnapshot = undefined;
   depsOverride = null;
   emit();
 }

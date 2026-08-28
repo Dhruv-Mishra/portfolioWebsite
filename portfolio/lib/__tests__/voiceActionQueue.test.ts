@@ -19,6 +19,7 @@ describe('voice action queue', () => {
       'lookup_site_facts',
       'set_theme',
       'set_preference',
+      'set_master_volume',
       'set_voice_output',
       'set_voice_backend',
       'set_motion_preference',
@@ -107,6 +108,31 @@ describe('voice action queue', () => {
     queue.notifyReady();
     await Promise.resolve();
     expect(committed).toEqual(['fill_guestbook', 'fill_terminal', 'fill_chat']);
+  });
+
+  it('settles a host-gated action when its host never becomes ready', async () => {
+    let fireTimeout: (() => void) | undefined;
+    const run = vi.fn();
+    const queue = createVoiceActionQueue({
+      canCommit: () => true,
+      schedule: (fn) => {
+        fireTimeout = fn;
+        return 1;
+      },
+      cancel: vi.fn(),
+    });
+
+    const outcome = queue.enqueue(run, {
+      ready: () => false,
+      readyTimeoutMs: 25,
+    });
+    expect(queue.size()).toBe(1);
+
+    fireTimeout?.();
+
+    await expect(outcome).resolves.toBe('timed-out');
+    expect(run).not.toHaveBeenCalled();
+    expect(queue.size()).toBe(0);
   });
 
   it('holds deferred commits until playback is idle and intro is complete', () => {

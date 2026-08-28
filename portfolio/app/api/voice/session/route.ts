@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { mintVoiceSession } from '@/lib/voiceSession.server';
+import { parseVoiceClientSnapshot } from '@/lib/voiceClientSnapshot';
 import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
@@ -15,6 +16,7 @@ const limiter = createServerRateLimiter({
 
 interface SessionBody {
   lowNetwork?: unknown;
+  snapshot?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   let body: SessionBody;
   try {
-    body = await readBoundedJson<SessionBody>(request, 1_024);
+    body = await readBoundedJson<SessionBody>(request, 2_048);
   } catch (error) {
     if (error instanceof BoundedJsonError) {
       return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
@@ -41,6 +43,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const session = await mintVoiceSession({
+      snapshot: parseVoiceClientSnapshot(body?.snapshot),
       lowNetwork: body?.lowNetwork === true,
     });
     return Response.json(session);

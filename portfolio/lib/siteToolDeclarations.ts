@@ -3,6 +3,8 @@ import {
   APPROVED_LINK_KEYS,
   BROWSE_HISTORY_DIRECTIONS,
   FEEDBACK_CATEGORIES,
+  MASTER_VOLUME_PERCENT_MAX,
+  MASTER_VOLUME_PERCENT_MIN,
   MOTION_PREFERENCE_VALUES,
   PAGE_SCROLL_AMOUNT_DEFAULT,
   PAGE_SCROLL_AMOUNT_MAX,
@@ -196,6 +198,23 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
         enabled: { type: 'boolean' },
       },
       required: ['key', 'enabled'],
+    },
+  },
+  {
+    name: 'set_master_volume',
+    description:
+      'Set sitewide master volume from 0 to 100. Invocation: visitor asks to turn volume up, down, mute-level quiet, or a specific percent. Independent of the sound-effects mute toggle.',
+    parameters: {
+      type: 'object',
+      properties: {
+        percent: {
+          type: 'integer',
+          minimum: MASTER_VOLUME_PERCENT_MIN,
+          maximum: MASTER_VOLUME_PERCENT_MAX,
+          description: 'Master volume percent from 0 to 100.',
+        },
+      },
+      required: ['percent'],
     },
   },
   {

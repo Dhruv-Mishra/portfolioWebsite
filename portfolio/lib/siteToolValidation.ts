@@ -14,6 +14,8 @@ import {
   isVoiceFieldId,
   isVoiceOutputMode,
   resolveVoiceSafeTerminalCommand,
+  MASTER_VOLUME_PERCENT_MAX,
+  MASTER_VOLUME_PERCENT_MIN,
   PAGE_SCROLL_AMOUNT_DEFAULT,
   PAGE_SCROLL_AMOUNT_MAX,
   PAGE_SCROLL_AMOUNT_MIN,
@@ -41,6 +43,13 @@ function readBoundedScrollAmount(record: Record<string, unknown>): number | null
   if (typeof record.amount !== 'number' || !Number.isFinite(record.amount)) return null;
   if (record.amount < PAGE_SCROLL_AMOUNT_MIN || record.amount > PAGE_SCROLL_AMOUNT_MAX) return null;
   return record.amount;
+}
+
+function readMasterVolumePercent(record: Record<string, unknown>): number | null {
+  const value = record.percent;
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) return null;
+  if (value < MASTER_VOLUME_PERCENT_MIN || value > MASTER_VOLUME_PERCENT_MAX) return null;
+  return value;
 }
 
 export function parseSiteToolCall(input: {
@@ -128,6 +137,11 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       const key = readString(record, 'key');
       if (!key || !isSitePreferenceKey(key) || typeof record.enabled !== 'boolean') return null;
       return { key, enabled: record.enabled } as SiteToolArgsMap[Name];
+    }
+    case 'set_master_volume': {
+      const percent = readMasterVolumePercent(record);
+      if (percent == null) return null;
+      return { percent } as SiteToolArgsMap[Name];
     }
     case 'set_voice_output': {
       const mode = readString(record, 'mode');

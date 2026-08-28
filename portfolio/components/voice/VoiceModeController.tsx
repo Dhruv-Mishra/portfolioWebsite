@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { useDiscoActive } from '@/hooks/useStickers';
@@ -50,6 +50,7 @@ const VoiceStage = dynamic(() => import('@/components/voice/VoiceStage'), {
 
 export default function VoiceModeController() {
   const router = useRouter();
+  const pathname = usePathname();
   const { setTheme, resolvedTheme } = useTheme();
   const discoActive = useDiscoActive();
   const request = useVoiceModeRequest();
@@ -92,6 +93,7 @@ export default function VoiceModeController() {
       router,
       setTheme: next => setTheme(next),
       resolvedTheme,
+      pathname,
       discoActive,
       openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
       openProject: (slug) => {
@@ -101,7 +103,7 @@ export default function VoiceModeController() {
         });
       },
     });
-  }, [discoActive, resolvedTheme, router, runtime, setTheme]);
+  }, [discoActive, pathname, resolvedTheme, router, runtime, setTheme]);
 
   useEffect(() => {
     if (!(snapshot.active || request === 'enter')) return;

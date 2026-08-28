@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore } from 'react';
 import type { VoiceExitReason } from '@/lib/voiceAgentProtocol';
+import {
+  parseVoiceInvocationContext,
+  type VoiceInvocationContext,
+} from '@/lib/voiceClientSnapshot';
 import { primeVoiceEnterAudio } from '@/lib/voiceSounds';
 
 export type VoiceModeRequest = 'enter' | 'exit';
@@ -10,6 +14,7 @@ const EVENT_NAME = 'voice-mode:change';
 
 let requested: VoiceModeRequest | null = null;
 let exitReason: VoiceExitReason = 'user';
+let pendingContext: VoiceInvocationContext | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -21,8 +26,9 @@ function emit(): void {
   }
 }
 
-export function requestVoiceMode(): void {
+export function requestVoiceMode(context?: VoiceInvocationContext | unknown): void {
   requested = 'enter';
+  pendingContext = parseVoiceInvocationContext(context) ?? null;
   primeVoiceEnterAudio();
   emit();
 }
@@ -37,6 +43,12 @@ export function consumeVoiceModeRequest(): VoiceModeRequest | null {
   const current = requested;
   requested = null;
   emit();
+  return current;
+}
+
+export function consumeVoiceInvocationContext(): VoiceInvocationContext | null {
+  const current = pendingContext;
+  pendingContext = null;
   return current;
 }
 

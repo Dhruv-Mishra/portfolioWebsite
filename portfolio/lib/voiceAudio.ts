@@ -1,3 +1,4 @@
+import { getEffectiveMasterVolumeSync, subscribeMasterVolume } from '@/hooks/useStickers';
 import {
   VOICE_AGENT_INPUT_RATE,
   VOICE_AGENT_OUTPUT_RATE,
@@ -147,6 +148,8 @@ export function subscribeVoicePlaybackLevel(cb: (level: number) => void): () => 
 
 export function createVoicePlayback(): VoicePlayback {
   let context: AudioContext | null = null;
+  let master: GainNode | null = null;
+  let volumeUnsubscribe: (() => void) | null = null;
   let nextTime = 0;
   let tailTimer: ReturnType<typeof setTimeout> | null = null;
   let hangoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -158,10 +161,29 @@ export function createVoicePlayback(): VoicePlayback {
   const idleListeners = new Set<() => void>();
   const levelListeners = new Set<(level: number) => void>();
 
+  function applyMasterVolume(volume: number): void {
+    if (!master) return;
+    const clamped = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    try {
+      const now = context?.currentTime ?? 0;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(clamped, now + 0.04);
+    } catch {
+      master.gain.value = clamped;
+    }
+  }
+
   function ensure(): AudioContext {
     if (!context) {
       context = new AudioContext();
       nextTime = context.currentTime;
+      if (typeof context.createGain === 'function') {
+        master = context.createGain();
+        master.gain.value = getEffectiveMasterVolumeSync();
+        master.connect(context.destination);
+        volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
+      }
     }
     return context;
   }
@@ -274,7 +296,7 @@ export function createVoicePlayback(): VoicePlayback {
       emitLevel(level + (measurePcmLevel(samples) - level) * PLAYBACK_LEVEL_EMA, true);
       const source = audio.createBufferSource();
       source.buffer = buffer;
-      source.connect(audio.destination);
+      source.connect(master ?? audio.destination);
       source.addEventListener('ended', () => {
         sources.delete(source);
         scheduleIdleWatch();
@@ -312,6 +334,14 @@ export function createVoicePlayback(): VoicePlayback {
       clearHangover();
       clearDecay();
       emitLevel(0, false);
+      if (volumeUnsubscribe) {
+        volumeUnsubscribe();
+        volumeUnsubscribe = null;
+      }
+      if (master) {
+        try { master.disconnect(); } catch { /* already disconnected */ }
+        master = null;
+      }
       if (!context) return;
       void context.close();
       context = null;

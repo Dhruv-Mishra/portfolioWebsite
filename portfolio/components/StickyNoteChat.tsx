@@ -1363,7 +1363,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             <Tooltip label="Enter voice mode">
               <button
                 type="button"
-                onClick={requestVoiceMode}
+                onClick={() => requestVoiceMode({ source: 'chat', topic: 'chat' })}
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-sky-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
                 aria-label="Enter native voice mode"
                 title="Enter voice mode"
@@ -1854,7 +1854,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
 
     if (action.voiceSessionAction) {
-      requestVoiceMode();
+      requestVoiceMode({ source: 'chat', topic: 'chat' });
     }
 
     if (action.fieldFill || action.preferenceAction || action.guestbookSubmit) {
@@ -2090,12 +2090,19 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         });
         return;
       }
-      attachSiteActionResult(event, {
-        ok: true,
-        spokenText: 'Queued that note.',
-        data: { accepted: true, nextAction: 'Want me to wait for the reply, or ask something else?' },
-      });
-      void handleSendFromInput(message);
+      attachSiteActionResult(event, handleSendFromInput(message).then((accepted) => (
+        accepted
+          ? {
+              ok: true,
+              spokenText: 'Queued that note.',
+              data: { accepted: true, nextAction: 'Want me to wait for the reply, or ask something else?' },
+            }
+          : {
+              ok: false,
+              spokenText: 'Chat is not open right now.',
+              errorCode: 'chat-unavailable',
+            }
+      )));
     };
     const openHandler = (raw: Event) => {
       raw.preventDefault();

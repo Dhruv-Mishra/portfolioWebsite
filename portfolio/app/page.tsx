@@ -61,7 +61,7 @@ export default function Home() {
         </strong>, turning complex technical problems into elegant, reliable solutions.
       </p>
 
-      <HomeVoiceNote />
+      <HomeVoiceNote context={{ source: 'home', topic: 'home' }} />
 
       {/* The Terminal */}
       <div

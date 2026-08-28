@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import {
@@ -21,6 +21,7 @@ import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
 import {
   setSoundsMutedImperative,
   useDiscoActive,
+  useMasterVolume,
   useSoundsMuted,
 } from '@/hooks/useStickers';
 import { useVoiceBackendPref, type VoiceBackendPref } from '@/lib/voiceBackendPref';
@@ -28,7 +29,7 @@ import { useVoiceOutputPref, type VoiceOutputPref } from '@/lib/voiceOutputPref'
 import { useSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
 import { useVoiceAgentPrefs } from '@/lib/voiceAgentPrefs';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
-import { soundManager } from '@/lib/soundManager';
+import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import {
   runThemeSelection,
   type ThemeSelection,
@@ -155,6 +156,43 @@ interface SettingToggleProps {
   onChange: (checked: boolean) => void;
 }
 
+function SettingVolumeSlider({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const id = useId();
+  const percent = Math.round(value * 100);
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-4 py-1 font-hand">
+      <label htmlFor={id} className="min-w-0 flex-1">
+        <span className="block text-base leading-tight text-[var(--c-heading)] md:text-lg">
+          Master volume
+        </span>
+        <span className="mt-0.5 block text-sm leading-snug text-[var(--c-ink)]/55">
+          {percent}%
+        </span>
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={`${percent} percent`}
+        onChange={(event) => onChange(Number(event.target.value) / 100)}
+        className="master-volume-slider w-36 max-w-[45%] shrink-0"
+      />
+    </div>
+  );
+}
+
 function SettingToggle({
   label,
   detail,
@@ -257,6 +295,7 @@ export default function SettingsPanel() {
   const { theme, setTheme } = useTheme();
   const discoActive = useDiscoActive();
   const soundsMuted = useSoundsMuted();
+  const masterVolume = useMasterVolume();
   const { prefs, setPref } = useSitePrefsApi();
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
   const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
@@ -417,6 +456,12 @@ export default function SettingsPanel() {
               if (enabled) soundManager.play('button-click');
             }}
           />
+          <SettingVolumeSlider
+            value={masterVolume}
+            onChange={(nextVolume) => {
+              commitUserMasterVolume(nextVolume);
+            }}
+          />
           <SettingToggle
             label="Haptics"
             checked={prefs.hapticsEnabled}
@@ -497,7 +542,7 @@ export default function SettingsPanel() {
           />
           <button
             type="button"
-            onClick={requestVoiceMode}
+            onClick={() => requestVoiceMode({ source: 'settings', topic: 'settings' })}
             className="inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 bg-[var(--c-paper)] px-3 font-hand text-base font-bold text-[var(--c-heading)] transition-colors hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
           >
             Enter voice mode

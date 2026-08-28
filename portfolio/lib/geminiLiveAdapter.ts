@@ -128,7 +128,7 @@ export class GeminiLiveCaller implements VoiceCaller {
                 },
               },
               systemInstruction: {
-                parts: [{ text: buildVoiceSystemInstruction() }],
+                parts: [{ text: buildVoiceSystemInstruction(session.setup.clientState) }],
               },
               tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
               sessionResumption: {},

@@ -18,10 +18,29 @@ class FakeSource {
   }
 }
 
+class FakeGain {
+  gain = {
+    value: 1,
+    cancelScheduledValues() {},
+    setValueAtTime(value: number) { this.value = value; },
+    linearRampToValueAtTime(value: number) { this.value = value; },
+  };
+
+  connect(): void {}
+  disconnect(): void {}
+}
+
 class FakeAudioContext {
   currentTime = 0;
   destination = {};
   sources: FakeSource[] = [];
+  master: FakeGain | null = null;
+
+  createGain() {
+    const gain = new FakeGain();
+    this.master = gain;
+    return gain;
+  }
 
   createBuffer(...args: number[]) {
     const length = args[1] ?? 0;

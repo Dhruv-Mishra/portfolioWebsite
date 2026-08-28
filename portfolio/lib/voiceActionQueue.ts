@@ -2,6 +2,7 @@ export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'lookup_site_facts',
   'set_theme',
   'set_preference',
+  'set_master_volume',
   'set_voice_output',
   'set_voice_backend',
   'set_motion_preference',
@@ -99,16 +100,22 @@ export interface VoiceActionQueueOptions {
 
 export interface VoiceQueueEnqueueOptions {
   ready?: () => boolean;
+  readyTimeoutMs?: number;
 }
+
+export type VoiceQueueOutcome = 'completed' | 'cancelled' | 'timed-out';
 
 interface QueueItem {
   run: VoiceQueuedCommit;
   hangup: boolean;
   ready?: () => boolean;
+  readyTimeoutMs?: number;
+  readyTimer: unknown | null;
+  complete: (outcome: VoiceQueueOutcome) => void;
 }
 
 export interface VoiceActionQueue {
-  enqueue(run: VoiceQueuedCommit, options?: VoiceQueueEnqueueOptions): void;
+  enqueue(run: VoiceQueuedCommit, options?: VoiceQueueEnqueueOptions): Promise<VoiceQueueOutcome>;
   enqueueHangup(run: VoiceQueuedCommit, options?: { force?: boolean; timeoutMs?: number }): void;
   notifyReady(): void;
   reset(): void;
@@ -136,6 +143,10 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
 
   function reset(): void {
     generation += 1;
+    for (const item of items) {
+      if (item.readyTimer != null) cancel(item.readyTimer);
+      item.complete('cancelled');
+    }
     items.length = 0;
     committing = false;
     clearHangupTimer();
@@ -149,20 +160,41 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
       const ready = next?.hangup
         ? (options.canHangup ?? options.canCommit)()
         : options.canCommit() && (next.ready?.() ?? true);
-      if (!ready) return;
+      if (!ready) {
+        if (
+          next
+          && !next.hangup
+          && next.ready
+          && options.canCommit()
+          && next.readyTimer == null
+          && next.readyTimeoutMs != null
+        ) {
+          next.readyTimer = schedule(() => {
+            const index = items.indexOf(next);
+            if (index < 0) return;
+            items.splice(index, 1);
+            next.readyTimer = null;
+            next.complete('timed-out');
+            void pump();
+          }, next.readyTimeoutMs);
+        }
+        return;
+      }
       const item = items.shift();
       if (!item) return;
+      if (item.readyTimer != null) cancel(item.readyTimer);
       if (item.hangup) clearHangupTimer();
 
       const token = generation;
-      const result = item.run();
-      if (result && typeof result.then === 'function') {
-        committing = true;
-        try {
+      try {
+        const result = item.run();
+        if (result && typeof result.then === 'function') {
+          committing = true;
           await result;
-        } finally {
-          if (token === generation) committing = false;
         }
+      } finally {
+        item.complete('completed');
+        if (token === generation) committing = false;
       }
       if (token !== generation) return;
       if (!options.canCommit()) return;
@@ -180,7 +212,7 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
       return;
     }
 
-    items.push({ run, hangup: true });
+    items.push({ run, hangup: true, readyTimer: null, complete: () => {} });
     const timeoutMs = hangupOptions.timeoutMs ?? END_VOICE_SESSION_SAFETY_MS;
     hangupTimer = schedule(() => {
       hangupTimer = null;
@@ -192,8 +224,17 @@ export function createVoiceActionQueue(options: VoiceActionQueueOptions): VoiceA
 
   return {
     enqueue(run, enqueueOptions) {
-      items.push({ run, hangup: false, ready: enqueueOptions?.ready });
-      void pump();
+      return new Promise<VoiceQueueOutcome>((resolve) => {
+        items.push({
+          run,
+          hangup: false,
+          ready: enqueueOptions?.ready,
+          readyTimeoutMs: enqueueOptions?.readyTimeoutMs,
+          readyTimer: null,
+          complete: resolve,
+        });
+        void pump();
+      });
     },
     enqueueHangup,
     notifyReady() {

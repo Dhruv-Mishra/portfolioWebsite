@@ -159,7 +159,7 @@ export function buildCommandEntries(): CommandEntry[] {
       keywords: ['voice', 'talk', 'speak', 'agent', 'live', 'call'],
       group: 'Actions',
       icon: AudioLines,
-      run: () => { requestVoiceMode(); },
+      run: () => { requestVoiceMode({ source: 'command' }); },
     },
     {
       id: 'action-send-feedback',

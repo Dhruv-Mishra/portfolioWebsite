@@ -297,12 +297,19 @@ export default function Terminal() {
                 });
                 return;
             }
-            attachSiteActionResult(event, {
-                ok: true,
-                spokenText: `Queued ${command}.`,
-                data: { command, accepted: true, nextAction: 'Want another safe command, like about or projects?' },
-            });
-            void executeTerminalLine(command);
+            attachSiteActionResult(event, executeTerminalLine(command).then((accepted) => (
+                accepted
+                    ? {
+                        ok: true,
+                        spokenText: `Queued ${command}.`,
+                        data: { command, accepted: true, nextAction: 'Want another safe command, like about or projects?' },
+                    }
+                    : {
+                        ok: false,
+                        spokenText: 'The terminal is not open on this page.',
+                        errorCode: 'terminal-unavailable',
+                    }
+            )));
         };
         const unregister = registerSiteActionHost('terminal');
         window.addEventListener(RUN_TERMINAL_COMMAND_EVENT, handler);

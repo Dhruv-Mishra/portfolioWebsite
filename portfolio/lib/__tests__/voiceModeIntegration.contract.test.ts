@@ -55,7 +55,7 @@ describe('voice mode integration contract', () => {
     expect(homeNote).not.toContain('href=');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
     expect(store).toContain('primeVoiceEnterAudio');
-    expect(store).toMatch(/export function requestVoiceMode\(\): void \{[\s\S]*primeVoiceEnterAudio\(\);[\s\S]*emit\(\);/);
+    expect(store).toMatch(/export function requestVoiceMode\([^)]*\)(?:: void)? \{[\s\S]*primeVoiceEnterAudio\(\);[\s\S]*emit\(\);/);
     expect(homeNote).toContain("from '@/lib/voiceModeStore'");
     expect(homeNote).not.toMatch(/import\(['"]@\/lib\/voiceModeStore['"]\)/);
     expect(css).toContain('.voice-stage-veil');

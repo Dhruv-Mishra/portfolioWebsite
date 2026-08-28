@@ -56,6 +56,9 @@ class FakeAudio {
 
 vi.mock('@/hooks/useStickers', () => ({
   getSoundsMutedSync: () => soundManagerMock.muted,
+  getMasterVolumeSync: () => 1,
+  getEffectiveMasterVolumeSync: () => soundManagerMock.muted ? 0 : 1,
+  subscribeMasterVolume: () => () => {},
 }));
 
 vi.mock('@/lib/soundManager', () => ({

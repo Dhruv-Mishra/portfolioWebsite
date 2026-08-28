@@ -182,13 +182,13 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
     contact?: string;
     category?: FeedbackCategory;
   }) => {
-    if (state === 'submitting') return;
+    if (state === 'submitting') return false;
 
     const trimmed = (overrides?.message ?? message).trim();
     if (!trimmed || trimmed.length < 5) {
       warning();
       setErrorMsg('Please write at least 5 characters.');
-      return;
+      return false;
     }
 
     // Client-side rate limit
@@ -196,7 +196,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       const remaining = rateLimiter.getRemainingTime('feedback', RATE_LIMITS.FEEDBACK);
       warning();
       setErrorMsg(`Too many submissions. Try again in ${remaining} seconds.`);
-      return;
+      return false;
     }
 
     submit();
@@ -234,10 +234,12 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
         // Reset state after close animation
         resetTimeoutRef.current = setTimeout(() => setState('idle'), TIMING_TOKENS.closeResetDelay);
       }, TIMING_TOKENS.successAutoClose);
+      return true;
     } catch (err) {
       setState('error');
       errorHaptic();
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
+      return false;
     }
   }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft, errorHaptic, submit, success, warning]);
 
@@ -269,16 +271,15 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       if (pinnedCategory) {
         setCategory(pinnedCategory);
       }
-      attachSiteActionResult(event, {
-        ok: true,
-        spokenText: 'Sending that feedback.',
-        data: { accepted: true },
-      });
-      void handleSubmit({
+      attachSiteActionResult(event, handleSubmit({
         message: pinnedMessage,
         contact: pinnedContact,
         category: pinnedCategory,
-      });
+      }).then((accepted) => (
+        accepted
+          ? { ok: true, spokenText: 'Sending that feedback.', data: { accepted: true } }
+          : { ok: false, spokenText: 'Feedback is not open right now.', errorCode: 'feedback-unavailable' }
+      )));
     };
     const unregister = registerSiteActionHost('feedback');
     window.addEventListener(SUBMIT_FEEDBACK_EVENT, handler);

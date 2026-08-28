@@ -16,6 +16,7 @@ import {
   type ControlProjectVideoEventDetail,
 } from '@/lib/siteActionEvents';
 import type { SiteToolResult } from '@/lib/siteTools';
+import { useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
 
 interface ProjectModalProps {
     /** Pass null when no project is selected — the modal will be hidden */
@@ -60,9 +61,16 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const isMutedRef = useRef(true);
     const playGenerationRef = useRef(0);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
+    const masterVolume = useMasterVolume();
+    const soundsMuted = useSoundsMuted();
     const [isMuted, setIsMuted] = useState(true);
     const [showPlayButton, setShowPlayButton] = useState(false);
     const [hasMountedVideo, setHasMountedVideo] = useState(false);
+
+    const applyVideoMasterVolume = useCallback((node: HTMLVideoElement | null) => {
+        if (!node) return;
+        node.volume = soundsMuted ? 0 : masterVolume;
+    }, [masterVolume, soundsMuted]);
 
     const hasVideo = project ? project.video !== null : false;
     const videoSrc = !project
@@ -98,6 +106,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         if (playGeneration !== playGenerationRef.current) return false;
         tap();
         video.muted = isMutedRef.current;
+        applyVideoMasterVolume(video);
 
         try {
             await video.play();
@@ -109,7 +118,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             setShowPlayButton(true);
             return false;
         }
-    }, [tap]);
+    }, [applyVideoMasterVolume, tap]);
 
     const reportPlayResult = useCallback(async (): Promise<SiteToolResult> => {
         const played = await playVideo();
@@ -150,6 +159,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         const unregister = registerSiteActionHost('project-video');
         const handler = (raw: Event) => {
             const event = raw as CustomEvent<ControlProjectVideoEventDetail>;
+            if (event.defaultPrevented) return;
             const action = event.detail?.action;
             if (!action) return;
 
@@ -160,9 +170,10 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 return;
             }
             if (action === 'pause') {
-                result = pauseVideo()
+                attachSiteActionResult(event, Promise.resolve(pauseVideo()
                     ? { ok: true, spokenText: 'Paused the preview.', data: { action, nextAction: 'Want me to play it again?' } }
-                    : { ok: false, spokenText: 'I could not pause that preview.', errorCode: 'project-video-unavailable' };
+                    : { ok: false, spokenText: 'I could not pause that preview.', errorCode: 'project-video-unavailable' }));
+                return;
             } else if (action === 'mute') {
                 result = setMuted(true)
                     ? { ok: true, spokenText: 'Muted the preview.', data: { action } }
@@ -184,6 +195,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const attemptAutoplay = useCallback((node: HTMLVideoElement, muted: boolean) => {
         const playGeneration = ++playGenerationRef.current;
         node.muted = muted;
+        applyVideoMasterVolume(node);
         void node.play()
             .then(() => {
                 if (playGeneration !== playGenerationRef.current || videoRef.current !== node) return;
@@ -194,7 +206,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                 // Browser may block autoplay — show a manual play affordance.
                 setShowPlayButton(true);
             });
-    }, []);
+    }, [applyVideoMasterVolume]);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
@@ -226,6 +238,10 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         setShowPlayButton(false);
         attemptAutoplay(video, isMutedRef.current);
     }, [attemptAutoplay, hasVideo, project, videoSrc]);
+
+    useEffect(() => {
+        applyVideoMasterVolume(videoRef.current);
+    }, [applyVideoMasterVolume]);
 
     return (
         <Modal

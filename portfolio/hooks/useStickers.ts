@@ -44,6 +44,10 @@ import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v8 — added persisted `masterVolume` (clamped 0..1). Binary mute stays a
+ *      separate `soundsMuted` flag and never overwrites the remembered
+ *      volume. Missing/invalid values migrate to 1. Setting a positive
+ *      volume may unmute only when the caller opts in (user/agent).
  * v7 — added persisted `matrixEscaped` boolean — flipped to true the first
  *      time a user clicks ESCAPE THE MATRIX inside the matrix overlay and
  *      completes the transition to `/matrix-notes`. Sticky across reloads
@@ -75,7 +79,8 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 7 as const;
+export const STORAGE_VERSION = 8 as const;
+export const DEFAULT_MASTER_VOLUME = 1;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -100,9 +105,16 @@ export interface StickerState {
   /**
    * Persisted global sound-effects mute preference. Sticky. v4+. In v5 this
    * preference also governs the disco loop — there is no longer a separate
-   * disco-only mute flag.
+   * disco-only mute flag. Independent of `masterVolume`: mute silences output
+   * without forgetting the last volume.
    */
   soundsMuted: boolean;
+  /**
+   * Persisted global master volume in [0..1]. Sticky. v8+. Independent of
+   * `soundsMuted` so muting remembers the last audible level. Missing or
+   * non-finite values migrate to `DEFAULT_MASTER_VOLUME` (1).
+   */
+  masterVolume: number;
   /**
    * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
    * When `unlockedAt.superuser > superuserRevealedAt`, the banner will play
@@ -153,6 +165,13 @@ const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set<StickerId>([
  */
 const DEAD_STICKER_IDS: ReadonlySet<string> = new Set<string>(['konami']);
 
+export function clampMasterVolume(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_MASTER_VOLUME;
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
 function defaultState(): StickerState {
   return {
     version: STORAGE_VERSION,
@@ -165,6 +184,7 @@ function defaultState(): StickerState {
     openedProjects: [],
     discoActive: false,
     soundsMuted: false,
+    masterVolume: DEFAULT_MASTER_VOLUME,
     superuserRevealedAt: 0,
     matrixActive: false,
     matrixEscaped: false,
@@ -185,8 +205,8 @@ function defaultState(): StickerState {
  *     so the superuser auto-award predicate still works correctly on the
  *     reduced 18-sticker roster.
  *   - v3+ adds terminalCommands / openedProjects, v4+ adds soundsMuted /
- *     superuserRevealedAt, v6+ adds matrixActive. Missing fields default
- *     to empty/false/0.
+ *     superuserRevealedAt, v6+ adds matrixActive, v8+ adds masterVolume.
+ *     Missing fields default to empty/false/0/1.
  *
  * Invariants that hold regardless of input version:
  *   - Every array is filtered to only contain strings (or valid StickerIds for
@@ -198,6 +218,8 @@ function defaultState(): StickerState {
  *   - `matrixActive` DOES survive reloads (it's a persistent trap) — this is
  *     an intentional asymmetry with disco.
  *   - `soundsMuted` preserves the user's last mute choice across migrations.
+ *   - `masterVolume` is clamped to [0..1]. Missing/invalid values default to 1
+ *     and never mutate `soundsMuted`.
  */
 function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
   const rawUnlocked = Array.isArray(parsed.unlocked)
@@ -241,6 +263,8 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     openedProjects,
     /** Always false on load — discoActive is session-only, never persisted. */
     discoActive: false,
+    /** v8 preference — clamped 0..1. Missing/invalid values default to 1. */
+    masterVolume: clampMasterVolume(parsed.masterVolume),
     /** v4 preference — default OFF (sounds enabled). Governs disco loop in v5+. */
     soundsMuted: parsed.soundsMuted === true,
     /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
@@ -286,6 +310,7 @@ export function parseStoredState(raw: string | null): StickerState {
     version === 2 ||
     version === 3 ||
     version === 4 ||
+    version === 7 ||
     version === 5 ||
     version === 6 ||
     version === STORAGE_VERSION
@@ -406,11 +431,13 @@ function initializeStoreOnce(): void {
         parsed &&
         Array.isArray(parsed.unlocked) &&
         (parsed.unlocked as unknown[]).includes('konami');
+      const hasMissingMasterVolume = parsed && typeof parsed.masterVolume !== 'number';
       if (
         isOutdatedVersion ||
         hasStaleDiscoFlag ||
         hasLegacyDiscoMuted ||
-        hasLegacyKonami
+        hasLegacyKonami ||
+        hasMissingMasterVolume
       ) {
         writeToStorage(store.state);
       }
@@ -677,6 +704,40 @@ export function setSoundsMutedImperative(muted: boolean): void {
   emitChange();
 }
 
+export interface SetMasterVolumeOptions {
+  /**
+   * When true, a positive volume also clears `soundsMuted`. Mute stays put
+   * unless this is an explicit user/agent volume set — never as a side
+   * effect of hydration or mute toggles.
+   */
+  unmuteIfPositive?: boolean;
+}
+
+/**
+ * Persist the global master volume (v8+). Clamped to [0..1]. Does not change
+ * `soundsMuted` unless `unmuteIfPositive` is set and the next volume is > 0.
+ */
+export function setMasterVolumeImperative(
+  volume: number,
+  options: SetMasterVolumeOptions = {},
+): number {
+  initializeStoreOnce();
+  const current = store.state;
+  const masterVolume = clampMasterVolume(volume);
+  const soundsMuted =
+    options.unmuteIfPositive === true && masterVolume > 0
+      ? false
+      : current.soundsMuted;
+  if (current.masterVolume === masterVolume && current.soundsMuted === soundsMuted) {
+    return masterVolume;
+  }
+  const next: StickerState = { ...current, masterVolume, soundsMuted };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+  return masterVolume;
+}
+
 /**
  * Record that the superuser banner has played its reveal fanfare. Caller
  * passes the current `unlockedAt.superuser` value so subsequent mounts can
@@ -891,6 +952,49 @@ function getSoundsMutedServerSnapshot(): boolean {
 /** Subscribe to the sitewide sound-effects mute preference (v4+). */
 export function useSoundsMuted(): boolean {
   return useSyncExternalStore(subscribe, getSoundsMutedSnapshot, getSoundsMutedServerSnapshot);
+}
+
+function getMasterVolumeSnapshot(): number {
+  initializeStoreOnce();
+  return store.state.masterVolume;
+}
+
+function getMasterVolumeServerSnapshot(): number {
+  return DEFAULT_MASTER_VOLUME;
+}
+
+/** Subscribe to the sitewide master volume preference (v8+). */
+export function useMasterVolume(): number {
+  return useSyncExternalStore(subscribe, getMasterVolumeSnapshot, getMasterVolumeServerSnapshot);
+}
+
+/**
+ * Synchronous read of the persisted master volume. Used by non-render audio
+ * paths that need the current 0..1 gain without a React subscription.
+ */
+export function getMasterVolumeSync(): number {
+  initializeStoreOnce();
+  return store.state.masterVolume;
+}
+
+/** Current audible gain after applying the binary sitewide mute gate. */
+export function getEffectiveMasterVolumeSync(): number {
+  initializeStoreOnce();
+  return store.state.soundsMuted ? 0 : store.state.masterVolume;
+}
+
+/**
+ * Subscribe to effective output-gain changes, including mute flips.
+ * The slider continues to read the independent persisted master volume.
+ */
+export function subscribeMasterVolume(listener: (volume: number) => void): () => void {
+  let last = getEffectiveMasterVolumeSync();
+  return subscribe(() => {
+    const next = store.state.soundsMuted ? 0 : store.state.masterVolume;
+    if (next === last) return;
+    last = next;
+    listener(next);
+  });
 }
 
 function getSuperuserRevealedAtSnapshot(): number {

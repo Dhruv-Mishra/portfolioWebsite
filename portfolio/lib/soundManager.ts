@@ -180,6 +180,7 @@ interface ManagerState {
 
 let state: ManagerState | null = null;
 let muted = false;
+let masterVolume = 1;
 
 /** Track per-sound last-played timestamps for debouncing repeats. */
 const lastPlayedAt: Partial<Record<SoundId, number>> = {};
@@ -247,7 +248,7 @@ function ensure(): ManagerState | null {
   const ctx = createContext();
   if (!ctx) return null;
   const master = ctx.createGain();
-  master.gain.value = 1;
+  master.gain.value = muted ? 0 : masterVolume;
   master.connect(ctx.destination);
   const newState: ManagerState = {
     ctx,
@@ -1272,6 +1273,10 @@ export interface SoundManager {
   setMuted(next: boolean): void;
   /** True if currently muted. */
   isMuted(): boolean;
+  /** Set master volume in [0,1]. Independent of mute. */
+  setVolume(next: number): void;
+  /** Current master volume in [0,1]. */
+  getVolume(): number;
   /** Is the AudioContext present and running? Diagnostic only. */
   isReady(): boolean;
   /** Tear everything down. Test-only. */
@@ -1515,7 +1520,7 @@ export const soundManager: SoundManager = {
     muted = next;
     if (!state) return;
     // Smooth mute by ramping the master gain to 0 rather than cutting.
-    const target = next ? 0 : 1;
+    const target = next ? 0 : masterVolume;
     const { ctx, master } = state;
     try {
       const now = ctx.currentTime;
@@ -1541,6 +1546,25 @@ export const soundManager: SoundManager = {
 
   isMuted(): boolean {
     return muted;
+  },
+
+  setVolume(next: number): void {
+    const clamped = Number.isFinite(next) ? Math.min(1, Math.max(0, next)) : 1;
+    masterVolume = clamped;
+    if (!state || muted) return;
+    const { ctx, master } = state;
+    try {
+      const now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(clamped, now + 0.08);
+    } catch {
+      /* best-effort */
+    }
+  },
+
+  getVolume(): number {
+    return masterVolume;
   },
 
   isReady(): boolean {
@@ -1608,6 +1632,7 @@ export const soundManager: SoundManager = {
     }
     state = null;
     muted = false;
+    masterVolume = 1;
     bufferCache.clear();
     warmupAttempted.clear();
     warmupInflight.clear();

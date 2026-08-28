@@ -9,6 +9,13 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
 import { stickerBus } from '@/lib/stickerBus';
 import type { ProjectRecord } from '@/lib/projects';
+import {
+  CONTROL_PROJECT_VIDEO_EVENT,
+  publishProjectVideoState,
+  registerSiteActionHost,
+  type ControlProjectVideoEventDetail,
+} from '@/lib/siteActionEvents';
+import AskAboutIt from '@/components/AskAboutIt';
 
 interface ProjectModalProps {
     /** Pass null when no project is selected — the modal will be hidden */
@@ -50,6 +57,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
     const [isMuted, setIsMuted] = useState(true);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [showPlayButton, setShowPlayButton] = useState(false);
 
     const hasVideo = project ? project.video !== null : false;
@@ -77,11 +85,21 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
         try {
             await video.play();
+            setIsPlaying(true);
             setShowPlayButton(false);
         } catch {
+            setIsPlaying(false);
             setShowPlayButton(true);
         }
     }, [tap]);
+
+    const pauseVideo = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.pause();
+        setIsPlaying(false);
+        setShowPlayButton(true);
+    }, []);
 
     // Callback ref — fires when the <video> DOM node mounts inside the portal.
     // This avoids the race condition where useEffect runs before Modal's
@@ -91,17 +109,20 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         if (node) {
             node.muted = true; // always start muted for autoplay compliance
             void node.play()
-                .then(() => setShowPlayButton(false))
+                .then(() => {
+                    setIsPlaying(true);
+                    setShowPlayButton(false);
+                })
                 .catch(() => {
-                    // Browser may block autoplay — show a manual play affordance.
+                    setIsPlaying(false);
                     setShowPlayButton(true);
                 });
         }
     }, []);
 
-    // Reset mute state + cleanup decode buffer when project changes or modal unmounts
     useEffect(() => {
-        setIsMuted(true); // reset to muted for each new project
+        setIsMuted(true);
+        setIsPlaying(false);
         setShowPlayButton(false);
         return () => {
             if (!hasVideo) return;
@@ -109,10 +130,50 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             if (video) {
                 video.pause();
                 video.removeAttribute('src');
-                video.load(); // release decode buffer
+                video.load();
             }
+            publishProjectVideoState({
+                slug: null,
+                available: false,
+                playing: false,
+                muted: true,
+            });
         };
     }, [hasVideo, project]);
+
+    useEffect(() => {
+        if (!project || !hasVideo) return;
+        const unregister = registerSiteActionHost('project-video');
+        publishProjectVideoState({
+            slug: project.slug,
+            available: true,
+            playing: isPlaying,
+            muted: isMuted,
+        });
+        return unregister;
+    }, [hasVideo, isMuted, isPlaying, project]);
+
+    useEffect(() => {
+        if (!project || !hasVideo) return;
+        const onControl = (event: Event) => {
+            const action = (event as CustomEvent<ControlProjectVideoEventDetail>).detail?.action;
+            const video = videoRef.current;
+            if (!action || !video) return;
+            if (action === 'play') {
+                void playVideo();
+            } else if (action === 'pause') {
+                pauseVideo();
+            } else if (action === 'mute') {
+                video.muted = true;
+                setIsMuted(true);
+            } else if (action === 'unmute') {
+                video.muted = false;
+                setIsMuted(false);
+            }
+        };
+        window.addEventListener(CONTROL_PROJECT_VIDEO_EVENT, onControl);
+        return () => window.removeEventListener(CONTROL_PROJECT_VIDEO_EVENT, onControl);
+    }, [hasVideo, pauseVideo, playVideo, project]);
 
     return (
         <Modal
@@ -230,6 +291,9 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                         {/* Description */}
                         <div className="text-lg md:text-xl leading-relaxed mb-6 font-medium opacity-90 relative z-10">
                             {project.desc}
+                            <div className="mt-3">
+                                <AskAboutIt page="projects" label="Ask me about this project" />
+                            </div>
                         </div>
 
                         {/* ── Key Highlights ─────────────────────────────────────── */}

@@ -37,6 +37,7 @@ scripts/          embeddings and deployment helpers
 
 ## Runtime Notes
 
-- Chat is Groq-first when configured, with OpenAI-compatible fallback support through `LLM_*` variables.
+- Production chat uses Groq when `GROQ_API_KEY` is set, with `LLM_*` as fallback.
+- Sticky-note chat can dictate into the note and run guarded site actions (navigate, projects, volume, theme).
 - Guestbook, feedback, and notes flows are GitHub-backed.
 - `npm run build` triggers embeddings generation unless skipped via env.

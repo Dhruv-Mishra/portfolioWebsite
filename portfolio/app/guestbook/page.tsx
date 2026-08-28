@@ -7,6 +7,7 @@ import GuestbookWall from '@/components/GuestbookWall';
 import { GuestbookEmptyState } from '@/components/GuestbookEmptyState';
 import { getApprovedEntries } from '@/lib/guestbook.server';
 import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
+import AskAboutIt from '@/components/AskAboutIt';
 
 /**
  * Guestbook wall page.
@@ -51,6 +52,9 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
         <p className="font-hand text-lg opacity-60 mt-2">
           leave your mark on the wall ~
         </p>
+        <div className="mt-3">
+          <AskAboutIt page="guestbook" />
+        </div>
 
         {/* Meta row — note count + sticker drawer link */}
         {!isEmpty && (

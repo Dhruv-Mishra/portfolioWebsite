@@ -1,7 +1,7 @@
 # Project Context: Dhruv's Sketchbook Portfolio
 
 ## 1. Project Overview
-A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with developer-centric tools. The user experience is "inside" a spiral-bound notebook where code meets creativity.
+A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with developer-centric tools. Visitors can pass sticky-note chat, optionally dictate into it, and ask for guarded site actions such as navigation, opening projects, controlling project videos, and changing theme or volume. Retrieval-grounded LLM chat powers the conversational experience.
 
 ### Core Metaphor
 -   **The "Paper"**: Textured background (Graph paper in Light Mode, Blackboard/Slate in Dark Mode) using CSS-based patterns.
@@ -17,7 +17,8 @@ A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with
     -   **Theming**: `next-themes` (attribute="class") managing CSS variables (`--c-paper`, `--note-yellow`).
 -   **State Management**: React Context (`TerminalContext`) for command history/output persistence.
 -   **Animation**: `framer-motion` for page transitions, doodle parallax, and UI interactions.
--   **Deployment**: Static Export compatible (for low-resource environments).
+-   **AI Runtime**: Self-hosted OpenAI-compatible LLM inference grounded on the local fact corpus, plus a self-hosted TTS engine.
+-   **Deployment**: Next.js standalone output on georedundant Azure, GCP, and Oracle Cloud VMs behind Cloudflare and Nginx.
 
 ## 3. Key Components & Implementation Details
 
@@ -45,11 +46,17 @@ A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with
 -   **Commands**: `help`, `about`, `projects`, `resume`, `clear`.
 -   **Mobile UX**: Auto-focus disabled on mobile to prevent virtual keyboard conflict during scrolling.
 
-### D. Navigation
+### D. AI Chat
+-   **Chat**: Sticky-note chat on `/chat` and as a floating mini chat, with optional dictation into the note.
+-   **Actions**: Navigates routes, opens project details, controls project media, and updates theme or volume on request.
+-   **Grounding**: Answers retrieve from the curated local fact corpus instead of inventing portfolio details.
+-   **Inference**: Production chat uses Groq when configured, with a fallback OpenAI-compatible provider.
+
+### E. Navigation
 -   **Desktop**: Tabs on top-right, animated "hanging" effect.
 -   **Mobile**: Tabs centered, lowered significantly (`y: -5px` active) to ensure touch targets are fully visible and not cut off by the browser chrome.
 
-### E. Pages
+### F. Pages
 -   **Home**: Intro + Terminal.
     -   **Credits**: "Dhruv" links to LinkedIn. Bio highlights "High-Performance Systems" at Microsoft.
 -   **Projects**: Grid of Polaroid-style cards.
@@ -76,6 +83,5 @@ A **Fullscreen Sketchbook Portfolio** that blends a physical desk aesthetic with
 -   **Assets**: Updated Bloom Filter project link to official repository.
 
 ## 6. Future Roadmap
--   [ ] **Sound Effects**: Audio feedback for typing/drawing.
 -   [ ] **Project Details**: Expand card into full case study page.
 -   [ ] **Blog/Notebook**: A section for markdown articles rendered as "handwritten" journal entries.

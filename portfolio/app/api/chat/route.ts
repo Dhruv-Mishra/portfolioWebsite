@@ -6,6 +6,7 @@ import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
 import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
+import { sanitizeClientUiState } from '@/lib/siteUiState';
 import { sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import type { ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
@@ -167,9 +168,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Request body is too large' }, { status: 413 });
     }
 
-    let body: { messages?: ClientChatMessage[] };
+    let body: { messages?: ClientChatMessage[]; uiState?: unknown };
     try {
-      body = await request.json() as { messages?: ClientChatMessage[] };
+      body = await request.json() as { messages?: ClientChatMessage[]; uiState?: unknown };
     } catch {
       return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -230,7 +231,9 @@ export async function POST(request: NextRequest) {
     // The conditional block (off-topic / UI / terminal / matrix overrides,
     // recent UI actions, retrieved facts) is emitted as a separate system
     // message, and only when non-empty.
-    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized);
+    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized, {
+      uiState: sanitizeClientUiState(body.uiState),
+    });
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
       ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),

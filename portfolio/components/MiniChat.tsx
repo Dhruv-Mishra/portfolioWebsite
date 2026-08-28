@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Trash2, X, ExternalLink } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -11,6 +11,7 @@ import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { OPEN_MINI_CHAT_EVENT, type OpenMiniChatDetail } from '@/lib/siteActionEvents';
 
 // Lazy-load StickyNoteChat — it's a large component only needed when mini-chat is open
 const StickyNoteChat = dynamic(() => import('./StickyNoteChat'), { ssr: false });
@@ -45,19 +46,42 @@ export default function MiniChat() {
   const { closePanel, navigate, openPanel } = useAppHaptics();
   const [isOpen, setIsOpen] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
+  const keepOpenOnPathChangeRef = useRef(false);
 
   // Hydration-safe mount
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // Close the mini-chat when the user navigates to a different page
   useEffect(() => {
+    if (keepOpenOnPathChangeRef.current) {
+      keepOpenOnPathChangeRef.current = false;
+      return;
+    }
     if (isOpen) {
       setIsOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to pathname changes, not isOpen
   }, [pathname]);
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<OpenMiniChatDetail>).detail;
+      keepOpenOnPathChangeRef.current = true;
+      setIsOpen(true);
+      openPanel();
+      stickerBus.emit('note-passer');
+      if (detail?.greeting) {
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('chat-contextual-greeting', {
+            detail: { greeting: detail.greeting },
+          }));
+        }, 80);
+      }
+    };
+    window.addEventListener(OPEN_MINI_CHAT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_MINI_CHAT_EVENT, onOpen);
+  }, [openPanel]);
 
   const handleClose = useCallback(() => {
     closePanel();

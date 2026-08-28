@@ -1,13 +1,13 @@
 # Dhruv's Sketchbook
 
-The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style portfolio built with Next.js, with an interactive terminal, grounded AI chat, project and resume pages, a public guestbook, sticker progress, and a few intentionally undisclosed extras.
+The codebase for [whoisdhruv.com](https://whoisdhruv.com): a sketchbook-style Next.js portfolio with grounded sticky-note chat, guarded site actions, an interactive terminal, project and resume pages, a public guestbook, sticker progress, and a few intentionally undisclosed extras.
 
 ## What Ships
 
 - Hand-drawn UI with light and dark themes, custom cursor, motion, and responsive layouts.
 - Interactive terminal with route commands, file-style content, shortcuts, and unlockable behavior.
-- AI chat backed by a local fact corpus plus build-time embeddings.
-- Public pages for about, projects, resume, chat, guestbook, and stickers.
+- Sticky-note chat grounded by a local fact corpus, with optional dictation and allowlisted actions for navigation, projects, media, and preferences.
+- Public pages for about, projects, resume, chat, guestbook, stickers, and settings.
 - Machine-readable surfaces for AI crawlers and markdown consumers: `llms.txt`, `llms-full.txt`, `index.md`, `about.md`, `projects.md`, and `resume.md`.
 
 Some routes and behaviors are intentionally left out of the README to preserve the discovery part of the site.
@@ -17,7 +17,8 @@ Some routes and behaviors are intentionally left out of the README to preserve t
 - Next.js 16 App Router with standalone output
 - React 19 and TypeScript 5
 - Tailwind CSS 4 and Framer Motion 12
-- Groq-first chat runtime with OpenAI-compatible fallback support
+- Self-hosted OpenAI-compatible LLM inference with optional Groq provider support
+- Self-hosted TTS engine with configurable voice and playback speed
 - GitHub-backed guestbook, feedback, and notes workflows
 - ESLint 9 and Vitest 4
 
@@ -69,6 +70,7 @@ Only configure what you need for the features you want to run.
 | OpenAI-compatible fallback | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_ENABLE_FALLBACK_MODEL`, `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_MODEL` |
 | Suggestions models | `LLM_SUGGESTIONS_MODEL`, `LLM_FALLBACK_SUGGESTIONS_MODEL` |
 | Embeddings | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_MODE`, `SKIP_EMBEDDINGS_BUILD` |
+| Text to speech | `NEXT_PUBLIC_TTS_VOICE`, `NEXT_PUBLIC_TTS_SPEED` |
 | GitHub-backed content | `GITHUB_GUESTBOOK_TOKEN`, `GITHUB_GUESTBOOK_REPO`, `GITHUB_FEEDBACK_TOKEN`, `GITHUB_FEEDBACK_REPO`, `GITHUB_MATRIX_NOTES_TOKEN`, `GITHUB_MATRIX_NOTES_REPO` |
 | Access and API controls | `ADMIN_UNLOCK_SECRET`, `ALLOWED_ORIGINS`, `CHAT_HISTORY_SIGNING_SECRET`, `LOG_RAW` |
 
@@ -79,5 +81,6 @@ Production uses Next.js standalone output behind Cloudflare and Nginx. GitHub Ac
 ## Notes
 
 - Guestbook submissions are moderated through GitHub Issues, not a database.
-- The chat API returns JSON responses and uses retrieval over the local fact corpus for grounding.
+- The chat API returns JSON responses and uses retrieval over the local fact corpus for grounding; production points its OpenAI-compatible configuration at self-hosted inference.
+- Voice mode and text chat share a guarded, allowlisted site-action layer rather than arbitrary browser access.
 - `npm run build` in `portfolio/` runs `prebuild`, which regenerates embeddings unless explicitly skipped.

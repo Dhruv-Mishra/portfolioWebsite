@@ -15,6 +15,7 @@ import 'server-only';
 
 import type { ActionExecution } from '@/lib/actions';
 import { getRelevantFactContext } from '@/lib/factRetrieval.server';
+import { formatUiStateLine, type ClientUiState } from '@/lib/siteUiState';
 
 // ── Prompt blocks ───────────────────────────────────────────────────
 //
@@ -162,6 +163,7 @@ const OFF_TOPIC_PATTERNS: readonly RegExp[] = [
 const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(open|show|pull up|bring up|take me|go to|navigate|visit|switch|toggle|turn on|dark mode|light mode)\b/i,
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
+  /\b(mute|unmute|volume|pause|play|this page|here|this video|preview)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
   // offer to open the relevant project modal.
   /\b(project|projects|cropio|jarvis|fluent|bloom filter|nlp|movie recommender|vital|opencv)\b/i,
@@ -256,6 +258,8 @@ export interface BuildPromptOptions {
   factLimit?: number;
   /** Bypass embeddings retrieval — used by tests for determinism. */
   factsOverride?: string;
+  /** Compact current-page snapshot. Injected only on action/deictic turns. */
+  uiState?: ClientUiState | null;
 }
 
 /**
@@ -299,8 +303,12 @@ export async function buildDhruvSystemPromptParts(
     conditionalSections.push(OFF_TOPIC_BLOCK);
   }
 
-  if (recentActionsBlock || hasActionIntent(latestQuery)) {
+  const actionTurn = recentActionsBlock || hasActionIntent(latestQuery);
+  if (actionTurn) {
     conditionalSections.push(UI_ACTION_BLOCK);
+    if (options.uiState) {
+      conditionalSections.push(formatUiStateLine(options.uiState));
+    }
   }
 
   if (mentionsTerminal(latestQuery)) {

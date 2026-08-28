@@ -71,6 +71,7 @@ describe('parseStoredState migration', () => {
     expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
     expect(state.matrixActive).toBe(false);
+    expect(state.soundVolume).toBe(1);
   });
 
   it('malformed JSON yields defaultState (graceful)', async () => {

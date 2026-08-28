@@ -12,6 +12,7 @@ import { PROJECTS } from '@/lib/projects';
 import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { stickerBus } from '@/lib/stickerBus';
 import { recordOpenedProjectImperative } from '@/hooks/useStickers';
+import AskAboutIt from '@/components/AskAboutIt';
 
 // Dynamic import — ProjectModal only renders on user click.
 const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
@@ -117,9 +118,12 @@ export default function Projects() {
                 grid below already pads itself with px-6. Keeping px-6 on the h1
                 only matches the grid's left edge on mobile, with a small ml-6 on
                 desktop for visual rhythm against the binding spine. */}
-            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 px-6 md:px-0 md:ml-6 decoration-wavy underline decoration-indigo-400 decoration-2">
+            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-3 px-6 md:px-0 md:ml-6 decoration-wavy underline decoration-indigo-400 decoration-2">
                 My Projects
             </h1>
+            <div className="px-6 md:px-0 md:ml-6 mb-8">
+                <AskAboutIt page="projects" />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {

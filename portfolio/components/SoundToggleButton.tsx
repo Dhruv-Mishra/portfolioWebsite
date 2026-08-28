@@ -16,36 +16,83 @@
  *   - Accessible: `aria-pressed` reflects the mute state, explicit label.
  */
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useSoundsMuted, setSoundsMutedImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
 import { Tooltip } from '@/components/ui/Tooltip';
+import MasterVolumeControl from '@/components/MasterVolumeControl';
 
 function SoundToggleButton(): React.ReactElement {
   const muted = useSoundsMuted();
   const { toggle: toggleHaptic } = useAppHaptics();
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const leaveTimerRef = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current !== null) {
+      window.clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }, []);
+
+  const openVolume = useCallback(() => {
+    clearLeaveTimer();
+    setVolumeOpen(true);
+  }, [clearLeaveTimer]);
+
+  const scheduleClose = useCallback(() => {
+    clearLeaveTimer();
+    leaveTimerRef.current = window.setTimeout(() => setVolumeOpen(false), 140);
+  }, [clearLeaveTimer]);
+
+  useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
+
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setVolumeOpen(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setVolumeOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, [volumeOpen]);
 
   const handleClick = useCallback(() => {
     const next = !muted;
     setSoundsMutedImperative(next);
-    // Mirror into the manager immediately so the user gesture counts as the
-    // "first gesture" for autoplay — if they're unmuting, play a subtle ack
-    // tick so the AudioContext warms up.
     soundManager.setMuted(next);
     toggleHaptic();
     if (!next) {
-      // Unmuting — warm up with a tiny click so the autoplay policy is
-      // satisfied and subsequent triggers work on the very next event.
       soundManager.play('button-click');
     }
   }, [muted, toggleHaptic]);
 
   return (
-    <Tooltip label={muted ? 'Unmute sound effects' : 'Mute sound effects'}>
+    <div
+      ref={rootRef}
+      className="relative"
+      onMouseEnter={openVolume}
+      onMouseLeave={scheduleClose}
+      onFocus={openVolume}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          scheduleClose();
+        }
+      }}
+    >
+    <Tooltip label={muted ? 'Unmute sound effects' : 'Mute sound effects'} delay={volumeOpen ? 10_000 : 400}>
     <button
       onClick={handleClick}
       aria-pressed={muted}
+      aria-expanded={volumeOpen}
       aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
       className="relative p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group"
       data-sound-toggle
@@ -97,6 +144,16 @@ function SoundToggleButton(): React.ReactElement {
       />
     </button>
     </Tooltip>
+    {volumeOpen ? (
+      <div
+        className="absolute left-1/2 top-full z-40 mt-2 -translate-x-1/2 rounded-lg border border-[var(--c-grid)]/40 bg-[var(--c-paper)] px-2 py-3 shadow-md"
+        role="dialog"
+        aria-label="Master volume"
+      >
+        <MasterVolumeControl orientation="vertical" />
+      </div>
+    ) : null}
+    </div>
   );
 }
 

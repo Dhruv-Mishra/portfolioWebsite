@@ -101,6 +101,7 @@ describe('chat route provider payload mapping', () => {
           action: expect.objectContaining({ projectSlug: 'cropio' }),
         }),
       ]),
+      expect.objectContaining({ uiState: null }),
     );
 
     expect(groqCreateMock).toHaveBeenCalledTimes(1);

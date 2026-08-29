@@ -332,6 +332,14 @@ function noteSentCaptureFrame(generation: number): void {
 function handleCaptureFrame(chunk: ArrayBuffer, generation: number): void {
   if (isStale(generation) || stopping || recovering) return;
   if (!sendAudioLive || !socketReady) return;
+  if (playback?.isBusy()) {
+    if (streamEndTimer !== null && !streamEndSent) {
+      clearStreamEndTimer();
+      streamEndSent = true;
+      caller?.endAudioStream?.();
+    }
+    return;
+  }
   caller?.sendAudio(chunk);
   noteSentCaptureFrame(generation);
 }

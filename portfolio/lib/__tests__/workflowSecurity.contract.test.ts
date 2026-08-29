@@ -113,7 +113,9 @@ describe('workflow supply-chain hardening', () => {
         'Cloudflare origin policy not installed yet; deploy kit will install and validate it before deploy.sh runs.',
       );
       expect(source).toContain(installUpdater);
-      expect(source).toContain('STAGING="/var/tmp/portfolio-stage-${SHA}"');
+      expect(source).toContain(
+        'STAGING="/var/tmp/portfolio-stage-${{ matrix.server.name }}-${SHA}"',
+      );
       expect(source).toContain(updaterTarget);
       expect(source).toContain(updaterNext);
       expect(source).toContain(moveUpdater);

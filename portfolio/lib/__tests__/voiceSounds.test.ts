@@ -319,6 +319,27 @@ describe('voice toggle cue and ambient duck', () => {
     expect(action?.pause).not.toHaveBeenCalled();
   });
 
+  it('recovers when a simple cue play throws synchronously', () => {
+    let throwNextPlay = true;
+    class ThrowOnceAudio extends FakeAudio {
+      override readonly play = vi.fn(() => {
+        if (throwNextPlay) {
+          throwNextPlay = false;
+          throw new DOMException('Playback blocked', 'NotAllowedError');
+        }
+        this.paused = false;
+        return Promise.resolve();
+      });
+    }
+    vi.stubGlobal('Audio', ThrowOnceAudio);
+
+    expect(() => playVoiceSound('voice-action')).not.toThrow();
+    playVoiceSound('voice-action');
+
+    expect(soundManagerMock.instances).toHaveLength(2);
+    expect((soundManagerMock.instances[1] as FakeAudio).play).toHaveBeenCalledTimes(1);
+  });
+
   it('does not pause the enter cue during the 450ms play window unless forced', async () => {
     vi.useFakeTimers();
     playVoiceSound('voice-enter');

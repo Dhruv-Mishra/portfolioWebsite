@@ -387,12 +387,17 @@ function playSimpleCue(id: Exclude<VoiceCueId, 'voice-enter'>): void {
   audio.volume = scaledMediaVolume(relativeToggleVolume(id));
   audio.currentTime = 0;
   const token = nextCueToken(id);
-  const playResult = audio.play();
-  if (playResult && typeof playResult.then === 'function') {
-    void playResult.catch(() => {
-      if (!isCurrentCue(id, token)) return;
-      cache.delete(id);
-    });
+  const onFailed = () => {
+    if (!isCurrentCue(id, token)) return;
+    cache.delete(id);
+  };
+  try {
+    const playResult = audio.play();
+    if (playResult && typeof playResult.then === 'function') {
+      void playResult.catch(onFailed);
+    }
+  } catch {
+    onFailed();
   }
 }
 

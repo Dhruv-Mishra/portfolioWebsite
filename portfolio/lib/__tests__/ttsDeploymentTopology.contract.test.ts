@@ -67,6 +67,22 @@ describe('centralized Pocket TTS deployment topology', () => {
     expect(rollbackWorkflow).toContain('bash "$STAGING/deploy.sh"');
   });
 
+  it('isolates concurrent staging and production deploy kits per host', () => {
+    for (const workflow of [stagingWorkflow, productionWorkflow]) {
+      expect(workflow).toContain(
+        'portfolio-deploy-kit-${{ matrix.server.name }}-${{ github.sha }}.tar.gz',
+      );
+      expect(workflow).toContain(
+        'STAGING="/var/tmp/portfolio-stage-${{ matrix.server.name }}-${SHA}"',
+      );
+      expect(workflow).toContain(
+        'DEPLOY_KIT="/var/tmp/portfolio-deploy-kit-${{ matrix.server.name }}-${SHA}.tar.gz"',
+      );
+      expect(workflow).not.toContain('STAGING="/var/tmp/portfolio-stage-${SHA}"');
+      expect(workflow).not.toContain('DEPLOY_KIT="/var/tmp/portfolio-deploy-kit-${SHA}.tar.gz"');
+    }
+  });
+
   it('checks synthesis through public HTTPS nginx only after reload', () => {
     expect(deployScript).toContain('--resolve "${DOMAIN}:443:127.0.0.1"');
     expect(deployScript).toContain('"https://${DOMAIN}/api/tts"');

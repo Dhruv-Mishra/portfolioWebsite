@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { VOICE_AGENT_MODEL_ID, VOICE_AUTH_TOKEN_URLS } from '@/lib/voiceAgentConfig';
-import { VOICE_WELCOME_VARIATIONS } from '@/lib/voiceAgentProtocol';
+import {
+  parseVoiceResumeHandle,
+  parseVoiceSessionRequest,
+  VOICE_RESUME_HANDLE_MAX_LENGTH,
+  VOICE_WELCOME_VARIATIONS,
+} from '@/lib/voiceAgentProtocol';
 import {
   buildLockedLiveSetup,
   buildSlimLiveSetup,
@@ -264,5 +269,70 @@ describe('voice session mint request contract', () => {
     expect((sessionError as Error).message).toBe('Unable to mint a voice session.');
     expect((sessionError as Error).message).not.toContain('secret google detail');
     expect(String(sessionError)).not.toContain('secret google detail');
+  });
+});
+describe('voice session resume handle parsing', () => {
+  it('accepts trimmed bounded handles and rejects control characters', () => {
+    expect(parseVoiceResumeHandle('  handle-1  ')).toBe('handle-1');
+    expect(parseVoiceResumeHandle('')).toBeUndefined();
+    expect(parseVoiceResumeHandle(`bad\u0001handle`)).toBeUndefined();
+    expect(parseVoiceResumeHandle('a'.repeat(VOICE_RESUME_HANDLE_MAX_LENGTH + 1))).toBeUndefined();
+    expect(parseVoiceSessionRequest({ lowNetwork: true, resumeHandle: '  handle-1  ' })).toEqual({
+      ok: true,
+      value: { lowNetwork: true, resumeHandle: 'handle-1' },
+    });
+    expect(parseVoiceSessionRequest({ resumeHandle: '   ' })).toEqual({
+      ok: true,
+      value: { lowNetwork: false },
+    });
+    expect(parseVoiceSessionRequest({ resumeHandle: `bad\u0007handle` })).toEqual({ ok: false });
+    expect(parseVoiceSessionRequest({ resumeHandle: 12 })).toEqual({ ok: false });
+  });
+});
+
+describe('voice session mint resumeHandle contract', () => {
+  beforeEach(() => {
+    vi.stubEnv('VOICE_AGENT_API_KEY', 'test-voice-key');
+    vi.stubEnv('STAGING_VOICE_AGENT_API_KEY', '');
+    vi.stubEnv('PRODUCTION_VOICE_AGENT_API_KEY', '');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+    vi.stubEnv('SITE_URL', '');
+    vi.stubEnv('MODEL_HEALTH_ENVIRONMENT', '');
+  });
+
+  it('includes a locked/slim sessionResumption handle and still mints a fresh token', async () => {
+    expect(buildLockedLiveSetup(false, undefined, 'resume-1').sessionResumption).toEqual({ handle: 'resume-1' });
+    expect(buildSlimLiveSetup('resume-1').sessionResumption).toEqual({ handle: 'resume-1' });
+    expect(buildLockedLiveSetup(false).sessionResumption).toEqual({});
+    expect(buildSlimLiveSetup().sessionResumption).toEqual({});
+
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      const body = parseRequestBody(init);
+      if (!('bidiGenerateContentSetup' in body)) {
+        return jsonResponse(400, { error: { message: 'unlocked rejected' } });
+      }
+      return jsonResponse(200, { name: `token-${fetchMock.mock.calls.length}` });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mintVoiceSession({ lowNetwork: false, resumeHandle: 'resume-1' })).resolves.toMatchObject({
+      token: 'token-5',
+      resumeHandle: 'resume-1',
+      setup: { resumeHandle: 'resume-1' },
+    });
+    await expect(mintVoiceSession({ lowNetwork: false, resumeHandle: 'resume-1' })).resolves.toMatchObject({
+      token: 'token-6',
+      resumeHandle: 'resume-1',
+    });
+
+    const lockedCall = fetchMock.mock.calls.find(([, init]) => {
+      const body = parseRequestBody(init as RequestInit);
+      return isRecord(body.bidiGenerateContentSetup);
+    });
+    expect(lockedCall).toBeTruthy();
+    const lockedBody = parseRequestBody(lockedCall?.[1] as RequestInit);
+    const setup = lockedBody.bidiGenerateContentSetup;
+    expect(isRecord(setup) && isRecord(setup.sessionResumption) && setup.sessionResumption.handle).toBe('resume-1');
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(6);
   });
 });

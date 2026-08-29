@@ -6,6 +6,7 @@ import {
   parseVoiceInvocationContext,
   type VoiceInvocationContext,
 } from '@/lib/voiceClientSnapshot';
+import { disposePrimedVoiceAudio, primeVoiceEnterAudio } from '@/lib/voiceAudioActivation';
 
 export type VoiceModeRequest = 'enter' | 'exit';
 
@@ -26,12 +27,14 @@ function emit(): void {
 }
 
 export function requestVoiceMode(context?: VoiceInvocationContext | unknown): void {
+  primeVoiceEnterAudio();
   requested = 'enter';
   pendingContext = parseVoiceInvocationContext(context) ?? null;
   emit();
 }
 
 export function requestVoiceModeExit(reason: VoiceExitReason = 'user'): void {
+  disposePrimedVoiceAudio();
   requested = 'exit';
   exitReason = reason;
   emit();

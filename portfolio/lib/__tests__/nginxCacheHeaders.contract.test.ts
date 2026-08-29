@@ -45,6 +45,7 @@ describe('nginx cache header contract', () => {
 
     expect(voice).toContain('alias __STANDALONE_DIR__/public/voice/;');
     expect(voice).toContain('add_header Cache-Control "public, max-age=31536000, immutable";');
+    expect(voice).toMatch(/types\s*\{[\s\S]*application\/javascript js;/);
     expect(voice).toContain('error_page 404 = @missing_asset;');
   });
 });

@@ -27,9 +27,18 @@ class FakeSource {
 class FakeGain {
   gain = {
     value: 1,
-    cancelScheduledValues() {},
-    setValueAtTime(value: number) { this.value = value; },
-    linearRampToValueAtTime(value: number) { this.value = value; },
+    cancelledAt: [] as number[],
+    setValues: [] as Array<{ value: number; at: number }>,
+    ramps: [] as Array<{ value: number; at: number }>,
+    cancelScheduledValues(at: number) { this.cancelledAt.push(at); },
+    setValueAtTime(value: number, at: number) {
+      this.value = value;
+      this.setValues.push({ value, at });
+    },
+    linearRampToValueAtTime(value: number, at: number) {
+      this.value = value;
+      this.ramps.push({ value, at });
+    },
   };
 
   connect(): void {}
@@ -322,6 +331,29 @@ describe('voice playback pcm engine', () => {
     playback.close();
   });
 
+  it('starts the first fade with the scheduled PCM source, not the current time', async () => {
+    const {
+      createVoicePlayback,
+      VOICE_PLAYBACK_FADE_IN_S,
+      VOICE_PLAYBACK_SCHEDULE_LEAD_S,
+    } = await import('@/lib/voiceAudio');
+    const playback = createVoicePlayback();
+    playback.play(pcm16Le(24_000));
+
+    const gain = context.master?.gain;
+    expect(context.sources[0]?.startedAt).toBe(VOICE_PLAYBACK_SCHEDULE_LEAD_S);
+    expect(gain?.cancelledAt[0]).toBe(VOICE_PLAYBACK_SCHEDULE_LEAD_S);
+    expect(gain?.setValues[0]).toEqual({
+      value: 0,
+      at: VOICE_PLAYBACK_SCHEDULE_LEAD_S,
+    });
+    expect(gain?.ramps[0]?.at).toBeCloseTo(
+      VOICE_PLAYBACK_SCHEDULE_LEAD_S + VOICE_PLAYBACK_FADE_IN_S,
+      6,
+    );
+    playback.close();
+  });
+
   it('preserves all queued PCM in order without resynchronizing active playback', async () => {
     const { createVoicePlayback } = await import('@/lib/voiceAudio');
     const playback = createVoicePlayback();
@@ -448,7 +480,7 @@ class FakeCaptureWorklet extends FakeCaptureNode {
 }
 
 class FakeCaptureContext {
-  sampleRate = 48_000;
+  sampleRate: number;
   destination = {};
   state: AudioContextState;
   closed = false;
@@ -459,12 +491,30 @@ class FakeCaptureContext {
   resumeTo: AudioContextState = 'running';
   resumeCalls = 0;
   closeCalls = 0;
+  gainCreateCalls = 0;
+  silentSources: FakeSource[] = [];
   audioWorklet = {
     addModule: vi.fn().mockResolvedValue(undefined),
   };
 
-  constructor(state: AudioContextState = 'running') {
+  constructor(state: AudioContextState = 'running', sampleRate = 48_000) {
     this.state = state;
+    this.sampleRate = sampleRate;
+  }
+
+  createBuffer(_channels: number, length: number, sampleRate: number) {
+    const channel = new Float32Array(length);
+    return {
+      duration: length / sampleRate,
+      channel,
+      getChannelData: () => channel,
+    };
+  }
+
+  createBufferSource() {
+    const source = new FakeSource();
+    this.silentSources.push(source);
+    return source;
   }
 
   createMediaStreamSource() {
@@ -474,6 +524,7 @@ class FakeCaptureContext {
   }
 
   createGain() {
+    this.gainCreateCalls += 1;
     if (this.failAt === 'gain') throw new Error('gain failed');
     this.muteGain = new FakeCaptureGain();
     if (this.failAt === 'connect') {
@@ -518,6 +569,81 @@ function pcm16Samples(chunk: ArrayBuffer): number[] {
   return samples;
 }
 
+describe('voice audio gesture priming', () => {
+  beforeEach(() => {
+    vi.stubGlobal('window', {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('unlocks requested-rate contexts synchronously, replaces stale ones, and transfers ownership once', async () => {
+    const contexts: FakeCaptureContext[] = [];
+    const requestedRates: Array<number | undefined> = [];
+    vi.stubGlobal('AudioContext', function AudioContextStub(options?: AudioContextOptions) {
+      requestedRates.push(options?.sampleRate);
+      const context = new FakeCaptureContext('suspended', options?.sampleRate);
+      contexts.push(context);
+      return context;
+    });
+
+    const streamDeferred: {
+      resolve: ((stream: FakeCaptureStream) => void) | null;
+    } = { resolve: null };
+    const track = new FakeCaptureTrack();
+    const stream = new FakeCaptureStream([track]);
+    const getUserMedia = vi.fn(() => new Promise<FakeCaptureStream>(resolve => {
+      streamDeferred.resolve = resolve;
+    }));
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+    vi.stubGlobal('AudioWorkletNode', AudioWorkletNodeStub);
+
+    const {
+      disposePrimedVoiceAudio,
+      primeVoiceEnterAudio,
+    } = await import('@/lib/voiceAudioActivation');
+    const { createVoicePlayback, startVoiceCapture } = await import('@/lib/voiceAudio');
+
+    primeVoiceEnterAudio();
+    expect(requestedRates).toEqual([16_000, 24_000]);
+    expect(contexts[0]?.resumeCalls).toBe(1);
+    expect(contexts[1]?.resumeCalls).toBe(1);
+    expect(contexts[0]?.silentSources[0]?.startedAt).toBe(0);
+    expect(contexts[1]?.silentSources[0]?.startedAt).toBe(0);
+
+    primeVoiceEnterAudio();
+    expect(contexts[0]?.closeCalls).toBe(1);
+    expect(contexts[1]?.closeCalls).toBe(1);
+
+    const captureResult = startVoiceCapture(() => {});
+    const playback = createVoicePlayback();
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(contexts[2]?.resumeCalls).toBe(2);
+    expect(contexts[3]?.resumeCalls).toBe(1);
+    expect(contexts[2]?.closeCalls).toBe(0);
+    expect(contexts[3]?.closeCalls).toBe(0);
+    expect(contexts[3]?.muteGain).not.toBeNull();
+    expect(contexts[3]?.gainCreateCalls).toBe(1);
+
+    primeVoiceEnterAudio();
+    expect(contexts[2]?.closeCalls).toBe(0);
+    expect(contexts[3]?.closeCalls).toBe(0);
+
+    streamDeferred.resolve?.(stream);
+    const capture = await captureResult;
+    capture.stop();
+    playback.close();
+    expect(contexts[2]?.closeCalls).toBe(1);
+    expect(contexts[3]?.closeCalls).toBe(1);
+    expect(track.stopped).toBe(true);
+
+    disposePrimedVoiceAudio();
+    expect(contexts[4]?.closeCalls).toBe(1);
+    expect(contexts[5]?.closeCalls).toBe(1);
+  });
+});
+
 describe('voice capture graph', () => {
   let tracks: FakeCaptureTrack[];
   let stream: FakeCaptureStream;
@@ -543,21 +669,14 @@ describe('voice capture graph', () => {
     vi.unstubAllGlobals();
   });
 
-  it('cleans up stream tracks and the audio graph if context construction fails', async () => {
+  it('does not request microphone access if context construction fails', async () => {
     vi.stubGlobal('AudioContext', function AudioContextStub() {
       throw new Error('context failed');
     });
     const { startVoiceCapture } = await import('@/lib/voiceAudio');
     await expect(startVoiceCapture(() => {})).rejects.toThrow('context failed');
-    expect(getUserMedia).toHaveBeenCalledWith({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: false,
-        channelCount: 1,
-      },
-    });
-    expect(tracks[0]?.stopped).toBe(true);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(tracks[0]?.stopped).toBe(false);
   });
 
   it('cleans up stream, nodes, and context if graph wiring fails', async () => {
@@ -581,13 +700,71 @@ describe('voice capture graph', () => {
     expect(context.closed).toBe(true);
   });
 
+  it('cancels while microphone permission is pending and stops every late track', async () => {
+    const streamDeferred: {
+      resolve: ((value: FakeCaptureStream) => void) | null;
+    } = { resolve: null };
+    getUserMedia.mockReturnValue(new Promise<FakeCaptureStream>(resolve => {
+      streamDeferred.resolve = resolve;
+    }));
+    const {
+      cancelPendingVoiceCaptures,
+      startVoiceCapture,
+    } = await import('@/lib/voiceAudio');
+    const captureResult = startVoiceCapture(() => {});
+    const rejection = expect(captureResult).rejects.toThrow(/cancelled/i);
+
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    cancelPendingVoiceCaptures();
+    cancelPendingVoiceCaptures();
+    expect(context.closeCalls).toBe(1);
+    expect(context.source).toBeNull();
+    expect(context.audioWorklet.addModule).not.toHaveBeenCalled();
+
+    const lateTracks = [new FakeCaptureTrack(), new FakeCaptureTrack()];
+    streamDeferred.resolve?.(new FakeCaptureStream(lateTracks));
+    await rejection;
+    expect(lateTracks.every(track => track.stopped)).toBe(true);
+    expect(context.source).toBeNull();
+    expect(context.worklet).toBeNull();
+  });
+
+  it('does not wire a graph when cancelled while the worklet module is loading', async () => {
+    const moduleDeferred: { resolve: (() => void) | null } = { resolve: null };
+    context.audioWorklet.addModule.mockReturnValue(new Promise<void>(resolve => {
+      moduleDeferred.resolve = resolve;
+    }));
+    const {
+      cancelPendingVoiceCaptures,
+      startVoiceCapture,
+    } = await import('@/lib/voiceAudio');
+    const captureResult = startVoiceCapture(() => {});
+    const rejection = expect(captureResult).rejects.toThrow(/cancelled/i);
+    await vi.waitFor(() => {
+      expect(context.audioWorklet.addModule).toHaveBeenCalledOnce();
+    });
+
+    cancelPendingVoiceCaptures();
+    expect(context.closeCalls).toBe(1);
+    expect(tracks[0]?.stopped).toBe(true);
+    moduleDeferred.resolve?.();
+    await rejection;
+    expect(context.source).toBeNull();
+    expect(context.worklet).toBeNull();
+    expect(context.muteGain).toBeNull();
+  });
+
   it('makes stop idempotent and ignores worklet frames after stop', async () => {
-    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    const { cancelPendingVoiceCaptures, startVoiceCapture } = await import('@/lib/voiceAudio');
     const onFrame = vi.fn();
     const handle = await startVoiceCapture(onFrame);
     const worklet = context.worklet;
     const receive = worklet?.port.onmessage;
     expect(receive).toEqual(expect.any(Function));
+
+    cancelPendingVoiceCaptures();
+    expect(context.closeCalls).toBe(0);
+    expect(tracks[0]?.stopped).toBe(false);
 
     worklet?.port.emit(pcm16Le(320, 8_192));
     const framesBeforeStop = onFrame.mock.calls.length;

@@ -101,6 +101,7 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
     case 'open_shortcuts':
     case 'open_chat':
     case 'close_project':
+    case 'get_current_page_context':
     case 'start_voice_session':
       return {} as SiteToolArgsMap[Name];
     case 'browse_history': {

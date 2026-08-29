@@ -26,6 +26,7 @@ export function actionFromSiteTool(call: SiteToolCall): ActionExecution | null {
     case 'start_voice_session':
       return { voiceSessionAction: true };
     case 'lookup_site_facts':
+    case 'get_current_page_context':
     case 'end_voice_session':
     case 'close_project':
     case 'control_project_video':

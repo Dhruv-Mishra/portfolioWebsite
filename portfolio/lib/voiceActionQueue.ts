@@ -1,5 +1,6 @@
 export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'lookup_site_facts',
+  'get_current_page_context',
   'set_theme',
   'set_preference',
   'set_master_volume',

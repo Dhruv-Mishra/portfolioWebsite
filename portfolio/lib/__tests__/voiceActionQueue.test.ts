@@ -17,6 +17,7 @@ describe('voice action queue', () => {
   it('classifies immediate vs deferred site tools', () => {
     expect(IMMEDIATE_VOICE_TOOL_NAMES).toEqual([
       'lookup_site_facts',
+      'get_current_page_context',
       'set_theme',
       'set_preference',
       'set_master_volume',
@@ -46,6 +47,8 @@ describe('voice action queue', () => {
       'submit_feedback',
     ]);
     expect(isImmediateVoiceTool('lookup_site_facts')).toBe(true);
+    expect(isImmediateVoiceTool('get_current_page_context')).toBe(true);
+    expect(isDeferredVoiceTool('get_current_page_context')).toBe(false);
     expect(isDeferredVoiceTool('navigate_to')).toBe(true);
     expect(isDeferredVoiceTool('set_theme')).toBe(false);
     expect(isImmediateVoiceTool('end_voice_session')).toBe(false);

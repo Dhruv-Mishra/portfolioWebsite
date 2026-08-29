@@ -16,7 +16,14 @@ import {
   type VoiceActionQueue,
   type VoiceDependentHostId,
 } from '@/lib/voiceActionQueue';
-import { createVoicePlayback, startVoiceCapture, type VoicePlayback, type VoicePlaybackOptions } from '@/lib/voiceAudio';
+import {
+  cancelPendingVoiceCaptures,
+  createVoicePlayback,
+  startVoiceCapture,
+  type VoicePlayback,
+  type VoicePlaybackOptions,
+} from '@/lib/voiceAudio';
+import { disposePrimedVoiceAudio } from '@/lib/voiceAudioActivation';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
 import type {
@@ -833,6 +840,8 @@ function requireHostRuntime(): SiteToolRuntime {
 }
 
 function teardownMedia(reason: VoiceExitReason): void {
+  cancelPendingVoiceCaptures();
+  disposePrimedVoiceAudio();
   sendAudioLive = false;
   socketReady = false;
   greetTurnComplete = false;

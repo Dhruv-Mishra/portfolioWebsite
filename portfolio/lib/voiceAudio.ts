@@ -5,51 +5,89 @@ import {
   VOICE_AUDIO_FRAME_MS,
   VOICE_LOW_NETWORK_FRAME_MS,
 } from '@/lib/voiceAgentConfig';
+import {
+  createVoiceAudioContext,
+  takePrimedVoiceCaptureContext,
+  takePrimedVoicePlaybackContext,
+} from '@/lib/voiceAudioActivation';
 
 export interface VoiceCaptureHandle {
   stop: () => void;
+}
+
+const pendingVoiceCaptureCancels = new Set<() => void>();
+
+export function cancelPendingVoiceCaptures(): void {
+  for (const cancel of [...pendingVoiceCaptureCancels]) {
+    pendingVoiceCaptureCancels.delete(cancel);
+    cancel();
+  }
 }
 
 export async function startVoiceCapture(
   onFrame: (chunk: ArrayBuffer) => void,
   options: { lowNetwork?: boolean } = {},
 ): Promise<VoiceCaptureHandle> {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: false,
-      channelCount: 1,
-    },
-  });
-
   let context: AudioContext | null = null;
+  let stream: MediaStream | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
   let worklet: AudioWorkletNode | null = null;
   let muteGain: GainNode | null = null;
   let stopped = false;
+  let stoppedStream: MediaStream | null = null;
+
+  const stopStreamTracks = () => {
+    if (!stream || stream === stoppedStream) return;
+    stoppedStream = stream;
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch { /* already stopped */ }
+    }
+  };
 
   const stop = () => {
-    if (stopped) return;
+    if (stopped) {
+      stopStreamTracks();
+      return;
+    }
     stopped = true;
     if (worklet) worklet.port.onmessage = null;
     try { worklet?.port.close(); } catch { /* already closed */ }
     try { worklet?.disconnect(); } catch { /* already disconnected */ }
     try { muteGain?.disconnect(); } catch { /* already disconnected */ }
     try { source?.disconnect(); } catch { /* already disconnected */ }
-    for (const track of stream.getTracks()) {
-      try { track.stop(); } catch { /* already stopped */ }
-    }
+    stopStreamTracks();
     if (context && context.state !== 'closed') {
       void context.close().catch(() => {});
     }
   };
 
+  const throwIfStopped = () => {
+    if (!stopped) return;
+    stop();
+    throw new Error('Voice capture start cancelled');
+  };
+
   try {
-    context = new AudioContext();
-    if (context.state !== 'running') {
-      await context.resume();
-    }
+    context = takePrimedVoiceCaptureContext()
+      ?? createVoiceAudioContext(VOICE_AGENT_INPUT_RATE);
+    pendingVoiceCaptureCancels.add(stop);
+    const resume = context.resume().then(
+      () => ({ ok: true as const }),
+      error => ({ ok: false as const, error }),
+    );
+    const streamRequest = navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: false,
+        channelCount: 1,
+      },
+    });
+    stream = await streamRequest;
+    throwIfStopped();
+    const resumeResult = await resume;
+    if (!resumeResult.ok) throw resumeResult.error;
+    throwIfStopped();
     if (context.state !== 'running') {
       throw new Error('Voice capture audio context failed to run');
     }
@@ -57,6 +95,7 @@ export async function startVoiceCapture(
     const frameMs = options.lowNetwork ? VOICE_LOW_NETWORK_FRAME_MS : VOICE_AUDIO_FRAME_MS;
     const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (frameMs / 1000));
     await context.audioWorklet.addModule('/voice/voice-capture-processor.js');
+    throwIfStopped();
 
     source = context.createMediaStreamSource(stream);
     worklet = new AudioWorkletNode(context, 'voice-capture-processor', {
@@ -76,9 +115,11 @@ export async function startVoiceCapture(
     muteGain.connect(context.destination);
   } catch (error) {
     stop();
+    pendingVoiceCaptureCancels.delete(stop);
     throw error;
   }
 
+  pendingVoiceCaptureCancels.delete(stop);
   return { stop };
 }
 
@@ -178,7 +219,7 @@ export function subscribeVoicePlaybackLevel(cb: (level: number) => void): () => 
 }
 
 export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePlayback {
-  let context: AudioContext | null = null;
+  let context: AudioContext | null = takePrimedVoicePlaybackContext();
   let master: GainNode | null = null;
   let volumeUnsubscribe: (() => void) | null = null;
   let nextTime = 0;
@@ -217,13 +258,12 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     }
   }
 
-  function fadeMasterIn(): void {
+  function fadeMasterIn(startAt: number): void {
     if (!master || !context || fadedIn) return;
-    const now = context.currentTime;
     try {
-      master.gain.cancelScheduledValues(now);
-      master.gain.setValueAtTime(0, now);
-      master.gain.linearRampToValueAtTime(targetVolume, now + VOICE_PLAYBACK_FADE_IN_S);
+      master.gain.cancelScheduledValues(startAt);
+      master.gain.setValueAtTime(0, startAt);
+      master.gain.linearRampToValueAtTime(targetVolume, startAt + VOICE_PLAYBACK_FADE_IN_S);
     } catch {
       master.gain.value = targetVolume;
     }
@@ -243,19 +283,25 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     fadedIn = false;
   }
 
+  function initializeContext(audio: AudioContext): void {
+    nextTime = 0;
+    started = false;
+    if (typeof audio.createGain === 'function') {
+      master = audio.createGain();
+      targetVolume = getEffectiveMasterVolumeSync();
+      master.gain.value = 0;
+      master.connect(audio.destination);
+      volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
+    }
+  }
+
+  if (context) initializeContext(context);
+
   function ensure(): AudioContext | null {
     if (closed || resumeFailed) return null;
     if (!context) {
-      context = new AudioContext();
-      nextTime = 0;
-      started = false;
-      if (typeof context.createGain === 'function') {
-        master = context.createGain();
-        targetVolume = getEffectiveMasterVolumeSync();
-        master.gain.value = 0;
-        master.connect(context.destination);
-        volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
-      }
+      context = createVoiceAudioContext(VOICE_AGENT_OUTPUT_RATE);
+      initializeContext(context);
     }
     return context;
   }
@@ -413,7 +459,7 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     } else {
       startAt = nextTime;
     }
-    fadeMasterIn();
+    fadeMasterIn(startAt);
     source.start(startAt);
     nextTime = startAt + buffer.duration;
     hangoverUntil = Math.max(

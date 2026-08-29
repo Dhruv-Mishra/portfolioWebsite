@@ -349,10 +349,6 @@ export async function executeSiteTool(
         setVoiceAgentPref('lowNetwork', parsed.args.enabled);
         return ok(parsed.args.enabled ? 'Low-network voice mode is on.' : 'Low-network voice mode is off.');
       }
-      if (parsed.args.key === 'voice-ambient-music') {
-        setVoiceAgentPref('ambientMusic', parsed.args.enabled);
-        return ok(parsed.args.enabled ? 'Ambient music is on.' : 'Ambient music is off.');
-      }
       const mapped = PREF_KEY_MAP[parsed.args.key];
       if (!mapped) return fail('That preference is not available.', 'unknown-pref');
       setSitePref(mapped, parsed.args.enabled);

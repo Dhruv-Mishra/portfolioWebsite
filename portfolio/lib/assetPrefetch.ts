@@ -35,6 +35,11 @@
 let scheduled = false;
 let voiceScheduled = false;
 
+const VOICE_VISUAL_URLS = [
+  '/voice/ai-ripple.gif',
+  '/voice/ai-ripple-still.webp',
+] as const;
+
 /**
  * Network Information API surface. Not universally available (Safari lacks
  * it entirely). The browser types aren't formally declared in our TS config,
@@ -139,9 +144,8 @@ export function scheduleSuperuserPrefetch(): void {
 }
 
 /**
- * Warm the voice HUD GIF, still frame, enter, exit, ambient, and action cues.
- * Call this on voice enter or another explicit warm path — not idle first
- * paint. The latch makes repeat calls a no-op.
+ * Warm the voice HUD GIF and still frame on voice enter or another explicit
+ * warm path — not idle first paint. The latch makes repeat calls a no-op.
  */
 export function scheduleVoiceAssetPrefetch(): void {
   if (typeof window === 'undefined') return;
@@ -150,14 +154,11 @@ export function scheduleVoiceAssetPrefetch(): void {
   voiceScheduled = true;
 
   scheduleIdle(() => {
-    void import('@/lib/voiceSounds')
-      .then(({ prefetchVoiceSounds, prefetchVoiceVisuals }) => {
-        prefetchVoiceSounds();
-        prefetchVoiceVisuals();
-      })
-      .catch(() => {
-        /* best-effort — bootSession also prefetches on enter */
-      });
+    if (typeof Image === 'undefined') return;
+    for (const src of VOICE_VISUAL_URLS) {
+      const image = new Image();
+      image.src = src;
+    }
   }, 1800);
 }
 

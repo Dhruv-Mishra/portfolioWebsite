@@ -72,18 +72,14 @@ export default function VoiceStage() {
     ? ''
     : (snapshot.agentLine || snapshot.userLine).trim();
   const retryable = snapshot.recovery === 'retryable';
-  const reconnecting = snapshot.recovery === 'reconnecting';
   const caption = exiting
     ? (snapshot.exitLine || snapshot.status)
-    : reconnecting
-      ? snapshot.status
-      : (spoken || snapshot.status);
+    : (spoken || snapshot.status);
   const welcomeHint = snapshot.welcomeHint;
   const exitStartedWithVisibleVeil = exiting && !snapshot.introComplete;
   const showEnableMic = Boolean(
     !snapshot.micLive
     && !retryable
-    && !reconnecting
     && snapshot.error
     && /microphone|voice input/i.test(snapshot.error),
   );
@@ -191,7 +187,6 @@ export default function VoiceStage() {
       onClick={() => {
         void retryVoiceSession();
       }}
-      disabled={reconnecting}
       className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 font-hand text-sm text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 disabled:cursor-not-allowed disabled:opacity-50"
       aria-label="Try again"
       title="Try again"

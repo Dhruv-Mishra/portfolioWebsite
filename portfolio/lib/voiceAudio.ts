@@ -10,49 +10,6 @@ export interface VoiceCaptureHandle {
   stop: () => void;
 }
 
-function createLinearResampler(inputRate: number, outputRate: number) {
-  const step = inputRate / outputRate;
-  let position = 0;
-  let prevSample = 0;
-
-  return {
-    push(input: Float32Array): Float32Array {
-      if (input.length === 0) return input;
-      if (step === 1 && position === 0) {
-        prevSample = input[input.length - 1] ?? 0;
-        return input;
-      }
-
-      let count = 0;
-      for (let cursor = position; Math.floor(cursor) + 1 < input.length; cursor += step) {
-        count += 1;
-      }
-      const output = new Float32Array(count);
-      for (let written = 0; written < count; written += 1) {
-        const index = Math.floor(position);
-        const nextIndex = index + 1;
-        const s0 = index < 0 ? prevSample : (input[index] ?? 0);
-        const s1 = input[nextIndex] ?? 0;
-        output[written] = s0 + (s1 - s0) * (position - index);
-        position += step;
-      }
-
-      prevSample = input[input.length - 1] ?? prevSample;
-      position -= input.length;
-      return output;
-    },
-  };
-}
-
-function floatToPcm16(buffer: Float32Array): ArrayBuffer {
-  const view = new DataView(new ArrayBuffer(buffer.length * 2));
-  for (let index = 0; index < buffer.length; index += 1) {
-    const sample = Math.max(-1, Math.min(1, buffer[index] ?? 0));
-    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-  }
-  return view.buffer;
-}
-
 export async function startVoiceCapture(
   onFrame: (chunk: ArrayBuffer) => void,
   options: { lowNetwork?: boolean } = {},
@@ -68,15 +25,16 @@ export async function startVoiceCapture(
 
   let context: AudioContext | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
-  let processor: ScriptProcessorNode | null = null;
+  let worklet: AudioWorkletNode | null = null;
   let muteGain: GainNode | null = null;
   let stopped = false;
 
   const stop = () => {
     if (stopped) return;
     stopped = true;
-    if (processor) processor.onaudioprocess = null;
-    try { processor?.disconnect(); } catch { /* already disconnected */ }
+    if (worklet) worklet.port.onmessage = null;
+    try { worklet?.port.close(); } catch { /* already closed */ }
+    try { worklet?.disconnect(); } catch { /* already disconnected */ }
     try { muteGain?.disconnect(); } catch { /* already disconnected */ }
     try { source?.disconnect(); } catch { /* already disconnected */ }
     for (const track of stream.getTracks()) {
@@ -96,33 +54,25 @@ export async function startVoiceCapture(
       throw new Error('Voice capture audio context failed to run');
     }
 
-    source = context.createMediaStreamSource(stream);
-    processor = context.createScriptProcessor(2048, 1, 1);
-    muteGain = context.createGain();
-    muteGain.gain.value = 0;
-
     const frameMs = options.lowNetwork ? VOICE_LOW_NETWORK_FRAME_MS : VOICE_AUDIO_FRAME_MS;
     const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (frameMs / 1000));
-    const resampler = createLinearResampler(context.sampleRate, VOICE_AGENT_INPUT_RATE);
-    let pending = new Float32Array(0);
+    await context.audioWorklet.addModule('/voice/voice-capture-processor.js');
 
-    processor.onaudioprocess = event => {
-      if (stopped) return;
-      const input = event.inputBuffer.getChannelData(0);
-      const resampled = resampler.push(input);
-      const merged = new Float32Array(pending.length + resampled.length);
-      merged.set(pending, 0);
-      merged.set(resampled, pending.length);
-      let offset = 0;
-      while (offset + frameSamples <= merged.length) {
-        onFrame(floatToPcm16(merged.subarray(offset, offset + frameSamples)));
-        offset += frameSamples;
-      }
-      pending = new Float32Array(merged.subarray(offset));
+    source = context.createMediaStreamSource(stream);
+    worklet = new AudioWorkletNode(context, 'voice-capture-processor', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      processorOptions: { frameSamples },
+    });
+    muteGain = context.createGain();
+    muteGain.gain.value = 0;
+    worklet.port.onmessage = event => {
+      if (!stopped && event.data instanceof ArrayBuffer) onFrame(event.data);
     };
 
-    source.connect(processor);
-    processor.connect(muteGain);
+    source.connect(worklet);
+    worklet.connect(muteGain);
     muteGain.connect(context.destination);
   } catch (error) {
     stop();
@@ -152,7 +102,6 @@ export interface VoicePlaybackOptions {
 export const VOICE_PLAYBACK_HANGOVER_MS = 320;
 export const VOICE_PLAYBACK_PREBUFFER_MS = 72;
 export const VOICE_PLAYBACK_SCHEDULE_LEAD_S = 0.02;
-export const VOICE_PLAYBACK_MAX_QUEUE_S = 2;
 export const VOICE_PLAYBACK_FADE_IN_S = 0.006;
 export const VOICE_PLAYBACK_FADE_OUT_S = 0.008;
 export const VOICE_PLAYBACK_UNDERRUN_SLACK_S = 0.005;
@@ -320,11 +269,6 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     return Math.max(0, hangoverUntil - Date.now());
   }
 
-  function queuedFutureSeconds(): number {
-    if (!context || !started) return pendingSamples / VOICE_AGENT_OUTPUT_RATE;
-    return Math.max(0, nextTime - context.currentTime) + pendingSamples / VOICE_AGENT_OUTPUT_RATE;
-  }
-
   function isBusy(): boolean {
     if (closed || resumeFailed) return false;
     if (pendingSamples > 0) return true;
@@ -439,54 +383,19 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     return merged;
   }
 
-  function dropOldestPending(neededSamples: number): void {
-    let remaining = neededSamples;
-    while (remaining > 0 && pending.length > 0) {
-      const head = pending[0];
-      if (!head) break;
-      if (head.length <= remaining) {
-        pending.shift();
-        pendingSamples -= head.length;
-        remaining -= head.length;
-        continue;
-      }
-      pending[0] = head.subarray(remaining);
-      pendingSamples -= remaining;
-      remaining = 0;
-    }
-  }
-
   function canOutput(audio: AudioContext): boolean {
     return audio.state !== 'suspended' && audio.state !== 'closed';
   }
 
-  function enqueueSamples(samples: Float32Array): boolean {
+  function enqueueSamples(samples: Float32Array): void {
     pending.push(samples);
     pendingSamples += samples.length;
-    const future = queuedFutureSeconds();
-    if (future <= VOICE_PLAYBACK_MAX_QUEUE_S) return false;
-    const overflowSamples = Math.ceil((future - VOICE_PLAYBACK_MAX_QUEUE_S) * VOICE_AGENT_OUTPUT_RATE);
-    if (pendingSamples > overflowSamples) {
-      dropOldestPending(overflowSamples);
-      return false;
-    }
-    pending = [samples];
-    pendingSamples = samples.length;
-    fadeMasterOut();
-    stopSources();
-    started = false;
-    nextTime = context?.currentTime ?? 0;
-    return true;
   }
 
   function scheduleSource(audio: AudioContext, samples: Float32Array): void {
     if (closed || samples.length === 0) return;
-    const maxSamples = Math.round(VOICE_PLAYBACK_MAX_QUEUE_S * VOICE_AGENT_OUTPUT_RATE);
-    const clipped = samples.length > maxSamples
-      ? samples.subarray(samples.length - maxSamples)
-      : samples;
-    const buffer = audio.createBuffer(1, clipped.length, VOICE_AGENT_OUTPUT_RATE);
-    buffer.getChannelData(0).set(clipped);
+    const buffer = audio.createBuffer(1, samples.length, VOICE_AGENT_OUTPUT_RATE);
+    buffer.getChannelData(0).set(samples);
     const source = audio.createBufferSource();
     source.buffer = buffer;
     source.connect(master ?? audio.destination);
@@ -547,7 +456,7 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
           noteResumeFailure();
           return;
         }
-        flushPending(false);
+        flushPending(true);
       },
       () => {
         resuming = false;
@@ -565,8 +474,8 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     requestResume(audio);
     clearDecay();
     emitLevel(level + (measurePcmLevel(decoded.samples) - level) * PLAYBACK_LEVEL_EMA, true);
-    const resync = enqueueSamples(decoded.samples);
-    flushPending(resync);
+    enqueueSamples(decoded.samples);
+    flushPending(false);
     if (pendingSamples > 0) {
       armPrebufferFlush();
       hangoverUntil = Math.max(hangoverUntil, Date.now() + VOICE_PLAYBACK_HANGOVER_MS);
@@ -602,8 +511,7 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     }
     hangoverUntil = Date.now() + VOICE_PLAYBACK_HANGOVER_MS;
     fadeMasterOut();
-    const stopAt = context ? context.currentTime + VOICE_PLAYBACK_FADE_OUT_S : undefined;
-    stopSources(stopAt);
+    stopSources();
     started = false;
     nextTime = context?.currentTime ?? 0;
     beginDecay();

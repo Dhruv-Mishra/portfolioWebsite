@@ -4,14 +4,12 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 export interface VoiceAgentPrefs {
   lowNetwork: boolean;
-  ambientMusic: boolean;
 }
 
 const STORAGE_KEY = 'voice-agent-pref';
 const EVENT_NAME = 'voice-agent-pref:change';
 const DEFAULT_PREFS: VoiceAgentPrefs = {
   lowNetwork: false,
-  ambientMusic: true,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -25,7 +23,6 @@ export function parseVoiceAgentPrefs(raw: string | null): VoiceAgentPrefs {
     if (!isRecord(parsed)) return { ...DEFAULT_PREFS };
     return {
       lowNetwork: parsed.lowNetwork === true,
-      ambientMusic: parsed.ambientMusic !== false,
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -33,7 +30,7 @@ export function parseVoiceAgentPrefs(raw: string | null): VoiceAgentPrefs {
 }
 
 function prefsEqual(a: VoiceAgentPrefs, b: VoiceAgentPrefs): boolean {
-  return a.lowNetwork === b.lowNetwork && a.ambientMusic === b.ambientMusic;
+  return a.lowNetwork === b.lowNetwork;
 }
 
 function readFromStorage(): VoiceAgentPrefs {

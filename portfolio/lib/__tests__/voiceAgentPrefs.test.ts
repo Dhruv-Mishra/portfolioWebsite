@@ -19,6 +19,5 @@ describe('voiceAgentPrefs snapshot identity', () => {
     const after = getVoiceAgentPrefsSnapshot();
     expect(Object.is(before, after)).toBe(false);
     expect(after.lowNetwork).toBe(nextLowNetwork);
-    expect(after.ambientMusic).toBe(before.ambientMusic);
   });
 });

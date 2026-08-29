@@ -12,7 +12,6 @@ import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import {
   buildVoiceSessionStartCue,
   DEFAULT_VOICE_SETUP,
-  parseVoiceResumeHandle,
   VOICE_LIVE_REALTIME_INPUT_CONFIG,
   type VoiceCaller,
   type VoiceCallerEventMap,
@@ -61,11 +60,6 @@ function isOpen(socket: WebSocket | null): socket is WebSocket {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
 function hasProviderError(payload: Record<string, unknown>): boolean {
   return 'error' in payload && payload.error != null;
 }
@@ -82,7 +76,6 @@ export class GeminiLiveCaller implements VoiceCaller {
   private pendingTexts: string[] = [];
   private toolNames = new Map<string, string>();
   private listeners = createListenerMap();
-  private resumeHandle: string | null = null;
   private healthEmitted = false;
   private openTimer: ReturnType<typeof setTimeout> | null = null;
   private setupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -140,7 +133,6 @@ export class GeminiLiveCaller implements VoiceCaller {
     this.ready = false;
     this.closed = false;
     this.healthEmitted = false;
-    this.resumeHandle = parseVoiceResumeHandle(session.setup.resumeHandle ?? session.resumeHandle) ?? null;
     this.sessionStartCue = session.setup.greetOnConnect
       ? buildVoiceSessionStartCue({
           welcomeGreeting: session.setup.welcomeGreeting || DEFAULT_VOICE_SETUP.welcomeGreeting,
@@ -189,7 +181,6 @@ export class GeminiLiveCaller implements VoiceCaller {
             fail(SAFE_CONNECTION_TIMEOUT);
           }, SETUP_TIMEOUT_MS);
 
-          const resumeHandle = parseVoiceResumeHandle(session.setup.resumeHandle ?? session.resumeHandle);
           socket.send(JSON.stringify({
             setup: {
               model: `models/${VOICE_AGENT_MODEL_ID}`,
@@ -208,7 +199,6 @@ export class GeminiLiveCaller implements VoiceCaller {
                 parts: [{ text: buildVoiceSystemInstruction(session.setup.clientState) }],
               },
               tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
-              sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
               contextWindowCompression: { slidingWindow: {} },
               realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
               inputAudioTranscription: session.setup.lowNetwork ? undefined : {},
@@ -301,10 +291,6 @@ export class GeminiLiveCaller implements VoiceCaller {
     }));
   }
 
-  getResumeHandle(): string | null {
-    return this.resumeHandle;
-  }
-
   private flushPendingTexts(): void {
     if (this.pendingTexts.length === 0) return;
     const queued = this.pendingTexts;
@@ -347,18 +333,6 @@ export class GeminiLiveCaller implements VoiceCaller {
     }));
   }
 
-  private applySessionResumptionUpdate(payload: Record<string, unknown>): void {
-    const update = asRecord(payload.sessionResumptionUpdate);
-    if (!update) return;
-    if (update.resumable !== true) {
-      this.resumeHandle = null;
-      return;
-    }
-    const handle = parseVoiceResumeHandle(update.newHandle);
-    if (!handle) return;
-    this.resumeHandle = handle;
-  }
-
   private async handleMessage(
     raw: unknown,
     context?: {
@@ -386,8 +360,6 @@ export class GeminiLiveCaller implements VoiceCaller {
       context?.onError?.();
       return;
     }
-
-    this.applySessionResumptionUpdate(payload);
 
     if (payload.setupComplete) {
       this.ready = true;

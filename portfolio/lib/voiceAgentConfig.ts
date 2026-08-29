@@ -12,12 +12,7 @@ export const VOICE_LOW_NETWORK_FRAME_MS = 60;
 export const VOICE_LIVE_WS_PATH =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 
-export const VOICE_AUTH_TOKEN_URLS = [
-  'https://generativelanguage.googleapis.com/v1beta/auth_tokens',
-  'https://generativelanguage.googleapis.com/v1alpha/auth_tokens',
-  'https://generativelanguage.googleapis.com/v1beta/authTokens',
-  'https://generativelanguage.googleapis.com/v1alpha/authTokens',
-] as const;
+export const VOICE_AUTH_TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens';
 
 export function resolveVoiceAgentApiKey(): string | null {
   const staged = process.env.STAGING_VOICE_AGENT_API_KEY?.trim();

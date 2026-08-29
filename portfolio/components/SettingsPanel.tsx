@@ -531,14 +531,9 @@ export default function SettingsPanel() {
         <SettingsGroup title="Voice Agent" icon={AudioLines}>
           <SettingToggle
             label="Low-network mode"
-            detail="Smaller audio frames. Disables live transcripts and ambient music. Gemini Live is PCM-only."
+            detail="Smaller audio frames. Disables live transcripts. Gemini Live is PCM-only."
             checked={voiceAgentPrefs.lowNetwork}
             onChange={(checked) => setVoiceAgentPref('lowNetwork', checked)}
-          />
-          <SettingToggle
-            label="Ambient music"
-            checked={voiceAgentPrefs.ambientMusic}
-            onChange={(checked) => setVoiceAgentPref('ambientMusic', checked)}
           />
           <button
             type="button"

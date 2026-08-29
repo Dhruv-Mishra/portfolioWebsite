@@ -8,6 +8,7 @@ export type VoiceCueId = 'voice-enter' | 'voice-exit' | 'voice-action';
 export type VoiceSoundId = VoiceCueId | 'voice-ambient';
 
 type AmbientPhase = 'idle' | 'primed' | 'in' | 'playing' | 'out';
+type EnterPrimeState = 'idle' | 'pending' | 'played';
 
 // Enter/exit: Mixkit "Software interface start" (2574) + "Software interface back" (2575), Mixkit SFX Free License. https://mixkit.co/free-sound-effects/interface/ https://mixkit.co/license/#sfxFree
 const VOICE_SOUND_URLS: Record<VoiceSoundId, string> = {
@@ -43,7 +44,14 @@ let toggleFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let toggleFadeFrame = 0;
 let toggleFadeToken = 0;
 let togglePlayUntil = 0;
-let enterCuePrimed = false;
+let enterPrimeState: EnterPrimeState = 'idle';
+let enterPrimeFallbackQueued = false;
+let voicePcmActive = false;
+const cuePlayTokens: Record<VoiceCueId, number> = {
+  'voice-enter': 0,
+  'voice-exit': 0,
+  'voice-action': 0,
+};
 
 function clampMediaVolume(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -58,6 +66,20 @@ let volumeUnsubscribe: (() => void) | null = null;
 
 function relativeToggleVolume(id: VoiceCueId): number {
   return id === 'voice-action' ? ACTION_VOLUME : TOGGLE_VOLUME;
+}
+
+function ambientPlaybackVolume(): number {
+  if (voicePcmActive || getSoundsMutedSync()) return clampMediaVolume(0);
+  return scaledMediaVolume(ambientTargetVolume());
+}
+
+function nextCueToken(id: VoiceCueId): number {
+  cuePlayTokens[id] += 1;
+  return cuePlayTokens[id];
+}
+
+function isCurrentCue(id: VoiceCueId, token: number): boolean {
+  return cuePlayTokens[id] === token;
 }
 
 function applyVoiceMasterVolume(): void {
@@ -76,7 +98,7 @@ function applyVoiceMasterVolume(): void {
   if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
   const ambient = cache.get('voice-ambient');
   if (!ambient) return;
-  ambient.volume = scaledMediaVolume(ambientTargetVolume());
+  ambient.volume = ambientPlaybackVolume();
 }
 
 function bindVoiceMasterVolume(): void {
@@ -90,7 +112,7 @@ function getAudio(id: VoiceSoundId): HTMLAudioElement {
   const existing = cache.get(id);
   if (existing) return existing;
   const audio = new Audio(VOICE_SOUND_URLS[id]);
-  audio.preload = 'none';
+  audio.preload = 'auto';
   audio.loop = id === 'voice-ambient';
   if (id === 'voice-ambient') audio.volume = clampMediaVolume(0);
   cache.set(id, audio);
@@ -269,40 +291,140 @@ export function unlockVoiceAudio(): void {
   }
 }
 
-export function playVoiceSound(id: VoiceCueId): void {
-  bindVoiceMasterVolume();
-  if (getSoundsMutedSync()) return;
-  const audio = getAudio(id);
+function haltCue(id: 'voice-enter' | 'voice-action', fadeMs: number): void {
+  nextCueToken(id);
+  const audio = cache.get(id);
   if (id === 'voice-enter') {
     cancelToggleCue();
-    audio.volume = scaledMediaVolume(TOGGLE_VOLUME);
-    audio.currentTime = 0;
-    togglePlayUntil = Date.now() + TOGGLE_PLAY_MS;
-    void audio.play().catch(() => {
-      cache.delete(id);
-    });
+    togglePlayUntil = 0;
+    if (enterPrimeState === 'pending') {
+      enterPrimeState = 'idle';
+      enterPrimeFallbackQueued = false;
+    }
+  }
+  if (!audio) return;
+  if (id === 'voice-enter') {
+    stopToggleElement(audio, fadeMs);
+    return;
+  }
+  audio.pause();
+  audio.volume = clampMediaVolume(0);
+}
+
+function settleEnterPrimeSuccess(): void {
+  if (enterPrimeState !== 'pending') return;
+  enterPrimeFallbackQueued = false;
+  enterPrimeState = 'played';
+}
+
+function settleEnterPrimeFailure(audio: HTMLAudioElement): void {
+  if (enterPrimeState !== 'pending') return;
+  enterPrimeState = 'idle';
+  const shouldRetry = enterPrimeFallbackQueued;
+  enterPrimeFallbackQueued = false;
+  audio.pause();
+  audio.volume = clampMediaVolume(0);
+  cache.delete('voice-enter');
+  if (shouldRetry) playVoiceSound('voice-enter');
+}
+
+function playEnterCue(prime: boolean): void {
+  if (getSoundsMutedSync() || voicePcmActive) return;
+
+  cancelToggleCue();
+  const audio = getAudio('voice-enter');
+  audio.volume = scaledMediaVolume(TOGGLE_VOLUME);
+  audio.currentTime = 0;
+  togglePlayUntil = Date.now() + TOGGLE_PLAY_MS;
+  const token = nextCueToken('voice-enter');
+  if (prime) {
+    enterPrimeState = 'pending';
+    enterPrimeFallbackQueued = false;
+  }
+
+  const onStarted = () => {
+    if (!isCurrentCue('voice-enter', token)) return;
+    if (voicePcmActive || getSoundsMutedSync()) {
+      if (prime) settleEnterPrimeFailure(audio);
+      haltCue('voice-enter', 0);
+      return;
+    }
+    if (prime) settleEnterPrimeSuccess();
     toggleFadeTimer = setTimeout(() => {
+      if (!isCurrentCue('voice-enter', token)) return;
       toggleFadeTimer = null;
       stopToggleElement(audio, TOGGLE_FADE_OUT_MS);
     }, TOGGLE_PLAY_MS);
-    return;
+  };
+
+  const onFailed = () => {
+    if (!isCurrentCue('voice-enter', token)) return;
+    cancelToggleCue();
+    togglePlayUntil = 0;
+    if (prime) {
+      settleEnterPrimeFailure(audio);
+      return;
+    }
+    audio.pause();
+    audio.volume = clampMediaVolume(0);
+    cache.delete('voice-enter');
+  };
+
+  try {
+    const playResult = audio.play();
+    if (playResult && typeof playResult.then === 'function') {
+      void playResult.then(onStarted).catch(onFailed);
+      return;
+    }
+    onStarted();
+  } catch {
+    onFailed();
   }
+}
+
+function playSimpleCue(id: Exclude<VoiceCueId, 'voice-enter'>): void {
+  const audio = getAudio(id);
   audio.volume = scaledMediaVolume(relativeToggleVolume(id));
   audio.currentTime = 0;
-  void audio.play().catch(() => {
+  const token = nextCueToken(id);
+  const onFailed = () => {
+    if (!isCurrentCue(id, token)) return;
     cache.delete(id);
-  });
+  };
+  try {
+    const playResult = audio.play();
+    if (playResult && typeof playResult.then === 'function') {
+      void playResult.catch(onFailed);
+    }
+  } catch {
+    onFailed();
+  }
+}
+
+export function playVoiceSound(id: VoiceCueId): void {
+  bindVoiceMasterVolume();
+  if (getSoundsMutedSync()) return;
+  if (voicePcmActive && id !== 'voice-exit') return;
+  if (id === 'voice-enter') {
+    playEnterCue(false);
+    return;
+  }
+  playSimpleCue(id);
 }
 
 export function primeVoiceEnterAudio(): void {
   unlockVoiceAudio();
-  playVoiceSound('voice-enter');
-  enterCuePrimed = true;
+  bindVoiceMasterVolume();
+  playEnterCue(true);
 }
 
 export function playVoiceEnterFallback(): void {
-  if (enterCuePrimed) {
-    enterCuePrimed = false;
+  if (enterPrimeState === 'played') {
+    enterPrimeState = 'idle';
+    return;
+  }
+  if (enterPrimeState === 'pending') {
+    enterPrimeFallbackQueued = true;
     return;
   }
   unlockVoiceAudio();
@@ -311,11 +433,7 @@ export function playVoiceEnterFallback(): void {
 
 export function stopVoiceToggleCue(options: { force?: boolean } = {}): void {
   if (!options.force && Date.now() < togglePlayUntil) return;
-  const audio = cache.get('voice-enter');
-  cancelToggleCue();
-  togglePlayUntil = 0;
-  if (!audio) return;
-  stopToggleElement(audio, 0);
+  haltCue('voice-enter', 0);
 }
 
 export function forceStopVoiceToggleCue(): void {
@@ -325,18 +443,45 @@ export function forceStopVoiceToggleCue(): void {
 export function setVoiceAmbientDucked(ducked: boolean): void {
   if (ambientDucked === ducked) return;
   ambientDucked = ducked;
-  if (getSoundsMutedSync()) return;
+  if (getSoundsMutedSync() || voicePcmActive) return;
   if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
   const audio = cache.get('voice-ambient');
   if (!audio) return;
-  const target = scaledMediaVolume(ambientTargetVolume());
+  const target = ambientPlaybackVolume();
   if (Math.abs(audio.volume - target) < 0.005) {
     audio.volume = target;
     return;
   }
   fadeAmbientVolume(audio, audio.volume, target, AMBIENT_DUCK_FADE_MS, () => {
     if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
-    audio.volume = scaledMediaVolume(ambientTargetVolume());
+    audio.volume = ambientPlaybackVolume();
+  });
+}
+
+export function setVoicePcmActive(active: boolean): void {
+  voicePcmActive = active;
+  if (active) {
+    haltCue('voice-enter', 0);
+    haltCue('voice-action', 0);
+    if (ambientPhase === 'in' || ambientPhase === 'playing') {
+      const ambient = cache.get('voice-ambient');
+      if (ambient) {
+        fadeAmbientVolume(ambient, ambient.volume, 0, AMBIENT_DUCK_FADE_MS, () => {
+          if (!voicePcmActive) return;
+          ambient.volume = clampMediaVolume(0);
+        });
+      }
+    }
+    return;
+  }
+  if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
+  const ambient = cache.get('voice-ambient');
+  if (!ambient) return;
+  const target = ambientPlaybackVolume();
+  fadeAmbientVolume(ambient, ambient.volume, target, AMBIENT_DUCK_FADE_MS, () => {
+    if (voicePcmActive) return;
+    if (ambientPhase !== 'in' && ambientPhase !== 'playing') return;
+    ambient.volume = ambientPlaybackVolume();
   });
 }
 
@@ -350,10 +495,10 @@ export function startVoiceAmbient(enabled: boolean): void {
 
   if (ambientPhase === 'primed' && isAmbientPlaying(audio)) {
     ambientPhase = 'in';
-    fadeAmbientVolume(audio, audio.volume || 0, scaledMediaVolume(ambientTargetVolume()), AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, audio.volume || 0, ambientPlaybackVolume(), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = scaledMediaVolume(ambientTargetVolume());
+      audio.volume = ambientPlaybackVolume();
     });
     return;
   }
@@ -363,10 +508,10 @@ export function startVoiceAmbient(enabled: boolean): void {
   const playResult = audio.play();
   const beginFade = () => {
     if (ambientPhase !== 'in') return;
-    fadeAmbientVolume(audio, 0, scaledMediaVolume(ambientTargetVolume()), AMBIENT_FADE_IN_MS, () => {
+    fadeAmbientVolume(audio, 0, ambientPlaybackVolume(), AMBIENT_FADE_IN_MS, () => {
       if (ambientPhase !== 'in') return;
       ambientPhase = 'playing';
-      audio.volume = scaledMediaVolume(ambientTargetVolume());
+      audio.volume = ambientPlaybackVolume();
     });
   };
   if (playResult && typeof playResult.then === 'function') {
@@ -410,7 +555,12 @@ export function __resetVoiceSoundsForTest(): void {
   ambientPhase = 'idle';
   ambientDucked = false;
   togglePlayUntil = 0;
-  enterCuePrimed = false;
+  enterPrimeState = 'idle';
+  enterPrimeFallbackQueued = false;
+  voicePcmActive = false;
+  cuePlayTokens['voice-enter'] = 0;
+  cuePlayTokens['voice-exit'] = 0;
+  cuePlayTokens['voice-action'] = 0;
   for (const audio of cache.values()) {
     audio.pause();
     audio.currentTime = 0;

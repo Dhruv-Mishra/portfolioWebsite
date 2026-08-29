@@ -17,7 +17,7 @@ dev/lkg -> deployed/staging -> deployed/production
 
 The staging and production workflows:
 
-1. Require the expected branch and validate required runtime signing configuration plus the local-agent credential.
+1. Require the expected branch and validate required runtime signing configuration, the local-agent credential, and the environment-specific voice-agent credential.
 2. Run `npm ci`, lint, TypeScript checks, and Vitest from `portfolio/`.
 3. Build and push one GHCR Docker image for `linux/amd64` and `linux/arm64`.
 4. Deploy the immutable image digest to Linux VMs behind Cloudflare and Nginx.

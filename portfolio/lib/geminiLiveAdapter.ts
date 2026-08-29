@@ -12,6 +12,7 @@ import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import {
   buildVoiceSessionStartCue,
   DEFAULT_VOICE_SETUP,
+  parseVoiceResumeHandle,
   VOICE_LIVE_REALTIME_INPUT_CONFIG,
   type VoiceCaller,
   type VoiceCallerEventMap,
@@ -19,6 +20,13 @@ import {
   type VoiceExitReason,
   type VoiceSessionHandle,
 } from '@/lib/voiceAgentProtocol';
+
+const OPEN_TIMEOUT_MS = 12_000;
+const SETUP_TIMEOUT_MS = 8_000;
+const PENDING_TEXT_MAX = 32;
+const AUDIO_BACKPRESSURE_BYTES = 256 * 1024;
+const SAFE_CONNECTION_ERROR = 'Voice connection failed.';
+const SAFE_CONNECTION_TIMEOUT = 'Voice connection timed out.';
 
 type ListenerMap = {
   [K in keyof VoiceCallerEventMap]: Set<VoiceCallerListener<K>>;
@@ -32,6 +40,7 @@ function createListenerMap(): ListenerMap {
     audio: new Set(),
     interrupted: new Set(),
     toolCall: new Set(),
+    toolCancellation: new Set(),
     turnComplete: new Set(),
     health: new Set(),
     error: new Set(),
@@ -52,18 +61,31 @@ function isOpen(socket: WebSocket | null): socket is WebSocket {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function hasProviderError(payload: Record<string, unknown>): boolean {
+  return 'error' in payload && payload.error != null;
+}
+
 export class GeminiLiveCaller implements VoiceCaller {
   readonly id = 'gemini-live';
 
   private socket: WebSocket | null = null;
+  private generation = 0;
   private closed = false;
   private ready = false;
   private greetSent = false;
   private sessionStartCue = '';
-  private ignoreAudioUntilTurnComplete = false;
   private pendingTexts: string[] = [];
   private toolNames = new Map<string, string>();
   private listeners = createListenerMap();
+  private resumeHandle: string | null = null;
+  private healthEmitted = false;
+  private openTimer: ReturnType<typeof setTimeout> | null = null;
+  private setupTimer: ReturnType<typeof setTimeout> | null = null;
 
   on<K extends keyof VoiceCallerEventMap>(event: K, listener: VoiceCallerListener<K>): () => void {
     this.listeners[event].add(listener);
@@ -78,10 +100,32 @@ export class GeminiLiveCaller implements VoiceCaller {
     }
   }
 
+  private emitHealthOnce(reason: string): void {
+    if (this.healthEmitted) return;
+    this.healthEmitted = true;
+    this.emit('health', { ok: false, configured: true, reason });
+  }
+
+  private isCurrent(socket: WebSocket, epoch: number): boolean {
+    return this.socket === socket && this.generation === epoch;
+  }
+
+  private clearTimers(): void {
+    if (this.openTimer !== null) {
+      clearTimeout(this.openTimer);
+      this.openTimer = null;
+    }
+    if (this.setupTimer !== null) {
+      clearTimeout(this.setupTimer);
+      this.setupTimer = null;
+    }
+  }
+
   private closeSocket(): void {
     const socket = this.socket;
     this.socket = null;
     this.ready = false;
+    this.clearTimers();
     if (!socket) return;
     if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
       socket.close();
@@ -89,9 +133,14 @@ export class GeminiLiveCaller implements VoiceCaller {
   }
 
   async connect(session: VoiceSessionHandle): Promise<void> {
-    this.closeSocket();
-    this.closed = false;
+    const previous = this.socket;
+    this.generation += 1;
+    const epoch = this.generation;
+    this.socket = null;
     this.ready = false;
+    this.closed = false;
+    this.healthEmitted = false;
+    this.resumeHandle = parseVoiceResumeHandle(session.setup.resumeHandle ?? session.resumeHandle) ?? null;
     this.sessionStartCue = session.setup.greetOnConnect
       ? buildVoiceSessionStartCue({
           welcomeGreeting: session.setup.welcomeGreeting || DEFAULT_VOICE_SETUP.welcomeGreeting,
@@ -99,9 +148,12 @@ export class GeminiLiveCaller implements VoiceCaller {
         })
       : '';
     this.greetSent = false;
-    this.ignoreAudioUntilTurnComplete = false;
     this.pendingTexts = [];
     this.toolNames.clear();
+    this.clearTimers();
+    if (previous && (previous.readyState === WebSocket.OPEN || previous.readyState === WebSocket.CONNECTING)) {
+      previous.close();
+    }
     this.emit('phase', 'connecting');
 
     const url = `${VOICE_LIVE_WS_PATH}?access_token=${encodeURIComponent(session.token)}`;
@@ -110,12 +162,34 @@ export class GeminiLiveCaller implements VoiceCaller {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        const timer = window.setTimeout(() => {
-          reject(new Error('Voice connection timed out.'));
-        }, 12_000);
+        let settled = false;
+
+        const settle = (action: () => void) => {
+          if (settled || this.generation !== epoch) return;
+          settled = true;
+          this.clearTimers();
+          action();
+        };
+
+        const fail = (message: string) => {
+          settle(() => reject(new Error(message)));
+        };
+
+        this.openTimer = setTimeout(() => {
+          fail(SAFE_CONNECTION_TIMEOUT);
+        }, OPEN_TIMEOUT_MS);
 
         socket.addEventListener('open', () => {
-          window.clearTimeout(timer);
+          if (!this.isCurrent(socket, epoch) || settled) return;
+          if (this.openTimer !== null) {
+            clearTimeout(this.openTimer);
+            this.openTimer = null;
+          }
+          this.setupTimer = setTimeout(() => {
+            fail(SAFE_CONNECTION_TIMEOUT);
+          }, SETUP_TIMEOUT_MS);
+
+          const resumeHandle = parseVoiceResumeHandle(session.setup.resumeHandle ?? session.resumeHandle);
           socket.send(JSON.stringify({
             setup: {
               model: `models/${VOICE_AGENT_MODEL_ID}`,
@@ -126,48 +200,72 @@ export class GeminiLiveCaller implements VoiceCaller {
                     prebuiltVoiceConfig: { voiceName: VOICE_AGENT_VOICE_NAME },
                   },
                 },
+                thinkingConfig: {
+                  thinkingLevel: 'MINIMAL',
+                },
               },
               systemInstruction: {
                 parts: [{ text: buildVoiceSystemInstruction(session.setup.clientState) }],
               },
               tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
-              sessionResumption: {},
+              sessionResumption: resumeHandle ? { handle: resumeHandle } : {},
               contextWindowCompression: { slidingWindow: {} },
               realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
               inputAudioTranscription: session.setup.lowNetwork ? undefined : {},
               outputAudioTranscription: session.setup.lowNetwork ? undefined : {},
             },
           }));
-          resolve();
-        }, { once: true });
+        });
 
         socket.addEventListener('error', () => {
-          window.clearTimeout(timer);
-          reject(new Error('Voice connection failed.'));
-        }, { once: true });
+          if (!this.isCurrent(socket, epoch)) return;
+          if (!settled) {
+            fail(SAFE_CONNECTION_ERROR);
+            return;
+          }
+          if (this.closed) return;
+          this.emit('error', SAFE_CONNECTION_ERROR);
+          this.emitHealthOnce('Voice connection interrupted.');
+        });
+
+        socket.addEventListener('close', () => {
+          if (this.generation !== epoch) return;
+          this.ready = false;
+          if (this.socket === socket) this.socket = null;
+          if (!settled) {
+            fail(SAFE_CONNECTION_ERROR);
+            return;
+          }
+          if (!this.closed) {
+            this.closed = true;
+            this.emitHealthOnce('Voice connection closed.');
+            this.emit('ended', 'health');
+          }
+        });
+
+        socket.addEventListener('message', event => {
+          if (!this.isCurrent(socket, epoch)) return;
+          void this.handleMessage(event.data, {
+            epoch,
+            socket,
+            onReady: () => settle(() => resolve()),
+            onError: () => fail(SAFE_CONNECTION_ERROR),
+          });
+        });
       });
     } catch (error) {
-      this.closeSocket();
+      if (this.generation === epoch) {
+        this.closed = true;
+        this.closeSocket();
+      }
       throw error;
     }
-
-    socket.addEventListener('message', event => {
-      void this.handleMessage(event.data);
-    });
-    socket.addEventListener('close', () => {
-      this.ready = false;
-      if (this.socket === socket) this.socket = null;
-      if (!this.closed) {
-        this.closed = true;
-        this.emit('health', { ok: false, configured: true, reason: 'Voice connection closed.' });
-        this.emit('ended', 'health');
-      }
-    });
   }
 
   sendAudio(chunk: ArrayBuffer): void {
     const socket = this.socket;
     if (!this.ready || !isOpen(socket)) return;
+    if (socket.bufferedAmount > AUDIO_BACKPRESSURE_BYTES) return;
     const bytes = new Uint8Array(chunk);
     let binary = '';
     for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -184,12 +282,27 @@ export class GeminiLiveCaller implements VoiceCaller {
   sendText(text: string): void {
     const socket = this.socket;
     if (!this.ready || !isOpen(socket)) {
-      if (!this.closed) this.pendingTexts.push(text);
+      if (!this.closed) {
+        if (this.pendingTexts.length >= PENDING_TEXT_MAX) this.pendingTexts.shift();
+        this.pendingTexts.push(text);
+      }
       return;
     }
     socket.send(JSON.stringify({
       realtimeInput: { text },
     }));
+  }
+
+  endAudioStream(): void {
+    const socket = this.socket;
+    if (!this.ready || !isOpen(socket)) return;
+    socket.send(JSON.stringify({
+      realtimeInput: { audioStreamEnd: true },
+    }));
+  }
+
+  getResumeHandle(): string | null {
+    return this.resumeHandle;
   }
 
   private flushPendingTexts(): void {
@@ -206,7 +319,6 @@ export class GeminiLiveCaller implements VoiceCaller {
   }
 
   interrupt(): void {
-    this.ignoreAudioUntilTurnComplete = true;
     this.emit('interrupted', true);
     this.emit('phase', 'listening');
   }
@@ -235,14 +347,47 @@ export class GeminiLiveCaller implements VoiceCaller {
     }));
   }
 
-  private async handleMessage(raw: unknown): Promise<void> {
+  private applySessionResumptionUpdate(payload: Record<string, unknown>): void {
+    const update = asRecord(payload.sessionResumptionUpdate);
+    if (!update) return;
+    if (update.resumable !== true) {
+      this.resumeHandle = null;
+      return;
+    }
+    const handle = parseVoiceResumeHandle(update.newHandle);
+    if (!handle) return;
+    this.resumeHandle = handle;
+  }
+
+  private async handleMessage(
+    raw: unknown,
+    context?: {
+      epoch: number;
+      socket: WebSocket;
+      onReady?: () => void;
+      onError?: () => void;
+    },
+  ): Promise<void> {
+    if (context && !this.isCurrent(context.socket, context.epoch)) return;
+
     const text = typeof raw === 'string' ? raw : await (raw as Blob).text();
+    if (context && !this.isCurrent(context.socket, context.epoch)) return;
+
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(text) as Record<string, unknown>;
     } catch {
       return;
     }
+
+    if (hasProviderError(payload)) {
+      this.emit('error', SAFE_CONNECTION_ERROR);
+      if (this.ready) this.emitHealthOnce('Voice connection interrupted.');
+      context?.onError?.();
+      return;
+    }
+
+    this.applySessionResumptionUpdate(payload);
 
     if (payload.setupComplete) {
       this.ready = true;
@@ -252,7 +397,12 @@ export class GeminiLiveCaller implements VoiceCaller {
         this.greetSent = true;
         this.sendText(this.sessionStartCue);
       }
+      context?.onReady?.();
       return;
+    }
+
+    if (payload.goAway) {
+      this.emitHealthOnce('Voice session is ending.');
     }
 
     if (!this.ready) return;
@@ -274,22 +424,22 @@ export class GeminiLiveCaller implements VoiceCaller {
     }
 
     const modelTurn = serverContent?.modelTurn as { parts?: Array<Record<string, unknown>> } | undefined;
-    if (!this.ignoreAudioUntilTurnComplete) {
-      for (const part of modelTurn?.parts ?? []) {
-        const inline = part.inlineData as { data?: string } | undefined;
-        if (inline?.data) {
-          this.emit('audio', decodeBase64(inline.data));
-          this.emit('phase', 'speaking');
-        }
+    for (const part of modelTurn?.parts ?? []) {
+      const inline = part.inlineData as { data?: string } | undefined;
+      if (inline?.data) {
+        this.emit('audio', decodeBase64(inline.data));
+        this.emit('phase', 'speaking');
       }
     }
 
     const cancelled = payload.toolCallCancellation as { ids?: unknown } | undefined;
     if (Array.isArray(cancelled?.ids) && cancelled.ids.length > 0) {
-      for (const id of cancelled.ids) {
-        if (typeof id === 'string') this.toolNames.delete(id);
+      const ids = cancelled.ids.filter((id): id is string => typeof id === 'string');
+      for (const id of ids) this.toolNames.delete(id);
+      if (ids.length > 0) {
+        this.emit('toolCancellation', ids);
+        this.emit('interrupted', true);
       }
-      this.emit('interrupted', true);
     }
 
     const toolCall = payload.toolCall as { functionCalls?: Array<Record<string, unknown>> } | undefined;
@@ -317,13 +467,8 @@ export class GeminiLiveCaller implements VoiceCaller {
     }
 
     if (serverContent?.turnComplete) {
-      this.ignoreAudioUntilTurnComplete = false;
       this.emit('turnComplete', true);
       this.emit('phase', 'listening');
-    }
-
-    if (payload.goAway) {
-      this.emit('health', { ok: false, configured: true, reason: 'Voice session is ending.' });
     }
   }
 }

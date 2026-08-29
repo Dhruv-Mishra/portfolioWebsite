@@ -23,6 +23,7 @@ export interface VoiceSessionHandle {
   expiresAt: string;
   newSessionExpiresAt: string;
   setup: VoiceSessionSetup;
+  resumeHandle?: string;
 }
 
 export interface VoiceSessionSetup {
@@ -35,6 +36,48 @@ export interface VoiceSessionSetup {
   welcomeGreeting: string;
   welcomeHint: string;
   clientState?: string;
+  resumeHandle?: string;
+}
+
+export const VOICE_RESUME_HANDLE_MAX_LENGTH = 1024;
+
+const VOICE_RESUME_HANDLE_CONTROLS = /[\u0000-\u001F\u007F]/;
+
+export function parseVoiceResumeHandle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const handle = value.trim();
+  if (
+    handle.length === 0
+    || handle.length > VOICE_RESUME_HANDLE_MAX_LENGTH
+    || VOICE_RESUME_HANDLE_CONTROLS.test(handle)
+  ) {
+    return undefined;
+  }
+  return handle;
+}
+
+export function parseVoiceSessionRequest(raw: unknown): { ok: true; value: VoiceSessionRequest } | { ok: false } {
+  const record = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {};
+  const request: VoiceSessionRequest = {
+    lowNetwork: record.lowNetwork === true,
+  };
+
+  if (record.resumeHandle === undefined || record.resumeHandle === null) {
+    return { ok: true, value: request };
+  }
+  if (typeof record.resumeHandle !== 'string') {
+    return { ok: false };
+  }
+  const trimmed = record.resumeHandle.trim();
+  if (!trimmed) {
+    return { ok: true, value: request };
+  }
+  const handle = parseVoiceResumeHandle(trimmed);
+  if (!handle) return { ok: false };
+  request.resumeHandle = handle;
+  return { ok: true, value: request };
 }
 
 export interface VoiceHealthStatus {
@@ -50,6 +93,7 @@ export interface VoiceCallerEventMap {
   audio: ArrayBuffer;
   interrupted: boolean;
   toolCall: SiteToolCall;
+  toolCancellation: readonly string[];
   turnComplete: boolean;
   health: VoiceHealthStatus;
   error: string;
@@ -68,6 +112,8 @@ export interface VoiceCaller {
   sendToolResult(callId: string, result: SiteToolResult, name?: string): void;
   interrupt(): void;
   close(reason?: VoiceExitReason): void;
+  endAudioStream?(): void;
+  getResumeHandle?(): string | null;
   on<K extends keyof VoiceCallerEventMap>(event: K, listener: VoiceCallerListener<K>): () => void;
 }
 

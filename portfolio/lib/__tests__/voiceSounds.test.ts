@@ -7,6 +7,7 @@ import {
   prefetchVoiceSounds,
   primeVoiceEnterAudio,
   setVoiceAmbientDucked,
+  setVoicePcmActive,
   startVoiceAmbient,
   stopVoiceAmbient,
   stopVoiceToggleCue,
@@ -168,9 +169,9 @@ describe('voice ambient sound', () => {
       `/sounds/voice/action.mp3?v=${SITE_VERSION}`,
       `/sounds/voice/ambient.mp3?v=${SITE_VERSION}`,
     ]);
-    expect(byId.enter?.preload).toBe('none');
-    expect(byId.action?.preload).toBe('none');
-    expect(byId.ambient?.preload).toBe('none');
+    expect(byId.enter?.preload).toBe('auto');
+    expect(byId.action?.preload).toBe('auto');
+    expect(byId.ambient?.preload).toBe('auto');
     expect(byId.ambient?.play).toHaveBeenCalledTimes(1);
     expect(byId.ambient?.loop).toBe(true);
     expect(byId.ambient?.volume).toBe(0);
@@ -270,9 +271,10 @@ describe('voice toggle cue and ambient duck', () => {
     return (soundManagerMock.instances as FakeAudio[]).find(audio => audio.src.includes(`/sounds/voice/${id}.mp3`));
   }
 
-  it('plays the enter cue at 0.22 then fades it out after 450ms', () => {
+  it('plays the enter cue at 0.22 then fades it out after 450ms', async () => {
     vi.useFakeTimers();
     playVoiceSound('voice-enter');
+    await Promise.resolve();
 
     const enter = audioById('enter');
     expect(enter?.volume).toBeCloseTo(0.22);
@@ -317,9 +319,31 @@ describe('voice toggle cue and ambient duck', () => {
     expect(action?.pause).not.toHaveBeenCalled();
   });
 
-  it('does not pause the enter cue during the 450ms play window unless forced', () => {
+  it('recovers when a simple cue play throws synchronously', () => {
+    let throwNextPlay = true;
+    class ThrowOnceAudio extends FakeAudio {
+      override readonly play = vi.fn(() => {
+        if (throwNextPlay) {
+          throwNextPlay = false;
+          throw new DOMException('Playback blocked', 'NotAllowedError');
+        }
+        this.paused = false;
+        return Promise.resolve();
+      });
+    }
+    vi.stubGlobal('Audio', ThrowOnceAudio);
+
+    expect(() => playVoiceSound('voice-action')).not.toThrow();
+    playVoiceSound('voice-action');
+
+    expect(soundManagerMock.instances).toHaveLength(2);
+    expect((soundManagerMock.instances[1] as FakeAudio).play).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pause the enter cue during the 450ms play window unless forced', async () => {
     vi.useFakeTimers();
     playVoiceSound('voice-enter');
+    await Promise.resolve();
 
     const enter = audioById('enter');
     stopVoiceToggleCue();
@@ -415,6 +439,132 @@ describe('voice toggle cue and ambient duck', () => {
 
     setVoiceAmbientDucked(true);
     expect(ambient?.volume).toBeCloseTo(0.028);
+    expect(ambient?.paused).toBe(false);
+  });
+
+  it('prefetches with preload auto and load, without calling play', () => {
+    prefetchVoiceSounds();
+
+    const audios = soundManagerMock.instances as FakeAudio[];
+    expect(audios).toHaveLength(4);
+    for (const audio of audios) {
+      expect(audio.preload).toBe('auto');
+      expect(audio.load).toHaveBeenCalledTimes(1);
+      expect(audio.play).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not consume a delayed enter prime until play() starts, then fallback skips', async () => {
+    let resolveEnter: (() => void) | undefined;
+    class DelayedEnterAudio extends FakeAudio {
+      override readonly play = vi.fn(() => {
+        if (!this.src.includes('/sounds/voice/enter.mp3')) {
+          this.paused = false;
+          return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+          resolveEnter = () => {
+            this.paused = false;
+            resolve();
+          };
+        });
+      });
+    }
+    vi.stubGlobal('Audio', DelayedEnterAudio);
+
+    primeVoiceEnterAudio();
+    const enter = audioById('enter');
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+
+    playVoiceEnterFallback();
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+    expect(enter?.pause).not.toHaveBeenCalled();
+
+    resolveEnter?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+
+    playVoiceEnterFallback();
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets a rejected enter prime so fallback can retry on a new element', async () => {
+    class RejectEnterAudio extends FakeAudio {
+      override readonly play = vi.fn(() => {
+        if (this.src.includes('/sounds/voice/enter.mp3')) {
+          return Promise.reject(new Error('NotAllowedError'));
+        }
+        this.paused = false;
+        return Promise.resolve();
+      });
+    }
+    vi.stubGlobal('Audio', RejectEnterAudio);
+
+    primeVoiceEnterAudio();
+    const primed = audioById('enter');
+    playVoiceEnterFallback();
+    expect(primed?.play).toHaveBeenCalledTimes(1);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(primed?.pause).toHaveBeenCalled();
+    const afterReject = (soundManagerMock.instances as FakeAudio[]).filter(audio => (
+      audio.src.includes('/sounds/voice/enter.mp3')
+    ));
+    expect(afterReject).toHaveLength(2);
+    expect(afterReject[1]?.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('silences enter/action cues and ambient while PCM is active, then restores ambient', async () => {
+    startVoiceAmbient(true);
+    await Promise.resolve();
+    playVoiceSound('voice-enter');
+    await Promise.resolve();
+    playVoiceSound('voice-action');
+
+    const enter = audioById('enter');
+    const action = audioById('action');
+    const ambient = audioById('ambient');
+    const exitBefore = audioById('exit');
+    expect(exitBefore).toBeUndefined();
+    expect(ambient?.volume).toBeCloseTo(0.12);
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+    expect(action?.play).toHaveBeenCalledTimes(1);
+
+    setVoicePcmActive(true);
+    expect(enter?.volume).toBe(0);
+    expect(enter?.pause).toHaveBeenCalled();
+    expect(action?.volume).toBe(0);
+    expect(action?.pause).toHaveBeenCalled();
+    expect(ambient?.volume).toBe(0);
+    expect(ambient?.paused).toBe(false);
+
+    playVoiceSound('voice-enter');
+    playVoiceSound('voice-action');
+    playVoiceSound('voice-exit');
+    expect(enter?.play).toHaveBeenCalledTimes(1);
+    expect(action?.play).toHaveBeenCalledTimes(1);
+    expect(audioById('exit')?.play).toHaveBeenCalledTimes(1);
+
+    setVoicePcmActive(false);
+    expect(ambient?.volume).toBeCloseTo(0.12);
+    expect(ambient?.paused).toBe(false);
+  });
+
+  it('restores ducked ambient after PCM silence', async () => {
+    startVoiceAmbient(true);
+    await Promise.resolve();
+    setVoiceAmbientDucked(true);
+    const ambient = audioById('ambient');
+    expect(ambient?.volume).toBeCloseTo(0.04);
+
+    setVoicePcmActive(true);
+    expect(ambient?.volume).toBe(0);
+
+    setVoicePcmActive(false);
+    expect(ambient?.volume).toBeCloseTo(0.04);
     expect(ambient?.paused).toBe(false);
   });
 });

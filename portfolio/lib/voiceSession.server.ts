@@ -35,7 +35,15 @@ export function getVoiceHealthStatus(): VoiceHealthStatus {
   };
 }
 
-export function buildLockedLiveSetup(lowNetwork: boolean, snapshot?: VoiceClientSnapshot) {
+function sessionResumptionConfig(resumeHandle?: string) {
+  return resumeHandle ? { handle: resumeHandle } : {};
+}
+
+export function buildLockedLiveSetup(
+  lowNetwork: boolean,
+  snapshot?: VoiceClientSnapshot,
+  resumeHandle?: string,
+) {
   return {
     model: `models/${VOICE_AGENT_MODEL_ID}`,
     generationConfig: {
@@ -55,7 +63,7 @@ export function buildLockedLiveSetup(lowNetwork: boolean, snapshot?: VoiceClient
       parts: [{ text: buildVoiceSystemInstruction(snapshot ? buildVoiceClientStateParagraph(snapshot) : undefined) }],
     },
     tools: [{ functionDeclarations: VOICE_LIVE_TOOL_DECLARATIONS }],
-    sessionResumption: {},
+    sessionResumption: sessionResumptionConfig(resumeHandle),
     contextWindowCompression: {
       slidingWindow: {},
     },
@@ -79,7 +87,7 @@ function tokenLifetimeFields() {
   };
 }
 
-export function buildSlimLiveSetup() {
+export function buildSlimLiveSetup(resumeHandle?: string) {
   return {
     model: `models/${VOICE_AGENT_MODEL_ID}`,
     generationConfig: {
@@ -95,7 +103,7 @@ export function buildSlimLiveSetup() {
         thinkingLevel: 'MINIMAL',
       },
     },
-    sessionResumption: {},
+    sessionResumption: sessionResumptionConfig(resumeHandle),
     realtimeInputConfig: VOICE_LIVE_REALTIME_INPUT_CONFIG,
   };
 }
@@ -153,6 +161,7 @@ function toSessionHandle(
   token: GeminiAuthTokenResponse,
   lowNetwork: boolean,
   snapshot?: VoiceClientSnapshot,
+  resumeHandle?: string,
 ): VoiceSessionHandle {
   const welcome = pickContextualVoiceWelcome(snapshot?.topic);
   const clientState = snapshot ? buildVoiceClientStateParagraph(snapshot) : '';
@@ -160,6 +169,7 @@ function toSessionHandle(
     token: token.name as string,
     expiresAt: token.expireTime ?? toIso(VOICE_TOKEN_TTL_MS),
     newSessionExpiresAt: token.newSessionExpireTime ?? toIso(VOICE_NEW_SESSION_TTL_MS),
+    ...(resumeHandle ? { resumeHandle } : {}),
     setup: {
       modelLabel: 'native-live',
       voiceLabel: 'male',
@@ -170,6 +180,7 @@ function toSessionHandle(
       welcomeGreeting: welcome.greeting,
       welcomeHint: welcome.hint,
       ...(clientState ? { clientState } : {}),
+      ...(resumeHandle ? { resumeHandle } : {}),
     },
   };
 }
@@ -193,12 +204,13 @@ function buildMintBody(
   lowNetwork: boolean,
   wrapped: boolean,
   snapshot?: VoiceClientSnapshot,
+  resumeHandle?: string,
 ) {
   const setup = kind === 'unlocked'
     ? null
     : kind === 'locked'
-      ? buildLockedLiveSetup(lowNetwork, snapshot)
-      : buildSlimLiveSetup();
+      ? buildLockedLiveSetup(lowNetwork, snapshot, resumeHandle)
+      : buildSlimLiveSetup(resumeHandle);
   const body = buildVoiceAuthTokenRequest(setup);
   return wrapped ? wrapVoiceAuthTokenRequest(body) : body;
 }
@@ -214,6 +226,7 @@ function recipeCandidates(): Array<Omit<VoiceMintRecipe, 'url'>> {
 export async function mintVoiceSession(options: {
   lowNetwork: boolean;
   snapshot?: VoiceClientSnapshot;
+  resumeHandle?: string;
 }): Promise<VoiceSessionHandle> {
   const apiKey = resolveVoiceAgentApiKey();
   if (!apiKey) {
@@ -227,7 +240,13 @@ export async function mintVoiceSession(options: {
       const token = await postAuthToken(
         recipe.url,
         apiKey,
-        buildMintBody(recipe.kind, options.lowNetwork, recipe.wrapped, options.snapshot),
+        buildMintBody(
+          recipe.kind,
+          options.lowNetwork,
+          recipe.wrapped,
+          options.snapshot,
+          options.resumeHandle,
+        ),
       );
       cachedMintRecipe = recipe;
       return token;
@@ -244,14 +263,14 @@ export async function mintVoiceSession(options: {
 
   if (cachedMintRecipe) {
     const cached = await tryRecipe(cachedMintRecipe);
-    if (cached) return toSessionHandle(cached, options.lowNetwork, options.snapshot);
+    if (cached) return toSessionHandle(cached, options.lowNetwork, options.snapshot, options.resumeHandle);
     cachedMintRecipe = null;
   }
 
   for (const candidate of recipeCandidates()) {
     for (const url of VOICE_AUTH_TOKEN_URLS) {
       const token = await tryRecipe({ ...candidate, url });
-      if (token) return toSessionHandle(token, options.lowNetwork, options.snapshot);
+      if (token) return toSessionHandle(token, options.lowNetwork, options.snapshot, options.resumeHandle);
     }
   }
 

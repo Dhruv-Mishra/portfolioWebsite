@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
+import { parseVoiceSessionRequest } from '@/lib/voiceAgentProtocol';
 import { mintVoiceSession } from '@/lib/voiceSession.server';
 import { parseVoiceClientSnapshot } from '@/lib/voiceClientSnapshot';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -17,6 +18,7 @@ const limiter = createServerRateLimiter({
 interface SessionBody {
   lowNetwork?: unknown;
   snapshot?: unknown;
+  resumeHandle?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -41,10 +43,16 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
+  const parsed = parseVoiceSessionRequest(body);
+  if (!parsed.ok) {
+    return Response.json({ error: 'Invalid resume handle.' }, { status: 400 });
+  }
+
   try {
     const session = await mintVoiceSession({
       snapshot: parseVoiceClientSnapshot(body?.snapshot),
-      lowNetwork: body?.lowNetwork === true,
+      lowNetwork: parsed.value.lowNetwork,
+      resumeHandle: parsed.value.resumeHandle,
     });
     return Response.json(session);
   } catch (error) {

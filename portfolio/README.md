@@ -36,7 +36,8 @@ Copy [.env.example](.env.example) for local setup. Provider keys, signing secret
 
 | Area | Primary configuration |
 |---|---|
-| Chat | `GROQ_API_KEY`, `NVIDIA_API_KEY`, `LOCAL_AGENT_BASE_URL`, `LOCAL_AGENT_API_KEY`, `VOICE_AGENT_API_KEY` |
+| Chat | `GROQ_API_KEY`, `NVIDIA_API_KEY`, `LOCAL_AGENT_BASE_URL`, `LOCAL_AGENT_API_KEY` |
+| Voice | `VOICE_AGENT_API_KEY` (injected in staging/production from `STAGING_VOICE_AGENT_API_KEY` / `PRODUCTION_VOICE_AGENT_API_KEY`) |
 | Retrieval | `EMBEDDINGS_API_KEY`, `EMBEDDINGS_BASE_URL`, `EMBEDDINGS_MODEL`, `EMBEDDINGS_MODE`, `SKIP_EMBEDDINGS_BUILD` |
 | TTS | `HF_TOKEN`, `LOCAL_TTS_CACHE_DIR`, `TTS_NODE_MODE`, `TTS_BACKEND_URL`, `TTS_BACKEND_TOKEN` |
 | Security | `CHAT_HISTORY_SIGNING_SECRET`, `MATRIX_NOTES_ACCESS_SECRET` |
@@ -53,7 +54,7 @@ Copy [.env.example](.env.example) for local setup. Provider keys, signing secret
 - [API](../docs/api.md): browser-facing endpoint contracts.
 - [AI and RAG](../docs/ai-and-rag.md): model registry, retrieval, and provider configuration.
 - [TTS](../docs/tts.md): Pocket TTS roles, streaming, and smoke checks.
-- [Voice agent](../docs/voice-agent.md): native Gemini Live HUD, session, and barge-in.
+- [Voice agent](../docs/voice-agent.md): native Gemini Live HUD, PCM handling, recovery, page context, and barge-in.
 - [Deployment](../docs/deployment.md): promotion, VM delivery, rollback, and operator checks.
 
 Detailed configuration remains in the linked guides.

@@ -8,6 +8,8 @@ These endpoints serve the portfolio UI. They are not a versioned third-party API
 |---|---|---|
 | `POST /api/chat` | Generate a grounded chat reply | Accepts `messages`, an optional allowlisted `model`, and an optional JPEG, PNG, or WebP data URL under 180 KiB decoded. Replies include text, a signed assistant message, and optional validated UI action data. |
 | `POST /api/chat/suggestions` | Generate two follow-up prompts | Accepts recent user/assistant messages and returns `{ "suggestions": string[] }`; failure returns an empty list. |
+| `POST /api/voice/session` | Mint a Gemini Live session | Returns a short-lived, one-use token and locked setup. Accepts `lowNetwork`, a validated page snapshot, and an optional validated provider resume handle. |
+| `POST /api/voice/facts` | Retrieve live voice context | Accepts a site-fact query up to 240 characters and returns a compact fact snippet for a Live tool response. |
 | `GET /api/tts` | Read local TTS status | Returns queue, public settings, and voice revision when the active TTS role is local. |
 | `POST /api/tts` | Synthesize speech | Requires `text`. Normal responses are WAV; set `stream: true`, `?stream=1`, or `Accept: application/x-ndjson` for chunked PCM frames. |
 | `GET /api/guestbook` | Read approved guestbook entries | Returns approved entries from the configured GitHub repository. |
@@ -25,13 +27,13 @@ The active public TTS path can be served by a different internal node than the a
 ## Request Controls
 
 - State-changing browser routes validate the configured site origin. TTS `POST` requires an explicit allowed `Origin` header.
-- Nginx applies request limiting to API paths. The application adds in-memory, per-IP limits: chat is 20 per 5 minutes, suggestions 10 per 5 minutes, TTS 24 per minute, guestbook 3 per 10 minutes, and feedback 3 per hour.
+- Nginx applies request limiting to API paths. The application adds in-memory, per-IP limits: chat is 20 per 5 minutes, suggestions 10 per 5 minutes, voice sessions 8 per 5 minutes, voice facts 20 per 5 minutes, TTS 24 per minute, guestbook 3 per 10 minutes, and feedback 3 per hour.
 - Application limits are in-memory sliding windows per Node process. They are not a distributed quota service, so multi-node protection also depends on the reverse proxy and edge configuration.
 - The Nginx template restores visitor IPs only from configured Cloudflare address ranges. Keep that list current when maintaining the proxy.
 
 ## Error Handling
 
-The routes use standard HTTP errors for invalid requests, origin failures, rate limits, unavailable dependencies, and internal failures. Rate-limit responses include `Retry-After`. Chat provider failures return a marked degraded static reply instead of silently changing to a different selected model.
+The routes use standard HTTP errors for invalid requests, origin failures, rate limits, unavailable dependencies, and internal failures. Rate-limit responses include `Retry-After`. Chat provider failures return a marked degraded static reply instead of silently changing to a different selected model. Voice session input and origin errors are rejected before token minting; warming-up and unavailable-service responses remain retryable in the voice HUD.
 
 ## Documentation Map
 

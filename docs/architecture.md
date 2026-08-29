@@ -48,9 +48,10 @@ The important distinction is that the system has ingress policies and per-proces
 
 ### Native voice agent
 
-- Voice mode starts from the homepage note, settings, or the command palette and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a floating dock. The browser talks to a live audio model over WebSocket using an ephemeral token from `/api/voice/session`.
-- PCM does not transit the origin. Audio stays on the browser-to-model WebSocket. See [Voice agent](voice-agent.md) for HUD, session, and barge-in detail.
-- Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names.
+- Voice mode starts from the homepage note, settings, or the command palette and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a floating dock. The browser talks to a live audio model over WebSocket using a one-use ephemeral token from `/api/voice/session`, and `setupComplete` gates readiness.
+- PCM does not transit the origin. Browser playback uses a bounded prebuffered queue with resynchronization and short fades. Full-duplex capture requests browser echo cancellation and noise suppression; barge-in flushes scheduled playback.
+- Post-ready failures use provider session resumption with a freshly minted token. Exhausted recovery fully tears down media and leaves a retryable HUD.
+- Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names. Voice can pull a sanitized current-page context after client-side navigation.
 
 ```mermaid
 stateDiagram-v2
@@ -98,7 +99,7 @@ flowchart LR
   Facts -->|compact facts| UI
 ```
 
-PCM never goes through the origin. Ambient audio ducks under speech (~0.12 idle, quieter on phones). Barge-in hard-stops PCM playback. Voice HUD FLIP ignores agent listen/speak phase.
+PCM never goes through the origin. Non-model voice media is silenced while model PCM plays, and barge-in fades and flushes scheduled playback. Voice HUD FLIP ignores agent listen/speak phase.
 
 ### Voice and media in the browser
 

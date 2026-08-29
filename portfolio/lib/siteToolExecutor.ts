@@ -5,6 +5,14 @@ import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { APPROVED_LINKS, type SiteToolCall, type SiteToolResult } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import {
+  buildVoiceCurrentPageContext,
+  expectedPageContextAfterCloseProject,
+  expectedPageContextAfterNavigate,
+  expectedPageContextAfterOpenProject,
+  readAuthoritativePathname,
+  withVoicePageContext,
+} from '@/lib/voiceCurrentContext';
+import {
   browseHistory,
   buildProjectHref,
   requestOpenChat,
@@ -65,10 +73,7 @@ function fail(spokenText: string, errorCode: string): SiteToolResult {
 }
 
 function livePathname(runtime: SiteToolRuntime): string | null {
-  const raw = runtime.pathname
-    ?? (typeof window !== 'undefined' ? window.location?.pathname : null);
-  if (!raw) return null;
-  return raw.length > 1 && raw.endsWith('/') ? raw.slice(0, -1) : raw;
+  return readAuthoritativePathname(runtime.pathname);
 }
 
 function liveDiscoActive(runtime: SiteToolRuntime): boolean {
@@ -165,13 +170,17 @@ export async function executeSiteTool(
 
   switch (parsed.name) {
     case 'navigate_to': {
+      const current = buildVoiceCurrentPageContext({ runtime });
       if (livePathname(runtime) === parsed.args.path) {
-        return ok("You're already here.");
+        return withVoicePageContext(ok("You're already here."), current);
       }
       if (commit) {
         requestPageTurnNavigation(runtime.router, { href: parsed.args.path, mode: 'push' });
       }
-      return ok('Taking you there.');
+      return withVoicePageContext(
+        ok('Taking you there.'),
+        expectedPageContextAfterNavigate(parsed.args.path, current),
+      );
     }
     case 'set_theme': {
       const discoActive = liveDiscoActive(runtime);
@@ -212,31 +221,47 @@ export async function executeSiteTool(
     case 'open_project': {
       const slug = parsed.args.slug;
       const nextAction = 'I can play, pause, mute, or unmute the preview if it has a video.';
+      const pageContext = expectedPageContextAfterOpenProject(
+        slug,
+        buildVoiceCurrentPageContext({ runtime }),
+      );
       if (commit) {
         const hosted = requestOpenProject(slug);
         if (hosted.handled) {
-          return resolveHostedResult(
-            hosted,
-            ok('Queued that project to open.', { slug, accepted: true, nextAction }),
+          return withVoicePageContext(
+            await resolveHostedResult(
+              hosted,
+              ok('Queued that project to open.', { slug, accepted: true, nextAction }),
+            ),
+            pageContext,
           );
         }
         requestPageTurnNavigation(runtime.router, { href: buildProjectHref(slug), mode: 'push' });
       }
-      return ok('Opening that project.', {
-        slug,
-        accepted: true,
-        nextAction,
-      });
+      return withVoicePageContext(
+        ok('Opening that project.', {
+          slug,
+          accepted: true,
+          nextAction,
+        }),
+        pageContext,
+      );
     }
     case 'close_project': {
+      const pageContext = expectedPageContextAfterCloseProject(
+        buildVoiceCurrentPageContext({ runtime }),
+      );
       if (commit) {
         const hosted = requestCloseProject();
         if (hosted.handled) {
-          return resolveHostedResult(hosted, ok('Closing that project.'));
+          return withVoicePageContext(
+            await resolveHostedResult(hosted, ok('Closing that project.')),
+            pageContext,
+          );
         }
-        return ok('That project is already closed.');
+        return withVoicePageContext(ok('That project is already closed.'), pageContext);
       }
-      return ok('Closing that project.');
+      return withVoicePageContext(ok('Closing that project.'), pageContext);
     }
     case 'control_project_video': {
       if (!commit) return fail('The preview is not ready yet.', 'project-video-unavailable');
@@ -389,6 +414,13 @@ export async function executeSiteTool(
     }
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
+    case 'get_current_page_context': {
+      const pageContext = buildVoiceCurrentPageContext({ runtime });
+      if (!pageContext) {
+        return fail('I could not read this page just now.', 'page-context-unavailable');
+      }
+      return ok('Here is the current page.', { pageContext });
+    }
     case 'start_voice_session':
       if (commit) requestVoiceMode({ source: 'tool' });
       return ok('Switching to voice mode.');

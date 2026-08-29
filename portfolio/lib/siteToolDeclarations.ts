@@ -293,6 +293,12 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
     },
   },
   {
+    name: 'get_current_page_context',
+    description:
+      'Read the current allowlisted page. Invocation: before page-dependent answers or actions, or after the visitor may have moved. Trust this over session context. Returns route, topic, theme, disco, muted, volume, and open project only.',
+    parameters: { type: 'object', properties: {} },
+  },
+  {
     name: 'start_voice_session',
     description: 'Enter native voice mode. Invocation: visitor asks to talk by voice. Chat only.',
     parameters: { type: 'object', properties: {} },

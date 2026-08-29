@@ -13,13 +13,14 @@ The app is `0.30.0` and later.
 |---|---|
 | Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until socket ready + first greet `turnComplete` + playback idle. Then the veil fades via a CSS opacity transition and one persistent GIF orb FLIPs into a non-modal dock. FLIP ignores agent phase (`listening`/`speaking`) and only restarts when the hero/dock slot, reduced motion, or mobile layout changes. The landscape GIF is left-cropped into a hard circle. The speaking attribute is gated on `phase === 'speaking'`; playback level scales ripple only. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Toggle plays on enter/exit, ambient unlocks silently on that gesture then fades in at ~0.12 (duck 0.04; quieter on coarse pointers), and one action cue fires per committed visual tool. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Assets prefetch on enter, not on idle page load. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
-| Queue | Send tool replies immediately. Commit visuals later: `navigate_to`, `open_*`, and `end_voice_session` wait for playback idle. Hangup twice forces. Client `planVoiceUtterance` backfills explicit chains (max 3) into the same FIFO queue and keeps successful prefixes when a later clause is unknown. Unknown `type <token>` fills `terminal-input` without submit; unsafe tokens are skipped. Dependent hosts (`project-video`, `terminal`, `chat`) must be ready before those commits. |
-| Transport | Client-to-model WebSocket with ephemeral tokens minted by `POST /api/voice/session`. PCM does not transit the origin. There is no Cloudflare Worker in the request path. |
+| HUD | Intro is a blocking black veil until `setupComplete` + first greet `turnComplete` + playback idle. Then the veil fades via a CSS opacity transition and one persistent GIF orb FLIPs into a non-modal dock. FLIP ignores agent phase (`listening`/`speaking`) and only restarts when the hero/dock slot, reduced motion, or mobile layout changes. The landscape GIF is left-cropped into a hard circle. The speaking attribute is gated on `phase === 'speaking'`; playback level scales ripple only. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Entry, exit, ambient, and action media are preloaded on voice intent and isolated from model PCM. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
+| Queue | Gemini tool calls are authoritative and execute serially. Visual actions wait for playback idle, and dependent hosts (`project-video`, `terminal`, `chat`, `guestbook`, `feedback`) must be ready before commit. Provider cancellation IDs prevent queued actions from committing. Hangup twice forces. |
+| Transport | Client-to-model WebSocket with one-use ephemeral tokens minted by `POST /api/voice/session`. `setupComplete` gates readiness. Post-ready failures remint and resume up to two times with the latest valid provider handle and no second greeting; exhausted recovery offers Try again or hangup. PCM does not transit the origin. |
 | Default voice | Male `Charon`. |
-| Context | Tiny system prompt plus on-demand `lookup_site_facts`. No full fact bank in the live session. |
+| Context | Tiny initial page snapshot plus on-demand `lookup_site_facts` and read-only `get_current_page_context`. The current-context tool samples an allowlisted browser route, project, theme, and preferences; it never exposes raw URLs, DOM, or form values. |
 | Tools | Shared `siteTools` registry. Chat and voice use the same names. `hint` is the one puzzle-safe voice terminal command; do not add a second tool-calling model. |
-| Compression | Gemini Live is PCM only (16 kHz in, 24 kHz out). The settings toggle is **low-network mode**: smaller frames, no live transcripts, no ambient music. |
+| Audio | Gemini Live uses PCM16 little-endian at 16 kHz in and 24 kHz out. Playback uses a bounded prebuffered queue, explicit decoding, short gain ramps, and stale-audio resynchronization. Capture remains full-duplex and requests browser echo cancellation and noise suppression. |
+| Compression | The settings toggle is **low-network mode**: larger capture frames, no live transcripts, no ambient music. |
 | Context window | Live `contextWindowCompression` is always enabled. |
 | Pipeline | Staging/production inject `VOICE_AGENT_API_KEY` from `STAGING_VOICE_AGENT_API_KEY` / `PRODUCTION_VOICE_AGENT_API_KEY`. |
 
@@ -80,15 +81,20 @@ flowchart LR
   UI -->|on-demand POST /api/voice/facts| Facts[Next origin]
   Facts -->|compact facts| UI
 ```
-Ambient HTMLAudio fades in at about 0.12 and ducks to 0.04 under speech
-(about 0.084 / 0.028 on coarse pointers). Mic PCM is withheld while playback is
-busy, including a 320ms hangover after the last scheduled PCM and after an
-interrupt, so inter-chunk gaps do not ungate the mic. If Gemini reports an
-interruption, playback hard-stops and that hangover still mutes capture; that
-is not a full local barge-in / echo-cancellation redesign. If the browser
-denies the microphone, the session still connects, speaks a permission
-prompt, waits 10s, then speaks a timeout line and hangs up after that audio.
-A late grant starts capture and sends the withheld welcome without reminting.
+Model PCM is decoded explicitly as little-endian audio, held behind a short
+jitter prebuffer, scheduled continuously, and capped so network bursts cannot
+grow into stale playback. Short fades suppress boundary clicks; interruption
+flushes queued playback and later packets are accepted immediately. Entry and
+action cues stop while PCM is active, and ambient fades to silence until model
+speech is idle.
+
+Mic capture remains live during playback for server VAD and barge-in. The
+browser is asked for echo cancellation and noise suppression; support and
+quality remain device-dependent. A callback gap over 1.1s sends one
+`audioStreamEnd`, then rearms when capture resumes. If microphone access fails,
+the HUD shows an actionable browser/device error and keeps the permission
+flow available. Setup, transport, and playback activation failures fully tear
+down media before presenting Try again or hangup.
 
 ## Flow
 
@@ -144,6 +150,7 @@ Shared names:
 - `submit_guestbook`
 - `submit_feedback`
 - `lookup_site_facts`
+- `get_current_page_context`
 - `start_voice_session`
 - `end_voice_session`
 

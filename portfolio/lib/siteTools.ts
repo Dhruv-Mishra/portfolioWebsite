@@ -26,6 +26,7 @@ export const SITE_TOOL_NAMES = [
   'submit_guestbook',
   'submit_feedback',
   'lookup_site_facts',
+  'get_current_page_context',
   'start_voice_session',
   'end_voice_session',
 ] as const;
@@ -182,6 +183,7 @@ export type SiteToolArgsMap = {
   submit_guestbook: { message: string; name?: string };
   submit_feedback: { message: string; contact?: string; category?: FeedbackCategory };
   lookup_site_facts: { query: string };
+  get_current_page_context: Record<string, never>;
   start_voice_session: Record<string, never>;
   end_voice_session: { reason?: 'user' | 'health' | 'error' };
 };

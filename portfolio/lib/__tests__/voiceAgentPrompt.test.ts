@@ -42,6 +42,7 @@ describe('voice system instruction', () => {
   it('stays compact, asks one next step, and keeps welcome selection out of the prompt', () => {
     const prompt = buildVoiceSystemInstruction();
     expect(prompt.length).toBeLessThan(2_000);
+    expect(prompt).toContain('get_current_page_context');
     expect(prompt).toContain('end_voice_session');
     expect(prompt).toContain('contextually relevant next-step question');
     expect(prompt).toContain('greet once from the session-start cue only');

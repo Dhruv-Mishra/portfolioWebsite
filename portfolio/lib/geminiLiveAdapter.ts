@@ -99,6 +99,12 @@ export class GeminiLiveCaller implements VoiceCaller {
     }
   }
 
+  private emitHealthOnce(reason: string): void {
+    if (this.healthEmitted) return;
+    this.healthEmitted = true;
+    this.emit('health', { ok: false, configured: true, reason });
+  }
+
   private isCurrent(socket: WebSocket, epoch: number): boolean {
     return this.socket === socket && this.generation === epoch;
   }
@@ -211,8 +217,14 @@ export class GeminiLiveCaller implements VoiceCaller {
         });
 
         socket.addEventListener('error', () => {
-          if (!this.isCurrent(socket, epoch) || settled) return;
-          fail(SAFE_CONNECTION_ERROR);
+          if (!this.isCurrent(socket, epoch)) return;
+          if (!settled) {
+            fail(SAFE_CONNECTION_ERROR);
+            return;
+          }
+          if (this.closed) return;
+          this.emit('error', SAFE_CONNECTION_ERROR);
+          this.emitHealthOnce('Voice connection interrupted.');
         });
 
         socket.addEventListener('close', () => {
@@ -225,10 +237,7 @@ export class GeminiLiveCaller implements VoiceCaller {
           }
           if (!this.closed) {
             this.closed = true;
-            if (!this.healthEmitted) {
-              this.healthEmitted = true;
-              this.emit('health', { ok: false, configured: true, reason: 'Voice connection closed.' });
-            }
+            this.emitHealthOnce('Voice connection closed.');
             this.emit('ended', 'health');
           }
         });
@@ -368,6 +377,7 @@ export class GeminiLiveCaller implements VoiceCaller {
 
     if (hasProviderError(payload)) {
       this.emit('error', SAFE_CONNECTION_ERROR);
+      if (this.ready) this.emitHealthOnce('Voice connection interrupted.');
       context?.onError?.();
       return;
     }
@@ -387,10 +397,7 @@ export class GeminiLiveCaller implements VoiceCaller {
     }
 
     if (payload.goAway) {
-      if (!this.healthEmitted) {
-        this.healthEmitted = true;
-        this.emit('health', { ok: false, configured: true, reason: 'Voice session is ending.' });
-      }
+      this.emitHealthOnce('Voice session is ending.');
     }
 
     if (!this.ready) return;

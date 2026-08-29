@@ -340,4 +340,34 @@ describe('gemini live adapter connect and send path', () => {
       { event: 'ended', payload: 'health' },
     ]);
   });
+
+  it('emits recoverable health for post-ready socket and provider errors', async () => {
+    stubSockets();
+    const socketCaller = new GeminiLiveCaller();
+    const socketEvents = collect(socketCaller);
+    const socketConnect = socketCaller.connect(sessionHandle());
+    createdSockets[0]?.open();
+    createdSockets[0]?.emit('message', { data: JSON.stringify({ setupComplete: true }) });
+    await socketConnect;
+    socketEvents.length = 0;
+
+    createdSockets[0]?.emit('error');
+    createdSockets[0]?.emit('error');
+    expect(socketEvents.filter(event => event.event === 'health')).toEqual([
+      { event: 'health', payload: { ok: false, configured: true, reason: 'Voice connection interrupted.' } },
+    ]);
+
+    const providerCaller = new GeminiLiveCaller();
+    const providerEvents = collect(providerCaller);
+    const providerConnect = providerCaller.connect(sessionHandle());
+    createdSockets[1]?.open();
+    createdSockets[1]?.emit('message', { data: JSON.stringify({ setupComplete: true }) });
+    await providerConnect;
+    providerEvents.length = 0;
+
+    createdSockets[1]?.emit('message', { data: JSON.stringify({ error: { code: 500 } }) });
+    expect(providerEvents.filter(event => event.event === 'health')).toEqual([
+      { event: 'health', payload: { ok: false, configured: true, reason: 'Voice connection interrupted.' } },
+    ]);
+  });
 });

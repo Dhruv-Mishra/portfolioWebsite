@@ -10,15 +10,38 @@ export interface VoiceCaptureHandle {
   stop: () => void;
 }
 
-function downsample(buffer: Float32Array, inputRate: number, outputRate: number): Float32Array {
-  if (inputRate === outputRate) return buffer;
-  const ratio = inputRate / outputRate;
-  const length = Math.max(1, Math.round(buffer.length / ratio));
-  const next = new Float32Array(length);
-  for (let index = 0; index < length; index += 1) {
-    next[index] = buffer[Math.min(buffer.length - 1, Math.floor(index * ratio))] ?? 0;
-  }
-  return next;
+function createLinearResampler(inputRate: number, outputRate: number) {
+  const step = inputRate / outputRate;
+  let position = 0;
+  let prevSample = 0;
+
+  return {
+    push(input: Float32Array): Float32Array {
+      if (input.length === 0) return input;
+      if (step === 1 && position === 0) {
+        prevSample = input[input.length - 1] ?? 0;
+        return input;
+      }
+
+      let count = 0;
+      for (let cursor = position; Math.floor(cursor) + 1 < input.length; cursor += step) {
+        count += 1;
+      }
+      const output = new Float32Array(count);
+      for (let written = 0; written < count; written += 1) {
+        const index = Math.floor(position);
+        const nextIndex = index + 1;
+        const s0 = index < 0 ? prevSample : (input[index] ?? 0);
+        const s1 = input[nextIndex] ?? 0;
+        output[written] = s0 + (s1 - s0) * (position - index);
+        position += step;
+      }
+
+      prevSample = input[input.length - 1] ?? prevSample;
+      position -= input.length;
+      return output;
+    },
+  };
 }
 
 function floatToPcm16(buffer: Float32Array): ArrayBuffer {
@@ -42,42 +65,71 @@ export async function startVoiceCapture(
       channelCount: 1,
     },
   });
-  const context = new AudioContext();
-  const source = context.createMediaStreamSource(stream);
-  const processor = context.createScriptProcessor(2048, 1, 1);
-  const frameMs = options.lowNetwork ? VOICE_LOW_NETWORK_FRAME_MS : VOICE_AUDIO_FRAME_MS;
-  const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (frameMs / 1000));
-  let pending = new Float32Array(0);
 
-  processor.onaudioprocess = event => {
-    const input = event.inputBuffer.getChannelData(0);
-    const resampled = downsample(input, context.sampleRate, VOICE_AGENT_INPUT_RATE);
-    const merged = new Float32Array(pending.length + resampled.length);
-    merged.set(pending, 0);
-    merged.set(resampled, pending.length);
-    let offset = 0;
-    while (offset + frameSamples <= merged.length) {
-      onFrame(floatToPcm16(merged.subarray(offset, offset + frameSamples)));
-      offset += frameSamples;
+  let context: AudioContext | null = null;
+  let source: MediaStreamAudioSourceNode | null = null;
+  let processor: ScriptProcessorNode | null = null;
+  let muteGain: GainNode | null = null;
+  let stopped = false;
+
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (processor) processor.onaudioprocess = null;
+    try { processor?.disconnect(); } catch { /* already disconnected */ }
+    try { muteGain?.disconnect(); } catch { /* already disconnected */ }
+    try { source?.disconnect(); } catch { /* already disconnected */ }
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch { /* already stopped */ }
     }
-    pending = merged.subarray(offset);
+    if (context && context.state !== 'closed') {
+      void context.close().catch(() => {});
+    }
   };
 
-  const muteGain = context.createGain();
-  muteGain.gain.value = 0;
-  source.connect(processor);
-  processor.connect(muteGain);
-  muteGain.connect(context.destination);
+  try {
+    context = new AudioContext();
+    if (context.state !== 'running') {
+      await context.resume();
+    }
+    if (context.state !== 'running') {
+      throw new Error('Voice capture audio context failed to run');
+    }
 
-  return {
-    stop: () => {
-      processor.disconnect();
-      muteGain.disconnect();
-      source.disconnect();
-      stream.getTracks().forEach(track => track.stop());
-      void context.close();
-    },
-  };
+    source = context.createMediaStreamSource(stream);
+    processor = context.createScriptProcessor(2048, 1, 1);
+    muteGain = context.createGain();
+    muteGain.gain.value = 0;
+
+    const frameMs = options.lowNetwork ? VOICE_LOW_NETWORK_FRAME_MS : VOICE_AUDIO_FRAME_MS;
+    const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (frameMs / 1000));
+    const resampler = createLinearResampler(context.sampleRate, VOICE_AGENT_INPUT_RATE);
+    let pending = new Float32Array(0);
+
+    processor.onaudioprocess = event => {
+      if (stopped) return;
+      const input = event.inputBuffer.getChannelData(0);
+      const resampled = resampler.push(input);
+      const merged = new Float32Array(pending.length + resampled.length);
+      merged.set(pending, 0);
+      merged.set(resampled, pending.length);
+      let offset = 0;
+      while (offset + frameSamples <= merged.length) {
+        onFrame(floatToPcm16(merged.subarray(offset, offset + frameSamples)));
+        offset += frameSamples;
+      }
+      pending = new Float32Array(merged.subarray(offset));
+    };
+
+    source.connect(processor);
+    processor.connect(muteGain);
+    muteGain.connect(context.destination);
+  } catch (error) {
+    stop();
+    throw error;
+  }
+
+  return { stop };
 }
 
 export interface VoicePlayback {

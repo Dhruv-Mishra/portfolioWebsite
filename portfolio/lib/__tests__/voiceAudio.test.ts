@@ -356,3 +356,238 @@ describe('voice playback pcm engine', () => {
     expect(playback.getLevel?.()).toBe(0);
   });
 });
+
+type CaptureProcessorHandler = (event: { inputBuffer: { getChannelData: (channel: number) => Float32Array } }) => void;
+
+class FakeCaptureTrack {
+  stopped = false;
+  stop() {
+    this.stopped = true;
+  }
+}
+
+class FakeCaptureStream {
+  tracks: FakeCaptureTrack[];
+
+  constructor(tracks: FakeCaptureTrack[]) {
+    this.tracks = tracks;
+  }
+
+  getTracks() {
+    return this.tracks;
+  }
+}
+
+class FakeCaptureNode {
+  disconnected = 0;
+  onaudioprocess: CaptureProcessorHandler | null = null;
+
+  connect() {
+    return this;
+  }
+
+  disconnect() {
+    this.disconnected += 1;
+  }
+}
+
+class FakeCaptureGain extends FakeCaptureNode {
+  gain = { value: 1 };
+}
+
+class FakeCaptureContext {
+  sampleRate = 48_000;
+  destination = {};
+  state: AudioContextState;
+  closed = false;
+  source: FakeCaptureNode | null = null;
+  processor: FakeCaptureNode | null = null;
+  muteGain: FakeCaptureGain | null = null;
+  failAt: 'source' | 'processor' | 'gain' | 'connect' | null = null;
+  resumeTo: AudioContextState = 'running';
+  resumeCalls = 0;
+  closeCalls = 0;
+
+  constructor(state: AudioContextState = 'running') {
+    this.state = state;
+  }
+
+  createMediaStreamSource() {
+    if (this.failAt === 'source') throw new Error('source failed');
+    this.source = new FakeCaptureNode();
+    return this.source;
+  }
+
+  createScriptProcessor() {
+    if (this.failAt === 'processor') throw new Error('processor failed');
+    this.processor = new FakeCaptureNode();
+    return this.processor;
+  }
+
+  createGain() {
+    if (this.failAt === 'gain') throw new Error('gain failed');
+    this.muteGain = new FakeCaptureGain();
+    if (this.failAt === 'connect') {
+      this.muteGain.connect = () => {
+        throw new Error('connect failed');
+      };
+    }
+    return this.muteGain;
+  }
+
+  resume() {
+    this.resumeCalls += 1;
+    this.state = this.resumeTo;
+    return Promise.resolve();
+  }
+
+  close() {
+    this.closeCalls += 1;
+    this.closed = true;
+    this.state = 'closed';
+    return Promise.resolve();
+  }
+}
+
+function pcm16Samples(chunk: ArrayBuffer): number[] {
+  const view = new DataView(chunk);
+  const samples: number[] = [];
+  for (let index = 0; index < chunk.byteLength; index += 2) {
+    samples.push(view.getInt16(index, true) / 0x7fff);
+  }
+  return samples;
+}
+
+describe('voice capture graph', () => {
+  let tracks: FakeCaptureTrack[];
+  let stream: FakeCaptureStream;
+  let context: FakeCaptureContext;
+  let getUserMedia: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    tracks = [new FakeCaptureTrack()];
+    stream = new FakeCaptureStream(tracks);
+    context = new FakeCaptureContext();
+    getUserMedia = vi.fn().mockResolvedValue(stream);
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia },
+    });
+    function AudioContextStub() {
+      return context;
+    }
+    vi.stubGlobal('AudioContext', AudioContextStub);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('cleans up stream tracks and the audio graph if context construction fails', async () => {
+    vi.stubGlobal('AudioContext', function AudioContextStub() {
+      throw new Error('context failed');
+    });
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    await expect(startVoiceCapture(() => {})).rejects.toThrow('context failed');
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: false,
+        channelCount: 1,
+      },
+    });
+    expect(tracks[0]?.stopped).toBe(true);
+  });
+
+  it('cleans up stream, nodes, and context if graph wiring fails', async () => {
+    context.failAt = 'connect';
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    await expect(startVoiceCapture(() => {})).rejects.toThrow('connect failed');
+    expect(tracks[0]?.stopped).toBe(true);
+    expect(context.source?.disconnected).toBeGreaterThan(0);
+    expect(context.processor?.disconnected).toBeGreaterThan(0);
+    expect(context.muteGain?.disconnected).toBeGreaterThan(0);
+    expect(context.closed).toBe(true);
+  });
+
+  it('resumes a suspended context and cleans up when it cannot become running', async () => {
+    context.state = 'suspended';
+    context.resumeTo = 'suspended';
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    await expect(startVoiceCapture(() => {})).rejects.toThrow(/failed to run/i);
+    expect(context.resumeCalls).toBe(1);
+    expect(tracks[0]?.stopped).toBe(true);
+    expect(context.closed).toBe(true);
+  });
+
+  it('makes stop idempotent and ignores onaudioprocess after stop', async () => {
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    const onFrame = vi.fn();
+    const handle = await startVoiceCapture(onFrame);
+    const processor = context.processor;
+    const process = processor?.onaudioprocess;
+    expect(process).toEqual(expect.any(Function));
+
+    process?.({
+      inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.25) },
+    });
+    const framesBeforeStop = onFrame.mock.calls.length;
+    expect(framesBeforeStop).toBeGreaterThan(0);
+
+    handle.stop();
+    handle.stop();
+    expect(tracks[0]?.stopped).toBe(true);
+    expect(context.closeCalls).toBe(1);
+    expect(processor?.onaudioprocess).toBeNull();
+    expect(processor?.disconnected).toBe(1);
+    expect(context.source?.disconnected).toBe(1);
+    expect(context.muteGain?.disconnected).toBe(1);
+
+    process?.({
+      inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.9) },
+    });
+    expect(onFrame.mock.calls.length).toBe(framesBeforeStop);
+  });
+
+  it('keeps 16 kHz PCM16 LE frame sizes and interpolates continuously across ScriptProcessor blocks', async () => {
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    const { VOICE_AGENT_INPUT_RATE, VOICE_AUDIO_FRAME_MS } = await import('@/lib/voiceAgentConfig');
+    const onFrame = vi.fn();
+    const handle = await startVoiceCapture(onFrame);
+    const process = context.processor?.onaudioprocess;
+    expect(process).toEqual(expect.any(Function));
+
+    const combined = new Float32Array(4096);
+    for (let index = 0; index < combined.length; index += 1) {
+      combined[index] = index / combined.length;
+    }
+    const blockA = combined.subarray(0, 2048);
+    const blockB = combined.subarray(2048);
+
+    process?.({ inputBuffer: { getChannelData: () => blockA } });
+    process?.({ inputBuffer: { getChannelData: () => blockB } });
+
+    const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (VOICE_AUDIO_FRAME_MS / 1000));
+    expect(onFrame.mock.calls.length).toBeGreaterThan(0);
+    for (const [chunk] of onFrame.mock.calls as [ArrayBuffer][]) {
+      expect(chunk.byteLength).toBe(frameSamples * 2);
+    }
+
+    const decoded = onFrame.mock.calls.flatMap(([chunk]) => pcm16Samples(chunk as ArrayBuffer));
+    const expected: number[] = [];
+    const step = 48_000 / VOICE_AGENT_INPUT_RATE;
+    for (let position = 0; Math.floor(position) + 1 < combined.length; position += step) {
+      const index = Math.floor(position);
+      const s0 = combined[index] ?? 0;
+      const s1 = combined[index + 1] ?? 0;
+      expected.push(s0 + (s1 - s0) * (position - index));
+    }
+
+    expect(decoded.length).toBe(Math.floor(expected.length / frameSamples) * frameSamples);
+    for (let index = 0; index < decoded.length; index += 1) {
+      expect(decoded[index]).toBeCloseTo(expected[index] ?? 0, 3);
+    }
+
+    handle.stop();
+  });
+});

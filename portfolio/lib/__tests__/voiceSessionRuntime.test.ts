@@ -200,10 +200,14 @@ describe('voice session runtime singleton', () => {
     const stopAmbient = vi.fn();
     const prefetchSounds = vi.fn();
     let captureFrame: ((chunk: ArrayBuffer) => void) | null = null;
+    let onPlaybackResumeError: (() => void) | undefined;
     const fetchSession = vi.fn(async () => sessionHandle);
     setVoiceSessionRuntimeDepsForTests({
       createCaller: () => fakeCaller.caller,
-      createPlayback: () => fakePlayback.playback,
+      createPlayback: (options) => {
+        onPlaybackResumeError = options?.onResumeError;
+        return fakePlayback.playback;
+      },
       startCapture: async onFrame => {
         captureFrame = onFrame;
         return { stop: captureStop };
@@ -254,6 +258,9 @@ describe('voice session runtime singleton', () => {
       fetchSession,
       pushCaptureFrame(chunk: ArrayBuffer) {
         captureFrame?.(chunk);
+      },
+      triggerPlaybackResumeError() {
+        onPlaybackResumeError?.();
       },
     };
   }
@@ -1248,5 +1255,131 @@ describe('voice session runtime singleton', () => {
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('tears down an active call on playback resume error and stops later transcripts', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.triggerPlaybackResumeError();
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      recovery: 'retryable',
+      error: 'Audio output could not start. Try again or hang up.',
+      phase: 'error',
+    });
+    expect(runtime.captureStop).toHaveBeenCalled();
+
+    runtime.fakeCaller.emit('userTranscript', 'still talking');
+    runtime.fakeCaller.emit('agentTranscript', 'should not appear');
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      userLine: '',
+      agentLine: '',
+      recovery: 'retryable',
+      error: 'Audio output could not start. Try again or hang up.',
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('omits openProject from mint snapshots off /projects and includes it on that route', async () => {
+    vi.stubGlobal('window', {
+      location: { pathname: '/about', search: '?project=cropio' },
+    });
+    const offProjects = await boot();
+    expect(offProjects.fetchSession.mock.calls[0]?.at(1)).not.toHaveProperty('openProject');
+    offProjects.resetVoiceSessionRuntimeForTests();
+
+    vi.stubGlobal('window', {
+      location: { pathname: '/projects', search: '?project=cropio' },
+    });
+    const onProjects = await boot();
+    expect(onProjects.fetchSession.mock.calls[0]?.at(1)).toMatchObject({
+      route: '/projects',
+      openProject: 'cropio',
+    });
+    onProjects.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('notifies deferred actions after a successful reconnect', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    runtime.fakeCaller.setResumeHandle('resume-1');
+    goLive(runtime);
+    runtime.fakePlayback.setBusy(true);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'nav-reconnect',
+      name: 'navigate_to',
+      args: { path: '/about' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.push).not.toHaveBeenCalled();
+
+    runtime.fakeCaller.setConnectImpl(null);
+    runtime.fakeCaller.emit('ended', 'health');
+    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('reconnecting');
+    expect(runtime.push).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('none');
+    expect(runtime.push).toHaveBeenCalled();
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('does not commit a cancelled deferred tool waiting on host readiness', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'gb-1',
+      name: 'submit_guestbook',
+      args: { message: 'hello wall' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
+
+    runtime.fakeCaller.emit('toolCancellation', ['gb-1']);
+    const unregister = registerSiteActionHost('guestbook');
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
+    expect(runtime.playAction).not.toHaveBeenCalled();
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('does not commit a cancelled project-video control when its host appears', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'video-cancelled',
+      name: 'control_project_video',
+      args: { action: 'play' },
+    } as SiteToolCall);
+    await Promise.resolve();
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
+
+    runtime.fakeCaller.emit('toolCancellation', ['video-cancelled']);
+    const unregister = registerSiteActionHost('project-video');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
+    expect(runtime.playAction).not.toHaveBeenCalled();
+
+    unregister();
+    runtime.resetVoiceSessionRuntimeForTests();
   });
 });

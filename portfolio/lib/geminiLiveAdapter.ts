@@ -40,6 +40,7 @@ function createListenerMap(): ListenerMap {
     audio: new Set(),
     interrupted: new Set(),
     toolCall: new Set(),
+    toolCancellation: new Set(),
     turnComplete: new Set(),
     health: new Set(),
     error: new Set(),
@@ -348,7 +349,11 @@ export class GeminiLiveCaller implements VoiceCaller {
 
   private applySessionResumptionUpdate(payload: Record<string, unknown>): void {
     const update = asRecord(payload.sessionResumptionUpdate);
-    if (!update || update.resumable !== true) return;
+    if (!update) return;
+    if (update.resumable !== true) {
+      this.resumeHandle = null;
+      return;
+    }
     const handle = parseVoiceResumeHandle(update.newHandle);
     if (!handle) return;
     this.resumeHandle = handle;
@@ -429,10 +434,12 @@ export class GeminiLiveCaller implements VoiceCaller {
 
     const cancelled = payload.toolCallCancellation as { ids?: unknown } | undefined;
     if (Array.isArray(cancelled?.ids) && cancelled.ids.length > 0) {
-      for (const id of cancelled.ids) {
-        if (typeof id === 'string') this.toolNames.delete(id);
+      const ids = cancelled.ids.filter((id): id is string => typeof id === 'string');
+      for (const id of ids) this.toolNames.delete(id);
+      if (ids.length > 0) {
+        this.emit('toolCancellation', ids);
+        this.emit('interrupted', true);
       }
-      this.emit('interrupted', true);
     }
 
     const toolCall = payload.toolCall as { functionCalls?: Array<Record<string, unknown>> } | undefined;

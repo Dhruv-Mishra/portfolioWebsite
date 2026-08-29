@@ -16,7 +16,7 @@ import {
   type VoiceActionQueue,
   type VoiceDependentHostId,
 } from '@/lib/voiceActionQueue';
-import { createVoicePlayback, startVoiceCapture, type VoicePlayback } from '@/lib/voiceAudio';
+import { createVoicePlayback, startVoiceCapture, type VoicePlayback, type VoicePlaybackOptions } from '@/lib/voiceAudio';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
 import type {
@@ -122,6 +122,7 @@ const VOICE_CONNECTION_LOST_STATUS = 'Connection faded.';
 const VOICE_RECONNECTING_STATUS = 'Reconnecting…';
 const VOICE_RETRYABLE_STATUS = 'Call dropped.';
 const VOICE_RETRYABLE_ERROR = 'Call dropped. Try again or hang up.';
+const VOICE_PLAYBACK_RESUME_ERROR = 'Audio output could not start. Try again or hang up.';
 const VOICE_START_FAILED_STATUS = 'Voice mode is unavailable.';
 const VOICE_START_FAILED_ERROR = 'Unable to start the call.';
 const VOICE_MIC_PERMISSION_ERROR = 'Microphone permission is needed.';
@@ -153,7 +154,7 @@ const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
 
 export interface VoiceSessionRuntimeDeps {
   createCaller: () => VoiceCaller;
-  createPlayback: () => VoicePlayback;
+  createPlayback: (options?: VoicePlaybackOptions) => VoicePlayback;
   startCapture: typeof startVoiceCapture;
   fetchSession: (
     lowNetwork: boolean,
@@ -214,6 +215,7 @@ let toolCallDraining = false;
 let toolCallDrainEpoch = 0;
 let micEnableInFlight = false;
 const seenVoiceToolIds = new Set<string>();
+const cancelledVoiceToolIds = new Set<string>();
 let farewellArmed = false;
 let farewellHeard = false;
 let farewellSawPlayback = false;
@@ -537,7 +539,9 @@ function buildMintSnapshot(context?: VoiceInvocationContext | null): VoiceClient
     volume,
     source: context?.source,
     topic: topicFromPath(route),
-    openProject: parseVoiceClientSnapshot({ openProject })?.openProject,
+    openProject: route === '/projects'
+      ? parseVoiceClientSnapshot({ openProject })?.openProject
+      : undefined,
   };
   return parseVoiceClientSnapshot(next);
 }
@@ -667,6 +671,10 @@ function waitForProjectVideoControl(
 
     function check(): void {
       if (settled) return;
+      if (isVoiceToolCancelled(call.id)) {
+        finish(projectVideoUnavailableResult());
+        return;
+      }
       if (isStale(generation) || stopping || !snapshot.active) {
         finish(projectVideoUnavailableResult());
         return;
@@ -705,8 +713,28 @@ function resetFarewellWait(): void {
 
 function resetSeenVoiceTools(): void {
   seenVoiceToolIds.clear();
+  cancelledVoiceToolIds.clear();
   toolCallQueue = [];
   toolCallDrainEpoch += 1;
+}
+
+function isVoiceToolCancelled(callId: string): boolean {
+  return cancelledVoiceToolIds.has(callId);
+}
+
+function applyToolCancellation(ids: readonly string[]): void {
+  for (const id of ids) {
+    if (id) cancelledVoiceToolIds.add(id);
+  }
+  if (cancelledVoiceToolIds.size === 0) return;
+  toolCallQueue = toolCallQueue.filter(item => !cancelledVoiceToolIds.has(item.call.id));
+  notifyProjectVideoWaiters();
+}
+
+function handlePlaybackResumeError(generation: number): void {
+  if (isStale(generation) || stopping || !snapshot.active) return;
+  if (snapshot.recovery === 'retryable') return;
+  enterRetryableScreen(VOICE_PLAYBACK_RESUME_ERROR);
 }
 
 function hostArgsForVoiceTool(call: SiteToolCall): { field?: string } | null {
@@ -745,7 +773,7 @@ async function enqueueVoiceSideEffect(
   }
   let result: SiteToolResult | undefined;
   const outcome = await queue?.enqueue(async () => {
-    if (isStale(generation) || stopping) return;
+    if (isStale(generation) || stopping || isVoiceToolCancelled(call.id)) return;
     playCommittedActionCue(call.name);
     result = await executeSiteToolSafely(call, requireHostRuntime(), true);
   }, hostId ? {
@@ -1084,6 +1112,7 @@ async function recoverLiveConnection(generation: number): Promise<void> {
       });
       noteVoiceActivity('connect');
       tryMarkIntroComplete();
+      notifyVoiceActionQueueReady();
       return;
     } catch {
       if (isStale(generation) || stopping) return;
@@ -1098,6 +1127,7 @@ async function recoverLiveConnection(generation: number): Promise<void> {
 async function handleSiteToolCall(call: SiteToolCall, generation: number): Promise<void> {
   const activeCaller = caller;
   if (!activeCaller || isStale(generation) || stopping) return;
+  if (isVoiceToolCancelled(call.id)) return;
 
   if (call.name === 'start_voice_session') {
     activeCaller.sendToolResult(call.id, {
@@ -1127,7 +1157,7 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
     playCommittedActionCue(call.name);
     result = await executeSiteToolSafely(call, runtime, true);
   }
-  if (isStale(generation) || caller !== activeCaller) return;
+  if (isVoiceToolCancelled(call.id) || isStale(generation) || caller !== activeCaller) return;
   activeCaller.sendToolResult(call.id, result, call.name);
 
   if (!alreadySeen && result.ok && call.name === 'end_voice_session') {
@@ -1203,6 +1233,10 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       noteVoiceActivity('tool');
       enqueueToolCall(call);
     }),
+    nextCaller.on('toolCancellation', ids => {
+      if (isStale(generation) || stopping) return;
+      applyToolCancellation(ids);
+    }),
     nextCaller.on('turnComplete', () => {
       if (isStale(generation) || recovering) return;
       nextPlayback.finishTurn?.();
@@ -1258,8 +1292,14 @@ async function bootSession(): Promise<void> {
   try {
     const d = resolveDeps();
     const nextCaller = d.createCaller();
-    const nextPlayback = d.createPlayback();
     caller = nextCaller;
+    const nextPlayback = d.createPlayback({
+      onResumeError: () => handlePlaybackResumeError(generation),
+    });
+    if (isStale(generation) || stopping || snapshot.recovery === 'retryable' || !snapshot.active) {
+      nextPlayback.close();
+      return;
+    }
     playback = nextPlayback;
     const prefs = getVoiceAgentPrefsSnapshot();
     queue = createVoiceActionQueue({

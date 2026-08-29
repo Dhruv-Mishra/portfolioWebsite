@@ -113,9 +113,9 @@ describe('voice mode integration contract', () => {
     expect(orb).not.toContain('level > SPEAKING_LEVEL');
     expect(stage).toMatch(/style=\{isMobile \? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE\}/);
     expect(stage).toContain('aria-label="Hang up voice call"');
-    expect(stage).toContain("snapshot.error === 'Microphone permission is needed.'");
+    expect(stage).toContain('/microphone|voice input/i.test(snapshot.error)');
     expect(stage).toContain('Enable mic');
-    expect(stage).toContain('import { MicOff, Phone } from \'lucide-react\'');
+    expect(stage).toContain('import { MicOff, Phone, RotateCcw } from \'lucide-react\'');
     expect(stage).toContain('<Phone size={17} aria-hidden className="rotate-[135deg]" />');
     expect(stage).not.toContain('PhoneOff');
     expect(stage).toContain('flex flex-row items-center gap-3');

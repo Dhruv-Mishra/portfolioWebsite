@@ -29,6 +29,7 @@ function collect(caller: GeminiLiveCaller) {
     'agentTranscript',
     'audio',
     'interrupted',
+    'toolCancellation',
     'turnComplete',
     'health',
     'error',
@@ -237,6 +238,39 @@ describe('gemini live adapter message handling', () => {
     await internals(caller).handleMessage(JSON.stringify({ goAway: { timeLeft: '5s' } }));
     expect(events.filter(event => event.event === 'health')).toEqual([
       { event: 'health', payload: { ok: false, configured: true, reason: 'Voice session is ending.' } },
+    ]);
+  });
+
+  it('clears a stored resume handle when resumption is no longer resumable', async () => {
+    const caller = new GeminiLiveCaller();
+    await becomeReady(caller);
+
+    await internals(caller).handleMessage(JSON.stringify({
+      sessionResumptionUpdate: { resumable: true, newHandle: 'keep-handle' },
+    }));
+    expect(caller.getResumeHandle()).toBe('keep-handle');
+
+    await internals(caller).handleMessage(JSON.stringify({
+      sessionResumptionUpdate: { resumable: false, newHandle: 'stale-handle' },
+    }));
+    expect(caller.getResumeHandle()).toBeNull();
+  });
+
+  it('emits toolCancellation ids for toolCallCancellation in addition to interruption', async () => {
+    const caller = new GeminiLiveCaller();
+    const events = collect(caller);
+    await becomeReady(caller);
+    events.length = 0;
+
+    await internals(caller).handleMessage(JSON.stringify({
+      toolCallCancellation: { ids: ['call-1', 2, 'call-2'] },
+    }));
+
+    expect(events.filter(event => event.event === 'toolCancellation')).toEqual([
+      { event: 'toolCancellation', payload: ['call-1', 'call-2'] },
+    ]);
+    expect(events.filter(event => event.event === 'interrupted')).toEqual([
+      { event: 'interrupted', payload: true },
     ]);
   });
 });

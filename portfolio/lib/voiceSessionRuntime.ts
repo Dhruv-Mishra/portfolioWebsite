@@ -58,18 +58,6 @@ import {
 import { getDiscoActiveSync, getMasterVolumeSync, getSoundsMutedSync } from '@/hooks/useStickers';
 import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
-import {
-  forceStopVoiceToggleCue,
-  playVoiceEnterFallback,
-  playVoiceSound,
-  prefetchVoiceSounds,
-  prefetchVoiceVisuals,
-  setVoiceAmbientDucked,
-  setVoicePcmActive,
-  startVoiceAmbient,
-  stopVoiceAmbient,
-  stopVoiceToggleCue,
-} from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
@@ -104,53 +92,21 @@ export const VOICE_IDLE_HANGUP_MS = 25_000;
 export const VOICE_EXIT_VEIL_MS = 2_200;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
-export const VOICE_AMBIENT_START_DELAY_MS = 800;
 
 export interface VoiceHangupRequest {
   force?: boolean;
   reason?: VoiceExitReason;
 }
 
-export const VOICE_ACTION_CUE_COALESCE_MS = 220;
-export const VOICE_AMBIENT_FADE_OUT_MS = 320;
 export const VOICE_HOST_READY_TIMEOUT_MS = 6_000;
 export const VOICE_CALLBACK_GAP_MS = 1_100;
-export const VOICE_RECONNECT_MAX_ATTEMPTS = 2;
-export const VOICE_RECONNECT_BACKOFF_MS = [250, 750] as const;
 
-const VOICE_CONNECTION_LOST_STATUS = 'Connection faded.';
-const VOICE_RECONNECTING_STATUS = 'Reconnecting…';
 const VOICE_RETRYABLE_STATUS = 'Call dropped.';
 const VOICE_RETRYABLE_ERROR = 'Call dropped. Try again or hang up.';
 const VOICE_PLAYBACK_RESUME_ERROR = 'Audio output could not start. Try again or hang up.';
 const VOICE_START_FAILED_STATUS = 'Voice mode is unavailable.';
 const VOICE_START_FAILED_ERROR = 'Unable to start the call.';
 const VOICE_MIC_PERMISSION_ERROR = 'Microphone permission is needed.';
-
-const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
-  'navigate_to',
-  'open_project',
-  'open_link',
-  'open_feedback',
-  'open_command_palette',
-  'open_shortcuts',
-  'open_chat',
-  'close_project',
-  'set_theme',
-  'control_project_video',
-  'browse_history',
-  'scroll_page',
-  'send_chat_message',
-  'run_terminal_command',
-  'fill_field',
-  'set_preference',
-  'set_master_volume',
-  'set_voice_output',
-  'set_voice_backend',
-  'set_motion_preference',
-  'submit_guestbook',
-  'submit_feedback',
-]);
 
 export interface VoiceSessionRuntimeDeps {
   createCaller: () => VoiceCaller;
@@ -161,12 +117,6 @@ export interface VoiceSessionRuntimeDeps {
     snapshot?: VoiceClientSnapshot,
     resumeHandle?: string,
   ) => Promise<VoiceSessionHandle>;
-  playEnter: () => void;
-  playExit: () => void;
-  playAction: () => void;
-  startAmbient: (enabled: boolean) => void;
-  stopAmbient: (options?: { fadeMs?: number }) => void;
-  prefetchSounds: () => void;
 }
 
 const IDLE_SNAPSHOT: VoiceSessionSnapshot = {
@@ -203,13 +153,8 @@ let starting = false;
 let stopping = false;
 let busAttached = false;
 let pendingInvocationContext: VoiceInvocationContext | null = null;
-let recovering = false;
-let reconnectAttempts = 0;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectTimerResolve: (() => void) | null = null;
 let streamEndTimer: ReturnType<typeof setTimeout> | null = null;
 let streamEndSent = false;
-let exitCueTimer: ReturnType<typeof setTimeout> | null = null;
 let toolCallQueue: Array<{ call: SiteToolCall; generation: number }> = [];
 let toolCallDraining = false;
 let toolCallDrainEpoch = 0;
@@ -225,13 +170,10 @@ let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
 let idleCheckInTimer: ReturnType<typeof setTimeout> | null = null;
 let idleHangupTimer: ReturnType<typeof setTimeout> | null = null;
 let exitVeilTimer: ReturnType<typeof setTimeout> | null = null;
-let ambientStartTimer: ReturnType<typeof setTimeout> | null = null;
 let micPermissionWaitTimer: ReturnType<typeof setTimeout> | null = null;
 let withheldWelcome: { welcomeGreeting: string; welcomeHint: string } | null = null;
 let idleCheckedIn = false;
-let pendingStopReason: VoiceExitReason = 'user';
 let subtitleSpeaker: 'user' | 'agent' | null = null;
-let actionCueTimer: ReturnType<typeof setTimeout> | null = null;
 const projectVideoWaiters = new Set<() => void>();
 const projectVideoWaiterCancellers = new Set<() => void>();
 
@@ -279,32 +221,10 @@ function clearExitVeilTimer(): void {
   exitVeilTimer = null;
 }
 
-function clearAmbientStartTimer(): void {
-  if (ambientStartTimer === null) return;
-  clearTimeout(ambientStartTimer);
-  ambientStartTimer = null;
-}
-
-function clearReconnectTimer(): void {
-  if (reconnectTimer !== null) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-  const resolve = reconnectTimerResolve;
-  reconnectTimerResolve = null;
-  resolve?.();
-}
-
 function clearStreamEndTimer(): void {
   if (streamEndTimer === null) return;
   clearTimeout(streamEndTimer);
   streamEndTimer = null;
-}
-
-function clearExitCueTimer(): void {
-  if (exitCueTimer === null) return;
-  clearTimeout(exitCueTimer);
-  exitCueTimer = null;
 }
 
 function resetStreamEndWatch(): void {
@@ -314,10 +234,10 @@ function resetStreamEndWatch(): void {
 
 function scheduleStreamEnd(generation: number): void {
   clearStreamEndTimer();
-  if (!sendAudioLive || !socketReady || recovering || stopping || isStale(generation)) return;
+  if (!sendAudioLive || !socketReady || stopping || isStale(generation)) return;
   streamEndTimer = setTimeout(() => {
     streamEndTimer = null;
-    if (isStale(generation) || stopping || recovering || !snapshot.active) return;
+    if (isStale(generation) || stopping || !snapshot.active) return;
     if (!capture || !sendAudioLive || !socketReady || streamEndSent) return;
     streamEndSent = true;
     caller?.endAudioStream?.();
@@ -330,7 +250,7 @@ function noteSentCaptureFrame(generation: number): void {
 }
 
 function handleCaptureFrame(chunk: ArrayBuffer, generation: number): void {
-  if (isStale(generation) || stopping || recovering) return;
+  if (isStale(generation) || stopping) return;
   if (!sendAudioLive || !socketReady) return;
   if (playback?.isBusy()) {
     if (streamEndTimer !== null && !streamEndSent) {
@@ -342,10 +262,6 @@ function handleCaptureFrame(chunk: ArrayBuffer, generation: number): void {
   }
   caller?.sendAudio(chunk);
   noteSentCaptureFrame(generation);
-}
-
-function setPcmPlaybackActive(active: boolean): void {
-  setVoicePcmActive(active);
 }
 
 function clearMicPermissionWait(): void {
@@ -460,12 +376,6 @@ function defaultDeps(): VoiceSessionRuntimeDeps {
     createPlayback: createVoicePlayback,
     startCapture: startVoiceCapture,
     fetchSession: mintBrowserVoiceSession,
-    playEnter: playVoiceEnterFallback,
-    playExit: () => playVoiceSound('voice-exit'),
-    playAction: () => playVoiceSound('voice-action'),
-    startAmbient: startVoiceAmbient,
-    stopAmbient: stopVoiceAmbient,
-    prefetchSounds: prefetchVoiceSounds,
   };
 }
 
@@ -589,7 +499,6 @@ function canCommitSideEffects(): boolean {
   return snapshot.introComplete
     && snapshot.recovery === 'none'
     && !playback?.isBusy()
-    && !recovering
     && !stopping;
 }
 
@@ -696,7 +605,6 @@ function waitForProjectVideoControl(
 
       const runtime = requireHostRuntime();
       cleanup();
-      playCommittedActionCue(call.name);
       void executeSiteTool(call, runtime, { commit: true }).then(
         result => finish(result),
         () => finish(projectVideoUnavailableResult()),
@@ -747,25 +655,6 @@ function hostArgsForVoiceTool(call: SiteToolCall): { field?: string } | null {
   return call.name === 'fill_field' ? { field: call.args.field } : null;
 }
 
-function clearActionCueTimer(): void {
-  if (actionCueTimer === null) return;
-  clearTimeout(actionCueTimer);
-  actionCueTimer = null;
-}
-
-function shouldPlayVisualActionCue(name: SiteToolCall['name']): boolean {
-  return VISUAL_VOICE_ACTION_TOOLS.has(name);
-}
-
-function playCommittedActionCue(name: SiteToolCall['name']): void {
-  if (!shouldPlayVisualActionCue(name)) return;
-  if (actionCueTimer !== null) return;
-  resolveDeps().playAction();
-  actionCueTimer = setTimeout(() => {
-    actionCueTimer = null;
-  }, VOICE_ACTION_CUE_COALESCE_MS);
-}
-
 async function enqueueVoiceSideEffect(
   call: SiteToolCall,
   generation: number,
@@ -774,13 +663,11 @@ async function enqueueVoiceSideEffect(
   const deferred = isDeferredVoiceTool(call.name);
   const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   if (!deferred && !dependent) {
-    playCommittedActionCue(call.name);
     return executeSiteToolSafely(call, requireHostRuntime(), true);
   }
   let result: SiteToolResult | undefined;
   const outcome = await queue?.enqueue(async () => {
     if (isStale(generation) || stopping || isVoiceToolCancelled(call.id)) return;
-    playCommittedActionCue(call.name);
     result = await executeSiteToolSafely(call, requireHostRuntime(), true);
   }, hostId ? {
     ready: () => isSiteActionHostReady(hostId),
@@ -835,7 +722,6 @@ function canWatchIdle(): boolean {
     && snapshot.hud === 'live'
     && !snapshot.hangupPending
     && !stopping
-    && !recovering
     && socketReady
     && snapshot.recovery === 'none'
   );
@@ -878,7 +764,7 @@ function noteVoiceActivity(
     return;
   }
   if (idleCheckedIn && source === 'agent') return;
-  if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping || recovering) {
+  if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping) {
     resetIdleWatch();
     return;
   }
@@ -887,24 +773,10 @@ function noteVoiceActivity(
 }
 
 function beginExitVeil(reason: VoiceExitReason): void {
-  cancelProjectVideoWaiters();
-  pendingStopReason = reason;
-  resetIdleWatch();
   stopping = true;
-  sendAudioLive = false;
-  recovering = false;
-  clearReconnectTimer();
-  resetStreamEndWatch();
+  teardownMedia(reason);
   const exitLine = pickVoiceExitVeil();
-  const fadeMs = prefersReducedSubtitleMotion() ? 120 : VOICE_AMBIENT_FADE_OUT_MS;
-  resolveDeps().stopAmbient({ fadeMs });
-  clearExitCueTimer();
   const generation = currentGeneration();
-  exitCueTimer = setTimeout(() => {
-    exitCueTimer = null;
-    if (isStale(generation) || !stopping) return;
-    resolveDeps().playExit();
-  }, fadeMs);
   patch({
     hud: 'exiting',
     phase: 'exiting',
@@ -917,12 +789,12 @@ function beginExitVeil(reason: VoiceExitReason): void {
   exitVeilTimer = setTimeout(() => {
     exitVeilTimer = null;
     if (isStale(generation)) return;
-    finishStop(pendingStopReason);
+    finishStop(reason);
   }, veilMs);
 }
 
 function tryMarkIntroComplete(): void {
-  if (snapshot.introComplete || stopping || recovering || !snapshot.active) return;
+  if (snapshot.introComplete || stopping || !snapshot.active) return;
   if (!socketReady || !greetTurnComplete) return;
   if (playback?.isBusy()) return;
   patch({
@@ -969,22 +841,15 @@ function teardownMedia(reason: VoiceExitReason): void {
   sendAudioLive = false;
   socketReady = false;
   greetTurnComplete = false;
-  recovering = false;
-  reconnectAttempts = 0;
   micEnableInFlight = false;
   resetIdleWatch();
   clearExitVeilTimer();
-  clearAmbientStartTimer();
-  clearReconnectTimer();
   resetStreamEndWatch();
-  clearExitCueTimer();
   resetMicPermissionWait();
   resetSubtitleState();
   resetFarewellWait();
   resetSeenVoiceTools();
-  clearActionCueTimer();
   cancelProjectVideoWaiters();
-  setPcmPlaybackActive(false);
   capture?.stop();
   capture = null;
   playback?.interrupt();
@@ -996,9 +861,6 @@ function teardownMedia(reason: VoiceExitReason): void {
   unsubs = [];
   queue?.reset();
   queue = null;
-  forceStopVoiceToggleCue();
-  setVoiceAmbientDucked(false);
-  resolveDeps().stopAmbient({ fadeMs: 0 });
   if (activeCaller) activeCaller.close(reason);
 }
 
@@ -1042,94 +904,6 @@ function enterRetryableScreen(error: string, status = VOICE_RETRYABLE_STATUS): v
   emit();
 }
 
-function delay(ms: number, generation: number): Promise<void> {
-  return new Promise(resolve => {
-    reconnectTimerResolve = resolve;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      reconnectTimerResolve = null;
-      if (isStale(generation) || stopping) {
-        resolve();
-        return;
-      }
-      resolve();
-    }, ms);
-  });
-}
-
-async function recoverLiveConnection(generation: number): Promise<void> {
-  if (isStale(generation) || stopping || recovering || snapshot.recovery === 'retryable') return;
-  recovering = true;
-  sendAudioLive = false;
-  socketReady = false;
-  resetIdleWatch();
-  resetStreamEndWatch();
-  setPcmPlaybackActive(false);
-  playback?.interrupt();
-  patch({
-    recovery: 'reconnecting',
-    phase: 'connecting',
-    status: VOICE_RECONNECTING_STATUS,
-    error: null,
-    hangupPending: false,
-  });
-
-  const activeCaller = caller;
-  const resumeHandle = parseVoiceResumeHandle(activeCaller?.getResumeHandle?.() ?? undefined);
-  if (!activeCaller || !resumeHandle) {
-    recovering = false;
-    enterRetryableScreen(VOICE_RETRYABLE_ERROR);
-    return;
-  }
-
-  while (reconnectAttempts < VOICE_RECONNECT_MAX_ATTEMPTS) {
-    const attempt = reconnectAttempts;
-    reconnectAttempts += 1;
-    const backoff = VOICE_RECONNECT_BACKOFF_MS[attempt] ?? VOICE_RECONNECT_BACKOFF_MS[VOICE_RECONNECT_BACKOFF_MS.length - 1];
-    if (backoff > 0) await delay(backoff, generation);
-    if (isStale(generation) || stopping) return;
-
-    try {
-      const minted = sampleMintSnapshot();
-      const session = await resolveDeps().fetchSession(snapshot.lowNetwork, minted, resumeHandle);
-      if (isStale(generation) || stopping) return;
-      await activeCaller.connect({
-        ...session,
-        resumeHandle,
-        setup: {
-          ...session.setup,
-          greetOnConnect: false,
-          resumeHandle,
-        },
-      });
-      if (isStale(generation) || stopping) return;
-      recovering = false;
-      reconnectAttempts = 0;
-      socketReady = true;
-      sendAudioLive = capture != null;
-      patch({
-        recovery: 'none',
-        phase: 'listening',
-        status: snapshot.introComplete
-          ? 'Live. Ask anything, or try a site action.'
-          : (capture ? 'Connected. Waiting for the welcome.' : VOICE_MIC_PERMISSION_PROMPT),
-        error: capture ? null : snapshot.error,
-        micLive: capture != null,
-      });
-      noteVoiceActivity('connect');
-      tryMarkIntroComplete();
-      notifyVoiceActionQueueReady();
-      return;
-    } catch {
-      if (isStale(generation) || stopping) return;
-    }
-  }
-
-  if (isStale(generation) || stopping) return;
-  recovering = false;
-  enterRetryableScreen(VOICE_RETRYABLE_ERROR);
-}
-
 async function handleSiteToolCall(call: SiteToolCall, generation: number): Promise<void> {
   const activeCaller = caller;
   if (!activeCaller || isStale(generation) || stopping) return;
@@ -1160,7 +934,6 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
   } else if (deferred || dependent) {
     result = await enqueueVoiceSideEffect(call, generation);
   } else {
-    playCommittedActionCue(call.name);
     result = await executeSiteToolSafely(call, runtime, true);
   }
   if (isVoiceToolCancelled(call.id) || isStale(generation) || caller !== activeCaller) return;
@@ -1196,46 +969,40 @@ async function drainToolCalls(): Promise<void> {
 function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, generation: number): void {
   unsubs = [
     nextCaller.on('phase', next => {
-      if (isStale(generation) || recovering) return;
+      if (isStale(generation)) return;
       if (next === 'speaking') {
         markFarewellHeard();
         notifyVoiceActionQueueReady();
       }
       if (next === 'listening' && nextPlayback.isBusy()) {
-        stopVoiceToggleCue();
-        setVoiceAmbientDucked(true);
         patch({ phase: snapshot.phase === 'acting' ? 'acting' : 'speaking' });
         return;
       }
       patch({ phase: next });
     }),
     nextCaller.on('userTranscript', text => {
-      if (isStale(generation) || recovering) return;
+      if (isStale(generation)) return;
       applySpokenTranscript('user', text, generation);
       noteVoiceActivity('user');
     }),
     nextCaller.on('agentTranscript', text => {
-      if (isStale(generation) || recovering) return;
+      if (isStale(generation)) return;
       applySpokenTranscript('agent', text, generation);
       noteVoiceActivity('agent');
     }),
     nextCaller.on('audio', chunk => {
-      if (isStale(generation) || stopping || recovering) return;
+      if (isStale(generation) || stopping) return;
       markFarewellPlayback();
-      stopVoiceToggleCue();
-      setVoiceAmbientDucked(true);
-      setPcmPlaybackActive(true);
       nextPlayback.play(chunk);
       notifyVoiceActionQueueReady();
     }),
     nextCaller.on('interrupted', () => {
       if (isStale(generation) || stopping) return;
       nextPlayback.interrupt();
-      setPcmPlaybackActive(false);
       notifyVoiceActionQueueReady();
     }),
     nextCaller.on('toolCall', call => {
-      if (isStale(generation) || recovering || stopping) return;
+      if (isStale(generation) || stopping) return;
       noteVoiceActivity('tool');
       enqueueToolCall(call);
     }),
@@ -1244,7 +1011,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       applyToolCancellation(ids);
     }),
     nextCaller.on('turnComplete', () => {
-      if (isStale(generation) || recovering) return;
+      if (isStale(generation)) return;
       nextPlayback.finishTurn?.();
       greetTurnComplete = true;
       if (farewellArmed) farewellTurnComplete = true;
@@ -1255,29 +1022,22 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
     nextCaller.on('health', status => {
       if (isStale(generation) || stopping) return;
       if (status.ok !== false) return;
-      void recoverLiveConnection(generation);
+      enterRetryableScreen(VOICE_RETRYABLE_ERROR);
     }),
     nextCaller.on('error', () => {
-      if (isStale(generation) || stopping || recovering) return;
-      patch({
-        error: VOICE_CONNECTION_LOST_STATUS,
-        phase: 'error',
-        status: VOICE_CONNECTION_LOST_STATUS,
-      });
+      if (isStale(generation) || stopping) return;
+      enterRetryableScreen(VOICE_RETRYABLE_ERROR);
     }),
     nextCaller.on('ended', reason => {
       if (isStale(generation) || stopping) return;
-      if (recovering) return;
-      if (reason === 'health') {
-        void recoverLiveConnection(generation);
+      if (reason !== 'user') {
+        enterRetryableScreen(VOICE_RETRYABLE_ERROR);
         return;
       }
       stopVoiceSession(reason);
     }),
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
-      setPcmPlaybackActive(false);
-      setVoiceAmbientDucked(false);
       if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
         patch({ phase: 'listening' });
       }
@@ -1318,17 +1078,6 @@ async function bootSession(): Promise<void> {
       notifyVoiceActionQueueReady();
     }));
 
-    d.prefetchSounds();
-    prefetchVoiceVisuals();
-    d.playEnter();
-    if (prefs.ambientMusic && !prefs.lowNetwork) {
-      clearAmbientStartTimer();
-      ambientStartTimer = setTimeout(() => {
-        ambientStartTimer = null;
-        if (isStale(generation) || !snapshot.active || stopping) return;
-        d.startAmbient(true);
-      }, VOICE_AMBIENT_START_DELAY_MS);
-    }
     let captureError: unknown = null;
     const nextCapture = await d.startCapture(chunk => {
       handleCaptureFrame(chunk, generation);
@@ -1430,8 +1179,6 @@ export function startVoiceSession(): Promise<void> {
   if (starting || stopping || snapshot.active) return Promise.resolve();
   pendingInvocationContext = consumeVoiceInvocationContext();
   starting = true;
-  recovering = false;
-  reconnectAttempts = 0;
   socketReady = false;
   greetTurnComplete = false;
   resetSubtitleState();
@@ -1461,13 +1208,11 @@ export function startVoiceSession(): Promise<void> {
 }
 
 export function retryVoiceSession(): Promise<void> {
-  if (stopping || starting || recovering) return Promise.resolve();
+  if (stopping || starting) return Promise.resolve();
   if (!snapshot.active || snapshot.recovery !== 'retryable') return Promise.resolve();
   const keepLowNetwork = snapshot.lowNetwork;
   teardownMedia('error');
   starting = true;
-  recovering = false;
-  reconnectAttempts = 0;
   socketReady = false;
   greetTurnComplete = false;
   resetSubtitleState();
@@ -1508,7 +1253,6 @@ export function stopVoiceSession(reason: VoiceExitReason = 'user', options: { fo
   }
   if (stopping) return;
   if (options.force === true) {
-    resolveDeps().playExit();
     finishStop(reason);
     return;
   }
@@ -1559,7 +1303,7 @@ export function getServerVoiceSessionSnapshot(): VoiceSessionSnapshot {
 }
 
 export function enableVoiceCapture(): void {
-  if (!snapshot.active || capture || micEnableInFlight || recovering || stopping) return;
+  if (!snapshot.active || capture || micEnableInFlight || stopping) return;
   if (snapshot.recovery === 'retryable') return;
   const generation = currentGeneration();
   const d = resolveDeps();
@@ -1575,9 +1319,9 @@ export function enableVoiceCapture(): void {
       return;
     }
     capture = nextCapture;
-    sendAudioLive = socketReady && !recovering;
+    sendAudioLive = socketReady;
     clearMicPermissionWait();
-    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending && !recovering;
+    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending;
     const welcome = withheldWelcome;
     if (shouldSendWelcome) withheldWelcome = null;
     patch({
@@ -1601,7 +1345,7 @@ export function enableVoiceCapture(): void {
       status: VOICE_MIC_PERMISSION_PROMPT,
       error: micError,
     });
-    if (socketReady && !stopping && snapshot.active && !capture && !snapshot.hangupPending && !recovering) {
+    if (socketReady && !stopping && snapshot.active && !capture && !snapshot.hangupPending) {
       startMicPermissionWait(generation);
     }
   });
@@ -1619,7 +1363,6 @@ export function resetVoiceSessionRuntimeForTests(): void {
   teardownMedia('user');
   starting = false;
   stopping = false;
-  pendingStopReason = 'user';
   snapshot = IDLE_SNAPSHOT;
   hostRuntime = null;
   depsOverride = null;

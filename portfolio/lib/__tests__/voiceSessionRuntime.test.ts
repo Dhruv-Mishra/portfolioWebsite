@@ -18,27 +18,14 @@ import {
   setVoiceSessionRuntimeDepsForTests,
   startVoiceSession,
   stopVoiceSession,
-  VOICE_ACTION_CUE_COALESCE_MS,
-  VOICE_AMBIENT_FADE_OUT_MS,
-  VOICE_AMBIENT_START_DELAY_MS,
   VOICE_CALLBACK_GAP_MS,
   VOICE_EXIT_VEIL_MS,
   VOICE_IDLE_CHECKIN_MS,
   VOICE_IDLE_HANGUP_MS,
   VOICE_PROJECT_VIDEO_WAIT_MS,
-  VOICE_RECONNECT_BACKOFF_MS,
   VOICE_SUBTITLE_FADE_MS,
   VOICE_SUBTITLE_IDLE_MS,
 } from '@/lib/voiceSessionRuntime';
-import { setVoicePcmActive } from '@/lib/voiceSounds';
-
-vi.mock('@/lib/voiceSounds', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/voiceSounds')>('@/lib/voiceSounds');
-  return {
-    ...actual,
-    setVoicePcmActive: vi.fn(),
-  };
-});
 import {
   buildVoiceExactSpeakCue,
   buildVoiceSessionStartCue,
@@ -50,25 +37,22 @@ import {
   VOICE_MIC_PERMISSION_WAIT_MS,
   VOICE_WELCOME_HINT,
 } from '@/lib/voiceAgentProtocol';
-import { getVoiceAgentPrefsSnapshot, setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
 
-function createFakeCaller(options: { resumeHandle?: string | null } = {}) {
+function createFakeCaller() {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const toolResults: Array<{ id: string; result: unknown; name?: string }> = [];
   const sentTexts: string[] = [];
   const sentAudio: ArrayBuffer[] = [];
   const connectedSessions: VoiceSessionHandle[] = [];
   const endAudioStreamCalls: number[] = [];
+  const close = vi.fn();
   let connectCount = 0;
-  let resumeHandle = options.resumeHandle ?? null;
-  let connectImpl: ((session: VoiceSessionHandle) => Promise<void>) | null = null;
 
   const caller: VoiceCaller = {
     id: 'fake-live',
     async connect(session) {
       connectCount += 1;
       connectedSessions.push(session);
-      if (connectImpl) await connectImpl(session);
     },
     sendAudio(chunk) {
       sentAudio.push(chunk);
@@ -80,12 +64,9 @@ function createFakeCaller(options: { resumeHandle?: string | null } = {}) {
       toolResults.push({ id, result, name });
     },
     interrupt() {},
-    close() {},
+    close,
     endAudioStream() {
       endAudioStreamCalls.push(Date.now());
-    },
-    getResumeHandle() {
-      return resumeHandle;
     },
     on(event, listener) {
       const bucket = listeners.get(event) ?? new Set<(payload: unknown) => void>();
@@ -108,12 +89,7 @@ function createFakeCaller(options: { resumeHandle?: string | null } = {}) {
     connectedSessions,
     endAudioStreamCalls,
     getConnectCount: () => connectCount,
-    setResumeHandle(next: string | null) {
-      resumeHandle = next;
-    },
-    setConnectImpl(next: ((session: VoiceSessionHandle) => Promise<void>) | null) {
-      connectImpl = next;
-    },
+    close,
   };
 }
 
@@ -125,6 +101,9 @@ function createFakePlayback() {
   let busy = false;
   const idleListeners = new Set<() => void>();
   const finishTurn = vi.fn();
+  const close = vi.fn(() => {
+    busy = false;
+  });
   const play = vi.fn(() => {
     busy = true;
   });
@@ -135,9 +114,7 @@ function createFakePlayback() {
       busy = false;
       for (const listener of idleListeners) listener();
     },
-    close() {
-      busy = false;
-    },
+    close,
     isBusy: () => busy,
     subscribeIdle(cb) {
       idleListeners.add(cb);
@@ -149,6 +126,7 @@ function createFakePlayback() {
     playback,
     play,
     finishTurn,
+    close,
     setBusy(next: boolean) {
       busy = next;
       if (!next) {
@@ -193,17 +171,12 @@ describe('voice session runtime singleton', () => {
     const captureStop = vi.fn();
     const openProject = vi.fn();
     const push = vi.fn();
-    const playEnter = vi.fn();
-    const playExit = vi.fn();
-    const playAction = vi.fn();
-    const startAmbient = vi.fn();
-    const stopAmbient = vi.fn();
-    const prefetchSounds = vi.fn();
+    const createCaller = vi.fn(() => fakeCaller.caller);
     let captureFrame: ((chunk: ArrayBuffer) => void) | null = null;
     let onPlaybackResumeError: (() => void) | undefined;
     const fetchSession = vi.fn(async () => sessionHandle);
     setVoiceSessionRuntimeDepsForTests({
-      createCaller: () => fakeCaller.caller,
+      createCaller,
       createPlayback: (options) => {
         onPlaybackResumeError = options?.onResumeError;
         return fakePlayback.playback;
@@ -213,12 +186,6 @@ describe('voice session runtime singleton', () => {
         return { stop: captureStop };
       },
       fetchSession,
-      playEnter,
-      playExit,
-      playAction,
-      startAmbient,
-      stopAmbient,
-      prefetchSounds,
     });
     bindVoiceSessionHost({
       router: { push, replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -243,12 +210,7 @@ describe('voice session runtime singleton', () => {
       fakePlayback,
       startVoiceSession,
       stopVoiceSession,
-      playEnter,
-      playExit,
-      playAction,
-      startAmbient,
-      stopAmbient,
-      prefetchSounds,
+      createCaller,
       requestVoiceHangup,
       getVoiceSessionSnapshot,
       resetVoiceSessionRuntimeForTests,
@@ -317,7 +279,7 @@ describe('voice session runtime singleton', () => {
 
     runtime.fakeCaller.emit('error', 'provider dumped a stack');
     await vi.advanceTimersByTimeAsync(VOICE_SUBTITLE_IDLE_MS + 50);
-    expect(runtime.getVoiceSessionSnapshot().error).toBe('Connection faded.');
+    expect(runtime.getVoiceSessionSnapshot().error).toBe('Call dropped. Try again or hang up.');
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
@@ -346,6 +308,7 @@ describe('voice session runtime singleton', () => {
 
     runtime.startVoiceSession();
     expect(runtime.fakeCaller.getConnectCount()).toBe(1);
+    expect(runtime.createCaller).toHaveBeenCalledTimes(1);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'intro',
@@ -379,13 +342,12 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('surfaces a socket drop on the dock without restarting', async () => {
+  it('closes a socket drop and leaves manual retry without reconnecting', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.setResumeHandle(null);
     goLive(runtime);
 
-    runtime.fakeCaller.emit('ended', 'health');
+    runtime.fakeCaller.emit('health', { ok: false, configured: true });
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'live',
@@ -394,7 +356,15 @@ describe('voice session runtime singleton', () => {
       error: 'Call dropped. Try again or hang up.',
     });
     expect(runtime.fakeCaller.getConnectCount()).toBe(1);
+    expect(runtime.fetchSession).toHaveBeenCalledTimes(1);
     expect(runtime.captureStop).toHaveBeenCalled();
+    expect(runtime.fakePlayback.close).toHaveBeenCalled();
+    expect(runtime.fakeCaller.close).toHaveBeenCalledWith('error');
+
+    await retryVoiceSession();
+    expect(runtime.createCaller).toHaveBeenCalledTimes(2);
+    expect(runtime.fetchSession).toHaveBeenCalledTimes(2);
+    expect(runtime.fakeCaller.getConnectCount()).toBe(2);
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
@@ -457,6 +427,9 @@ describe('voice session runtime singleton', () => {
       active: true,
       hud: 'exiting',
     });
+    expect(runtime.captureStop).toHaveBeenCalled();
+    expect(runtime.fakePlayback.close).toHaveBeenCalled();
+    expect(runtime.fakeCaller.close).toHaveBeenCalledWith('user');
     expect(VOICE_EXIT_VEIL_VARIATIONS).toContain(runtime.getVoiceSessionSnapshot().exitLine);
 
     await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
@@ -552,7 +525,6 @@ describe('voice session runtime singleton', () => {
   it('does not start idle hangup after a health drop', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.setResumeHandle(null);
     goLive(runtime);
 
     runtime.fakeCaller.emit('ended', 'health');
@@ -679,70 +651,6 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('plays toggle on enter, then starts ambient after the toggle attack', async () => {
-    vi.useFakeTimers();
-    const runtime = await boot();
-    expect(runtime.prefetchSounds).toHaveBeenCalledTimes(1);
-    expect(runtime.playEnter).toHaveBeenCalledTimes(1);
-    expect(runtime.startAmbient).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_START_DELAY_MS);
-    expect(runtime.startAmbient).toHaveBeenCalledWith(true);
-    expect(runtime.playEnter.mock.invocationCallOrder[0]).toBeLessThan(
-      runtime.startAmbient.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
-
-    runtime.resetVoiceSessionRuntimeForTests();
-    vi.useRealTimers();
-  });
-
-  it('skips ambient when low-network mode is on', async () => {
-    const previous = getVoiceAgentPrefsSnapshot();
-    setVoiceAgentPref('lowNetwork', true);
-    setVoiceAgentPref('ambientMusic', true);
-    try {
-      const runtime = await boot();
-      expect(runtime.playEnter).toHaveBeenCalledTimes(1);
-      expect(runtime.startAmbient).not.toHaveBeenCalled();
-      expect(runtime.getVoiceSessionSnapshot().lowNetwork).toBe(true);
-      runtime.resetVoiceSessionRuntimeForTests();
-    } finally {
-      setVoiceAgentPref('lowNetwork', previous.lowNetwork);
-      setVoiceAgentPref('ambientMusic', previous.ambientMusic);
-    }
-  });
-
-  it('skips ambient when ambient music is disabled', async () => {
-    const previous = getVoiceAgentPrefsSnapshot();
-    setVoiceAgentPref('lowNetwork', false);
-    setVoiceAgentPref('ambientMusic', false);
-    try {
-      const runtime = await boot();
-      expect(runtime.playEnter).toHaveBeenCalledTimes(1);
-      expect(runtime.startAmbient).not.toHaveBeenCalled();
-      runtime.resetVoiceSessionRuntimeForTests();
-    } finally {
-      setVoiceAgentPref('lowNetwork', previous.lowNetwork);
-      setVoiceAgentPref('ambientMusic', previous.ambientMusic);
-    }
-  });
-
-  it('fades ambient then plays exit on a normal hangup', async () => {
-    vi.useFakeTimers();
-    const runtime = await boot();
-    goLive(runtime);
-
-    runtime.requestVoiceHangup();
-    expect(runtime.stopAmbient).toHaveBeenCalledWith({ fadeMs: VOICE_AMBIENT_FADE_OUT_MS });
-    expect(runtime.playExit).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_FADE_OUT_MS);
-    expect(runtime.playExit).toHaveBeenCalledTimes(1);
-
-    runtime.resetVoiceSessionRuntimeForTests();
-    vi.useRealTimers();
-  });
-
   it('keeps project-video control queued while busy past the old timeout and commits once ready', async () => {
     const committedResults: Array<{ ok: boolean; spokenText: string }> = [];
     const dispatchEvent = vi.fn((event: Event) => {
@@ -770,11 +678,9 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
-    expect(runtime.playAction).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(VOICE_PROJECT_VIDEO_WAIT_MS + 1);
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
-    expect(runtime.playAction).not.toHaveBeenCalled();
 
     runtime.fakePlayback.setBusy(false);
     const unregister = registerSiteActionHost('project-video');
@@ -793,30 +699,6 @@ describe('voice session runtime singleton', () => {
       spokenText: 'Playing the preview.',
     });
     expect(runtime.fakeCaller.toolResults).toHaveLength(1);
-    expect(runtime.playAction).toHaveBeenCalledTimes(1);
-
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'close-1',
-      name: 'close_project',
-      args: {},
-    } as SiteToolCall);
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'theme-1',
-      name: 'set_theme',
-      args: { action: 'toggle' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(runtime.playAction).toHaveBeenCalledTimes(1);
-
-    await vi.advanceTimersByTimeAsync(VOICE_ACTION_CUE_COALESCE_MS + 1);
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'theme-2',
-      name: 'set_theme',
-      args: { action: 'dark' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    expect(runtime.playAction).toHaveBeenCalledTimes(2);
 
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();
@@ -879,10 +761,7 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
-    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
-      ok: false,
-      errorCode: 'project-video-unavailable',
-    });
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
 
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
@@ -897,7 +776,7 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(runtime.fakeCaller.toolResults).toHaveLength(1);
+    expect(runtime.fakeCaller.toolResults).toHaveLength(0);
     expect(dispatchEvent).not.toHaveBeenCalledWith(expect.objectContaining({
       type: CONTROL_PROJECT_VIDEO_EVENT,
     }));
@@ -919,12 +798,6 @@ describe('voice session runtime singleton', () => {
         throw new Error('denied');
       },
       fetchSession,
-      playEnter: vi.fn(),
-      playExit: vi.fn(),
-      playAction: vi.fn(),
-      startAmbient: vi.fn(),
-      stopAmbient: vi.fn(),
-      prefetchSounds: vi.fn(),
     });
     bindVoiceSessionHost({
       router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -980,12 +853,6 @@ describe('voice session runtime singleton', () => {
         return { stop: vi.fn() };
       },
       fetchSession,
-      playEnter: vi.fn(),
-      playExit: vi.fn(),
-      playAction: vi.fn(),
-      startAmbient: vi.fn(),
-      stopAmbient: vi.fn(),
-      prefetchSounds: vi.fn(),
     });
     bindVoiceSessionHost({
       router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -1057,21 +924,16 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('calls finishTurn and isolates PCM media on audio then idle', async () => {
+  it('plays model PCM and finishes its turn when the adapter completes', async () => {
     const runtime = await boot();
     goLive(runtime);
-    vi.mocked(setVoicePcmActive).mockClear();
 
     runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
-    expect(vi.mocked(setVoicePcmActive)).toHaveBeenCalledWith(true);
     expect(runtime.fakePlayback.play).toHaveBeenCalled();
 
     runtime.fakePlayback.finishTurn.mockClear();
     runtime.fakeCaller.emit('turnComplete', true);
     expect(runtime.fakePlayback.finishTurn).toHaveBeenCalled();
-
-    runtime.fakePlayback.setBusy(false);
-    expect(vi.mocked(setVoicePcmActive)).toHaveBeenCalledWith(false);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -1108,12 +970,6 @@ describe('voice session runtime singleton', () => {
       createPlayback: () => fakePlayback.playback,
       startCapture: async () => ({ stop: captureStop }),
       fetchSession,
-      playEnter: vi.fn(),
-      playExit: vi.fn(),
-      playAction: vi.fn(),
-      startAmbient: vi.fn(),
-      stopAmbient: vi.fn(),
-      prefetchSounds: vi.fn(),
     });
     bindVoiceSessionHost({
       router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -1147,41 +1003,6 @@ describe('voice session runtime singleton', () => {
     resetVoiceSessionRuntimeForTests();
   });
 
-  it('resumes the same caller twice without greeting, then becomes retryable', async () => {
-    vi.useFakeTimers();
-    const runtime = await boot();
-    runtime.fakeCaller.setResumeHandle('resume-1');
-    goLive(runtime);
-
-    runtime.fakeCaller.setConnectImpl(async () => {
-      throw new Error('Voice connection failed.');
-    });
-    runtime.fakeCaller.emit('ended', 'health');
-    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('reconnecting');
-
-    runtime.fakeCaller.emit('ended', 'health');
-    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[0]);
-    await Promise.resolve();
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[1]);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(runtime.fetchSession).toHaveBeenCalledTimes(3);
-    expect(runtime.fetchSession.mock.calls[1]?.at(2)).toBe('resume-1');
-    expect(runtime.fetchSession.mock.calls[2]?.at(2)).toBe('resume-1');
-    expect(runtime.fakeCaller.connectedSessions.slice(1).every(session => session.setup.greetOnConnect === false)).toBe(true);
-    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
-      recovery: 'retryable',
-      error: 'Call dropped. Try again or hang up.',
-      active: true,
-    });
-    expect(runtime.captureStop).toHaveBeenCalled();
-
-    runtime.resetVoiceSessionRuntimeForTests();
-    vi.useRealTimers();
-  });
-
   it('uses an actionable mic error and ignores duplicate Enable mic clicks', async () => {
     vi.useFakeTimers();
     const fakeCaller = createFakeCaller();
@@ -1200,12 +1021,6 @@ describe('voice session runtime singleton', () => {
         });
       },
       fetchSession,
-      playEnter: vi.fn(),
-      playExit: vi.fn(),
-      playAction: vi.fn(),
-      startAmbient: vi.fn(),
-      stopAmbient: vi.fn(),
-      prefetchSounds: vi.fn(),
     });
     bindVoiceSessionHost({
       router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
@@ -1241,21 +1056,15 @@ describe('voice session runtime singleton', () => {
     vi.useRealTimers();
   });
 
-  it('ignores late audio after a stale exit cue generation', async () => {
+  it('ignores late audio after exit closes the active media', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
     goLive(runtime);
-    vi.mocked(setVoicePcmActive).mockClear();
 
     runtime.requestVoiceHangup();
     expect(runtime.getVoiceSessionSnapshot().hud).toBe('exiting');
     runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
-    expect(vi.mocked(setVoicePcmActive)).not.toHaveBeenCalledWith(true);
-
-    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_FADE_OUT_MS);
-    expect(runtime.playExit).toHaveBeenCalledTimes(1);
-    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
-    expect(vi.mocked(setVoicePcmActive)).not.toHaveBeenCalledWith(true);
+    expect(runtime.fakePlayback.play).not.toHaveBeenCalled();
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
@@ -1305,38 +1114,6 @@ describe('voice session runtime singleton', () => {
     onProjects.resetVoiceSessionRuntimeForTests();
   });
 
-  it('notifies deferred actions after a successful reconnect', async () => {
-    vi.useFakeTimers();
-    const runtime = await boot();
-    runtime.fakeCaller.setResumeHandle('resume-1');
-    goLive(runtime);
-    runtime.fakePlayback.setBusy(true);
-
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'nav-reconnect',
-      name: 'navigate_to',
-      args: { path: '/about' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(runtime.push).not.toHaveBeenCalled();
-
-    runtime.fakeCaller.setConnectImpl(null);
-    runtime.fakeCaller.emit('ended', 'health');
-    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('reconnecting');
-    expect(runtime.push).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[0]);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('none');
-    expect(runtime.push).toHaveBeenCalled();
-
-    runtime.resetVoiceSessionRuntimeForTests();
-    vi.useRealTimers();
-  });
-
   it('does not commit a cancelled deferred tool waiting on host readiness', async () => {
     const runtime = await boot();
     goLive(runtime);
@@ -1357,8 +1134,6 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
 
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
-    expect(runtime.playAction).not.toHaveBeenCalled();
-
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -1381,8 +1156,6 @@ describe('voice session runtime singleton', () => {
     await Promise.resolve();
 
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
-    expect(runtime.playAction).not.toHaveBeenCalled();
-
     unregister();
     runtime.resetVoiceSessionRuntimeForTests();
   });

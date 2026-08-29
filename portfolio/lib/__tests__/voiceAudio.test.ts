@@ -300,21 +300,27 @@ describe('voice playback pcm engine', () => {
     playback.close();
   });
 
-  it('caps queued future audio around two seconds and resyncs when already-scheduled audio is stale', async () => {
-    const { createVoicePlayback, VOICE_PLAYBACK_MAX_QUEUE_S } = await import('@/lib/voiceAudio');
+  it('preserves all queued PCM in order without resynchronizing active playback', async () => {
+    const { createVoicePlayback } = await import('@/lib/voiceAudio');
     const playback = createVoicePlayback();
     playback.play(pcm16Le(24_000 * 3));
     expect(context.sources).toHaveLength(1);
-    expect(context.buffers[0]?.duration).toBeCloseTo(VOICE_PLAYBACK_MAX_QUEUE_S, 5);
+    expect(context.buffers[0]?.duration).toBeCloseTo(3, 5);
+
+    playback.play(pcm16Le(24_000 * 2));
+    const first = context.sources[0];
+    const second = context.sources[1];
+    expect(second).not.toBe(first);
+    expect(first?.stoppedAt).toBeNull();
+    expect(second?.startedAt).toBeCloseTo(3.02, 5);
+    expect(second?.buffer?.duration).toBeCloseTo(2, 5);
 
     playback.interrupt();
-    playback.play(pcm16Le(24_000 * 2));
-    const first = context.sources.at(-1);
-    expect(first?.startedAt).toBeCloseTo(0.02, 5);
+    expect(first?.stoppedAt).toBe(0);
+    expect(second?.stoppedAt).toBe(0);
     playback.play(pcm16Le(12_000));
-    expect(first?.stoppedAt).not.toBeNull();
     const latest = context.sources.at(-1);
-    expect(latest).not.toBe(first);
+    expect(latest).not.toBe(second);
     expect(latest?.startedAt).toBeCloseTo(0.02, 5);
     expect(latest?.buffer?.duration).toBeCloseTo(0.5, 5);
     playback.close();
@@ -325,8 +331,9 @@ describe('voice playback pcm engine', () => {
     const playback = createVoicePlayback();
     playback.play(pcm16Le(24_000));
     const first = context.sources[0];
+    expect(first?.startedAt).toBeCloseTo(0.02, 5);
     playback.interrupt();
-    expect(first?.stoppedAt).not.toBeNull();
+    expect(first?.stoppedAt).toBe(0);
     expect(context.master?.gain.value).toBe(0);
 
     playback.play(pcm16Le(2_400));
@@ -357,8 +364,6 @@ describe('voice playback pcm engine', () => {
   });
 });
 
-type CaptureProcessorHandler = (event: { inputBuffer: { getChannelData: (channel: number) => Float32Array } }) => void;
-
 class FakeCaptureTrack {
   stopped = false;
   stop() {
@@ -380,7 +385,6 @@ class FakeCaptureStream {
 
 class FakeCaptureNode {
   disconnected = 0;
-  onaudioprocess: CaptureProcessorHandler | null = null;
 
   connect() {
     return this;
@@ -395,18 +399,47 @@ class FakeCaptureGain extends FakeCaptureNode {
   gain = { value: 1 };
 }
 
+type CaptureWorkletMessageHandler = (event: { data: ArrayBuffer }) => void;
+
+class FakeCapturePort {
+  closed = false;
+  onmessage: CaptureWorkletMessageHandler | null = null;
+
+  close() {
+    this.closed = true;
+  }
+
+  emit(data: ArrayBuffer) {
+    this.onmessage?.({ data });
+  }
+}
+
+class FakeCaptureWorklet extends FakeCaptureNode {
+  port = new FakeCapturePort();
+
+  constructor(
+    readonly name: string,
+    readonly options: AudioWorkletNodeOptions,
+  ) {
+    super();
+  }
+}
+
 class FakeCaptureContext {
   sampleRate = 48_000;
   destination = {};
   state: AudioContextState;
   closed = false;
   source: FakeCaptureNode | null = null;
-  processor: FakeCaptureNode | null = null;
+  worklet: FakeCaptureWorklet | null = null;
   muteGain: FakeCaptureGain | null = null;
-  failAt: 'source' | 'processor' | 'gain' | 'connect' | null = null;
+  failAt: 'source' | 'worklet' | 'gain' | 'connect' | null = null;
   resumeTo: AudioContextState = 'running';
   resumeCalls = 0;
   closeCalls = 0;
+  audioWorklet = {
+    addModule: vi.fn().mockResolvedValue(undefined),
+  };
 
   constructor(state: AudioContextState = 'running') {
     this.state = state;
@@ -416,12 +449,6 @@ class FakeCaptureContext {
     if (this.failAt === 'source') throw new Error('source failed');
     this.source = new FakeCaptureNode();
     return this.source;
-  }
-
-  createScriptProcessor() {
-    if (this.failAt === 'processor') throw new Error('processor failed');
-    this.processor = new FakeCaptureNode();
-    return this.processor;
   }
 
   createGain() {
@@ -447,6 +474,17 @@ class FakeCaptureContext {
     this.state = 'closed';
     return Promise.resolve();
   }
+}
+
+function AudioWorkletNodeStub(
+  audioContext: FakeCaptureContext,
+  name: string,
+  options: AudioWorkletNodeOptions,
+) {
+  if (audioContext.failAt === 'worklet') throw new Error('worklet failed');
+  const worklet = new FakeCaptureWorklet(name, options);
+  audioContext.worklet = worklet;
+  return worklet;
 }
 
 function pcm16Samples(chunk: ArrayBuffer): number[] {
@@ -476,6 +514,7 @@ describe('voice capture graph', () => {
       return context;
     }
     vi.stubGlobal('AudioContext', AudioContextStub);
+    vi.stubGlobal('AudioWorkletNode', AudioWorkletNodeStub);
   });
 
   afterEach(() => {
@@ -505,7 +544,7 @@ describe('voice capture graph', () => {
     await expect(startVoiceCapture(() => {})).rejects.toThrow('connect failed');
     expect(tracks[0]?.stopped).toBe(true);
     expect(context.source?.disconnected).toBeGreaterThan(0);
-    expect(context.processor?.disconnected).toBeGreaterThan(0);
+    expect(context.worklet?.disconnected).toBeGreaterThan(0);
     expect(context.muteGain?.disconnected).toBeGreaterThan(0);
     expect(context.closed).toBe(true);
   });
@@ -520,60 +559,70 @@ describe('voice capture graph', () => {
     expect(context.closed).toBe(true);
   });
 
-  it('makes stop idempotent and ignores onaudioprocess after stop', async () => {
+  it('makes stop idempotent and ignores worklet frames after stop', async () => {
     const { startVoiceCapture } = await import('@/lib/voiceAudio');
     const onFrame = vi.fn();
     const handle = await startVoiceCapture(onFrame);
-    const processor = context.processor;
-    const process = processor?.onaudioprocess;
-    expect(process).toEqual(expect.any(Function));
+    const worklet = context.worklet;
+    const receive = worklet?.port.onmessage;
+    expect(receive).toEqual(expect.any(Function));
 
-    process?.({
-      inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.25) },
-    });
+    worklet?.port.emit(pcm16Le(320, 8_192));
     const framesBeforeStop = onFrame.mock.calls.length;
-    expect(framesBeforeStop).toBeGreaterThan(0);
+    expect(framesBeforeStop).toBe(1);
 
     handle.stop();
     handle.stop();
     expect(tracks[0]?.stopped).toBe(true);
     expect(context.closeCalls).toBe(1);
-    expect(processor?.onaudioprocess).toBeNull();
-    expect(processor?.disconnected).toBe(1);
+    expect(worklet?.port.onmessage).toBeNull();
+    expect(worklet?.port.closed).toBe(true);
+    expect(worklet?.disconnected).toBe(1);
     expect(context.source?.disconnected).toBe(1);
     expect(context.muteGain?.disconnected).toBe(1);
 
-    process?.({
-      inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.9) },
-    });
+    receive?.({ data: pcm16Le(320, 29_490) });
     expect(onFrame.mock.calls.length).toBe(framesBeforeStop);
   });
 
-  it('keeps 16 kHz PCM16 LE frame sizes and interpolates continuously across ScriptProcessor blocks', async () => {
-    const { startVoiceCapture } = await import('@/lib/voiceAudio');
-    const { VOICE_AGENT_INPUT_RATE, VOICE_AUDIO_FRAME_MS } = await import('@/lib/voiceAgentConfig');
-    const onFrame = vi.fn();
-    const handle = await startVoiceCapture(onFrame);
-    const process = context.processor?.onaudioprocess;
-    expect(process).toEqual(expect.any(Function));
+  it('configures 16 kHz PCM16 LE worklet frames and interpolates continuously across blocks', async () => {
+    vi.stubGlobal('sampleRate', 48_000);
+    const registerProcessor = vi.fn();
+    vi.stubGlobal('registerProcessor', registerProcessor);
+    class AudioWorkletProcessorStub {
+      port = { postMessage: vi.fn() };
+    }
+    vi.stubGlobal('AudioWorkletProcessor', AudioWorkletProcessorStub);
 
-    const combined = new Float32Array(4096);
+    await import('../../public/voice/voice-capture-processor.js' as string);
+    const Processor = registerProcessor.mock.calls[0]?.[1] as (new (options: {
+      processorOptions: { frameSamples: number };
+    }) => {
+      port: { postMessage: ReturnType<typeof vi.fn> };
+      process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean;
+    }) | undefined;
+    expect(Processor).toBeDefined();
+
+    const { VOICE_AGENT_INPUT_RATE, VOICE_AUDIO_FRAME_MS } = await import('@/lib/voiceAgentConfig');
+    const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (VOICE_AUDIO_FRAME_MS / 1000));
+    const processor = new Processor!({ processorOptions: { frameSamples } });
+    const combined = new Float32Array(4_096);
     for (let index = 0; index < combined.length; index += 1) {
       combined[index] = index / combined.length;
     }
-    const blockA = combined.subarray(0, 2048);
-    const blockB = combined.subarray(2048);
+    const blockA = combined.subarray(0, 2_048);
+    const blockB = combined.subarray(2_048);
 
-    process?.({ inputBuffer: { getChannelData: () => blockA } });
-    process?.({ inputBuffer: { getChannelData: () => blockB } });
+    expect(processor.process([[blockA]], [[new Float32Array(blockA.length)]])).toBe(true);
+    expect(processor.process([[blockB]], [[new Float32Array(blockB.length)]])).toBe(true);
 
-    const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (VOICE_AUDIO_FRAME_MS / 1000));
-    expect(onFrame.mock.calls.length).toBeGreaterThan(0);
-    for (const [chunk] of onFrame.mock.calls as [ArrayBuffer][]) {
+    const frames = processor.port.postMessage.mock.calls.map(([chunk]) => chunk as ArrayBuffer);
+    expect(frames.length).toBeGreaterThan(0);
+    for (const chunk of frames) {
       expect(chunk.byteLength).toBe(frameSamples * 2);
     }
 
-    const decoded = onFrame.mock.calls.flatMap(([chunk]) => pcm16Samples(chunk as ArrayBuffer));
+    const decoded = frames.flatMap(chunk => pcm16Samples(chunk));
     const expected: number[] = [];
     const step = 48_000 / VOICE_AGENT_INPUT_RATE;
     for (let position = 0; Math.floor(position) + 1 < combined.length; position += step) {
@@ -587,7 +636,5 @@ describe('voice capture graph', () => {
     for (let index = 0; index < decoded.length; index += 1) {
       expect(decoded[index]).toBeCloseTo(expected[index] ?? 0, 3);
     }
-
-    handle.stop();
   });
 });

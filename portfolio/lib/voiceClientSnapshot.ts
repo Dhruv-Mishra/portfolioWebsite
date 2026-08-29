@@ -161,7 +161,11 @@ export function parseVoiceClientSnapshot(raw: unknown): VoiceClientSnapshot | un
   const topic = readAllowlisted(record, 'topic', TOPIC_SET) as VoiceInvocationTopic | undefined;
   if (source) snapshot.source = source;
   if (topic) snapshot.topic = topic;
-  if (typeof record.openProject === 'string' && isProjectSlug(record.openProject)) {
+  if (
+    routeValue === '/projects'
+    && typeof record.openProject === 'string'
+    && isProjectSlug(record.openProject)
+  ) {
     snapshot.openProject = record.openProject;
   }
 

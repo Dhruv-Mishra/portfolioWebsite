@@ -3,6 +3,7 @@ import { executeSiteTool } from '@/lib/siteToolExecutor';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import { SITE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import { actionFromSiteTool } from '@/lib/siteToolBridge';
+import { parseVoiceClientSnapshot } from '@/lib/voiceClientSnapshot';
 import {
   buildVoiceCurrentPageContext,
   expectedPageContextAfterCloseProject,
@@ -77,6 +78,9 @@ describe('get_current_page_context', () => {
       disco: false,
       muted: false,
       volume: 10,
+    });
+    expect(parseVoiceClientSnapshot({ route: '/resume', openProject: 'cropio' })).toEqual({
+      route: '/resume',
     });
   });
 

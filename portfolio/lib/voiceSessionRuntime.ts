@@ -540,7 +540,7 @@ function buildMintSnapshot(context?: VoiceInvocationContext | null): VoiceClient
     source: context?.source,
     topic: topicFromPath(route),
     openProject: route === '/projects'
-      ? parseVoiceClientSnapshot({ openProject })?.openProject
+      ? openProject ?? undefined
       : undefined,
   };
   return parseVoiceClientSnapshot(next);

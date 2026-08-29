@@ -82,6 +82,8 @@ export async function startVoiceCapture(
 
 export interface VoicePlayback {
   play(chunk: ArrayBuffer): void;
+  /** Flush a short reply that never reached the initial prebuffer. */
+  finishTurn?(): void;
   interrupt(): void;
   close(): void;
   isBusy(): boolean;
@@ -91,12 +93,24 @@ export interface VoicePlayback {
   getLevel?(): number;
 }
 
+export interface VoicePlaybackOptions {
+  onResumeError?: () => void;
+}
+
 export const VOICE_PLAYBACK_HANGOVER_MS = 320;
+export const VOICE_PLAYBACK_PREBUFFER_MS = 72;
+export const VOICE_PLAYBACK_SCHEDULE_LEAD_S = 0.02;
+export const VOICE_PLAYBACK_MAX_QUEUE_S = 2;
+export const VOICE_PLAYBACK_FADE_IN_S = 0.006;
+export const VOICE_PLAYBACK_FADE_OUT_S = 0.008;
+export const VOICE_PLAYBACK_UNDERRUN_SLACK_S = 0.005;
 
 const PLAYBACK_LEVEL_EMA = 0.38;
 const PLAYBACK_LEVEL_DECAY = 0.8;
 const PLAYBACK_LEVEL_DECAY_MS = 48;
 const PLAYBACK_LEVEL_SILENCE = 0.01;
+const PCM16_BYTES = 2;
+const PCM16_SCALE = 0x8000;
 
 let voicePlaybackLevel = 0;
 let voicePlaybackMeterOwner: symbol | null = null;
@@ -108,18 +122,34 @@ function clamp01(value: number): number {
   return value;
 }
 
-function measurePcmLevel(samples: Int16Array): number {
+function measurePcmLevel(samples: Float32Array): number {
   if (samples.length === 0) return 0;
   let sumSq = 0;
   let peak = 0;
   for (let index = 0; index < samples.length; index += 1) {
-    const sample = (samples[index] ?? 0) / 0x8000;
+    const sample = samples[index] ?? 0;
     const abs = sample < 0 ? -sample : sample;
     if (abs > peak) peak = abs;
     sumSq += sample * sample;
   }
   const rms = Math.sqrt(sumSq / samples.length);
   return clamp01(peak * 0.35 + rms * 1.8);
+}
+
+export type Pcm16LeDecodeResult =
+  | { ok: true; samples: Float32Array }
+  | { ok: false; reason: 'empty' | 'odd-length' };
+
+export function decodePcm16Le(chunk: ArrayBuffer): Pcm16LeDecodeResult {
+  if (chunk.byteLength === 0) return { ok: false, reason: 'empty' };
+  if (chunk.byteLength % PCM16_BYTES !== 0) return { ok: false, reason: 'odd-length' };
+  const view = new DataView(chunk);
+  const count = chunk.byteLength / PCM16_BYTES;
+  const samples = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    samples[index] = view.getInt16(index * PCM16_BYTES, true) / PCM16_SCALE;
+  }
+  return { ok: true, samples };
 }
 
 function publishVoicePlaybackLevel(owner: symbol, level: number, claim: boolean): void {
@@ -146,12 +176,21 @@ export function subscribeVoicePlaybackLevel(cb: (level: number) => void): () => 
   };
 }
 
-export function createVoicePlayback(): VoicePlayback {
+export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePlayback {
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
   let volumeUnsubscribe: (() => void) | null = null;
   let nextTime = 0;
+  let targetVolume = 1;
+  let fadedIn = false;
+  let closed = false;
+  let resuming = false;
+  let resumeFailed = false;
+  let pending: Float32Array[] = [];
+  let pendingSamples = 0;
+  let started = false;
   let tailTimer: ReturnType<typeof setTimeout> | null = null;
+  let prebufferTimer: ReturnType<typeof setTimeout> | null = null;
   let hangoverTimer: ReturnType<typeof setTimeout> | null = null;
   let hangoverUntil = 0;
   let decayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -160,27 +199,59 @@ export function createVoicePlayback(): VoicePlayback {
   const sources = new Set<AudioBufferSourceNode>();
   const idleListeners = new Set<() => void>();
   const levelListeners = new Set<(level: number) => void>();
+  const prebufferSamples = Math.round(
+    VOICE_AGENT_OUTPUT_RATE * (VOICE_PLAYBACK_PREBUFFER_MS / 1000),
+  );
 
   function applyMasterVolume(volume: number): void {
-    if (!master) return;
-    const clamped = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    targetVolume = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    if (!master || closed || !fadedIn) return;
+    const now = context?.currentTime ?? 0;
     try {
-      const now = context?.currentTime ?? 0;
       master.gain.cancelScheduledValues(now);
       master.gain.setValueAtTime(master.gain.value, now);
-      master.gain.linearRampToValueAtTime(clamped, now + 0.04);
+      master.gain.linearRampToValueAtTime(targetVolume, now + 0.04);
     } catch {
-      master.gain.value = clamped;
+      master.gain.value = targetVolume;
     }
   }
 
-  function ensure(): AudioContext {
+  function fadeMasterIn(): void {
+    if (!master || !context || fadedIn) return;
+    const now = context.currentTime;
+    try {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(0, now);
+      master.gain.linearRampToValueAtTime(targetVolume, now + VOICE_PLAYBACK_FADE_IN_S);
+    } catch {
+      master.gain.value = targetVolume;
+    }
+    fadedIn = true;
+  }
+
+  function fadeMasterOut(): void {
+    if (!master || !context) return;
+    const now = context.currentTime;
+    try {
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(0, now + VOICE_PLAYBACK_FADE_OUT_S);
+    } catch {
+      master.gain.value = 0;
+    }
+    fadedIn = false;
+  }
+
+  function ensure(): AudioContext | null {
+    if (closed || resumeFailed) return null;
     if (!context) {
       context = new AudioContext();
-      nextTime = context.currentTime;
+      nextTime = 0;
+      started = false;
       if (typeof context.createGain === 'function') {
         master = context.createGain();
-        master.gain.value = getEffectiveMasterVolumeSync();
+        targetVolume = getEffectiveMasterVolumeSync();
+        master.gain.value = 0;
         master.connect(context.destination);
         volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
       }
@@ -189,7 +260,7 @@ export function createVoicePlayback(): VoicePlayback {
   }
 
   function remainingTailMs(): number {
-    if (!context) return 0;
+    if (!context || !started) return 0;
     return Math.max(0, (nextTime - context.currentTime) * 1000);
   }
 
@@ -197,10 +268,31 @@ export function createVoicePlayback(): VoicePlayback {
     return Math.max(0, hangoverUntil - Date.now());
   }
 
+  function queuedFutureSeconds(): number {
+    if (!context || !started) return pendingSamples / VOICE_AGENT_OUTPUT_RATE;
+    return Math.max(0, nextTime - context.currentTime) + pendingSamples / VOICE_AGENT_OUTPUT_RATE;
+  }
+
   function isBusy(): boolean {
+    if (closed || resumeFailed) return false;
+    if (pendingSamples > 0) return true;
     if (sources.size > 0) return true;
     if (remainingTailMs() > 16) return true;
     return hangoverRemainingMs() > 0;
+  }
+
+  function clearPrebufferTimer(): void {
+    if (prebufferTimer == null) return;
+    clearTimeout(prebufferTimer);
+    prebufferTimer = null;
+  }
+
+  function armPrebufferFlush(): void {
+    if (prebufferTimer != null || started || closed || resumeFailed) return;
+    prebufferTimer = setTimeout(() => {
+      prebufferTimer = null;
+      flushPending(true);
+    }, VOICE_PLAYBACK_PREBUFFER_MS);
   }
 
   function clearHangoverTimer(): void {
@@ -258,12 +350,16 @@ export function createVoicePlayback(): VoicePlayback {
       tailTimer = null;
     }
     clearHangoverTimer();
-    if (sources.size > 0) return;
+    if (closed) return;
+    if (pendingSamples > 0 || sources.size > 0) return;
     const wait = remainingTailMs();
     if (wait > 16) {
       tailTimer = setTimeout(() => {
         tailTimer = null;
-        if (context) nextTime = context.currentTime;
+        if (context && started) {
+          started = false;
+          nextTime = context.currentTime;
+        }
         scheduleIdleWatch();
       }, wait + 8);
       return;
@@ -280,73 +376,227 @@ export function createVoicePlayback(): VoicePlayback {
     emitIdle();
   }
 
+  function concatPending(): Float32Array {
+    if (pending.length === 1) return pending[0] ?? new Float32Array(0);
+    const merged = new Float32Array(pendingSamples);
+    let offset = 0;
+    for (const chunk of pending) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return merged;
+  }
+
+  function dropOldestPending(neededSamples: number): void {
+    let remaining = neededSamples;
+    while (remaining > 0 && pending.length > 0) {
+      const head = pending[0];
+      if (!head) break;
+      if (head.length <= remaining) {
+        pending.shift();
+        pendingSamples -= head.length;
+        remaining -= head.length;
+        continue;
+      }
+      pending[0] = head.subarray(remaining);
+      pendingSamples -= remaining;
+      remaining = 0;
+    }
+  }
+
+  function canOutput(audio: AudioContext): boolean {
+    return audio.state !== 'suspended' && audio.state !== 'closed';
+  }
+
+  function enqueueSamples(samples: Float32Array): boolean {
+    pending.push(samples);
+    pendingSamples += samples.length;
+    const future = queuedFutureSeconds();
+    if (future <= VOICE_PLAYBACK_MAX_QUEUE_S) return false;
+    const overflowSamples = Math.ceil((future - VOICE_PLAYBACK_MAX_QUEUE_S) * VOICE_AGENT_OUTPUT_RATE);
+    if (pendingSamples > overflowSamples) {
+      dropOldestPending(overflowSamples);
+      return false;
+    }
+    pending = [samples];
+    pendingSamples = samples.length;
+    fadeMasterOut();
+    stopSources();
+    started = false;
+    nextTime = context?.currentTime ?? 0;
+    return true;
+  }
+
+  function scheduleSource(audio: AudioContext, samples: Float32Array): void {
+    if (closed || samples.length === 0) return;
+    const maxSamples = Math.round(VOICE_PLAYBACK_MAX_QUEUE_S * VOICE_AGENT_OUTPUT_RATE);
+    const clipped = samples.length > maxSamples
+      ? samples.subarray(samples.length - maxSamples)
+      : samples;
+    const buffer = audio.createBuffer(1, clipped.length, VOICE_AGENT_OUTPUT_RATE);
+    buffer.getChannelData(0).set(clipped);
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.connect(master ?? audio.destination);
+    source.addEventListener('ended', () => {
+      if (closed) return;
+      sources.delete(source);
+      scheduleIdleWatch();
+    });
+    sources.add(source);
+    const now = audio.currentTime;
+    let startAt: number;
+    if (!started || nextTime <= now + VOICE_PLAYBACK_UNDERRUN_SLACK_S) {
+      startAt = now + VOICE_PLAYBACK_SCHEDULE_LEAD_S;
+      started = true;
+    } else {
+      startAt = nextTime;
+    }
+    fadeMasterIn();
+    source.start(startAt);
+    nextTime = startAt + buffer.duration;
+    hangoverUntil = Math.max(
+      hangoverUntil,
+      Date.now() + remainingTailMs() + VOICE_PLAYBACK_HANGOVER_MS,
+    );
+    scheduleIdleWatch();
+  }
+
+  function flushPending(force: boolean): void {
+    if (closed || resumeFailed || pendingSamples === 0) return;
+    const audio = ensure();
+    if (!audio || !canOutput(audio)) return;
+    if (!force && !started && pendingSamples < prebufferSamples) return;
+    clearPrebufferTimer();
+    const samples = concatPending();
+    pending = [];
+    pendingSamples = 0;
+    scheduleSource(audio, samples);
+  }
+
+  function noteResumeFailure(): void {
+    if (closed || resumeFailed) return;
+    resumeFailed = true;
+    pending = [];
+    pendingSamples = 0;
+    clearPrebufferTimer();
+    options.onResumeError?.();
+  }
+
+  function requestResume(audio: AudioContext): void {
+    if (closed || resumeFailed || resuming) return;
+    if (audio.state === 'running') return;
+    resuming = true;
+    void audio.resume().then(
+      () => {
+        resuming = false;
+        if (closed || resumeFailed) return;
+        if (audio.state !== 'running') {
+          noteResumeFailure();
+          return;
+        }
+        flushPending(false);
+      },
+      () => {
+        resuming = false;
+        noteResumeFailure();
+      },
+    );
+  }
+
+  function acceptChunk(chunk: ArrayBuffer): void {
+    if (closed || resumeFailed) return;
+    const decoded = decodePcm16Le(chunk);
+    if (!decoded.ok) return;
+    const audio = ensure();
+    if (!audio) return;
+    requestResume(audio);
+    clearDecay();
+    emitLevel(level + (measurePcmLevel(decoded.samples) - level) * PLAYBACK_LEVEL_EMA, true);
+    const resync = enqueueSamples(decoded.samples);
+    flushPending(resync);
+    if (pendingSamples > 0) {
+      armPrebufferFlush();
+      hangoverUntil = Math.max(hangoverUntil, Date.now() + VOICE_PLAYBACK_HANGOVER_MS);
+      scheduleIdleWatch();
+    }
+  }
+
+  function finishTurn(): void {
+    if (closed || resumeFailed) return;
+    flushPending(true);
+  }
+
+  function stopSources(at?: number): void {
+    for (const source of sources) {
+      try {
+        if (typeof at === 'number') source.stop(at);
+        else source.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    sources.clear();
+  }
+
+  function interrupt(): void {
+    if (closed) return;
+    pending = [];
+    pendingSamples = 0;
+    clearPrebufferTimer();
+    if (tailTimer != null) {
+      clearTimeout(tailTimer);
+      tailTimer = null;
+    }
+    hangoverUntil = Date.now() + VOICE_PLAYBACK_HANGOVER_MS;
+    fadeMasterOut();
+    const stopAt = context ? context.currentTime + VOICE_PLAYBACK_FADE_OUT_S : undefined;
+    stopSources(stopAt);
+    started = false;
+    nextTime = context?.currentTime ?? 0;
+    beginDecay();
+    scheduleIdleWatch();
+  }
+
+  function close(): void {
+    if (closed) return;
+    closed = true;
+    pending = [];
+    pendingSamples = 0;
+    clearPrebufferTimer();
+    if (tailTimer != null) {
+      clearTimeout(tailTimer);
+      tailTimer = null;
+    }
+    clearHangover();
+    clearDecay();
+    emitLevel(0, false);
+    fadeMasterOut();
+    stopSources(context ? context.currentTime + VOICE_PLAYBACK_FADE_OUT_S : undefined);
+    if (volumeUnsubscribe) {
+      volumeUnsubscribe();
+      volumeUnsubscribe = null;
+    }
+    if (master) {
+      try { master.disconnect(); } catch { /* already disconnected */ }
+      master = null;
+    }
+    started = false;
+    nextTime = 0;
+    if (context) {
+      const closing = context;
+      context = null;
+      void closing.close().catch(() => { /* already closed */ });
+    }
+  }
+
   return {
     play(chunk: ArrayBuffer) {
-      if (chunk.byteLength % 2 !== 0) return;
-      const samples = new Int16Array(chunk);
-      if (samples.length === 0) return;
-      const audio = ensure();
-      void audio.resume();
-      const buffer = audio.createBuffer(1, samples.length, VOICE_AGENT_OUTPUT_RATE);
-      const channel = buffer.getChannelData(0);
-      for (let index = 0; index < samples.length; index += 1) {
-        channel[index] = (samples[index] ?? 0) / 0x8000;
-      }
-      clearDecay();
-      emitLevel(level + (measurePcmLevel(samples) - level) * PLAYBACK_LEVEL_EMA, true);
-      const source = audio.createBufferSource();
-      source.buffer = buffer;
-      source.connect(master ?? audio.destination);
-      source.addEventListener('ended', () => {
-        sources.delete(source);
-        scheduleIdleWatch();
-      });
-      sources.add(source);
-      const startAt = Math.max(audio.currentTime, nextTime);
-      source.start(startAt);
-      nextTime = startAt + buffer.duration;
-      hangoverUntil = Math.max(
-        hangoverUntil,
-        Date.now() + remainingTailMs() + VOICE_PLAYBACK_HANGOVER_MS,
-      );
-      scheduleIdleWatch();
+      acceptChunk(chunk);
     },
-    interrupt() {
-      if (tailTimer != null) {
-        clearTimeout(tailTimer);
-        tailTimer = null;
-      }
-      hangoverUntil = Date.now() + VOICE_PLAYBACK_HANGOVER_MS;
-      for (const source of sources) {
-        try {
-          source.stop();
-        } catch {
-          /* already stopped */
-        }
-      }
-      sources.clear();
-      nextTime = context?.currentTime ?? 0;
-      beginDecay();
-      scheduleIdleWatch();
-    },
-    close() {
-      this.interrupt();
-      clearHangover();
-      clearDecay();
-      emitLevel(0, false);
-      if (volumeUnsubscribe) {
-        volumeUnsubscribe();
-        volumeUnsubscribe = null;
-      }
-      if (master) {
-        try { master.disconnect(); } catch { /* already disconnected */ }
-        master = null;
-      }
-      if (!context) return;
-      void context.close();
-      context = null;
-      nextTime = 0;
-    },
+    finishTurn,
+    interrupt,
+    close,
     isBusy,
     subscribeIdle(cb) {
       idleListeners.add(cb);

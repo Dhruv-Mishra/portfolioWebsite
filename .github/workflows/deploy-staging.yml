@@ -470,7 +470,7 @@ jobs:
           cp portfolio/nginx-cloudflare.conf deploy-kit/nginx-cloudflare.conf
           cp portfolio/scripts/machine.conf.example deploy-kit/machine.conf.example
           cp portfolio/scripts/portfolio.conf.example deploy-kit/portfolio.conf.example
-          tar czf portfolio-deploy-kit-${{ github.sha }}.tar.gz -C deploy-kit .
+          tar czf portfolio-deploy-kit-${{ matrix.server.name }}-${{ github.sha }}.tar.gz -C deploy-kit .
 
       - name: Copy deploy kit to staging VM
         if: env.DEPLOY_MODE == 'image'
@@ -480,7 +480,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
-          source: portfolio-deploy-kit-${{ github.sha }}.tar.gz
+          source: portfolio-deploy-kit-${{ matrix.server.name }}-${{ github.sha }}.tar.gz
           target: /var/tmp/
           timeout: 60s
           command_timeout: 3m
@@ -514,8 +514,8 @@ jobs:
             TTS_MODE="${{ matrix.server.tts_mode }}"
             DEPLOY_MODE="${{ env.DEPLOY_MODE }}"
             TARBALL="/var/tmp/portfolio-${SHA}.tar.gz"
-            STAGING="/var/tmp/portfolio-stage-${SHA}"
-            DEPLOY_KIT="/var/tmp/portfolio-deploy-kit-${SHA}.tar.gz"
+            STAGING="/var/tmp/portfolio-stage-${{ matrix.server.name }}-${SHA}"
+            DEPLOY_KIT="/var/tmp/portfolio-deploy-kit-${{ matrix.server.name }}-${SHA}.tar.gz"
             DEPLOY_CMD_LOG="/var/tmp/${SITE}-deploy-command-${SHA}.log"
             IMAGE_REF="${{ needs.build.outputs.image_ref }}"
             DOCKER_CONFIG_DIR=""

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
-import { MicOff, Phone } from 'lucide-react';
+import { MicOff, Phone, RotateCcw } from 'lucide-react';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Z_INDEX } from '@/lib/designTokens';
@@ -12,6 +12,7 @@ import {
   getServerVoiceSessionSnapshot,
   getVoiceSessionSnapshot,
   requestVoiceHangup,
+  retryVoiceSession,
   subscribeVoiceSession,
   VOICE_EXIT_VEIL_MS,
 } from '@/lib/voiceSessionRuntime';
@@ -70,11 +71,22 @@ export default function VoiceStage() {
   const spoken = snapshot.lowNetwork
     ? ''
     : (snapshot.agentLine || snapshot.userLine).trim();
+  const retryable = snapshot.recovery === 'retryable';
+  const reconnecting = snapshot.recovery === 'reconnecting';
   const caption = exiting
     ? (snapshot.exitLine || snapshot.status)
-    : (spoken || snapshot.status);
+    : reconnecting
+      ? snapshot.status
+      : (spoken || snapshot.status);
   const welcomeHint = snapshot.welcomeHint;
   const exitStartedWithVisibleVeil = exiting && !snapshot.introComplete;
+  const showEnableMic = Boolean(
+    !snapshot.micLive
+    && !retryable
+    && !reconnecting
+    && snapshot.error
+    && /microphone|voice input/i.test(snapshot.error),
+  );
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
@@ -173,6 +185,21 @@ export default function VoiceStage() {
       <Phone size={17} aria-hidden className="rotate-[135deg]" />
     </button>
   );
+  const retry = retryable ? (
+    <button
+      type="button"
+      onClick={() => {
+        void retryVoiceSession();
+      }}
+      disabled={reconnecting}
+      className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 font-hand text-sm text-white/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label="Try again"
+      title="Try again"
+    >
+      <RotateCcw size={14} aria-hidden />
+      Try again
+    </button>
+  ) : null;
 
   return (
     <div
@@ -230,7 +257,10 @@ export default function VoiceStage() {
         >
           <header className="relative flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] md:px-8">
             <p id="voice-stage-title" className="font-hand text-sm uppercase tracking-[0.32em] text-white/45">Voice</p>
-            <div className="pointer-events-auto">{hangup}</div>
+            <div className="pointer-events-auto flex items-center gap-2">
+              {retry}
+              {hangup}
+            </div>
           </header>
           <div className="relative flex flex-1 flex-col items-center justify-center px-6">
             <div
@@ -252,7 +282,7 @@ export default function VoiceStage() {
             ) : intro ? (
               <p className="mt-4 font-hand text-sm text-white/40">{welcomeHint}</p>
             ) : null}
-            {intro && !snapshot.micLive && snapshot.error === 'Microphone permission is needed.' ? (
+            {intro && showEnableMic ? (
               <button
                 type="button"
                 onClick={() => enableVoiceCapture()}
@@ -276,6 +306,7 @@ export default function VoiceStage() {
                 className="h-16 w-16 md:h-20 md:w-20"
                 aria-hidden
               />
+              {retry}
               {hangup}
             </div>
           </div>
@@ -301,7 +332,7 @@ export default function VoiceStage() {
                 <p className="whitespace-pre-wrap">{spoken}</p>
               </div>
             ) : null}
-            {!snapshot.micLive ? (
+            {showEnableMic ? (
               <button
                 type="button"
                 onClick={() => enableVoiceCapture()}

@@ -13,18 +13,12 @@ import {
   hostIdForVoiceTool,
   isDeferredVoiceTool,
   isDependentVoiceTool,
-  openerHostIdForTool,
   type VoiceActionQueue,
   type VoiceDependentHostId,
 } from '@/lib/voiceActionQueue';
 import { createVoicePlayback, startVoiceCapture, type VoicePlayback } from '@/lib/voiceAudio';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
-import {
-  planVoiceUtterance,
-  spokenLineRequestsHintCommand,
-  type PlannedVoiceAction,
-} from '@/lib/voiceUtterancePlan';
 import type {
   VoiceAgentPhase,
   VoiceCaller,
@@ -38,10 +32,16 @@ import {
   VOICE_WELCOME_HINT,
   buildVoiceExactSpeakCue,
   buildVoiceSessionStartCue,
+  parseVoiceResumeHandle,
   pickVoiceExitVeil,
   pickVoiceIdleCheckIn,
   pickVoiceIdleHangup,
 } from '@/lib/voiceAgentProtocol';
+import {
+  formatMicrophoneError,
+  getMicrophonePermissionState,
+  microphoneAccessContext,
+} from '@/lib/microphoneAccess';
 import {
   consumeVoiceInvocationContext,
   consumeVoiceModeRequest,
@@ -58,11 +58,24 @@ import {
 import { getDiscoActiveSync, getMasterVolumeSync, getSoundsMutedSync } from '@/hooks/useStickers';
 import { getEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { getSitePrefsSnapshot } from '@/hooks/useSitePrefs';
-import { forceStopVoiceToggleCue, playVoiceEnterFallback, playVoiceSound, prefetchVoiceSounds, prefetchVoiceVisuals, setVoiceAmbientDucked, startVoiceAmbient, stopVoiceAmbient, stopVoiceToggleCue } from '@/lib/voiceSounds';
+import {
+  forceStopVoiceToggleCue,
+  playVoiceEnterFallback,
+  playVoiceSound,
+  prefetchVoiceSounds,
+  prefetchVoiceVisuals,
+  setVoiceAmbientDucked,
+  setVoicePcmActive,
+  startVoiceAmbient,
+  stopVoiceAmbient,
+  stopVoiceToggleCue,
+} from '@/lib/voiceSounds';
 
 export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
 export type VoiceSubtitlePhase = 'hidden' | 'visible' | 'exiting';
+
+export type VoiceRecoveryState = 'none' | 'reconnecting' | 'retryable';
 
 export interface VoiceSessionSnapshot {
   active: boolean;
@@ -80,6 +93,7 @@ export interface VoiceSessionSnapshot {
   generation: number;
   welcomeHint: string;
   exitLine: string;
+  recovery: VoiceRecoveryState;
 }
 
 export const VOICE_SUBTITLE_IDLE_MS = 700;
@@ -100,6 +114,17 @@ export interface VoiceHangupRequest {
 export const VOICE_ACTION_CUE_COALESCE_MS = 220;
 export const VOICE_AMBIENT_FADE_OUT_MS = 320;
 export const VOICE_HOST_READY_TIMEOUT_MS = 6_000;
+export const VOICE_CALLBACK_GAP_MS = 1_100;
+export const VOICE_RECONNECT_MAX_ATTEMPTS = 2;
+export const VOICE_RECONNECT_BACKOFF_MS = [250, 750] as const;
+
+const VOICE_CONNECTION_LOST_STATUS = 'Connection faded.';
+const VOICE_RECONNECTING_STATUS = 'Reconnecting…';
+const VOICE_RETRYABLE_STATUS = 'Call dropped.';
+const VOICE_RETRYABLE_ERROR = 'Call dropped. Try again or hang up.';
+const VOICE_START_FAILED_STATUS = 'Voice mode is unavailable.';
+const VOICE_START_FAILED_ERROR = 'Unable to start the call.';
+const VOICE_MIC_PERMISSION_ERROR = 'Microphone permission is needed.';
 
 const VISUAL_VOICE_ACTION_TOOLS = new Set<SiteToolCall['name']>([
   'navigate_to',
@@ -130,7 +155,11 @@ export interface VoiceSessionRuntimeDeps {
   createCaller: () => VoiceCaller;
   createPlayback: () => VoicePlayback;
   startCapture: typeof startVoiceCapture;
-  fetchSession: (lowNetwork: boolean, snapshot?: VoiceClientSnapshot) => Promise<VoiceSessionHandle>;
+  fetchSession: (
+    lowNetwork: boolean,
+    snapshot?: VoiceClientSnapshot,
+    resumeHandle?: string,
+  ) => Promise<VoiceSessionHandle>;
   playEnter: () => void;
   playExit: () => void;
   playAction: () => void;
@@ -155,6 +184,7 @@ const IDLE_SNAPSHOT: VoiceSessionSnapshot = {
   introComplete: false,
   hangupPending: false,
   generation: 0,
+  recovery: 'none',
 };
 
 const listeners = new Set<() => void>();
@@ -171,7 +201,19 @@ let greetTurnComplete = false;
 let starting = false;
 let stopping = false;
 let busAttached = false;
-let pendingMintSnapshot: VoiceClientSnapshot | undefined;
+let pendingInvocationContext: VoiceInvocationContext | null = null;
+let recovering = false;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectTimerResolve: (() => void) | null = null;
+let streamEndTimer: ReturnType<typeof setTimeout> | null = null;
+let streamEndSent = false;
+let exitCueTimer: ReturnType<typeof setTimeout> | null = null;
+let toolCallQueue: Array<{ call: SiteToolCall; generation: number }> = [];
+let toolCallDraining = false;
+let toolCallDrainEpoch = 0;
+let micEnableInFlight = false;
+const seenVoiceToolIds = new Set<string>();
 let farewellArmed = false;
 let farewellHeard = false;
 let farewellSawPlayback = false;
@@ -187,9 +229,6 @@ let withheldWelcome: { welcomeGreeting: string; welcomeHint: string } | null = n
 let idleCheckedIn = false;
 let pendingStopReason: VoiceExitReason = 'user';
 let subtitleSpeaker: 'user' | 'agent' | null = null;
-let utterancePlan: PlannedVoiceAction[] = [];
-let utterancePlanSource = '';
-const seenVoiceToolKeys = new Set<string>();
 let actionCueTimer: ReturnType<typeof setTimeout> | null = null;
 const projectVideoWaiters = new Set<() => void>();
 const projectVideoWaiterCancellers = new Set<() => void>();
@@ -242,6 +281,61 @@ function clearAmbientStartTimer(): void {
   if (ambientStartTimer === null) return;
   clearTimeout(ambientStartTimer);
   ambientStartTimer = null;
+}
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  const resolve = reconnectTimerResolve;
+  reconnectTimerResolve = null;
+  resolve?.();
+}
+
+function clearStreamEndTimer(): void {
+  if (streamEndTimer === null) return;
+  clearTimeout(streamEndTimer);
+  streamEndTimer = null;
+}
+
+function clearExitCueTimer(): void {
+  if (exitCueTimer === null) return;
+  clearTimeout(exitCueTimer);
+  exitCueTimer = null;
+}
+
+function resetStreamEndWatch(): void {
+  clearStreamEndTimer();
+  streamEndSent = false;
+}
+
+function scheduleStreamEnd(generation: number): void {
+  clearStreamEndTimer();
+  if (!sendAudioLive || !socketReady || recovering || stopping || isStale(generation)) return;
+  streamEndTimer = setTimeout(() => {
+    streamEndTimer = null;
+    if (isStale(generation) || stopping || recovering || !snapshot.active) return;
+    if (!capture || !sendAudioLive || !socketReady || streamEndSent) return;
+    streamEndSent = true;
+    caller?.endAudioStream?.();
+  }, VOICE_CALLBACK_GAP_MS);
+}
+
+function noteSentCaptureFrame(generation: number): void {
+  if (streamEndSent) streamEndSent = false;
+  scheduleStreamEnd(generation);
+}
+
+function handleCaptureFrame(chunk: ArrayBuffer, generation: number): void {
+  if (isStale(generation) || stopping || recovering) return;
+  if (!sendAudioLive || !socketReady) return;
+  caller?.sendAudio(chunk);
+  noteSentCaptureFrame(generation);
+}
+
+function setPcmPlaybackActive(active: boolean): void {
+  setVoicePcmActive(active);
 }
 
 function clearMicPermissionWait(): void {
@@ -329,7 +423,6 @@ function applySpokenTranscript(
       agentLine: '',
       subtitlePhase: 'visible',
     });
-    syncUtterancePlanFromUserLine({ newTurn: !continuing });
     return;
   }
   patch({
@@ -370,6 +463,19 @@ function resolveDeps(): VoiceSessionRuntimeDeps {
   return { ...defaultDeps(), ...depsOverride };
 }
 
+function publicVoiceError(caught: unknown, fallback: string): string {
+  if (!(caught instanceof Error)) return fallback;
+  const message = caught.message.trim();
+  if (
+    message === 'Voice session is warming up. Try again shortly.'
+    || message === 'This origin is not allowed to start a voice session.'
+    || message === 'Unable to start voice session.'
+  ) {
+    return message;
+  }
+  return fallback;
+}
+
 async function voiceSessionStartError(response: Response): Promise<string> {
   if (response.status === 429) {
     try {
@@ -389,11 +495,17 @@ async function voiceSessionStartError(response: Response): Promise<string> {
 }
 
 function livePathname(): string {
+  if (typeof window !== 'undefined' && window.location?.pathname) {
+    const path = window.location.pathname;
+    return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  }
   if (hostRuntime?.pathname) return hostRuntime.pathname;
-  if (typeof window === 'undefined') return '/';
-  const path = window.location?.pathname;
-  if (!path) return '/';
-  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+  return '/';
+}
+
+function liveSearch(): string {
+  if (typeof window === 'undefined' || !window.location) return '';
+  return window.location.search ?? '';
 }
 
 function themeFromRuntime(): 'light' | 'dark' | undefined {
@@ -406,9 +518,7 @@ function themeFromRuntime(): 'light' | 'dark' | undefined {
 
 function buildMintSnapshot(context?: VoiceInvocationContext | null): VoiceClientSnapshot | undefined {
   const route = livePathname();
-  const openProject = typeof window === 'undefined' || !window.location
-    ? undefined
-    : readProjectSlugFromSearch(window.location.search);
+  const openProject = readProjectSlugFromSearch(liveSearch());
   let disco: boolean | undefined;
   let muted: boolean | undefined;
   let volume: number | undefined;
@@ -419,29 +529,36 @@ function buildMintSnapshot(context?: VoiceInvocationContext | null): VoiceClient
   } catch {
     disco = hostRuntime?.discoActive;
   }
-  const snapshot: VoiceClientSnapshot = {
+  const next: VoiceClientSnapshot = {
     route: parseVoiceClientSnapshot({ route })?.route,
     theme: themeFromRuntime(),
     disco,
     muted,
     volume,
     source: context?.source,
-    topic: context?.topic ?? topicFromPath(route),
+    topic: topicFromPath(route),
     openProject: parseVoiceClientSnapshot({ openProject })?.openProject,
   };
-  return parseVoiceClientSnapshot(snapshot);
+  return parseVoiceClientSnapshot(next);
+}
+
+function sampleMintSnapshot(): VoiceClientSnapshot | undefined {
+  return buildMintSnapshot(pendingInvocationContext);
 }
 
 async function mintBrowserVoiceSession(
   lowNetwork: boolean,
-  snapshot?: VoiceClientSnapshot,
+  clientSnapshot?: VoiceClientSnapshot,
+  resumeHandle?: string,
 ): Promise<VoiceSessionHandle> {
+  const handle = parseVoiceResumeHandle(resumeHandle);
   const sessionRes = await fetch('/api/voice/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       lowNetwork,
-      ...(snapshot ? { snapshot } : {}),
+      ...(clientSnapshot ? { snapshot: clientSnapshot } : {}),
+      ...(handle ? { resumeHandle: handle } : {}),
     }),
   });
   if (!sessionRes.ok) {
@@ -459,7 +576,11 @@ function isStale(generation: number): boolean {
 }
 
 function canCommitSideEffects(): boolean {
-  return snapshot.introComplete && !playback?.isBusy() && !stopping;
+  return snapshot.introComplete
+    && snapshot.recovery === 'none'
+    && !playback?.isBusy()
+    && !recovering
+    && !stopping;
 }
 
 function notifyProjectVideoWaiters(): void {
@@ -582,74 +703,14 @@ function resetFarewellWait(): void {
   farewellTurnComplete = false;
 }
 
-function resetUtterancePlan(): void {
-  utterancePlan = [];
-  utterancePlanSource = '';
-  seenVoiceToolKeys.clear();
-}
-
-function canonicalToolArgs(args: unknown): string {
-  if (!args || typeof args !== 'object' || Array.isArray(args)) {
-    return JSON.stringify(args ?? {});
-  }
-  const record = args as Record<string, unknown>;
-  const sorted = Object.keys(record).sort().reduce<Record<string, unknown>>((next, key) => {
-    next[key] = record[key];
-    return next;
-  }, {});
-  return JSON.stringify(sorted);
-}
-
-function voiceToolDedupeKey(call: Pick<SiteToolCall, 'name' | 'args'>): string {
-  return `${call.name}:${canonicalToolArgs(call.args)}`;
-}
-
-function alignTerminalCallWithUtterancePlan(call: SiteToolCall): SiteToolCall {
-  if (call.name !== 'run_terminal_command' || call.args.command === 'hint') return call;
-  const plannedHint = utterancePlan.some(
-    item => item.name === 'run_terminal_command' && item.args.command === 'hint',
-  );
-  if (!plannedHint && !spokenLineRequestsHintCommand(snapshot.userLine)) return call;
-  return { ...call, args: { command: 'hint' } };
+function resetSeenVoiceTools(): void {
+  seenVoiceToolIds.clear();
+  toolCallQueue = [];
+  toolCallDrainEpoch += 1;
 }
 
 function hostArgsForVoiceTool(call: SiteToolCall): { field?: string } | null {
   return call.name === 'fill_field' ? { field: call.args.field } : null;
-}
-
-function openerArgsForVoiceTool(call: SiteToolCall): { path?: string } | null {
-  return call.name === 'navigate_to' ? { path: call.args.path } : null;
-}
-
-function isUtterancePlanOpener(item: PlannedVoiceAction): boolean {
-  return item.name === 'navigate_to'
-    || item.name === 'open_chat'
-    || item.name === 'open_feedback'
-    || item.name === 'open_project'
-    || openerHostIdForTool(item.name, openerArgsForVoiceTool(item)) != null;
-}
-
-function enqueueUnseenOpenersForHost(hostId: VoiceDependentHostId, generation: number): void {
-  for (const item of utterancePlan) {
-    if (openerHostIdForTool(item.name, openerArgsForVoiceTool(item)) !== hostId) continue;
-    const key = voiceToolDedupeKey(item);
-    if (seenVoiceToolKeys.has(key)) continue;
-    seenVoiceToolKeys.add(key);
-    enqueueVoiceSideEffect(item, generation);
-  }
-}
-
-function syncUtterancePlanFromUserLine(options: { newTurn?: boolean } = {}): void {
-  const source = snapshot.userLine.trim();
-  if (!source) return;
-  if (!options.newTurn && source === utterancePlanSource) return;
-  const continuingSameTurn = !options.newTurn
-    && utterancePlanSource.length > 0
-    && source.startsWith(utterancePlanSource);
-  const lateTranscriptSameTurn = utterancePlanSource.length === 0;
-  utterancePlanSource = source;
-  utterancePlan = planVoiceUtterance(source);
-  if (!continuingSameTurn && !lateTranscriptSameTurn) seenVoiceToolKeys.clear();
 }
 
 function clearActionCueTimer(): void {
@@ -676,7 +737,6 @@ async function enqueueVoiceSideEffect(
   generation: number,
 ): Promise<SiteToolResult> {
   const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
-  if (hostId) enqueueUnseenOpenersForHost(hostId, generation);
   const deferred = isDeferredVoiceTool(call.name);
   const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   if (!deferred && !dependent) {
@@ -685,7 +745,7 @@ async function enqueueVoiceSideEffect(
   }
   let result: SiteToolResult | undefined;
   const outcome = await queue?.enqueue(async () => {
-    if (isStale(generation)) return;
+    if (isStale(generation) || stopping) return;
     playCommittedActionCue(call.name);
     result = await executeSiteToolSafely(call, requireHostRuntime(), true);
   }, hostId ? {
@@ -698,22 +758,6 @@ async function enqueueVoiceSideEffect(
     spokenText: 'That action was cancelled before it could finish.',
     errorCode: 'action-cancelled',
   };
-}
-
-function flushUtterancePlan(generation: number): void {
-  if (isStale(generation)) return;
-  const openers: PlannedVoiceAction[] = [];
-  const rest: PlannedVoiceAction[] = [];
-  for (const item of utterancePlan) {
-    if (isUtterancePlanOpener(item)) openers.push(item);
-    else rest.push(item);
-  }
-  for (const item of [...openers, ...rest]) {
-    const key = voiceToolDedupeKey(item);
-    if (seenVoiceToolKeys.has(key)) continue;
-    seenVoiceToolKeys.add(key);
-    void enqueueVoiceSideEffect(item, generation);
-  }
 }
 
 function markFarewellHeard(): void {
@@ -731,8 +775,6 @@ function canHangupNow(): boolean {
   if (stopping || playback?.isBusy()) return false;
   if (!farewellArmed) return true;
   if (!farewellHeard) return false;
-  // Speaking/transcript can arrive before goodbye audio. Wait for that
-  // playback, or a post-tool turnComplete if the model never plays audio.
   return farewellSawPlayback || farewellTurnComplete;
 }
 
@@ -759,7 +801,9 @@ function canWatchIdle(): boolean {
     && snapshot.hud === 'live'
     && !snapshot.hangupPending
     && !stopping
+    && !recovering
     && socketReady
+    && snapshot.recovery === 'none'
   );
 }
 
@@ -800,7 +844,7 @@ function noteVoiceActivity(
     return;
   }
   if (idleCheckedIn && source === 'agent') return;
-  if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping) {
+  if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping || recovering) {
     resetIdleWatch();
     return;
   }
@@ -814,11 +858,17 @@ function beginExitVeil(reason: VoiceExitReason): void {
   resetIdleWatch();
   stopping = true;
   sendAudioLive = false;
+  recovering = false;
+  clearReconnectTimer();
+  resetStreamEndWatch();
   const exitLine = pickVoiceExitVeil();
   const fadeMs = prefersReducedSubtitleMotion() ? 120 : VOICE_AMBIENT_FADE_OUT_MS;
   resolveDeps().stopAmbient({ fadeMs });
-  setTimeout(() => {
-    if (isStale(currentGeneration())) return;
+  clearExitCueTimer();
+  const generation = currentGeneration();
+  exitCueTimer = setTimeout(() => {
+    exitCueTimer = null;
+    if (isStale(generation) || !stopping) return;
     resolveDeps().playExit();
   }, fadeMs);
   patch({
@@ -827,8 +877,8 @@ function beginExitVeil(reason: VoiceExitReason): void {
     status: exitLine,
     exitLine,
     active: true,
+    recovery: 'none',
   });
-  const generation = currentGeneration();
   const veilMs = prefersReducedSubtitleMotion() ? VOICE_EXIT_VEIL_REDUCED_MS : VOICE_EXIT_VEIL_MS;
   exitVeilTimer = setTimeout(() => {
     exitVeilTimer = null;
@@ -838,13 +888,14 @@ function beginExitVeil(reason: VoiceExitReason): void {
 }
 
 function tryMarkIntroComplete(): void {
-  if (snapshot.introComplete || stopping || !snapshot.active) return;
+  if (snapshot.introComplete || stopping || recovering || !snapshot.active) return;
   if (!socketReady || !greetTurnComplete) return;
   if (playback?.isBusy()) return;
   patch({
     introComplete: true,
     hud: 'live',
     status: 'Live. Ask anything, or try a site action.',
+    recovery: 'none',
   });
   noteVoiceActivity('connect');
   notifyVoiceActionQueueReady();
@@ -884,17 +935,25 @@ function teardownMedia(reason: VoiceExitReason): void {
   sendAudioLive = false;
   socketReady = false;
   greetTurnComplete = false;
+  recovering = false;
+  reconnectAttempts = 0;
+  micEnableInFlight = false;
   resetIdleWatch();
   clearExitVeilTimer();
   clearAmbientStartTimer();
+  clearReconnectTimer();
+  resetStreamEndWatch();
+  clearExitCueTimer();
   resetMicPermissionWait();
   resetSubtitleState();
   resetFarewellWait();
-  resetUtterancePlan();
+  resetSeenVoiceTools();
   clearActionCueTimer();
   cancelProjectVideoWaiters();
+  setPcmPlaybackActive(false);
   capture?.stop();
   capture = null;
+  playback?.interrupt();
   playback?.close();
   playback = null;
   const activeCaller = caller;
@@ -913,6 +972,7 @@ function finishStop(reason: VoiceExitReason): void {
   if (stopping && !snapshot.active && !starting) return;
   stopping = true;
   const nextGeneration = snapshot.generation + 1;
+  pendingInvocationContext = null;
   teardownMedia(reason);
   starting = false;
   snapshot = {
@@ -923,10 +983,121 @@ function finishStop(reason: VoiceExitReason): void {
   emit();
 }
 
-async function onToolCall(call: SiteToolCall): Promise<void> {
-  const generation = currentGeneration();
+function enterRetryableScreen(error: string, status = VOICE_RETRYABLE_STATUS): void {
+  const keepHud = snapshot.hud === 'intro' || snapshot.hud === 'live' ? snapshot.hud : 'intro';
+  const keepWelcome = snapshot.welcomeHint || VOICE_WELCOME_HINT;
+  const keepLowNetwork = snapshot.lowNetwork;
+  const keepIntroComplete = snapshot.introComplete && keepHud === 'live';
+  const generation = snapshot.generation;
+  teardownMedia('error');
+  starting = false;
+  stopping = false;
+  snapshot = {
+    ...IDLE_SNAPSHOT,
+    active: true,
+    hud: keepHud,
+    phase: 'error',
+    status,
+    error,
+    welcomeHint: keepWelcome,
+    lowNetwork: keepLowNetwork,
+    introComplete: keepIntroComplete,
+    generation,
+    recovery: 'retryable',
+  };
+  emit();
+}
+
+function delay(ms: number, generation: number): Promise<void> {
+  return new Promise(resolve => {
+    reconnectTimerResolve = resolve;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectTimerResolve = null;
+      if (isStale(generation) || stopping) {
+        resolve();
+        return;
+      }
+      resolve();
+    }, ms);
+  });
+}
+
+async function recoverLiveConnection(generation: number): Promise<void> {
+  if (isStale(generation) || stopping || recovering || snapshot.recovery === 'retryable') return;
+  recovering = true;
+  sendAudioLive = false;
+  socketReady = false;
+  resetIdleWatch();
+  resetStreamEndWatch();
+  setPcmPlaybackActive(false);
+  playback?.interrupt();
+  patch({
+    recovery: 'reconnecting',
+    phase: 'connecting',
+    status: VOICE_RECONNECTING_STATUS,
+    error: null,
+    hangupPending: false,
+  });
+
   const activeCaller = caller;
-  if (!activeCaller || isStale(generation)) return;
+  const resumeHandle = parseVoiceResumeHandle(activeCaller?.getResumeHandle?.() ?? undefined);
+  if (!activeCaller || !resumeHandle) {
+    recovering = false;
+    enterRetryableScreen(VOICE_RETRYABLE_ERROR);
+    return;
+  }
+
+  while (reconnectAttempts < VOICE_RECONNECT_MAX_ATTEMPTS) {
+    const attempt = reconnectAttempts;
+    reconnectAttempts += 1;
+    const backoff = VOICE_RECONNECT_BACKOFF_MS[attempt] ?? VOICE_RECONNECT_BACKOFF_MS[VOICE_RECONNECT_BACKOFF_MS.length - 1];
+    if (backoff > 0) await delay(backoff, generation);
+    if (isStale(generation) || stopping) return;
+
+    try {
+      const minted = sampleMintSnapshot();
+      const session = await resolveDeps().fetchSession(snapshot.lowNetwork, minted, resumeHandle);
+      if (isStale(generation) || stopping) return;
+      await activeCaller.connect({
+        ...session,
+        resumeHandle,
+        setup: {
+          ...session.setup,
+          greetOnConnect: false,
+          resumeHandle,
+        },
+      });
+      if (isStale(generation) || stopping) return;
+      recovering = false;
+      reconnectAttempts = 0;
+      socketReady = true;
+      sendAudioLive = capture != null;
+      patch({
+        recovery: 'none',
+        phase: 'listening',
+        status: snapshot.introComplete
+          ? 'Live. Ask anything, or try a site action.'
+          : (capture ? 'Connected. Waiting for the welcome.' : VOICE_MIC_PERMISSION_PROMPT),
+        error: capture ? null : snapshot.error,
+        micLive: capture != null,
+      });
+      noteVoiceActivity('connect');
+      tryMarkIntroComplete();
+      return;
+    } catch {
+      if (isStale(generation) || stopping) return;
+    }
+  }
+
+  if (isStale(generation) || stopping) return;
+  recovering = false;
+  enterRetryableScreen(VOICE_RETRYABLE_ERROR);
+}
+
+async function handleSiteToolCall(call: SiteToolCall, generation: number): Promise<void> {
+  const activeCaller = caller;
+  if (!activeCaller || isStale(generation) || stopping) return;
 
   if (call.name === 'start_voice_session') {
     activeCaller.sendToolResult(call.id, {
@@ -936,46 +1107,60 @@ async function onToolCall(call: SiteToolCall): Promise<void> {
     return;
   }
 
-  syncUtterancePlanFromUserLine();
-  const resolvedCall = alignTerminalCallWithUtterancePlan(call);
-  const key = voiceToolDedupeKey(resolvedCall);
-  const alreadySeen = seenVoiceToolKeys.has(key);
-  seenVoiceToolKeys.add(key);
+  const alreadySeen = seenVoiceToolIds.has(call.id);
+  if (!alreadySeen) seenVoiceToolIds.add(call.id);
 
-  const hostId = hostIdForVoiceTool(resolvedCall.name, hostArgsForVoiceTool(resolvedCall));
-  const deferred = isDeferredVoiceTool(resolvedCall.name);
-  const dependent = isDependentVoiceTool(resolvedCall.name) || hostId !== null;
+  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
+  const deferred = isDeferredVoiceTool(call.name);
+  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
   const runtime = requireHostRuntime();
   let result: SiteToolResult;
   if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
-  } else if (resolvedCall.name === 'end_voice_session') {
-    result = await executeSiteToolSafely(resolvedCall, runtime, false);
-  } else if (resolvedCall.name === 'control_project_video') {
-    result = await waitForProjectVideoControl(resolvedCall, generation);
+  } else if (call.name === 'end_voice_session') {
+    result = await executeSiteToolSafely(call, runtime, false);
+  } else if (call.name === 'control_project_video') {
+    result = await waitForProjectVideoControl(call, generation);
   } else if (deferred || dependent) {
-    result = await enqueueVoiceSideEffect(resolvedCall, generation);
+    result = await enqueueVoiceSideEffect(call, generation);
   } else {
-    playCommittedActionCue(resolvedCall.name);
-    result = await executeSiteToolSafely(resolvedCall, runtime, true);
+    playCommittedActionCue(call.name);
+    result = await executeSiteToolSafely(call, runtime, true);
   }
   if (isStale(generation) || caller !== activeCaller) return;
-  activeCaller.sendToolResult(resolvedCall.id, result, resolvedCall.name);
+  activeCaller.sendToolResult(call.id, result, call.name);
 
-  if (!alreadySeen && result.ok) {
-    if (resolvedCall.name === 'end_voice_session') {
-      const reason = resolvedCall.args.reason ?? 'user';
-      armAgentFarewellHangup(reason);
-    }
+  if (!alreadySeen && result.ok && call.name === 'end_voice_session') {
+    armAgentFarewellHangup(call.args.reason ?? 'user');
   }
+}
 
-  flushUtterancePlan(generation);
+function enqueueToolCall(call: SiteToolCall): void {
+  toolCallQueue.push({ call, generation: currentGeneration() });
+  void drainToolCalls();
+}
+
+async function drainToolCalls(): Promise<void> {
+  if (toolCallDraining) return;
+  toolCallDraining = true;
+  const drainEpoch = toolCallDrainEpoch;
+  try {
+    while (drainEpoch === toolCallDrainEpoch && toolCallQueue.length > 0) {
+      const next = toolCallQueue.shift();
+      if (!next) break;
+      if (isStale(next.generation)) continue;
+      await handleSiteToolCall(next.call, next.generation);
+    }
+  } finally {
+    toolCallDraining = false;
+    if (toolCallQueue.length > 0) void drainToolCalls();
+  }
 }
 
 function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, generation: number): void {
   unsubs = [
     nextCaller.on('phase', next => {
-      if (isStale(generation)) return;
+      if (isStale(generation) || recovering) return;
       if (next === 'speaking') {
         markFarewellHeard();
         notifyVoiceActionQueueReady();
@@ -989,64 +1174,69 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       patch({ phase: next });
     }),
     nextCaller.on('userTranscript', text => {
+      if (isStale(generation) || recovering) return;
       applySpokenTranscript('user', text, generation);
       noteVoiceActivity('user');
     }),
     nextCaller.on('agentTranscript', text => {
+      if (isStale(generation) || recovering) return;
       applySpokenTranscript('agent', text, generation);
       noteVoiceActivity('agent');
     }),
     nextCaller.on('audio', chunk => {
-      if (isStale(generation)) return;
+      if (isStale(generation) || stopping || recovering) return;
       markFarewellPlayback();
       stopVoiceToggleCue();
       setVoiceAmbientDucked(true);
+      setPcmPlaybackActive(true);
       nextPlayback.play(chunk);
       notifyVoiceActionQueueReady();
     }),
     nextCaller.on('interrupted', () => {
-      if (isStale(generation)) return;
+      if (isStale(generation) || stopping) return;
       nextPlayback.interrupt();
+      setPcmPlaybackActive(false);
       notifyVoiceActionQueueReady();
     }),
     nextCaller.on('toolCall', call => {
+      if (isStale(generation) || recovering || stopping) return;
       noteVoiceActivity('tool');
-      void onToolCall(call);
+      enqueueToolCall(call);
     }),
     nextCaller.on('turnComplete', () => {
-      if (isStale(generation)) return;
+      if (isStale(generation) || recovering) return;
+      nextPlayback.finishTurn?.();
       greetTurnComplete = true;
       if (farewellArmed) farewellTurnComplete = true;
       tryMarkIntroComplete();
       scheduleSubtitleClear(generation);
-      syncUtterancePlanFromUserLine();
-      flushUtterancePlan(generation);
       notifyVoiceActionQueueReady();
     }),
-    nextCaller.on('error', message => {
-      if (isStale(generation)) return;
-      patch({ error: message, phase: 'error' });
+    nextCaller.on('health', status => {
+      if (isStale(generation) || stopping) return;
+      if (status.ok !== false) return;
+      void recoverLiveConnection(generation);
+    }),
+    nextCaller.on('error', () => {
+      if (isStale(generation) || stopping || recovering) return;
+      patch({
+        error: VOICE_CONNECTION_LOST_STATUS,
+        phase: 'error',
+        status: VOICE_CONNECTION_LOST_STATUS,
+      });
     }),
     nextCaller.on('ended', reason => {
       if (isStale(generation) || stopping) return;
+      if (recovering) return;
       if (reason === 'health') {
-        sendAudioLive = false;
-        socketReady = false;
-        resetIdleWatch();
-        patch({
-          error: 'Connection faded. Stay here or hang up.',
-          phase: 'error',
-          status: 'Connection faded.',
-          micLive: false,
-        });
-        capture?.stop();
-        capture = null;
+        void recoverLiveConnection(generation);
         return;
       }
       stopVoiceSession(reason);
     }),
     nextPlayback.subscribeIdle(() => {
       if (isStale(generation)) return;
+      setPcmPlaybackActive(false);
       setVoiceAmbientDucked(false);
       if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
         patch({ phase: 'listening' });
@@ -1056,6 +1246,11 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       notifyVoiceActionQueueReady();
     }),
   ];
+}
+
+async function resolveMicrophoneError(caught: unknown): Promise<string> {
+  const permissionState = await getMicrophonePermissionState();
+  return formatMicrophoneError(caught, microphoneAccessContext(permissionState));
 }
 
 async function bootSession(): Promise<void> {
@@ -1088,27 +1283,35 @@ async function bootSession(): Promise<void> {
         d.startAmbient(true);
       }, VOICE_AMBIENT_START_DELAY_MS);
     }
+    let captureError: unknown = null;
     const nextCapture = await d.startCapture(chunk => {
-      if (sendAudioLive && !playback?.isBusy()) caller?.sendAudio(chunk);
-    }, { lowNetwork: prefs.lowNetwork }).catch(() => null);
-    if (isStale(generation)) {
+      handleCaptureFrame(chunk, generation);
+    }, { lowNetwork: prefs.lowNetwork }).catch(caught => {
+      captureError = caught;
+      return null;
+    });
+    if (isStale(generation) || stopping) {
       nextCapture?.stop();
       return;
     }
     if (nextCapture) {
       capture = nextCapture;
-      patch({ micLive: true });
+      patch({ micLive: true, error: null });
     } else {
+      const micError = captureError
+        ? await resolveMicrophoneError(captureError)
+        : VOICE_MIC_PERMISSION_ERROR;
+      if (isStale(generation) || stopping) return;
       patch({
         micLive: false,
         status: VOICE_MIC_PERMISSION_PROMPT,
-        error: 'Microphone permission is needed.',
+        error: micError,
       });
     }
 
-    const session = await d.fetchSession(prefs.lowNetwork, pendingMintSnapshot);
-    pendingMintSnapshot = undefined;
-    if (isStale(generation)) return;
+    const minted = sampleMintSnapshot();
+    const session = await d.fetchSession(prefs.lowNetwork, minted);
+    if (isStale(generation) || stopping) return;
     const hasMic = capture != null;
     const connectSession = hasMic
       ? session
@@ -1126,15 +1329,16 @@ async function bootSession(): Promise<void> {
       };
     }
     await nextCaller.connect(connectSession);
-    if (isStale(generation)) return;
+    if (isStale(generation) || stopping) return;
     sendAudioLive = hasMic;
     socketReady = true;
     patch({
       phase: 'listening',
       status: hasMic ? 'Connected. Waiting for the welcome.' : VOICE_MIC_PERMISSION_PROMPT,
       welcomeHint: session.setup.welcomeHint || VOICE_WELCOME_HINT,
-      error: hasMic ? snapshot.error : 'Microphone permission is needed.',
+      error: hasMic ? null : snapshot.error,
       micLive: hasMic,
+      recovery: 'none',
     });
     if (!hasMic) {
       nextCaller.sendText(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_PROMPT));
@@ -1143,17 +1347,8 @@ async function bootSession(): Promise<void> {
     noteVoiceActivity('connect');
     tryMarkIntroComplete();
   } catch (caught) {
-    if (isStale(generation)) return;
-    sendAudioLive = false;
-    capture?.stop();
-    capture = null;
-    patch({
-      micLive: false,
-      subtitlePhase: 'hidden',
-      error: caught instanceof Error ? caught.message : 'Voice mode is unavailable.',
-      phase: 'error',
-      status: 'Voice mode is unavailable.',
-    });
+    if (isStale(generation) || stopping) return;
+    enterRetryableScreen(publicVoiceError(caught, VOICE_START_FAILED_ERROR), VOICE_START_FAILED_STATUS);
   } finally {
     if (!isStale(generation)) starting = false;
   }
@@ -1187,8 +1382,10 @@ export function bindVoiceSessionHost(runtime: SiteToolRuntime): void {
 export function startVoiceSession(): Promise<void> {
   ensureBus();
   if (starting || stopping || snapshot.active) return Promise.resolve();
-  pendingMintSnapshot = buildMintSnapshot(consumeVoiceInvocationContext());
+  pendingInvocationContext = consumeVoiceInvocationContext();
   starting = true;
+  recovering = false;
+  reconnectAttempts = 0;
   socketReady = false;
   greetTurnComplete = false;
   resetSubtitleState();
@@ -1196,7 +1393,7 @@ export function startVoiceSession(): Promise<void> {
   resetIdleWatch();
   clearExitVeilTimer();
   resetMicPermissionWait();
-  resetUtterancePlan();
+  resetSeenVoiceTools();
   patch({
     active: true,
     hud: 'intro',
@@ -1212,6 +1409,42 @@ export function startVoiceSession(): Promise<void> {
     welcomeHint: VOICE_WELCOME_HINT,
     exitLine: '',
     generation: snapshot.generation + 1,
+    recovery: 'none',
+  });
+  return bootSession();
+}
+
+export function retryVoiceSession(): Promise<void> {
+  if (stopping || starting || recovering) return Promise.resolve();
+  if (!snapshot.active || snapshot.recovery !== 'retryable') return Promise.resolve();
+  const keepLowNetwork = snapshot.lowNetwork;
+  teardownMedia('error');
+  starting = true;
+  recovering = false;
+  reconnectAttempts = 0;
+  socketReady = false;
+  greetTurnComplete = false;
+  resetSubtitleState();
+  resetFarewellWait();
+  resetIdleWatch();
+  resetMicPermissionWait();
+  resetSeenVoiceTools();
+  patch({
+    active: true,
+    hud: 'intro',
+    phase: 'connecting',
+    status: 'Switching to agent experience',
+    userLine: '',
+    agentLine: '',
+    error: null,
+    micLive: false,
+    lowNetwork: keepLowNetwork,
+    introComplete: false,
+    hangupPending: false,
+    welcomeHint: VOICE_WELCOME_HINT,
+    exitLine: '',
+    generation: snapshot.generation + 1,
+    recovery: 'none',
   });
   return bootSession();
 }
@@ -1246,8 +1479,8 @@ export function requestVoiceHangup(options: VoiceHangupRequest = {}): void {
     stopVoiceSession(reason, { force: true });
     return;
   }
-  if (force || !queue) {
-    stopVoiceSession(reason, { force });
+  if (force || !queue || snapshot.recovery === 'retryable') {
+    stopVoiceSession(reason, { force: snapshot.recovery === 'retryable' ? true : force });
     return;
   }
   if (canHangupNow()) {
@@ -1280,27 +1513,30 @@ export function getServerVoiceSessionSnapshot(): VoiceSessionSnapshot {
 }
 
 export function enableVoiceCapture(): void {
-  if (!snapshot.active || capture) return;
+  if (!snapshot.active || capture || micEnableInFlight || recovering || stopping) return;
+  if (snapshot.recovery === 'retryable') return;
   const generation = currentGeneration();
   const d = resolveDeps();
+  micEnableInFlight = true;
   noteVoiceActivity('mic');
   clearMicPermissionWait();
   void d.startCapture(chunk => {
-    if (sendAudioLive && !playback?.isBusy()) caller?.sendAudio(chunk);
+    handleCaptureFrame(chunk, generation);
   }, { lowNetwork: snapshot.lowNetwork }).then(nextCapture => {
-    if (isStale(generation)) {
+    micEnableInFlight = false;
+    if (isStale(generation) || stopping) {
       nextCapture.stop();
       return;
     }
     capture = nextCapture;
-    sendAudioLive = socketReady;
+    sendAudioLive = socketReady && !recovering;
     clearMicPermissionWait();
-    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending;
+    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending && !recovering;
     const welcome = withheldWelcome;
     if (shouldSendWelcome) withheldWelcome = null;
     patch({
       micLive: true,
-      error: snapshot.error === 'Microphone permission is needed.' ? null : snapshot.error,
+      error: null,
       status: shouldSendWelcome ? 'Connected. Waiting for the welcome.' : snapshot.status,
     });
     if (shouldSendWelcome && welcome && caller) {
@@ -1309,14 +1545,17 @@ export function enableVoiceCapture(): void {
         welcomeHint: welcome.welcomeHint || VOICE_WELCOME_HINT,
       }));
     }
-  }).catch(() => {
-    if (isStale(generation)) return;
+  }).catch(async (caught) => {
+    micEnableInFlight = false;
+    if (isStale(generation) || stopping) return;
+    const micError = await resolveMicrophoneError(caught);
+    if (isStale(generation) || stopping) return;
     patch({
       micLive: false,
       status: VOICE_MIC_PERMISSION_PROMPT,
-      error: 'Microphone permission is needed.',
+      error: micError,
     });
-    if (socketReady && !stopping && snapshot.active && !capture && !snapshot.hangupPending) {
+    if (socketReady && !stopping && snapshot.active && !capture && !snapshot.hangupPending && !recovering) {
       startMicPermissionWait(generation);
     }
   });
@@ -1330,13 +1569,13 @@ export function resetVoiceSessionRuntimeForTests(): void {
   stopping = true;
   resetIdleWatch();
   clearExitVeilTimer();
+  pendingInvocationContext = null;
   teardownMedia('user');
   starting = false;
   stopping = false;
   pendingStopReason = 'user';
   snapshot = IDLE_SNAPSHOT;
   hostRuntime = null;
-  pendingMintSnapshot = undefined;
   depsOverride = null;
   emit();
 }

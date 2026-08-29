@@ -7,7 +7,6 @@ import {
   CONTROL_PROJECT_VIDEO_EVENT,
   registerSiteActionHost,
   resetSiteActionHostsForTests,
-  RUN_TERMINAL_COMMAND_EVENT,
 } from '@/lib/siteActionEvents';
 import {
   bindVoiceSessionHost,
@@ -15,19 +14,31 @@ import {
   getVoiceSessionSnapshot,
   requestVoiceHangup,
   resetVoiceSessionRuntimeForTests,
+  retryVoiceSession,
   setVoiceSessionRuntimeDepsForTests,
   startVoiceSession,
   stopVoiceSession,
   VOICE_ACTION_CUE_COALESCE_MS,
   VOICE_AMBIENT_FADE_OUT_MS,
   VOICE_AMBIENT_START_DELAY_MS,
+  VOICE_CALLBACK_GAP_MS,
   VOICE_EXIT_VEIL_MS,
   VOICE_IDLE_CHECKIN_MS,
   VOICE_IDLE_HANGUP_MS,
   VOICE_PROJECT_VIDEO_WAIT_MS,
+  VOICE_RECONNECT_BACKOFF_MS,
   VOICE_SUBTITLE_FADE_MS,
   VOICE_SUBTITLE_IDLE_MS,
 } from '@/lib/voiceSessionRuntime';
+import { setVoicePcmActive } from '@/lib/voiceSounds';
+
+vi.mock('@/lib/voiceSounds', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/voiceSounds')>('@/lib/voiceSounds');
+  return {
+    ...actual,
+    setVoicePcmActive: vi.fn(),
+  };
+});
 import {
   buildVoiceExactSpeakCue,
   buildVoiceSessionStartCue,
@@ -41,19 +52,23 @@ import {
 } from '@/lib/voiceAgentProtocol';
 import { getVoiceAgentPrefsSnapshot, setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
 
-function createFakeCaller() {
+function createFakeCaller(options: { resumeHandle?: string | null } = {}) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const toolResults: Array<{ id: string; result: unknown; name?: string }> = [];
   const sentTexts: string[] = [];
   const sentAudio: ArrayBuffer[] = [];
   const connectedSessions: VoiceSessionHandle[] = [];
+  const endAudioStreamCalls: number[] = [];
   let connectCount = 0;
+  let resumeHandle = options.resumeHandle ?? null;
+  let connectImpl: ((session: VoiceSessionHandle) => Promise<void>) | null = null;
 
   const caller: VoiceCaller = {
     id: 'fake-live',
     async connect(session) {
       connectCount += 1;
       connectedSessions.push(session);
+      if (connectImpl) await connectImpl(session);
     },
     sendAudio(chunk) {
       sentAudio.push(chunk);
@@ -66,6 +81,12 @@ function createFakeCaller() {
     },
     interrupt() {},
     close() {},
+    endAudioStream() {
+      endAudioStreamCalls.push(Date.now());
+    },
+    getResumeHandle() {
+      return resumeHandle;
+    },
     on(event, listener) {
       const bucket = listeners.get(event) ?? new Set<(payload: unknown) => void>();
       bucket.add(listener as (payload: unknown) => void);
@@ -85,7 +106,14 @@ function createFakeCaller() {
     sentTexts,
     sentAudio,
     connectedSessions,
+    endAudioStreamCalls,
     getConnectCount: () => connectCount,
+    setResumeHandle(next: string | null) {
+      resumeHandle = next;
+    },
+    setConnectImpl(next: ((session: VoiceSessionHandle) => Promise<void>) | null) {
+      connectImpl = next;
+    },
   };
 }
 
@@ -96,10 +124,13 @@ function cueContainsCatalog(sent: readonly string[], catalog: readonly string[])
 function createFakePlayback() {
   let busy = false;
   const idleListeners = new Set<() => void>();
+  const finishTurn = vi.fn();
+  const play = vi.fn(() => {
+    busy = true;
+  });
   const playback: VoicePlayback = {
-    play() {
-      busy = true;
-    },
+    play,
+    finishTurn,
     interrupt() {
       busy = false;
       for (const listener of idleListeners) listener();
@@ -116,6 +147,8 @@ function createFakePlayback() {
 
   return {
     playback,
+    play,
+    finishTurn,
     setBusy(next: boolean) {
       busy = next;
       if (!next) {
@@ -275,9 +308,9 @@ describe('voice session runtime singleton', () => {
       error: null,
     });
 
-    runtime.fakeCaller.emit('error', 'Connection faded. Stay here or hang up.');
+    runtime.fakeCaller.emit('error', 'provider dumped a stack');
     await vi.advanceTimersByTimeAsync(VOICE_SUBTITLE_IDLE_MS + 50);
-    expect(runtime.getVoiceSessionSnapshot().error).toBe('Connection faded. Stay here or hang up.');
+    expect(runtime.getVoiceSessionSnapshot().error).toBe('Connection faded.');
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
@@ -340,20 +373,24 @@ describe('voice session runtime singleton', () => {
   });
 
   it('surfaces a socket drop on the dock without restarting', async () => {
+    vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
+    runtime.fakeCaller.setResumeHandle(null);
+    goLive(runtime);
 
     runtime.fakeCaller.emit('ended', 'health');
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'live',
       phase: 'error',
-      error: 'Connection faded. Stay here or hang up.',
+      recovery: 'retryable',
+      error: 'Call dropped. Try again or hang up.',
     });
     expect(runtime.fakeCaller.getConnectCount()).toBe(1);
+    expect(runtime.captureStop).toHaveBeenCalled();
 
     runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 
   it('defers navigate_to until intro is done and playback is idle', async () => {
@@ -368,6 +405,7 @@ describe('voice session runtime singleton', () => {
     runtime.fakeCaller.emit('toolCall', call);
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
     expect(runtime.push).not.toHaveBeenCalled();
@@ -376,6 +414,7 @@ describe('voice session runtime singleton', () => {
     expect(runtime.push).not.toHaveBeenCalled();
 
     runtime.fakePlayback.setBusy(false);
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
     expect(runtime.push).toHaveBeenCalled();
@@ -506,6 +545,7 @@ describe('voice session runtime singleton', () => {
   it('does not start idle hangup after a health drop', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
+    runtime.fakeCaller.setResumeHandle(null);
     goLive(runtime);
 
     runtime.fakeCaller.emit('ended', 'health');
@@ -513,7 +553,8 @@ describe('voice session runtime singleton', () => {
       active: true,
       hud: 'live',
       phase: 'error',
-      error: 'Connection faded. Stay here or hang up.',
+      recovery: 'retryable',
+      error: 'Call dropped. Try again or hang up.',
     });
 
     await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS);
@@ -539,6 +580,7 @@ describe('voice session runtime singleton', () => {
       name: 'end_voice_session',
       args: { reason: 'user' },
     } as SiteToolCall);
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -580,6 +622,7 @@ describe('voice session runtime singleton', () => {
     } as SiteToolCall);
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({ ok: true });
     expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
@@ -597,190 +640,35 @@ describe('voice session runtime singleton', () => {
     vi.useRealTimers();
   });
 
-  it('queues the rest of a planned utterance after the model emits only navigate_to', async () => {
-    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
-    vi.stubGlobal('window', { dispatchEvent });
-
+  it('dedupes Gemini tool calls by id only, not by semantic args', async () => {
     const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
-
-    runtime.fakeCaller.emit('userTranscript', 'go to homepage and type help in terminal');
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'nav-home',
-      name: 'navigate_to',
-      args: { path: '/' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(runtime.push).toHaveBeenCalledWith('/');
-    const terminalEvents = () => dispatchEvent.mock.calls
-      .map(([event]) => event)
-      .filter((event): event is CustomEvent<{ command: string }> => (
-        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-      ));
-    expect(terminalEvents()).toHaveLength(0);
-
-    const unregister = registerSiteActionHost('terminal');
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const firstTerminalEvents = terminalEvents();
-    expect(firstTerminalEvents).toHaveLength(1);
-    expect(firstTerminalEvents[0]?.detail).toEqual({ command: 'help' });
+    goLive(runtime);
 
     runtime.fakeCaller.emit('toolCall', {
-      id: 'term-help',
-      name: 'run_terminal_command',
-      args: { command: 'help' },
+      id: 'theme-same',
+      name: 'set_theme',
+      args: { action: 'dark' },
     } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(terminalEvents()).toHaveLength(1);
-
-    unregister();
-    runtime.resetVoiceSessionRuntimeForTests();
-  });
-
-  it('queues the rest of a planned hint utterance after the model emits only navigate_to', async () => {
-    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
-    vi.stubGlobal('window', { dispatchEvent });
-
-    const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
-
-    runtime.fakeCaller.emit('userTranscript', 'switch to home and enter hint on the terminal');
     runtime.fakeCaller.emit('toolCall', {
-      id: 'nav-home-hint',
-      name: 'navigate_to',
-      args: { path: '/' },
+      id: 'theme-same',
+      name: 'set_theme',
+      args: { action: 'dark' },
     } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(runtime.push).toHaveBeenCalledWith('/');
-    const terminalEvents = () => dispatchEvent.mock.calls
-      .map(([event]) => event)
-      .filter((event): event is CustomEvent<{ command: string }> => (
-        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-      ));
-    expect(terminalEvents()).toHaveLength(0);
-
-    const unregister = registerSiteActionHost('terminal');
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const firstTerminalEvents = terminalEvents();
-    expect(firstTerminalEvents).toHaveLength(1);
-    expect(firstTerminalEvents[0]?.detail).toEqual({ command: 'hint' });
-
     runtime.fakeCaller.emit('toolCall', {
-      id: 'term-hint',
-      name: 'run_terminal_command',
-      args: { command: 'hint' },
+      id: 'theme-other',
+      name: 'set_theme',
+      args: { action: 'dark' },
     } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(terminalEvents()).toHaveLength(1);
-
-    unregister();
-    runtime.resetVoiceSessionRuntimeForTests();
-  });
-
-  it('commits planned home navigation before a host-gated fill when the model only fills first', async () => {
-    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
-    vi.stubGlobal('window', { dispatchEvent });
-
-    const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
-
-    runtime.fakeCaller.emit('userTranscript', 'go to home and type hello');
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'fill-hello',
-      name: 'fill_field',
-      args: { field: 'terminal-input', value: 'hello' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(runtime.push).toHaveBeenCalledWith('/');
-    const fillEvents = () => dispatchEvent.mock.calls
-      .map(([event]) => event)
-      .filter((event): event is CustomEvent<{ field: string; value: string }> => (
-        event instanceof Event && event.type === 'voice-fill-field'
-      ));
-    expect(fillEvents()).toHaveLength(0);
-
-    const unregister = registerSiteActionHost('terminal');
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const committedFills = fillEvents();
-    expect(committedFills).toHaveLength(1);
-    expect(committedFills[0]?.detail).toEqual({ field: 'terminal-input', value: 'hello' });
-
-    unregister();
-    runtime.resetVoiceSessionRuntimeForTests();
-  });
-
-  it('rewrites a spoken hint tool call from help to hint once', async () => {
-    const dispatchEvent = vi.fn((event: Event) => Boolean(event));
-    vi.stubGlobal('window', { dispatchEvent });
-
-    const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
-    runtime.fakePlayback.setBusy(false);
-    expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(true);
-
-    runtime.fakeCaller.emit('userTranscript', 'enter hint on the terminal');
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'term-help-misheard',
-      name: 'run_terminal_command',
-      args: { command: 'help' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const terminalEvents = () => dispatchEvent.mock.calls
-      .map(([event]) => event)
-      .filter((event): event is CustomEvent<{ command: string }> => (
-        event instanceof Event && event.type === RUN_TERMINAL_COMMAND_EVENT
-      ));
-    expect(terminalEvents()).toHaveLength(0);
-
-    const unregister = registerSiteActionHost('terminal');
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const committed = terminalEvents();
-    expect(committed).toHaveLength(1);
-    expect(committed[0]?.detail).toEqual({ command: 'hint' });
-
-    runtime.fakeCaller.emit('toolCall', {
-      id: 'term-hint-repeat',
-      name: 'run_terminal_command',
-      args: { command: 'help' },
-    } as SiteToolCall);
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(terminalEvents()).toHaveLength(1);
-    const repeatResult = runtime.fakeCaller.toolResults.find(result => result.id === 'term-hint-repeat');
-    expect(repeatResult?.result).toMatchObject({
+    await vi.waitFor(() => {
+      expect(runtime.fakeCaller.toolResults).toHaveLength(3);
+    });
+    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({ ok: true });
+    expect(runtime.fakeCaller.toolResults[1]?.result).toMatchObject({
       ok: true,
       spokenText: 'Already handling that.',
     });
+    expect(runtime.fakeCaller.toolResults[2]?.result).toMatchObject({ ok: true });
 
-    unregister();
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
@@ -872,6 +760,7 @@ describe('voice session runtime singleton', () => {
       name: 'control_project_video',
       args: { action: 'play' },
     } as SiteToolCall);
+    await Promise.resolve();
     await Promise.resolve();
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
     expect(runtime.playAction).not.toHaveBeenCalled();
@@ -973,20 +862,24 @@ describe('voice session runtime singleton', () => {
       args: { action: 'play' },
     } as SiteToolCall);
     await Promise.resolve();
+    await Promise.resolve();
     expect(runtime.fakeCaller.toolResults).toHaveLength(0);
     expect(dispatchEvent).not.toHaveBeenCalled();
 
     runtime.requestVoiceHangup();
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
+      ok: false,
+      errorCode: 'project-video-unavailable',
+    });
 
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'exiting',
-    });
-    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
-      ok: false,
-      errorCode: 'project-video-unavailable',
     });
     expect(dispatchEvent).not.toHaveBeenCalledWith(expect.objectContaining({
       type: CONTROL_PROJECT_VIDEO_EVENT,
@@ -1043,7 +936,7 @@ describe('voice session runtime singleton', () => {
     expect(getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       micLive: false,
-      error: 'Microphone permission is needed.',
+      error: 'Voice input could not start. Try again.',
       status: VOICE_MIC_PERMISSION_PROMPT,
     });
     expect(getVoiceSessionSnapshot().phase).not.toBe('error');
@@ -1101,6 +994,7 @@ describe('voice session runtime singleton', () => {
     enableVoiceCapture();
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(getVoiceSessionSnapshot()).toMatchObject({
       micLive: true,
@@ -1125,15 +1019,15 @@ describe('voice session runtime singleton', () => {
     vi.useRealTimers();
   });
 
-  it('does not send mic PCM while playback is busy', async () => {
+  it('sends mic PCM while playback is busy', async () => {
     const runtime = await boot();
     runtime.fakePlayback.setBusy(true);
     runtime.pushCaptureFrame(new ArrayBuffer(4));
-    expect(runtime.fakeCaller.sentAudio).toHaveLength(0);
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(1);
 
     runtime.fakePlayback.setBusy(false);
     runtime.pushCaptureFrame(new ArrayBuffer(4));
-    expect(runtime.fakeCaller.sentAudio).toHaveLength(1);
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(2);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -1150,5 +1044,209 @@ describe('voice session runtime singleton', () => {
     expect(runtime.getVoiceSessionSnapshot().phase).toBe('acting');
 
     runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('calls finishTurn and isolates PCM media on audio then idle', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+    vi.mocked(setVoicePcmActive).mockClear();
+
+    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
+    expect(vi.mocked(setVoicePcmActive)).toHaveBeenCalledWith(true);
+    expect(runtime.fakePlayback.play).toHaveBeenCalled();
+
+    runtime.fakePlayback.finishTurn.mockClear();
+    runtime.fakeCaller.emit('turnComplete', true);
+    expect(runtime.fakePlayback.finishTurn).toHaveBeenCalled();
+
+    runtime.fakePlayback.setBusy(false);
+    expect(vi.mocked(setVoicePcmActive)).toHaveBeenCalledWith(false);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+  });
+
+  it('sends one stream end after a 1100ms callback gap, then rearms on the next frame', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.pushCaptureFrame(new ArrayBuffer(4));
+    await vi.advanceTimersByTimeAsync(VOICE_CALLBACK_GAP_MS);
+    expect(runtime.fakeCaller.endAudioStreamCalls).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(VOICE_CALLBACK_GAP_MS);
+    expect(runtime.fakeCaller.endAudioStreamCalls).toHaveLength(1);
+
+    runtime.pushCaptureFrame(new ArrayBuffer(4));
+    await vi.advanceTimersByTimeAsync(VOICE_CALLBACK_GAP_MS);
+    expect(runtime.fakeCaller.endAudioStreamCalls).toHaveLength(2);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('tears down media on startup failure and retries into a clean session', async () => {
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    const captureStop = vi.fn();
+    const fetchSession = vi.fn()
+      .mockRejectedValueOnce(new Error('provider exploded'))
+      .mockResolvedValue(sessionHandle);
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async () => ({ stop: captureStop }),
+      fetchSession,
+      playEnter: vi.fn(),
+      playExit: vi.fn(),
+      playAction: vi.fn(),
+      startAmbient: vi.fn(),
+      stopAmbient: vi.fn(),
+      prefetchSounds: vi.fn(),
+    });
+    bindVoiceSessionHost({
+      router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      discoActive: false,
+      openFeedback: vi.fn(),
+      openProject: vi.fn(),
+    });
+
+    await startVoiceSession();
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      recovery: 'retryable',
+      error: 'Unable to start the call.',
+      phase: 'error',
+    });
+    expect(captureStop).toHaveBeenCalled();
+    expect(fakeCaller.getConnectCount()).toBe(0);
+
+    await retryVoiceSession();
+    expect(fetchSession).toHaveBeenCalledTimes(2);
+    expect(fakeCaller.getConnectCount()).toBe(1);
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      recovery: 'none',
+      hud: 'intro',
+      error: null,
+    });
+
+    resetVoiceSessionRuntimeForTests();
+  });
+
+  it('resumes the same caller twice without greeting, then becomes retryable', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    runtime.fakeCaller.setResumeHandle('resume-1');
+    goLive(runtime);
+
+    runtime.fakeCaller.setConnectImpl(async () => {
+      throw new Error('Voice connection failed.');
+    });
+    runtime.fakeCaller.emit('ended', 'health');
+    expect(runtime.getVoiceSessionSnapshot().recovery).toBe('reconnecting');
+
+    runtime.fakeCaller.emit('ended', 'health');
+    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(VOICE_RECONNECT_BACKOFF_MS[1]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(runtime.fetchSession).toHaveBeenCalledTimes(3);
+    expect(runtime.fetchSession.mock.calls[1]?.at(2)).toBe('resume-1');
+    expect(runtime.fetchSession.mock.calls[2]?.at(2)).toBe('resume-1');
+    expect(runtime.fakeCaller.connectedSessions.slice(1).every(session => session.setup.greetOnConnect === false)).toBe(true);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      recovery: 'retryable',
+      error: 'Call dropped. Try again or hang up.',
+      active: true,
+    });
+    expect(runtime.captureStop).toHaveBeenCalled();
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('uses an actionable mic error and ignores duplicate Enable mic clicks', async () => {
+    vi.useFakeTimers();
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    const fetchSession = vi.fn(async () => sessionHandle);
+    let captureAttempts = 0;
+    const captureDeferred: { resolve: ((handle: { stop: () => void }) => void) | null } = { resolve: null };
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async () => {
+        captureAttempts += 1;
+        if (captureAttempts === 1) throw new DOMException('Permission denied', 'NotAllowedError');
+        return await new Promise<{ stop: () => void }>(resolve => {
+          captureDeferred.resolve = resolve;
+        });
+      },
+      fetchSession,
+      playEnter: vi.fn(),
+      playExit: vi.fn(),
+      playAction: vi.fn(),
+      startAmbient: vi.fn(),
+      stopAmbient: vi.fn(),
+      prefetchSounds: vi.fn(),
+    });
+    bindVoiceSessionHost({
+      router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      discoActive: false,
+      openFeedback: vi.fn(),
+      openProject: vi.fn(),
+    });
+    vi.stubGlobal('navigator', {
+      permissions: {
+        query: async () => ({ state: 'denied' }),
+      },
+    });
+
+    await startVoiceSession();
+    expect(getVoiceSessionSnapshot().error).toBe(
+      'Microphone access is blocked. Allow it in this site\'s browser settings, then try again.',
+    );
+
+    enableVoiceCapture();
+    enableVoiceCapture();
+    await Promise.resolve();
+    expect(captureAttempts).toBe(2);
+
+    captureDeferred.resolve?.({ stop: vi.fn() });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(getVoiceSessionSnapshot().micLive).toBe(true);
+    expect(captureAttempts).toBe(2);
+
+    resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('ignores late audio after a stale exit cue generation', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+    vi.mocked(setVoicePcmActive).mockClear();
+
+    runtime.requestVoiceHangup();
+    expect(runtime.getVoiceSessionSnapshot().hud).toBe('exiting');
+    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
+    expect(vi.mocked(setVoicePcmActive)).not.toHaveBeenCalledWith(true);
+
+    await vi.advanceTimersByTimeAsync(VOICE_AMBIENT_FADE_OUT_MS);
+    expect(runtime.playExit).toHaveBeenCalledTimes(1);
+    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
+    expect(vi.mocked(setVoicePcmActive)).not.toHaveBeenCalledWith(true);
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
   });
 });

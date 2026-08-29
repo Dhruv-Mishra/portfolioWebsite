@@ -342,7 +342,7 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('closes a socket drop and leaves manual retry without reconnecting', async () => {
+  it('closes a socket drop and leaves manual retry available', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
     goLive(runtime);
@@ -402,17 +402,20 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('queues hangup until playback is idle, then force-exits on the second press', async () => {
+  it('closes active media on the first hangup even while playback is busy', async () => {
     const runtime = await boot();
     runtime.fakeCaller.emit('turnComplete', true);
     runtime.fakePlayback.setBusy(true);
 
     runtime.requestVoiceHangup();
-    expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
-    expect(runtime.getVoiceSessionSnapshot().hangupPending).toBe(true);
-
-    runtime.requestVoiceHangup();
-    expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'exiting',
+      hangupPending: false,
+    });
+    expect(runtime.captureStop).toHaveBeenCalled();
+    expect(runtime.fakePlayback.close).toHaveBeenCalled();
+    expect(runtime.fakeCaller.close).toHaveBeenCalledWith('user');
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -1054,6 +1057,51 @@ describe('voice session runtime singleton', () => {
 
     resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('discards a late mic grant after the active socket drops', async () => {
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    let captureAttempts = 0;
+    const captureDeferred: {
+      resolve: ((handle: { stop: () => void }) => void) | null;
+    } = { resolve: null };
+    const lateCaptureStop = vi.fn();
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async () => {
+        captureAttempts += 1;
+        if (captureAttempts === 1) throw new Error('denied');
+        return await new Promise<{ stop: () => void }>(resolve => {
+          captureDeferred.resolve = resolve;
+        });
+      },
+      fetchSession: async () => sessionHandle,
+    });
+    bindVoiceSessionHost({
+      router: { push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn() } as never,
+      setTheme: vi.fn(),
+      resolvedTheme: 'light',
+      discoActive: false,
+      openFeedback: vi.fn(),
+      openProject: vi.fn(),
+    });
+
+    await startVoiceSession();
+    enableVoiceCapture();
+    await Promise.resolve();
+    fakeCaller.emit('health', { ok: false, configured: true });
+    captureDeferred.resolve?.({ stop: lateCaptureStop });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(lateCaptureStop).toHaveBeenCalledOnce();
+    expect(getVoiceSessionSnapshot()).toMatchObject({
+      recovery: 'retryable',
+      phase: 'error',
+      micLive: false,
+    });
   });
 
   it('ignores late audio after exit closes the active media', async () => {

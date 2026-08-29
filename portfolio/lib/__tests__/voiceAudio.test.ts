@@ -286,6 +286,28 @@ describe('voice playback pcm engine', () => {
     held.close();
   });
 
+  it('flushes a short queued reply when a suspended context resumes', async () => {
+    const resumeDeferred: { resolve: (() => void) | null } = { resolve: null };
+    context.state = 'suspended';
+    context.resume = vi.fn(() => new Promise<void>(resolve => {
+      resumeDeferred.resolve = () => {
+        context.state = 'running';
+        resolve();
+      };
+    }));
+    const { createVoicePlayback } = await import('@/lib/voiceAudio');
+    const playback = createVoicePlayback();
+
+    playback.play(pcm16Le(480));
+    expect(context.sources).toHaveLength(0);
+
+    resumeDeferred.resolve?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(context.sources).toHaveLength(1);
+    playback.close();
+  });
+
   it('schedules later PCM contiguously against the previous source end', async () => {
     const { createVoicePlayback, VOICE_PLAYBACK_SCHEDULE_LEAD_S } = await import('@/lib/voiceAudio');
     const playback = createVoicePlayback();

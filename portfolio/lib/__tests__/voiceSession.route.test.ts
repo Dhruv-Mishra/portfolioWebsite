@@ -34,7 +34,7 @@ function sessionRequest(body: Record<string, unknown>): NextRequest {
   }) as unknown as NextRequest;
 }
 
-describe('/api/voice/session resumeHandle parsing', () => {
+describe('/api/voice/session', () => {
   beforeEach(() => {
     mintVoiceSessionMock.mockReset();
     mintVoiceSessionMock.mockResolvedValue({
@@ -60,51 +60,18 @@ describe('/api/voice/session resumeHandle parsing', () => {
     vi.restoreAllMocks();
   });
 
-  it('rejects an invalid resumeHandle with 400 and does not mint or log the value', async () => {
-    const response = await POST(sessionRequest({
-      resumeHandle: 'bad\u0001handle',
-    }));
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Invalid resume handle.' });
-    expect(mintVoiceSessionMock).not.toHaveBeenCalled();
-    expect(consoleErrorMock).not.toHaveBeenCalled();
-  });
-
-  it('forwards a trimmed valid resumeHandle and still mints a fresh token', async () => {
-    mintVoiceSessionMock.mockResolvedValueOnce({
-      token: 'token-resume',
-      expiresAt: '2099-01-01T00:00:00.000Z',
-      newSessionExpiresAt: '2099-01-01T00:01:00.000Z',
-      resumeHandle: 'resume-1',
-      setup: {
-        modelLabel: 'native-live',
-        voiceLabel: 'male',
-        inputSampleRate: 16_000,
-        outputSampleRate: 24_000,
-        greetOnConnect: true,
-        lowNetwork: true,
-        welcomeGreeting: 'Welcome.',
-        welcomeHint: 'Try saying open projects.',
-        resumeHandle: 'resume-1',
-      },
-    });
-
+  it('forwards low-network and snapshot context when minting a session', async () => {
     const response = await POST(sessionRequest({
       lowNetwork: true,
-      resumeHandle: '  resume-1  ',
+      snapshot: { route: '/projects' },
     }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      token: 'token-resume',
-      resumeHandle: 'resume-1',
-      setup: { resumeHandle: 'resume-1', lowNetwork: true },
-    });
+    await expect(response.json()).resolves.toMatchObject({ token: 'token-1' });
     expect(mintVoiceSessionMock).toHaveBeenCalledWith({
-      snapshot: undefined,
       lowNetwork: true,
-      resumeHandle: 'resume-1',
+      snapshot: expect.objectContaining({ route: '/projects' }),
     });
+    expect(consoleErrorMock).not.toHaveBeenCalled();
   });
 });

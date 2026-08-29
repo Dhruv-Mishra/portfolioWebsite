@@ -51,12 +51,11 @@ function pcmInline(): string {
   return typeof btoa === 'function' ? btoa('\u0000\u0001') : 'AAE=';
 }
 
-function sessionHandle(resumeHandle?: string): VoiceSessionHandle {
+function sessionHandle(): VoiceSessionHandle {
   return {
     token: 'token-1',
     expiresAt: '2099-01-01T00:00:00.000Z',
     newSessionExpiresAt: '2099-01-01T00:01:00.000Z',
-    ...(resumeHandle ? { resumeHandle } : {}),
     setup: {
       modelLabel: 'native-live',
       voiceLabel: 'male',
@@ -66,7 +65,6 @@ function sessionHandle(resumeHandle?: string): VoiceSessionHandle {
       lowNetwork: false,
       welcomeGreeting: 'Hey, welcome in.',
       welcomeHint: 'Try saying open projects.',
-      ...(resumeHandle ? { resumeHandle } : {}),
     },
   };
 }
@@ -213,47 +211,17 @@ describe('gemini live adapter message handling', () => {
     ]);
   });
 
-  it('stores only a bounded resumable handle and emits GoAway health once', async () => {
+  it('emits GoAway health once', async () => {
     const caller = new GeminiLiveCaller();
     const events = collect(caller);
     await becomeReady(caller);
     events.length = 0;
-
-    await internals(caller).handleMessage(JSON.stringify({
-      sessionResumptionUpdate: { resumable: false, newHandle: 'stale-handle' },
-    }));
-    expect(caller.getResumeHandle()).toBeNull();
-
-    await internals(caller).handleMessage(JSON.stringify({
-      sessionResumptionUpdate: { resumable: true, newHandle: '  next-handle  ' },
-    }));
-    expect(caller.getResumeHandle()).toBe('next-handle');
-
-    await internals(caller).handleMessage(JSON.stringify({
-      sessionResumptionUpdate: { resumable: true, newHandle: `bad\u0001handle` },
-    }));
-    expect(caller.getResumeHandle()).toBe('next-handle');
 
     await internals(caller).handleMessage(JSON.stringify({ goAway: { timeLeft: '10s' } }));
     await internals(caller).handleMessage(JSON.stringify({ goAway: { timeLeft: '5s' } }));
     expect(events.filter(event => event.event === 'health')).toEqual([
       { event: 'health', payload: { ok: false, configured: true, reason: 'Voice session is ending.' } },
     ]);
-  });
-
-  it('clears a stored resume handle when resumption is no longer resumable', async () => {
-    const caller = new GeminiLiveCaller();
-    await becomeReady(caller);
-
-    await internals(caller).handleMessage(JSON.stringify({
-      sessionResumptionUpdate: { resumable: true, newHandle: 'keep-handle' },
-    }));
-    expect(caller.getResumeHandle()).toBe('keep-handle');
-
-    await internals(caller).handleMessage(JSON.stringify({
-      sessionResumptionUpdate: { resumable: false, newHandle: 'stale-handle' },
-    }));
-    expect(caller.getResumeHandle()).toBeNull();
   });
 
   it('emits toolCancellation ids for toolCallCancellation in addition to interruption', async () => {
@@ -276,12 +244,13 @@ describe('gemini live adapter message handling', () => {
 });
 
 describe('gemini live adapter connect and send path', () => {
-  it('resolves connect only after setupComplete and includes a resume handle in setup', async () => {
+  it('creates one socket and resolves connect only after setupComplete', async () => {
     stubSockets();
     const caller = new GeminiLiveCaller();
-    const connecting = caller.connect(sessionHandle('resume-1'));
+    const connecting = caller.connect(sessionHandle());
     const socket = createdSockets[0];
     expect(socket).toBeTruthy();
+    expect(createdSockets).toHaveLength(1);
     expect(socket?.url).toContain(VOICE_LIVE_WS_PATH);
     expect(socket?.listeners.has('open')).toBe(true);
     expect(socket?.listeners.has('message')).toBe(true);
@@ -294,7 +263,6 @@ describe('gemini live adapter connect and send path', () => {
     expect(JSON.parse(socket?.sent[0] ?? '{}')).toMatchObject({
       setup: {
         generationConfig: { thinkingConfig: { thinkingLevel: 'MINIMAL' } },
-        sessionResumption: { handle: 'resume-1' },
       },
     });
 

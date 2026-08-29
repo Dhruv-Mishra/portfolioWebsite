@@ -56,7 +56,6 @@ export const SITE_PREFERENCE_KEYS = [
   'sketch-outlines',
   'speak-by-default',
   'voice-low-network',
-  'voice-ambient-music',
 ] as const;
 
 export type SitePreferenceKey = (typeof SITE_PREFERENCE_KEYS)[number];

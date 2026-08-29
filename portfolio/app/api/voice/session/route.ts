@@ -18,7 +18,6 @@ const limiter = createServerRateLimiter({
 interface SessionBody {
   lowNetwork?: unknown;
   snapshot?: unknown;
-  resumeHandle?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -44,15 +43,11 @@ export async function POST(request: NextRequest) {
   }
 
   const parsed = parseVoiceSessionRequest(body);
-  if (!parsed.ok) {
-    return Response.json({ error: 'Invalid resume handle.' }, { status: 400 });
-  }
 
   try {
     const session = await mintVoiceSession({
       snapshot: parseVoiceClientSnapshot(body?.snapshot),
-      lowNetwork: parsed.value.lowNetwork,
-      resumeHandle: parsed.value.resumeHandle,
+      lowNetwork: parsed.lowNetwork,
     });
     return Response.json(session);
   } catch (error) {

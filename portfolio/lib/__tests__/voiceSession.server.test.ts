@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { VOICE_AGENT_MODEL_ID, VOICE_AUTH_TOKEN_URL } from '@/lib/voiceAgentConfig';
+import { VOICE_AUTH_TOKEN_URL } from '@/lib/voiceAgentConfig';
 import { mintVoiceSession } from '@/lib/voiceSession.server';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -35,7 +35,7 @@ describe('voice session mint request contract', () => {
     vi.stubEnv('MODEL_HEALTH_ENVIRONMENT', '');
   });
 
-  it('posts one wrapped request to the v1beta endpoint and returns browser session context', async () => {
+  it('posts one direct token request to the v1beta endpoint and returns browser session context', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {
       name: 'token-1',
       expireTime: '2030-01-01T00:00:00.000Z',
@@ -45,7 +45,6 @@ describe('voice session mint request contract', () => {
 
     const minted = await mintVoiceSession({
       lowNetwork: true,
-      resumeHandle: 'resume-1',
       snapshot: { route: '/about', theme: 'dark', topic: 'about' },
     });
 
@@ -59,26 +58,19 @@ describe('voice session mint request contract', () => {
     });
     expect((init as RequestInit).cache).toBe('no-store');
     expect(parseRequestBody(init as RequestInit)).toEqual({
-      authToken: {
-        uses: 1,
-        expireTime: expect.any(String),
-        newSessionExpireTime: expect.any(String),
-        bidiGenerateContentSetup: {
-          model: `models/${VOICE_AGENT_MODEL_ID}`,
-        },
-      },
+      uses: 1,
+      expireTime: expect.any(String),
+      newSessionExpireTime: expect.any(String),
     });
     expect(minted).toMatchObject({
       token: 'token-1',
       expiresAt: '2030-01-01T00:00:00.000Z',
       newSessionExpiresAt: '2030-01-01T00:01:00.000Z',
-      resumeHandle: 'resume-1',
       setup: {
         modelLabel: 'native-live',
         voiceLabel: 'male',
         lowNetwork: true,
         clientState: expect.stringContaining('route /about'),
-        resumeHandle: 'resume-1',
       },
     });
   });

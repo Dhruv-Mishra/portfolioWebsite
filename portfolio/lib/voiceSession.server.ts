@@ -1,7 +1,6 @@
 import 'server-only';
 
 import {
-  VOICE_AGENT_MODEL_ID,
   VOICE_AUTH_TOKEN_URL,
   VOICE_NEW_SESSION_TTL_MS,
   VOICE_TOKEN_TTL_MS,
@@ -45,17 +44,6 @@ function tokenLifetimeFields() {
   };
 }
 
-function buildVoiceAuthTokenRequest() {
-  return {
-    authToken: {
-      ...tokenLifetimeFields(),
-      bidiGenerateContentSetup: {
-        model: `models/${VOICE_AGENT_MODEL_ID}`,
-      },
-    },
-  };
-}
-
 async function postAuthToken(apiKey: string): Promise<GeminiAuthTokenResponse> {
   const response = await fetch(VOICE_AUTH_TOKEN_URL, {
     method: 'POST',
@@ -63,7 +51,7 @@ async function postAuthToken(apiKey: string): Promise<GeminiAuthTokenResponse> {
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
     },
-    body: JSON.stringify(buildVoiceAuthTokenRequest()),
+    body: JSON.stringify(tokenLifetimeFields()),
     cache: 'no-store',
   });
 
@@ -78,7 +66,6 @@ function toSessionHandle(
   token: GeminiAuthTokenResponse,
   lowNetwork: boolean,
   snapshot?: VoiceClientSnapshot,
-  resumeHandle?: string,
 ): VoiceSessionHandle {
   const welcome = pickContextualVoiceWelcome(snapshot?.topic);
   const clientState = snapshot ? buildVoiceClientStateParagraph(snapshot) : '';
@@ -86,7 +73,6 @@ function toSessionHandle(
     token: token.name as string,
     expiresAt: token.expireTime ?? toIso(VOICE_TOKEN_TTL_MS),
     newSessionExpiresAt: token.newSessionExpireTime ?? toIso(VOICE_NEW_SESSION_TTL_MS),
-    ...(resumeHandle ? { resumeHandle } : {}),
     setup: {
       modelLabel: 'native-live',
       voiceLabel: 'male',
@@ -97,7 +83,6 @@ function toSessionHandle(
       welcomeGreeting: welcome.greeting,
       welcomeHint: welcome.hint,
       ...(clientState ? { clientState } : {}),
-      ...(resumeHandle ? { resumeHandle } : {}),
     },
   };
 }
@@ -105,7 +90,6 @@ function toSessionHandle(
 export async function mintVoiceSession(options: {
   lowNetwork: boolean;
   snapshot?: VoiceClientSnapshot;
-  resumeHandle?: string;
 }): Promise<VoiceSessionHandle> {
   const apiKey = resolveVoiceAgentApiKey();
   if (!apiKey) {
@@ -114,7 +98,7 @@ export async function mintVoiceSession(options: {
 
   try {
     const token = await postAuthToken(apiKey);
-    return toSessionHandle(token, options.lowNetwork, options.snapshot, options.resumeHandle);
+    return toSessionHandle(token, options.lowNetwork, options.snapshot);
   } catch {
     console.error('[voice-session] mint failed');
     throw new Error('Unable to mint a voice session.');

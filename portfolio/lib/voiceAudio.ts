@@ -456,7 +456,7 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
           noteResumeFailure();
           return;
         }
-        flushPending(false);
+        flushPending(true);
       },
       () => {
         resuming = false;

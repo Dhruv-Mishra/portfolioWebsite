@@ -32,7 +32,6 @@ import {
   VOICE_WELCOME_HINT,
   buildVoiceExactSpeakCue,
   buildVoiceSessionStartCue,
-  parseVoiceResumeHandle,
   pickVoiceExitVeil,
   pickVoiceIdleCheckIn,
   pickVoiceIdleHangup,
@@ -63,7 +62,7 @@ export type VoiceHudPhase = 'idle' | 'intro' | 'live' | 'exiting';
 
 export type VoiceSubtitlePhase = 'hidden' | 'visible' | 'exiting';
 
-export type VoiceRecoveryState = 'none' | 'reconnecting' | 'retryable';
+export type VoiceRecoveryState = 'none' | 'retryable';
 
 export interface VoiceSessionSnapshot {
   active: boolean;
@@ -115,7 +114,6 @@ export interface VoiceSessionRuntimeDeps {
   fetchSession: (
     lowNetwork: boolean,
     snapshot?: VoiceClientSnapshot,
-    resumeHandle?: string,
   ) => Promise<VoiceSessionHandle>;
 }
 
@@ -469,16 +467,13 @@ function sampleMintSnapshot(): VoiceClientSnapshot | undefined {
 async function mintBrowserVoiceSession(
   lowNetwork: boolean,
   clientSnapshot?: VoiceClientSnapshot,
-  resumeHandle?: string,
 ): Promise<VoiceSessionHandle> {
-  const handle = parseVoiceResumeHandle(resumeHandle);
   const sessionRes = await fetch('/api/voice/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       lowNetwork,
       ...(clientSnapshot ? { snapshot: clientSnapshot } : {}),
-      ...(handle ? { resumeHandle: handle } : {}),
     }),
   });
   if (!sessionRes.ok) {
@@ -884,7 +879,7 @@ function enterRetryableScreen(error: string, status = VOICE_RETRYABLE_STATUS): v
   const keepWelcome = snapshot.welcomeHint || VOICE_WELCOME_HINT;
   const keepLowNetwork = snapshot.lowNetwork;
   const keepIntroComplete = snapshot.introComplete && keepHud === 'live';
-  const generation = snapshot.generation;
+  const generation = snapshot.generation + 1;
   teardownMedia('error');
   starting = false;
   stopping = false;
@@ -1263,26 +1258,10 @@ export function requestVoiceHangup(options: VoiceHangupRequest = {}): void {
   if (!snapshot.active && !starting) return;
   const reason = options.reason ?? 'user';
   noteVoiceActivity('hangup');
-  const alreadyExiting = snapshot.hud === 'exiting';
-  const force = options.force === true || snapshot.hangupPending || alreadyExiting;
-  if (alreadyExiting) {
-    stopVoiceSession(reason, { force: true });
-    return;
-  }
-  if (force || !queue || snapshot.recovery === 'retryable') {
-    stopVoiceSession(reason, { force: snapshot.recovery === 'retryable' ? true : force });
-    return;
-  }
-  if (canHangupNow()) {
-    stopVoiceSession(reason);
-    return;
-  }
-  patch({
-    hangupPending: true,
-    status: reason === 'health' ? 'Connection faded. Returning to notes.' : 'Leaving after this thought.',
-  });
-  queue.enqueueHangup(() => {
-    stopVoiceSession(reason);
+  stopVoiceSession(reason, {
+    force: options.force === true
+      || snapshot.recovery === 'retryable'
+      || snapshot.hud === 'exiting',
   });
 }
 

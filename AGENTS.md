@@ -19,6 +19,7 @@ Scope: the whole repository.
 - Route downward by default: Lead can invoke Builder/Fastlane, Builder can use Fastlane for a bounded assist, and Fastlane does not spawn subagents.
 - Agent files omit restrictive tool allowlists so VS Code supplies its current default tools dynamically. Actual execution remains subject to workspace trust, approval settings, tool availability, and organization policy.
 - Start from a concrete anchor, make focused edits, validate after the first substantive edit, and repair failures before widening scope.
+- Keep implementations minimal: add only what the requested behavior and concrete risk require. Avoid speculative abstractions, compatibility layers, and broad test matrices.
 
 ## Token Discipline
 

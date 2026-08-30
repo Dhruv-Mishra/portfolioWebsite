@@ -3,6 +3,7 @@ import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   CHAT_MESSAGE_MAX_LENGTH,
   isApprovedLinkKey,
+  isAudioCategoryVolumeKey,
   isBrowseHistoryDirection,
   isFeedbackCategory,
   isMotionPreferenceValue,
@@ -143,6 +144,12 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       const percent = readMasterVolumePercent(record);
       if (percent == null) return null;
       return { percent } as SiteToolArgsMap[Name];
+    }
+    case 'set_audio_category_volume': {
+      const category = readString(record, 'category');
+      const percent = readMasterVolumePercent(record);
+      if (!category || !isAudioCategoryVolumeKey(category) || percent == null) return null;
+      return { category, percent } as SiteToolArgsMap[Name];
     }
     case 'set_voice_output': {
       const mode = readString(record, 'mode');

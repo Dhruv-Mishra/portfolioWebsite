@@ -2,7 +2,12 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import { setSitePref, type SitePrefKey } from '@/hooks/useSitePrefs';
 import { setSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
 import { requestPageTurnNavigation } from '@/lib/pageTurn';
-import { APPROVED_LINKS, type SiteToolCall, type SiteToolResult } from '@/lib/siteTools';
+import {
+  APPROVED_LINKS,
+  type AudioCategoryVolumeKey,
+  type SiteToolCall,
+  type SiteToolResult,
+} from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import {
   buildVoiceCurrentPageContext,
@@ -29,10 +34,13 @@ import {
 import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import {
+  getAudioCategoryVolumeSync,
   getDiscoActiveSync,
   getMasterVolumeSync,
   getSoundsMutedSync,
+  setAudioCategoryVolumeImperative,
   setDiscoActiveImperative,
+  type AudioVolumeCategory,
 } from '@/hooks/useStickers';
 import { setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
 import { setVoiceBackendPref } from '@/lib/voiceBackendPref';
@@ -62,6 +70,12 @@ const PREF_KEY_MAP: Partial<Record<string, SitePrefKey>> = {
   'paper-grain': 'paperGrain',
   tape: 'tapeEffects',
   'sketch-outlines': 'sketchOutlines',
+};
+
+const AUDIO_CATEGORY_STORE_MAP: Record<AudioCategoryVolumeKey, AudioVolumeCategory> = {
+  'voice-agent': 'voiceAgent',
+  'website-effects': 'siteSfx',
+  'chat-read-aloud': 'chatTts',
 };
 
 function ok(spokenText: string, data?: Record<string, unknown>): SiteToolResult {
@@ -361,6 +375,16 @@ export async function executeSiteTool(
       }
       commitUserMasterVolume(percent / 100);
       return ok(`Volume is at ${percent} percent.`, { percent });
+    }
+    case 'set_audio_category_volume': {
+      const { category, percent } = parsed.args;
+      const storeCategory = AUDIO_CATEGORY_STORE_MAP[category];
+      const volume = percent / 100;
+      if (getAudioCategoryVolumeSync(storeCategory) === volume) {
+        return ok(`${category} volume is already at ${percent} percent.`, { category, percent, alreadySet: true });
+      }
+      setAudioCategoryVolumeImperative(storeCategory, volume);
+      return ok(`${category} volume is at ${percent} percent.`, { category, percent });
     }
     case 'set_voice_output':
       setVoiceOutputPref(parsed.args.mode);

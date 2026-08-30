@@ -1,6 +1,7 @@
 ﻿import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
 import {
   APPROVED_LINK_KEYS,
+  AUDIO_CATEGORY_VOLUME_KEYS,
   BROWSE_HISTORY_DIRECTIONS,
   FEEDBACK_CATEGORIES,
   MASTER_VOLUME_PERCENT_MAX,
@@ -215,6 +216,24 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
         },
       },
       required: ['percent'],
+    },
+  },
+  {
+    name: 'set_audio_category_volume',
+    description:
+      'Set one audio category volume from 0 to 100. Invocation: visitor asks to change voice-agent, website-effects, or chat-read-aloud volume. Independent of master volume and the sound-effects mute toggle. Never unmutes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', enum: [...AUDIO_CATEGORY_VOLUME_KEYS] },
+        percent: {
+          type: 'integer',
+          minimum: MASTER_VOLUME_PERCENT_MIN,
+          maximum: MASTER_VOLUME_PERCENT_MAX,
+          description: 'Category volume percent from 0 to 100.',
+        },
+      },
+      required: ['category', 'percent'],
     },
   },
   {

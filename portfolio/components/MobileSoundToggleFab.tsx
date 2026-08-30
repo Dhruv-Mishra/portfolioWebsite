@@ -1,42 +1,21 @@
 'use client';
 
 /**
- * MobileSoundToggleFab — a mobile-only floating circular FAB that lives in
- * the bottom-right stack, directly above the MiniChat quick-chat FAB. It
- * wraps the same `soundsMuted` store slice that the desktop
- * `SoundToggleButton` uses, so toggling this toggles the sitewide mute —
- * one source of truth for every sound the site makes (including the disco
- * loop in v5+).
- *
- * Placement contract:
- *   - Fixed to the viewport, right edge aligned with the MiniChat FAB's
- *     right edge (`right-4`, matching MiniChat on mobile).
- *   - Vertically parked just above the MiniChat FAB, with a `0.75rem` gap
- *     so the two controls visually stack without overlapping. The exact
- *     math uses the shared `--c-fab-size` CSS variable so any size-preset
- *     change (small / medium / large) keeps the gap correct.
- *   - Z-index tracks `Z_INDEX.nav` so it sits above the sidebar pill but
- *     below modals and the cursor.
- *   - Hidden on md+ viewports — desktop keeps the inline
- *     `SoundToggleButton` in the bottom-left chrome.
- *
- * Visual parity with the MiniChat FAB:
- *   - Matching `w-[var(--c-fab-size)]` footprint.
- *   - Rounded square silhouette, paper background, dashed-sketch border —
- *     keeps the "sketchbook sticker" aesthetic consistent.
- *   - Slight rotation + whileTap so it feels like a hand-placed note.
+ * MobileSoundToggleFab — mobile-only floating circular FAB above MiniChat.
+ * Tap opens a horizontal master-volume popover; it never mutes. Mute stays
+ * on Settings. Hidden on md+; desktop uses `SoundToggleButton`.
  */
 
-import { memo, useCallback, useEffect, useId, useRef, useState } from 'react';
-import { m } from 'framer-motion';
+import { memo, useCallback, useId, useRef } from 'react';
+import { AnimatePresence, m } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { Volume2, VolumeX } from 'lucide-react';
 import {
-  setSoundsMutedImperative,
   useMasterVolume,
   useSoundsMuted,
 } from '@/hooks/useStickers';
-import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
+import { useFloatingVolumePopover } from '@/hooks/useFloatingVolumePopover';
+import { commitUserMasterVolume } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
@@ -59,7 +38,10 @@ const FAB_ANIMATE = {
   transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy },
 };
 
-const LONG_PRESS_MS = 420;
+const POPOVER_TRANSITION = { duration: ANIMATION_TOKENS.duration.fast } as const;
+const POPOVER_INITIAL = { opacity: 0, y: 8 } as const;
+const POPOVER_ANIMATE = { opacity: 1, y: 0 } as const;
+const POPOVER_EXIT = { opacity: 0, y: 8 } as const;
 
 function MobileSoundToggleFabImpl(): React.ReactElement | null {
   const muted = useSoundsMuted();
@@ -68,60 +50,18 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
   const pathname = usePathname();
   const sliderId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
-  const longPressTimer = useRef<number | null>(null);
-  const suppressClick = useRef(false);
-  const [sliderOpen, setSliderOpen] = useState(false);
+  const { open: sliderOpen, togglePopover, onDragStart } = useFloatingVolumePopover(rootRef);
   const percent = Math.round(masterVolume * 100);
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimer.current === null) return;
-    window.clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
-  }, []);
+  const volumeLabel = sliderOpen ? 'Close master volume' : 'Adjust master volume';
 
   const handleClick = useCallback(() => {
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
-    const next = !muted;
-    setSoundsMutedImperative(next);
-    // Mirror into the manager immediately so the user gesture counts as the
-    // "first gesture" for autoplay — if they're unmuting, play a subtle ack
-    // tick so the AudioContext warms up for subsequent sounds.
-    soundManager.setMuted(next);
+    togglePopover();
     toggleHaptic();
-    if (!next) {
-      soundManager.play('button-click');
-    }
-  }, [muted, toggleHaptic]);
+  }, [togglePopover, toggleHaptic]);
 
   const handleVolumeChange = useCallback((nextPercent: number) => {
     commitUserMasterVolume(nextPercent / 100);
   }, []);
-
-  const beginLongPress = useCallback(() => {
-    clearLongPress();
-    longPressTimer.current = window.setTimeout(() => {
-      longPressTimer.current = null;
-      suppressClick.current = true;
-      setSliderOpen(true);
-    }, LONG_PRESS_MS);
-  }, [clearLongPress]);
-
-  useEffect(() => {
-    if (!sliderOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const root = rootRef.current;
-      if (!root) return;
-      if (event.target instanceof Node && root.contains(event.target)) return;
-      setSliderOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [sliderOpen]);
-
-  useEffect(() => () => clearLongPress(), [clearLongPress]);
 
   // Hide on dedicated chat and guestbook routes — those pages own the
   // bottom-right corner (chat input / Pin to wall). Gate AFTER hooks so
@@ -135,44 +75,52 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
       className="md:hidden fixed"
       style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}
     >
-      {sliderOpen ? (
-        <div
-          className={cn(
-            'absolute bottom-full right-0 mb-2 w-44 rounded-md px-3 py-2',
-            'border-2 border-dashed border-[var(--c-grid)]/60 bg-[var(--c-paper)]',
-            'shadow-lg',
-          )}
-        >
-          <label htmlFor={sliderId} className="mb-1 block font-hand text-xs font-bold text-[var(--c-ink)]/75">
-            Volume {percent}%
-          </label>
-          <input
+      <AnimatePresence>
+        {sliderOpen ? (
+          <m.div
+            key="mobile-master-volume-popover"
             id={sliderId}
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={percent}
+            role="group"
             aria-label="Master volume"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-            aria-valuetext={`${percent} percent`}
-            onChange={(event) => handleVolumeChange(Number(event.target.value))}
-            className="master-volume-slider w-full"
-          />
-        </div>
-      ) : null}
+            initial={POPOVER_INITIAL}
+            animate={POPOVER_ANIMATE}
+            exit={POPOVER_EXIT}
+            transition={POPOVER_TRANSITION}
+            className={cn(
+              'absolute bottom-full right-0 mb-2 w-44 rounded-md px-3 py-2',
+              'border-2 border-dashed border-[var(--c-grid)]/60 bg-[var(--c-paper)]',
+              'shadow-lg',
+            )}
+          >
+            <span className="absolute top-full left-0 h-2 w-full" aria-hidden="true" />
+            <label htmlFor={`${sliderId}-slider`} className="mb-1 block font-hand text-xs font-bold text-[var(--c-ink)]/75">
+              Volume {percent}%
+            </label>
+            <input
+              id={`${sliderId}-slider`}
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={percent}
+              aria-label="Master volume"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              aria-valuetext={`${percent} percent`}
+              onPointerDown={onDragStart}
+              onChange={(event) => handleVolumeChange(Number(event.target.value))}
+              className="master-volume-slider floating-volume-slider w-full"
+            />
+          </m.div>
+        ) : null}
+      </AnimatePresence>
       <m.button
         type="button"
         onClick={handleClick}
-        onPointerDown={beginLongPress}
-        onPointerUp={clearLongPress}
-        onPointerCancel={clearLongPress}
-        onPointerLeave={clearLongPress}
-        aria-pressed={muted}
-        aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
         aria-expanded={sliderOpen}
+        aria-controls={sliderId}
+        aria-label={volumeLabel}
         data-sound-toggle
         whileHover={INTERACTION_TOKENS.hover.scaleUp}
         whileTap={INTERACTION_TOKENS.tap.press}
@@ -188,7 +136,6 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
             : 'text-emerald-600 dark:text-emerald-400',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500',
         )}
-        title={muted ? 'Unmute sounds' : 'Mute sounds'}
         data-disco-bounce="3"
       >
         {muted ? <VolumeX size={22} strokeWidth={2.2} /> : <Volume2 size={22} strokeWidth={2.2} />}

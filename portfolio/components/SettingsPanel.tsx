@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
 import {
+  setAudioCategoryVolumeImperative,
   setSoundsMutedImperative,
+  useAudioCategoryVolume,
   useDiscoActive,
   useMasterVolume,
   useSoundsMuted,
@@ -157,9 +159,11 @@ interface SettingToggleProps {
 }
 
 function SettingVolumeSlider({
+  label,
   value,
   onChange,
 }: {
+  label: string;
   value: number;
   onChange: (value: number) => void;
 }) {
@@ -169,7 +173,7 @@ function SettingVolumeSlider({
     <div className="flex min-h-11 items-center justify-between gap-4 py-1 font-hand">
       <label htmlFor={id} className="min-w-0 flex-1">
         <span className="block text-base leading-tight text-[var(--c-heading)] md:text-lg">
-          Master volume
+          {label}
         </span>
         <span className="mt-0.5 block text-sm leading-snug text-[var(--c-ink)]/55">
           {percent}%
@@ -296,6 +300,9 @@ export default function SettingsPanel() {
   const discoActive = useDiscoActive();
   const soundsMuted = useSoundsMuted();
   const masterVolume = useMasterVolume();
+  const voiceAgentVolume = useAudioCategoryVolume('voiceAgent');
+  const siteSfxVolume = useAudioCategoryVolume('siteSfx');
+  const chatTtsVolume = useAudioCategoryVolume('chatTts');
   const { prefs, setPref } = useSitePrefsApi();
   const { pref: voiceBackend, setPref: setVoiceBackend } = useVoiceBackendPref();
   const { pref: voiceOutput, setPref: setVoiceOutput } = useVoiceOutputPref();
@@ -457,9 +464,31 @@ export default function SettingsPanel() {
             }}
           />
           <SettingVolumeSlider
+            label="Master volume"
             value={masterVolume}
             onChange={(nextVolume) => {
               commitUserMasterVolume(nextVolume);
+            }}
+          />
+          <SettingVolumeSlider
+            label="Voice agent"
+            value={voiceAgentVolume}
+            onChange={(nextVolume) => {
+              setAudioCategoryVolumeImperative('voiceAgent', nextVolume);
+            }}
+          />
+          <SettingVolumeSlider
+            label="Website effects"
+            value={siteSfxVolume}
+            onChange={(nextVolume) => {
+              setAudioCategoryVolumeImperative('siteSfx', nextVolume);
+            }}
+          />
+          <SettingVolumeSlider
+            label="Chat read-aloud"
+            value={chatTtsVolume}
+            onChange={(nextVolume) => {
+              setAudioCategoryVolumeImperative('chatTts', nextVolume);
             }}
           />
           <SettingToggle

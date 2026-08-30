@@ -2800,6 +2800,10 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   background: transparent;
   cursor: pointer;
 }
+.floating-volume-slider {
+  height: 2.75rem;
+  touch-action: none;
+}
 .master-volume-slider:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--c-ink) 50%, transparent);
   outline-offset: 2px;
@@ -2838,7 +2842,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
 .master-volume-slider--vertical {
   writing-mode: vertical-lr;
   direction: rtl;
-  width: 1.75rem;
+  width: 2.75rem;
   height: 6.5rem;
 }
 .master-volume-slider--vertical::-webkit-slider-runnable-track {

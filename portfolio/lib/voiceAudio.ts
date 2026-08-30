@@ -1,4 +1,5 @@
-import { getEffectiveMasterVolumeSync, subscribeMasterVolume } from '@/hooks/useStickers';
+import { getEffectiveAudioCategoryVolumeSync, subscribeAudioCategoryVolume } from '@/hooks/useStickers';
+import { SITE_VERSION } from '@/lib/siteVersion';
 import {
   VOICE_AGENT_INPUT_RATE,
   VOICE_AGENT_OUTPUT_RATE,
@@ -94,7 +95,7 @@ export async function startVoiceCapture(
 
     const frameMs = options.lowNetwork ? VOICE_LOW_NETWORK_FRAME_MS : VOICE_AUDIO_FRAME_MS;
     const frameSamples = Math.round(VOICE_AGENT_INPUT_RATE * (frameMs / 1000));
-    await context.audioWorklet.addModule('/voice/voice-capture-processor.js');
+    await context.audioWorklet.addModule(`/voice/voice-capture-processor.js?v=${SITE_VERSION}`);
     throwIfStopped();
 
     source = context.createMediaStreamSource(stream);
@@ -288,10 +289,10 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     started = false;
     if (typeof audio.createGain === 'function') {
       master = audio.createGain();
-      targetVolume = getEffectiveMasterVolumeSync();
+      targetVolume = getEffectiveAudioCategoryVolumeSync('voiceAgent');
       master.gain.value = 0;
       master.connect(audio.destination);
-      volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
+      volumeUnsubscribe = subscribeAudioCategoryVolume('voiceAgent', applyMasterVolume);
     }
   }
 

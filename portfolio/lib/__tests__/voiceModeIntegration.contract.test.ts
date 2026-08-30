@@ -55,8 +55,9 @@ describe('voice mode integration contract', () => {
     expect(homeNote).not.toContain('href=');
     expect(store).toMatch(/requested = null;\s+emit\(\);/);
     expect(store).toContain("import { disposePrimedVoiceAudio, primeVoiceEnterAudio } from '@/lib/voiceAudioActivation'");
+    expect(store).toContain("import { primeVoiceSounds } from '@/lib/voiceSounds'");
     expect(store).toMatch(
-      /export function requestVoiceMode\([^)]*\)(?:: void)? \{\s+primeVoiceEnterAudio\(\);[\s\S]*emit\(\);/,
+      /export function requestVoiceMode\([^)]*\)(?:: void)? \{\s+primeVoiceEnterAudio\(\);\s*primeVoiceSounds\(\);[\s\S]*emit\(\);/,
     );
     expect(store).toMatch(
       /export function requestVoiceModeExit\([^)]*\)(?:: void)? \{\s+disposePrimedVoiceAudio\(\);[\s\S]*emit\(\);/,

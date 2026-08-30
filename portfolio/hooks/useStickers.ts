@@ -44,6 +44,7 @@ import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v9 — added three persisted audio-category volumes (0..1, default 1).
  * v8 — added persisted `masterVolume` (clamped 0..1). Binary mute stays a
  *      separate `soundsMuted` flag and never overwrites the remembered
  *      volume. Missing/invalid values migrate to 1. Setting a positive
@@ -79,7 +80,7 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 8 as const;
+export const STORAGE_VERSION = 9 as const;
 export const DEFAULT_MASTER_VOLUME = 1;
 
 // ─── State shape ────────────────────────────────────────────────────────
@@ -115,6 +116,10 @@ export interface StickerState {
    * non-finite values migrate to `DEFAULT_MASTER_VOLUME` (1).
    */
   masterVolume: number;
+  /** Persisted audio-category volumes in [0..1]. Sticky. v9+. */
+  voiceAgentVolume: number;
+  siteSfxVolume: number;
+  chatTtsVolume: number;
   /**
    * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
    * When `unlockedAt.superuser > superuserRevealedAt`, the banner will play
@@ -172,6 +177,14 @@ export function clampMasterVolume(value: unknown): number {
   return value;
 }
 
+export type AudioVolumeCategory = 'voiceAgent' | 'siteSfx' | 'chatTts';
+
+const AUDIO_CATEGORY_FIELDS = {
+  voiceAgent: 'voiceAgentVolume',
+  siteSfx: 'siteSfxVolume',
+  chatTts: 'chatTtsVolume',
+} as const satisfies Record<AudioVolumeCategory, keyof StickerState>;
+
 function defaultState(): StickerState {
   return {
     version: STORAGE_VERSION,
@@ -185,6 +198,9 @@ function defaultState(): StickerState {
     discoActive: false,
     soundsMuted: false,
     masterVolume: DEFAULT_MASTER_VOLUME,
+    voiceAgentVolume: DEFAULT_MASTER_VOLUME,
+    siteSfxVolume: DEFAULT_MASTER_VOLUME,
+    chatTtsVolume: DEFAULT_MASTER_VOLUME,
     superuserRevealedAt: 0,
     matrixActive: false,
     matrixEscaped: false,
@@ -205,7 +221,8 @@ function defaultState(): StickerState {
  *     so the superuser auto-award predicate still works correctly on the
  *     reduced 18-sticker roster.
  *   - v3+ adds terminalCommands / openedProjects, v4+ adds soundsMuted /
- *     superuserRevealedAt, v6+ adds matrixActive, v8+ adds masterVolume.
+ *     superuserRevealedAt, v6+ adds matrixActive, v8+ adds masterVolume,
+ *     v9+ adds voiceAgentVolume / siteSfxVolume / chatTtsVolume.
  *     Missing fields default to empty/false/0/1.
  *
  * Invariants that hold regardless of input version:
@@ -220,6 +237,8 @@ function defaultState(): StickerState {
  *   - `soundsMuted` preserves the user's last mute choice across migrations.
  *   - `masterVolume` is clamped to [0..1]. Missing/invalid values default to 1
  *     and never mutate `soundsMuted`.
+ *   - Category volumes are clamped to [0..1]. Missing/invalid values default
+ *     to 1 and never mutate `soundsMuted`.
  */
 function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
   const rawUnlocked = Array.isArray(parsed.unlocked)
@@ -265,6 +284,10 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     discoActive: false,
     /** v8 preference — clamped 0..1. Missing/invalid values default to 1. */
     masterVolume: clampMasterVolume(parsed.masterVolume),
+    /** v9 preferences — clamped 0..1. Missing/invalid values default to 1. */
+    voiceAgentVolume: clampMasterVolume(parsed.voiceAgentVolume),
+    siteSfxVolume: clampMasterVolume(parsed.siteSfxVolume),
+    chatTtsVolume: clampMasterVolume(parsed.chatTtsVolume),
     /** v4 preference — default OFF (sounds enabled). Governs disco loop in v5+. */
     soundsMuted: parsed.soundsMuted === true,
     /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
@@ -307,6 +330,7 @@ export function parseStoredState(raw: string | null): StickerState {
   const version = obj.version;
   if (
     version === 1 ||
+    version === 8 ||
     version === 2 ||
     version === 3 ||
     version === 4 ||
@@ -739,6 +763,26 @@ export function setMasterVolumeImperative(
 }
 
 /**
+ * Persist one audio-category volume (v9+). Clamped to [0..1]. Never changes
+ * `soundsMuted` — mute remains an independent binary gate.
+ */
+export function setAudioCategoryVolumeImperative(
+  category: AudioVolumeCategory,
+  volume: number,
+): number {
+  initializeStoreOnce();
+  const current = store.state;
+  const field = AUDIO_CATEGORY_FIELDS[category];
+  const nextVolume = clampMasterVolume(volume);
+  if (current[field] === nextVolume) return nextVolume;
+  const next: StickerState = { ...current, [field]: nextVolume };
+  store.state = next;
+  writeToStorage(next);
+  emitChange();
+  return nextVolume;
+}
+
+/**
  * Record that the superuser banner has played its reveal fanfare. Caller
  * passes the current `unlockedAt.superuser` value so subsequent mounts can
  * compare timestamps and avoid replaying the fanfare.
@@ -966,6 +1010,45 @@ function getMasterVolumeServerSnapshot(): number {
 /** Subscribe to the sitewide master volume preference (v8+). */
 export function useMasterVolume(): number {
   return useSyncExternalStore(subscribe, getMasterVolumeSnapshot, getMasterVolumeServerSnapshot);
+}
+
+function getCategoryVolumeServerSnapshot(): number {
+  return DEFAULT_MASTER_VOLUME;
+}
+
+/** Subscribe to one persisted audio-category volume (v9+). */
+export function useAudioCategoryVolume(category: AudioVolumeCategory): number {
+  const getSnapshot = useCallback((): number => {
+    initializeStoreOnce();
+    return store.state[AUDIO_CATEGORY_FIELDS[category]];
+  }, [category]);
+  return useSyncExternalStore(subscribe, getSnapshot, getCategoryVolumeServerSnapshot);
+}
+
+export function getAudioCategoryVolumeSync(category: AudioVolumeCategory): number {
+  initializeStoreOnce();
+  return store.state[AUDIO_CATEGORY_FIELDS[category]];
+}
+
+/** Audible gain for one category: mute ? 0 : masterVolume × categoryVolume. */
+export function getEffectiveAudioCategoryVolumeSync(category: AudioVolumeCategory): number {
+  initializeStoreOnce();
+  if (store.state.soundsMuted) return 0;
+  return store.state.masterVolume * store.state[AUDIO_CATEGORY_FIELDS[category]];
+}
+
+/** Notify when mute ? 0 : masterVolume × categoryVolume changes. */
+export function subscribeAudioCategoryVolume(
+  category: AudioVolumeCategory,
+  listener: (volume: number) => void,
+): () => void {
+  let lastEffective = getEffectiveAudioCategoryVolumeSync(category);
+  return subscribe(() => {
+    const nextEffective = getEffectiveAudioCategoryVolumeSync(category);
+    if (nextEffective === lastEffective) return;
+    lastEffective = nextEffective;
+    listener(nextEffective);
+  });
 }
 
 /**

@@ -1,7 +1,8 @@
 import {
+  getAudioCategoryVolumeSync,
   getMasterVolumeSync,
   setMasterVolumeImperative,
-  subscribeMasterVolume,
+  subscribeAudioCategoryVolume,
 } from '@/hooks/useStickers';
 
 /**
@@ -1351,9 +1352,10 @@ function isTabHidden(): boolean {
 }
 
 let masterVolume = 1;
+let siteSfxVolume = 1;
 
 function currentMasterGain(): number {
-  return muted ? 0 : masterVolume;
+  return muted ? 0 : masterVolume * siteSfxVolume;
 }
 
 function rampMasterGain(target: number): void {
@@ -1378,8 +1380,11 @@ function applyMasterVolume(next: number): void {
 function bindMasterVolumeSubscription(): void {
   if (volumeUnsubscribe || typeof window === 'undefined') return;
   masterVolume = getMasterVolumeSync();
-  volumeUnsubscribe = subscribeMasterVolume((next) => {
-    applyMasterVolume(next);
+  siteSfxVolume = getAudioCategoryVolumeSync('siteSfx');
+  volumeUnsubscribe = subscribeAudioCategoryVolume('siteSfx', (next) => {
+    masterVolume = getMasterVolumeSync();
+    siteSfxVolume = getAudioCategoryVolumeSync('siteSfx');
+    rampMasterGain(muted ? 0 : next);
   });
 }
 
@@ -1673,6 +1678,7 @@ export const soundManager: SoundManager = {
         /* ignore */
       }
     }
+    siteSfxVolume = 1;
     state = null;
     masterVolume = 1;
     if (volumeUnsubscribe) {

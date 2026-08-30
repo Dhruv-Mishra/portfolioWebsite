@@ -352,6 +352,16 @@ describe('soundManager — setMuted ramps master gain', () => {
     // Context still exists.
     expect(mockCtx!.state).toBe('running');
   });
+
+  it('initial master gain is masterVolume × siteSfxVolume', async () => {
+    const stickers = await import('@/hooks/useStickers');
+    vi.spyOn(stickers, 'getMasterVolumeSync').mockReturnValue(0.5);
+    vi.spyOn(stickers, 'getAudioCategoryVolumeSync').mockReturnValue(0.4);
+    const { soundManager } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const master = mockCtx!._nodes.find((n) => n.kind === 'gain')!;
+    expect(master.gain?.value).toBeCloseTo(0.2);
+  });
 });
 
 describe('soundManager — every renderer runs without throwing', () => {

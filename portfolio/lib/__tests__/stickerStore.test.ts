@@ -72,6 +72,9 @@ describe('parseStoredState migration', () => {
     expect(state.discoActive).toBe(false);
     expect(state.matrixActive).toBe(false);
     expect(state.masterVolume).toBe(1);
+    expect(state.voiceAgentVolume).toBe(1);
+    expect(state.siteSfxVolume).toBe(1);
+    expect(state.chatTtsVolume).toBe(1);
   });
 
   it('malformed JSON yields defaultState (graceful)', async () => {
@@ -651,7 +654,7 @@ describe('unlockSticker superuser auto-award', () => {
     expect(JSON.parse(raw).unlocked).toEqual([]);
   });
 
-  // ─── v4 additions ────────────────────────────────────────────────
+  // ─── Persisted preferences ───────────────────────────────────────
 
   it('soundsMuted toggles and persists across reload', async () => {
     const { setSoundsMutedImperative, __resetStoreForTest, parseStoredState } = await loadStore();
@@ -691,6 +694,92 @@ describe('unlockSticker superuser auto-award', () => {
     const raw = memoryStorage.getItem('dhruv-stickers') as string;
     const reloaded = parseStoredState(raw);
     expect(reloaded.superuserRevealedAt).toBe(9999);
+  });
+
+  it('migrates a v8 blob preserving masterVolume/mute and defaulting category volumes to 1', async () => {
+    const { parseStoredState, STORAGE_VERSION } = await loadStore();
+    const v8 = JSON.stringify({
+      version: 8,
+      unlocked: ['first-word'],
+      soundsMuted: true,
+      masterVolume: 0.6,
+    });
+    const state = parseStoredState(v8);
+    expect(state.version).toBe(STORAGE_VERSION);
+    expect(state.unlocked).toContain('first-word');
+    expect(state.masterVolume).toBe(0.6);
+    expect(state.soundsMuted).toBe(true);
+    expect(state.voiceAgentVolume).toBe(1);
+    expect(state.siteSfxVolume).toBe(1);
+    expect(state.chatTtsVolume).toBe(1);
+  });
+
+  it('category setters clamp to [0,1], persist, and never change soundsMuted', async () => {
+    const {
+      __resetStoreForTest,
+      getAudioCategoryVolumeSync,
+      getEffectiveAudioCategoryVolumeSync,
+      getSoundsMutedSync,
+      parseStoredState,
+      setAudioCategoryVolumeImperative,
+      setMasterVolumeImperative,
+      setSoundsMutedImperative,
+    } = await loadStore();
+    __resetStoreForTest();
+    setSoundsMutedImperative(true);
+    expect(setAudioCategoryVolumeImperative('voiceAgent', 0.4)).toBe(0.4);
+    expect(setAudioCategoryVolumeImperative('siteSfx', 2)).toBe(1);
+    expect(setAudioCategoryVolumeImperative('chatTts', -0.2)).toBe(0);
+    expect(getAudioCategoryVolumeSync('voiceAgent')).toBe(0.4);
+    expect(getSoundsMutedSync()).toBe(true);
+    expect(getEffectiveAudioCategoryVolumeSync('chatTts')).toBe(0);
+
+    setSoundsMutedImperative(false);
+    setMasterVolumeImperative(0.5);
+    expect(getSoundsMutedSync()).toBe(false);
+    expect(getEffectiveAudioCategoryVolumeSync('chatTts')).toBe(0);
+
+    const raw = memoryStorage.getItem('dhruv-stickers') as string;
+    const reloaded = parseStoredState(raw);
+    expect(reloaded.soundsMuted).toBe(false);
+    expect(reloaded.masterVolume).toBe(0.5);
+    expect(reloaded.voiceAgentVolume).toBe(0.4);
+    expect(reloaded.siteSfxVolume).toBe(1);
+    expect(reloaded.chatTtsVolume).toBe(0);
+  });
+
+  it('subscribeAudioCategoryVolume notifies only when the effective product changes', async () => {
+    const {
+      __resetStoreForTest,
+      setAudioCategoryVolumeImperative,
+      setMasterVolumeImperative,
+      setSoundsMutedImperative,
+      subscribeAudioCategoryVolume,
+      unlockSticker,
+    } = await loadStore();
+    __resetStoreForTest();
+    const seen: number[] = [];
+    const unsub = subscribeAudioCategoryVolume('siteSfx', (volume) => {
+      seen.push(volume);
+    });
+
+    unlockSticker('first-word');
+    setAudioCategoryVolumeImperative('voiceAgent', 0.3);
+    expect(seen).toEqual([]);
+
+    expect(setAudioCategoryVolumeImperative('siteSfx', 0.4)).toBe(0.4);
+    expect(seen).toEqual([0.4]);
+
+    setMasterVolumeImperative(0.5);
+    expect(seen).toEqual([0.4, 0.2]);
+
+    setSoundsMutedImperative(true);
+    expect(seen).toEqual([0.4, 0.2, 0]);
+
+    setAudioCategoryVolumeImperative('siteSfx', 0.8);
+    expect(seen).toEqual([0.4, 0.2, 0]);
+
+    unsub();
   });
 });
 

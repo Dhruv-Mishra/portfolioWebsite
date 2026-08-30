@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SITE_VERSION } from '@/lib/siteVersion';
 
 type EndedHandler = () => void;
 
@@ -122,6 +123,7 @@ describe('voice playback idle tracking', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -351,6 +353,23 @@ describe('voice playback pcm engine', () => {
       VOICE_PLAYBACK_SCHEDULE_LEAD_S + VOICE_PLAYBACK_FADE_IN_S,
       6,
     );
+    playback.close();
+  });
+
+  it('fades in at master × voiceAgentVolume', async () => {
+    const stickers = await import('@/hooks/useStickers');
+    vi.spyOn(stickers, 'getEffectiveAudioCategoryVolumeSync').mockReturnValue(0.25);
+    const {
+      createVoicePlayback,
+      VOICE_PLAYBACK_FADE_IN_S,
+      VOICE_PLAYBACK_SCHEDULE_LEAD_S,
+    } = await import('@/lib/voiceAudio');
+    const playback = createVoicePlayback();
+    playback.play(pcm16Le(24_000));
+    expect(context.master?.gain.ramps[0]).toEqual({
+      value: 0.25,
+      at: VOICE_PLAYBACK_SCHEDULE_LEAD_S + VOICE_PLAYBACK_FADE_IN_S,
+    });
     playback.close();
   });
 
@@ -752,6 +771,16 @@ describe('voice capture graph', () => {
     expect(context.source).toBeNull();
     expect(context.worklet).toBeNull();
     expect(context.muteGain).toBeNull();
+  });
+
+  it('loads the capture worklet from the SITE_VERSION cache-busting URL', async () => {
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    const handle = await startVoiceCapture(() => {});
+    expect(context.audioWorklet.addModule).toHaveBeenCalledOnce();
+    expect(context.audioWorklet.addModule).toHaveBeenCalledWith(
+      `/voice/voice-capture-processor.js?v=${SITE_VERSION}`,
+    );
+    handle.stop();
   });
 
   it('makes stop idempotent and ignores worklet frames after stop', async () => {

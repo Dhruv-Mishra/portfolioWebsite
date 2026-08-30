@@ -12,6 +12,7 @@ export interface PageTurnNavigationRouter {
 }
 
 export const PAGE_TURN_NAVIGATION_EVENT = 'portfolio:page-turn-navigation';
+export const PAGE_TURN_SKELETON_DELAY_MS = 120;
 
 export interface PageTurnRoute {
   path: string;

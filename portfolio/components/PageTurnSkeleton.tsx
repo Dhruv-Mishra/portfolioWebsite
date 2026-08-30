@@ -50,7 +50,7 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
         <ShimmerBar className="h-24 w-3/5 max-w-[32.5rem] bg-[var(--c-heading)]/15 md:h-40" />
         <ShimmerBar className="mt-7 h-32 w-full max-w-lg bg-[var(--c-ink)]/10 md:h-36" />
         <ShimmerBar className="mt-9 h-12 w-40 bg-[var(--c-heading)]/15" />
-        <div className="mt-14 h-[31.875rem] w-full max-w-2xl rounded-md bg-[var(--c-ink)]/85 md:h-[29.5rem]" />
+        <div className="mt-14 h-[var(--c-terminal-h)] min-h-[var(--c-terminal-min-h)] w-full max-w-2xl rounded-md bg-[var(--c-ink)]/85 md:h-[var(--c-terminal-h-md)]" />
       </div>
     );
   }
@@ -60,7 +60,7 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
       <div className="flex h-full w-full flex-col">
         <ShimmerBar className="ml-6 h-10 w-48 -rotate-1 bg-[var(--c-heading)]/15 md:h-[3.75rem] md:w-64" />
         <div className="mt-[4.5rem] grid grid-cols-1 gap-8 px-6 md:grid-cols-2 md:gap-14 lg:grid-cols-3">
-          <FoldedNote className="min-h-[28rem] -rotate-1 md:min-h-[450px]" />
+          <FoldedNote className="min-h-80 -rotate-1 md:min-h-[450px]" />
           <FoldedNote className="hidden min-h-[450px] rotate-1 md:block" />
           <FoldedNote className="hidden min-h-[450px] -rotate-2 lg:block" />
         </div>
@@ -72,7 +72,7 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
     return (
       <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-1.5 py-2 pb-8 sm:px-0">
         <div className="relative mx-auto w-full max-w-4xl md:px-3">
-          <div className="relative min-h-[92rem] rounded-sm bg-[var(--note-paper)] p-4 shadow-md sm:p-6 md:min-h-[71rem] md:p-12">
+          <div className="relative min-h-full rounded-sm bg-[var(--note-paper)] p-4 shadow-md sm:p-6 md:p-12">
             <Tape className="-top-1 left-3 w-24 -rotate-8 md:-left-6 md:w-32" />
             <ShimmerBar className="h-12 w-2/5 bg-[var(--c-heading)]/15 md:h-[4.5rem]" />
             <ShimmerBar className="mt-6 h-72 w-full bg-[var(--c-ink)]/10 md:h-40" />
@@ -127,7 +127,7 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
   if (route === '/guestbook') {
     return (
       <div className="mx-auto flex h-full w-full max-w-7xl flex-col px-4 pb-8 pt-2 md:px-8">
-        <div className="h-[7.25rem] text-center md:h-[7.75rem]">
+        <div className="text-center">
           <ShimmerBar className="mx-auto h-10 w-36 bg-[var(--c-heading)]/15 md:h-12 md:w-44" />
           <ShimmerBar className="mx-auto mt-4 h-5 w-64 bg-[var(--c-ink)]/10" />
         </div>
@@ -146,17 +146,17 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
     return (
       <div className="min-h-full px-4 pb-8 pt-2 md:px-8">
         <div className="mx-auto w-full max-w-6xl">
-          <div className="h-[19rem] text-center md:h-[22rem]">
+          <div className="text-center">
             <ShimmerBar className="mx-auto h-10 w-64 bg-[var(--c-heading)]/15 md:h-[3.75rem] md:w-96" />
             <ShimmerBar className="mx-auto mt-4 h-5 w-56 bg-[var(--c-ink)]/10" />
             <FoldedNote className="mx-auto mt-7 min-h-20 w-36 rotate-0 md:w-44" />
             <ShimmerBar className="mx-auto mt-7 h-5 w-52 bg-[var(--c-ink)]/10" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3 md:mt-8 md:grid-cols-4 md:gap-8 lg:grid-cols-5">
+          <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 md:gap-8 lg:grid-cols-5">
           {Array.from({ length: 12 }, (_, index) => (
             <div
               key={index}
-              className="h-[11.0625rem] rounded-md border border-[var(--c-grid)]/35 bg-[var(--note-paper)] page-route-shimmer lg:h-[11.5625rem]"
+              className="min-h-44 rounded-md border border-[var(--c-grid)]/35 bg-[var(--note-paper)] page-route-shimmer lg:min-h-48"
             />
           ))}
           </div>
@@ -170,8 +170,8 @@ export function PageRouteSkeleton({ pathname }: { pathname: string }) {
       <div className="relative mx-auto min-h-full w-full max-w-3xl pb-8 pl-4 pr-14 pt-2 md:px-8">
         <Tape className="relative left-1/2 top-0 h-2 w-16 -translate-x-1/2 rotate-2" />
         <ShimmerBar className="mx-auto mt-2 h-10 w-40 bg-[var(--c-heading)]/15 md:h-[3.75rem] md:w-56" />
-        <div className="mt-8 min-h-[165rem] border-y-2 border-dashed border-[var(--c-grid)]/45 py-4">
-          {Array.from({ length: 8 }, (_, index) => (
+        <div className="mt-8 border-y-2 border-dashed border-[var(--c-grid)]/45 py-4">
+          {Array.from({ length: 4 }, (_, index) => (
             <div key={index} className="border-b border-dashed border-[var(--c-grid)]/35 py-6">
               <ShimmerBar className="h-5 w-1/3 bg-[var(--c-ink)]/10" />
               <ShimmerBar className="mt-5 h-12 w-full bg-[var(--c-ink)]/8" />

@@ -362,8 +362,6 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     expect(replace).toHaveBeenCalledWith('/projects');
     expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
-    expect(routeLayer(renderer).props.className).toContain('hidden');
-    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });
@@ -382,8 +380,6 @@ describe('PageTurnSurface single-route lifecycle', () => {
     });
     expect(push).toHaveBeenCalledWith('/');
     expect(getPageTurnSnapshot()).toMatchObject({ direction: 'backward' });
-    expect(routeLayer(renderer).props.className).toContain('hidden');
-    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });

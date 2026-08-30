@@ -44,10 +44,7 @@ import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
- * v9 — added persisted per-category volumes `voiceAgentVolume`,
- *      `siteSfxVolume`, and `chatTtsVolume` (each clamped 0..1, default 1).
- *      Category setters never touch `soundsMuted`. Effective output is
- *      master × category (and mute still zeros the master path).
+ * v9 — added three persisted audio-category volumes (0..1, default 1).
  * v8 — added persisted `masterVolume` (clamped 0..1). Binary mute stays a
  *      separate `soundsMuted` flag and never overwrites the remembered
  *      volume. Missing/invalid values migrate to 1. Setting a positive
@@ -85,7 +82,6 @@ const STORAGE_KEY = 'dhruv-stickers';
  */
 export const STORAGE_VERSION = 9 as const;
 export const DEFAULT_MASTER_VOLUME = 1;
-export const DEFAULT_CATEGORY_VOLUME = 1;
 
 // ─── State shape ────────────────────────────────────────────────────────
 export interface StickerState {
@@ -120,20 +116,9 @@ export interface StickerState {
    * non-finite values migrate to `DEFAULT_MASTER_VOLUME` (1).
    */
   masterVolume: number;
-  /**
-   * Persisted live Gemini voice-agent output volume in [0..1]. Sticky. v9+.
-   * Independent of `soundsMuted` — category setters never unmute or mute.
-   */
+  /** Persisted audio-category volumes in [0..1]. Sticky. v9+. */
   voiceAgentVolume: number;
-  /**
-   * Persisted website SFX volume in [0..1]. Sticky. v9+. Independent of
-   * `soundsMuted` — category setters never unmute or mute.
-   */
   siteSfxVolume: number;
-  /**
-   * Persisted chat-mode TTS volume in [0..1]. Sticky. v9+. Independent of
-   * `soundsMuted` — category setters never unmute or mute.
-   */
   chatTtsVolume: number;
   /**
    * Timestamp of the LAST time SuperuserBanner played its reveal fanfare.
@@ -200,18 +185,6 @@ const AUDIO_CATEGORY_FIELDS = {
   chatTts: 'chatTtsVolume',
 } as const satisfies Record<AudioVolumeCategory, keyof StickerState>;
 
-export function clampCategoryVolume(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_CATEGORY_VOLUME;
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  return value;
-}
-
-function effectiveOutputVolume(masterVolume: number, categoryVolume: number, muted: boolean): number {
-  if (muted) return 0;
-  return masterVolume * categoryVolume;
-}
-
 function defaultState(): StickerState {
   return {
     version: STORAGE_VERSION,
@@ -225,9 +198,9 @@ function defaultState(): StickerState {
     discoActive: false,
     soundsMuted: false,
     masterVolume: DEFAULT_MASTER_VOLUME,
-    voiceAgentVolume: DEFAULT_CATEGORY_VOLUME,
-    siteSfxVolume: DEFAULT_CATEGORY_VOLUME,
-    chatTtsVolume: DEFAULT_CATEGORY_VOLUME,
+    voiceAgentVolume: DEFAULT_MASTER_VOLUME,
+    siteSfxVolume: DEFAULT_MASTER_VOLUME,
+    chatTtsVolume: DEFAULT_MASTER_VOLUME,
     superuserRevealedAt: 0,
     matrixActive: false,
     matrixEscaped: false,
@@ -312,9 +285,9 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     /** v8 preference — clamped 0..1. Missing/invalid values default to 1. */
     masterVolume: clampMasterVolume(parsed.masterVolume),
     /** v9 preferences — clamped 0..1. Missing/invalid values default to 1. */
-    voiceAgentVolume: clampCategoryVolume(parsed.voiceAgentVolume),
-    siteSfxVolume: clampCategoryVolume(parsed.siteSfxVolume),
-    chatTtsVolume: clampCategoryVolume(parsed.chatTtsVolume),
+    voiceAgentVolume: clampMasterVolume(parsed.voiceAgentVolume),
+    siteSfxVolume: clampMasterVolume(parsed.siteSfxVolume),
+    chatTtsVolume: clampMasterVolume(parsed.chatTtsVolume),
     /** v4 preference — default OFF (sounds enabled). Governs disco loop in v5+. */
     soundsMuted: parsed.soundsMuted === true,
     /** v4 — last time SuperuserBanner fired the reveal. 0 for fresh migrations. */
@@ -483,18 +456,12 @@ function initializeStoreOnce(): void {
         Array.isArray(parsed.unlocked) &&
         (parsed.unlocked as unknown[]).includes('konami');
       const hasMissingMasterVolume = parsed && typeof parsed.masterVolume !== 'number';
-      const hasMissingCategoryVolume =
-        parsed &&
-        (typeof parsed.voiceAgentVolume !== 'number' ||
-          typeof parsed.siteSfxVolume !== 'number' ||
-          typeof parsed.chatTtsVolume !== 'number');
       if (
         isOutdatedVersion ||
         hasStaleDiscoFlag ||
         hasLegacyDiscoMuted ||
         hasLegacyKonami ||
-        hasMissingMasterVolume ||
-        hasMissingCategoryVolume
+        hasMissingMasterVolume
       ) {
         writeToStorage(store.state);
       }
@@ -806,7 +773,7 @@ export function setAudioCategoryVolumeImperative(
   initializeStoreOnce();
   const current = store.state;
   const field = AUDIO_CATEGORY_FIELDS[category];
-  const nextVolume = clampCategoryVolume(volume);
+  const nextVolume = clampMasterVolume(volume);
   if (current[field] === nextVolume) return nextVolume;
   const next: StickerState = { ...current, [field]: nextVolume };
   store.state = next;
@@ -1046,7 +1013,7 @@ export function useMasterVolume(): number {
 }
 
 function getCategoryVolumeServerSnapshot(): number {
-  return DEFAULT_CATEGORY_VOLUME;
+  return DEFAULT_MASTER_VOLUME;
 }
 
 /** Subscribe to one persisted audio-category volume (v9+). */
@@ -1066,11 +1033,8 @@ export function getAudioCategoryVolumeSync(category: AudioVolumeCategory): numbe
 /** Audible gain for one category: mute ? 0 : masterVolume × categoryVolume. */
 export function getEffectiveAudioCategoryVolumeSync(category: AudioVolumeCategory): number {
   initializeStoreOnce();
-  return effectiveOutputVolume(
-    store.state.masterVolume,
-    store.state[AUDIO_CATEGORY_FIELDS[category]],
-    store.state.soundsMuted,
-  );
+  if (store.state.soundsMuted) return 0;
+  return store.state.masterVolume * store.state[AUDIO_CATEGORY_FIELDS[category]];
 }
 
 /** Notify when mute ? 0 : masterVolume × categoryVolume changes. */

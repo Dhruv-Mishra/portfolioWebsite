@@ -35,7 +35,6 @@ function applyVoiceSoundVolumes(
 
 function ensureVolumeSubscription(): void {
   if (volumeUnsubscribe) return;
-  applyVoiceSoundVolumes();
   volumeUnsubscribe = subscribeAudioCategoryVolume('voiceAgent', applyVoiceSoundVolumes);
 }
 
@@ -104,9 +103,7 @@ export function startVoiceAmbient(): void {
   if (!ensureElements() || !ambientEl) return;
   ambientUnlockToken += 1;
   ensureVolumeSubscription();
-  applyVoiceSoundVolumes();
   ambientEl.muted = false;
-  ambientEl.loop = true;
   quietPlay(ambientEl);
 }
 
@@ -114,7 +111,6 @@ export function playVoiceAction(): void {
   if (!ensureElements() || !actionEl) return;
   actionUnlockToken += 1;
   ensureVolumeSubscription();
-  applyVoiceSoundVolumes();
   actionEl.muted = false;
   try { actionEl.currentTime = 0; } catch { /* ignore */ }
   quietPlay(actionEl);

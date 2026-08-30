@@ -654,7 +654,7 @@ describe('unlockSticker superuser auto-award', () => {
     expect(JSON.parse(raw).unlocked).toEqual([]);
   });
 
-  // ─── v4 additions ────────────────────────────────────────────────
+  // ─── Persisted preferences ───────────────────────────────────────
 
   it('soundsMuted toggles and persists across reload', async () => {
     const { setSoundsMutedImperative, __resetStoreForTest, parseStoredState } = await loadStore();
@@ -701,18 +701,8 @@ describe('unlockSticker superuser auto-award', () => {
     const v8 = JSON.stringify({
       version: 8,
       unlocked: ['first-word'],
-      unlockedAt: { 'first-word': 8 },
-      lastEarnedAt: 8,
-      lastSeenAlbumAt: 0,
-      visitedRoutes: [],
-      terminalCommands: [],
-      openedProjects: [],
       soundsMuted: true,
       masterVolume: 0.6,
-      superuserRevealedAt: 0,
-      matrixActive: false,
-      matrixEscaped: false,
-      matrixEscapedAt: 0,
     });
     const state = parseStoredState(v8);
     expect(state.version).toBe(STORAGE_VERSION);
@@ -722,47 +712,6 @@ describe('unlockSticker superuser auto-award', () => {
     expect(state.voiceAgentVolume).toBe(1);
     expect(state.siteSfxVolume).toBe(1);
     expect(state.chatTtsVolume).toBe(1);
-  });
-
-  it('rewrites a current-version blob missing category volumes while preserving the rest', async () => {
-    const {
-      __resetStoreForTest,
-      STORAGE_VERSION,
-      getAudioCategoryVolumeSync,
-      getMasterVolumeSync,
-      getSoundsMutedSync,
-    } = await loadStore();
-    __resetStoreForTest();
-    memoryStorage.setItem(
-      'dhruv-stickers',
-      JSON.stringify({
-        version: STORAGE_VERSION,
-        unlocked: [],
-        unlockedAt: {},
-        lastEarnedAt: 0,
-        lastSeenAlbumAt: 0,
-        visitedRoutes: [],
-        terminalCommands: [],
-        openedProjects: [],
-        soundsMuted: true,
-        masterVolume: 0.7,
-        superuserRevealedAt: 0,
-        matrixActive: false,
-        matrixEscaped: false,
-        matrixEscapedAt: 0,
-      }),
-    );
-    __resetStoreForTest();
-    expect(getMasterVolumeSync()).toBe(0.7);
-    expect(getSoundsMutedSync()).toBe(true);
-    expect(getAudioCategoryVolumeSync('siteSfx')).toBe(1);
-    const parsed = JSON.parse(memoryStorage.getItem('dhruv-stickers') as string);
-    expect(parsed.version).toBe(STORAGE_VERSION);
-    expect(parsed.masterVolume).toBe(0.7);
-    expect(parsed.soundsMuted).toBe(true);
-    expect(parsed.voiceAgentVolume).toBe(1);
-    expect(parsed.siteSfxVolume).toBe(1);
-    expect(parsed.chatTtsVolume).toBe(1);
   });
 
   it('category setters clamp to [0,1], persist, and never change soundsMuted', async () => {

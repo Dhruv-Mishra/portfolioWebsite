@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
@@ -16,6 +17,7 @@ import {
   getPageTurnSnapshot,
   getServerPageTurnSnapshot,
   PAGE_TURN_NAVIGATION_EVENT,
+  PAGE_TURN_SKELETON_DELAY_MS,
   resolvePageTurnRoute,
   startPageTurn,
   subscribeToPageTurn,
@@ -41,6 +43,7 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   );
   const routeScrollRef = useRef<HTMLDivElement>(null);
   const navigationWatchdogRef = useRef<NavigationWatchdog | null>(null);
+  const [revealedSkeletonSequence, setRevealedSkeletonSequence] = useState<number | null>(null);
 
   const clearNavigationWatchdog = useCallback((sequence?: number) => {
     const watchdog = navigationWatchdogRef.current;
@@ -68,6 +71,8 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
     if (existingSnapshot) finishPageTurn(existingSnapshot.sequence);
     clearNavigationWatchdog();
 
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (activeElement && routeScrollRef.current?.contains(activeElement)) activeElement.blur();
     startPageTurn(nextTransition);
     try {
       router[request.mode](href);
@@ -144,8 +149,19 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
   const destinationPath = transition && transition.toPath !== pathname
     ? transition.toPath
     : null;
-  const showSkeleton = Boolean(destinationPath);
   const isChatRoute = pathname.startsWith('/chat');
+  const pendingSequence = destinationPath ? transition?.sequence ?? null : null;
+  const showSkeleton = pendingSequence !== null
+    && revealedSkeletonSequence === pendingSequence;
+
+  useEffect(() => {
+    if (pendingSequence === null) return;
+    const timeout = window.setTimeout(
+      () => setRevealedSkeletonSequence(pendingSequence),
+      PAGE_TURN_SKELETON_DELAY_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [pendingSequence]);
 
   return (
     <div className="page-turn-stage relative h-full min-h-0 min-w-0 overflow-hidden isolate">
@@ -154,6 +170,7 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
         key={pathname}
         className={cn(
           'page-turn-layer page-turn-active relative z-10 h-full',
+          destinationPath && 'hidden',
           isChatRoute
             ? 'min-h-0 min-w-0 max-w-full overflow-hidden p-0 pt-[var(--c-page-header-h)]'
             : ROUTE_SCROLL_CLASSES,
@@ -164,13 +181,13 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
         <div className="page-turn-content relative z-10 h-full min-h-full min-w-0">
           {children}
         </div>
-        {showSkeleton && destinationPath ? (
-          <PageTurnSkeleton
-            label={resolvePageTurnRoute(destinationPath).label}
-            pathname={destinationPath}
-          />
-        ) : null}
       </div>
+      {showSkeleton && destinationPath ? (
+        <PageTurnSkeleton
+          label={resolvePageTurnRoute(destinationPath).label}
+          pathname={destinationPath}
+        />
+      ) : null}
     </div>
   );
 }

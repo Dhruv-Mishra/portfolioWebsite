@@ -6,6 +6,7 @@ import {
   createPageTurnTransition,
   finishPageTurn,
   getPageTurnSnapshot,
+  PAGE_TURN_SKELETON_DELAY_MS,
   requestPageTurnNavigation,
   startPageTurn,
 } from '@/lib/pageTurn';
@@ -136,7 +137,10 @@ afterEach(async () => {
 });
 
 describe('PageTurnSurface single-route lifecycle', () => {
-  it('commits forward navigation immediately and shows a destination skeleton', async () => {
+  it('hides stale content immediately and delays the destination skeleton', async () => {
+    vi.useFakeTimers();
+    window.setTimeout = globalThis.setTimeout.bind(globalThis);
+    window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
     let renderer!: TestRenderer.ReactTestRenderer;
 
     await act(async () => {
@@ -153,12 +157,24 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     const layer = routeLayer(renderer);
     expect(layer.findByType('button').children).toEqual(['Home route']);
+    expect(layer.props.className).toContain('hidden');
     expect(layer.props.className).not.toContain('animate-page-turn-forward-out');
-    expect(skeletonNodes(renderer)).toHaveLength(1);
+    expect(skeletonNodes(renderer)).toHaveLength(0);
+    expect(layer.findAll((node) => node.props['data-page-turn-skeleton'] !== undefined)).toHaveLength(0);
     expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
     expect(push).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith('/projects');
     expect(prefetch).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PAGE_TURN_SKELETON_DELAY_MS - 1);
+    });
+    expect(skeletonNodes(renderer)).toHaveLength(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(skeletonNodes(renderer)).toHaveLength(1);
 
     await act(async () => renderer.unmount());
   });
@@ -236,32 +252,74 @@ describe('PageTurnSurface single-route lifecycle', () => {
     await act(async () => renderer.unmount());
   });
 
-  it('clears the skeleton when the destination pathname arrives', async () => {
-    pathname = '/projects';
+  it('cancels the delayed skeleton when the pathname commits quickly', async () => {
+    vi.useFakeTimers();
+    window.setTimeout = globalThis.setTimeout.bind(globalThis);
+    window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
     let renderer!: TestRenderer.ReactTestRenderer;
 
     await act(async () => {
       renderer = TestRenderer.create(
         React.createElement(PageTurnSurface, null,
+          React.createElement(RouteProbe, { label: 'Home route' })),
+      );
+    });
+
+    await act(async () => {
+      clickListener?.(clickEvent('/projects'));
+      await Promise.resolve();
+    });
+    expect(routeLayer(renderer).props.className).toContain('hidden');
+    expect(skeletonNodes(renderer)).toHaveLength(0);
+
+    pathname = '/projects';
+    await act(async () => {
+      renderer.update(
+        React.createElement(PageTurnSurface, null,
           React.createElement(RouteProbe, { label: 'Projects route' })),
       );
     });
 
-    const transition = createPageTurnTransition('/projects', '/', -1);
-    startPageTurn(transition);
-    pathname = '/';
+    const active = routeLayer(renderer);
+    expect(active.findByType('button').children).toEqual(['Projects route']);
+    expect(active.props.className).not.toContain('hidden');
 
     await act(async () => {
-      renderer.update(
+      await vi.advanceTimersByTimeAsync(PAGE_TURN_SKELETON_DELAY_MS);
+    });
+    expect(skeletonNodes(renderer)).toHaveLength(0);
+
+    await act(async () => renderer.unmount());
+  });
+
+  it('clears a visible skeleton immediately when the pathname commits', async () => {
+    vi.useFakeTimers();
+    window.setTimeout = globalThis.setTimeout.bind(globalThis);
+    window.clearTimeout = globalThis.clearTimeout.bind(globalThis);
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(
         React.createElement(PageTurnSurface, null,
           React.createElement(RouteProbe, { label: 'Home route' })),
       );
+    });
+    await act(async () => {
+      clickListener?.(clickEvent('/projects'));
       await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(PAGE_TURN_SKELETON_DELAY_MS);
+    });
+    expect(skeletonNodes(renderer)).toHaveLength(1);
+
+    pathname = '/projects';
+    await act(async () => {
+      renderer.update(
+        React.createElement(PageTurnSurface, null,
+          React.createElement(RouteProbe, { label: 'Projects route' })),
+      );
     });
 
-    const active = routeLayer(renderer);
-    expect(active.findByType('button').children).toEqual(['Home route']);
-    expect(renderer.root.findAll((node) => node.props['data-page-turn-layer'])).toHaveLength(1);
+    expect(routeLayer(renderer).props.className).not.toContain('hidden');
     expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
@@ -304,7 +362,8 @@ describe('PageTurnSurface single-route lifecycle', () => {
 
     expect(replace).toHaveBeenCalledWith('/projects');
     expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
-    expect(skeletonNodes(renderer)).toHaveLength(1);
+    expect(routeLayer(renderer).props.className).toContain('hidden');
+    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });
@@ -323,7 +382,8 @@ describe('PageTurnSurface single-route lifecycle', () => {
     });
     expect(push).toHaveBeenCalledWith('/');
     expect(getPageTurnSnapshot()).toMatchObject({ direction: 'backward' });
-    expect(skeletonNodes(renderer)).toHaveLength(1);
+    expect(routeLayer(renderer).props.className).toContain('hidden');
+    expect(skeletonNodes(renderer)).toHaveLength(0);
 
     await act(async () => renderer.unmount());
   });

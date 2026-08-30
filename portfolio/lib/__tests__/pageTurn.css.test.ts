@@ -8,6 +8,10 @@ const surface = fs.readFileSync(
   path.join(projectRoot, 'components', 'PageTurnSurface.tsx'),
   'utf8',
 );
+const skeleton = fs.readFileSync(
+  path.join(projectRoot, 'components', 'PageTurnSkeleton.tsx'),
+  'utf8',
+);
 const css = fs.readFileSync(path.join(projectRoot, 'app', 'globals.css'), 'utf8');
 const model = fs.readFileSync(path.join(projectRoot, 'lib', 'pageTurn.ts'), 'utf8');
 const packageJson = fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8');
@@ -74,6 +78,24 @@ describe('page-turn route transition contract', () => {
       /html\[data-motion="reduced"\] \.page-route-shimmer[\s\S]*?animation:\s*none\s*!important/,
     );
     expect(surface).toContain('if (!nextTransition) {');
+  });
+
+  it('uses measured static route templates on a transparent aligned surface', () => {
+    const outerSkeleton = skeleton.match(
+      /data-page-turn-skeleton[\s\S]*?<span className="sr-only"/,
+    )?.[0] ?? '';
+
+    expect(outerSkeleton).toContain("'pointer-events-none absolute inset-0 z-20'");
+    expect(outerSkeleton).toContain("'pt-[var(--c-page-header-h)]'");
+    expect(outerSkeleton).toContain('px-3 sm:px-5 md:px-12');
+    expect(outerSkeleton).not.toMatch(/\bbg-/);
+    expect(skeleton).toContain('md:min-h-[450px]');
+    expect(skeleton).toContain('max-w-5xl flex-col px-1.5 py-2 pb-8 sm:px-0');
+    expect(skeleton).toContain('min-h-[22rem] w-full max-w-5xl');
+    expect(skeleton).toContain('max-w-7xl flex-col px-4 pb-8 pt-2 md:px-8');
+    expect(skeleton).toContain('grid-cols-2 gap-6 sm:grid-cols-3 md:mt-8 md:grid-cols-4 md:gap-8 lg:grid-cols-5');
+    expect(skeleton).toContain('max-w-3xl pb-8 pl-4 pr-14 pt-2 md:px-8');
+    expect(skeleton).not.toMatch(/MutationObserver|ResizeObserver|getBoundingClientRect/);
   });
 
   it('adds no page-turn dependency', () => {

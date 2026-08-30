@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const voiceSounds = vi.hoisted(() => ({
-  startVoiceAmbient: vi.fn(),
   playVoiceAction: vi.fn(),
+  playVoiceToggle: vi.fn(),
   stopVoiceSounds: vi.fn(),
 }));
 
@@ -104,6 +104,10 @@ function createFakeCaller() {
 
 function cueContainsCatalog(sent: readonly string[], catalog: readonly string[]): boolean {
   return sent.some(text => catalog.some(line => text.includes(line)));
+}
+
+function countCatalogCues(sent: readonly string[], catalog: readonly string[]): number {
+  return sent.filter(text => catalog.some(line => text.includes(line))).length;
 }
 
 function createFakePlayback() {
@@ -328,7 +332,6 @@ describe('voice session runtime singleton', () => {
     runtime.fakePlayback.setBusy(true);
     runtime.fakeCaller.emit('turnComplete', true);
     expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(false);
-    expect(voiceSounds.startVoiceAmbient).not.toHaveBeenCalled();
 
     runtime.fakePlayback.setBusy(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
@@ -336,7 +339,6 @@ describe('voice session runtime singleton', () => {
       introComplete: true,
       generation: firstGeneration,
     });
-    expect(voiceSounds.startVoiceAmbient).toHaveBeenCalledTimes(1);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -445,6 +447,7 @@ describe('voice session runtime singleton', () => {
     expect(runtime.captureStop).toHaveBeenCalled();
     expect(runtime.fakePlayback.close).toHaveBeenCalled();
     expect(runtime.fakeCaller.close).toHaveBeenCalledWith('user');
+    expect(voiceSounds.playVoiceToggle).toHaveBeenCalledTimes(1);
     expect(VOICE_EXIT_VEIL_VARIATIONS).toContain(runtime.getVoiceSessionSnapshot().exitLine);
 
     await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
@@ -496,13 +499,37 @@ describe('voice session runtime singleton', () => {
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(true);
 
     runtime.fakeCaller.emit('userTranscript', 'still here');
-    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS - VOICE_IDLE_CHECKIN_MS);
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS - 1);
     expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
+    expect(countCatalogCues(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(countCatalogCues(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(2);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'live',
       hangupPending: false,
     });
+
+    runtime.resetVoiceSessionRuntimeForTests();
+    vi.useRealTimers();
+  });
+
+  it('does not repeat an idle check-in after agent-side tool activity', async () => {
+    vi.useFakeTimers();
+    const runtime = await boot();
+    goLive(runtime);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'idle-context',
+      name: 'get_current_page_context',
+      args: {},
+    } as SiteToolCall);
+    await Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
+    expect(countCatalogCues(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(1);
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
@@ -582,6 +609,7 @@ describe('voice session runtime singleton', () => {
       ok: true,
       spokenText: 'Leaving voice mode.',
     });
+    expect(voiceSounds.playVoiceAction).not.toHaveBeenCalled();
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hangupPending: true,

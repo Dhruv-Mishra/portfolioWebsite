@@ -32,6 +32,9 @@ describe('site tool catalog', () => {
     expect(SITE_TOOL_DECLARATIONS.map(tool => tool.name).sort()).toEqual([...SITE_TOOL_NAMES].sort());
     expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).not.toContain('start_voice_session');
     expect(VOICE_LIVE_TOOL_DECLARATIONS).toHaveLength(SITE_TOOL_DECLARATIONS.length - 1);
+    expect(
+      VOICE_LIVE_TOOL_DECLARATIONS.find(tool => tool.name === 'set_theme')?.parameters.properties.action,
+    ).toMatchObject({ enum: expect.arrayContaining(['disco']) });
     expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'fill_field')?.parameters.properties).not.toHaveProperty('submit');
   });
 

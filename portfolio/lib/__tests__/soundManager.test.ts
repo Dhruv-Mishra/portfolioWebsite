@@ -51,9 +51,12 @@ interface MockContext {
 }
 
 let mockCtx: MockContext | null = null;
+let audioContextInstance: { state: AudioContextState } | null = null;
 let ctxCreationCount = 0;
 let shouldThrowOnCreate = false;
 let visibilityState: DocumentVisibilityState = 'visible';
+let resumeCallCount = 0;
+let resumePromise: Promise<void> | null = null;
 
 function makeFreqParam(): MockNode['frequency'] {
   return {
@@ -120,8 +123,9 @@ function createMockContext(): MockContext {
       return { getChannelData: (): Float32Array => new Float32Array(44100) } as unknown as AudioBuffer;
     },
     resume(): Promise<void> {
-      ctx.state = 'running';
-      return Promise.resolve();
+      resumeCallCount++;
+      if (!resumePromise) ctx.state = 'running';
+      return resumePromise ?? Promise.resolve();
     },
     close(): Promise<void> {
       ctx.state = 'closed';
@@ -161,9 +165,12 @@ let performanceNow = 1000;
 
 beforeEach(() => {
   mockCtx = null;
+  audioContextInstance = null;
   ctxCreationCount = 0;
   shouldThrowOnCreate = false;
   visibilityState = 'visible';
+  resumeCallCount = 0;
+  resumePromise = null;
   performanceNow = 1000;
 
   class AudioContextMock {
@@ -173,6 +180,7 @@ beforeEach(() => {
       const c = createMockContext();
       mockCtx = c;
       Object.assign(this, c);
+      audioContextInstance = this as unknown as { state: AudioContextState };
     }
   }
 
@@ -315,6 +323,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
       'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
       'matrix',
     ];
     for (const id of ids) {
@@ -329,6 +338,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
       'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
       'matrix',
     ];
     for (const id of ids) {
@@ -543,25 +553,19 @@ describe('soundManager — loop lifecycle', () => {
     expect(soundManager.isLoopPlaying('disco-loop')).toBe(true);
   });
 
-  it('registerExternalLoopFactory provides procedural fallback when no buffer is cached', async () => {
-    const { soundManager, registerExternalLoopFactory } = await loadSoundManager();
+  it('starts each decoded disco track as an infinite loop', async () => {
+    const { soundManager, __test } = await loadSoundManager();
     soundManager.play('page-flip');
-    const externalStop = vi.fn();
-    const externalSetMuted = vi.fn();
-    registerExternalLoopFactory('disco-loop', () => ({
-      stop: externalStop,
-      setMuted: externalSetMuted,
-    }));
-    // No buffer seeded — should fall back to factory.
-    const started = soundManager.startLoop('disco-loop');
-    expect(started).toBe(true);
-    expect(soundManager.isLoopPlaying('disco-loop')).toBe(true);
+    const trackIds = ['disco-loop', 'disco-track-1', 'disco-track-2', 'disco-track-3'] as const;
 
-    soundManager.setLoopMuted('disco-loop', true);
-    expect(externalSetMuted).toHaveBeenCalledWith(true);
-
-    soundManager.stopLoop('disco-loop');
-    expect(externalStop).toHaveBeenCalled();
+    for (const id of trackIds) {
+      __test.seedBuffer(id, mockCtx!.createBuffer(2, 44100, 44100));
+      expect(soundManager.startLoop(id)).toBe(true);
+      const source = mockCtx!._nodes.filter((node) => node.kind === 'bufferSource').at(-1);
+      expect(source?.loop).toBe(true);
+      expect(soundManager.isLoopPlaying(id)).toBe(true);
+      soundManager.stopLoop(id);
+    }
   });
 
   it('setLoopMuted ramps the loop gain without affecting the master gain', async () => {
@@ -613,28 +617,6 @@ describe('soundManager — setMuted is the single source for stopping every soun
     expect(masterAfter).toBeGreaterThan(masterBefore);
   });
 
-  it('setMuted(true) also mutes registered procedural-external loops', async () => {
-    const { soundManager, registerExternalLoopFactory } = await loadSoundManager();
-    soundManager.play('page-flip');
-    const externalStop = vi.fn();
-    const externalSetMuted = vi.fn();
-    registerExternalLoopFactory('disco-loop', () => ({
-      stop: externalStop,
-      setMuted: externalSetMuted,
-    }));
-    // No buffer — loop uses the factory.
-    soundManager.startLoop('disco-loop');
-
-    // Global mute must cascade to procedural-external loops so the disco
-    // engine (not under the master gain chain) also goes silent.
-    soundManager.setMuted(true);
-    expect(externalSetMuted).toHaveBeenCalledWith(true);
-
-    // Unmuting cascades back.
-    soundManager.setMuted(false);
-    expect(externalSetMuted).toHaveBeenCalledWith(false);
-  });
-
   it('setMuted(false) restores master gain ramp so buffer loops resume audibly', async () => {
     const { soundManager, __test } = await loadSoundManager();
     soundManager.play('page-flip');
@@ -652,6 +634,41 @@ describe('soundManager — setMuted is the single source for stopping every soun
     // Another ramp landed on master (this time toward 1, not 0).
     expect(rampsAfter).toBeGreaterThan(rampsBefore);
     expect(soundManager.isMuted()).toBe(false);
+  });
+});
+
+describe('soundManager — completion playback', () => {
+  it('resumes a suspended existing context without waiting to schedule playback', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    __test.seedBuffer('disco-track-switch', mockCtx!.createBuffer(2, 44100, 44100));
+    audioContextInstance!.state = 'suspended';
+    resumePromise = new Promise<void>(() => {});
+
+    const completion = soundManager.playToCompletion('disco-track-switch');
+    const source = mockCtx!._nodes.filter((node) => node.kind === 'bufferSource').at(-1)!;
+
+    expect(resumeCallCount).toBe(1);
+    expect(source.started).toBe(true);
+    source.onended?.();
+    await expect(completion).resolves.toBe(true);
+  });
+
+  it('cancels the previous completion sound and resolves only the latest naturally', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    __test.seedBuffer('disco-track-switch', mockCtx!.createBuffer(2, 44100, 44100));
+
+    const first = soundManager.playToCompletion('disco-track-switch');
+    const firstSource = mockCtx!._nodes.filter((node) => node.kind === 'bufferSource').at(-1)!;
+    const second = soundManager.playToCompletion('disco-track-switch');
+    const secondSource = mockCtx!._nodes.filter((node) => node.kind === 'bufferSource').at(-1)!;
+
+    await expect(first).resolves.toBe(false);
+    expect(firstSource.stopped).toBe(true);
+    expect(secondSource.loop).not.toBe(true);
+    secondSource.onended?.();
+    await expect(second).resolves.toBe(true);
   });
 });
 
@@ -748,7 +765,7 @@ describe('soundManager — warmup waves', () => {
     expect(fetched.some((u) => u.includes('/sounds/matrix.mp3'))).toBe(false);
   });
 
-  it('warmupSuperuserSounds() fetches disco-start, disco-loop, and matrix', async () => {
+  it('warmupSuperuserSounds() fetches every disco asset and matrix', async () => {
     const { fetched } = installFetchSpy();
     const { soundManager } = await loadSoundManager();
     soundManager.play('page-flip');
@@ -756,6 +773,10 @@ describe('soundManager — warmup waves', () => {
     await new Promise<void>((r) => setTimeout(r, 50));
     expect(fetched.some((u) => u.includes('/sounds/disco-start.mp3'))).toBe(true);
     expect(fetched.some((u) => u.includes('/sounds/disco-loop.mp3'))).toBe(true);
+    expect(fetched).toContain('/sounds/disco_mode_track_1.mp3');
+    expect(fetched).toContain('/sounds/disco_mode_track_2.mp3');
+    expect(fetched).toContain('/sounds/disco_mode_track_3.mp3');
+    expect(fetched).toContain('/sounds/disco_mode_switch_tracks.mp3');
     expect(fetched.some((u) => u.includes('/sounds/matrix.mp3'))).toBe(true);
   });
 

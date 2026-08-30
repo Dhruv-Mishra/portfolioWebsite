@@ -1,67 +1,20 @@
 "use client";
 
-/**
- * DiscoMediaLayer — the HEAVY disco mode media tree. Owns:
- *   - The sparkle canvas mount (DiscoSparkleCanvas)
- *   - The moving spotlights mount (DiscoSpotlights)
- *   - The disco music lifecycle (soundManager.startLoop / stopLoop +
- *     procedural-external fallback via discoAudio)
- *   - The disco beat-haptics pulse (DiscoHapticsBridge)
- *
- * Split from `DiscoFlagController` so the JS for these modules ships ONLY to
- * users who actually activate disco. Lazy-loaded by DiscoFlagController via
- * dynamic import() the first time `discoActive` flips true.
- *
- * Music lifecycle:
- *   - Tries `soundManager.startLoop('disco-loop')` first. If the MP3 buffer
- *     has been decoded, it plays the real music.
- *   - If the buffer isn't ready yet (very first visit, fetch still in flight),
- *     the startLoop path automatically falls back to `procedural-external`
- *     mode by invoking a registered factory — which boots the existing
- *     `discoAudio.startDiscoAudio` synth. Music still plays, just synthesized.
- *   - On disco deactivation: stopLoop() cleanly tears down whichever path
- *     is running.
- *   - Mute is driven by the sitewide `soundsMuted` preference — there is no
- *     longer a separate disco-only mute. Buffer-backed loops are downstream
- *     of the shared master gain that `setMuted` ramps; procedural-external
- *     loops receive an explicit `setLoopMuted` call from the audio bridge.
- *
- * Lifecycle contract: this component MUST only be rendered while
- * `discoActive === true`. The parent (DiscoFlagController) is responsible for
- * the guard — we don't re-check here, so mounting this unconditionally would
- * start audio without a user gesture (and break Web Audio autoplay rules).
- *
- * Re-render hygiene:
- *   - Wrapped in React.memo; parent re-renders do not retrigger the audio
- *     effect or remount the sparkle canvas.
- *   - The sparkle canvas + spotlights live inside `DiscoVisuals`, a separate
- *     memoized component that consumes NO store state — so mute toggles
- *     (which re-render the audio bridge below) do NOT cascade into a visuals
- *     re-render. Sparkles remain a single long-lived mount for the whole
- *     disco session, which is what keeps rAF allocations bounded.
- *   - Mute piping lives in `DiscoAudioBridge`, a zero-DOM component that
- *     subscribes to `soundsMuted` and calls `setLoopMuted()` on the live
- *     audio handle. Re-renders of this bridge are cheap (no JSX returned).
- *   - Beat-haptics live in `DiscoHapticsBridge`, also zero-DOM. It uses the
- *     existing haptics hook to honor the runtime gate (touch/pen mode,
- *     tab-visible). No vibration on desktop-mouse sessions.
- */
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useSoundsMuted } from '@/hooks/useStickers';
+import { SkipForward } from 'lucide-react';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
+import {
+  DISCO_TRACKS,
+  DiscoPlaybackController,
+} from '@/lib/discoPlayback';
 import { startDiscoHaptics, stopDiscoHaptics } from '@/lib/discoHaptics';
+import { Z_INDEX } from '@/lib/designTokens';
 
-// Nested modules — all lazy, none in the eager bundle.
 const DiscoSparkleCanvas = dynamic(() => import('./DiscoSparkleCanvas'), { ssr: false, loading: () => null });
 const DiscoSpotlights = dynamic(() => import('./DiscoSpotlights'), { ssr: false, loading: () => null });
 
-/**
- * DiscoVisuals — the long-lived visual tree. Zero store subscriptions, so
- * nothing in the sticker store re-renders this component. The sparkle canvas
- * and spotlight DOM tree mount ONCE and live for the entire disco session.
- */
 const DiscoVisuals = memo(function DiscoVisuals(): React.ReactElement {
   return (
     <>
@@ -71,116 +24,69 @@ const DiscoVisuals = memo(function DiscoVisuals(): React.ReactElement {
   );
 });
 
-// Procedural-external factory registration was removed: when the user adds
-// a custom disco-loop.mp3 we never want to fall back to the synthesized
-// disco engine, otherwise the wrong audio plays during the brief window
-// before the MP3 buffer finishes decoding. DiscoAudioBridge now waits for
-// the real buffer to land before starting playback.
+const DiscoTrackControl = memo(function DiscoTrackControl(): React.ReactElement {
+  const playbackRef = useRef<DiscoPlaybackController | null>(null);
+  const uiRequestRef = useRef(0);
+  const [track, setTrack] = useState<(typeof DISCO_TRACKS)[number]>(DISCO_TRACKS[0]);
+  const [switching, setSwitching] = useState(false);
 
-/**
- * DiscoAudioBridge — a zero-DOM component that owns the disco music
- * lifecycle. Re-renders on sitewide `soundsMuted` flips (the only state it
- * reads), but the re-render is cheap because there's no JSX + no child
- * tree below.
- *
- * Flow on mount (disco activation):
- *   1. Try soundManager.startLoop('disco-loop'). If the MP3 buffer has been
- *      fetched + decoded already, the loop starts on a buffer source.
- *   2. If the buffer isn't ready, startLoop falls through to the
- *      registerExternalLoopFactory callback above, which spins up the
- *      procedural discoAudio engine. Either way, music plays.
- *   3. If buffer becomes available later (warmup finished mid-session), we
- *      subscribe via onBufferReady — at which point we stop the procedural
- *      loop and restart as a buffer loop. The transition has a ~300ms fade
- *      crossover built into stopLoop/startLoop.
- *   4. Push the current sitewide-muted state into the loop on mount + every
- *      flip — this covers procedural-external mode (buffer mode rides the
- *      master gain that `setMuted` already ramps).
- *
- * Teardown (disco deactivation):
- *   - stopLoop handles both modes (buffer fade-out + disconnect, or call
- *     discoAudio's stop() for procedural-external).
- */
-const DiscoAudioBridge = memo(function DiscoAudioBridge(): null {
-  const soundsMuted = useSoundsMuted();
-
-  // Start the music on mount. We track whether we're in procedural-external
-  // or buffer mode to know whether to upgrade to buffer when it lands.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let cancelled = false;
-    let unsubscribeReady: (() => void) | null = null;
-
-    // Make sure the MP3 buffer is being fetched. Cheap idempotent call —
-    // safe to fire on every disco activation; downstream warmup logic
-    // dedupes by sound id.
     soundManager.warmupSuperuserSounds();
-
-    const startBufferLoop = () => {
-      if (cancelled) return;
-      const ok = soundManager.startLoop('disco-loop');
-      if (ok) soundManager.setLoopMuted('disco-loop', soundsMuted);
-    };
-
-    if (soundManager.hasBuffer('disco-loop')) {
-      // Buffer already cached — start immediately.
-      startBufferLoop();
-    } else {
-      // Wait for the MP3 to finish decoding before starting any audio,
-      // so we never play the procedural disco synth as a placeholder.
-      unsubscribeReady = soundManager.onBufferReady('disco-loop', () => {
-        if (cancelled) return;
-        startBufferLoop();
-      });
-    }
-
+    const playback = new DiscoPlaybackController(soundManager);
+    playbackRef.current = playback;
+    void playback.start();
     return () => {
-      cancelled = true;
-      if (unsubscribeReady) unsubscribeReady();
-      try {
-        soundManager.stopLoop('disco-loop');
-      } catch {
-        /* best-effort */
-      }
+      playbackRef.current = null;
+      playback.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pipe sitewide mute flips into the loop. Buffer-backed loops get a per-loop
-  // gain ramp (in addition to the master gain ramp that setMuted already
-  // performs); procedural-external loops proxy to the external setMuted.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    soundManager.setLoopMuted('disco-loop', soundsMuted);
-  }, [soundsMuted]);
+  const handleNext = (): void => {
+    const playback = playbackRef.current;
+    if (!playback) return;
 
-  return null;
+    const uiRequest = ++uiRequestRef.current;
+    const next = playback.next();
+    setSwitching(true);
+    void next.done.then((didSwitch) => {
+      if (uiRequest === uiRequestRef.current && didSwitch) setTrack(next.track);
+    }).finally(() => {
+      if (uiRequest === uiRequestRef.current) setSwitching(false);
+    });
+  };
+
+  const trackNumber = DISCO_TRACKS.indexOf(track) + 1;
+
+  return (
+    <div
+      data-disco-track-control
+      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] left-[calc(50%-1rem)] -translate-x-1/2 md:bottom-6 md:left-44 md:translate-x-0 flex min-h-11 items-center gap-2 rounded-md border-2 border-dashed border-[var(--c-grid)]/70 bg-[var(--c-paper)]/90 py-1 pl-3 pr-1 shadow-lg backdrop-blur-sm -rotate-1"
+      style={{ zIndex: Z_INDEX.nav }}
+      role="group"
+      aria-label="Disco track controls"
+    >
+      <div className="min-w-20 font-hand leading-tight text-[var(--c-ink)]" aria-live="polite" aria-busy={switching}>
+        <span className="block text-[11px] font-bold opacity-60">{trackNumber} / {DISCO_TRACKS.length}</span>
+        <span className="block text-sm font-bold">{switching ? 'Switching...' : track.label}</span>
+      </div>
+      <button
+        type="button"
+        onClick={handleNext}
+        className="grid size-11 shrink-0 place-items-center rounded text-[var(--c-ink)] transition-colors hover:bg-[var(--c-grid)]/15 active:bg-[var(--c-grid)]/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-highlight)]"
+        aria-label={`Next disco track. Current track: ${track.label}`}
+        title="Next track"
+      >
+        <SkipForward size={21} strokeWidth={2.4} aria-hidden="true" />
+      </button>
+    </div>
+  );
 });
 
-/**
- * DiscoHapticsBridge — a zero-DOM component that pulses the device on every
- * disco beat (500ms interval, matching the 120 BPM disco loop tempo).
- *
- * Only mounted while disco is active. The interval is auto-paused when the
- * tab becomes hidden (handled inside the module) and cleaned up on unmount
- * when disco exits. The actual vibration call is gated by the existing
- * `canUseRuntimeHaptics()` helper inside `lib/haptics.ts`, so desktop-mouse
- * visitors never fire the vibration API.
- *
- * iOS caveat: web-haptics routes iOS Taptic Engine haptics through a hidden
- * switch-toggle trick. That trick only fires during user-gesture call
- * frames; a free-running setInterval cannot reliably replay it. Android and
- * desktop-with-touch devices receive full beat haptics; iOS currently sees
- * silent haptics during disco. Documented in `lib/discoHaptics.ts`.
- */
 const DiscoHapticsBridge = memo(function DiscoHapticsBridge(): null {
   const { subtle } = useAppHaptics();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    // Hand a stable pulse function to the module; internal visibility gating
-    // and interval lifecycle are owned there so disco-activation / tab-hide
-    // / disco-deactivation all route through one place.
     startDiscoHaptics(subtle);
     return () => {
       stopDiscoHaptics();
@@ -194,7 +100,7 @@ function DiscoMediaLayerImpl(): React.ReactElement {
   return (
     <>
       <DiscoVisuals />
-      <DiscoAudioBridge />
+      <DiscoTrackControl />
       <DiscoHapticsBridge />
     </>
   );

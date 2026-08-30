@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SITE_VERSION } from '@/lib/siteVersion';
 
 type EndedHandler = () => void;
 
@@ -752,6 +753,16 @@ describe('voice capture graph', () => {
     expect(context.source).toBeNull();
     expect(context.worklet).toBeNull();
     expect(context.muteGain).toBeNull();
+  });
+
+  it('loads the capture worklet from the SITE_VERSION cache-busting URL', async () => {
+    const { startVoiceCapture } = await import('@/lib/voiceAudio');
+    const handle = await startVoiceCapture(() => {});
+    expect(context.audioWorklet.addModule).toHaveBeenCalledOnce();
+    expect(context.audioWorklet.addModule).toHaveBeenCalledWith(
+      `/voice/voice-capture-processor.js?v=${SITE_VERSION}`,
+    );
+    handle.stop();
   });
 
   it('makes stop idempotent and ignores worklet frames after stop', async () => {

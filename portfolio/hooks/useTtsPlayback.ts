@@ -8,7 +8,7 @@ import {
   putCachedTtsAudio,
   type CachedTtsAudio,
 } from '@/lib/ttsAudioCache';
-import { getEffectiveMasterVolumeSync, subscribeMasterVolume } from '@/hooks/useStickers';
+import { getEffectiveAudioCategoryVolumeSync, subscribeAudioCategoryVolume } from '@/hooks/useStickers';
 import { adaptTextForSpeech } from '@/lib/ttsPrompts';
 
 export type TtsPlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
@@ -355,7 +355,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     setState(INITIAL_STATE);
   }, []);
 
-  const applyTtsMasterVolume = useCallback((volume = getEffectiveMasterVolumeSync()) => {
+  const applyTtsMasterVolume = useCallback((volume = getEffectiveAudioCategoryVolumeSync('chatTts')) => {
     const clamped = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
     const master = masterGainRef.current;
     if (master) {
@@ -376,7 +376,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
 
   const bindTtsMasterVolume = useCallback(() => {
     if (volumeUnsubscribeRef.current) return;
-    volumeUnsubscribeRef.current = subscribeMasterVolume((next) => {
+    volumeUnsubscribeRef.current = subscribeAudioCategoryVolume('chatTts', (next) => {
       applyTtsMasterVolume(next);
     });
   }, [applyTtsMasterVolume]);
@@ -384,7 +384,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
   const attachTtsMasterGain = useCallback((context: AudioContext) => {
     if (masterGainRef.current) return;
     const master = context.createGain();
-    master.gain.value = getEffectiveMasterVolumeSync();
+    master.gain.value = getEffectiveAudioCategoryVolumeSync('chatTts');
     master.connect(context.destination);
     masterGainRef.current = master;
     bindTtsMasterVolume();
@@ -616,7 +616,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
     fallbackObjectUrlRef.current = objectUrl;
     const audio = new Audio(objectUrl);
     audio.playbackRate = getGeneratedAudioPlaybackRate(playbackSpeedRef.current);
-    audio.volume = getEffectiveMasterVolumeSync();
+    audio.volume = getEffectiveAudioCategoryVolumeSync('chatTts');
     fallbackAudioRef.current = audio;
 
     await new Promise<void>((resolve, reject) => {
@@ -881,7 +881,7 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
         utterance.lang = voice?.lang ?? 'en-US';
         utterance.pitch = 1;
         utterance.rate = playbackSpeedRef.current;
-        utterance.volume = getEffectiveMasterVolumeSync();
+        utterance.volume = getEffectiveAudioCategoryVolumeSync('chatTts');
         if (voice) utterance.voice = voice;
         currentUtterance = utterance;
         browserUtterancesRef.current = [utterance];

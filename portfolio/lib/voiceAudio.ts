@@ -1,4 +1,4 @@
-import { getEffectiveMasterVolumeSync, subscribeMasterVolume } from '@/hooks/useStickers';
+import { getEffectiveAudioCategoryVolumeSync, subscribeAudioCategoryVolume } from '@/hooks/useStickers';
 import { SITE_VERSION } from '@/lib/siteVersion';
 import {
   VOICE_AGENT_INPUT_RATE,
@@ -289,10 +289,10 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
     started = false;
     if (typeof audio.createGain === 'function') {
       master = audio.createGain();
-      targetVolume = getEffectiveMasterVolumeSync();
+      targetVolume = getEffectiveAudioCategoryVolumeSync('voiceAgent');
       master.gain.value = 0;
       master.connect(audio.destination);
-      volumeUnsubscribe = subscribeMasterVolume(applyMasterVolume);
+      volumeUnsubscribe = subscribeAudioCategoryVolume('voiceAgent', applyMasterVolume);
     }
   }
 

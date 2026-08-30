@@ -33,6 +33,7 @@ class FakeAudio {
   playCalls = 0;
   pauseCalls = 0;
   playShouldReject = false;
+  onended: (() => void) | null = null;
 
   constructor(src: string) {
     this.src = src;
@@ -48,6 +49,11 @@ class FakeAudio {
   pause() {
     this.pauseCalls += 1;
     this.paused = true;
+  }
+
+  finish() {
+    this.paused = true;
+    this.onended?.();
   }
 }
 
@@ -75,12 +81,13 @@ describe('voiceSounds helper', () => {
     vi.unstubAllGlobals();
   });
 
-  it('no-ops on SSR and unlocks two cached versioned elements with relative voiceAgent gain', async () => {
+  it('no-ops on SSR and unlocks cached versioned elements with relative voiceAgent gain', async () => {
     vi.unstubAllGlobals();
     const {
       primeVoiceSounds,
       startVoiceAmbient,
       playVoiceAction,
+      playVoiceToggle,
       stopVoiceSounds,
       resetVoiceSoundsForTests,
     } = await import('@/lib/voiceSounds');
@@ -88,6 +95,7 @@ describe('voiceSounds helper', () => {
       primeVoiceSounds();
       startVoiceAmbient();
       playVoiceAction();
+      playVoiceToggle();
       stopVoiceSounds();
     }).not.toThrow();
     resetVoiceSoundsForTests();
@@ -103,15 +111,18 @@ describe('voiceSounds helper', () => {
 
     getEffectiveAudioCategoryVolumeSync.mockReturnValue(0.5);
     primeVoiceSounds();
-    expect(created).toHaveLength(2);
+    expect(created).toHaveLength(3);
     expect(created[0]?.src).toBe(`/sounds/voice/ambient.mp3?v=${SITE_VERSION}`);
     expect(created[1]?.src).toBe(`/sounds/voice/action.mp3?v=${SITE_VERSION}`);
+    expect(created[2]?.src).toBe(`/sounds/voice/toggle.mp3?v=${SITE_VERSION}`);
     expect(created[0]?.loop).toBe(true);
     expect(created[1]?.loop).toBe(false);
     expect(created[0]?.volume).toBeCloseTo(0.18, 5);
     expect(created[1]?.volume).toBeCloseTo(0.19, 5);
+    expect(created[2]?.volume).toBeCloseTo(0.19, 5);
     expect(created[0]?.muted).toBe(true);
     expect(created[1]?.muted).toBe(true);
+    expect(created[2]?.muted).toBe(false);
 
     await Promise.resolve();
     await Promise.resolve();
@@ -124,7 +135,56 @@ describe('voiceSounds helper', () => {
     expect(subscribeAudioCategoryVolume).not.toHaveBeenCalled();
 
     primeVoiceSounds();
-    expect(created).toHaveLength(2);
+    expect(created).toHaveLength(3);
+  });
+
+  it('starts ambient only after the lifecycle toggle finishes', async () => {
+    const {
+      playVoiceToggle,
+      primeVoiceSounds,
+      startVoiceAmbient,
+    } = await import('@/lib/voiceSounds');
+
+    primeVoiceSounds();
+    await Promise.resolve();
+    await Promise.resolve();
+    const ambient = created[0]!;
+    const toggle = created[2]!;
+    ambient.playCalls = 0;
+
+    playVoiceToggle(startVoiceAmbient);
+    expect(toggle.playCalls).toBe(1);
+    expect(ambient.playCalls).toBe(0);
+
+    toggle.finish();
+    expect(ambient.playCalls).toBe(1);
+    expect(ambient.loop).toBe(true);
+  });
+
+  it('starts ambient once when lifecycle toggle playback is rejected', async () => {
+    const {
+      playVoiceToggle,
+      primeVoiceSounds,
+      startVoiceAmbient,
+    } = await import('@/lib/voiceSounds');
+
+    primeVoiceSounds();
+    await Promise.resolve();
+    await Promise.resolve();
+    const ambient = created[0]!;
+    const toggle = created[2]!;
+    ambient.playCalls = 0;
+    toggle.playShouldReject = true;
+
+    playVoiceToggle(startVoiceAmbient);
+    expect(ambient.playCalls).toBe(0);
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ambient.playCalls).toBe(1);
+
+    toggle.finish();
+    expect(ambient.playCalls).toBe(1);
   });
 
   it('starts only ambient, plays only action, subscribes while active, and swallows play rejection', async () => {
@@ -176,7 +236,7 @@ describe('voiceSounds helper', () => {
 
     startVoiceAmbient();
     expect(subscribeAudioCategoryVolume).toHaveBeenCalledTimes(2);
-    expect(created).toHaveLength(2);
+    expect(created).toHaveLength(3);
   });
 
   it('does not replay, pause, reset, or mute live ambient when primed after start', async () => {

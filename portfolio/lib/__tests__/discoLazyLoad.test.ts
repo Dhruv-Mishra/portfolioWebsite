@@ -64,7 +64,6 @@ describe('disco lazy-load boundary', () => {
       './DiscoMediaLayer',
       './DiscoSparkleCanvas',
       './DiscoSpotlights',
-      '@/lib/discoAudio',
       './DiscoMatrixOverlay',
     ];
     for (const spec of forbidden) {
@@ -90,7 +89,6 @@ describe('disco lazy-load boundary', () => {
       './DiscoSpotlights',
       './DiscoMediaLayer',
       './DiscoMatrixOverlay',
-      '@/lib/discoAudio',
       '@/components/DiscoSparkleCanvas',
       '@/components/DiscoSpotlights',
       '@/components/DiscoMediaLayer',
@@ -163,14 +161,11 @@ describe('disco render-count hygiene — source guards', () => {
     expect(visualsBlock?.[0]).not.toMatch(/useDisco|useSticker|useSoundsMuted/);
   });
 
-  it('DiscoAudioBridge — the mute-reactive component — is zero-DOM (returns null)', () => {
-    // Keeps the audio bridge's re-renders cheap: they don't trigger any
-    // reconciler work below since the tree is empty.
+  it('DiscoTrackControl stays inside the lazy media layer and uses the playback controller', () => {
     const src = readSrc('DiscoMediaLayer.tsx');
-    // Grab a generous window around the bridge definition and verify the
-    // function type signature ends in `: null` AND its body returns null.
-    expect(src).toMatch(/function\s+DiscoAudioBridge\s*\(\s*\)\s*:\s*null/);
-    expect(src).toMatch(/DiscoAudioBridge[\s\S]*?return\s+null;\s*\}\s*\)/);
+    expect(src).toMatch(/function\s+DiscoTrackControl/);
+    expect(src).toMatch(/new\s+DiscoPlaybackController\(soundManager\)/);
+    expect(src).toMatch(/data-disco-track-control/);
   });
 
   it('DiscoFlagController uses the narrow useDiscoActive selector (not useStickers)', () => {
@@ -191,14 +186,19 @@ describe('disco render-count hygiene — source guards', () => {
     expect(src).toMatch(/useMatrixActive/);
   });
 
-  it('DiscoAudioBridge subscribes to the narrow useSoundsMuted selector', () => {
-    // The bridge's re-render scope is scoped to sitewide mute flips —
-    // not to the entire sticker store. Using the narrow selector keeps the
-    // bridge quiet while disco is active and unrelated store keys mutate
-    // (unlocking a sticker, toggling sudo, etc.).
+  it('DiscoTrackControl exposes accessible status and a full touch target without store subscriptions', () => {
     const src = readSrc('DiscoMediaLayer.tsx');
-    expect(src).toMatch(/useSoundsMuted/);
-    expect(src).not.toMatch(/useStickers\s*\(\s*\)/);
+    expect(src).toMatch(/aria-live="polite"/);
+    expect(src).toMatch(/aria-label=\{`Next disco track/);
+    expect(src).toMatch(/size-11/);
+    expect(src).not.toMatch(/useSoundsMuted|useStickers\s*\(/);
+  });
+
+  it('DiscoTrackControl commits a track only after the latest successful switch', () => {
+    const src = readSrc('DiscoMediaLayer.tsx');
+    expect(src).toMatch(/next\.done\.then\(\(didSwitch\)\s*=>/);
+    expect(src).toMatch(/uiRequest === uiRequestRef\.current && didSwitch\) setTrack\(next\.track\)/);
+    expect(src).toMatch(/next\.done[\s\S]*?\.finally\(\(\)\s*=>\s*\{\s*if \(uiRequest === uiRequestRef\.current\) setSwitching\(false\)/);
   });
 
   it('DiscoSpotlights includes 6 spotlight variants', () => {

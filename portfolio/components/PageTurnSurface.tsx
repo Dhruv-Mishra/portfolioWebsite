@@ -164,13 +164,13 @@ export default function PageTurnSurface({ children }: { children: ReactNode }) {
         <div className="page-turn-content relative z-10 h-full min-h-full min-w-0">
           {children}
         </div>
-        {showSkeleton && destinationPath ? (
-          <PageTurnSkeleton
-            label={resolvePageTurnRoute(destinationPath).label}
-            pathname={destinationPath}
-          />
-        ) : null}
       </div>
+      {showSkeleton && destinationPath ? (
+        <PageTurnSkeleton
+          label={resolvePageTurnRoute(destinationPath).label}
+          pathname={destinationPath}
+        />
+      ) : null}
     </div>
   );
 }

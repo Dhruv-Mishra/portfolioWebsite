@@ -192,7 +192,7 @@ export default function PageTurnSkeleton({ label, pathname = '/' }: PageTurnSkel
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="pointer-events-none absolute inset-0 z-20 bg-[var(--c-paper)] px-3 py-6 sm:px-5 sm:py-8 md:p-12"
+      className="pointer-events-none absolute inset-0 z-20 px-3 py-6 sm:px-5 sm:py-8 md:p-12"
       style={{ contentVisibility: 'auto', contain: 'layout paint' }}
     >
       <span className="sr-only">{`Opening ${label}`}</span>

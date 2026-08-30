@@ -98,6 +98,7 @@ export const VOICE_SUGGESTION_VARIATIONS: readonly string[] = [
   'If something is off or you have a thought, try saying open feedback.',
   'I can flip the site into dark mode if that is easier on the eyes, so try saying dark mode.',
   'Want a quieter look, you could ask me to switch to dark mode.',
+  'Try saying enable disco mode if you want lights and music.',
 ];
 
 export type VoiceWelcomeVariation = { greeting: string; hint: string };
@@ -116,7 +117,7 @@ export const VOICE_WELCOME_VARIATIONS: readonly VoiceWelcomeVariation[] = [
   { greeting: 'Hi, this is Dhruv Mishra\'s site.', hint: VOICE_SUGGESTION_VARIATIONS[2] },
   { greeting: 'Make yourself at home on Dhruv\'s site.', hint: VOICE_SUGGESTION_VARIATIONS[9] },
   { greeting: 'Look around Dhruv Mishra\'s sketchbook.', hint: VOICE_SUGGESTION_VARIATIONS[6] },
-  { greeting: 'Well hello from Dhruv\'s portfolio.', hint: VOICE_SUGGESTION_VARIATIONS[13] },
+  { greeting: 'Well hello from Dhruv\'s portfolio.', hint: VOICE_SUGGESTION_VARIATIONS[14] },
 ];
 
 export const VOICE_EXIT_VEIL_VARIATIONS: readonly string[] = [

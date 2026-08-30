@@ -81,6 +81,7 @@ describe('voice system instruction', () => {
       /cropio/i,
       /feedback/i,
       /dark mode/i,
+      /disco mode/i,
     ];
     for (const intent of suggestionIntents) {
       expect(VOICE_SUGGESTION_VARIATIONS.some(suggestion => intent.test(suggestion))).toBe(true);

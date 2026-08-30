@@ -24,7 +24,7 @@ import {
   type VoicePlaybackOptions,
 } from '@/lib/voiceAudio';
 import { disposePrimedVoiceAudio } from '@/lib/voiceAudioActivation';
-import { playVoiceAction, startVoiceAmbient, stopVoiceSounds } from '@/lib/voiceSounds';
+import { playVoiceAction, playVoiceToggle, stopVoiceSounds } from '@/lib/voiceSounds';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
 import type {
@@ -766,7 +766,7 @@ function noteVoiceActivity(
     resetIdleWatch();
     return;
   }
-  if (idleCheckedIn && source === 'agent') return;
+  if (idleCheckedIn && source !== 'user' && source !== 'mic') return;
   if (snapshot.hangupPending || snapshot.hud === 'exiting' || stopping) {
     resetIdleWatch();
     return;
@@ -806,7 +806,6 @@ function tryMarkIntroComplete(): void {
     status: 'Live. Ask anything, or try a site action.',
     recovery: 'none',
   });
-  startVoiceAmbient();
   noteVoiceActivity('connect');
   notifyVoiceActionQueueReady();
 }
@@ -945,7 +944,7 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
   }
   if (isVoiceToolCancelled(call.id) || isStale(generation) || caller !== activeCaller) return;
   activeCaller.sendToolResult(call.id, result, call.name);
-  if (!alreadySeen && result.ok) playVoiceAction();
+  if (!alreadySeen && result.ok && call.name !== 'end_voice_session') playVoiceAction();
 
   if (!alreadySeen && result.ok && call.name === 'end_voice_session') {
     armAgentFarewellHangup(call.args.reason ?? 'user');
@@ -1260,6 +1259,7 @@ export function stopVoiceSession(reason: VoiceExitReason = 'user', options: { fo
     return;
   }
   if (stopping) return;
+  playVoiceToggle();
   if (options.force === true) {
     finishStop(reason);
     return;

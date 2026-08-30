@@ -77,6 +77,10 @@ export type SoundId =
   | 'command-palette-pop'
   | 'disco-start'
   | 'disco-loop'
+  | 'disco-track-1'
+  | 'disco-track-2'
+  | 'disco-track-3'
+  | 'disco-track-switch'
   | 'matrix';
 
 /**
@@ -121,6 +125,10 @@ const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
 const SUPERUSER_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'disco-start',
   'disco-loop',
+  'disco-track-1',
+  'disco-track-2',
+  'disco-track-3',
+  'disco-track-switch',
   'matrix',
 ]);
 
@@ -172,7 +180,11 @@ const VOLUMES: Readonly<Record<SoundId, number>> = Object.freeze({
   'modal-close':        0.06,
   'command-palette-pop': 0.09,
   'disco-start':        0.22,
-  'disco-loop':         0.18, // procedural fallback only — buffer uses sampleGain
+  'disco-loop':         0.18,
+  'disco-track-1':      0.18,
+  'disco-track-2':      0.18,
+  'disco-track-3':      0.18,
+  'disco-track-switch': 0.18,
   'matrix':             0.22, // looping matrix rain — loops via startLoop
 });
 
@@ -213,6 +225,10 @@ const DEBOUNCE_MS: Readonly<Record<SoundId, number>> = Object.freeze({
   'command-palette-pop': 150,
   'disco-start':        1500, // never double-fire on a single reveal
   'disco-loop':         0,    // N/A — loops go through startLoop()
+  'disco-track-1':      0,
+  'disco-track-2':      0,
+  'disco-track-3':      0,
+  'disco-track-switch': 0,
   'matrix':             0,    // N/A — loops go through startLoop()
 });
 
@@ -880,26 +896,6 @@ function playDiscoStart(s: ManagerState, bundle: OneShotHandle, t: number, volum
 }
 
 /**
- * Disco-loop procedural fallback — a short bass-heavy stab that's NOT
- * actually a loop; it's a single call used during the brief buffer-fetch
- * window. The real looping is handled by a dedicated path in `startLoop`
- * that falls back to the existing discoAudio.ts engine.
- *
- * This renderer is wired into `SOUND_SPECS` purely so that debounce + renderer
- * invariants stay consistent — nothing should ever call `play('disco-loop')`
- * directly. startLoop handles the looping correctly.
- */
-function playDiscoLoopFallback(s: ManagerState, bundle: OneShotHandle, t: number, volume: number): void {
-  // A single short stab as a placeholder.
-  playTone(s, bundle, t, {
-    freqStart: midiToHz(45),
-    type: 'sawtooth',
-    duration: 0.2,
-    peakGain: volume,
-  });
-}
-
-/**
  * Matrix procedural fallback — a low, ominous sub-drone. Only fires if the
  * matrix.mp3 buffer hasn't been decoded yet AND the matrix effect is already
  * active (rare — matrix is superuser-gated, so the prefetch scheduler almost
@@ -927,7 +923,7 @@ type Renderer = (s: ManagerState, bundle: OneShotHandle, t: number, volume: numb
  * window before the sample lands (and for offline / test environments).
  */
 interface SoundSpec {
-  render: Renderer;
+  render?: Renderer;
   /** Static asset URL under /public/sounds/. Absent → procedural only. */
   url?: string;
   /** Playback gain applied to buffer-backed sample (0..1). Default 0.7. */
@@ -940,7 +936,11 @@ const SOUND_SPECS: Readonly<Record<SoundId, SoundSpec>> = Object.freeze({
   'theme-dark':         { render: playThemeDark,  url: '/sounds/theme-dark.mp3',  sampleGain: 0.65 },
   'theme-light':        { render: playThemeLight, url: '/sounds/theme-light.mp3', sampleGain: 0.7 },
   'disco-start':        { render: playDiscoStart, url: '/sounds/disco-start.mp3', sampleGain: 0.75 },
-  'disco-loop':         { render: playDiscoLoopFallback, url: '/sounds/disco-loop.mp3?v=2', sampleGain: 0.35 },
+  'disco-loop':         { url: '/sounds/disco-loop.mp3?v=2', sampleGain: 0.35 },
+  'disco-track-1':      { url: '/sounds/disco_mode_track_1.mp3', sampleGain: 0.35 },
+  'disco-track-2':      { url: '/sounds/disco_mode_track_2.mp3', sampleGain: 0.35 },
+  'disco-track-3':      { url: '/sounds/disco_mode_track_3.mp3', sampleGain: 0.35 },
+  'disco-track-switch': { url: '/sounds/disco_mode_switch_tracks.mp3', sampleGain: 0.55 },
   'matrix':             { render: playMatrixFallback, url: '/sounds/matrix.mp3', sampleGain: 0.5 },
 
   // Procedural-only.
@@ -968,6 +968,7 @@ const warmupAttempted: Set<SoundId> = new Set();
  *  critical-wave trigger and a superuser-wave trigger for the same sound
  *  don't race the fetch. Used by `warmupSound` and the wave schedulers. */
 const warmupInflight: Set<SoundId> = new Set();
+const warmupTasks: Map<SoundId, Promise<boolean>> = new Map();
 /** Subscribers waiting for a specific buffer to land. Used by `startLoop`'s
  *  switchover logic so the disco engine can upgrade from procedural to
  *  buffer-backed the moment the decode finishes. */
@@ -1029,31 +1030,41 @@ function canWarmSuperuserSoundUrls(): boolean {
     && conn.effectiveType !== '3g';
 }
 
-async function warmupSound(ctx: AudioContext, id: SoundId, url: string): Promise<void> {
-  // Dedupe: skip if already cached, already attempted, or a concurrent call
-  // is already in flight for this id.
-  if (bufferCache.has(id) || warmupAttempted.has(id) || warmupInflight.has(id)) return;
-  if (isSuperuserWaveId(id) && !canWarmSuperuserSoundUrls()) return;
-  warmupInflight.add(id);
-  warmupAttempted.add(id);
-  if (typeof fetch !== 'function') {
-    warmupInflight.delete(id);
-    return;
-  }
-  try {
-    const res = await fetch(url, { cache: 'force-cache' });
-    if (!res.ok) return;
-    const bytes = await res.arrayBuffer();
-    const decoded = await decodeArrayBuffer(ctx, bytes);
-    if (decoded) {
-      bufferCache.set(id, decoded);
-      notifyBufferReady(id);
+async function warmupSound(
+  ctx: AudioContext,
+  id: SoundId,
+  url: string,
+  respectNetworkPolicy = true,
+): Promise<boolean> {
+  if (bufferCache.has(id)) return true;
+  const activeTask = warmupTasks.get(id);
+  if (activeTask) return activeTask;
+  if (warmupAttempted.has(id)) return false;
+  if (respectNetworkPolicy && isSuperuserWaveId(id) && !canWarmSuperuserSoundUrls()) return false;
+
+  const task = (async (): Promise<boolean> => {
+    warmupInflight.add(id);
+    warmupAttempted.add(id);
+    try {
+      if (typeof fetch !== 'function') return false;
+      const res = await fetch(url, { cache: 'force-cache' });
+      if (!res.ok) return false;
+      const bytes = await res.arrayBuffer();
+      const decoded = await decodeArrayBuffer(ctx, bytes);
+      if (decoded) {
+        bufferCache.set(id, decoded);
+        notifyBufferReady(id);
+      }
+      return bufferCache.has(id);
+    } catch {
+      return false;
+    } finally {
+      warmupInflight.delete(id);
+      warmupTasks.delete(id);
     }
-  } catch {
-    /* best-effort; procedural fallback will cover this sound */
-  } finally {
-    warmupInflight.delete(id);
-  }
+  })();
+  warmupTasks.set(id, task);
+  return task;
 }
 
 /**
@@ -1080,7 +1091,7 @@ function scheduleIdle(cb: () => void, fallbackMs: number): void {
  * wave once all critical fetches settle, or at the deadline, whichever first.
  */
 function warmupCriticalWave(ctx: AudioContext): void {
-  const pending: Array<Promise<void>> = [];
+  const pending: Array<Promise<boolean>> = [];
   for (const id of CRITICAL_WAVE_IDS) {
     const spec = SOUND_SPECS[id];
     if (!spec.url) continue;
@@ -1160,29 +1171,40 @@ function playBufferedSample(
   return bundle;
 }
 
+interface CompletionHandle {
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  resolve: (completed: boolean) => void;
+}
+
+let activeCompletion: CompletionHandle | null = null;
+
+function cancelCompletion(): void {
+  const handle = activeCompletion;
+  if (!handle) return;
+  activeCompletion = null;
+  handle.source.onended = null;
+  try {
+    handle.source.stop();
+    handle.source.disconnect();
+    handle.gain.disconnect();
+  } catch {
+    /* best-effort */
+  }
+  handle.resolve(false);
+}
+
 // ─── Loop channel ───────────────────────────────────────────────────────
 
 /**
  * Per-loop bookkeeping. Loops are never pre-empted by one-shots; they live
  * on their own gain chain attached to master. startLoop() is idempotent —
  * calling twice for the same id does nothing.
- *
- * `mode: 'buffer'` means the loop is backed by the decoded MP3.
- * `mode: 'procedural-external'` means we're using the discoAudio engine as
- *   an external procedural fallback; the handle is stored in `external` and
- *   the gain node is unused.
  */
 interface LoopHandle {
   id: SoundId;
-  mode: 'buffer' | 'procedural-external';
-  /** For buffer-backed loops. */
-  src?: AudioBufferSourceNode;
-  gain?: GainNode;
-  /** For procedural-external loops (disco) — opaque handle we stop()/setMuted() on. */
-  external?: {
-    stop: () => void;
-    setMuted: (m: boolean) => void;
-  };
+  src: AudioBufferSourceNode;
+  gain: GainNode;
   /** Set once we've begun the fade-out ramp in stopLoop(); guards against
    *  double-stops. */
   stopping: boolean;
@@ -1203,14 +1225,13 @@ function startBufferLoop(s: ManagerState, id: SoundId, buffer: AudioBuffer, volu
   gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + LOOP_FADE_IN_SEC);
   src.connect(gain).connect(s.master);
   src.start(ctx.currentTime);
-  return { id, mode: 'buffer', src, gain, stopping: false };
+  return { id, src, gain, stopping: false };
 }
 
 function stopLoopHandle(s: ManagerState | null, h: LoopHandle): void {
   if (h.stopping) return;
   h.stopping = true;
-  if (h.mode === 'buffer') {
-    if (!s || !h.gain || !h.src) return;
+  if (s) {
     const now = s.ctx.currentTime;
     try {
       h.gain.gain.cancelScheduledValues(now);
@@ -1228,18 +1249,12 @@ function stopLoopHandle(s: ManagerState | null, h: LoopHandle): void {
     if (typeof window !== 'undefined') {
       window.setTimeout(() => {
         try {
-          h.src?.disconnect();
-          h.gain?.disconnect();
+          h.src.disconnect();
+          h.gain.disconnect();
         } catch {
           /* ignore */
         }
       }, LOOP_FADE_OUT_SEC * 1000 + 50);
-    }
-  } else {
-    try {
-      h.external?.stop();
-    } catch {
-      /* ignore */
     }
   }
 }
@@ -1271,14 +1286,17 @@ export interface SoundManager {
    * are unaffected.
    */
   play(id: SoundId): boolean;
+  /** Load and decode a URL-backed sound for an explicit user-requested action. */
+  prepareSound(id: SoundId): Promise<boolean>;
+  /** Play one decoded asset to its natural end, cancelling any prior completion sound. */
+  playToCompletion(id: SoundId): Promise<boolean>;
+  /** Cancel the current completion sound, resolving its promise as incomplete. */
+  cancelCompletion(): void;
   /**
    * Start a looping sound. Idempotent — calling twice is a no-op.
    * Returns true if the loop was started (or was already running), false
    * if we couldn't start it (no AudioContext, mute was ignored).
-   *
-   * If the URL sample is decoded, uses the buffer. Otherwise attempts
-   * a procedural fallback (only supported for `disco-loop`; any other id
-   * without a decoded buffer returns false).
+  * Requires a decoded URL sample; otherwise returns false.
    */
   startLoop(id: SoundId): boolean;
   /** Stop a looping sound with a short fade-out. Idempotent. */
@@ -1286,16 +1304,7 @@ export interface SoundManager {
   /** Is a loop currently playing? */
   isLoopPlaying(id: SoundId): boolean;
   /**
-   * Per-loop mute. Independent of the global `setMuted` — the loop's gain
-   * node (buffer mode) or external setMuted (procedural mode) is toggled.
-   *
-   * Internal plumbing primitive: in v5 the sitewide `soundsMuted` preference
-   * is the single source of truth for muting every sound, including loops.
-   * The DiscoAudioBridge still calls this directly to push the current
-   * preference into a freshly-started loop (so a loop that starts up while
-   * the user is muted does not briefly leak audio). UI code should NOT
-   * call this directly — go through `setMuted` + `setSoundsMutedImperative`.
-   *
+    * Per-loop mute. Independent of the global `setMuted`.
    * No-op if the loop isn't playing.
    */
   setLoopMuted(id: SoundId, muted: boolean): void;
@@ -1314,10 +1323,7 @@ export interface SoundManager {
   /** Tear everything down. Test-only. */
   __reset(): void;
   /**
-   * Subscribe to a buffer-ready event for a specific sound id. The callback
-   * fires once the MP3 decode completes (or immediately if already cached).
-   * Returns an unsubscribe function. Used by `DiscoAudioBridge` to upgrade
-   * from procedural fallback → buffer playback on the first successful decode.
+  * Subscribe to a buffer-ready event for a specific sound id.
    */
   onBufferReady(id: SoundId, cb: () => void): () => void;
   /**
@@ -1388,27 +1394,6 @@ function bindMasterVolumeSubscription(): void {
   });
 }
 
-/**
- * Optional external-loop procedural factory. The disco engine registers a
- * factory here so that `startLoop('disco-loop')` can fall back to
- * procedural-external mode when the buffer isn't available yet. We keep this
- * as a registration hook rather than a hard import to preserve the bundle
- * split — the disco engine only reaches this module once disco activates.
- */
-type ExternalLoopFactory = () => { stop: () => void; setMuted: (m: boolean) => void } | null;
-const externalLoopFactories: Map<SoundId, ExternalLoopFactory> = new Map();
-
-/**
- * Register a procedural-external loop factory for a sound id. Called by the
- * disco engine on its first module import. The factory is invoked when
- * `startLoop(id)` is called and no buffer is available.
- *
- * @internal — only `DiscoAudioBridge` should call this.
- */
-export function registerExternalLoopFactory(id: SoundId, factory: ExternalLoopFactory): void {
-  externalLoopFactories.set(id, factory);
-}
-
 export const soundManager: SoundManager = {
   play(id: SoundId): boolean {
     if (muted) return false;
@@ -1456,12 +1441,14 @@ export const soundManager: SoundManager = {
         // procedural `VOLUMES` table because samples come in at arbitrary
         // levels.
         bundle = playBufferedSample(s, t, cached, spec.sampleGain ?? 0.7);
-      } else {
+      } else if (spec.render) {
         // Procedural fallback — either no URL configured, still fetching, or
         // the fetch / decode failed. Perceptually identical to the pre-hybrid
         // behaviour.
         bundle = openBundle(s);
         spec.render(s, bundle, t, VOLUMES[id] ?? 0.1);
+      } else {
+        return false;
       }
       installActiveOneShot(bundle);
     } catch {
@@ -1471,6 +1458,57 @@ export const soundManager: SoundManager = {
     lastPlayedAt[id] = now;
     return true;
   },
+
+  async prepareSound(id: SoundId): Promise<boolean> {
+    const spec = SOUND_SPECS[id];
+    if (!spec?.url) return false;
+    const s = ensure();
+    if (!s) return false;
+    return warmupSound(s.ctx, id, spec.url, false);
+  },
+
+  playToCompletion(id: SoundId): Promise<boolean> {
+    if (typeof window === 'undefined' || isTabHidden()) return Promise.resolve(false);
+    const s = ensure();
+    const spec = SOUND_SPECS[id];
+    const buffer = bufferCache.get(id);
+    if (!s || !spec || !buffer || s.ctx.state === 'closed') return Promise.resolve(false);
+
+    if (s.ctx.state === 'suspended') {
+      void s.ctx.resume().catch(() => {
+        /* best-effort */
+      });
+    }
+
+    cancelCompletion();
+    const source = s.ctx.createBufferSource();
+    const gain = s.ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = spec.sampleGain ?? 0.7;
+    source.connect(gain).connect(s.master);
+
+    return new Promise<boolean>((resolve) => {
+      const handle: CompletionHandle = { source, gain, resolve };
+      activeCompletion = handle;
+      source.onended = () => {
+        if (activeCompletion !== handle) return;
+        activeCompletion = null;
+        source.disconnect();
+        gain.disconnect();
+        resolve(true);
+      };
+      try {
+        source.start(s.ctx.currentTime);
+      } catch {
+        activeCompletion = null;
+        source.disconnect();
+        gain.disconnect();
+        resolve(false);
+      }
+    });
+  },
+
+  cancelCompletion,
 
   startLoop(id: SoundId): boolean {
     if (typeof window === 'undefined') return false;
@@ -1501,21 +1539,6 @@ export const soundManager: SoundManager = {
       loopRegistry.set(id, handle);
       return true;
     }
-    // No buffer yet — try the procedural-external factory.
-    const factory = externalLoopFactories.get(id);
-    if (factory) {
-      const ext = factory();
-      if (ext) {
-        const handle: LoopHandle = {
-          id,
-          mode: 'procedural-external',
-          external: ext,
-          stopping: false,
-        };
-        loopRegistry.set(id, handle);
-        return true;
-      }
-    }
     return false;
   },
 
@@ -1536,19 +1559,12 @@ export const soundManager: SoundManager = {
     if (!h || h.stopping) return;
     const spec = SOUND_SPECS[id];
     const targetVolume = muted ? 0 : (spec?.sampleGain ?? 0.35);
-    if (h.mode === 'buffer') {
-      if (!h.gain || !state) return;
+    if (state) {
       const now = state.ctx.currentTime;
       try {
         h.gain.gain.cancelScheduledValues(now);
         h.gain.gain.setValueAtTime(h.gain.gain.value, now);
         h.gain.gain.linearRampToValueAtTime(targetVolume, now + 0.12);
-      } catch {
-        /* ignore */
-      }
-    } else if (h.external) {
-      try {
-        h.external.setMuted(muted);
       } catch {
         /* ignore */
       }
@@ -1588,18 +1604,6 @@ export const soundManager: SoundManager = {
   setMuted(next: boolean): void {
     muted = next;
     rampMasterGain(currentMasterGain());
-    // Mirror into any procedural-external loop handles (e.g. disco) so
-    // they also silence. Buffer-backed loops are already downstream of
-    // master, so the master gain ramp covers them.
-    for (const h of loopRegistry.values()) {
-      if (h.mode === 'procedural-external' && h.external) {
-        try {
-          h.external.setMuted(next);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
   },
 
   setMasterVolume(next: number): void {
@@ -1667,6 +1671,7 @@ export const soundManager: SoundManager = {
       stopLoopHandle(state, h);
     }
     loopRegistry.clear();
+    cancelCompletion();
     // Pre-empt any in-flight one-shot.
     if (state) preemptActive(state);
     activeOneShot = null;
@@ -1689,8 +1694,8 @@ export const soundManager: SoundManager = {
     bufferCache.clear();
     warmupAttempted.clear();
     warmupInflight.clear();
+    warmupTasks.clear();
     bufferReadySubscribers.clear();
-    externalLoopFactories.clear();
     secondWaveScheduled = false;
     superuserWaveScheduled = false;
     superuserWavePending = false;

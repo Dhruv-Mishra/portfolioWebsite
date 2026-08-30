@@ -6,14 +6,18 @@ import { SITE_VERSION } from '@/lib/siteVersion';
 
 const AMBIENT_URL = `/sounds/voice/ambient.mp3?v=${SITE_VERSION}`;
 const ACTION_URL = `/sounds/voice/action.mp3?v=${SITE_VERSION}`;
+const TOGGLE_URL = `/sounds/voice/toggle.mp3?v=${SITE_VERSION}`;
 const AMBIENT_GAIN = 0.36;
 const ACTION_GAIN = 0.38;
+const TOGGLE_GAIN = 0.38;
 
 let ambientEl: HTMLAudioElement | null = null;
 let actionEl: HTMLAudioElement | null = null;
+let toggleEl: HTMLAudioElement | null = null;
 let volumeUnsubscribe: (() => void) | null = null;
 let ambientUnlockToken = 0;
 let actionUnlockToken = 0;
+let togglePlayToken = 0;
 
 function canUseAudio(): boolean {
   return typeof window !== 'undefined' && typeof Audio === 'function';
@@ -31,6 +35,7 @@ function applyVoiceSoundVolumes(
   const effective = clamp01(categoryVolume);
   if (ambientEl) ambientEl.volume = clamp01(effective * AMBIENT_GAIN);
   if (actionEl) actionEl.volume = clamp01(effective * ACTION_GAIN);
+  if (toggleEl) toggleEl.volume = clamp01(effective * TOGGLE_GAIN);
 }
 
 function ensureVolumeSubscription(): void {
@@ -86,6 +91,10 @@ function ensureElements(): boolean {
     actionEl = new Audio(ACTION_URL);
     actionEl.preload = 'auto';
   }
+  if (!toggleEl) {
+    toggleEl = new Audio(TOGGLE_URL);
+    toggleEl.preload = 'auto';
+  }
   applyVoiceSoundVolumes();
   return true;
 }
@@ -116,9 +125,36 @@ export function playVoiceAction(): void {
   quietPlay(actionEl);
 }
 
+export function playVoiceToggle(onEnded?: () => void): void {
+  if (!ensureElements() || !toggleEl) return;
+  togglePlayToken += 1;
+  const token = togglePlayToken;
+  let completed = false;
+  const complete = () => {
+    if (completed || token !== togglePlayToken) return;
+    completed = true;
+    toggleEl!.onended = null;
+    onEnded?.();
+  };
+  ensureVolumeSubscription();
+  toggleEl.muted = false;
+  toggleEl.onended = complete;
+  try { toggleEl.currentTime = 0; } catch { /* ignore */ }
+  try {
+    const play = toggleEl.play();
+    if (play && typeof play.catch === 'function') {
+      play.catch(complete);
+    }
+  } catch {
+    complete();
+  }
+}
+
 export function stopVoiceSounds(): void {
   ambientUnlockToken += 1;
   actionUnlockToken += 1;
+  togglePlayToken += 1;
+  if (toggleEl) toggleEl.onended = null;
   unsubscribeVolume();
   for (const el of [ambientEl, actionEl]) {
     if (!el) continue;
@@ -129,6 +165,11 @@ export function stopVoiceSounds(): void {
 
 export function resetVoiceSoundsForTests(): void {
   stopVoiceSounds();
+  if (toggleEl) {
+    try { toggleEl.pause(); } catch { /* ignore */ }
+    try { toggleEl.currentTime = 0; } catch { /* ignore */ }
+  }
   ambientEl = null;
   actionEl = null;
+  toggleEl = null;
 }

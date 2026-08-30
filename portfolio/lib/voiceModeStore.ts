@@ -7,7 +7,7 @@ import {
   type VoiceInvocationContext,
 } from '@/lib/voiceClientSnapshot';
 import { disposePrimedVoiceAudio, primeVoiceEnterAudio } from '@/lib/voiceAudioActivation';
-import { primeVoiceSounds } from '@/lib/voiceSounds';
+import { playVoiceToggle, primeVoiceSounds, startVoiceAmbient } from '@/lib/voiceSounds';
 
 export type VoiceModeRequest = 'enter' | 'exit';
 
@@ -30,6 +30,7 @@ function emit(): void {
 export function requestVoiceMode(context?: VoiceInvocationContext | unknown): void {
   primeVoiceEnterAudio();
   primeVoiceSounds();
+  playVoiceToggle(startVoiceAmbient);
   requested = 'enter';
   pendingContext = parseVoiceInvocationContext(context) ?? null;
   emit();

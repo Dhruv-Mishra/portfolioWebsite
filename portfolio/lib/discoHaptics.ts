@@ -5,7 +5,7 @@
  * as the heavy disco media tree.
  *
  * Behavior:
- *   - One vibration every 500 ms (120 BPM, matching `discoAudio.ts`). The
+ *   - One vibration every 500 ms (120 BPM). The
  *     pulse itself is a light-tap via the caller-supplied `fire` function,
  *     which is expected to be one of the channels from `useAppHaptics()`
  *     (typically `subtle`). Using the existing hook means our visual +

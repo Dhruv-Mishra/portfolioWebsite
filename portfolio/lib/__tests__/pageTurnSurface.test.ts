@@ -155,6 +155,7 @@ describe('PageTurnSurface single-route lifecycle', () => {
     expect(layer.findByType('button').children).toEqual(['Home route']);
     expect(layer.props.className).not.toContain('animate-page-turn-forward-out');
     expect(skeletonNodes(renderer)).toHaveLength(1);
+    expect(layer.findAll((node) => node.props['data-page-turn-skeleton'] !== undefined)).toHaveLength(0);
     expect(getPageTurnSnapshot()).toMatchObject({ toPath: '/projects' });
     expect(push).toHaveBeenCalledOnce();
     expect(push).toHaveBeenCalledWith('/projects');

@@ -9,8 +9,8 @@
  *   1. Subscribes to `discoActive` from the sticker store (single boolean).
  *   2. Writes / clears `data-disco="on"` on <html>.
  *   3. When `discoActive` flips to true, dynamically imports and mounts the
- *      heavy `DiscoMediaLayer` (sparkle canvas + spotlights + mute button +
- *      audio engine). The import() call itself is gated on `discoActive` so
+ *      heavy `DiscoMediaLayer` (sparkle canvas + spotlights + track control).
+ *      The import() call itself is gated on `discoActive` so
  *      users who never turn on disco never fetch the bundle.
  *   4. Subscribes to `matrixActive` — when true, dynamically imports the
  *      MATRIX overlay (`DiscoMatrixOverlay`). Matrix is PERSISTED across
@@ -20,8 +20,7 @@
  * Bundle-split contract:
  *   - `./DiscoFlagController.tsx` is the ONLY disco-related module in the
  *     initial bundle of any page that imports EagerEnhancements.
- *   - `./DiscoMediaLayer.tsx` (and its sub-deps: DiscoSparkleCanvas,
- *     DiscoSpotlights, DiscoMuteButton, @/lib/discoAudio) MUST NOT be in the
+ *   - `./DiscoMediaLayer.tsx` and its visual sub-dependencies MUST NOT be in the
  *     initial bundle. They're fetched on demand when disco activates.
  *   - `./DiscoMatrixOverlay.tsx` is fetched only when `matrixActive` first
  *     flips true (either via sudo or on a reload with the flag persisted).

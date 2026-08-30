@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const voiceSounds = vi.hoisted(() => ({
+  startVoiceAmbient: vi.fn(),
+  playVoiceAction: vi.fn(),
+  stopVoiceSounds: vi.fn(),
+}));
+
+vi.mock('@/lib/voiceSounds', () => voiceSounds);
+
 import type { SiteToolCall } from '@/lib/siteTools';
 import type { VoiceCaller, VoiceCallerEventMap, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
 import type { VoicePlayback } from '@/lib/voiceAudio';
@@ -319,6 +328,7 @@ describe('voice session runtime singleton', () => {
     runtime.fakePlayback.setBusy(true);
     runtime.fakeCaller.emit('turnComplete', true);
     expect(runtime.getVoiceSessionSnapshot().introComplete).toBe(false);
+    expect(voiceSounds.startVoiceAmbient).not.toHaveBeenCalled();
 
     runtime.fakePlayback.setBusy(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
@@ -326,6 +336,7 @@ describe('voice session runtime singleton', () => {
       introComplete: true,
       generation: firstGeneration,
     });
+    expect(voiceSounds.startVoiceAmbient).toHaveBeenCalledTimes(1);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -416,6 +427,7 @@ describe('voice session runtime singleton', () => {
     expect(runtime.captureStop).toHaveBeenCalled();
     expect(runtime.fakePlayback.close).toHaveBeenCalled();
     expect(runtime.fakeCaller.close).toHaveBeenCalledWith('user');
+    expect(voiceSounds.stopVoiceSounds).toHaveBeenCalled();
 
     runtime.resetVoiceSessionRuntimeForTests();
   });
@@ -650,6 +662,7 @@ describe('voice session runtime singleton', () => {
       spokenText: 'Already handling that.',
     });
     expect(runtime.fakeCaller.toolResults[2]?.result).toMatchObject({ ok: true });
+    expect(voiceSounds.playVoiceAction).toHaveBeenCalledTimes(2);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });

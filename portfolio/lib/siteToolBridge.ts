@@ -39,6 +39,7 @@ export function actionFromSiteTool(call: SiteToolCall): ActionExecution | null {
     case 'set_voice_backend':
     case 'set_motion_preference':
     case 'set_master_volume':
+    case 'set_audio_category_volume':
     case 'submit_feedback':
       return null;
     default:

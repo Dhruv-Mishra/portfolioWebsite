@@ -4,6 +4,7 @@ export const IMMEDIATE_VOICE_TOOL_NAMES = [
   'set_theme',
   'set_preference',
   'set_master_volume',
+  'set_audio_category_volume',
   'set_voice_output',
   'set_voice_backend',
   'set_motion_preference',

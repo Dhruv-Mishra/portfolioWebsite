@@ -20,6 +20,7 @@ export const SITE_TOOL_NAMES = [
   'fill_field',
   'set_preference',
   'set_master_volume',
+  'set_audio_category_volume',
   'set_voice_output',
   'set_voice_backend',
   'set_motion_preference',
@@ -84,6 +85,13 @@ export type MotionPreferenceValue = (typeof MOTION_PREFERENCE_VALUES)[number];
 
 export const MASTER_VOLUME_PERCENT_MIN = 0;
 export const MASTER_VOLUME_PERCENT_MAX = 100;
+
+export const AUDIO_CATEGORY_VOLUME_KEYS = [
+  'voice-agent',
+  'website-effects',
+  'chat-read-aloud',
+] as const;
+export type AudioCategoryVolumeKey = (typeof AUDIO_CATEGORY_VOLUME_KEYS)[number];
 
 export const FEEDBACK_CATEGORIES = ['bug', 'idea', 'kudos', 'other'] as const;
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
@@ -176,6 +184,7 @@ export type SiteToolArgsMap = {
   fill_field: { field: VoiceFieldId; value: string };
   set_preference: { key: SitePreferenceKey; enabled: boolean };
   set_master_volume: { percent: number };
+  set_audio_category_volume: { category: AudioCategoryVolumeKey; percent: number };
   set_voice_output: { mode: VoiceOutputMode };
   set_voice_backend: { backend: VoiceBackendMode };
   set_motion_preference: { motion: MotionPreferenceValue };
@@ -243,6 +252,10 @@ export function isVoiceBackendMode(value: unknown): value is VoiceBackendMode {
 
 export function isMotionPreferenceValue(value: unknown): value is MotionPreferenceValue {
   return typeof value === 'string' && (MOTION_PREFERENCE_VALUES as readonly string[]).includes(value);
+}
+
+export function isAudioCategoryVolumeKey(value: unknown): value is AudioCategoryVolumeKey {
+  return typeof value === 'string' && (AUDIO_CATEGORY_VOLUME_KEYS as readonly string[]).includes(value);
 }
 
 export function isFeedbackCategory(value: unknown): value is FeedbackCategory {

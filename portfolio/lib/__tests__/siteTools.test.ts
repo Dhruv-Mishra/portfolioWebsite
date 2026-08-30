@@ -6,6 +6,12 @@ import { executeSiteTool } from '@/lib/siteToolExecutor';
 import { actionFromSiteTool } from '@/lib/siteToolBridge';
 import { hasActionExecution } from '@/lib/actions';
 import {
+  __resetStoreForTest,
+  getAudioCategoryVolumeSync,
+  getSoundsMutedSync,
+  setSoundsMutedImperative,
+} from '@/hooks/useStickers';
+import {
   OPEN_PROJECT_EVENT,
   SEND_CHAT_MESSAGE_EVENT,
   RUN_TERMINAL_COMMAND_EVENT,
@@ -96,6 +102,14 @@ describe('site tool catalog', () => {
     expect(parseSiteToolCall({ name: 'send_chat_message', args: { message: '' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'control_project_video', args: { action: 'seek' } })).toBeNull();
     expect(parseSiteToolCall({ name: 'set_master_volume', args: { percent: 101 } })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'set_audio_category_volume',
+      args: { category: 'voiceAgent', percent: 40 },
+    })).toBeNull();
+    expect(parseSiteToolCall({
+      name: 'set_audio_category_volume',
+      args: { category: 'voice-agent', percent: 101 },
+    })).toBeNull();
   });
 
   it('accepts the expanded typed voice actions', () => {
@@ -161,6 +175,13 @@ describe('site tool catalog', () => {
       args: { percent: 40 },
     })).toMatchObject({ name: 'set_master_volume', args: { percent: 40 } });
     expect(parseSiteToolCall({
+      name: 'set_audio_category_volume',
+      args: { category: 'voice-agent', percent: 40 },
+    })).toMatchObject({
+      name: 'set_audio_category_volume',
+      args: { category: 'voice-agent', percent: 40 },
+    });
+    expect(parseSiteToolCall({
       name: 'browse_history',
       args: { direction: 'back' },
     })).toMatchObject({ name: 'browse_history', args: { direction: 'back' } });
@@ -179,6 +200,7 @@ describe('site tool catalog', () => {
 
 describe('site tool executor hosts', () => {
   afterEach(() => {
+    __resetStoreForTest();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.clearAllMocks();
@@ -192,6 +214,28 @@ describe('site tool executor hosts', () => {
     openFeedback: vi.fn(),
     openProject: vi.fn(),
   };
+
+  it('sets a category volume without changing mute', async () => {
+    setSoundsMutedImperative(true);
+    const cases = [
+      ['voice-agent', 'voiceAgent', 25],
+      ['website-effects', 'siteSfx', 35],
+      ['chat-read-aloud', 'chatTts', 45],
+    ] as const;
+
+    for (const [category, storeCategory, percent] of cases) {
+      await expect(executeSiteTool({
+        id: `volume-${category}`,
+        name: 'set_audio_category_volume',
+        args: { category, percent },
+      }, runtime as never)).resolves.toMatchObject({
+        ok: true,
+        data: { category, percent },
+      });
+      expect(getAudioCategoryVolumeSync(storeCategory)).toBe(percent / 100);
+    }
+    expect(getSoundsMutedSync()).toBe(true);
+  });
 
   it('returns unavailable when chat or terminal hosts are missing', async () => {
     vi.stubGlobal('window', {

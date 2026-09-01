@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { useDiscoActive } from '@/hooks/useStickers';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { scheduleVoiceAssetPrefetch } from '@/lib/assetPrefetch';
 import { useVoiceModeRequest } from '@/lib/voiceModeStore';
 
@@ -97,10 +96,7 @@ export default function VoiceModeController() {
       discoActive,
       openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
       openProject: (slug) => {
-        requestPageTurnNavigation(router, {
-          href: slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects',
-          mode: 'push',
-        });
+        router.push(slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects');
       },
     });
   }, [discoActive, pathname, resolvedTheme, router, runtime, setTheme]);

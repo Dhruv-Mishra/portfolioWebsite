@@ -567,39 +567,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     }
   }
 
-  /* Header/footer tokens live as scroll-container padding so first paint
-     clears hanging tabs / dock, but content can scroll underneath. */
-  .page-turn-layer {
-    height: 100%;
-    min-height: 0;
-  }
-
-  .page-route-shimmer {
-    background: linear-gradient(
-      110deg,
-      color-mix(in srgb, var(--c-ink) 8%, transparent) 8%,
-      color-mix(in srgb, var(--c-ink) 16%, transparent) 18%,
-      color-mix(in srgb, var(--c-ink) 8%, transparent) 30%
-    );
-    background-size: 200% 100%;
-    animation: pageRouteShimmer 1.4s ease-in-out infinite;
-  }
-
-  @keyframes pageRouteShimmer {
-    from { background-position: 120% 0; }
-    to { background-position: -20% 0; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html:not([data-motion="full"]) .page-route-shimmer {
-      animation: none !important;
-    }
-  }
-
-  html[data-motion="reduced"] .page-route-shimmer {
-    animation: none !important;
-  }
-
 }
 
 /* Cursor handling: hide native cursor only after the custom cursor is mounted.
@@ -643,8 +610,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 /* Defer rendering of off-screen content — the browser skips paint for elements outside
    the viewport and paints them just-in-time as they scroll into view.
-   contain-intrinsic-size provides a placeholder height to prevent layout shift.
-   Pairs well with IntersectionObserver-based entrance animations (framer-motion whileInView). */
+  contain-intrinsic-size provides a placeholder height to prevent layout shift. */
 .content-defer {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
@@ -2689,7 +2655,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .animate-nav-tab,
       .animate-social-link,
       .animate-page-sheet,
-      .page-route-shimmer,
       .animate-theme-icon,
       .sketch-tooltip,
       .animate-wall-note-in,
@@ -2722,6 +2687,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     html:not([data-motion="full"]) .animate-page-sheet { transform: translateY(0) !important; }
     html:not([data-motion="full"]) .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
     html:not([data-motion="full"]) .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+    html:not([data-motion="full"]) [data-project-card] { transform: none !important; }
   }
 
   html[data-motion="reduced"][data-disco="on"] body,
@@ -2759,7 +2725,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .animate-nav-tab,
     .animate-social-link,
     .animate-page-sheet,
-    .page-route-shimmer,
     .animate-theme-icon,
     .sketch-tooltip,
     .animate-wall-note-in,
@@ -2791,6 +2756,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
   html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
   html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+  html[data-motion="reduced"] [data-project-card] { transform: none !important; }
 }
 
 /* Master volume range — sketchbook ink track, paper thumb, disco-safe. */

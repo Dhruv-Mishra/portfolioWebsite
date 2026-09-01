@@ -3,7 +3,6 @@
 import { useEffect, useEffectEvent } from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { CHORD_ROUTE_MAP, CHORD_WINDOW_MS } from '@/lib/keybindings';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -49,7 +48,7 @@ export function useGlobalHotkeys({
   enabled = true,
 }: UseGlobalHotkeysArgs): void {
   const navigateTo = useEffectEvent((target: string) => {
-    requestPageTurnNavigation(router, { href: target, mode: 'push' });
+    router.push(target);
   });
   const showShortcuts = useEffectEvent(() => openShortcuts());
   const changeTheme = useEffectEvent(() => toggleTheme());

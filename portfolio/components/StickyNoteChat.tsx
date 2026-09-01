@@ -51,7 +51,6 @@ import { stickerBus } from '@/lib/stickerBus';
 import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 import {
   CLOSE_PROJECT_EVENT,
@@ -1906,7 +1905,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       const dest = action.navigateTo;
       navigationTimeoutRef.current = setTimeout(() => {
         navigationTimeoutRef.current = null;
-        requestPageTurnNavigation(router, { href: dest, mode: 'push' });
+        router.push(dest);
       }, NAVIGATION_DELAY_MS);
     }
   }, [discoActive, externalLink, markOpenUrlsFailed, navigate, openPanel, resolvedTheme, router, selection, setTheme]);
@@ -2207,7 +2206,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     selection();
     soundManager.play('chat-send');
     navigate();
-    requestPageTurnNavigation(router, { href: '/matrix-notes', mode: 'push' });
+    router.push('/matrix-notes');
   }, [navigate, router, selection]);
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present

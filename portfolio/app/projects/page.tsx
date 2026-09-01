@@ -1,20 +1,17 @@
 "use client";
-import { useState, useCallback, useEffect, useSyncExternalStore, type CSSProperties, type MouseEvent } from 'react';
+import { useState, useCallback, useEffect, type CSSProperties, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { m, MotionConfig } from 'framer-motion';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
 import { isProjectSlug } from '@/lib/projectCatalog';
-import { PROJECT_TOKENS, SHADOW_TOKENS, ANIMATION_TOKENS, INTERACTION_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { PROJECT_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { stickerBus } from '@/lib/stickerBus';
 import { recordOpenedProjectImperative } from '@/hooks/useStickers';
-import { getPageTurnSnapshot, getServerPageTurnSnapshot, requestPageTurnNavigation, subscribeToPageTurn } from '@/lib/pageTurn';
 import {
   CLOSE_PROJECT_EVENT,
   OPEN_PROJECT_EVENT,
@@ -31,13 +28,9 @@ const ROTATIONS = PROJECT_TOKENS.rotations;
 const PHOTO_ROTATIONS = PROJECT_TOKENS.photoRotations;
 const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
 const FOLD_SIZE = PROJECT_TOKENS.foldSize;
-const CARD_SHADOW = { boxShadow: SHADOW_TOKENS.card } as const;
-const CARD_SHADOW_MOBILE = { boxShadow: '2px 4px 10px rgba(0,0,0,0.08)' } as const;
-const CARD_SPRING = { duration: ANIMATION_TOKENS.duration.moderate, ease: ANIMATION_TOKENS.easing.easeOut };
-const CARD_HOVER = { ...INTERACTION_TOKENS.hover.card, transition: { type: "spring" as const, ...ANIMATION_TOKENS.spring.gentle } } as const;
-const CARD_TAP = INTERACTION_TOKENS.tap.pressLight;
 const PROJECT_WIGGLE_PERIOD_MS = 1400;
 const PROJECT_CARD_HUE_PERIOD_MS = 6000;
+const CARD_INTERACTION_CLASS = 'relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card shadow-[2px_4px_10px_rgba(0,0,0,0.08)] md:shadow-[5px_5px_15px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out motion-reduce:transition-none md:hover:scale-[1.02] active:scale-[0.92]';
 
 type DiscoCardStyle = CSSProperties & {
     '--disco-motion-delay': string;
@@ -52,9 +45,8 @@ function getIndexedDiscoDelay(index: number, periodMs: number, salt: number): st
     return `-${offsetMs}ms`;
 }
 
-function getCardDiscoStyle(index: number, shadowStyle: CSSProperties): DiscoCardStyle {
+function getCardDiscoStyle(index: number): DiscoCardStyle {
     return {
-        ...shadowStyle,
         '--disco-motion-delay': getIndexedDiscoDelay(index, PROJECT_WIGGLE_PERIOD_MS, 0x2c1b3c6d),
         '--disco-card-delay': getIndexedDiscoDelay(index, PROJECT_CARD_HUE_PERIOD_MS, 0x8f1bbcdc),
     };
@@ -82,12 +74,12 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
     const photoRotate = PHOTO_ROTATIONS[i % 6];
     const tapX = TAPE_POSITIONS[i % 6];
     return {
+        outer: { transform: `rotate(${ROTATIONS[i % 6]}deg)` } as const,
         tape: { left: `${tapX}%`, transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`, ...TAPE_STYLE_DECOR } as const,
         photo: { transform: `rotate(${photoRotate}deg)` } as const,
         clipClass: `absolute -top-4 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm` as const,
         clipStyle: { left: `${CLIP_OFFSETS[i % 7]}px`, transform: `rotate(${CLIP_ROTATIONS[i % 7]}deg)` } as const,
-        cardDesktop: getCardDiscoStyle(i, CARD_SHADOW),
-        cardMobile: getCardDiscoStyle(i, CARD_SHADOW_MOBILE),
+        disco: getCardDiscoStyle(i),
     };
 });
 
@@ -111,13 +103,6 @@ export default function Projects() {
             setHasOpenedProject(true);
         }
     }
-    const isMobile = useIsMobile();
-    const pageTurn = useSyncExternalStore(
-        subscribeToPageTurn,
-        getPageTurnSnapshot,
-        getServerPageTurnSnapshot,
-    );
-    const settleEntrance = isMobile || pageTurn?.direction === 'backward';
     const { closePanel, openPanel } = useAppHaptics();
 
     const openProject = useCallback((index: number) => {
@@ -143,7 +128,7 @@ export default function Projects() {
         closePanel();
         setSelectedProject(null);
         if (querySlug) {
-            requestPageTurnNavigation(router, { href: '/projects', mode: 'replace' });
+            router.replace('/projects');
         }
     }, [closePanel, querySlug, router]);
 
@@ -203,36 +188,22 @@ export default function Projects() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
-                    const rotate = ROTATIONS[i % 6];
                     const styles = CARD_STYLES[i];
                     const hasVideo = proj.video !== null;
 
                     return (
-                        <m.div
+                        <div
                             key={proj.name}
                             className="pt-5"
-                            initial={settleEntrance ? { opacity: 1, y: 0, rotate: rotate } : { opacity: 0, y: 20, rotate: rotate }}
-                            animate={settleEntrance ? { opacity: 1, y: 0, rotate: rotate } : undefined}
-                            whileInView={settleEntrance ? undefined : {
-                                opacity: 1,
-                                y: 0,
-                                rotate: rotate,
-                            }}
-                            viewport={settleEntrance ? undefined : { once: true, margin: PROJECT_TOKENS.viewportMargin }}
-                            transition={settleEntrance ? { duration: 0 } : {
-                                delay: Math.min(i * PROJECT_TOKENS.staggerStep, PROJECT_TOKENS.staggerCap),
-                                ...CARD_SPRING,
-                            }}
+                            style={styles.outer}
                         >
-                        {/* Inner hover/tap layer — honor reduced-motion while keeping normal hover polish. */}
-                        <MotionConfig reducedMotion="user">
-                        <m.div
+                        {/* Inner hover/tap layer — transform-only CSS, reduced-motion-safe. */}
+                        <div
                             data-clickable
+                            data-project-card
                             onClick={(event) => handleCardClick(event, i)}
-                            whileHover={isMobile ? undefined : CARD_HOVER}
-                            whileTap={CARD_TAP}
-                            className="relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card"
-                            style={isMobile ? styles.cardMobile : styles.cardDesktop}
+                            className={CARD_INTERACTION_CLASS}
+                            style={styles.disco}
                         >
                             {/* Realistic Tape (Top Center-ish) */}
                             <div
@@ -352,9 +323,8 @@ export default function Projects() {
                                     </button>
                                 </div>
                             </div>
-                        </m.div>
-                        </MotionConfig>
-                        </m.div>
+                        </div>
+                        </div>
                     );
                 })}
             </div>

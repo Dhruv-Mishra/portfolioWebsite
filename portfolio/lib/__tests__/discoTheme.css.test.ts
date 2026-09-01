@@ -268,11 +268,12 @@ describe('globals.css disco theme', () => {
 
   it('uses hoisted deterministic phase offsets for project cards', () => {
     expect(PROJECTS_PAGE).toMatch(/const CARD_STYLES = PROJECTS\.map/);
-    expect(PROJECTS_PAGE).toMatch(/cardDesktop: getCardDiscoStyle\(i, CARD_SHADOW\)/);
-    expect(PROJECTS_PAGE).toMatch(/cardMobile: getCardDiscoStyle\(i, CARD_SHADOW_MOBILE\)/);
+    expect(PROJECTS_PAGE).toMatch(/disco: getCardDiscoStyle\(i\)/);
     expect(PROJECTS_PAGE).toMatch(/'--disco-motion-delay': getIndexedDiscoDelay\(index, PROJECT_WIGGLE_PERIOD_MS,/);
     expect(PROJECTS_PAGE).toMatch(/'--disco-card-delay': getIndexedDiscoDelay\(index, PROJECT_CARD_HUE_PERIOD_MS,/);
-    expect(PROJECTS_PAGE).toMatch(/style=\{isMobile \? styles\.cardMobile : styles\.cardDesktop\}/);
+    expect(PROJECTS_PAGE).toMatch(/style=\{styles\.disco\}/);
+    expect(PROJECTS_PAGE).not.toMatch(/from\s+['"]framer-motion['"]/);
+    expect(PROJECTS_PAGE).not.toMatch(/useIsMobile|whileInView/);
 
     const helperBlock = PROJECTS_PAGE.match(/function getIndexedDiscoDelay[\s\S]*?\n\}/)?.[0] ?? '';
     expect(helperBlock).not.toMatch(/Math\.random|Date\.now|requestAnimationFrame|setInterval/);

@@ -191,7 +191,7 @@ export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] = [
   {
     name: 'set_preference',
     description:
-      'Flip a boolean settings toggle. Invocation: visitor asks to change sound, haptics, stickers, immersion, speak-by-default, or voice extras. Does not clear chat, enable experimental features, or activate staging.',
+      'Flip a boolean settings toggle. Invocation: visitor asks to change sound, haptics, stickers, speak-by-default, or voice extras. Does not clear chat, enable experimental features, or activate staging.',
     parameters: {
       type: 'object',
       properties: {

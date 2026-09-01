@@ -6,8 +6,8 @@ const source = fs.readFileSync(
   path.join(process.cwd(), 'components', 'SocialSidebar.tsx'),
   'utf8',
 );
-const pageTurnSurface = fs.readFileSync(
-  path.join(process.cwd(), 'components', 'PageTurnSurface.tsx'),
+const routeScrollSurface = fs.readFileSync(
+  path.join(process.cwd(), 'components', 'RouteScrollSurface.tsx'),
   'utf8',
 );
 const sketchbookLayout = fs.readFileSync(
@@ -16,54 +16,19 @@ const sketchbookLayout = fs.readFileSync(
 );
 
 describe('mobile social bar component contract', () => {
-  it('observes the real scroll owner with passive requestAnimationFrame handling', () => {
-    expect(pageTurnSurface.match(/data-route-scroll-container/g)).toHaveLength(1);
+  it('keeps a single route scroller and no scroll inference', () => {
+    expect(routeScrollSurface.match(/data-route-scroll-container/g)).toHaveLength(1);
     expect(sketchbookLayout).toMatch(/id="main-content"[\s\S]*?overflow-hidden/);
     expect(sketchbookLayout).not.toMatch(/id="main-content"[\s\S]*?overflow-y-auto/);
-    expect(source).toContain("document.querySelector<HTMLElement>('[data-route-scroll-container]')");
-    expect(source).toContain("addEventListener('scroll', handleScroll, { passive: true })");
-    expect(source).toContain('requestFrame: window.requestAnimationFrame.bind(window)');
-    expect(source).toContain("removeEventListener('scroll', handleScroll)");
-    expect(source).not.toContain("window.addEventListener('scroll'");
-  });
-
-  it('preserves first-load visibility while route remounts start hidden', () => {
-    expect(source).toContain('const hasHydrated = React.useSyncExternalStore(');
-    expect(source).toContain('<MobileSocialBar key={pathname} initiallyRouteHidden={hasHydrated}>');
-    expect(source).toContain('const [routeHiddenAtMount] = React.useState(() => initiallyRouteHidden);');
-    expect(source).toContain('initiallyRouteHidden: routeHiddenAtMount,');
-  });
-
-  it('keeps direct interaction and focus support outside of the route gate', () => {
-    expect(source).toContain('onPointerDownCapture={reveal}');
-    expect(source).toContain('onFocusCapture={(event) => {');
-    expect(source).toContain("event.target instanceof HTMLElement && event.target.matches(':focus-visible')");
-    expect(source).toContain('controllerRef.current?.setFocusWithin(true);');
-    expect(source).toContain('onBlurCapture={(event) => {');
-    expect(source).not.toContain('aria-hidden={!isVisible}');
-  });
-
-  it('hides immediately for page turns and uses directional one-frame user scroll intent', () => {
-    expect(source).toContain("import { PAGE_TURN_NAVIGATION_EVENT } from '@/lib/pageTurn';");
-    expect(source).toContain('window.addEventListener(PAGE_TURN_NAVIGATION_EVENT, handlePageTurn)');
-    expect(source).toContain('window.removeEventListener(PAGE_TURN_NAVIGATION_EVENT, handlePageTurn)');
-    expect(source).toContain('controller.hideForRouteChange()');
-    expect(source).toContain('const markPageDownIntent = () => {');
-    expect(source).toContain('const clearUserScrollIntent = () => {');
-    expect(source).toContain('window.requestAnimationFrame(() => {');
-    expect(source).toContain('window.cancelAnimationFrame(userScrollIntentFrameRef.current);');
-    expect(source).toContain('if (event.deltaY > 0) markPageDownIntent();');
-    expect(source).toContain('if (clientY < lastTouchClientYRef.current) markPageDownIntent();');
-    expect(source).toContain("['ArrowDown', 'PageDown', 'End'].includes(event.key)");
-    expect(source).toContain("event.key === ' ' && !event.shiftKey");
-    expect(source).toContain("scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true })");
-    expect(source).toContain("scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: true })");
-    expect(source).toContain("scrollContainer.addEventListener('wheel', handleWheel, { passive: true })");
-    expect(source).toMatch(/clearUserScrollIntent\(\);\s*controller\.handleScroll/);
-    expect(source).toContain("scrollContainer.removeEventListener('touchstart', handleTouchStart)");
-    expect(source).toContain("scrollContainer.removeEventListener('touchmove', handleTouchMove)");
-    expect(source).toContain("scrollContainer.removeEventListener('wheel', handleWheel)");
-    expect(source).toContain("window.addEventListener('keydown', handleKeyDown)");
+    expect(source).not.toContain("document.querySelector<HTMLElement>('[data-route-scroll-container]')");
+    expect(source).not.toContain("addEventListener('scroll'");
+    expect(source).not.toContain("addEventListener('touchstart'");
+    expect(source).not.toContain("addEventListener('touchmove'");
+    expect(source).not.toContain("addEventListener('wheel'");
+    expect(source).not.toContain("window.addEventListener('keydown'");
+    expect(source).not.toContain('createMobileSocialBarVisibilityController');
+    expect(source).not.toContain('PAGE_TURN_NAVIGATION_EVENT');
+    expect(source).not.toContain('mobileSocialBarVisibility');
   });
 
   it('keeps the desktop sidebar and chat exclusion intact', () => {
@@ -120,8 +85,8 @@ describe('mobile social bar component contract', () => {
     expect(source).toContain('bg-[var(--c-paper)]/85');
   });
 
-  it('separates manual drawer expansion from scroll visibility with an accessible boundary toggle', () => {
-    expect(source).toContain('const [isDrawerExpanded, setIsDrawerExpanded] = React.useState(true);');
+  it('keeps an accessible explicit expand/collapse control', () => {
+    expect(source).toContain('const [isDrawerExpanded, setIsDrawerExpanded] = React.useState(false);');
     expect(source).toContain('isDrawerExpanded && children');
     expect(source).toContain('onClick={() => setIsDrawerExpanded((isExpanded) => !isExpanded)}');
     expect(source).toContain('id="mobile-social-drawer"');
@@ -143,14 +108,4 @@ describe('mobile social bar component contract', () => {
     expect(source).toContain('<ChevronUp size={14} strokeWidth={2.5} />');
   });
 
-  it('uses a deterministic native transform for drawer visibility without changing layout geometry', () => {
-    expect(source).toContain('data-mobile-social-bar-visible={isVisible');
-    expect(source).toContain("transform: isVisible ? 'translateY(0)' : 'translateY(calc(100% + 4rem))'");
-    expect(source).toContain("transitionProperty: 'transform'");
-    expect(source).toContain("transitionDuration: reducedMotion ? '0ms' : '300ms'");
-    expect(source).toContain("transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)'");
-    expect(source).toContain("pointerEvents: isVisible ? 'auto' : 'none'");
-    expect(source).not.toMatch(/<m\.div[\s\S]*?id=\"mobile-social-drawer\"/);
-    expect(source).not.toMatch(/id=\"mobile-social-drawer\"[\s\S]*?\banimate=/);
-  });
 });

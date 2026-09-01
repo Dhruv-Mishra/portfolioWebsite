@@ -8,12 +8,16 @@ const navigation = fs.readFileSync(
 );
 
 describe('navigation pending destination contract', () => {
-  it('activates tabs from the live page-turn destination when one exists', () => {
-    expect(navigation).toContain('subscribeToPageTurn');
-    expect(navigation).toContain('getPageTurnSnapshot');
-    expect(navigation).toContain('getServerPageTurnSnapshot');
-    expect(navigation).toContain('useSyncExternalStore(');
-    expect(navigation).toContain('const visualPath = transition?.toPath ?? pathname');
-    expect(navigation).toContain('active={visualPath === item.href}');
+  it('activates tabs from the live pathname and warms other routes after a stable delay', () => {
+    expect(navigation).not.toContain('subscribeToPageTurn');
+    expect(navigation).not.toContain('getPageTurnSnapshot');
+    expect(navigation).not.toContain('getServerPageTurnSnapshot');
+    expect(navigation).not.toContain('useSyncExternalStore(');
+    expect(navigation).toContain('prefetch={false}');
+    expect(navigation).not.toContain('prefetch={item.prefetch}');
+    expect(navigation).toContain('canWarmNoncriticalAssets');
+    expect(navigation).toContain('router.prefetch');
+    expect(navigation).toContain('3000');
+    expect(navigation).toContain('active={pathname === item.href}');
   });
 });

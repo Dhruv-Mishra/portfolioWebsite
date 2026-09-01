@@ -2,7 +2,6 @@
 
 import React, { Component, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -20,7 +19,7 @@ function ErrorBoundaryHomeButton() {
   return (
     <button
       type="button"
-      onClick={() => requestPageTurnNavigation(router, { href: '/', mode: 'push' })}
+      onClick={() => router.push('/')}
       className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
     >
       Go Back Home

@@ -2,7 +2,6 @@ import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
 import { APP_VERSION } from "@/lib/constants";
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
@@ -267,26 +266,26 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     }),
     projects: () => ({
         output: "Navigating to projects...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/projects', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/projects'), NAVIGATION_DELAY_MS); }
     }),
     guestbook: () => ({
         output: "Navigating to the wall...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/guestbook', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/guestbook'), NAVIGATION_DELAY_MS); }
     }),
     sign: () => ({
         output: "Navigating to the wall...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/guestbook', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/guestbook'), NAVIGATION_DELAY_MS); }
     }),
     settings: () => ({
         output: "Opening site settings...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/settings', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/settings'), NAVIGATION_DELAY_MS); }
     }),
     stickers: (args: string[]) => {
         const sub = (args[0] ?? '').toLowerCase();
         if (!sub) {
             return {
                 output: "Opening sticker drawer...",
-                action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/stickers', mode: 'push' }), NAVIGATION_DELAY_MS); }
+                action: () => { setTimeout(() => router.push('/stickers'), NAVIGATION_DELAY_MS); }
             };
         }
         if (sub === 'off') {
@@ -323,15 +322,15 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     resume: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/resume', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
     }),
     cv: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/resume', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
     }),
     chat: () => ({
         output: "Navigating to chat...",
-        action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: '/chat', mode: 'push' }), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/chat'), NAVIGATION_DELAY_MS); }
     }),
     socials: () => ({
         output: (
@@ -460,7 +459,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             "cropio.md": { output: "Opening projects...", route: "/projects" },
         };
         const entry = openable[file];
-        if (entry) return { output: entry.output, action: () => { setTimeout(() => requestPageTurnNavigation(router, { href: entry.route, mode: 'push' }), NAVIGATION_DELAY_MS); } };
+        if (entry) return { output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
     whoami: () => ({ output: "visitor@dhruvs.portfolio" }),

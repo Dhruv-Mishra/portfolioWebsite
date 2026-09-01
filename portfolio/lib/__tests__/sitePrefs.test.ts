@@ -58,34 +58,6 @@ describe('site preference migration and facade', () => {
     },
   );
 
-  it.each([
-    ['absent storage', null],
-    ['a missing immersion preference', JSON.stringify({ version: 5 })],
-    ['an invalid immersion preference', JSON.stringify({ version: 5, enhanceImmersion: 'yes' })],
-  ])('defaults immersion off for %s', async (_scenario, storedValue) => {
-    if (storedValue !== null) storage.setItem(STORAGE_KEY, storedValue);
-
-    const site = await import('@/hooks/useSitePrefs');
-
-    expect(site.getSitePrefsSnapshot().enhanceImmersion).toBe(false);
-  });
-
-  it('persists an explicit immersion opt-in and rejects an invalid storage event value', async () => {
-    const site = await import('@/hooks/useSitePrefs');
-    expect(site.setSitePref('enhanceImmersion', true)).toBe(true);
-    expect(site.getSitePrefsSnapshot().enhanceImmersion).toBe(true);
-    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({
-      enhanceImmersion: true,
-    });
-
-    storageHandler?.({
-      key: STORAGE_KEY,
-      newValue: JSON.stringify({ enhanceImmersion: 'true' }),
-    } as StorageEvent);
-
-    expect(site.getSitePrefsSnapshot().enhanceImmersion).toBe(false);
-  });
-
   it('migrates v2 values and defaults malformed or missing current fields safely', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify({
       version: 2,
@@ -140,14 +112,12 @@ describe('site preference migration and facade', () => {
       newValue: JSON.stringify({
         motionPreference: 'reduced',
         hapticsEnabled: false,
-        enhanceImmersion: true,
       }),
     } as StorageEvent);
 
     expect(internal.getAdminPrefsSnapshot()).toMatchObject({
       motionPreference: 'reduced',
       hapticsEnabled: false,
-      enhanceImmersion: true,
     });
   });
 

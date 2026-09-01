@@ -29,7 +29,7 @@ describe('Projects modal interaction contract', () => {
   });
 
   it('keeps query opening, event opening, and close as top-level hooks', () => {
-    expect(projectsPage).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedProject\(null\);\s*if \(querySlug\) \{\s*requestPageTurnNavigation\(router, \{ href: '\/projects', mode: 'replace' \}\);\s*\}\s*\}, \[closePanel, querySlug, router\]\);/);
+    expect(projectsPage).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedProject\(null\);\s*if \(querySlug\) \{\s*router\.replace\('\/projects'\);\s*\}\s*\}, \[closePanel, querySlug, router\]\);/);
     expect(projectsPage).toContain('CLOSE_PROJECT_EVENT');
     expect(projectsPage).toContain('readProjectSlugFromSearch');
     expect(projectsPage).toMatch(/if \(querySlug !== appliedQuerySlug\)/);

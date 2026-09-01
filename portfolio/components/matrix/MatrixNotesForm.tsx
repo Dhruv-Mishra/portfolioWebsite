@@ -32,7 +32,6 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { GUESTBOOK_LIMITS } from '@/lib/designTokens';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import type {
   GuestbookErrorResponse,
   GuestbookSubmitResponse,
@@ -158,7 +157,7 @@ export default function MatrixNotesForm({
             // when it's called inside an async handler. `router.push` uses
             // the Next.js client navigation which isn't subject to that
             // heuristic.
-            requestPageTurnNavigation(router, { href: '/', mode: 'push' });
+            router.push('/');
           }, 1600);
         } else {
           successResetTimerRef.current = setTimeout(() => {

@@ -1,29 +1,23 @@
 "use client";
-import React, { useCallback, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { canWarmNoncriticalAssets } from '@/lib/assetPrefetch';
 import { useAppHaptics } from '@/lib/haptics';
-import {
-  getPageTurnSnapshot,
-  getServerPageTurnSnapshot,
-  subscribeToPageTurn,
-} from '@/lib/pageTurn';
+import { canWarmNoncriticalAssets } from '@/lib/assetPrefetch';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
 interface NavItem {
     name: string;
     href: string;
-    prefetch?: false;
 }
 
 const LINKS: NavItem[] = [
     { name: 'Home', href: '/' },
-    { name: 'Projects', href: '/projects', prefetch: false },
+    { name: 'Projects', href: '/projects' },
     { name: 'About', href: '/about' },
-    { name: 'Resume', href: '/resume', prefetch: false },
-    { name: 'Chat', href: '/chat', prefetch: false },
+    { name: 'Resume', href: '/resume' },
+    { name: 'Chat', href: '/chat' },
 ];
 
 const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
@@ -31,28 +25,83 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
 
-function shouldIntentPrefetch() {
-    return canWarmNoncriticalAssets();
-}
-
 export default function Navigation() {
     const pathname = usePathname();
     const router = useRouter();
     const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
-    const transition = useSyncExternalStore(
-        subscribeToPageTurn,
-        getPageTurnSnapshot,
-        getServerPageTurnSnapshot,
-    );
-    const visualPath = transition?.toPath ?? pathname;
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
     const onHoverEnd = useCallback(() => setHoveredTab(null), []);
-    const onIntentPrefetch = useCallback((href: string) => {
-        if (!shouldIntentPrefetch()) return;
-        router.prefetch(href);
-    }, [router]);
+
+    // Default Link prefetch would fetch every visible tab at once. After the
+    // current route is stable, warm the other nav routes one idle window at a time.
+    useEffect(() => {
+        let cancelled = false;
+        let stableTimer: number | undefined;
+        let gapTimer: number | undefined;
+        let idleId: number | undefined;
+
+        const cancelIdle = () => {
+            if (idleId === undefined) return;
+            const w = window as Window & { cancelIdleCallback?: (id: number) => void };
+            w.cancelIdleCallback?.(idleId);
+            idleId = undefined;
+        };
+
+        const clearPending = () => {
+            if (stableTimer !== undefined) window.clearTimeout(stableTimer);
+            if (gapTimer !== undefined) window.clearTimeout(gapTimer);
+            cancelIdle();
+            stableTimer = undefined;
+            gapTimer = undefined;
+        };
+
+        const scheduleIdle = (cb: () => void) => {
+            const w = window as Window & {
+                requestIdleCallback?: (cb: () => void) => number;
+            };
+            // No idle timeout: a deadline can fire during active scrolling.
+            if (typeof w.requestIdleCallback === 'function') {
+                idleId = w.requestIdleCallback(() => {
+                    idleId = undefined;
+                    cb();
+                });
+                return;
+            }
+            gapTimer = window.setTimeout(() => {
+                gapTimer = undefined;
+                cb();
+            }, 1000);
+        };
+
+        const warmup = (index: number, hrefs: string[]) => {
+            if (cancelled || index >= hrefs.length) return;
+            scheduleIdle(() => {
+                if (cancelled || !canWarmNoncriticalAssets()) return;
+                router.prefetch(hrefs[index]);
+                if (index + 1 >= hrefs.length) return;
+                gapTimer = window.setTimeout(() => {
+                    gapTimer = undefined;
+                    warmup(index + 1, hrefs);
+                }, 1000);
+            });
+        };
+
+        stableTimer = window.setTimeout(() => {
+            stableTimer = undefined;
+            if (cancelled || !canWarmNoncriticalAssets()) return;
+            warmup(
+                0,
+                LINKS.map((item) => item.href).filter((href) => href !== pathname),
+            );
+        }, 3000);
+
+        return () => {
+            cancelled = true;
+            clearPending();
+        };
+    }, [pathname, router]);
 
     return (
         <nav
@@ -65,11 +114,10 @@ export default function Navigation() {
                     key={item.name}
                     item={item}
                     index={i}
-                    active={visualPath === item.href}
+                    active={pathname === item.href}
                     hovered={hoveredTab === item.name}
                     onHoverStart={onHoverStart}
                     onHoverEnd={onHoverEnd}
-                    onIntentPrefetch={onIntentPrefetch}
                     onPress={navigate}
                 />
             ))}
@@ -85,7 +133,6 @@ const NavTab = React.memo(function NavTab({
     hovered,
     onHoverStart,
     onHoverEnd,
-    onIntentPrefetch,
     onPress,
 }: {
     item: NavItem;
@@ -94,7 +141,6 @@ const NavTab = React.memo(function NavTab({
     hovered: boolean;
     onHoverStart: (name: string) => void;
     onHoverEnd: () => void;
-    onIntentPrefetch: (href: string) => void;
     onPress: () => void;
 }) {
     const colorKey = COLOR_ORDER[index % COLOR_ORDER.length];
@@ -104,12 +150,8 @@ const NavTab = React.memo(function NavTab({
     return (
         <Link
             href={item.href}
-            prefetch={item.prefetch}
-            legacyBehavior={false}
-            passHref
+            prefetch={false}
             onClick={onPress}
-            onFocus={() => onIntentPrefetch(item.href)}
-            onTouchStart={() => onIntentPrefetch(item.href)}
             // Focus-visible ring lives on the anchor (the natural focus target)
             // rather than the inner clip-pathed div, so the ring is never cut
             // off by the tab's jagged bottom edge and keyboard users can reach
@@ -118,10 +160,7 @@ const NavTab = React.memo(function NavTab({
             {...(active ? { 'aria-current': 'page' as const } : {})}
         >
             <div
-                onMouseEnter={() => {
-                    onHoverStart(item.name);
-                    onIntentPrefetch(item.href);
-                }}
+                onMouseEnter={() => onHoverStart(item.name)}
                 onMouseLeave={onHoverEnd}
                 className={cn(
                     `animate-nav-tab animate-nav-tab-${index + 1}`,

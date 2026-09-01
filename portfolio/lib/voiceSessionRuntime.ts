@@ -2,7 +2,6 @@
 
 import { executeSiteTool, type SiteToolRuntime } from '@/lib/siteToolExecutor';
 import { createGeminiLiveCaller } from '@/lib/geminiLiveAdapter';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import {
   isSiteActionHostReady,
   readProjectSlugFromSearch,
@@ -832,10 +831,7 @@ function requireHostRuntime(): SiteToolRuntime {
     },
     openProject: (slug) => {
       if (!hostRuntime) return;
-      requestPageTurnNavigation(hostRuntime.router, {
-        href: slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects',
-        mode: 'push',
-      });
+      hostRuntime.router.push(slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects');
     },
   };
 }

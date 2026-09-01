@@ -1,7 +1,6 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { setSitePref, type SitePrefKey } from '@/hooks/useSitePrefs';
 import { setSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import {
   APPROVED_LINKS,
   type AudioCategoryVolumeKey,
@@ -64,7 +63,6 @@ export interface ExecuteSiteToolOptions {
 
 const PREF_KEY_MAP: Partial<Record<string, SitePrefKey>> = {
   haptics: 'hapticsEnabled',
-  'enhance-immersion': 'enhanceImmersion',
   stickers: 'stickersEnabled',
   'sticker-toasts': 'stickerToastsEnabled',
   'paper-grain': 'paperGrain',
@@ -189,7 +187,7 @@ export async function executeSiteTool(
         return withVoicePageContext(ok("You're already here."), current);
       }
       if (commit) {
-        requestPageTurnNavigation(runtime.router, { href: parsed.args.path, mode: 'push' });
+        runtime.router.push(parsed.args.path);
       }
       return withVoicePageContext(
         ok('Taking you there.'),
@@ -250,7 +248,7 @@ export async function executeSiteTool(
             pageContext,
           );
         }
-        requestPageTurnNavigation(runtime.router, { href: buildProjectHref(slug), mode: 'push' });
+        runtime.router.push(buildProjectHref(slug));
       }
       return withVoicePageContext(
         ok('Opening that project.', {
@@ -306,7 +304,7 @@ export async function executeSiteTool(
       if (commit) {
         const handled = requestOpenChat();
         if (!handled) {
-          requestPageTurnNavigation(runtime.router, { href: '/chat', mode: 'push' });
+          runtime.router.push('/chat');
         }
       }
       return ok('Opening chat.', { nextAction: 'Want me to send a note once chat is ready?' });

@@ -138,7 +138,7 @@ export default function About() {
                                 💬 Reach out: <a href={PERSONAL_LINKS.email} className="bg-red-200 hover:bg-red-300 px-1.5 py-0.5 rounded text-red-800 transition-[background-color,transform] inline-block max-w-full break-all align-baseline hover:-rotate-2">dhruvmishra.id@gmail.com</a> • <a href={PERSONAL_LINKS.phone} className="bg-green-200 hover:bg-green-300 px-1.5 py-0.5 rounded text-green-800 transition-[background-color,transform] inline-block max-w-full break-all align-baseline hover:-rotate-2">+91-9599377944</a>
                             </p>
                             <p className="text-base md:text-lg text-gray-600 mt-2 italic">
-                                📄 For more details, check out my <a href="/resume" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-[background-color,transform] inline-block hover:-rotate-2">resume</a>.
+                                📄 For more details, check out my <Link href="/resume" prefetch={false} className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 font-semibold not-italic transition-[background-color,transform] inline-block hover:-rotate-2">resume</Link>.
                             </p>
                         </div>
 

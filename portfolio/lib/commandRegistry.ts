@@ -29,7 +29,6 @@ import {
   AudioLines,
 } from 'lucide-react';
 import { PERSONAL_LINKS } from '@/lib/links';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import { runThemeToggle } from '@/lib/themeToggleAction';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 
@@ -74,7 +73,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g h',
       icon: Home,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/'),
     },
     {
       id: 'nav-projects',
@@ -83,7 +82,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g p',
       icon: FolderKanban,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/projects', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/projects'),
     },
     {
       id: 'nav-about',
@@ -92,7 +91,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g a',
       icon: User,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/about', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/about'),
     },
     {
       id: 'nav-resume',
@@ -101,7 +100,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g r',
       icon: FileText,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/resume', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/resume'),
     },
     {
       id: 'nav-chat',
@@ -110,7 +109,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g c',
       icon: MessageCircle,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/chat', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/chat'),
     },
     {
       id: 'nav-guestbook',
@@ -119,7 +118,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g b',
       icon: Pencil,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/guestbook', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/guestbook'),
     },
     {
       id: 'nav-stickers',
@@ -128,7 +127,7 @@ export function buildCommandEntries(): CommandEntry[] {
       group: 'Navigation',
       keyboardHint: 'g s',
       icon: Sticker,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/stickers', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/stickers'),
     },
     {
       id: 'nav-settings',
@@ -136,7 +135,7 @@ export function buildCommandEntries(): CommandEntry[] {
       keywords: ['settings', 'preferences', 'accessibility', 'sound', 'motion', 'theme'],
       group: 'Navigation',
       icon: Settings,
-      run: (ctx) => requestPageTurnNavigation(ctx.router, { href: '/settings', mode: 'push' }),
+      run: (ctx) => ctx.router.push('/settings'),
     },
 
     // ── Actions ─────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { LAYOUT_TOKENS } from "@/lib/designTokens";
@@ -14,9 +14,13 @@ const MatrixNotesEntryButton = dynamic(() => import("@/components/matrix/MatrixN
 const EscapeToastListener = dynamic(() => import("@/components/matrix/EscapeToastListener"), { ssr: false });
 const AssetPrefetchController = dynamic(() => import("@/components/AssetPrefetchController"), { ssr: false });
 
+const ROUTE_STABILITY_DELAY_MS = 600;
+const INTER_STAGE_YIELD_MS = 150;
+
 export default function DeferredEnhancements() {
     const pathname = usePathname();
     const [mountStage, setMountStage] = useState(0);
+    const mountedStageRef = useRef(0);
     const [isDesktop, setIsDesktop] = useState(false);
 
     useEffect(() => {
@@ -24,32 +28,51 @@ export default function DeferredEnhancements() {
             requestIdleCallback?: typeof window.requestIdleCallback;
             cancelIdleCallback?: typeof window.cancelIdleCallback;
         };
-        const timers = new Set<number>();
-        const idleIds = new Set<number>();
-        const schedule = (stage: number, delay: number, timeout: number) => {
-            const run = () => setMountStage((current) => Math.max(current, stage));
+        let cancelled = false;
+        let stabilityTimer: number | undefined;
+        let yieldTimer: number | undefined;
+        let idleId: number | undefined;
+
+        const scheduleNextStage = () => {
+            const stage = mountedStageRef.current + 1;
+            if (cancelled || stage > 3) return;
+
+            const mountNextStage = () => {
+                idleId = undefined;
+                yieldTimer = undefined;
+                if (cancelled) return;
+
+                mountedStageRef.current = stage;
+                setMountStage((current) => Math.max(current, stage));
+
+                if (stage < 3) {
+                    yieldTimer = runtimeWindow.setTimeout(() => {
+                        yieldTimer = undefined;
+                        scheduleNextStage();
+                    }, INTER_STAGE_YIELD_MS);
+                }
+            };
+
             if (runtimeWindow.requestIdleCallback) {
-                const timerId = runtimeWindow.setTimeout(() => {
-                    timers.delete(timerId);
-                    const idleId = runtimeWindow.requestIdleCallback?.(run, { timeout });
-                    if (idleId !== undefined) idleIds.add(idleId);
-                }, delay);
-                timers.add(timerId);
+                idleId = runtimeWindow.requestIdleCallback(mountNextStage);
                 return;
             }
-            const timerId = runtimeWindow.setTimeout(run, delay);
-            timers.add(timerId);
+
+            yieldTimer = runtimeWindow.setTimeout(mountNextStage, INTER_STAGE_YIELD_MS);
         };
 
-        schedule(1, 450, 900);
-        schedule(2, 900, 1600);
-        schedule(3, 1400, 2400);
+        stabilityTimer = runtimeWindow.setTimeout(() => {
+            stabilityTimer = undefined;
+            scheduleNextStage();
+        }, ROUTE_STABILITY_DELAY_MS);
 
         return () => {
-            idleIds.forEach((idleId) => runtimeWindow.cancelIdleCallback?.(idleId));
-            timers.forEach((timerId) => runtimeWindow.clearTimeout(timerId));
+            cancelled = true;
+            if (stabilityTimer !== undefined) runtimeWindow.clearTimeout(stabilityTimer);
+            if (yieldTimer !== undefined) runtimeWindow.clearTimeout(yieldTimer);
+            if (idleId !== undefined) runtimeWindow.cancelIdleCallback?.(idleId);
         };
-    }, []);
+    }, [pathname]);
 
     useEffect(() => {
         const mediaQuery = window.matchMedia(`(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px)`);

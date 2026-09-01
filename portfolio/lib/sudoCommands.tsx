@@ -34,7 +34,6 @@ import {
 } from '@/lib/matrixPuzzle';
 import { setActivePrompt, type TerminalPrompt } from '@/lib/terminalPrompts';
 import { unlockAdmin } from '@/lib/adminAuthClient';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 import TerminalDecryptBar from '@/components/TerminalDecryptBar';
 import { beginMatrixNotesEscape } from '@/app/matrix-notes/actions';
 
@@ -690,7 +689,7 @@ function buildAdminPasswordPrompt(username: string, router: AppRouterInstance | 
       // Navigate — give the message a beat to be read before we route.
       if (router) {
         setTimeout(() => {
-          requestPageTurnNavigation(router, { href: '/admin', mode: 'push' });
+          router.push('/admin');
         }, 600);
       }
       return {

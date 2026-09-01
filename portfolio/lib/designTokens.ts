@@ -316,9 +316,6 @@ export const PROJECT_TOKENS = {
   photoRotations: [-3, 2, -2, 3, -1, 2],
   tapePositions: [40, 60, 30, 70, 50, 45],
   foldSize: 30,
-  staggerCap: 0.15,
-  staggerStep: 0.03,
-  viewportMargin: '-50px',
 } as const;
 
 /** Note rotation config */

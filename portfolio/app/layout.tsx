@@ -3,7 +3,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
 import Navigation from "@/components/Navigation";
-import PageTurnSurface from "@/components/PageTurnSurface";
+import RouteScrollSurface from "@/components/RouteScrollSurface";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 // Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
@@ -190,7 +190,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <SketchbookLayout>
               <Navigation />
-              <PageTurnSurface>{children}</PageTurnSurface>
+              <RouteScrollSurface>{children}</RouteScrollSurface>
             </SketchbookLayout>
             <EagerEnhancements />
             <DeferredEnhancements />

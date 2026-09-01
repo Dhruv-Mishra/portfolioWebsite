@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { reportError } from '@/lib/errorReporting';
-import { requestPageTurnNavigation } from '@/lib/pageTurn';
 
 export default function Error({
   error,
@@ -66,7 +65,7 @@ export default function Error({
             
             <button
               type="button"
-              onClick={() => requestPageTurnNavigation(router, { href: '/', mode: 'push' })}
+              onClick={() => router.push('/')}
               className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
             >
               Go Home

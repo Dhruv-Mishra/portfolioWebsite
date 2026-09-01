@@ -60,4 +60,19 @@ describe('desktop context menu contract', () => {
       cursorSource.indexOf('const renderTrail = () =>'),
     );
   });
+
+  it('runs a self-stopping rAF cursor without Framer, using performance.now', () => {
+    expect(cursorSource).not.toMatch(/from\s+['"]framer-motion['"]/);
+    expect(cursorSource).toContain('useEffectiveReducedMotion()');
+    expect(cursorSource).toContain('if (!canUseCustomCursor || reducedMotion) return;');
+    expect(cursorSource).toContain('let lastMoveTime = performance.now()');
+    expect(cursorSource).toContain('applyPointerMove(now)');
+    expect(cursorSource.indexOf('applyPointerMove(now)')).toBeGreaterThan(
+      cursorSource.indexOf('const renderTrail = () =>'),
+    );
+    expect(cursorSource).toContain('now - lastMoveTime > TIMING_TOKENS.cursorIdleThreshold');
+    expect(cursorSource).toContain('if (rafId === 0)');
+    expect(cursorSource).toContain('wakeLoop()');
+    expect(cursorSource).not.toMatch(/applyCursorStyle\(\);\s*wakeLoop\(\)/);
+  });
 });

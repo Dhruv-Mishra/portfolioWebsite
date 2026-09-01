@@ -508,12 +508,6 @@ export default function SettingsPanel() {
           <p className="font-hand text-sm text-[var(--c-ink)]/55">
             Always animate overrides your device&apos;s reduced-motion preference.
           </p>
-          <SettingToggle
-            label="Enhance Immersion"
-            detail="Use page turns between pages."
-            checked={prefs.enhanceImmersion}
-            onChange={(checked) => setBooleanPref('enhanceImmersion', checked)}
-          />
         </SettingsGroup>
 
         <SettingsGroup title="Stickers" icon={Sticker}>

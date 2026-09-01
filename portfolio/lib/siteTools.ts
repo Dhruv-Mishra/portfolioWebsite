@@ -49,7 +49,6 @@ export type VoiceFieldId = (typeof VOICE_FIELD_IDS)[number];
 export const SITE_PREFERENCE_KEYS = [
   'sound-effects',
   'haptics',
-  'enhance-immersion',
   'stickers',
   'sticker-toasts',
   'paper-grain',

@@ -24,6 +24,7 @@ import {
   requestOpenProject,
   requestOpenFeedback,
   requestOpenShortcuts,
+  requestNextDiscoTrack,
   requestProjectVideoControl,
   requestRunTerminalCommand,
   requestSendChatMessage,
@@ -440,6 +441,17 @@ export async function executeSiteTool(
     case 'end_voice_session':
       if (commit) requestVoiceModeExit(parsed.args.reason ?? 'user');
       return ok('Leaving voice mode.');
+    case 'next_disco_track': {
+      if (!liveDiscoActive(runtime)) {
+        return fail('Disco is not on right now.', 'disco-inactive');
+      }
+      if (!commit) return ok('Skipping to the next disco track.');
+      const hosted = requestNextDiscoTrack();
+      return resolveHostedResult(
+        hosted,
+        fail('Disco track controls are not ready.', 'disco-track-unavailable'),
+      );
+    }
     default:
       return fail('That tool is not available.', 'unknown-tool');
   }

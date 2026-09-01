@@ -30,6 +30,7 @@ export const SITE_TOOL_NAMES = [
   'get_current_page_context',
   'start_voice_session',
   'end_voice_session',
+  'next_disco_track',
 ] as const;
 
 export type SiteToolName = (typeof SITE_TOOL_NAMES)[number];
@@ -193,6 +194,7 @@ export type SiteToolArgsMap = {
   get_current_page_context: Record<string, never>;
   start_voice_session: Record<string, never>;
   end_voice_session: { reason?: 'user' | 'health' | 'error' };
+  next_disco_track: Record<string, never>;
 };
 
 export type SiteToolCall = {

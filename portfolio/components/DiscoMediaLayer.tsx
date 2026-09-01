@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { SkipForward } from 'lucide-react';
 import { useAppHaptics } from '@/lib/haptics';
@@ -11,6 +11,11 @@ import {
 } from '@/lib/discoPlayback';
 import { startDiscoHaptics, stopDiscoHaptics } from '@/lib/discoHaptics';
 import { Z_INDEX } from '@/lib/designTokens';
+import {
+  NEXT_DISCO_TRACK_EVENT,
+  attachSiteActionResult,
+} from '@/lib/siteActionEvents';
+import type { SiteToolResult } from '@/lib/siteTools';
 
 const DiscoSparkleCanvas = dynamic(() => import('./DiscoSparkleCanvas'), { ssr: false, loading: () => null });
 const DiscoSpotlights = dynamic(() => import('./DiscoSpotlights'), { ssr: false, loading: () => null });
@@ -41,19 +46,48 @@ const DiscoTrackControl = memo(function DiscoTrackControl(): React.ReactElement 
     };
   }, []);
 
-  const handleNext = (): void => {
+  const advanceTrack = useCallback((): Promise<SiteToolResult> => {
     const playback = playbackRef.current;
-    if (!playback) return;
+    if (!playback) {
+      return Promise.resolve({
+        ok: false,
+        spokenText: 'Disco track controls are not ready.',
+        errorCode: 'disco-track-unavailable',
+      });
+    }
 
     const uiRequest = ++uiRequestRef.current;
     const next = playback.next();
     setSwitching(true);
-    void next.done.then((didSwitch) => {
+    return next.done.then((didSwitch) => {
       if (uiRequest === uiRequestRef.current && didSwitch) setTrack(next.track);
+      if (!didSwitch) {
+        return {
+          ok: false,
+          spokenText: 'I could not skip that disco track.',
+          errorCode: 'disco-track-unavailable',
+        };
+      }
+      return {
+        ok: true,
+        spokenText: `Now playing ${next.track.label}.`,
+        data: { track: next.track.label },
+      };
     }).finally(() => {
       if (uiRequest === uiRequestRef.current) setSwitching(false);
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const handler = (raw: Event) => {
+      if (raw.defaultPrevented) return;
+      attachSiteActionResult(raw, advanceTrack());
+    };
+    window.addEventListener(NEXT_DISCO_TRACK_EVENT, handler);
+    return () => {
+      window.removeEventListener(NEXT_DISCO_TRACK_EVENT, handler);
+    };
+  }, [advanceTrack]);
 
   const trackNumber = DISCO_TRACKS.indexOf(track) + 1;
 
@@ -71,7 +105,7 @@ const DiscoTrackControl = memo(function DiscoTrackControl(): React.ReactElement 
       </div>
       <button
         type="button"
-        onClick={handleNext}
+        onClick={() => { void advanceTrack(); }}
         className="grid size-11 shrink-0 place-items-center rounded text-[var(--c-ink)] transition-colors hover:bg-[var(--c-grid)]/15 active:bg-[var(--c-grid)]/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-highlight)]"
         aria-label={`Next disco track. Current track: ${track.label}`}
         title="Next track"

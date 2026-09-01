@@ -330,6 +330,12 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
       },
     },
   },
+  next_disco_track: {
+    name: 'next_disco_track',
+    description:
+      'Skip to the next disco track only when the visitor asks to skip, change, or advance the currently playing disco song.',
+    parameters: { type: 'object', properties: {} },
+  },
 };
 
 export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] =

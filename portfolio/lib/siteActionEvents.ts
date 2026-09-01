@@ -15,6 +15,7 @@ export const SUBMIT_FEEDBACK_EVENT = 'voice-submit-feedback';
 export const OPEN_CHAT_EVENT = 'open-chat';
 export const OPEN_SHORTCUTS_EVENT = 'open-shortcuts';
 export const OPEN_FEEDBACK_EVENT = 'open-feedback';
+export const NEXT_DISCO_TRACK_EVENT = 'voice-next-disco-track';
 
 export const PROJECT_OPEN_QUERY_KEY = 'project';
 
@@ -139,6 +140,10 @@ export function requestOpenShortcuts(): void {
 export function requestOpenFeedback(): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(OPEN_FEEDBACK_EVENT));
+}
+
+export function requestNextDiscoTrack(): SiteActionHostResult {
+  return dispatchCancellable(NEXT_DISCO_TRACK_EVENT, {});
 }
 
 export function browseHistory(direction: BrowseHistoryDirection): SiteToolResult {

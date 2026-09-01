@@ -1873,11 +1873,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           setTheme,
           resolvedTheme,
           discoActive,
-          openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
-          openProject: slug => {
-            setProjectModalLoaded(true);
-            setSelectedProjectSlug(slug as ProjectSlug);
-          },
         });
       });
     }

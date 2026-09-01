@@ -223,6 +223,8 @@ describe('chat route provider payload mapping', () => {
       content: assistantContent,
     });
     expect(providerAssistantMessage && 'action' in providerAssistantMessage).toBe(false);
+    expect(payload).not.toHaveProperty('tools');
+    expect(payload).not.toHaveProperty('tool_choice');
     expect(groqCreateMock.mock.calls[0]?.[0]).toMatchObject({
       max_completion_tokens: 384,
       temperature: 0.6,
@@ -238,7 +240,7 @@ describe('chat route provider payload mapping', () => {
       return rejectWhenAborted(options.signal);
     });
 
-    const fallbackCreateMock = vi.fn(async () => ({
+    const fallbackCreateMock = vi.fn<GroqCreate>(async () => ({
       choices: [{ message: { content: 'fallback reply' } }],
     }));
     createProviderClientMock.mockReturnValue({
@@ -253,6 +255,9 @@ describe('chat route provider payload mapping', () => {
     const response = await responsePromise;
 
     expect(fallbackCreateMock).toHaveBeenCalledTimes(1);
+    const fallbackPayload = fallbackCreateMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(fallbackPayload).not.toHaveProperty('tools');
+    expect(fallbackPayload).not.toHaveProperty('tool_choice');
     expect(response.headers.get('X-Chat-Fallback')).toBe('legacy');
     await expect(response.json()).resolves.toMatchObject({ reply: 'fallback reply.' });
   });
@@ -265,7 +270,7 @@ describe('chat route provider payload mapping', () => {
     });
     groqCreateMock.mockRejectedValue(new Error('Groq unavailable'));
 
-    const nvidiaCreateMock = vi.fn(async () => createNvidiaStream('NVIDIA fallback reply'));
+    const nvidiaCreateMock = vi.fn<NvidiaStreamCreate>(async () => createNvidiaStream('NVIDIA fallback reply'));
     const legacyCreateMock = vi.fn(async () => ({
       choices: [{ message: { content: 'legacy fallback reply' } }],
     }));
@@ -281,6 +286,9 @@ describe('chat route provider payload mapping', () => {
 
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
     expect(legacyCreateMock).not.toHaveBeenCalled();
+    const nvidiaPayload = nvidiaCreateMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(nvidiaPayload).not.toHaveProperty('tools');
+    expect(nvidiaPayload).not.toHaveProperty('tool_choice');
     expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3');
     await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply.' });
   });

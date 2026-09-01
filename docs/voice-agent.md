@@ -18,7 +18,7 @@ The app is `0.30.0` and later.
 | Transport | Client-to-model WebSocket with one-use ephemeral tokens minted by `POST /api/voice/session`. `setupComplete` gates readiness. Post-ready failures remint and resume up to two times with the latest valid provider handle and no second greeting; exhausted recovery offers Try again or hangup. PCM does not transit the origin. |
 | Default voice | Male `Charon`. |
 | Context | Tiny initial page snapshot plus on-demand `lookup_site_facts` and read-only `get_current_page_context`. The current-context tool samples an allowlisted browser route, project, theme, and preferences; it never exposes raw URLs, DOM, or form values. |
-| Tools | Shared `siteTools` registry. Chat and voice use the same names. `hint` is the one puzzle-safe voice terminal command; do not add a second tool-calling model. |
+| Tools | Voice uses the canonical `siteTools` contract. Text chat keeps deterministic signed actions and reuses the same browser executor and events where needed; text providers receive no tool catalog. `hint` is the one puzzle-safe voice terminal command. |
 | Audio | Gemini Live uses PCM16 little-endian at 16 kHz in and 24 kHz out. Playback uses a bounded prebuffered queue, explicit decoding, short gain ramps, and stale-audio resynchronization. Capture remains full-duplex and requests browser echo cancellation and noise suppression. |
 | Compression | The settings toggle is **low-network mode**: larger capture frames, no live transcripts, no ambient music. |
 | Context window | Live `contextWindowCompression` is always enabled. |
@@ -122,11 +122,12 @@ sequenceDiagram
 
 - UI, settings, and tools import `@/lib/voiceAgentProtocol` and `@/lib/siteTools`.
 - Only `@/lib/geminiLiveAdapter.ts` and server token minting know Gemini.
+- Text chat does not use provider tool calling; signed actions reuse shared browser execution primitives where needed.
 - A future OpenAI Realtime / other adapter implements `VoiceCaller`.
 
 ## Tools
 
-Shared names:
+Canonical site tool names:
 
 - `navigate_to`
 - `set_theme`
@@ -144,6 +145,8 @@ Shared names:
 - `run_terminal_command`
 - `fill_field`
 - `set_preference`
+- `set_master_volume`
+- `set_audio_category_volume`
 - `set_voice_output`
 - `set_voice_backend`
 - `set_motion_preference`

@@ -1,11 +1,8 @@
-import type { ProjectSlug } from '@/lib/projectCatalog';
 import type {
   BrowseHistoryDirection,
-  FeedbackCategory,
   PageScrollDirection,
-  ProjectVideoAction,
+  SiteToolArgsMap,
   SiteToolResult,
-  VoiceSafeTerminalCommand,
 } from '@/lib/siteTools';
 
 export const OPEN_PROJECT_EVENT = 'voice-open-project';
@@ -17,35 +14,16 @@ export const SUBMIT_GUESTBOOK_EVENT = 'voice-submit-guestbook';
 export const SUBMIT_FEEDBACK_EVENT = 'voice-submit-feedback';
 export const OPEN_CHAT_EVENT = 'open-chat';
 export const OPEN_SHORTCUTS_EVENT = 'open-shortcuts';
+export const OPEN_FEEDBACK_EVENT = 'open-feedback';
 
 export const PROJECT_OPEN_QUERY_KEY = 'project';
 
-export interface OpenProjectEventDetail {
-  slug: ProjectSlug;
-}
-
-export interface ControlProjectVideoEventDetail {
-  action: ProjectVideoAction;
-}
-
-export interface SendChatMessageEventDetail {
-  message: string;
-}
-
-export interface RunTerminalCommandEventDetail {
-  command: VoiceSafeTerminalCommand;
-}
-
-export interface SubmitGuestbookEventDetail {
-  message: string;
-  name?: string;
-}
-
-export interface SubmitFeedbackEventDetail {
-  message: string;
-  contact?: string;
-  category?: FeedbackCategory;
-}
+export type OpenProjectEventDetail = SiteToolArgsMap['open_project'];
+export type ControlProjectVideoEventDetail = SiteToolArgsMap['control_project_video'];
+export type SendChatMessageEventDetail = SiteToolArgsMap['send_chat_message'];
+export type RunTerminalCommandEventDetail = SiteToolArgsMap['run_terminal_command'];
+export type SubmitGuestbookEventDetail = SiteToolArgsMap['submit_guestbook'];
+export type SubmitFeedbackEventDetail = SiteToolArgsMap['submit_feedback'];
 
 export type SiteActionHostId = 'project-video' | 'chat' | 'terminal' | 'guestbook' | 'feedback';
 
@@ -118,7 +96,7 @@ export function attachSiteActionResult(
   if ('preventDefault' in event) event.preventDefault();
 }
 
-export function requestOpenProject(slug: ProjectSlug): SiteActionHostResult {
+export function requestOpenProject(slug: OpenProjectEventDetail['slug']): SiteActionHostResult {
   return dispatchCancellable<OpenProjectEventDetail>(OPEN_PROJECT_EVENT, { slug });
 }
 
@@ -126,7 +104,7 @@ export function requestCloseProject(): SiteActionHostResult {
   return dispatchCancellable(CLOSE_PROJECT_EVENT, {});
 }
 
-export function requestProjectVideoControl(action: ProjectVideoAction): SiteActionHostResult {
+export function requestProjectVideoControl(action: ControlProjectVideoEventDetail['action']): SiteActionHostResult {
   return dispatchCancellable<ControlProjectVideoEventDetail>(CONTROL_PROJECT_VIDEO_EVENT, { action });
 }
 
@@ -134,7 +112,7 @@ export function requestSendChatMessage(message: string): SiteActionHostResult {
   return dispatchCancellable<SendChatMessageEventDetail>(SEND_CHAT_MESSAGE_EVENT, { message });
 }
 
-export function requestRunTerminalCommand(command: VoiceSafeTerminalCommand): SiteActionHostResult {
+export function requestRunTerminalCommand(command: RunTerminalCommandEventDetail['command']): SiteActionHostResult {
   return dispatchCancellable<RunTerminalCommandEventDetail>(RUN_TERMINAL_COMMAND_EVENT, { command });
 }
 
@@ -156,6 +134,11 @@ export function requestOpenChat(): boolean {
 export function requestOpenShortcuts(): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
+}
+
+export function requestOpenFeedback(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(OPEN_FEEDBACK_EVENT));
 }
 
 export function browseHistory(direction: BrowseHistoryDirection): SiteToolResult {
@@ -198,7 +181,7 @@ export function scrollRoutePage(direction: PageScrollDirection, amount: number):
   };
 }
 
-export function buildProjectHref(slug: ProjectSlug): string {
+export function buildProjectHref(slug: OpenProjectEventDetail['slug']): string {
   return `/projects?${PROJECT_OPEN_QUERY_KEY}=${encodeURIComponent(slug)}`;
 }
 

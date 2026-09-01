@@ -1,4 +1,4 @@
-import { ACTION_REGISTRY, getActionFallbackReply, type ActionDef, type ActionExecution, VALID_NAVIGATION_PATHS } from '@/lib/actions';
+import { getActionFallbackReply, resolveExactActionLabel as resolveExactActionExecution, type ActionExecution, VALID_NAVIGATION_PATHS } from '@/lib/actions';
 import { getProjectFactText } from '@/lib/dhruvFacts.server';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
@@ -102,10 +102,6 @@ const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
   { slug: 'atomvault', aliases: ['atomvault', 'atom vault'] },
 ];
 
-const EXACT_ACTION_LABELS = new Map(
-  ACTION_REGISTRY.map(action => [normalizeInput(action.label), action])
-);
-
 function normalizeInput(input: string): string {
   return input
     .toLowerCase()
@@ -205,28 +201,12 @@ function findProjectMention(input: string): ProjectSlug | null {
   return matches[0].slug;
 }
 
-function toActionExecution(action: ActionDef): ActionExecution {
-  return {
-    navigateTo: action.navigateTo,
-    themeAction: action.themeAction,
-    openUrls: action.openUrls,
-    feedbackAction: action.feedbackAction,
-    projectSlug: action.projectSlug,
-    commandPaletteAction: action.commandPaletteAction,
-    voiceSessionAction: action.voiceSessionAction,
-    fieldFill: action.fieldFill,
-    preferenceAction: action.preferenceAction,
-    guestbookSubmit: action.guestbookSubmit,
-  };
-}
-
 function resolveExactActionLabel(input: string): ActionResolution | null {
-  const actionDef = EXACT_ACTION_LABELS.get(input);
-  if (!actionDef) {
+  const action = resolveExactActionExecution(input);
+  if (!action) {
     return null;
   }
 
-  const action = toActionExecution(actionDef);
   return {
     kind: 'action',
     action,

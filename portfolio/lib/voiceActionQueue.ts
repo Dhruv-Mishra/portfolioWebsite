@@ -1,18 +1,16 @@
-export const IMMEDIATE_VOICE_TOOL_NAMES = [
-  'lookup_site_facts',
-  'get_current_page_context',
-  'set_theme',
-  'set_preference',
-  'set_master_volume',
-  'set_audio_category_volume',
-  'set_voice_output',
-  'set_voice_backend',
-  'set_motion_preference',
-  'fill_field',
-  'close_project',
-] as const;
+import type { SiteActionHostId } from '@/lib/siteActionEvents';
+import type { SiteToolArgsMap, SiteToolName } from '@/lib/siteTools';
 
-export const DEFERRED_VOICE_TOOL_NAMES = [
+export const END_VOICE_SESSION_SAFETY_MS = 8_000;
+
+export type VoiceToolTiming = 'immediate' | 'deferred';
+
+export interface VoiceToolPolicy {
+  timing: VoiceToolTiming;
+  hostId: SiteActionHostId | null;
+}
+
+const DEFERRED_VOICE_TOOLS = new Set<SiteToolName>([
   'navigate_to',
   'open_project',
   'open_link',
@@ -23,72 +21,36 @@ export const DEFERRED_VOICE_TOOL_NAMES = [
   'browse_history',
   'scroll_page',
   'end_voice_session',
-] as const;
+]);
 
-export const DEPENDENT_VOICE_TOOL_NAMES = [
-  'control_project_video',
-  'send_chat_message',
-  'run_terminal_command',
-  'submit_guestbook',
-  'submit_feedback',
-] as const;
+const DEPENDENT_HOST_BY_TOOL: Partial<Record<SiteToolName, SiteActionHostId>> = {
+  control_project_video: 'project-video',
+  send_chat_message: 'chat',
+  run_terminal_command: 'terminal',
+  submit_guestbook: 'guestbook',
+  submit_feedback: 'feedback',
+};
 
-export const END_VOICE_SESSION_SAFETY_MS = 8_000;
+const FILL_FIELD_HOST_BY_ID: Partial<Record<SiteToolArgsMap['fill_field']['field'], SiteActionHostId>> = {
+  'terminal-input': 'terminal',
+  'chat-composer': 'chat',
+  'guestbook-message': 'guestbook',
+  'guestbook-name': 'guestbook',
+  'feedback-message': 'feedback',
+  'feedback-contact': 'feedback',
+};
 
-export type ImmediateVoiceToolName = (typeof IMMEDIATE_VOICE_TOOL_NAMES)[number];
-export type DeferredVoiceToolName = (typeof DEFERRED_VOICE_TOOL_NAMES)[number];
-export type DependentVoiceToolName = (typeof DEPENDENT_VOICE_TOOL_NAMES)[number];
-
-export function isDeferredVoiceTool(name: string): name is DeferredVoiceToolName {
-  return (DEFERRED_VOICE_TOOL_NAMES as readonly string[]).includes(name);
-}
-
-export function isImmediateVoiceTool(name: string): name is ImmediateVoiceToolName {
-  return (IMMEDIATE_VOICE_TOOL_NAMES as readonly string[]).includes(name);
-}
-
-export function isDependentVoiceTool(name: string): name is DependentVoiceToolName {
-  return (DEPENDENT_VOICE_TOOL_NAMES as readonly string[]).includes(name);
-}
-
-export type VoiceDependentHostId = 'project-video' | 'chat' | 'terminal' | 'guestbook' | 'feedback';
-
-export function dependentHostIdForTool(name: string): VoiceDependentHostId | null {
-  if (name === 'control_project_video') return 'project-video';
-  if (name === 'send_chat_message') return 'chat';
-  if (name === 'run_terminal_command') return 'terminal';
-  if (name === 'submit_guestbook') return 'guestbook';
-  if (name === 'submit_feedback') return 'feedback';
-  return null;
-}
-
-export function hostIdForVoiceTool(
+export function resolveVoiceToolPolicy(
   name: string,
   args?: { field?: string } | null,
-): VoiceDependentHostId | null {
-  const dependent = dependentHostIdForTool(name);
-  if (dependent) return dependent;
-  if (name === 'fill_field' && args?.field === 'terminal-input') return 'terminal';
-  if (name === 'fill_field' && args?.field === 'chat-composer') return 'chat';
-  if (name === 'fill_field' && (args?.field === 'guestbook-message' || args?.field === 'guestbook-name')) {
-    return 'guestbook';
-  }
-  if (name === 'fill_field' && (args?.field === 'feedback-message' || args?.field === 'feedback-contact')) {
-    return 'feedback';
-  }
-  return null;
-}
-
-export function openerHostIdForTool(
-  name: string,
-  args?: { path?: string } | null,
-): VoiceDependentHostId | null {
-  if (name === 'open_project') return 'project-video';
-  if (name === 'open_chat') return 'chat';
-  if (name === 'open_feedback') return 'feedback';
-  if (name === 'navigate_to' && args?.path === '/') return 'terminal';
-  if (name === 'navigate_to' && args?.path === '/guestbook') return 'guestbook';
-  return null;
+): VoiceToolPolicy {
+  const hostId = name === 'fill_field'
+    ? FILL_FIELD_HOST_BY_ID[args?.field as SiteToolArgsMap['fill_field']['field']] ?? null
+    : DEPENDENT_HOST_BY_TOOL[name as SiteToolName] ?? null;
+  return {
+    timing: DEFERRED_VOICE_TOOLS.has(name as SiteToolName) ? 'deferred' : 'immediate',
+    hostId,
+  };
 }
 
 export type VoiceQueuedCommit = () => void | Promise<void>;

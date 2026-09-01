@@ -94,10 +94,6 @@ export default function VoiceModeController() {
       resolvedTheme,
       pathname,
       discoActive,
-      openFeedback: () => window.dispatchEvent(new CustomEvent('open-feedback')),
-      openProject: (slug) => {
-        router.push(slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects');
-      },
     });
   }, [discoActive, pathname, resolvedTheme, router, runtime, setTheme]);
 

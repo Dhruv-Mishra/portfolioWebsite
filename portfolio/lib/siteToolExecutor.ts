@@ -22,6 +22,7 @@ import {
   requestOpenChat,
   requestCloseProject,
   requestOpenProject,
+  requestOpenFeedback,
   requestOpenShortcuts,
   requestProjectVideoControl,
   requestRunTerminalCommand,
@@ -52,8 +53,6 @@ export interface SiteToolRuntime {
   resolvedTheme?: string;
   discoActive: boolean;
   pathname?: string;
-  openFeedback: () => void;
-  openProject: (slug: string) => void;
 }
 
 export interface ExecuteSiteToolOptions {
@@ -289,10 +288,7 @@ export async function executeSiteTool(
       return ok('Opening that link.');
     }
     case 'open_feedback':
-      if (commit) {
-        runtime.openFeedback();
-        window.dispatchEvent(new CustomEvent('open-feedback'));
-      }
+      if (commit) requestOpenFeedback();
       return ok('Opening the feedback note.');
     case 'open_command_palette':
       if (commit) window.dispatchEvent(new CustomEvent('open-command-palette'));

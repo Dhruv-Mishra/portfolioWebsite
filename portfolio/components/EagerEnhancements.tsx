@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useState, type ComponentType } from 'react';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
 import CommandPaletteProvider from '@/components/CommandPaletteProvider';
+import HoverTiltController from '@/components/HoverTiltController';
 
 /**
  * EagerEnhancements — a tiny, always-mounted client component that boots the
@@ -154,6 +155,7 @@ export default function EagerEnhancements() {
       <DiscoFlagController />
       <SoundRouteListener />
       <ClickSoundListener />
+      <HoverTiltController />
       <AdminPrefsController />
       <ExperimentalFeaturesController />
       <VoiceModeController />

@@ -96,14 +96,17 @@ const DETAIL_VARIANTS: Variants = {
   visible: { height: 'auto', opacity: 1 },
 };
 
-const NOTE_ROTATION_CLASSES = [
-  'md:-rotate-[0.8deg]',
-  'md:rotate-[0.65deg]',
-  'md:-rotate-[0.35deg]',
-  'md:rotate-[0.9deg]',
-] as const;
-
 const DISCO_REST_ROTATIONS = ['-0.8deg', '0.65deg', '-0.35deg', '0.9deg'] as const;
+const NOTE_DISCO_PERIOD_MS = 1400;
+const TAPE_DISCO_PERIOD_MS = 1700;
+const CHIP_DISCO_PERIOD_MS = 1900;
+const NOTE_DISCO_SALT = 79;
+const TAPE_DISCO_SALT = 431;
+const CHIP_DISCO_SALT = 887;
+
+function getTimelineDiscoDelay(index: number, periodMs: number, salt: number): string {
+  return `-${((((index + 1) * 307) + salt) % (periodMs - 1)) + 1}ms`;
+}
 
 const TIMELINE_LOGO_STYLE = {
   width: 'auto',
@@ -164,6 +167,36 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
   const filteredEntries = useMemo(
     () => getEntriesForFilter(entries, selectedFilter),
     [entries, selectedFilter],
+  );
+
+  const entryMotionStyles = useMemo(
+    () => filteredEntries.map((_, index) => {
+      const noteOnRight = index % 2 === 0;
+      const restRotation = DISCO_REST_ROTATIONS[index % DISCO_REST_ROTATIONS.length];
+      return {
+        note: {
+          '--disco-motion-delay': getTimelineDiscoDelay(index, NOTE_DISCO_PERIOD_MS, NOTE_DISCO_SALT),
+          '--disco-motion-duration': `${NOTE_DISCO_PERIOD_MS}ms`,
+          '--disco-wiggle-amplitude': '2.5deg',
+          '--disco-wiggle-rest': restRotation,
+        } as CSSProperties,
+        tape: {
+          '--disco-motion-delay': getTimelineDiscoDelay(index, TAPE_DISCO_PERIOD_MS, TAPE_DISCO_SALT),
+          '--disco-motion-duration': `${TAPE_DISCO_PERIOD_MS}ms`,
+          '--disco-wiggle-amplitude': '3deg',
+          '--disco-wiggle-rest': noteOnRight ? '2deg' : '-3deg',
+        } as CSSProperties,
+        chip: {
+          '--hover-tilt-lift': '-1px',
+          '--hover-tilt-scale': '1.035',
+          '--disco-motion-delay': getTimelineDiscoDelay(index, CHIP_DISCO_PERIOD_MS, CHIP_DISCO_SALT),
+          '--disco-motion-duration': `${CHIP_DISCO_PERIOD_MS}ms`,
+          '--disco-wiggle-amplitude': '4deg',
+          '--disco-wiggle-rest': '0deg',
+        } as CSSProperties,
+      };
+    }),
+    [filteredEntries],
   );
 
   const activeEntry = useMemo(() => (
@@ -283,10 +316,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
             const Icon = meta.icon;
             const detailsId = `timeline-details-${entry.id}`;
             const noteOnRight = index % 2 === 0;
-            const discoMotionStyle = {
-              '--disco-motion-delay': `${index * 115}ms`,
-              '--disco-wiggle-rest': DISCO_REST_ROTATIONS[index % DISCO_REST_ROTATIONS.length],
-            } as CSSProperties;
+            const { note: noteDiscoStyle, tape: tapeDiscoStyle, chip: chipDiscoStyle } = entryMotionStyles[index];
 
             return (
               <li
@@ -311,23 +341,25 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                   )}
                 />
 
-                <div className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
+                <div
+                  data-hover-tilt
+                  className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}
+                >
                   <article
                     data-disco-motion="wiggle"
-                    style={discoMotionStyle}
+                    style={noteDiscoStyle}
                     className={cn(
-                      'relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,translate,rotate] md:p-5 md:duration-150 md:ease-out',
+                      'relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow] md:p-5',
                       'shadow-[4px_5px_0_color-mix(in_srgb,var(--c-ink)_14%,transparent)]',
                       'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:bg-[linear-gradient(transparent_95%,color-mix(in_srgb,var(--c-ink)_8%,transparent)_96%)] before:bg-[length:100%_22px] before:opacity-55',
-                      NOTE_ROTATION_CLASSES[index % NOTE_ROTATION_CLASSES.length],
+                      'md:rotate-[var(--disco-wiggle-rest)]',
                       isActive && cn('border-[var(--c-ink)]/35', meta.shadowClassName),
-                      !prefersReducedMotion && 'md:hover:-translate-y-[3px]',
-                      !prefersReducedMotion && (noteOnRight ? 'md:hover:rotate-[0.25deg]' : 'md:hover:-rotate-[0.25deg]'),
                     )}
                   >
                     <TapeStrip
                       size="sm"
                       className={cn('opacity-80', noteOnRight ? 'rotate-2' : '-rotate-3')}
+                      discoStyle={tapeDiscoStyle}
                     />
 
                     <button
@@ -345,7 +377,12 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                             <CalendarDays aria-hidden="true" className="size-3.5" strokeWidth={1.9} />
                             {entry.dateLabel}
                           </span>
-                          <span className={cn('inline-flex items-center gap-1 rounded-[6px] border px-1.5 py-0.5', meta.chipClassName)}>
+                          <span
+                            data-hover-tilt
+                            data-disco-motion="wiggle"
+                            style={chipDiscoStyle}
+                            className={cn('inline-flex items-center gap-1 rounded-[6px] border px-1.5 py-0.5', meta.chipClassName)}
+                          >
                             <Icon aria-hidden="true" className="size-3" strokeWidth={2} />
                             {meta.label}
                           </span>

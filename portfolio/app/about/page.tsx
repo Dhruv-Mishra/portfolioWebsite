@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { ArrowDown, BriefcaseBusiness } from 'lucide-react';
 import { Thumbpin } from '@/components/DoodleIcons';
 import ExperienceTimeline from '@/components/ExperienceTimeline';
@@ -9,6 +10,22 @@ import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { PERSONAL_LINKS } from '@/lib/links';
 
 export const revalidate = 3600;
+
+type AboutPhotoMotionStyle = CSSProperties & {
+    '--hover-tilt-lift': string;
+    '--hover-tilt-scale': string;
+    '--disco-motion-delay': string;
+    '--disco-motion-duration': string;
+    '--disco-wiggle-amplitude': string;
+};
+
+const ABOUT_PHOTO_MOTION_STYLE: AboutPhotoMotionStyle = {
+    '--hover-tilt-lift': '-2px',
+    '--hover-tilt-scale': '1.012',
+    '--disco-motion-delay': '-610ms',
+    '--disco-motion-duration': '1700ms',
+    '--disco-wiggle-amplitude': '2.25deg',
+};
 
 const CAREER_SNAPSHOT = [
     {
@@ -94,7 +111,12 @@ export default function About() {
 
                         <div className="min-w-0 space-y-4 text-base font-hand leading-relaxed [overflow-wrap:anywhere] sm:text-lg md:space-y-5 md:text-xl">
                             {/* Pinned Photo — stacks first on mobile, then floats into the sheet on desktop */}
-                            <div className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3">
+                            <div
+                                data-hover-tilt
+                                data-disco-motion="wiggle"
+                                className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 [--disco-wiggle-rest:1deg] md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3 md:[--disco-wiggle-rest:3deg]"
+                                style={ABOUT_PHOTO_MOTION_STYLE}
+                            >
                                 <div className="bg-white p-1 md:p-2 shadow-md border border-gray-200 relative">
                                     <div
                                         data-tape-strip

@@ -1,20 +1,9 @@
 /**
- * Unit tests for `lib/themeToggleAction.ts` — the shared handler behind the
- * desktop `ThemeToggle` and the mobile `MobileThemeButton` in
- * `SocialSidebar`. Covers Bug 2b (mobile theme toggle must exit disco, not
- * leave remnants) by verifying that when `discoActive === true` the handler
- * calls `setDiscoActiveImperative(false)` and does NOT touch `setTheme`.
- *
- * Side effects — `setDiscoActiveImperative`, `stickerBus.emit`,
- * `soundManager.play` — are all imported from the source modules at test
- * time, so we mock them via `vi.mock` to assert call counts and argv
- * without needing a DOM.
+ * Unit tests for `lib/themeToggleAction.ts` — shared theme toggle plus
+ * `runDiscoMode` enter/exit. Disco exit must not touch `setTheme`.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock the downstream side-effect modules before importing the unit under
-// test. Vitest hoists `vi.mock` calls to the top of the file, so the mocks
-// take effect before `themeToggleAction` is imported.
 vi.mock('@/hooks/useStickers', () => ({
   setDiscoActiveImperative: vi.fn(),
 }));
@@ -24,8 +13,11 @@ vi.mock('@/lib/stickerBus', () => ({
 vi.mock('@/lib/soundManager', () => ({
   soundManager: { play: vi.fn() },
 }));
+vi.mock('@/components/DiscoMediaLayer', () => ({
+  default: () => null,
+}));
 
-import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
+import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { setDiscoActiveImperative } from '@/hooks/useStickers';
 import { stickerBus } from '@/lib/stickerBus';
 import { soundManager } from '@/lib/soundManager';
@@ -109,5 +101,32 @@ describe('runThemeSelection', () => {
 
     expect(setDiscoActiveImperative).not.toHaveBeenCalled();
     expect(setTheme).toHaveBeenCalledWith('dark');
+  });
+});
+
+describe('runDiscoMode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('delegates enter/exit to the store flag and prewarms only when activating in the browser', () => {
+    runDiscoMode(true);
+    expect(setDiscoActiveImperative).toHaveBeenCalledTimes(1);
+    expect(setDiscoActiveImperative).toHaveBeenCalledWith(true);
+
+    vi.clearAllMocks();
+    vi.stubGlobal('window', {});
+    runDiscoMode(true);
+    expect(setDiscoActiveImperative).toHaveBeenCalledTimes(1);
+    expect(setDiscoActiveImperative).toHaveBeenCalledWith(true);
+
+    vi.clearAllMocks();
+    runDiscoMode(false);
+    expect(setDiscoActiveImperative).toHaveBeenCalledTimes(1);
+    expect(setDiscoActiveImperative).toHaveBeenCalledWith(false);
   });
 });

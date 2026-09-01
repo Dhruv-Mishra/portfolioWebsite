@@ -1120,6 +1120,17 @@ export function getDiscoActiveSync(): boolean {
   return store.state.discoActive;
 }
 
+/** Notify only when the runtime disco flag changes. */
+export function subscribeDiscoActive(listener: (active: boolean) => void): () => void {
+  let last = getDiscoActiveSync();
+  return subscribe(() => {
+    const next = getDiscoActiveSync();
+    if (next === last) return;
+    last = next;
+    listener(next);
+  });
+}
+
 /**
  * Synchronous read of the sounds-muted preference. Used by non-render
  * paths that need the current mute flag without a React subscription.

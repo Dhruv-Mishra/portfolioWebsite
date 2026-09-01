@@ -20,10 +20,10 @@
 import React from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import {
-  setDiscoActiveImperative,
   setMatrixActiveImperative,
   resetStickerProgressImperative,
 } from '@/hooks/useStickers';
+import { runDiscoMode } from '@/lib/themeToggleAction';
 import { getExperimentalCommandsSync } from '@/hooks/useAdminPrefs';
 import {
   ADMIN_FILE_PASSWORD,
@@ -298,7 +298,7 @@ export function handleDisco(args: string[]): SudoCommandResult {
         </div>
       ),
       action: () => {
-        setDiscoActiveImperative(false);
+        runDiscoMode(false);
       },
     };
   }
@@ -316,17 +316,7 @@ export function handleDisco(args: string[]): SudoCommandResult {
         </div>
       ),
       action: () => {
-        // Pre-warm the heavy disco media chunk on the same user-gesture tick
-        // that sets the flag. Without this, there's a visible ~100ms gap while
-        // the bundle is fetched + parsed before sparkles/spotlights appear.
-        // The promise is intentionally not awaited — if it fails we fall back
-        // to the deferred fetch in DiscoFlagController.
-        if (typeof window !== 'undefined') {
-          void import('@/components/DiscoMediaLayer').catch(() => {
-            /* fetch will be retried by DiscoFlagController — best-effort */
-          });
-        }
-        setDiscoActiveImperative(true);
+        runDiscoMode(true);
       },
     };
   }

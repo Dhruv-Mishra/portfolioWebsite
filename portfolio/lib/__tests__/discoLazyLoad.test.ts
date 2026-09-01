@@ -124,15 +124,15 @@ describe('disco lazy-load boundary', () => {
     expect(statics.some((s) => s.includes('SparkleCanvas'))).toBe(false);
   });
 
-  it('sudo disco handler pre-warms the media chunk on the user-gesture tick', () => {
-    // Without pre-warming, there's a visible lag between `sudo disco` and
-    // first paint of spotlights while the chunk is fetched. The handler in
-    // lib/sudoCommands.tsx fires the import() on the click tick.
-    const sudoSrc = fs.readFileSync(
-      path.resolve(__dirname, '../../lib/sudoCommands.tsx'),
+  it('runDiscoMode pre-warms the media chunk on the user-gesture tick', () => {
+    // Without pre-warming, there's a visible lag between disco activation and
+    // first paint of spotlights while the chunk is fetched. The shared helper
+    // fires the import() on the same tick as the store flag.
+    const src = fs.readFileSync(
+      path.resolve(__dirname, '../../lib/themeToggleAction.ts'),
       'utf8',
     );
-    expect(sudoSrc).toMatch(/import\(\s*['"]@\/components\/DiscoMediaLayer['"]\s*\)/);
+    expect(src).toMatch(/import\(\s*['"]@\/components\/DiscoMediaLayer['"]\s*\)/);
   });
 });
 

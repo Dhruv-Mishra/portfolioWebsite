@@ -1,6 +1,8 @@
 import {
+  getDiscoActiveSync,
   getEffectiveAudioCategoryVolumeSync,
   subscribeAudioCategoryVolume,
+  subscribeDiscoActive,
 } from '@/hooks/useStickers';
 import { SITE_VERSION } from '@/lib/siteVersion';
 
@@ -15,6 +17,8 @@ let ambientEl: HTMLAudioElement | null = null;
 let actionEl: HTMLAudioElement | null = null;
 let toggleEl: HTMLAudioElement | null = null;
 let volumeUnsubscribe: (() => void) | null = null;
+let discoUnsubscribe: (() => void) | null = null;
+let ambientRequested = false;
 let ambientUnlockToken = 0;
 let actionUnlockToken = 0;
 let togglePlayToken = 0;
@@ -46,6 +50,35 @@ function ensureVolumeSubscription(): void {
 function unsubscribeVolume(): void {
   volumeUnsubscribe?.();
   volumeUnsubscribe = null;
+}
+
+function pauseAmbientPreserveTime(): void {
+  if (!ambientEl) return;
+  try { ambientEl.pause(); } catch { /* ignore */ }
+}
+
+function playAmbientIfAllowed(): void {
+  if (!ambientRequested || !ambientEl || getDiscoActiveSync()) return;
+  ambientEl.muted = false;
+  quietPlay(ambientEl);
+}
+
+function onDiscoActiveChange(active: boolean): void {
+  if (active) {
+    pauseAmbientPreserveTime();
+    return;
+  }
+  playAmbientIfAllowed();
+}
+
+function ensureDiscoSubscription(): void {
+  if (discoUnsubscribe) return;
+  discoUnsubscribe = subscribeDiscoActive(onDiscoActiveChange);
+}
+
+function unsubscribeDisco(): void {
+  discoUnsubscribe?.();
+  discoUnsubscribe = null;
 }
 
 function quietPlay(el: HTMLAudioElement): void {
@@ -110,10 +143,11 @@ export function primeVoiceSounds(): void {
 
 export function startVoiceAmbient(): void {
   if (!ensureElements() || !ambientEl) return;
+  ambientRequested = true;
   ambientUnlockToken += 1;
   ensureVolumeSubscription();
-  ambientEl.muted = false;
-  quietPlay(ambientEl);
+  ensureDiscoSubscription();
+  playAmbientIfAllowed();
 }
 
 export function playVoiceAction(): void {
@@ -151,11 +185,13 @@ export function playVoiceToggle(onEnded?: () => void): void {
 }
 
 export function stopVoiceSounds(): void {
+  ambientRequested = false;
   ambientUnlockToken += 1;
   actionUnlockToken += 1;
   togglePlayToken += 1;
   if (toggleEl) toggleEl.onended = null;
   unsubscribeVolume();
+  unsubscribeDisco();
   for (const el of [ambientEl, actionEl]) {
     if (!el) continue;
     try { el.pause(); } catch { /* ignore */ }

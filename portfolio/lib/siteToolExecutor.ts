@@ -32,14 +32,13 @@ import {
   scrollRoutePage,
 } from '@/lib/siteActionEvents';
 import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
-import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
+import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import {
   getAudioCategoryVolumeSync,
   getDiscoActiveSync,
   getMasterVolumeSync,
   getSoundsMutedSync,
   setAudioCategoryVolumeImperative,
-  setDiscoActiveImperative,
   type AudioVolumeCategory,
 } from '@/hooks/useStickers';
 import { setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
@@ -216,9 +215,9 @@ export async function executeSiteTool(
             setTheme: runtime.setTheme,
           });
         } else if (parsed.args.action === 'disco') {
-          setDiscoActiveImperative(true);
+          runDiscoMode(true);
         } else if (parsed.args.action === 'disco-off') {
-          setDiscoActiveImperative(false);
+          runDiscoMode(false);
         } else {
           runThemeSelection({
             discoActive,

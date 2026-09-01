@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SITE_TOOL_DECLARATIONS, VOICE_LIVE_TOOL_DECLARATIONS, assertCompleteToolCatalog } from '@/lib/siteToolDeclarations';
+import { SITE_TOOL_DECLARATIONS, VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import { SITE_TOOL_NAMES, resolveVoiceSafeTerminalCommand } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import { executeSiteTool } from '@/lib/siteToolExecutor';
-import { actionFromSiteTool } from '@/lib/siteToolBridge';
 import { hasActionExecution } from '@/lib/actions';
 import {
   __resetStoreForTest,
@@ -27,9 +26,15 @@ import {
 } from '@/lib/siteActionEvents';
 
 describe('site tool catalog', () => {
+  afterEach(() => {
+    __resetStoreForTest();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
   it('declares every shared tool exactly once', () => {
-    expect(() => assertCompleteToolCatalog()).not.toThrow();
-    expect(SITE_TOOL_DECLARATIONS.map(tool => tool.name).sort()).toEqual([...SITE_TOOL_NAMES].sort());
+    expect(SITE_TOOL_DECLARATIONS.map(tool => tool.name)).toEqual([...SITE_TOOL_NAMES]);
     expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).not.toContain('start_voice_session');
     expect(VOICE_LIVE_TOOL_DECLARATIONS).toHaveLength(SITE_TOOL_DECLARATIONS.length - 1);
     expect(
@@ -128,11 +133,6 @@ describe('site tool catalog', () => {
       name: 'close_project',
       args: {},
     })).toMatchObject({ name: 'close_project', args: {} });
-    expect(actionFromSiteTool({
-      id: 'close-1',
-      name: 'close_project',
-      args: {},
-    })).toBeNull();
     expect(parseSiteToolCall({
       name: 'control_project_video',
       args: { action: 'play' },
@@ -193,20 +193,6 @@ describe('site tool catalog', () => {
   it('builds a navigation-stable project href', () => {
     expect(buildProjectHref('cropio')).toBe('/projects?project=cropio');
     expect(readProjectSlugFromSearch('?project=cropio')).toBe('cropio');
-    expect(actionFromSiteTool({
-      id: '1',
-      name: 'open_project',
-      args: { slug: 'cropio' },
-    })).toEqual({ projectSlug: 'cropio' });
-  });
-});
-
-describe('site tool executor hosts', () => {
-  afterEach(() => {
-    __resetStoreForTest();
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-    vi.clearAllMocks();
   });
 
   const runtime = {
@@ -214,8 +200,6 @@ describe('site tool executor hosts', () => {
     setTheme: vi.fn(),
     resolvedTheme: 'light',
     discoActive: false,
-    openFeedback: vi.fn(),
-    openProject: vi.fn(),
   };
 
   it('sets a category volume without changing mute', async () => {
@@ -238,6 +222,23 @@ describe('site tool executor hosts', () => {
       expect(getAudioCategoryVolumeSync(storeCategory)).toBe(percent / 100);
     }
     expect(getSoundsMutedSync()).toBe(true);
+  });
+
+  it('dispatches open-feedback once when executing open_feedback', async () => {
+    const notifications: Event[] = [];
+    const onOpenFeedback = (event: Event) => {
+      notifications.push(event);
+    };
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    window.addEventListener('open-feedback', onOpenFeedback);
+
+    await executeSiteTool({
+      id: 'feedback-once',
+      name: 'open_feedback',
+      args: {},
+    }, runtime as never);
+    expect(notifications).toHaveLength(1);
   });
 
   it('returns unavailable when chat or terminal hosts are missing', async () => {
@@ -365,7 +366,6 @@ describe('site tool executor hosts', () => {
       ok: true,
       data: { slug: 'cropio', accepted: true },
     });
-    expect(runtime.openProject).not.toHaveBeenCalled();
     expect(runtime.router.push).toHaveBeenCalledWith('/projects?project=cropio');
     expect(runtime.router.push).toHaveBeenCalledTimes(1);
   });
@@ -392,7 +392,6 @@ describe('site tool executor hosts', () => {
       spokenText: 'Queued that project to open.',
       data: { slug: 'cropio', accepted: true },
     });
-    expect(runtime.openProject).not.toHaveBeenCalled();
     expect(runtime.router.push).not.toHaveBeenCalled();
   });
 

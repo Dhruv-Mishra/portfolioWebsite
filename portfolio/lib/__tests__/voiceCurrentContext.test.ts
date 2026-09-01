@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executeSiteTool } from '@/lib/siteToolExecutor';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import { SITE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
-import { actionFromSiteTool } from '@/lib/siteToolBridge';
 import { parseVoiceClientSnapshot } from '@/lib/voiceClientSnapshot';
 import {
   buildVoiceCurrentPageContext,
@@ -18,8 +17,6 @@ const runtime = {
   resolvedTheme: 'light' as const,
   discoActive: false,
   pathname: '/about',
-  openFeedback: vi.fn(),
-  openProject: vi.fn(),
 };
 
 describe('get_current_page_context', () => {
@@ -38,11 +35,6 @@ describe('get_current_page_context', () => {
       name: 'get_current_page_context',
       args: {},
     })).toMatchObject({ name: 'get_current_page_context', args: {} });
-    expect(actionFromSiteTool({
-      id: 'ctx-1',
-      name: 'get_current_page_context',
-      args: {},
-    })).toBeNull();
   });
 
   it('prefers the current browser path over a stale runtime pathname and allowlists fields', () => {

@@ -1,84 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createVoiceActionQueue,
-  DEFERRED_VOICE_TOOL_NAMES,
-  DEPENDENT_VOICE_TOOL_NAMES,
-  dependentHostIdForTool,
   END_VOICE_SESSION_SAFETY_MS,
-  hostIdForVoiceTool,
-  IMMEDIATE_VOICE_TOOL_NAMES,
-  isDeferredVoiceTool,
-  isDependentVoiceTool,
-  isImmediateVoiceTool,
-  openerHostIdForTool,
+  resolveVoiceToolPolicy,
 } from '@/lib/voiceActionQueue';
 
 describe('voice action queue', () => {
   it('classifies immediate vs deferred site tools', () => {
-    expect(IMMEDIATE_VOICE_TOOL_NAMES).toEqual([
-      'lookup_site_facts',
-      'get_current_page_context',
-      'set_theme',
-      'set_preference',
-      'set_master_volume',
-      'set_audio_category_volume',
-      'set_voice_output',
-      'set_voice_backend',
-      'set_motion_preference',
-      'fill_field',
-      'close_project',
-    ]);
-    expect(DEFERRED_VOICE_TOOL_NAMES).toEqual([
-      'navigate_to',
-      'open_project',
-      'open_link',
-      'open_feedback',
-      'open_command_palette',
-      'open_shortcuts',
-      'open_chat',
-      'browse_history',
-      'scroll_page',
-      'end_voice_session',
-    ]);
-    expect(DEPENDENT_VOICE_TOOL_NAMES).toEqual([
-      'control_project_video',
-      'send_chat_message',
-      'run_terminal_command',
-      'submit_guestbook',
-      'submit_feedback',
-    ]);
-    expect(isImmediateVoiceTool('lookup_site_facts')).toBe(true);
-    expect(isImmediateVoiceTool('get_current_page_context')).toBe(true);
-    expect(isDeferredVoiceTool('get_current_page_context')).toBe(false);
-    expect(isDeferredVoiceTool('navigate_to')).toBe(true);
-    expect(isDeferredVoiceTool('set_theme')).toBe(false);
-    expect(isImmediateVoiceTool('end_voice_session')).toBe(false);
-    expect(isDependentVoiceTool('send_chat_message')).toBe(true);
-    expect(isImmediateVoiceTool('send_chat_message')).toBe(false);
-    expect(isDependentVoiceTool('submit_guestbook')).toBe(true);
-    expect(isImmediateVoiceTool('submit_guestbook')).toBe(false);
-    expect(isDependentVoiceTool('submit_feedback')).toBe(true);
-    expect(isImmediateVoiceTool('submit_feedback')).toBe(false);
-    expect(openerHostIdForTool('open_project')).toBe('project-video');
-    expect(openerHostIdForTool('open_chat')).toBe('chat');
-    expect(openerHostIdForTool('open_feedback')).toBe('feedback');
-    expect(openerHostIdForTool('navigate_to', { path: '/' })).toBe('terminal');
-    expect(openerHostIdForTool('navigate_to', { path: '/guestbook' })).toBe('guestbook');
-    expect(openerHostIdForTool('navigate_to', { path: '/about' })).toBeNull();
-    expect(dependentHostIdForTool('control_project_video')).toBe('project-video');
-    expect(dependentHostIdForTool('send_chat_message')).toBe('chat');
-    expect(dependentHostIdForTool('run_terminal_command')).toBe('terminal');
-    expect(dependentHostIdForTool('submit_guestbook')).toBe('guestbook');
-    expect(dependentHostIdForTool('submit_feedback')).toBe('feedback');
-    expect(hostIdForVoiceTool('run_terminal_command')).toBe('terminal');
-    expect(hostIdForVoiceTool('submit_guestbook')).toBe('guestbook');
-    expect(hostIdForVoiceTool('submit_feedback')).toBe('feedback');
-    expect(hostIdForVoiceTool('fill_field', { field: 'terminal-input' })).toBe('terminal');
-    expect(hostIdForVoiceTool('fill_field', { field: 'chat-composer' })).toBe('chat');
-    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-message' })).toBe('guestbook');
-    expect(hostIdForVoiceTool('fill_field', { field: 'guestbook-name' })).toBe('guestbook');
-    expect(hostIdForVoiceTool('fill_field', { field: 'feedback-message' })).toBe('feedback');
-    expect(hostIdForVoiceTool('fill_field', { field: 'feedback-contact' })).toBe('feedback');
+    expect(resolveVoiceToolPolicy('lookup_site_facts')).toEqual({ timing: 'immediate', hostId: null });
+    expect(resolveVoiceToolPolicy('get_current_page_context')).toEqual({ timing: 'immediate', hostId: null });
+    expect(resolveVoiceToolPolicy('set_theme')).toEqual({ timing: 'immediate', hostId: null });
+    expect(resolveVoiceToolPolicy('navigate_to')).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('navigate_to', { path: '/' } as never)).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('open_project')).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('open_chat')).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('open_feedback')).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('end_voice_session')).toEqual({ timing: 'deferred', hostId: null });
+    expect(resolveVoiceToolPolicy('send_chat_message')).toEqual({ timing: 'immediate', hostId: 'chat' });
+    expect(resolveVoiceToolPolicy('submit_guestbook')).toEqual({ timing: 'immediate', hostId: 'guestbook' });
+    expect(resolveVoiceToolPolicy('submit_feedback')).toEqual({ timing: 'immediate', hostId: 'feedback' });
+    expect(resolveVoiceToolPolicy('control_project_video')).toEqual({ timing: 'immediate', hostId: 'project-video' });
+    expect(resolveVoiceToolPolicy('run_terminal_command')).toEqual({ timing: 'immediate', hostId: 'terminal' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'terminal-input' })).toEqual({ timing: 'immediate', hostId: 'terminal' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'chat-composer' })).toEqual({ timing: 'immediate', hostId: 'chat' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'guestbook-message' })).toEqual({ timing: 'immediate', hostId: 'guestbook' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'guestbook-name' })).toEqual({ timing: 'immediate', hostId: 'guestbook' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'feedback-message' })).toEqual({ timing: 'immediate', hostId: 'feedback' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'feedback-contact' })).toEqual({ timing: 'immediate', hostId: 'feedback' });
+    expect(resolveVoiceToolPolicy('fill_field', { field: 'command-palette-query' })).toEqual({ timing: 'immediate', hostId: null });
+    expect(resolveVoiceToolPolicy('close_project')).toEqual({ timing: 'immediate', hostId: null });
   });
 
   it('holds terminal and chat fill_field commits until those hosts are ready', async () => {

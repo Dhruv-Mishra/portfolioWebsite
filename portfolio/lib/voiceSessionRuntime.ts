@@ -6,14 +6,12 @@ import {
   isSiteActionHostReady,
   readProjectSlugFromSearch,
   subscribeSiteActionHostReady,
+  type SiteActionHostId,
 } from '@/lib/siteActionEvents';
 import {
   createVoiceActionQueue,
-  hostIdForVoiceTool,
-  isDeferredVoiceTool,
-  isDependentVoiceTool,
+  resolveVoiceToolPolicy,
   type VoiceActionQueue,
-  type VoiceDependentHostId,
 } from '@/lib/voiceActionQueue';
 import {
   cancelPendingVoiceCaptures,
@@ -517,16 +515,8 @@ function cancelProjectVideoWaiters(): void {
   for (const cancel of [...projectVideoWaiterCancellers]) cancel();
 }
 
-function projectVideoUnavailableResult(): SiteToolResult {
-  return {
-    ok: false,
-    spokenText: 'No project video is open right now.',
-    errorCode: 'project-video-unavailable',
-  };
-}
-
-function hostUnavailableResult(hostId: VoiceDependentHostId): SiteToolResult {
-  const spokenText: Record<VoiceDependentHostId, string> = {
+function hostUnavailableResult(hostId: SiteActionHostId): SiteToolResult {
+  const spokenText: Record<SiteActionHostId, string> = {
     'project-video': 'No project video is open right now.',
     chat: 'Chat is not open right now.',
     terminal: 'The terminal is not open on this page.',
@@ -583,24 +573,24 @@ function waitForProjectVideoControl(
     }
 
     function cancel(): void {
-      finish(projectVideoUnavailableResult());
+      finish(hostUnavailableResult('project-video'));
     }
 
     function check(): void {
       if (settled) return;
       if (isVoiceToolCancelled(call.id)) {
-        finish(projectVideoUnavailableResult());
+        finish(hostUnavailableResult('project-video'));
         return;
       }
       if (isStale(generation) || stopping || !snapshot.active) {
-        finish(projectVideoUnavailableResult());
+        finish(hostUnavailableResult('project-video'));
         return;
       }
       if (!canCommitSideEffects()) return;
       if (timeout === null) {
         timeout = setTimeout(() => {
           timeout = null;
-          finish(projectVideoUnavailableResult());
+          finish(hostUnavailableResult('project-video'));
         }, VOICE_PROJECT_VIDEO_WAIT_MS);
       }
       if (!isSiteActionHostReady('project-video')) return;
@@ -609,7 +599,7 @@ function waitForProjectVideoControl(
       cleanup();
       void executeSiteTool(call, runtime, { commit: true }).then(
         result => finish(result),
-        () => finish(projectVideoUnavailableResult()),
+        () => finish(hostUnavailableResult('project-video')),
       );
     }
 
@@ -661,10 +651,9 @@ async function enqueueVoiceSideEffect(
   call: SiteToolCall,
   generation: number,
 ): Promise<SiteToolResult> {
-  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
-  const deferred = isDeferredVoiceTool(call.name);
-  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
-  if (!deferred && !dependent) {
+  const policy = resolveVoiceToolPolicy(call.name, hostArgsForVoiceTool(call));
+  const hostId = policy.hostId;
+  if (policy.timing === 'immediate' && hostId === null) {
     return executeSiteToolSafely(call, requireHostRuntime(), true);
   }
   let result: SiteToolResult | undefined;
@@ -824,15 +813,6 @@ function requireHostRuntime(): SiteToolRuntime {
     resolvedTheme: undefined,
     discoActive: false,
     pathname: livePathname(),
-    openFeedback: () => {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('open-feedback'));
-      }
-    },
-    openProject: (slug) => {
-      if (!hostRuntime) return;
-      hostRuntime.router.push(slug ? `/projects?project=${encodeURIComponent(slug)}` : '/projects');
-    },
   };
 }
 
@@ -922,9 +902,7 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
   const alreadySeen = seenVoiceToolIds.has(call.id);
   if (!alreadySeen) seenVoiceToolIds.add(call.id);
 
-  const hostId = hostIdForVoiceTool(call.name, hostArgsForVoiceTool(call));
-  const deferred = isDeferredVoiceTool(call.name);
-  const dependent = isDependentVoiceTool(call.name) || hostId !== null;
+  const policy = resolveVoiceToolPolicy(call.name, hostArgsForVoiceTool(call));
   const runtime = requireHostRuntime();
   let result: SiteToolResult;
   if (alreadySeen) {
@@ -933,7 +911,7 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
     result = await executeSiteToolSafely(call, runtime, false);
   } else if (call.name === 'control_project_video') {
     result = await waitForProjectVideoControl(call, generation);
-  } else if (deferred || dependent) {
+  } else if (policy.timing === 'deferred' || policy.hostId !== null) {
     result = await enqueueVoiceSideEffect(call, generation);
   } else {
     result = await executeSiteToolSafely(call, runtime, true);

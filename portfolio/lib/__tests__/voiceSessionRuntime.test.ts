@@ -182,7 +182,6 @@ describe('voice session runtime singleton', () => {
     const fakeCaller = createFakeCaller();
     const fakePlayback = createFakePlayback();
     const captureStop = vi.fn();
-    const openProject = vi.fn();
     const push = vi.fn();
     const createCaller = vi.fn(() => fakeCaller.caller);
     let captureFrame: ((chunk: ArrayBuffer) => void) | null = null;
@@ -205,8 +204,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject,
     });
 
     await startVoiceSession();
@@ -227,7 +224,6 @@ describe('voice session runtime singleton', () => {
       requestVoiceHangup,
       getVoiceSessionSnapshot,
       resetVoiceSessionRuntimeForTests,
-      openProject,
       push,
       captureStop,
       fetchSession,
@@ -848,8 +844,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject: vi.fn(),
     });
 
     await startVoiceSession();
@@ -903,8 +897,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject: vi.fn(),
     });
 
     await startVoiceSession();
@@ -1020,8 +1012,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject: vi.fn(),
     });
 
     await startVoiceSession();
@@ -1071,8 +1061,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject: vi.fn(),
     });
     vi.stubGlobal('navigator', {
       permissions: {
@@ -1125,8 +1113,6 @@ describe('voice session runtime singleton', () => {
       setTheme: vi.fn(),
       resolvedTheme: 'light',
       discoActive: false,
-      openFeedback: vi.fn(),
-      openProject: vi.fn(),
     });
 
     await startVoiceSession();

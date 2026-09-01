@@ -1861,14 +1861,15 @@ html[data-disco="on"] [data-disco-motion="wiggle"] {
      with framer-motion's inline `style.transform` writes (e.g. the home
      Terminal's entrance tween settles to a non-trivial transform; the
      `data-disco-motion="wiggle"` rule must still wiggle on top of it). */
-  animation: disco-spin-prop 1200ms ease-in-out infinite;
+  animation: disco-spin-prop var(--disco-motion-duration, 1200ms) ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   transform-origin: center;
   will-change: rotate;
 }
 @supports not (rotate: 1deg) {
   html[data-disco="on"] [data-disco-motion="wiggle"] {
-    animation: disco-wiggle 1200ms ease-in-out infinite;
+    animation: disco-wiggle var(--disco-motion-duration, 1200ms) ease-in-out infinite;
+    animation-delay: var(--disco-motion-delay, 0ms);
     will-change: transform;
   }
 }
@@ -1891,30 +1892,6 @@ html[data-disco="on"] [data-disco-motion="bob"] {
 /* ─── Site-wide selectors — minimize per-component diffs ────────────────
    Rather than adding attributes on every target, we use content-aware
    selectors to catch whole archetypes in one rule. */
-
-/* Project card tiles on /projects — the .pt-5 rotated wrappers that hold
-   each m.div tile. They already carry an inline `rotate(Xdeg)` transform
-   from framer-motion; adding a child animation would conflict. Instead, we
-   animate their INNER .group\/card layer via a shimmy so the inline rotate
-   stays intact on the parent. */
-html[data-disco="on"] .group\/card {
-  animation: disco-spin-prop 1400ms ease-in-out infinite;
-  animation-delay: var(--disco-motion-delay, 0ms);
-  transform-origin: center;
-  will-change: rotate;
-}
-/* Safari ≤14.x fallback — standalone `rotate:` unsupported, fall back to the
-   transform-based wiggle. (On those browsers, framer-motion's hover transform
-   may briefly suppress the dance during interaction — acceptable degradation.) */
-@supports not (rotate: 1deg) {
-  html[data-disco="on"] .group\/card {
-    animation: disco-wiggle 1400ms ease-in-out infinite;
-    animation-delay: var(--disco-motion-delay, 0ms);
-    will-change: transform;
-  }
-}
-/* Project tile phase offsets come from hoisted per-card CSS variables so the
-   dance starts distributed without DOM-position buckets. */
 
 /* Guestbook notes — the outer article wrapper already animates an entrance
    via `.animate-wall-note-in`. We only apply disco motion to the INNER
@@ -2615,6 +2592,23 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   border-style: solid;
 }
 
+[data-hover-tilt] {
+  --hover-tilt: 0deg;
+  --hover-tilt-scale: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  [data-hover-tilt] {
+    transition-property: transform, scale;
+    transition-duration: 200ms;
+    transition-timing-function: ease-out;
+  }
+
+  [data-hover-tilt]:hover {
+    transform: translateY(-3px) rotate(var(--hover-tilt, 0deg)) scale(var(--hover-tilt-scale, 1));
+  }
+}
+
 /* Shared reduced-motion contract
    Both device and explicit preferences settle decorative entrances at their
    final visual state. Puzzle/auth timing is intentionally outside this list. */
@@ -2625,7 +2619,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     html:not([data-motion="full"])[data-disco="on"] body::after,
     html:not([data-motion="full"])[data-disco="on"] :where(
       nav[aria-label="Main navigation"] > a > div,
-      .group\/card,
       article.animate-wall-note-in > div,
       .bg-\[var\(--note-user\)\],
       .bg-\[var\(--note-ai\)\],
@@ -2671,7 +2664,8 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       [data-sticker-toast],
       [data-superuser-toast],
       [data-disco-motion],
-      [data-disco-bounce]
+      [data-disco-bounce],
+      [data-hover-tilt]
     ) {
       animation: none !important;
       transition-duration: 0.01ms !important;
@@ -2687,7 +2681,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     html:not([data-motion="full"]) .animate-page-sheet { transform: translateY(0) !important; }
     html:not([data-motion="full"]) .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
     html:not([data-motion="full"]) .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
-    html:not([data-motion="full"]) [data-project-card] { transform: none !important; }
+    html:not([data-motion="full"]) [data-hover-tilt] { transform: none !important; }
   }
 
   html[data-motion="reduced"][data-disco="on"] body,
@@ -2695,7 +2689,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   html[data-motion="reduced"][data-disco="on"] body::after,
   html[data-motion="reduced"][data-disco="on"] :where(
     nav[aria-label="Main navigation"] > a > div,
-    .group\/card,
     article.animate-wall-note-in > div,
     .bg-\[var\(--note-user\)\],
     .bg-\[var\(--note-ai\)\],
@@ -2741,7 +2734,8 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     [data-sticker-toast],
     [data-superuser-toast],
     [data-disco-motion],
-    [data-disco-bounce]
+    [data-disco-bounce],
+    [data-hover-tilt]
   ) {
     animation: none !important;
     transition-duration: 0.01ms !important;
@@ -2756,7 +2750,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
   html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
   html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
-  html[data-motion="reduced"] [data-project-card] { transform: none !important; }
+  html[data-motion="reduced"] [data-hover-tilt] { transform: none !important; }
 }
 
 /* Master volume range — sketchbook ink track, paper thumb, disco-safe. */

@@ -279,12 +279,33 @@ describe('globals.css disco theme', () => {
     expect(helperBlock).not.toMatch(/Math\.random|Date\.now|requestAnimationFrame|setInterval/);
   });
 
-  it('project card dance consumes custom phase offsets instead of nth-child buckets', () => {
-    const cardBlock = CSS.match(/html\[data-disco="on"\]\s+\.group\\\/card\s*\{[\s\S]*?\}/);
-    expect(cardBlock).toBeTruthy();
-    expect(cardBlock?.[0]).toMatch(/animation-delay:\s*var\(--disco-motion-delay,\s*0ms\)/);
+  it('project card and thumbnail dance independently via generic data-motion', () => {
+    expect(CSS).not.toContain('.group\\/card');
     expect(CSS).not.toContain('.grid > div:nth-child(3n+2) .group\\/card');
     expect(CSS).not.toContain('.grid > div:nth-child(3n+3) .group\\/card');
+
+    const wiggleBlock = CSS.match(
+      /html\[data-disco="on"\]\s+\[data-disco-motion="wiggle"\]\s*\{[\s\S]*?\}/,
+    );
+    expect(wiggleBlock).toBeTruthy();
+    expect(wiggleBlock?.[0]).toMatch(/animation-delay:\s*var\(--disco-motion-delay,\s*0ms\)/);
+
+    const wiggleFallback = CSS.match(
+      /@supports\s+not\s+\(rotate:\s*1deg\)\s*\{[\s\S]*?\[data-disco-motion="wiggle"\]\s*\{[\s\S]*?\}/,
+    );
+    expect(wiggleFallback?.[0]).toMatch(/animation-delay:\s*var\(--disco-motion-delay,\s*0ms\)/);
+
+    expect(PROJECTS_PAGE).toMatch(/data-disco-motion="wiggle"/);
+    expect(PROJECTS_PAGE).toMatch(/data-hover-tilt/);
+    expect(PROJECTS_PAGE).toMatch(/function getThumbDiscoStyle\(index: number\): DiscoThumbStyle/);
+    expect(PROJECTS_PAGE).toMatch(/getIndexedDiscoDelay\(index, PROJECT_THUMB_WIGGLE_PERIOD_MS,/);
+    expect(PROJECTS_PAGE).toMatch(/getIndexedDiscoDelay\(index, PROJECT_WIGGLE_PERIOD_MS,/);
+    expect(PROJECTS_PAGE).toMatch(/'--disco-motion-duration': `\$\{PROJECT_WIGGLE_PERIOD_MS\}ms`/);
+    expect(PROJECTS_PAGE).toMatch(/'--disco-motion-duration': `\$\{PROJECT_THUMB_WIGGLE_PERIOD_MS\}ms`/);
+    expect(CSS).toContain('var(--disco-motion-duration, 1200ms)');
+    expect(PROJECTS_PAGE).toMatch(/\.\.\.getThumbDiscoStyle\(i\)/);
+    expect(PROJECTS_PAGE).toMatch(/style=\{styles\.photo\}/);
+    expect(PROJECTS_PAGE.match(/data-disco-motion="wiggle"/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it('chat hue phase is custom-delayed and remains desktop-only', () => {

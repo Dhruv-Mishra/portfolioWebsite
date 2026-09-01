@@ -311,18 +311,19 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                   )}
                 />
 
-                <div className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
+                <div
+                  data-hover-tilt
+                  className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}
+                >
                   <article
                     data-disco-motion="wiggle"
                     style={discoMotionStyle}
                     className={cn(
-                      'relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,translate,rotate] md:p-5 md:duration-150 md:ease-out',
+                      'relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow] md:p-5',
                       'shadow-[4px_5px_0_color-mix(in_srgb,var(--c-ink)_14%,transparent)]',
                       'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:bg-[linear-gradient(transparent_95%,color-mix(in_srgb,var(--c-ink)_8%,transparent)_96%)] before:bg-[length:100%_22px] before:opacity-55',
                       NOTE_ROTATION_CLASSES[index % NOTE_ROTATION_CLASSES.length],
                       isActive && cn('border-[var(--c-ink)]/35', meta.shadowClassName),
-                      !prefersReducedMotion && 'md:hover:-translate-y-[3px]',
-                      !prefersReducedMotion && (noteOnRight ? 'md:hover:rotate-[0.25deg]' : 'md:hover:-rotate-[0.25deg]'),
                     )}
                   >
                     <TapeStrip

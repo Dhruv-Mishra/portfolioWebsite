@@ -36,6 +36,7 @@ describe('motion preference contract', () => {
   it('scopes CSS reduction to decorative surfaces instead of all descendants', () => {
     expect(reducedContract).toContain('[data-sticker-toast]');
     expect(reducedContract).toContain('[data-disco-motion]');
+    expect(reducedContract).toContain('[data-hover-tilt]');
     expect(reducedContract).toContain('.sticker-card--superuser::after');
     expect(reducedContract).not.toMatch(/html\[data-motion="reduced"\]\s+\*/);
     expect(reducedContract).not.toContain('terminal-auth-shake');

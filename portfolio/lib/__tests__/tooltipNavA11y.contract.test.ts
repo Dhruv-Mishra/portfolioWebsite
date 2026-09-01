@@ -20,6 +20,15 @@ describe('tooltip and nav a11y contracts', () => {
     expect(css).toContain('@keyframes sketchTooltipIn');
   });
 
+  it('closes on captured scroll and only recomputes coords on resize', () => {
+    const tooltip = read('components/ui/Tooltip.tsx');
+    expect(tooltip).toMatch(/addEventListener\('scroll',\s*onScroll,\s*true\)/);
+    expect(tooltip).toMatch(/const onScroll = \(\) => setOpen\(false\)/);
+    expect(tooltip).toMatch(/addEventListener\('resize',\s*onResize\)/);
+    expect(tooltip).toMatch(/const onResize = \(\) => computeCoords\(triggerElement\)/);
+    expect(tooltip).not.toMatch(/addEventListener\('scroll',\s*onUpdate/);
+  });
+
   it('puts aria-current on the nav Link, not the clipped tab face', () => {
     const navigation = read('components/Navigation.tsx');
     const afterLink = navigation.slice(navigation.indexOf('<Link'));

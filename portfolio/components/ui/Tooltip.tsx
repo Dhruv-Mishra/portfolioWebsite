@@ -122,15 +122,16 @@ export function Tooltip({
 
   useEffect(() => () => clearTimer(), []);
 
-  // Reposition on scroll/resize while open.
+  // Close on nested-route scroll; recompute only on window resize.
   useEffect(() => {
     if (!open || !triggerElement) return;
-    const onUpdate = () => computeCoords(triggerElement);
-    window.addEventListener('scroll', onUpdate, true);
-    window.addEventListener('resize', onUpdate);
+    const onScroll = () => setOpen(false);
+    const onResize = () => computeCoords(triggerElement);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('scroll', onUpdate, true);
-      window.removeEventListener('resize', onUpdate);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
     };
   }, [open, triggerElement, computeCoords]);
 

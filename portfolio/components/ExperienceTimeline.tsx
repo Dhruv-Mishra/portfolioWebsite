@@ -312,17 +312,17 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                 />
 
                 <div className={cn('relative z-10 min-w-0 max-w-full', noteOnRight ? 'md:col-start-3' : 'md:col-start-1 md:row-start-1')}>
-                  <m.article
-                    layout
+                  <article
                     data-disco-motion="wiggle"
                     style={discoMotionStyle}
-                    whileHover={prefersReducedMotion ? undefined : { y: -3, rotate: noteOnRight ? 0.25 : -0.25 }}
                     className={cn(
-                      'group/timeline-card relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,transform] md:p-5',
+                      'relative w-full min-w-0 max-w-full overflow-visible rounded-[8px] border border-[var(--c-ink)]/15 bg-[var(--note-paper)] p-4 text-left text-[var(--c-ink)] transition-[background-color,border-color,box-shadow,translate,rotate] md:p-5 md:duration-150 md:ease-out',
                       'shadow-[4px_5px_0_color-mix(in_srgb,var(--c-ink)_14%,transparent)]',
                       'before:pointer-events-none before:absolute before:inset-0 before:rounded-[8px] before:bg-[linear-gradient(transparent_95%,color-mix(in_srgb,var(--c-ink)_8%,transparent)_96%)] before:bg-[length:100%_22px] before:opacity-55',
                       NOTE_ROTATION_CLASSES[index % NOTE_ROTATION_CLASSES.length],
-                      isActive ? cn('border-[var(--c-ink)]/35', meta.shadowClassName) : 'hover:border-[var(--c-ink)]/28',
+                      isActive && cn('border-[var(--c-ink)]/35', meta.shadowClassName),
+                      !prefersReducedMotion && 'md:hover:-translate-y-[3px]',
+                      !prefersReducedMotion && (noteOnRight ? 'md:hover:rotate-[0.25deg]' : 'md:hover:-rotate-[0.25deg]'),
                     )}
                   >
                     <TapeStrip
@@ -337,7 +337,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                       aria-expanded={isActive}
                       aria-controls={detailsId}
                       aria-label={isActive ? `Collapse ${entry.title}` : `Expand ${entry.title}`}
-                      className="relative z-10 block w-full rounded-[6px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35"
+                      className="group/timeline-trigger relative z-10 block w-full rounded-[6px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35"
                     >
                       <span className="flex flex-col gap-2">
                         <span className="flex flex-wrap items-center gap-2 text-xs text-[var(--c-ink)]/55">
@@ -405,8 +405,9 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                           </span>
                           <span
                             className={cn(
-                              'inline-flex w-fit shrink-0 items-center gap-1 rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/45 px-2 py-1 font-hand text-[0.72rem] font-semibold text-[var(--c-ink)]/65 transition-[background-color,border-color,color,transform]',
-                              'md:group-hover/timeline-card:-translate-y-0.5 md:group-hover/timeline-card:border-[var(--c-ink)]/35 md:group-hover/timeline-card:bg-[var(--c-paper)] md:group-hover/timeline-card:text-[var(--c-ink)]',
+                              'inline-flex w-fit shrink-0 items-center gap-1 rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/45 px-2 py-1 font-hand text-[0.72rem] font-semibold text-[var(--c-ink)]/65 transition-[background-color,border-color,color,translate]',
+                              'md:group-hover/timeline-trigger:-translate-y-0.5 md:group-hover/timeline-trigger:border-[var(--c-ink)]/35 md:group-hover/timeline-trigger:bg-[var(--c-paper)] md:group-hover/timeline-trigger:text-[var(--c-ink)]',
+                              'motion-reduce:md:group-hover/timeline-trigger:translate-y-0',
                               isActive && 'border-[var(--c-ink)]/30 bg-[var(--c-paper)]/75 text-[var(--c-ink)]',
                             )}
                           >
@@ -465,7 +466,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                         </m.div>
                       )}
                     </AnimatePresence>
-                  </m.article>
+                  </article>
                 </div>
               </li>
             );

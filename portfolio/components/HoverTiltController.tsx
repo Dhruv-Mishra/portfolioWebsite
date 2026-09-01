@@ -25,12 +25,15 @@ export default function HoverTiltController(): null {
       if (!finePointer.matches) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
-      const el = target.closest<HTMLElement>('[data-hover-tilt]');
-      if (!el) return;
       const related = event.relatedTarget;
-      // Ignore child↔child moves; only retilt on true boundary entry.
-      if (related instanceof Node && el.contains(related)) return;
-      el.style.setProperty('--hover-tilt', nextTilt());
+      let el = target.closest<HTMLElement>('[data-hover-tilt]');
+      while (el) {
+        // Ignore child↔child moves; only retilt on true boundary entry.
+        if (!(related instanceof Node && el.contains(related))) {
+          el.style.setProperty('--hover-tilt', nextTilt());
+        }
+        el = el.parentElement?.closest<HTMLElement>('[data-hover-tilt]') ?? null;
+      }
     };
 
     document.addEventListener('pointerover', onPointerOver, { passive: true });

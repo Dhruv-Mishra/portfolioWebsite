@@ -20,6 +20,8 @@ describe('delegated hover-tilt contract', () => {
     expect(controller).toContain('(hover: hover) and (pointer: fine)');
     expect(controller).toContain('window.matchMedia');
     expect(controller).toContain("closest<HTMLElement>('[data-hover-tilt]')");
+    expect(controller).toMatch(/while\s*\(/);
+    expect(controller).toContain('parentElement');
     expect(controller).toContain('el.contains(related)');
     expect(controller).toContain("el.style.setProperty('--hover-tilt'");
     expect(controller).not.toContain('pointermove');
@@ -29,10 +31,12 @@ describe('delegated hover-tilt contract', () => {
     expect(timeline).not.toMatch(/onPointer(Over|Move|Enter)|whileHover/);
   });
 
-  it('opts project cards and timeline wrappers into the CSS contract without tilting the About sheet', () => {
+  it('opts project cards, timeline wrappers, and the About photo into the CSS contract without tilting the About sheet', () => {
     expect(css).toMatch(/\[data-hover-tilt\]:hover/);
-    expect(css).toMatch(/transition-property:\s*transform,\s*scale/);
+    expect(css).toMatch(/transition-property:\s*transform;/);
     expect(css).toMatch(/--hover-tilt-scale/);
+    expect(css).toMatch(/--hover-tilt-lift:\s*-3px/);
+    expect(css).toMatch(/translateY\(var\(--hover-tilt-lift,\s*-3px\)\)/);
     expect(css).not.toMatch(/\[data-hover-tilt\][\s\S]{0,180}will-change/);
     expect(css).not.toMatch(/\[data-project-card\]/);
     expect(projects).toContain('data-hover-tilt');
@@ -43,7 +47,16 @@ describe('delegated hover-tilt contract', () => {
     expect(timeline).toContain('data-disco-motion="wiggle"');
     expect(css).toMatch(/html:not\(\[data-motion="full"\]\) \[data-hover-tilt\] \{ transform: none/);
     expect(css).toMatch(/html\[data-motion="reduced"\] \[data-hover-tilt\] \{ transform: none/);
-    expect(about).not.toContain('data-hover-tilt');
     expect(about).not.toContain('"use client"');
+    expect(about).toContain('data-hover-tilt');
+    expect(about).toContain('data-disco-motion="wiggle"');
+    expect(about).toContain("'--hover-tilt-lift': '-2px'");
+    expect(about).toContain("'--hover-tilt-scale': '1.012'");
+    expect(about).toContain("'--disco-motion-delay': '-610ms'");
+    expect(about).toContain("'--disco-motion-duration': '1700ms'");
+    expect(about).toContain("'--disco-wiggle-amplitude': '2.25deg'");
+    const sheetOpen = about.indexOf('animate-page-sheet');
+    expect(sheetOpen).toBeGreaterThanOrEqual(0);
+    expect(about.slice(sheetOpen, about.indexOf('>', sheetOpen))).not.toContain('data-hover-tilt');
   });
 });

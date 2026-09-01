@@ -19,9 +19,13 @@ import path from 'node:path';
 const CSS_PATH = path.resolve(__dirname, '../../app/globals.css');
 const STICKY_NOTE_CHAT_PATH = path.resolve(__dirname, '../../components/StickyNoteChat.tsx');
 const PROJECTS_PAGE_PATH = path.resolve(__dirname, '../../app/projects/page.tsx');
+const TIMELINE_PATH = path.resolve(__dirname, '../../components/ExperienceTimeline.tsx');
+const TAPE_STRIP_PATH = path.resolve(__dirname, '../../components/ui/TapeStrip.tsx');
 const CSS = fs.readFileSync(CSS_PATH, 'utf8');
 const STICKY_NOTE_CHAT = fs.readFileSync(STICKY_NOTE_CHAT_PATH, 'utf8');
 const PROJECTS_PAGE = fs.readFileSync(PROJECTS_PAGE_PATH, 'utf8');
+const TIMELINE = fs.readFileSync(TIMELINE_PATH, 'utf8');
+const TAPE_STRIP = fs.readFileSync(TAPE_STRIP_PATH, 'utf8');
 
 describe('globals.css disco theme', () => {
   it('defines the [data-disco="on"] selector', () => {
@@ -147,8 +151,8 @@ describe('globals.css disco theme', () => {
     expect(CSS).toMatch(/@keyframes\s+disco-bounce-soft/);
   });
 
-  it('applies heading shimmer inside disco mode', () => {
-    expect(CSS).toMatch(/@keyframes\s+disco-heading-shimmer/);
+  it('does not ship unused disco-heading-shimmer keyframes', () => {
+    expect(CSS).not.toMatch(/@keyframes\s+disco-heading-shimmer/);
   });
 
   it('hero heading legibility: no `color: transparent` + `background-clip: text` pattern', () => {
@@ -306,6 +310,45 @@ describe('globals.css disco theme', () => {
     expect(PROJECTS_PAGE).toMatch(/\.\.\.getThumbDiscoStyle\(i\)/);
     expect(PROJECTS_PAGE).toMatch(/style=\{styles\.photo\}/);
     expect(PROJECTS_PAGE.match(/data-disco-motion="wiggle"/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('wiggle amplitude is variable with a 5deg default in both keyframes', () => {
+    expect(CSS).toContain('var(--disco-wiggle-amplitude, 5deg)');
+    expect(CSS).toContain('calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg))');
+    expect(CSS).toContain('calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg))');
+  });
+
+  it('drops unused disco-bounce and reverse-hue keyframes', () => {
+    expect(CSS).not.toMatch(/@keyframes\s+disco-bounce\s*\{/);
+    expect(CSS).not.toMatch(/@keyframes\s+disco-card-hue-reverse/);
+    expect(CSS).toMatch(/@keyframes\s+disco-bounce-soft/);
+    expect(CSS).toContain('[data-disco-bounce]');
+  });
+
+  it('timeline notes, tape, and category chips use deterministic negative disco phases', () => {
+    expect(TIMELINE).toContain('function getTimelineDiscoDelay(index: number, periodMs: number, salt: number)');
+    expect(TIMELINE).toContain('return `-${((((index + 1) * 307) + salt) % (periodMs - 1)) + 1}ms`');
+    expect(TIMELINE).toContain("'--hover-tilt-lift': '-1px'");
+    expect(TIMELINE).toContain("'--hover-tilt-scale': '1.035'");
+    expect(TIMELINE).toContain("'--disco-wiggle-amplitude': '2.5deg'");
+    expect(TIMELINE).toContain("'--disco-wiggle-amplitude': '3deg'");
+    expect(TIMELINE).toContain("'--disco-wiggle-amplitude': '4deg'");
+    expect(TIMELINE).toContain('discoStyle={tapeDiscoStyle}');
+    expect(TIMELINE).toContain('md:rotate-[var(--disco-wiggle-rest)]');
+    expect(TIMELINE).not.toContain('NOTE_ROTATION_CLASSES');
+    expect(TIMELINE).not.toContain('index * 115');
+    expect(TIMELINE).not.toMatch(/Math\.random|Date\.now|requestAnimationFrame|setInterval/);
+    expect(TIMELINE).not.toMatch(/onPointer(Over|Move|Enter)|whileHover/);
+
+    const helperBlock = TIMELINE.match(/function getTimelineDiscoDelay[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(helperBlock).toContain('`-${');
+    expect(helperBlock).not.toMatch(/Math\.random|Date\.now|hash/);
+  });
+
+  it('TapeStrip discoStyle is opt-in and does not wiggle by default', () => {
+    expect(TAPE_STRIP).toContain('discoStyle?: CSSProperties');
+    expect(TAPE_STRIP).toContain("data-disco-motion={discoStyle ? 'wiggle' : undefined}");
+    expect(TAPE_STRIP).toContain('style={discoStyle ? { ...TAPE_STYLE, ...discoStyle } : TAPE_STYLE}');
   });
 
   it('chat hue phase is custom-delayed and remains desktop-only', () => {

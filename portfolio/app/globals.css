@@ -1706,11 +1706,6 @@ html[data-disco="on"] body::before {
    120 BPM → 500ms per beat. Keep amplitude SMALL (3–5px) so text stays
    readable during disco. Staggered phases so not every element lifts on the
    same beat — odd tabs on beat 1, even tabs on beat 3 (phase-offset). */
-@keyframes disco-bounce {
-  0%, 100%   { transform: var(--disco-rest, translateY(0)) scale(1); }
-  18%        { transform: var(--disco-rest, translateY(0)) translateY(-4px) scale(1.01); }
-  35%        { transform: var(--disco-rest, translateY(0)) scale(1); }
-}
 
 /* Navigation tab bounce. The base Navigation component writes its translateY
    via inline style for active/hover state and its entrance animation. Animating
@@ -1788,9 +1783,9 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    feel without crossing into seizure-inducing territory. */
 @keyframes disco-wiggle {
   0%, 100% { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + 5deg)); }
+  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg))); }
   50%      { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - 5deg)); }
+  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg))); }
 }
 
 /* 2) shimmy — horizontal slide, short burst, for wide-ish elements (chat
@@ -1810,9 +1805,9 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    resolves the inline transform. */
 @keyframes disco-spin-prop {
   0%, 100% { rotate: var(--disco-wiggle-rest, 0deg); }
-  25%      { rotate: calc(var(--disco-wiggle-rest, 0deg) + 5deg); }
+  25%      { rotate: calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg)); }
   50%      { rotate: var(--disco-wiggle-rest, 0deg); }
-  75%      { rotate: calc(var(--disco-wiggle-rest, 0deg) - 5deg); }
+  75%      { rotate: calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg)); }
 }
 
 /* 2c) chat-sway — combined slight rotate + horizontal translation for chat
@@ -1992,18 +1987,16 @@ html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
   }
 }
 
-/* Buttons site-wide — tight soft bounce on everything that's a <button>
-   AND sits inside an interactive surface. Scope it tight to avoid dance-ing
-   every <button> on the page (e.g., sticker carousel nav). */
-html[data-disco="on"] button[data-disco-bounce],
+/* Buttons site-wide — tight soft bounce on clickable <button>s. Generic
+   [data-disco-bounce] already owns bounce + value-specific delays. */
 html[data-disco="on"] button[data-clickable] {
   animation: disco-bounce-soft 500ms ease-in-out infinite;
 }
 
-/* Mini-chat panel (when open) — gentle breath on the outer panel wrapper. */
-html[data-disco="on"] [role="dialog"][aria-label="Command palette"],
-html[data-disco="on"] [data-disco-motion="breath"] {
+/* Mini-chat panel (when open) — gentle breath on the command palette. */
+html[data-disco="on"] [role="dialog"][aria-label="Command palette"] {
   animation: disco-breath 2000ms ease-in-out infinite;
+  animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform;
 }
 
@@ -2087,10 +2080,9 @@ html[data-disco="on"] .bg-binding-bg {
   50%      { filter: hue-rotate(25deg) saturate(1.4) brightness(1.1); }
 }
 
-/* Note cards / project cards — hue cycle via `filter` which only the
-   painted pixels of that element receive. Cheap because note cards are small.
-   NB: `filter` cascades to descendants; we restore the identity filter on
-   nested imagery so project screenshots don't get rainbow-hue'd. */
+/* Note cards / project cards — hue cycle via `filter` on the card surface.
+   Nested media inherit the host card's hue; we do not restore identity
+   filters on imagery. */
 /* Desktop-only: note cards get a full hue-rotate cycle. On mobile (coarse
    pointer) we drop the `filter: hue-rotate` animations entirely — filter
    animations force per-frame repaint of the element AND every descendant, and
@@ -2128,12 +2120,6 @@ html[data-disco="on"] .bg-binding-bg {
   50%  { filter: hue-rotate(180deg) saturate(1.3); }
   75%  { filter: hue-rotate(300deg) saturate(1.5); }
   100% { filter: hue-rotate(360deg) saturate(1.3); }
-}
-/* Legacy keyframe kept so the existing CSS guardrail tests still pass.
-   Not referenced by any selector — purely a test-contract anchor. */
-@keyframes disco-card-hue-reverse {
-  0%   { filter: hue-rotate(0deg)    saturate(0.77); }
-  100% { filter: hue-rotate(-360deg) saturate(0.77); }
 }
 
 /* Headings — color cycle through vibrant, readable hues. We previously used
@@ -2240,13 +2226,6 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="bob"] {
   71%  { color: #7c3aed; }
   85%  { color: #db2777; }
   100% { color: #dc2626; }
-}
-/* Legacy keyframe kept so the existing CSS guardrail test
-   (`expect CSS to match /@keyframes\s+disco-heading-shimmer/`) still passes.
-   Not referenced by any selector — purely a test-contract anchor. */
-@keyframes disco-heading-shimmer {
-  0%   { background-position: 0% 50%; }
-  100% { background-position: 250% 50%; }
 }
 
 /* Note: `.disco-mute-btn` was removed in the single-mute consolidation. The
@@ -2595,17 +2574,18 @@ html:not([data-pref-sketch="on"]) .sticker-card {
 [data-hover-tilt] {
   --hover-tilt: 0deg;
   --hover-tilt-scale: 1;
+  --hover-tilt-lift: -3px;
 }
 
 @media (hover: hover) and (pointer: fine) {
   [data-hover-tilt] {
-    transition-property: transform, scale;
+    transition-property: transform;
     transition-duration: 200ms;
     transition-timing-function: ease-out;
   }
 
   [data-hover-tilt]:hover {
-    transform: translateY(-3px) rotate(var(--hover-tilt, 0deg)) scale(var(--hover-tilt-scale, 1));
+    transform: translateY(var(--hover-tilt-lift, -3px)) rotate(var(--hover-tilt, 0deg)) scale(var(--hover-tilt-scale, 1));
   }
 }
 

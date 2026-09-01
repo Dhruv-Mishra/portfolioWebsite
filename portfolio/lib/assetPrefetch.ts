@@ -123,7 +123,7 @@ export function scheduleSuperuserPrefetch(): void {
 
   scheduleIdle(() => {
     // Disco media chunk — harmless if it was already imported by
-    // `sudo disco` pre-warm. Dynamic import uses Next.js chunk splitting.
+    // `disco` pre-warm. Dynamic import uses Next.js chunk splitting.
     void import('@/components/DiscoMediaLayer').catch(() => {
       /* best-effort — runtime import retries on activation */
     });

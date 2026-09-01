@@ -2,8 +2,8 @@
 
 /**
  * DiscoFlagController — the TINY, eagerly-mounted client component that owns
- * only the `data-disco` attribute on <html>. Split out from the heavy
- * DiscoModeController so users who never unlock disco pay near-zero JS cost.
+ * only the `data-disco` attribute on <html>. Kept small so users who never
+ * unlock disco pay near-zero JS cost.
  *
  * What this component does (ALL it does):
  *   1. Subscribes to `discoActive` from the sticker store (single boolean).

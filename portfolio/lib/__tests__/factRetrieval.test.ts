@@ -170,7 +170,7 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(context).toContain('sitewide speaker toggle');
     expect(context).toContain('require a second confirmation with `yes`');
     expect(context).toContain('only its on-screen `WAKE UP` or later escape button can dismiss it');
-    expect(context).toContain('Disco exits through `sudo disco off` or the theme toggle');
+    expect(context).toContain('Disco exits through `disco off` and stays dark');
   });
 
   it('keeps Matrix-specific questions on the dedicated puzzle retrieval path', async () => {

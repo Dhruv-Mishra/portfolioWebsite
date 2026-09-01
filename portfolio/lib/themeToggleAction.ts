@@ -1,6 +1,6 @@
 /**
  * Shared theme-toggle action used by desktop ThemeToggle, mobile
- * MobileThemeButton, chat, voice tools, and sudo disco.
+ * MobileThemeButton, chat, voice tools, and terminal disco.
  *
  * Disco enter/exit goes through `runDiscoMode` so chunk prewarm and the
  * store flag stay in one place. Theme cycling still happens here;

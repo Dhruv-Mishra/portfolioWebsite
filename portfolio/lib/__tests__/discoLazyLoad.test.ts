@@ -80,8 +80,7 @@ describe('disco lazy-load boundary', () => {
 
   it('EagerEnhancements only references the flag controller (no heavy modules)', () => {
     const src = readSrc('EagerEnhancements.tsx');
-    // EagerEnhancements may reference DiscoFlagController or the re-exporting
-    // DiscoModeController — both are equivalent from a bundle-split POV.
+    // EagerEnhancements should reference DiscoFlagController only.
     const combined =
       staticImportsOf(src).join(' ') + ' ' + dynamicImportsOf(src).join(' ');
     const forbidden = [
@@ -97,8 +96,7 @@ describe('disco lazy-load boundary', () => {
     for (const spec of forbidden) {
       expect(combined).not.toContain(spec);
     }
-    // Should reference the flag controller (directly OR via the re-export path).
-    expect(combined).toMatch(/DiscoFlagController|DiscoModeController/);
+    expect(combined).toMatch(/DiscoFlagController/);
   });
 
   it('DiscoMediaLayer itself dynamically imports its sub-modules', () => {
@@ -111,17 +109,6 @@ describe('disco lazy-load boundary', () => {
     const dyns = dynamicImportsOf(src);
     expect(dyns).toContain('./DiscoSparkleCanvas');
     expect(dyns).toContain('./DiscoSpotlights');
-  });
-
-  it('DiscoModeController is a thin re-export of DiscoFlagController', () => {
-    // The legacy import path must keep working, but MUST NOT bloat.
-    const src = readSrc('DiscoModeController.tsx');
-    // Re-export syntax — either `export { default } from ...` or `export *`.
-    expect(src).toMatch(/export\s+\{\s*default\s*\}\s+from\s+['"]\.\/DiscoFlagController['"]/);
-    // No static imports of the heavy modules.
-    const statics = staticImportsOf(src);
-    expect(statics.some((s) => s.includes('MediaLayer'))).toBe(false);
-    expect(statics.some((s) => s.includes('SparkleCanvas'))).toBe(false);
   });
 
   it('runDiscoMode pre-warms the media chunk on the user-gesture tick', () => {

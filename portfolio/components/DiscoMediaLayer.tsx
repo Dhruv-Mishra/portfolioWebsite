@@ -60,7 +60,7 @@ const DiscoTrackControl = memo(function DiscoTrackControl(): React.ReactElement 
   return (
     <div
       data-disco-track-control
-      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4rem)] left-[calc(50%-1rem)] -translate-x-1/2 md:bottom-6 md:left-44 md:translate-x-0 flex min-h-11 items-center gap-2 rounded-md border-2 border-dashed border-[var(--c-grid)]/70 bg-[var(--c-paper)]/90 py-1 pl-3 pr-1 shadow-lg backdrop-blur-sm -rotate-1"
+      className="fixed bottom-[var(--c-mobile-floating-bottom)] left-[calc(50%-1rem)] -translate-x-1/2 md:bottom-6 md:left-44 md:translate-x-0 flex min-h-11 items-center gap-2 rounded-md border-2 border-dashed border-[var(--c-grid)]/70 bg-[var(--c-paper)]/90 py-1 pl-3 pr-1 shadow-lg backdrop-blur-sm -rotate-1"
       style={{ zIndex: Z_INDEX.nav }}
       role="group"
       aria-label="Disco track controls"

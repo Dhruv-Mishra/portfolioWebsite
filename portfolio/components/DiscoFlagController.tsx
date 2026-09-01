@@ -35,6 +35,7 @@
  *     across parent re-renders.
  */
 import { useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
 import { useDiscoActive, useMatrixActive } from '@/hooks/useStickers';
 
 type MediaLayerModule = typeof import('./DiscoMediaLayer');
@@ -43,6 +44,7 @@ type MatrixOverlayModule = typeof import('./DiscoMatrixOverlay');
 export default function DiscoFlagController(): React.ReactElement | null {
   const discoActive = useDiscoActive();
   const matrixActive = useMatrixActive();
+  const { setTheme } = useTheme();
   const [MediaLayer, setMediaLayer] = useState<MediaLayerModule['default'] | null>(null);
   const [MatrixOverlay, setMatrixOverlay] = useState<MatrixOverlayModule['default'] | null>(null);
 
@@ -52,10 +54,11 @@ export default function DiscoFlagController(): React.ReactElement | null {
     const root = document.documentElement;
     if (discoActive) {
       root.dataset.disco = 'on';
+      setTheme('dark');
     } else {
       delete root.dataset.disco;
     }
-  }, [discoActive]);
+  }, [discoActive, setTheme]);
 
   // 2) Gate the heavy disco import — only fetch the chunk once `discoActive`
   //    is true for the first time. Stays resolved for the rest of the session

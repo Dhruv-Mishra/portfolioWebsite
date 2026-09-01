@@ -669,6 +669,7 @@ html[data-voice-mode] [data-chat-composer] {
 html[data-voice-mode] [data-skip-nav],
 html[data-voice-mode] .disco-spotlights,
 html[data-voice-mode] [data-disco-media],
+html[data-voice-mode] [data-disco-track-control],
 html[data-voice-mode] [data-sound-toggle],
 html[data-voice-mode] [data-shortcuts-hint] {
   display: none !important;
@@ -1957,12 +1958,12 @@ html[data-disco="on"] .sticker-card--locked {
    Uses `disco-spin-prop` (standalone `rotate:`) so the dance composes
    independently of any inline `style.transform` left over from the entrance. */
 html[data-disco="on"] .animate-page-sheet {
-  animation: pageSheetIn 0.35s ease-out both, disco-spin-prop 1400ms ease-in-out infinite 0.5s;
+  animation: pageSheetIn 0.35s ease-out both, disco-spin-prop 1400ms ease-in-out infinite -0.5s;
   transform-origin: center;
 }
 @supports not (rotate: 1deg) {
   html[data-disco="on"] .animate-page-sheet {
-    animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite 0.5s;
+    animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite -0.5s;
   }
 }
 

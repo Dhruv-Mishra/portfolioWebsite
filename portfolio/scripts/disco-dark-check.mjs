@@ -1,7 +1,6 @@
 /**
- * Quick extra verification — hero subtitle under DARK disco (jewel-tone
- * gradient) and LIGHT disco (candy-pastel gradient) on both desktop and mobile.
- * Confirms the fix works under all four combinations.
+ * Verify that disco uses the dark palette when launched from either light or
+ * dark mode on desktop and mobile.
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -17,24 +16,7 @@ async function runCase(browser, { viewport, isMobile, dark, tag }) {
   const page = await ctx.newPage();
   await page.goto(BASE, { waitUntil: 'networkidle' });
 
-  // Seed superuser. Uses the current v5 sticker-store shape; `discoMuted`
-  // was removed in v5 so we set `soundsMuted: true` here to keep the dev
-  // box quiet during the check run.
   await page.evaluate((isDark) => {
-    const payload = {
-      version: 5,
-      unlocked: ['superuser'],
-      unlockedAt: { superuser: Date.now() },
-      lastEarnedAt: Date.now(),
-      lastSeenAlbumAt: Date.now(),
-      visitedRoutes: [],
-      terminalCommands: [],
-      openedProjects: [],
-      soundsMuted: true,
-      superuserRevealedAt: Date.now(),
-    };
-    localStorage.setItem('dhruv-stickers', JSON.stringify(payload));
-    // Set theme choice. next-themes uses the key "theme".
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, dark);
   await page.reload({ waitUntil: 'networkidle' });
@@ -44,7 +26,7 @@ async function runCase(browser, { viewport, isMobile, dark, tag }) {
   const input = await page.waitForSelector('input[aria-label="Terminal Command Input"]', { timeout: 5000 });
   await input.scrollIntoViewIfNeeded().catch(() => {});
   await input.focus();
-  await page.keyboard.type('sudo disco', { delay: 15 });
+  await page.keyboard.type('disco yes', { delay: 15 });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.documentElement.dataset.disco === 'on', { timeout: 5000 });
   await page.waitForTimeout(2000);
@@ -81,10 +63,10 @@ async function runCase(browser, { viewport, isMobile, dark, tag }) {
 async function main() {
   const browser = await chromium.launch({ executablePath: chromePath, headless: true, args: ['--no-sandbox'] });
   const cases = [
-    { viewport: { width: 1440, height: 900 }, isMobile: false, dark: false, tag: 'desktop-light-disco' },
-    { viewport: { width: 1440, height: 900 }, isMobile: false, dark: true, tag: 'desktop-dark-disco' },
-    { viewport: { width: 390, height: 844 }, isMobile: true, dark: false, tag: 'mobile-light-disco' },
-    { viewport: { width: 390, height: 844 }, isMobile: true, dark: true, tag: 'mobile-dark-disco' },
+    { viewport: { width: 1440, height: 900 }, isMobile: false, dark: false, tag: 'desktop-from-light' },
+    { viewport: { width: 1440, height: 900 }, isMobile: false, dark: true, tag: 'desktop-from-dark' },
+    { viewport: { width: 390, height: 844 }, isMobile: true, dark: false, tag: 'mobile-from-light' },
+    { viewport: { width: 390, height: 844 }, isMobile: true, dark: true, tag: 'mobile-from-dark' },
   ];
   const results = [];
   for (const c of cases) {

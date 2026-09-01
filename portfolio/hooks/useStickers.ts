@@ -74,9 +74,8 @@ const STORAGE_KEY = 'dhruv-stickers';
  *      one-shot fanfare/confetti reveal. Both fields are sticky preferences
  *      that survive reloads.
  * v3 — `discoActive` is no longer persisted. Each page load begins with disco
- *      OFF regardless of what the previous session ended in; users must opt
- *      back in via `sudo disco` (which still requires superuser, which DOES
- *      persist via the `unlocked` array).
+ *      OFF regardless of what the previous session ended in; users opt back
+ *      in through the public `disco` command.
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
@@ -99,8 +98,7 @@ export interface StickerState {
    * Runtime-only disco flag. NOT persisted — every page load begins with disco
    * OFF. The field lives on the in-memory state so selectors can subscribe to
    * it, but `writeToStorage` strips it before serialization and
-   * `parseStoredState` forces it to `false` on read. Superuser access itself is
-   * preserved through the `unlocked` array, so `sudo disco` still works.
+  * `parseStoredState` forces it to `false` on read.
    */
   discoActive: boolean;
   /**

@@ -30,7 +30,7 @@ const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
 const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const PROJECT_WIGGLE_PERIOD_MS = 1400;
 const PROJECT_CARD_HUE_PERIOD_MS = 6000;
-const CARD_INTERACTION_CLASS = 'relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/card shadow-[2px_4px_10px_rgba(0,0,0,0.08)] md:shadow-[5px_5px_15px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out motion-reduce:transition-none md:hover:scale-[1.02] active:scale-[0.92]';
+const CARD_INTERACTION_CLASS = 'relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand shadow-[2px_4px_10px_rgba(0,0,0,0.08)] md:shadow-[5px_5px_15px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out motion-reduce:transition-none active:scale-[0.92]';
 
 type DiscoCardStyle = CSSProperties & {
     '--disco-motion-delay': string;
@@ -224,7 +224,7 @@ export default function Projects() {
 
                             {/* Inner Clipped Container */}
                             <div
-                                className={`content-defer p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
+                                className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
                                 style={CARD_CLIP_STYLE}
                             >
 
@@ -249,11 +249,11 @@ export default function Projects() {
                                                     priority={i === 0}
                                                     placeholder="blur"
                                                     blurDataURL={proj.blurDataURL}
-                                                    className={`object-cover sepia-[.2] md:group-hover/card:sepia-0 ${proj.imageClassName || ''}`}
+                                                    className={`object-cover ${proj.imageClassName || ''}`}
                                                 />
                                                 {/* Play overlay — signals tap/hover to expand */}
-                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 md:group-hover/card:bg-black/15 transition-[background-color] duration-300">
-                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 md:group-hover/card:opacity-100 scale-90 md:scale-75 md:group-hover/card:scale-100 transition-[opacity,transform] duration-300 shadow-md md:shadow-lg">
+                                                <div className="group/preview absolute inset-0 flex items-center justify-center z-10 bg-black/0">
+                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 scale-90 md:-rotate-[3deg] shadow-md md:shadow-lg md:transition-[opacity,scale,rotate] md:duration-150 md:ease-out md:group-hover/preview:opacity-100 md:group-hover/preview:scale-100 md:group-hover/preview:rotate-[3deg] motion-reduce:md:group-hover/preview:opacity-50 motion-reduce:md:group-hover/preview:scale-90 motion-reduce:md:group-hover/preview:-rotate-[3deg]">
                                                         {hasVideo ? (
                                                             <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
                                                         ) : (

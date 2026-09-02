@@ -3,7 +3,7 @@
 // lib/facts.embeddings.json. Idempotent: facts whose content hash matches the
 // previous bundle are reused without hitting the API.
 //
-// Invocation: `npm run build:embeddings` (or automatically via `prebuild`).
+// Invocation: `bun run build:embeddings` (or automatically via `prebuild`).
 //
 // Resolution order (first applicable wins):
 //   1. SKIP_EMBEDDINGS_BUILD=1    -> reuse committed bundle and exit

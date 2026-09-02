@@ -18,7 +18,7 @@
  *   --tag         <name>  Optional tag to prefix output filenames (e.g., "before" / "after")
  *   --fast                 Skip the 60s memory check (faster iteration)
  *
- * Requires `playwright-core` (install via `npm i --no-save playwright-core`)
+ * Requires `playwright-core` (install via `bun install --no-save playwright-core`)
  * and a local Chrome/Chromium binary (auto-detected).
  */
 

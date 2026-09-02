@@ -25,13 +25,13 @@
 #
 #                2. ARTIFACT MODE (--release-dir / --sha):
 #                   A pre-built standalone bundle is already on disk (shipped
-#                   via GitHub Actions artifact + scp). Skips git / npm / build
+#                   via GitHub Actions artifact + scp). Skips git / bun / build
 #                   entirely. Uses /opt/portfolio/{config,releases,current}
 #                   layout with atomic symlink swap and health-check-gated
 #                   rollback. Kept as a non-Docker fallback.
 #
 #                3. LEGACY MODE (no --release-dir / --image):
-#                   Full git pull + npm ci + next build on the VM. Kept as a
+#                   Full git pull + bun ci + next build on the VM. Kept as a
 #                   safety net for emergency recovery; not the normal path.
 #
 #       OPTIONS:
@@ -40,8 +40,8 @@
 #                --sha SHA           [image/artifact] Git SHA identifying this build
 #                --site NAME         Site config to use (default: portfolio)
 #                --skip-git          [legacy]   Skip git pull
-#                --skip-deps         [legacy]   Skip npm ci
-#                --skip-build        [legacy]   Skip npm ci + next build
+#                --skip-deps         [legacy]   Skip bun ci
+#                --skip-build        [legacy]   Skip bun ci + next build
 #                --skip-nginx        Skip nginx config update
 #                --rollback          Roll back to the newest previous release
 #                --rollback-to SHA   Roll back by retained source Git SHA prefix
@@ -207,7 +207,7 @@ readonly BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 readonly MAX_LOG_FILES="${MAX_LOG_FILES:-10}"
 
 # Build
-readonly NPM_BUILD_TIMEOUT="${NPM_BUILD_TIMEOUT:-600}"
+readonly BUN_BUILD_TIMEOUT="${BUN_BUILD_TIMEOUT:-600}"
 
 # Health check — 60s is safe for 1 OCPU ARM VMs where Node.js startup can take 15-25s
 readonly HEALTH_CHECK_RETRIES="${HEALTH_CHECK_RETRIES:-60}"
@@ -354,8 +354,8 @@ OPTIONS
     --sha SHA           Image/artifact mode: git SHA identifying this build
   --site NAME         Site config in /etc/deploy/sites/ (default: portfolio)
   --skip-git          (legacy) Skip git pull
-  --skip-deps         (legacy) Skip npm ci
-  --skip-build        (legacy) Skip npm ci + next build
+  --skip-deps         (legacy) Skip bun ci
+  --skip-build        (legacy) Skip bun ci + next build
   --skip-nginx        Skip nginx config update & reload
     --rollback          Roll back to the newest previous retained release
     --rollback-to SHA   Roll back to a specific retained release SHA
@@ -604,7 +604,7 @@ check_dependencies() {
     log STEP "Checking dependencies..."
     local deps=("nginx" "systemctl" "curl" "sed" "awk" "flock")
     if [[ "${MODE}" == "legacy" ]]; then
-        deps+=("git" "node" "npm" "nice" "ionice")
+        deps+=("git" "node" "bun" "nice" "ionice")
     elif [[ "${MODE}" == "image" ]]; then
         deps+=("docker")
     fi
@@ -2631,7 +2631,7 @@ git_pull() {
 
 cleanup_git_changes() {
     cd "${GIT_ROOT}"
-    git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/package-lock.json" 2>/dev/null || true
+    git checkout -- "${PROJECT_ROOT}/package.json" "${PROJECT_ROOT}/bun.lock" 2>/dev/null || true
 }
 
 install_dependencies() {
@@ -2642,8 +2642,8 @@ install_dependencies() {
     log STEP "Installing dependencies (nice ${BUILD_NICE})..."
     cd "${PROJECT_ROOT}"
     nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
-        npm ci --loglevel=warn 2>&1 | tee -a "${LOG_FILE}" \
-        || { log ERROR "npm ci failed"; exit 1; }
+        bun ci 2>&1 | tee -a "${LOG_FILE}" \
+        || { log ERROR "bun ci failed"; exit 1; }
     log SUCCESS "Dependencies installed"
 }
 
@@ -2658,10 +2658,10 @@ build_project() {
     export NEXT_BUILD_ID
     NEXT_BUILD_ID="$(git -C "${GIT_ROOT}" rev-parse HEAD 2>/dev/null || echo "local-build")"
     rm -rf "${PROJECT_ROOT}/.next/cache" 2>/dev/null || true
-    if ! timeout "${NPM_BUILD_TIMEOUT}" \
+    if ! timeout "${BUN_BUILD_TIMEOUT}" \
             nice -n "${BUILD_NICE}" ionice -c "${BUILD_IONICE_CLASS}" \
             env NODE_OPTIONS="--max-old-space-size=${BUILD_HEAP_MB}" \
-            npm run build 2>&1 | tee -a "${LOG_FILE}"; then
+            bun run build 2>&1 | tee -a "${LOG_FILE}"; then
         log ERROR "Build failed"
         exit 1
     fi

@@ -13,7 +13,7 @@
 #   3. Create disk-backed swap file
 #   4. Apply conservative, safe kernel tuning (TCP BBR, security)
 #   5. Configure systemd limits & earlyoom
-#   6. Install Node.js 22 LTS + nginx
+#   6. Install Node.js 22 LTS + Bun 1.4.0 + nginx
 #   7. Harden SSH + install fail2ban
 #   8. Write global nginx.conf (multi-site ready)
 #   9. Configure firewall (UFW: SSH + HTTP + HTTPS)
@@ -334,15 +334,24 @@ fi
 echo "  ✓ systemd journal limited to 50 MB"
 
 # ---------------------------------------------------------------------------
-# 6. INSTALL NODE.JS 22 LTS + NGINX
+# 6. INSTALL NODE.JS 22 LTS + BUN 1.4.0 + NGINX
 # ---------------------------------------------------------------------------
-echo "[6/11] Installing Node.js 22 LTS and nginx..."
+echo "[6/11] Installing Node.js 22 LTS, Bun 1.4.0, and nginx..."
 
 if ! command -v node &>/dev/null || [[ "$(node --version)" != v22.* ]]; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
 fi
 echo "  ✓ Node.js $(node --version)"
+
+if ! command -v bun &>/dev/null || [[ "$(bun --version)" != "1.4.0" ]]; then
+    curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash -s "bun-v1.4.0"
+fi
+if ! command -v bun &>/dev/null || [[ "$(bun --version)" != "1.4.0" ]]; then
+    echo "ERROR: Bun 1.4.0 is required system-wide; found $(command -v bun >/dev/null && bun --version || echo 'missing')" >&2
+    exit 1
+fi
+echo "  ✓ Bun $(bun --version)"
 
 sudo apt-get install -y nginx
 sudo systemctl enable nginx
@@ -650,7 +659,7 @@ echo "   • Conservative memory settings (overcommit=0, swappiness=60)"
 echo "   • Safe TCP buffer sizes (4MB max per socket)"
 echo "   • Security hardening (redirects, martians, syncookies)"
 echo ""
-echo " Installed: Node.js $(node --version 2>/dev/null || echo 'N/A'), git, htop, jq, curl, tmux"
+echo " Installed: Node.js $(node --version 2>/dev/null || echo 'N/A'), Bun $(bun --version 2>/dev/null || echo 'N/A'), git, htop, jq, curl, tmux"
 echo ""
 echo " ── NEXT STEPS ──────────────────────────────────────────────────"
 echo ""

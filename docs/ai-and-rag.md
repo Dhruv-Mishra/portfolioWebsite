@@ -26,7 +26,7 @@ The `publish-model-health.yml` workflow runs every 10 minutes and probes only th
 
 ## Retrieval Pipeline
 
-1. Markdown files in `portfolio/content/facts/` are converted to an embeddings bundle by `npm run build:embeddings`.
+1. Markdown files in `portfolio/content/facts/` are converted to an embeddings bundle by `bun run build:embeddings`.
 2. The committed `portfolio/lib/facts.embeddings.json` bundle is loaded at runtime.
 3. The query is embedded with the same model, then non-anchor facts are ranked by cosine similarity.
 4. Anchor facts are always included first. If query embedding is unavailable, retrieval degrades to priority-ordered facts instead of failing the chat request.

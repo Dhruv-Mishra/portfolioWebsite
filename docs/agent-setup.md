@@ -32,7 +32,7 @@ RTK 0.43.0's `init --show`, `verify`, and once-daily reminder inspect only the C
 - RTK is the first compression layer for external terminal commands. Prefer VS Code's structured tools, which already return bounded output, and use direct PowerShell cmdlets when RTK cannot wrap them.
 - Use `rtk git status|diff|log|show|branch|add|commit|push|pull` for Git. Apply `rtk --ultra-compact` to routine status, branch, and list output only; keep normal RTK output for diffs, failures, and diagnostics.
 - From `portfolio/`, prefer `rtk vitest run`, `rtk lint`, `rtk tsc --noEmit --pretty false`, and `rtk playwright test`. Use `rtk vitest run <file> -t "<name>"` for focused tests.
-- Use `rtk npm run build` for this app because npm must run `prebuild` embeddings and `postbuild` sanitization. Use `rtk npm run <script>` for other lifecycle-dependent scripts and package operations.
+- Use `rtk bun run build` for this app because bun must run `prebuild` embeddings and `postbuild` sanitization. Use `rtk bun run <script>` for other lifecycle-dependent scripts and package operations.
 - Use `rtk rg`, `rtk read`, `rtk ls`, and `rtk find` for shell-based exploration. Use `rtk test <command>`, `rtk err <command>`, or `rtk summary <command>` only when no specialized adapter exists.
 - RTK saves full failed-command output through its failure tee by default. Read the referenced tee file instead of rerunning a noisy failure raw.
 - Check adoption with `rtk gain --history`; use `rtk discover --all --since 7` for supported session sources. Telemetry is optional and remains disabled unless explicitly enabled.

@@ -18,7 +18,7 @@ dev/lkg -> deployed/staging -> deployed/production
 The staging and production workflows:
 
 1. Require the expected branch and validate required runtime signing configuration, the local-agent credential, and the environment-specific voice-agent credential.
-2. Run `npm ci`, lint, TypeScript checks, and Vitest from `portfolio/`.
+2. Run `bun ci`, lint, TypeScript checks, and Vitest from `portfolio/`.
 3. Build and push one GHCR Docker image for `linux/amd64` and `linux/arm64`.
 4. Deploy the immutable image digest to Linux VMs behind Cloudflare and Nginx.
 
@@ -48,11 +48,11 @@ From the repository root:
 
 | Command | Use |
 |---|---|
-| `npm run lint` | Run ESLint for the app |
-| `npm run typecheck` | Run strict TypeScript checking |
-| `npm run build` | Run the package build through the root wrapper |
-| `cd portfolio; npm test` | Run the canonical Vitest suite |
-| `cd portfolio; npm run tts:smoke` | Exercise local Pocket TTS |
+| `bun run lint` | Run ESLint for the app |
+| `bun run typecheck` | Run strict TypeScript checking |
+| `bun run build` | Run the package build through the root wrapper |
+| `cd portfolio; bun run test` | Run the canonical Vitest suite |
+| `cd portfolio; bun run tts:smoke` | Exercise local Pocket TTS |
 
 For a local deploy-image check, use the documented `docker build` and `docker run` commands in [the package README](../portfolio/README.md). Do not place credentials in shell history, docs, or image build arguments.
 

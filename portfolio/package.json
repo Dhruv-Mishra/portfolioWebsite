@@ -2,14 +2,13 @@
   "name": "portfolio",
   "version": "0.43.0",
   "private": true,
-  "packageManager": "npm@10.9.8",
+  "packageManager": "bun@1.4.0",
   "engines": {
-    "node": ">=22",
-    "npm": "10.9.8"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "next dev",
-    "prebuild": "npm run build:embeddings",
+    "prebuild": "bun run build:embeddings",
     "build": "next build",
     "postbuild": "node scripts/sanitize-standalone.mjs",
     "start": "next start",
@@ -18,8 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tts:smoke": "tsx scripts/smoke-local-tts.ts",
-    "build:embeddings": "tsx scripts/build-embeddings.ts",
-    "prepare": "node scripts/install-git-hooks.mjs"
+    "build:embeddings": "tsx scripts/build-embeddings.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

@@ -27,22 +27,17 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.0
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: bun ci
 
       - name: Lint
-        run: npm run lint
+        run: bun run lint
 
   typecheck:
     name: Typecheck
@@ -62,22 +57,17 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.0
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: bun ci
 
       - name: Typecheck
-        run: npm run typecheck
+        run: bun run typecheck
 
   test:
     name: Test
@@ -97,22 +87,17 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.0
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: bun ci
 
       - name: Test
-        run: npm test
+        run: bun run test
 
   build:
     name: Build
@@ -132,19 +117,14 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.0
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: bun ci
 
       - name: Build
-        run: npm run build
+        run: bun run build

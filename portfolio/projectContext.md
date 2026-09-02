@@ -48,4 +48,4 @@ Do not treat these as disposable docs:
 - Use `@/*` imports, `cn()` for conditional class names, and the local CSS variable theme system.
 - Preserve light/dark mode and mobile behavior for UI changes. Prefer `h-[100dvh]` for viewport-height surfaces.
 - Keep hidden routes, unlock conditions, and private behavior out of public docs.
-- Run `npm run lint` and `npm --prefix portfolio run test` when changes touch app code, runtime logic, or agent/test guidance.
+- Run `bun run lint` and `bun run test` when changes touch app code, runtime logic, or agent/test guidance.

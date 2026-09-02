@@ -37,7 +37,7 @@ The Docker image installs Python and Pocket TTS, and mounts a persistent cache p
 
 ## Operator Checks
 
-1. Run `npm run tts:smoke` locally after installing the Python requirements and configuring gated-model access.
+1. Run `bun run tts:smoke` locally after installing the Python requirements and configuring gated-model access.
 2. Confirm `GET /api/tts` through the same-origin site returns an available local TTS status and expected voice revision.
 3. For a remote role, test only the public same-origin route. The private gateway address is an implementation detail.
 4. Keep Nginx buffering disabled for `/api/tts`; buffered NDJSON delays speech playback until generation completes.

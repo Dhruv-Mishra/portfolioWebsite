@@ -1,11 +1,12 @@
 {
   "name": "dhruvwebsite-workspace",
   "private": true,
+  "packageManager": "bun@1.4.0",
   "scripts": {
-    "dev": "npm --prefix portfolio run dev",
-    "build": "npm --prefix portfolio run build",
-    "start": "npm --prefix portfolio run start",
-    "lint": "npm --prefix portfolio run lint",
-    "typecheck": "npm --prefix portfolio run typecheck"
+    "dev": "bun run --cwd portfolio dev",
+    "build": "bun run --cwd portfolio build",
+    "start": "bun run --cwd portfolio start",
+    "lint": "bun run --cwd portfolio lint",
+    "typecheck": "bun run --cwd portfolio typecheck"
   }
 }

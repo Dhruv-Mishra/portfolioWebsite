@@ -23,6 +23,7 @@ const standaloneSanitizer = fs.readFileSync(
 const expectedActionRefs: Record<string, string> = {
   'actions/checkout': '3d3c42e5aac5ba805825da76410c181273ba90b1',
   'actions/setup-node': '820762786026740c76f36085b0efc47a31fe5020',
+  'oven-sh/setup-bun': '0c5077e51419868618aeaa5fe8019c62421857d6',
   'actions/download-artifact': '3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c',
   'docker/setup-qemu-action': '96fe6ef7f33517b61c61be40b68a1882f3264fb8',
   'docker/setup-buildx-action': 'bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',

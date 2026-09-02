@@ -7,9 +7,11 @@
 node_modules/
 **/node_modules/
 
-# Workspace-root lockfile should never exist — the root package.json declares
+# Workspace-root lockfiles should never exist — the root package.json declares
 # no dependencies (it's just a scripts wrapper). A stray lockfile here tricks
 # Next.js's workspace-root auto-detection into emitting .next/standalone/ to
 # the wrong tree and breaks the VPS deploy. The only real lockfile lives at
-# portfolio/package-lock.json.
+# portfolio/bun.lock. Ignore accidental root /bun.lock, and keep ignoring
+# /package-lock.json so a stale npm lock cannot reappear at the workspace root.
 /package-lock.json
+/bun.lock

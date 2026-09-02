@@ -32,7 +32,6 @@ concurrency:
 env:
   TARGET_BRANCH: deployed/staging
   NODE_VERSION: "22"
-  CI_NPM_VERSION: "10.9.8"
 
 jobs:
   prepare-release:
@@ -52,6 +51,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.0
 
       - name: Prepare release branch
         id: prepare
@@ -102,20 +106,35 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            npx -y npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor --no-git-tag-version --ignore-scripts
+            (
+              cd portfolio
+              bun pm version minor --no-git-tag-version
+              bun install --lockfile-only --ignore-scripts
+            )
             version="$(node -p "require('./portfolio/package.json').version")"
             if [ "$version" != "$next_version" ]; then
               echo "::error::Minor version bump produced ${version}; expected ${next_version}."
               exit 1
             fi
 
-            git add portfolio/package.json portfolio/package-lock.json
+            git add portfolio/package.json portfolio/bun.lock
             changed_files="$(git diff --cached --name-only)"
-            if [ "$changed_files" != $'portfolio/package-lock.json\nportfolio/package.json' ]; then
-              echo "::error::Release preparation changed files outside portfolio/package.json and portfolio/package-lock.json."
+            if ! grep -Fxq "portfolio/package.json" <<< "$changed_files"; then
+              echo "::error::Release preparation did not change portfolio/package.json."
               git diff --cached --name-only
               exit 1
             fi
+            while IFS= read -r changed_file; do
+              [ -z "$changed_file" ] && continue
+              case "$changed_file" in
+                portfolio/package.json|portfolio/bun.lock) ;;
+                *)
+                  echo "::error::Release preparation changed files outside portfolio/package.json and portfolio/bun.lock."
+                  git diff --cached --name-only
+                  exit 1
+                  ;;
+              esac
+            done <<< "$changed_files"
 
             git commit -m "chore(release): v${version}"
             release_sha="$(git rev-parse HEAD)"

@@ -1,20 +1,20 @@
 # syntax=docker/dockerfile:1.7
 
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.0 AS bun-bin
+
 FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS deps
 
 WORKDIR /app
 
-ARG NPM_VERSION=10.9.8
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     SKIP_EMBEDDINGS_BUILD=1 \
     ONNXRUNTIME_NODE_INSTALL=skip
 
-COPY package.json package-lock.json ./
-COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --global "npm@${NPM_VERSION}" \
-    && npm ci
+COPY package.json bun.lock bunfig.toml ./
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 FROM deps AS builder
 
@@ -38,9 +38,9 @@ RUN if [ -n "${BROWSERSLIST_QUERY}" ]; then \
             export BROWSERSLIST="${BROWSERSLIST_QUERY}"; \
         fi; \
         if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
-            npm run build -- ${NEXT_BUILD_FLAGS}; \
+            bun run build -- ${NEXT_BUILD_FLAGS}; \
         else \
-            npm run build; \
+            bun run build; \
         fi
 
 RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \

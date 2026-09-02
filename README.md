@@ -12,6 +12,7 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 - [TTS](docs/tts.md)
 - [Voice agent](docs/voice-agent.md)
 - [Deployment](docs/deployment.md)
+- [Bun migration gains and losses](BUN_GAINS_LOSSES.md)
 
 ## Screenshots
 
@@ -122,25 +123,25 @@ Deploy health checks validate each VM, release SHA, and TTS synthesis before act
 
 ## Local Development
 
-Requirements: Node.js 22 or newer and npm 10.9.8.
+Requirements: Node.js 22+ and Bun 1.4.0. Bun is the package manager and script runner; production remains Next.js standalone on Node 22.
 
 ```bash
 git clone https://github.com/Dhruv-Mishra/dhruvwebsite.git
 cd dhruvwebsite/portfolio
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). The committed embedding bundle supports local builds without provider credentials; online chat, GitHub workflows, and custom speech require their corresponding server-side configuration.
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start the development server |
-| `npm run build` | Generate embeddings when configured and build standalone output |
-| `npm run start` | Run the production server locally |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run the TypeScript compiler without emitting files |
-| `npm test` | Run the Vitest suite |
+| `bun run dev` | Start the development server |
+| `bun run build` | Generate embeddings when configured and build standalone output |
+| `bun run start` | Run the production server locally |
+| `bun run lint` | Run ESLint |
+| `bun run typecheck` | Run the TypeScript compiler without emitting files |
+| `bun run test` | Run the Vitest suite |
 
 Configuration, container setup, Pocket TTS requirements, and deployment contracts are documented in [portfolio/README.md](portfolio/README.md).
 

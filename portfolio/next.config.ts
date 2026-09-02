@@ -187,7 +187,7 @@ const nextConfig: NextConfig = {
         // Audio samples — immutable caching + explicit byte-range advertisement.
         // In production nginx owns this (see nginx-cloudflare.conf `/sounds/`
         // block) and this Next.js header is redundant. In dev / non-nginx
-        // deploys (Vercel, local `npm start`) this ensures the browser caches
+        // deploys (Vercel, local `bun run start`) this ensures the browser caches
         // the MP3s aggressively AND iOS Safari's <audio> playback path sees
         // `Accept-Ranges: bytes` so 206 range requests work.
         source: '/sounds/:path*',

@@ -5,25 +5,25 @@ The Next.js application for [whoisdhruv.com](https://whoisdhruv.com). The root [
 ## Commands
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Open http://localhost:3000.
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start the Next.js development server |
-| `npm run build` | Run the embedding prebuild and produce standalone output |
-| `npm run start` | Run the production server locally |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run strict TypeScript checks |
-| `npm test` | Run the Vitest suite |
-| `npm run tts:smoke` | Verify local Pocket TTS synthesis |
+| `bun run dev` | Start the Next.js development server |
+| `bun run build` | Run the embedding prebuild and produce standalone output |
+| `bun run start` | Run the production server locally |
+| `bun run lint` | Run ESLint |
+| `bun run typecheck` | Run strict TypeScript checks |
+| `bun run test` | Run the Vitest suite |
+| `bun run tts:smoke` | Verify local Pocket TTS synthesis |
 
 ## Runtime Facts
 
-- Node 22, npm 10.9.8, Next.js 16 standalone output, Docker image delivery, and Linux VMs behind Cloudflare and Nginx are the supported production path.
+- Node 22 runtime, Bun 1.4.0 package manager, Next.js 16 standalone output, Docker image delivery, and Linux VMs behind Cloudflare and Nginx are the supported production path.
 - `content/facts/**/*.md` and the committed `lib/facts.embeddings.json` power public Markdown routes and grounded chat. Keep both under version control.
 - Chat allows one Groq default, three NVIDIA selections, and a text-only local agent. Staging and production deploys inject `LOCAL_AGENT_BASE_URL` plus the matching `STAGING_LOCAL_AGENT_API_KEY` / `PRODUCTION_LOCAL_AGENT_API_KEY` secret. It executes the visitor's selected allowlisted model exactly; unavailable providers return the signed local fallback rather than substituting another model.
 - The model picker reads a 30-second same-origin status snapshot for configured-unavailable models, deployment canaries, and local-agent health. A failed request marks the selected model as having issues for that browser tab only.

@@ -18,7 +18,6 @@ function readWorkflow(filename: string): string {
 }
 
 const packageJson = readJson('package.json');
-const packageLock = readJson('package-lock.json');
 const stagingPromotion = readWorkflow('promote-staging.yml');
 const productionPromotion = readWorkflow('promote-production.yml');
 const stagingDeploy = readWorkflow('deploy-staging.yml');
@@ -27,15 +26,18 @@ const productionRollback = readWorkflow('rollback-production.yml');
 const modelCatalogAudit = readWorkflow('model-catalog-audit.yml');
 const modelHealthPublisher = readWorkflow('publish-model-health.yml');
 const dockerfile = fs.readFileSync(path.join(projectRoot, 'Dockerfile'), 'utf8');
+const bunfig = fs.readFileSync(path.join(projectRoot, 'bunfig.toml'), 'utf8');
 const deployScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'deploy.sh'), 'utf8');
 
 describe('release version promotion', () => {
-  it('uses a semantic package.json version mirrored by the npm lockfile', () => {
+  it('pins Bun 1.4.0 with a Node-compatible install and portfolio/bun.lock as the sole lockfile', () => {
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(packageLock.version).toBe(packageJson.version);
-    expect(
-      (packageLock.packages as Record<string, { version?: string }> | undefined)?.['']?.version,
-    ).toBe(packageJson.version);
+    expect(packageJson.packageManager).toBe('bun@1.4.0');
+    expect(bunfig).toContain('linker = "hoisted"');
+    expect(dockerfile).toContain('COPY package.json bun.lock bunfig.toml ./');
+    expect(fs.existsSync(path.join(projectRoot, 'bun.lock'))).toBe(true);
+    expect(fs.existsSync(path.join(projectRoot, 'package-lock.json'))).toBe(false);
+    expect(fs.existsSync(path.join(projectRoot, '..', 'bun.lock'))).toBe(false);
   });
 
   it('prepares each staging release as a minor-version release branch', () => {
@@ -45,11 +47,16 @@ describe('release version promotion', () => {
     expect(stagingPromotion).toContain('- promote-release');
     expect(stagingPromotion).not.toContain('pull-requests: write');
     expect(stagingPromotion).toContain(
-      'npm@${{ env.CI_NPM_VERSION }} --prefix portfolio version minor',
+      'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6',
+    );
+    expect(stagingPromotion).toContain('bun pm version minor --no-git-tag-version');
+    expect(stagingPromotion).toContain(
+      'git add portfolio/package.json portfolio/bun.lock',
     );
     expect(stagingPromotion).toContain(
-      'git add portfolio/package.json portfolio/package-lock.json',
+      'Release preparation changed files outside portfolio/package.json and portfolio/bun.lock.',
     );
+    expect(stagingPromotion).not.toContain('portfolio/package-lock.json');
     expect(stagingPromotion).toContain('git commit -m "chore(release): v${version}"');
   });
 
@@ -90,7 +97,6 @@ describe('release version promotion', () => {
       'git push origin "${RELEASE_SHA}:refs/heads/${TARGET_BRANCH}"',
     );
     expect(promoteRelease).not.toContain('version minor');
-    expect(promoteRelease).not.toContain('npm version');
     expect(promoteRelease).not.toContain('refs/heads/${SOURCE_BRANCH}"');
     expect(promoteRelease).toContain('gh workflow run deploy-staging.yml --ref "$TARGET_BRANCH"');
     expect(promoteRelease).toContain('GH_TOKEN: ${{ github.token }}');
@@ -100,7 +106,6 @@ describe('release version promotion', () => {
     expect(productionPromotion).toContain('source_sha="$(git rev-parse "origin/${SOURCE_BRANCH}")"');
     expect(productionPromotion).toContain('git push origin "${source_sha}:refs/heads/${TARGET_BRANCH}"');
     expect(productionPromotion).not.toContain('version minor');
-    expect(productionPromotion).not.toContain('npm version');
   });
 
   it.each([

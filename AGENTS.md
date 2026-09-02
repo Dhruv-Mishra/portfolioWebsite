@@ -4,8 +4,8 @@ Scope: the whole repository.
 
 ## Orientation
 
-- The production app lives in [portfolio](portfolio). The workspace root only wraps common npm scripts.
-- Do not add a root `package-lock.json`; the real lockfile is [portfolio/package-lock.json](portfolio/package-lock.json).
+- The production app lives in [portfolio](portfolio). The workspace root only wraps common bun scripts.
+- Do not add a root `bun.lock`; the sole lockfile is [portfolio/bun.lock](portfolio/bun.lock).
 - Read the nearest directory-level `AGENTS.md` before editing a file. More specific files override this one.
 - Keep public docs concise. Put operational detail in [portfolio/README.md](portfolio/README.md) or a focused docs file.
 
@@ -25,7 +25,7 @@ Scope: the whole repository.
 
 - Prefer VS Code search/read/edit tools over terminal equivalents.
 - RTK's global Copilot hook rewrites supported terminal commands automatically, including subagent calls. Still write the `rtk` prefix explicitly so behavior degrades safely when hooks are unavailable.
-- Use specialized adapters when possible: `rtk git ...`, `rtk vitest run`, `rtk lint`, `rtk tsc`, `rtk playwright test`, `rtk rg`, and `rtk read`. Use `rtk npm run ...` when npm lifecycle scripts matter and `rtk test <command>` or `rtk err <command>` as fallbacks.
+- Use specialized adapters when possible: `rtk git ...`, `rtk vitest run`, `rtk lint`, `rtk tsc`, `rtk playwright test`, `rtk rg`, and `rtk read`. Use `rtk bun run ...` when lifecycle scripts matter and `rtk test <command>` or `rtk err <command>` as fallbacks.
 - Use `rtk --ultra-compact` only for routine status/list output. Keep normal RTK output for diffs, diagnostics, failures, and anything where exact detail matters.
 - Use direct PowerShell cmdlets when RTK cannot wrap them.
 - Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
@@ -39,10 +39,10 @@ Scope: the whole repository.
 
 ## Commands
 
-- `rtk npm run dev` starts the app from the root.
-- `rtk npm run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
-- `rtk npm run lint` runs ESLint from the root.
-- `rtk npm run typecheck` runs TypeScript checks from the root.
+- `rtk bun run dev` starts the app from the root.
+- `rtk bun run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
+- `rtk bun run lint` runs ESLint from the root.
+- `rtk bun run typecheck` runs TypeScript checks from the root.
 - From `portfolio/`, `rtk vitest run` runs the canonical suite. For targeted tests, use `rtk vitest run <file> -t "<name>"`.
 
 ## Deployment Facts

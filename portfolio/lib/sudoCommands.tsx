@@ -20,10 +20,10 @@
 import React from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import {
-  setDiscoActiveImperative,
   setMatrixActiveImperative,
   resetStickerProgressImperative,
 } from '@/hooks/useStickers';
+import { runDiscoMode } from '@/lib/themeToggleAction';
 import { getExperimentalCommandsSync } from '@/hooks/useAdminPrefs';
 import {
   ADMIN_FILE_PASSWORD,
@@ -154,7 +154,7 @@ function renderSudoHelp(): React.ReactNode {
         tip: {experimentalOn ? '`sudo matrix` shows a warning first; confirm with `yes`.' : 'try `disco` (no sudo) for the lights — confirm with `disco yes`.'}
       </p>
       <p className="pl-4 text-gray-500 italic">
-        {experimentalOn ? 'matrix exits only via its WAKE UP button.' : '`disco off` returns to the previous theme.'}
+        {experimentalOn ? 'matrix exits only via its WAKE UP button.' : '`disco off` exits disco and stays dark.'}
       </p>
       {!experimentalOn ? (
         <p className="pl-4 text-gray-500 italic">
@@ -190,7 +190,7 @@ function renderWhoami(): React.ReactNode {
 
 // ─── Confirm-flow warning frames ────────────────────────────────────────
 /**
- * Terminal-themed warning card used by `sudo disco` and `sudo matrix` before
+ * Terminal-themed warning card used by `disco` and `sudo matrix` before
  * they actually engage. Two-step confirmation prevents an accidental typo
  * from taking over the page.
  *
@@ -298,7 +298,7 @@ export function handleDisco(args: string[]): SudoCommandResult {
         </div>
       ),
       action: () => {
-        setDiscoActiveImperative(false);
+        runDiscoMode(false);
       },
     };
   }
@@ -316,21 +316,11 @@ export function handleDisco(args: string[]): SudoCommandResult {
         </div>
       ),
       action: () => {
-        // Pre-warm the heavy disco media chunk on the same user-gesture tick
-        // that sets the flag. Without this, there's a visible ~100ms gap while
-        // the bundle is fetched + parsed before sparkles/spotlights appear.
-        // The promise is intentionally not awaited — if it fails we fall back
-        // to the deferred fetch in DiscoFlagController.
-        if (typeof window !== 'undefined') {
-          void import('@/components/DiscoMediaLayer').catch(() => {
-            /* fetch will be retried by DiscoFlagController — best-effort */
-          });
-        }
-        setDiscoActiveImperative(true);
+        runDiscoMode(true);
       },
     };
   }
-  // Bare `sudo disco` — print confirm warning, take no action.
+  // Bare `disco` — print confirm warning, take no action.
   return {
     output: renderConfirmWarning({
       title: 'disco mode will take over the page.',
@@ -810,11 +800,6 @@ export function dispatchSudo(
           </div>
         ),
       };
-    case 'disco':
-      // `disco` is now a public terminal command (no sudo required). Fall
-      // through to the unknown-subcommand response so `sudo disco` no longer
-      // shortcuts past the public command.
-      return { output: renderUnknown(subcommand) };
     case 'matrix':
       // Experimental — gated on the /admin "experimental commands" toggle.
       // Without it, pretend the command doesn't exist (same response as any

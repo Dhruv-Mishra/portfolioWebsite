@@ -107,8 +107,8 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     logo: {
       src: '/resources/logos/iiitd.png',
       alt: 'IIIT Delhi',
-      width: 112,
-      height: 50,
+      width: 128,
+      height: 26,
       sizes: '(max-width: 640px) 88px, 112px',
     },
     summary: 'Studied computer science and applied mathematics with a strong systems, ML, and engineering project spine.',
@@ -129,8 +129,8 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     logo: {
       src: '/resources/logos/iiitd.png',
       alt: 'IIIT Delhi',
-      width: 112,
-      height: 50,
+      width: 128,
+      height: 26,
       sizes: '(max-width: 640px) 88px, 112px',
     },
     summary: 'Worked under Prof. Bapi Chatterjee on concurrent data-structure research for Counting Bloom Filters.',

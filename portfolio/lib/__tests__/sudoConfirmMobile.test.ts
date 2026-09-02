@@ -1,5 +1,5 @@
 /**
- * Regression tests for Bug 1 — the `sudo disco` / `sudo matrix` confirmation
+ * Regression tests for Bug 1 — the `disco` / `sudo matrix` confirmation
  * warning used to render three fixed-width `<pre>` lines with ASCII
  * box-drawing glyphs (╔═══…═══╗), ~51 characters wide. At a monospace
  * ~8–10 px/ch that's 408–510 px intrinsic width, which overflowed the

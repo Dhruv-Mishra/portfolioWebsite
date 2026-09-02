@@ -109,7 +109,7 @@ describe('parseStoredState migration', () => {
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     // Pre-v3 clients could persist `discoActive: true`. v3+ must strip it so
     // every page load begins with disco off — while KEEPING the superuser
-    // sticker (which lives in `unlocked`) so `sudo disco` still works.
+    // sticker (which lives in `unlocked`) for privileged features.
     // v5 additionally drops the `discoMuted` preference — sitewide
     // `soundsMuted` now governs the disco loop.
     const v2 = JSON.stringify({

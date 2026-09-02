@@ -1,27 +1,11 @@
 /**
- * Shared theme-toggle action — unifies the handler path used by the desktop
- * `ThemeToggle` and the mobile `MobileThemeButton` in `SocialSidebar`. Before
- * this module existed the two buttons diverged: the mobile variant didn't
- * subscribe to `discoActive` and just flipped between light/dark, so pressing
- * it while disco was on cycled light↔dark without clearing `data-disco="on"`
- * — leaving sparkles, spotlights, and the body gradient behind on iOS Safari
- * (Bug 2b) and also never rendering the disco-ball icon on mobile (Bug 2c).
+ * Shared theme-toggle action used by desktop ThemeToggle, mobile
+ * MobileThemeButton, chat, voice tools, and terminal disco.
  *
- * The exported `runThemeToggle` applies the exact same branching as the
- * desktop handler:
- *   - If disco is active → clear the disco flag via
- *     `setDiscoActiveImperative(false)`. Return without touching the
- *     underlying light/dark theme — `next-themes` keeps whatever the user
- *     had before disco engaged. The `data-disco="on"` attribute is cleared
- *     inside `DiscoFlagController`'s effect that subscribes to the same
- *     store flag, and that effect is idempotent whether the flip originated
- *     from terminal OR from either theme button.
- *   - Otherwise cycle light ↔ dark, fire the theme-flipper sticker emit,
- *     and play the matching audio tag (cricket / rooster).
- *
- * The helper is intentionally plain — it accepts the store setter from
- * `next-themes` and the "is currently dark" boolean so it stays trivial
- * to test without a full React tree.
+ * Disco enter/exit goes through `runDiscoMode` so chunk prewarm and the
+ * store flag stay in one place. Theme cycling still happens here;
+ * DiscoFlagController owns dark-on-active. Disco exit does not touch
+ * the underlying light/dark theme.
  */
 import { setDiscoActiveImperative } from '@/hooks/useStickers';
 import { stickerBus } from '@/lib/stickerBus';
@@ -44,12 +28,26 @@ export interface ThemeSelectionParams {
   setTheme: (theme: ThemeSelection) => void;
 }
 
+/**
+ * Shared disco enter/exit. On active in the browser, best-effort prewarm
+ * DiscoMediaLayer then set the store flag. On inactive, just clear the flag.
+ * DiscoFlagController still owns dark-on-active and the deferred fetch fallback.
+ */
+export function runDiscoMode(active: boolean): void {
+  if (active && typeof window !== 'undefined') {
+    void import('@/components/DiscoMediaLayer').catch(() => {
+      /* DiscoFlagController retries lazily — best-effort */
+    });
+  }
+  setDiscoActiveImperative(active);
+}
+
 export function runThemeSelection({
   discoActive,
   theme,
   setTheme,
 }: ThemeSelectionParams): void {
-  if (discoActive) setDiscoActiveImperative(false);
+  if (discoActive) runDiscoMode(false);
   setTheme(theme);
 }
 
@@ -59,7 +57,7 @@ export function runThemeSelection({
  */
 export function runThemeToggle({ discoActive, isDark, setTheme }: ThemeToggleParams): void {
   if (discoActive) {
-    setDiscoActiveImperative(false);
+    runDiscoMode(false);
     return;
   }
   const goingDark = !isDark;

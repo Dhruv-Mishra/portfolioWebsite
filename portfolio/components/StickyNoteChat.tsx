@@ -48,9 +48,9 @@ import {
 } from '@/lib/actions';
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
 import { stickerBus } from '@/lib/stickerBus';
-import { setDiscoActiveImperative, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
+import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 import {
   CLOSE_PROJECT_EVENT,
@@ -1820,16 +1820,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           setTheme,
         });
       } else if (action.themeAction === 'disco') {
-        // Pre-warm the heavy disco media chunk on the user-gesture tick
-        // so sparkles/spotlights paint without a fetch stall.
-        if (typeof window !== 'undefined') {
-          void import('@/components/DiscoMediaLayer').catch(() => {
-            /* DiscoFlagController retries lazily — best-effort */
-          });
-        }
-        setDiscoActiveImperative(true);
+        runDiscoMode(true);
       } else if (action.themeAction === 'disco-off') {
-        setDiscoActiveImperative(false);
+        runDiscoMode(false);
       } else {
         runThemeSelection({
           discoActive,

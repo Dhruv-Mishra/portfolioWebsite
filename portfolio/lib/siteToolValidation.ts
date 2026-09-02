@@ -104,6 +104,7 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
     case 'close_project':
     case 'get_current_page_context':
     case 'start_voice_session':
+    case 'next_disco_track':
       return {} as SiteToolArgsMap[Name];
     case 'browse_history': {
       const direction = readString(record, 'direction');

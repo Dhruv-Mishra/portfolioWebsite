@@ -8,10 +8,12 @@ import {
   __resetStoreForTest,
   getAudioCategoryVolumeSync,
   getSoundsMutedSync,
+  setDiscoActiveImperative,
   setSoundsMutedImperative,
 } from '@/hooks/useStickers';
 import {
   OPEN_PROJECT_EVENT,
+  NEXT_DISCO_TRACK_EVENT,
   SEND_CHAT_MESSAGE_EVENT,
   RUN_TERMINAL_COMMAND_EVENT,
   SUBMIT_FEEDBACK_EVENT,
@@ -41,6 +43,11 @@ describe('site tool catalog', () => {
       VOICE_LIVE_TOOL_DECLARATIONS.find(tool => tool.name === 'set_theme')?.parameters.properties.action,
     ).toMatchObject({ enum: expect.arrayContaining(['disco']) });
     expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'fill_field')?.parameters.properties).not.toHaveProperty('submit');
+    expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'next_disco_track')?.parameters).toEqual({
+      type: 'object',
+      properties: {},
+    });
+    expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).toContain('next_disco_track');
   });
 
   it('accepts valid navigate and guestbook calls', () => {
@@ -188,6 +195,10 @@ describe('site tool catalog', () => {
       name: 'browse_history',
       args: { direction: 'back' },
     })).toMatchObject({ name: 'browse_history', args: { direction: 'back' } });
+    expect(parseSiteToolCall({
+      name: 'next_disco_track',
+      args: {},
+    })).toMatchObject({ name: 'next_disco_track', args: {} });
   });
 
   it('builds a navigation-stable project href', () => {
@@ -488,6 +499,43 @@ describe('site tool catalog', () => {
       ok: false,
       errorCode: 'facts-invalid',
     });
+  });
+
+  it('fails next_disco_track when disco is inactive', async () => {
+    await expect(executeSiteTool({
+      id: 'disco-next-inactive',
+      name: 'next_disco_track',
+      args: {},
+    }, runtime as never)).resolves.toMatchObject({
+      ok: false,
+      errorCode: 'disco-inactive',
+    });
+  });
+
+  it('dispatches next_disco_track through the claimed disco host result', async () => {
+    const dispatchEvent = vi.fn((event: Event) => {
+      if (event.type === NEXT_DISCO_TRACK_EVENT) {
+        attachSiteActionResult(event, {
+          ok: true,
+          spokenText: 'Now playing Track 1.',
+          data: { track: 'Track 1' },
+        });
+      }
+      return true;
+    });
+    vi.stubGlobal('window', { dispatchEvent, open: vi.fn() });
+    setDiscoActiveImperative(true);
+
+    await expect(executeSiteTool({
+      id: 'disco-next-1',
+      name: 'next_disco_track',
+      args: {},
+    }, { ...runtime, discoActive: true } as never)).resolves.toMatchObject({
+      ok: true,
+      spokenText: 'Now playing Track 1.',
+      data: { track: 'Track 1' },
+    });
+    expect(dispatchEvent).toHaveBeenCalled();
   });
 
   it('scrolls the route container and rejects a missing container', () => {

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SITE_VERSION } from '@/lib/siteVersion';
 
 const getEffectiveAudioCategoryVolumeSync = vi.fn(() => 1);
+const getDiscoActiveSync = vi.fn(() => false);
 const volumeListeners: Array<(volume: number) => void> = [];
+const discoListeners: Array<(active: boolean) => void> = [];
 const subscribeAudioCategoryVolume = vi.fn((
   _category: string,
   listener: (volume: number) => void,
@@ -13,13 +15,22 @@ const subscribeAudioCategoryVolume = vi.fn((
     if (index >= 0) volumeListeners.splice(index, 1);
   };
 });
+const subscribeDiscoActive = vi.fn((listener: (active: boolean) => void) => {
+  discoListeners.push(listener);
+  return () => {
+    const index = discoListeners.indexOf(listener);
+    if (index >= 0) discoListeners.splice(index, 1);
+  };
+});
 
 vi.mock('@/hooks/useStickers', () => ({
   getEffectiveAudioCategoryVolumeSync: () => getEffectiveAudioCategoryVolumeSync(),
+  getDiscoActiveSync: () => getDiscoActiveSync(),
   subscribeAudioCategoryVolume: (
     category: string,
     listener: (volume: number) => void,
   ) => subscribeAudioCategoryVolume(category, listener),
+  subscribeDiscoActive: (listener: (active: boolean) => void) => subscribeDiscoActive(listener),
 }));
 
 class FakeAudio {
@@ -63,8 +74,11 @@ describe('voiceSounds helper', () => {
   beforeEach(() => {
     created.length = 0;
     volumeListeners.length = 0;
+    discoListeners.length = 0;
     getEffectiveAudioCategoryVolumeSync.mockReturnValue(1);
+    getDiscoActiveSync.mockReturnValue(false);
     subscribeAudioCategoryVolume.mockClear();
+    subscribeDiscoActive.mockClear();
     vi.stubGlobal('window', {});
     vi.stubGlobal('Audio', class AudioStub {
       constructor(src: string) {
@@ -285,5 +299,58 @@ describe('voiceSounds helper', () => {
     await Promise.resolve();
     expect(ambient.paused).toBe(false);
     expect(ambient.muted).toBe(false);
+  });
+
+  it('suppresses ambient while disco is active, resumes only while requested, and does not revive after stop', async () => {
+    const {
+      startVoiceAmbient,
+      playVoiceAction,
+      playVoiceToggle,
+      stopVoiceSounds,
+    } = await import('@/lib/voiceSounds');
+
+    const setDisco = (active: boolean) => {
+      getDiscoActiveSync.mockReturnValue(active);
+      for (const listener of [...discoListeners]) listener(active);
+    };
+
+    setDisco(true);
+    startVoiceAmbient();
+    const ambient = created[0]!;
+    const action = created[1]!;
+    const toggle = created[2]!;
+    expect(ambient.playCalls).toBe(0);
+    expect(ambient.paused).toBe(true);
+    expect(subscribeDiscoActive).toHaveBeenCalledTimes(1);
+
+    setDisco(false);
+    expect(ambient.playCalls).toBe(1);
+    expect(ambient.paused).toBe(false);
+
+    ambient.currentTime = 1.4;
+    setDisco(true);
+    expect(ambient.paused).toBe(true);
+    expect(ambient.currentTime).toBe(1.4);
+
+    playVoiceAction();
+    playVoiceToggle();
+    expect(action.playCalls).toBe(1);
+    expect(toggle.playCalls).toBe(1);
+
+    setDisco(false);
+    expect(ambient.playCalls).toBe(2);
+    expect(ambient.paused).toBe(false);
+    expect(ambient.currentTime).toBe(1.4);
+
+    stopVoiceSounds();
+    expect(ambient.paused).toBe(true);
+    expect(ambient.currentTime).toBe(0);
+    expect(discoListeners).toHaveLength(0);
+
+    const playCallsAfterStop = ambient.playCalls;
+    setDisco(true);
+    setDisco(false);
+    expect(ambient.playCalls).toBe(playCallsAfterStop);
+    expect(ambient.paused).toBe(true);
   });
 });

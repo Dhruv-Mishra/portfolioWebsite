@@ -3,15 +3,14 @@
  *
  * Uses playwright-core with system Chrome to:
  *   1. Boot a browser, navigate to the Next.js dev server on port 3000.
- *   2. Seed localStorage with a superuser unlock so `sudo disco` works.
- *   3. Activate disco via the terminal `sudo disco` command (full stack mount).
- *   4. Verify disco is actually active (data-disco="on" attribute).
- *   5. Screenshot the hero area.
- *   6. Run a 5-second rAF FPS counter on home + /projects and on /projects
+ *   2. Activate disco via the public terminal command (full stack mount).
+ *   3. Verify disco is actually active (data-disco="on" attribute).
+ *   4. Screenshot the hero area.
+ *   5. Run a 5-second rAF FPS counter on home + /projects and on /projects
  *      with continuous scrolling.
- *   7. Emulate a mobile viewport + CPU throttle for the mobile FPS pass.
- *   8. Capture a memory snapshot (performance.memory) at start + at 60s.
- *   9. Inspect computed styles of the hero subtitle in disco.
+ *   6. Emulate a mobile viewport + CPU throttle for the mobile FPS pass.
+ *   7. Capture a memory snapshot (performance.memory) at start + at 60s.
+ *   8. Inspect computed styles of the hero subtitle in disco.
  *
  * Arguments:
  *   --output-dir  <path>  Where to write screenshots + the JSON report
@@ -51,30 +50,6 @@ if (!executablePath) {
 const BASE = 'http://localhost:3000';
 const results = { tag, outDir, scenarios: [] };
 
-async function seedAndReload(page) {
-  await page.evaluate(() => {
-    // v5 sticker-store shape. The pre-v5 `discoMuted` preference was dropped
-    // in favor of the sitewide `soundsMuted`; we seed muted=true here so the
-    // profile run doesn't blast disco audio on the dev box.
-    const payload = {
-      version: 5,
-      unlocked: ['superuser'],
-      unlockedAt: { superuser: Date.now() },
-      lastEarnedAt: Date.now(),
-      lastSeenAlbumAt: Date.now(),
-      visitedRoutes: [],
-      terminalCommands: [],
-      openedProjects: [],
-      soundsMuted: true,
-      superuserRevealedAt: Date.now(),
-    };
-    localStorage.setItem('dhruv-stickers', JSON.stringify(payload));
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  // Allow client hydration + dynamic imports to settle.
-  await page.waitForTimeout(1200);
-}
-
 async function activateDiscoViaTerminal(page, { strictVerify = true } = {}) {
   // Wait for the terminal input to exist. On mobile it's below the fold but
   // still in the DOM — just not focused.
@@ -91,7 +66,7 @@ async function activateDiscoViaTerminal(page, { strictVerify = true } = {}) {
   await input.scrollIntoViewIfNeeded().catch(() => {});
   await input.focus();
   // Type the command character-by-character.
-  await page.keyboard.type('sudo disco', { delay: 15 });
+  await page.keyboard.type('disco yes', { delay: 15 });
   await page.keyboard.press('Enter');
   // Wait for the disco attribute.
   try {
@@ -195,7 +170,6 @@ async function run() {
   });
   const page = await desktop.newPage();
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await seedAndReload(page);
   const activated = await activateDiscoViaTerminal(page);
   const attrs = await discoAttributes(page);
   results.activationCheck = { activated, attrs };
@@ -291,7 +265,6 @@ async function run() {
     console.warn('CPU throttle skipped:', e.message);
   }
   await mpage.goto(BASE, { waitUntil: 'networkidle' });
-  await seedAndReload(mpage);
   await activateDiscoViaTerminal(mpage);
   const mattrs = await discoAttributes(mpage);
   results.mobileActivationCheck = mattrs;
@@ -341,7 +314,6 @@ async function run() {
     const mem60 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const mp = await mem60.newPage();
     await mp.goto(BASE, { waitUntil: 'networkidle' });
-    await seedAndReload(mp);
     await activateDiscoViaTerminal(mp);
     await mp.waitForTimeout(2000);
     const memT0 = await memoryUsageMb(mp);

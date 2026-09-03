@@ -194,6 +194,7 @@ export class GeminiLiveCaller implements VoiceCaller {
                 thinkingConfig: {
                   thinkingLevel: 'MINIMAL',
                 },
+                temperature: 0.7,
               },
               systemInstruction: {
                 parts: [{ text: buildVoiceSystemInstruction(session.setup.clientState) }],

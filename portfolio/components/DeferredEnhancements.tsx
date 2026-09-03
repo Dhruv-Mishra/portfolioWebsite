@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { LAYOUT_TOKENS } from "@/lib/designTokens";
 
 const MiniChat = dynamic(() => import("@/components/MiniChat"), { ssr: false });
-const SketchbookCursorLoader = dynamic(() => import("@/components/SketchbookCursorLoader"), { ssr: false });
+const SketchbookCursor = dynamic(() => import("@/components/SketchbookCursor"), { ssr: false });
 const StickerToastListener = dynamic(() => import("@/components/StickerToastListener"), { ssr: false });
 const StickerGlanceBadge = dynamic(() => import("@/components/StickerGlanceBadge"), { ssr: false });
 const SuperuserToastController = dynamic(() => import("@/components/superuser/SuperuserToastController"), { ssr: false });
@@ -24,6 +24,7 @@ export default function DeferredEnhancements() {
     const [isDesktop, setIsDesktop] = useState(false);
 
     useEffect(() => {
+        if (mountedStageRef.current >= 3) return;
         const runtimeWindow = window as Window & {
             requestIdleCallback?: typeof window.requestIdleCallback;
             cancelIdleCallback?: typeof window.cancelIdleCallback;
@@ -90,7 +91,7 @@ export default function DeferredEnhancements() {
 
     return (
         <>
-            {isDesktop ? <SketchbookCursorLoader /> : null}
+            {isDesktop ? <SketchbookCursor /> : null}
             <StickerToastListener />
             <EscapeToastListener />
             {mountStage >= 2 ? (

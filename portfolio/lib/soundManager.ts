@@ -84,30 +84,25 @@ export type SoundId =
   | 'matrix';
 
 /**
- * Critical-wave sounds — fetched in parallel on the first user gesture so the
- * very next playback has a decoded buffer ready. These are the cues a user will
- * hear during normal navigation (page flips, theme flips, clicks, modal
- * open/close, chat send/receive). Procedural fallbacks still exist, but the
- * goal is to not need them after the first tap.
+ * Immediate navigation cues. URL-backed sounds are warmed on first gesture;
+ * URL-less procedural sounds are skipped.
  */
 const CRITICAL_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'page-flip',
   'button-click',
   'theme-dark',
   'theme-light',
+]);
+
+/**
+ * Secondary UI cues. URL-backed sounds are warmed after the critical wave;
+ * procedural fallbacks remain available before then.
+ */
+const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'chat-send',
   'chat-receive',
   'modal-open',
   'modal-close',
-]);
-
-/**
- * Second-wave sounds — less frequent UI cues. Warmed up after the critical
- * wave lands or after a hard deadline (`SECOND_WAVE_DEADLINE_MS`), whichever
- * fires first. These have procedural fallbacks that are musically solid, so
- * even if the fetch lags there's no perceivable gap.
- */
-const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'sticker-ding',
   'feedback-sent',
   'guestbook-submit',

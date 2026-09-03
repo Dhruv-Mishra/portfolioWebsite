@@ -17,7 +17,7 @@ describe('voice mode integration contract', () => {
     expect(settings).toContain('title="Voice Agent"');
     expect(commandRegistry).toContain('action-enter-voice-mode');
     expect(commandRegistry).toContain("label: 'Enter voice mode'");
-    expect(chat).toContain('Enter native voice mode');
+    expect(chat).toContain("requestVoiceMode({ source: 'chat', topic: 'chat' })");
     expect(chat).toContain('data-voice-field="chat-composer"');
     expect(guestbook).toContain('data-voice-field="guestbook-message"');
     expect(guestbook).toContain('data-voice-field="guestbook-name"');

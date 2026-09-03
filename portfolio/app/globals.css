@@ -68,8 +68,8 @@
     --c-mobile-dock-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
     --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
     --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 8.25rem);
-    --c-mobile-floating-upper-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
-    --c-mobile-floating-voice-bottom: calc(env(safe-area-inset-bottom, 0px) + 16.25rem);
+    --c-mobile-floating-volume-bottom: calc(env(safe-area-inset-bottom, 0px) + 16.25rem);
+    --c-mobile-floating-voice-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
     --c-page-header-h: calc(var(--c-nav-tab-pt) + var(--c-nav-tab-py) + 1.5rem);
     --c-page-footer-h: var(--c-mobile-dock-clearance);
 

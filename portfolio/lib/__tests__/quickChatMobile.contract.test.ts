@@ -41,7 +41,8 @@ describe('quick chat small-mobile density contract', () => {
     expect(stickyChatSource).toContain('compact && "max-w-[92%] p-3 pb-5 text-sm');
     expect(stickyChatSource).toContain('compact ? "text-sm md:text-base leading-snug');
     expect(stickyChatSource).toContain('{!compact ? (');
-    expect(stickyChatSource).toContain('<VoiceBackendToggle');
+    expect(stickyChatSource).not.toContain('<VoiceBackendToggle');
+    expect(stickyChatSource).toContain('<MicButton');
     expect(stickyChatSource).toContain("compact && 'gap-0 rounded-full px-0.5 py-0");
     expect(stickyChatSource).toContain('compact && "md:h-8 md:w-8"');
     expect(stickyChatSource).toContain('max-[480px]:gap-1.5');

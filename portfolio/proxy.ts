@@ -17,7 +17,7 @@ function rewriteToNotFound(request: NextRequest): NextResponse {
   return NextResponse.rewrite(notFoundUrl, { status: 404 });
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (isAdminPath(pathname) && !request.cookies.has(ADMIN_COOKIE_NAME)) {

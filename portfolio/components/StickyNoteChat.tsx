@@ -6,7 +6,7 @@ import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffe
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { m, AnimatePresence } from 'framer-motion';
-import { AudioLines, ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
+import { ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
   MatrixDeniedNote,
@@ -22,7 +22,6 @@ import PillScrollbar from '@/components/PillScrollbar';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
 import { MicButton } from '@/components/ui/MicButton';
-import { VoiceBackendToggle } from '@/components/ui/VoiceBackendToggle';
 import { ClearButton } from '@/components/ui/ClearButton';
 import { Modal } from '@/components/ui/Modal';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
@@ -1036,7 +1035,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const imageCompressionAbortRef = useRef<AbortController | null>(null);
   const imageCompressionGenerationRef = useRef(0);
   const placeholderRef = usePlaceholderTypewriter(!isLoading);
-  const { pref: voicePref, setPref: setVoicePref, togglePref: toggleVoicePref } = useVoiceBackendPref();
+  const { pref: voicePref, setPref: setVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
   const baseInputRef = useRef('');
   // Confirmation modal state — lifted into the input area so both the
@@ -1256,12 +1255,9 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pt-2 pb-2 md:pt-3 md:pb-3",
         compact && "px-2 pt-1 pb-1 max-[480px]:px-1.5 max-[480px]:pt-0.5 max-[480px]:pb-0.5",
       )}>
-        {/* Ancillary controls toolbar — lives ABOVE the input box so the
-            input itself stays visually clean (text + send only). All
-            controls share a single translucent themed pill so they read
-            as a unified "chat utilities" cluster rather than three
-            disconnected affordances. */}
-        {(hasMessages || speech.isSupported || supportsImages || !compact) && (
+        {/* Utility controls live above the note: current model, image
+          attachment, and chat history remain grouped in one pill. */}
+        {(hasMessages || supportsImages || !compact) && (
           <div className={cn(
             "flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5",
             compact && "mb-0.5 px-0 max-[480px]:mb-0.5 max-[480px]:px-0",
@@ -1328,48 +1324,6 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               </button>
               </Tooltip>
             )}
-            {speech.isSupported && (
-              <>
-                {!compact ? (
-                  <VoiceBackendToggle
-                    isLoading={speech.isLoading}
-                    loadProgress={speech.loadProgress}
-                    compact
-                    onToggleIntercept={(nextActive) => {
-                      // Disabling is safe and instant. Enabling triggers a
-                      // Large first-use download — surface a confirmation
-                      // modal first so the user understands what they're
-                      // opting into (especially on mobile / metered data).
-                      if (nextActive) setConfirmKind('enableLocal');
-                      else toggleVoicePref();
-                    }}
-                  />
-                ) : null}
-                <MicButton
-                  isListening={speech.isListening}
-                  isLoading={speech.isLoading}
-                  isTranscribing={speech.isTranscribing}
-                  isRequestingPermission={speech.isRequestingPermission}
-                  loadProgress={speech.loadProgress}
-                  onClick={handleMicToggle}
-                  disabled={isLoading}
-                  size={compact ? 12 : 14}
-                  className={compact ? 'md:h-8 md:w-8 md:min-h-8 md:min-w-8 md:p-1' : undefined}
-                  title={speech.requiresLocalTranscription ? 'Enable Local Transcription to dictate on this browser' : undefined}
-                />
-              </>
-            )}
-            <Tooltip label="Enter voice mode">
-              <button
-                type="button"
-                onClick={() => requestVoiceMode({ source: 'chat', topic: 'chat' })}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-sky-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
-                aria-label="Enter native voice mode"
-                title="Enter voice mode"
-              >
-                <AudioLines size={compact ? 12 : 14} aria-hidden="true" />
-              </button>
-            </Tooltip>
             </div>
           </div>
         )}
@@ -1416,7 +1370,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           </p>
         ) : null}
 
-        {/* The input "sticky note" — symmetric vertical padding (top = bottom). */}
+        {/* The input "sticky note" keeps dictation beside the text it controls. */}
         <m.div
           initial={false}
           animate={INPUT_NOTE_ANIMATE}
@@ -1424,13 +1378,27 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           data-disco-chat-input
           className={cn(
             "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
-            // Tighter mobile padding now that ancillary controls live above.
+            // Tighter mobile padding keeps the compact composer dense.
             compact ? "px-2 py-1.5" : "px-2 py-1.5 md:px-4 md:py-2.5",
           )}
           style={INPUT_NOTE_DISCO_STYLE}
         >
-          <div className="flex items-end gap-2" onClick={() => inputRef.current?.focus()}>
-            <div className="relative flex-1 min-h-[44px]">
+          <div className="flex items-end gap-2">
+            {speech.isSupported ? (
+              <MicButton
+                isListening={speech.isListening}
+                isLoading={speech.isLoading}
+                isTranscribing={speech.isTranscribing}
+                isRequestingPermission={speech.isRequestingPermission}
+                loadProgress={speech.loadProgress}
+                onClick={handleMicToggle}
+                disabled={isLoading}
+                size={compact ? 12 : 14}
+                title={speech.requiresLocalTranscription ? 'Enable Local Transcription to dictate on this browser' : undefined}
+              />
+            ) : null}
+            <div className="flex min-w-0 flex-1 items-end gap-2" onClick={() => inputRef.current?.focus()}>
+              <div className="relative flex-1 min-h-[44px]">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -1491,27 +1459,26 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               />
             )}
 
-            {/* Paperclip send button — stays inline with the textarea
-                because send is the primary action paired with text. The
-                ancillary mic / voice / clear-chat controls were moved to
-                the toolbar above to declutter the input row. */}
-            <m.button
-              type="button"
-              whileHover={SEND_BUTTON_HOVER}
-              whileTap={SEND_BUTTON_TAP}
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading || isCompressingImage}
-              className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-0 transition-colors",
-                input.trim() && !isLoading && !isCompressingImage
-                  ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
-                  : "text-gray-400 dark:text-gray-600",
-              )}
-              title="Send note"
-              aria-label="Send message"
-            >
-              <Send size={compact ? 14 : 16} className="max-[480px]:h-3 max-[480px]:w-3 md:w-[20px] md:h-[20px]" />
-            </m.button>
+              {/* Paperclip send button stays paired with the textarea as
+                  the primary action for typed or dictated text. */}
+              <m.button
+                type="button"
+                whileHover={SEND_BUTTON_HOVER}
+                whileTap={SEND_BUTTON_TAP}
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading || isCompressingImage}
+                className={cn(
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-0 transition-colors",
+                  input.trim() && !isLoading && !isCompressingImage
+                    ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
+                    : "text-gray-400 dark:text-gray-600",
+                )}
+                title="Send note"
+                aria-label="Send message"
+              >
+                <Send size={compact ? 14 : 16} className="max-[480px]:h-3 max-[480px]:w-3 md:w-[20px] md:h-[20px]" />
+              </m.button>
+            </div>
           </div>
         </m.div>
       </div>
@@ -2362,7 +2329,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                     skipEntrance={!hasHadInteraction}
                   />
                 )}
-                {baseSuggestions.map((q, i) => (
+                {baseSuggestions.slice(0, 4 - (matrixEscaped ? 1 : 0)).map((q, i) => (
                   <SuggestionStrip
                     key={q}
                     text={q}
@@ -2374,7 +2341,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   />
                 ))}
                 <AnimatePresence>
-                  {extraSuggestions.map((q, i) => (
+                  {extraSuggestions.slice(0, Math.max(0, 4 - (matrixEscaped ? 1 : 0) - baseSuggestions.length)).map((q, i) => (
                     <SuggestionStrip
                       key={q}
                       text={q}

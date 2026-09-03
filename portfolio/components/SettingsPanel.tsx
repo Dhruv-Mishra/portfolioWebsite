@@ -434,6 +434,12 @@ export default function SettingsPanel() {
             value={modelId}
             onValueChange={handleModelChange}
           />
+          <SettingToggle
+            label="Quick chat button"
+            detail="Show the floating button outside chat."
+            checked={prefs.quickChatEnabled}
+            onChange={(checked) => setBooleanPref('quickChatEnabled', checked)}
+          />
           {selectedModel ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
               <span>{selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>

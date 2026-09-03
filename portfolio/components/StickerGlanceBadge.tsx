@@ -8,6 +8,7 @@
  * Mounted by EagerEnhancements (site-wide, except /stickers which we skip
  * inline to avoid a self-referential pulse).
  */
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStickerProgress } from '@/hooks/useStickers';
@@ -24,9 +25,16 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
   // progress reference. A toast dequeue does not re-render this badge.
   const { unlocked, total, hasUnseenSticker } = useStickerProgress();
   const { navigate } = useAppHaptics();
+  const [hiddenFor, setHiddenFor] = useState<{ pathname: string; unlocked: number } | null>(null);
+  const isVisible = hiddenFor?.pathname !== pathname || hiddenFor?.unlocked !== unlocked;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setHiddenFor({ pathname, unlocked }), 6000);
+    return () => window.clearTimeout(timeoutId);
+  }, [pathname, unlocked]);
 
   // Hide ON the album page itself to keep the route focused.
-  if (pathname === '/stickers') return null;
+  if (!isVisible || pathname === '/stickers') return null;
   // Mobile declutter: the badge is desktop-only on non-home routes. We
   // still render on the homepage for mobile because that's the primary
   // discovery surface; everywhere else only desktop gets the badge.

@@ -95,10 +95,6 @@ const CRITICAL_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'button-click',
   'theme-dark',
   'theme-light',
-  'chat-send',
-  'chat-receive',
-  'modal-open',
-  'modal-close',
 ]);
 
 /**
@@ -108,6 +104,10 @@ const CRITICAL_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
  * even if the fetch lags there's no perceivable gap.
  */
 const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
+  'chat-send',
+  'chat-receive',
+  'modal-open',
+  'modal-close',
   'sticker-ding',
   'feedback-sent',
   'guestbook-submit',

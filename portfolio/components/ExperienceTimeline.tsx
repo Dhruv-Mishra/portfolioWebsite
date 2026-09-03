@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { AnimatePresence, m, type Variants } from 'framer-motion';
 import {
   BriefcaseBusiness,
   CalendarDays,
@@ -15,7 +14,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
-import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import type { ExperienceTimelineCategory, ExperienceTimelineEntry } from '@/lib/experienceTimeline';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -91,11 +89,6 @@ const CATEGORY_META: Record<ExperienceTimelineCategory, CategoryMeta> = {
   },
 };
 
-const DETAIL_VARIANTS: Variants = {
-  hidden: { height: 0, opacity: 0 },
-  visible: { height: 'auto', opacity: 1 },
-};
-
 const DISCO_REST_ROTATIONS = ['-0.8deg', '0.65deg', '-0.35deg', '0.9deg'] as const;
 const NOTE_DISCO_PERIOD_MS = 1400;
 const TAPE_DISCO_PERIOD_MS = 1700;
@@ -161,7 +154,6 @@ function getEntriesForFilter(entries: readonly ExperienceTimelineEntry[], filter
 export default function ExperienceTimeline({ entries }: ExperienceTimelineProps) {
   const [activeId, setActiveId] = useState<string | null>(entries[0]?.id ?? null);
   const [selectedFilter, setSelectedFilter] = useState<TimelineFilter>('all');
-  const prefersReducedMotion = useEffectiveReducedMotion();
   const { selection, subtle, toggle } = useAppHaptics();
 
   const filteredEntries = useMemo(
@@ -302,11 +294,10 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
 
       <div className="relative min-w-0 max-w-full">
         <div aria-hidden="true" className="absolute bottom-6 left-[23px] top-4 w-[2px] rounded-full bg-[var(--c-ink)]/15 md:left-1/2 md:-translate-x-1/2" />
-        <m.div
+        <div
           aria-hidden="true"
-          className="absolute bottom-6 left-[22px] top-4 w-1 origin-top rounded-full bg-[var(--c-ink)]/35 md:left-1/2 md:-translate-x-1/2"
-          animate={{ scaleY: progressScale }}
-          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.25 }}
+          className="absolute bottom-6 left-[22px] top-4 w-1 origin-top rounded-full bg-[var(--c-ink)]/35 md:left-1/2 md:-translate-x-1/2 transition-transform duration-200 motion-reduce:duration-0"
+          style={{ transform: `scaleY(${progressScale})` }}
         />
 
         <ol className="relative min-w-0 max-w-full space-y-7 md:space-y-10">
@@ -459,50 +450,47 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                       </span>
                     </button>
 
-                    <AnimatePresence initial={false}>
-                      {isActive && (
-                        <m.div
-                          key="details"
-                          id={detailsId}
-                          variants={DETAIL_VARIANTS}
-                          initial="hidden"
-                          animate="visible"
-                          exit="hidden"
-                          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.22 }}
-                          className="relative z-10 overflow-hidden"
-                        >
-                          <div className="mt-3 border-t border-[var(--c-ink)]/10 pt-3">
-                            <p className="text-base leading-relaxed text-[var(--c-ink)]/82 md:text-lg">
-                              {entry.summary}
-                            </p>
-
-                            <p className="mt-2 rounded-[7px] border border-dashed border-[var(--c-ink)]/20 bg-[var(--c-paper)]/55 px-3 py-2 text-sm font-semibold leading-relaxed text-[var(--c-ink)]/85 md:text-base">
-                              {entry.impact}
-                            </p>
-
-                            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--c-ink)]/75 md:text-base">
-                              {entry.highlights.map((highlight) => (
-                                <li key={highlight} className="flex gap-2">
-                                  <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--c-ink)]/45" />
-                                  <span>{highlight}</span>
-                                </li>
-                              ))}
-                            </ul>
-
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                              {entry.tools.map((tool) => (
-                                <span
-                                  key={tool}
-                                  className="rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/55 px-2 py-1 text-xs text-[var(--c-ink)]/70"
-                                >
-                                  {tool}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </m.div>
+                    <div
+                      id={detailsId}
+                      className={cn(
+                        'relative z-10 grid transition-[grid-template-rows,opacity] duration-200 motion-reduce:duration-0',
+                        isActive
+                          ? 'grid-template-rows-[1fr] opacity-100'
+                          : 'grid-template-rows-[0fr] opacity-0 pointer-events-none',
                       )}
-                    </AnimatePresence>
+                    >
+                      <div className="overflow-hidden">
+                        <div className="mt-3 border-t border-[var(--c-ink)]/10 pt-3">
+                          <p className="text-base leading-relaxed text-[var(--c-ink)]/82 md:text-lg">
+                            {entry.summary}
+                          </p>
+
+                          <p className="mt-2 rounded-[7px] border border-dashed border-[var(--c-ink)]/20 bg-[var(--c-paper)]/55 px-3 py-2 text-sm font-semibold leading-relaxed text-[var(--c-ink)]/85 md:text-base">
+                            {entry.impact}
+                          </p>
+
+                          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--c-ink)]/75 md:text-base">
+                            {entry.highlights.map((highlight) => (
+                              <li key={highlight} className="flex gap-2">
+                                <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--c-ink)]/45" />
+                                <span>{highlight}</span>
+                              </li>
+                            ))}
+                          </ul>
+
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {entry.tools.map((tool) => (
+                              <span
+                                key={tool}
+                                className="rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/55 px-2 py-1 text-xs text-[var(--c-ink)]/70"
+                              >
+                                {tool}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </article>
                 </div>
               </li>

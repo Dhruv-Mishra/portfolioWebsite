@@ -199,7 +199,7 @@ function getPythonExecutable(): string {
 
 function getReferencePath(): string {
   const configuredPath = process.env.LOCAL_TTS_REFERENCE_PATH?.trim() || DEFAULT_REFERENCE_PATH;
-  return path.resolve(process.cwd(), configuredPath);
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), configuredPath);
 }
 
 function resolveWorkerScript(): string {

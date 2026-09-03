@@ -18,7 +18,6 @@
  */
 
 import { memo, useCallback, useId, useRef } from 'react';
-import { AnimatePresence, m } from 'framer-motion';
 import {
   setSoundsMutedImperative,
   useMasterVolume,
@@ -26,16 +25,10 @@ import {
 } from '@/hooks/useStickers';
 import { useFloatingVolumePopover } from '@/hooks/useFloatingVolumePopover';
 import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
-import { ANIMATION_TOKENS } from '@/lib/designTokens';
 import { useAppHaptics } from '@/lib/haptics';
 import { useDesktopOnly } from '@/hooks/useDesktopOnly';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
-
-const POPOVER_TRANSITION = { duration: ANIMATION_TOKENS.duration.fast } as const;
-const POPOVER_INITIAL = { opacity: 0, y: 8, x: '-50%' } as const;
-const POPOVER_ANIMATE = { opacity: 1, y: 0, x: '-50%' } as const;
-const POPOVER_EXIT = { opacity: 0, y: 8, x: '-50%' } as const;
 
 function SoundToggleButton(): React.ReactElement {
   const muted = useSoundsMuted();
@@ -136,46 +129,40 @@ function SoundToggleButton(): React.ReactElement {
           />
         </button>
       </Tooltip>
-      <AnimatePresence>
-        {sliderOpen ? (
-          <m.div
-            key="master-volume-popover"
-            id={sliderId}
-            role="group"
+      {sliderOpen ? (
+        <div
+          id={sliderId}
+          role="group"
+          aria-label="Master volume"
+          className={cn(
+            'absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2',
+            'flex flex-col items-center gap-1 rounded-md px-2 py-2',
+            'border border-[var(--c-ink)]/25 bg-[var(--c-paper)]/95',
+            'shadow-[1px_2px_4px_rgba(0,0,0,0.16)]',
+            'animate-fadeIn motion-reduce:animate-none',
+          )}
+        >
+          <span className="absolute top-full left-1/2 h-2 w-11 -translate-x-1/2" aria-hidden="true" />
+          <span className="font-hand text-[11px] font-bold text-[var(--c-ink)]/75">
+            {percent}%
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={percent}
             aria-label="Master volume"
-            initial={POPOVER_INITIAL}
-            animate={POPOVER_ANIMATE}
-            exit={POPOVER_EXIT}
-            transition={POPOVER_TRANSITION}
-            className={cn(
-              'absolute bottom-full left-1/2 z-10 mb-2',
-              'flex flex-col items-center gap-1 rounded-md px-2 py-2',
-              'border border-[var(--c-ink)]/25 bg-[var(--c-paper)]/95',
-              'shadow-[1px_2px_4px_rgba(0,0,0,0.16)]',
-            )}
-          >
-            <span className="absolute top-full left-1/2 h-2 w-11 -translate-x-1/2" aria-hidden="true" />
-            <span className="font-hand text-[11px] font-bold text-[var(--c-ink)]/75">
-              {percent}%
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={percent}
-              aria-label="Master volume"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={percent}
-              aria-valuetext={`${percent} percent`}
-              onPointerDown={onDragStart}
-              onChange={(event) => handleVolumeChange(Number(event.target.value))}
-              className="master-volume-slider floating-volume-slider master-volume-slider--vertical"
-            />
-          </m.div>
-        ) : null}
-      </AnimatePresence>
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-valuetext={`${percent} percent`}
+            onPointerDown={onDragStart}
+            onChange={(event) => handleVolumeChange(Number(event.target.value))}
+            className="master-volume-slider floating-volume-slider master-volume-slider--vertical"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

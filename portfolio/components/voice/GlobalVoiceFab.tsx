@@ -6,8 +6,7 @@ import { AudioLines } from 'lucide-react';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 import { topicFromPath } from '@/lib/voiceClientSnapshot';
 import { cn } from '@/lib/utils';
-import { INTERACTION_TOKENS, ANIMATION_TOKENS, Z_INDEX } from '@/lib/designTokens';
-import { m } from 'framer-motion';
+import { Z_INDEX } from '@/lib/designTokens';
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -65,30 +64,23 @@ function GlobalVoiceFabImpl({ variant = 'desktop' }: GlobalVoiceFabProps): React
   }
 
   return (
-    <m.button
+    <button
       type="button"
       onClick={startVoice}
       aria-label="Talk with Dhruv by voice"
       title="Talk to me"
-      whileHover={INTERACTION_TOKENS.hover.scaleUp}
-      whileTap={INTERACTION_TOKENS.tap.press}
-      initial={{ opacity: 0, scale: 0 }}
-      animate={{
-        opacity: 1,
-        scale: 1,
-        transition: { type: 'spring' as const, ...ANIMATION_TOKENS.spring.bouncy },
-      }}
       className={cn(
         'fixed h-[max(var(--c-fab-size),44px)] w-[max(var(--c-fab-size),44px)] rounded-full',
         'flex items-center justify-center shadow-lg',
         'bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60',
         'text-indigo-600 dark:text-indigo-300',
+        'transition-[transform,background-color] duration-200 active:scale-95',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
       )}
       style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}
     >
       <AudioLines size={22} strokeWidth={2.2} />
-    </m.button>
+    </button>
   );
 }
 

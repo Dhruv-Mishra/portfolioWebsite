@@ -9,7 +9,6 @@ export function LoadingSpinner({ message = "Loading..." }: LoadingSpinnerProps) 
       className="flex flex-col items-center justify-center min-h-[400px] p-8"
       role="status"
       aria-live="polite"
-      aria-busy="true"
     >
       <div className="flex w-full flex-col items-center gap-6">
         {/* CSS-only spinner */}

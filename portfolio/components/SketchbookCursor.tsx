@@ -7,7 +7,7 @@ import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 interface TrailPoint { x: number; y: number; t: number }
 
 const MAX_POINTS = LAYOUT_TOKENS.cursorMaxPoints;
-const MAX_TRAIL_DPR = 1.5;
+const MAX_TRAIL_DPR = 1;
 const HOVER_SCALE = 1.3;
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -143,6 +143,7 @@ export default function SketchbookCursor() {
             pointerY = event.clientY;
             pointerTarget = event.target;
             pointerPending = true;
+            applyCursorStyle();
             wakeLoop();
         };
 

@@ -1,9 +1,8 @@
 "use client";
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useCallback, useState } from 'react';
+import Link, { useLinkStatus } from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
-import { canWarmNoncriticalAssets } from '@/lib/assetPrefetch';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
 
@@ -25,83 +24,20 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
 
+/** Framework-owned pending marker. Must stay a descendant of each NavTab Link. */
+function RoutePendingMarker() {
+    const { pending } = useLinkStatus();
+    if (!pending) return null;
+    return <span hidden data-route-navigation-pending />;
+}
+
 export default function Navigation() {
     const pathname = usePathname();
-    const router = useRouter();
     const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
     const onHoverEnd = useCallback(() => setHoveredTab(null), []);
-
-    // Default Link prefetch would fetch every visible tab at once. After the
-    // current route is stable, warm the other nav routes one idle window at a time.
-    useEffect(() => {
-        let cancelled = false;
-        let stableTimer: number | undefined;
-        let gapTimer: number | undefined;
-        let idleId: number | undefined;
-
-        const cancelIdle = () => {
-            if (idleId === undefined) return;
-            const w = window as Window & { cancelIdleCallback?: (id: number) => void };
-            w.cancelIdleCallback?.(idleId);
-            idleId = undefined;
-        };
-
-        const clearPending = () => {
-            if (stableTimer !== undefined) window.clearTimeout(stableTimer);
-            if (gapTimer !== undefined) window.clearTimeout(gapTimer);
-            cancelIdle();
-            stableTimer = undefined;
-            gapTimer = undefined;
-        };
-
-        const scheduleIdle = (cb: () => void) => {
-            const w = window as Window & {
-                requestIdleCallback?: (cb: () => void) => number;
-            };
-            // No idle timeout: a deadline can fire during active scrolling.
-            if (typeof w.requestIdleCallback === 'function') {
-                idleId = w.requestIdleCallback(() => {
-                    idleId = undefined;
-                    cb();
-                });
-                return;
-            }
-            gapTimer = window.setTimeout(() => {
-                gapTimer = undefined;
-                cb();
-            }, 1000);
-        };
-
-        const warmup = (index: number, hrefs: string[]) => {
-            if (cancelled || index >= hrefs.length) return;
-            scheduleIdle(() => {
-                if (cancelled || !canWarmNoncriticalAssets()) return;
-                router.prefetch(hrefs[index]);
-                if (index + 1 >= hrefs.length) return;
-                gapTimer = window.setTimeout(() => {
-                    gapTimer = undefined;
-                    warmup(index + 1, hrefs);
-                }, 1000);
-            });
-        };
-
-        stableTimer = window.setTimeout(() => {
-            stableTimer = undefined;
-            if (cancelled || !canWarmNoncriticalAssets()) return;
-            warmup(
-                0,
-                LINKS.map((item) => item.href).filter((href) => href !== pathname),
-            );
-        }, 3000);
-
-        return () => {
-            cancelled = true;
-            clearPending();
-        };
-    }, [pathname, router]);
 
     return (
         <nav
@@ -150,7 +86,6 @@ const NavTab = React.memo(function NavTab({
     return (
         <Link
             href={item.href}
-            prefetch={false}
             onClick={onPress}
             // Focus-visible ring lives on the anchor (the natural focus target)
             // rather than the inner clip-pathed div, so the ring is never cut
@@ -177,6 +112,7 @@ const NavTab = React.memo(function NavTab({
                 }}
             >
                 {item.name}
+                <RoutePendingMarker />
             </div>
         </Link>
     );

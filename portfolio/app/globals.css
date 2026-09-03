@@ -604,6 +604,21 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Hide stale route paint during Link pending; keep geometry and show one spinner. */
+[data-route-loading-placeholder] {
+  display: none;
+}
+
+#main-content:has([data-route-navigation-pending]) [data-route-scroll-content] {
+  visibility: hidden;
+}
+
+#main-content:has([data-route-navigation-pending]) [data-route-loading-placeholder] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* GPU compositing hints — promote frequently-animated layers for smoother rendering.
    Uses will-change sparingly to avoid excessive GPU memory consumption on low-end devices.
    When GPU is unavailable, these gracefully fall back to CPU compositing. */

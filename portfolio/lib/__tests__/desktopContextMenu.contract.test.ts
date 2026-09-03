@@ -55,9 +55,16 @@ describe('desktop context menu contract', () => {
     expect(menuSource).toContain('zIndex: Z_INDEX.contextMenu');
     expect(menuSource).not.toContain('z-[10000]');
     expect(cursorSource).toContain("window.addEventListener('mousemove', queueCursorMove, { passive: true })");
+    expect(cursorSource).toContain('const MAX_TRAIL_DPR = 1;');
     expect(cursorSource).toContain('applyPointerMove(now)');
     expect(cursorSource.indexOf('applyPointerMove(now)')).toBeGreaterThan(
       cursorSource.indexOf('const renderTrail = () =>'),
+    );
+    expect(cursorSource.indexOf('checkHover(pointerTarget)')).toBeGreaterThan(
+      cursorSource.indexOf('const applyPointerMove'),
+    );
+    expect(cursorSource.indexOf('checkHover(pointerTarget)')).toBeLessThan(
+      cursorSource.indexOf('const queueCursorMove'),
     );
   });
 
@@ -73,6 +80,11 @@ describe('desktop context menu contract', () => {
     expect(cursorSource).toContain('now - lastMoveTime > TIMING_TOKENS.cursorIdleThreshold');
     expect(cursorSource).toContain('if (rafId === 0)');
     expect(cursorSource).toContain('wakeLoop()');
-    expect(cursorSource).not.toMatch(/applyCursorStyle\(\);\s*wakeLoop\(\)/);
+    expect(cursorSource).toMatch(/applyCursorStyle\(\);\s*wakeLoop\(\)/);
+    const queueStart = cursorSource.indexOf('const queueCursorMove');
+    const queueStyle = cursorSource.indexOf('applyCursorStyle()', queueStart);
+    const queueWake = cursorSource.indexOf('wakeLoop()', queueStart);
+    expect(queueStyle).toBeGreaterThan(queueStart);
+    expect(queueStyle).toBeLessThan(queueWake);
   });
 });

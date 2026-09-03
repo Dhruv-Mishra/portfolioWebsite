@@ -2,6 +2,7 @@
 
 import { type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import { LoadingSpinner } from '@/components/Loading';
 import { cn } from '@/lib/utils';
 
 const ROUTE_SCROLL_CLASSES =
@@ -22,8 +23,17 @@ export default function RouteScrollSurface({ children }: { children: ReactNode }
       )}
       data-route-scroll-container
     >
-      <div className="relative z-10 h-full min-h-full min-w-0">
+      <div
+        className="relative z-10 h-full min-h-full min-w-0"
+        data-route-scroll-content
+      >
         {children}
+      </div>
+      <div
+        className="pointer-events-none absolute inset-0 z-20"
+        data-route-loading-placeholder
+      >
+        <LoadingSpinner />
       </div>
     </div>
   );

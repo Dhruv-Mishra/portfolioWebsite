@@ -8,16 +8,17 @@ const navigation = fs.readFileSync(
 );
 
 describe('navigation pending destination contract', () => {
-  it('activates tabs from the live pathname and warms other routes after a stable delay', () => {
+  it('activates tabs from the live pathname and lets Next Link prefetch destinations', () => {
     expect(navigation).not.toContain('subscribeToPageTurn');
     expect(navigation).not.toContain('getPageTurnSnapshot');
     expect(navigation).not.toContain('getServerPageTurnSnapshot');
     expect(navigation).not.toContain('useSyncExternalStore(');
-    expect(navigation).toContain('prefetch={false}');
+    expect(navigation).not.toContain('prefetch={false}');
     expect(navigation).not.toContain('prefetch={item.prefetch}');
-    expect(navigation).toContain('canWarmNoncriticalAssets');
-    expect(navigation).toContain('router.prefetch');
-    expect(navigation).toContain('3000');
+    expect(navigation).not.toContain('canWarmNoncriticalAssets');
+    expect(navigation).not.toContain('router.prefetch');
+    expect(navigation).not.toContain('useRouter');
+    expect(navigation).not.toContain('3000');
     expect(navigation).toContain('active={pathname === item.href}');
   });
 });

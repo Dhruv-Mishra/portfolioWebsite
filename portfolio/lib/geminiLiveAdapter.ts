@@ -258,7 +258,10 @@ export class GeminiLiveCaller implements VoiceCaller {
     if (socket.bufferedAmount > AUDIO_BACKPRESSURE_BYTES) return;
     const bytes = new Uint8Array(chunk);
     let binary = '';
-    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const chunkSize = 1024;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
     socket.send(JSON.stringify({
       realtimeInput: {
         audio: {

@@ -1,6 +1,6 @@
 "use client";
 import React, { useCallback, useState } from 'react';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,13 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
+
+/** Framework-owned pending marker. Must stay a descendant of each NavTab Link. */
+function RoutePendingMarker() {
+    const { pending } = useLinkStatus();
+    if (!pending) return null;
+    return <span hidden data-route-navigation-pending />;
+}
 
 export default function Navigation() {
     const pathname = usePathname();
@@ -105,6 +112,7 @@ const NavTab = React.memo(function NavTab({
                 }}
             >
                 {item.name}
+                <RoutePendingMarker />
             </div>
         </Link>
     );

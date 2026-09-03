@@ -11,7 +11,7 @@ export function LoadingSpinner({ message = "Loading..." }: LoadingSpinnerProps) 
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="flex flex-col items-center gap-6 animate-[fadeIn_0.3s_ease-out] motion-reduce:animate-none">
+      <div className="flex w-full flex-col items-center gap-6">
         {/* CSS-only spinner */}
         <div
           className="w-16 h-16 border-4 border-gray-300 border-t-indigo-600 rounded-full animate-spin motion-reduce:animate-none"

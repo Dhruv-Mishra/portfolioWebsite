@@ -91,8 +91,8 @@ export interface VoiceSessionSnapshot {
 export const VOICE_SUBTITLE_IDLE_MS = 700;
 export const VOICE_SUBTITLE_FADE_MS = 280;
 export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
-export const VOICE_IDLE_CHECKIN_MS = 15_000;
-export const VOICE_IDLE_HANGUP_MS = 25_000;
+export const VOICE_IDLE_CHECKIN_MS = 45_000;
+export const VOICE_IDLE_HANGUP_MS = 90_000;
 export const VOICE_EXIT_VEIL_MS = 2_200;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
@@ -102,7 +102,7 @@ export interface VoiceHangupRequest {
   reason?: VoiceExitReason;
 }
 
-export const VOICE_HOST_READY_TIMEOUT_MS = 6_000;
+export const VOICE_HOST_READY_TIMEOUT_MS = 600;
 export const VOICE_CALLBACK_GAP_MS = 1_100;
 
 const VOICE_RETRYABLE_STATUS = 'Call dropped.';
@@ -255,14 +255,6 @@ function noteSentCaptureFrame(generation: number): void {
 function handleCaptureFrame(chunk: ArrayBuffer, generation: number): void {
   if (isStale(generation) || stopping) return;
   if (!sendAudioLive || !socketReady) return;
-  if (playback?.isBusy()) {
-    if (streamEndTimer !== null && !streamEndSent) {
-      clearStreamEndTimer();
-      streamEndSent = true;
-      caller?.endAudioStream?.();
-    }
-    return;
-  }
   caller?.sendAudio(chunk);
   noteSentCaptureFrame(generation);
 }
@@ -743,7 +735,6 @@ function beginIdleCheckIn(): void {
 function beginIdleHangup(): void {
   if (!idleCheckedIn || !canWatchIdle() || !caller) return;
   caller.sendText(buildVoiceExactSpeakCue(pickVoiceIdleHangup()));
-  sendAudioLive = false;
   armAgentFarewellHangup('user');
 }
 

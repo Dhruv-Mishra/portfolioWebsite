@@ -319,6 +319,10 @@ export function createVoicePlayback(options: VoicePlaybackOptions = {}): VoicePl
   function isBusy(): boolean {
     if (closed || resumeFailed) return false;
     if (pendingSamples > 0) return true;
+    if (context && started && context.currentTime >= nextTime + 0.05 && pendingSamples === 0) {
+      sources.clear();
+      started = false;
+    }
     if (sources.size > 0) return true;
     if (remainingTailMs() > 16) return true;
     return hangoverRemainingMs() > 0;

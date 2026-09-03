@@ -929,19 +929,19 @@ describe('voice session runtime singleton', () => {
     vi.useRealTimers();
   });
 
-  it('pauses mic PCM while playback is busy', async () => {
+  it('sends mic PCM continuously even while playback is busy for barge-in', async () => {
     const runtime = await boot();
     runtime.pushCaptureFrame(new ArrayBuffer(4));
     expect(runtime.fakeCaller.sentAudio).toHaveLength(1);
 
     runtime.fakePlayback.setBusy(true);
     runtime.pushCaptureFrame(new ArrayBuffer(4));
-    expect(runtime.fakeCaller.sentAudio).toHaveLength(1);
-    expect(runtime.fakeCaller.endAudioStreamCalls).toHaveLength(1);
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(2);
+    expect(runtime.fakeCaller.endAudioStreamCalls).toHaveLength(0);
 
     runtime.fakePlayback.setBusy(false);
     runtime.pushCaptureFrame(new ArrayBuffer(4));
-    expect(runtime.fakeCaller.sentAudio).toHaveLength(2);
+    expect(runtime.fakeCaller.sentAudio).toHaveLength(3);
 
     runtime.resetVoiceSessionRuntimeForTests();
   });

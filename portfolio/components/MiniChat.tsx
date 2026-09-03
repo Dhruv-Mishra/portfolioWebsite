@@ -7,6 +7,7 @@ import { stickerBus } from '@/lib/stickerBus';
 import { cn } from '@/lib/utils';
 import { Z_INDEX } from '@/lib/designTokens';
 import { OPEN_CHAT_EVENT } from '@/lib/siteActionEvents';
+import { useSitePrefs } from '@/hooks/useSitePrefs';
 
 const MiniChatPanel = dynamic(() => import('./MiniChatPanel'), {
   ssr: false,
@@ -71,6 +72,7 @@ export default function MiniChat() {
     getVoiceModeSnapshot,
     getServerVoiceModeSnapshot,
   );
+  const { quickChatEnabled } = useSitePrefs();
 
   if (chatState.pathname !== pathname) {
     setChatState({ pathname, isOpen: false });
@@ -102,14 +104,16 @@ export default function MiniChat() {
 
   useEffect(() => {
     const handler = (raw: Event) => {
+      if (!quickChatEnabled) return;
       handleOpen();
       raw.preventDefault();
     };
     window.addEventListener(OPEN_CHAT_EVENT, handler);
     return () => window.removeEventListener(OPEN_CHAT_EVENT, handler);
-  }, [handleOpen]);
+  }, [handleOpen, quickChatEnabled]);
 
   // Don't show on /chat page (or any nested /chat/* route)
+  if (!quickChatEnabled) return null;
   if (pathname?.startsWith('/chat')) return null;
   if (voiceModeActive) return null;
   if (!hasMounted) return null;

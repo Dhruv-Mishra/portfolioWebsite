@@ -45,6 +45,8 @@ export interface AdminPrefs {
   sketchOutlines: boolean;
   /** Opts into preview site features and the staging build. Default: off. */
   experimentalFeatures: boolean;
+  /** Whether the floating quick-chat button appears outside chat. Default: off. */
+  quickChatEnabled: boolean;
   /** The flagship gate — enables `sudo matrix` in sudo help. Default: off. */
   experimentalCommands: boolean;
   /** Master switch — when false, no new stickers are earned (no roster
@@ -67,6 +69,7 @@ function defaultPrefs(): AdminPrefs {
     tapeEffects: true,
     sketchOutlines: true,
     experimentalFeatures: false,
+    quickChatEnabled: false,
     experimentalCommands: false,
     stickersEnabled: true,
     stickerToastsEnabled: false,
@@ -99,6 +102,7 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
       tapeEffects: booleanField(parsed, 'tapeEffects', true),
       sketchOutlines: booleanField(parsed, 'sketchOutlines', true),
       experimentalFeatures: booleanField(parsed, 'experimentalFeatures', false),
+      quickChatEnabled: booleanField(parsed, 'quickChatEnabled', false),
       experimentalCommands: booleanField(parsed, 'experimentalCommands', false),
       stickersEnabled: booleanField(parsed, 'stickersEnabled', true),
       stickerToastsEnabled: booleanField(parsed, 'stickerToastsEnabled', false),

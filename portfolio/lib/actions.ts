@@ -488,16 +488,18 @@ function normalizeSuggestionText(text: string): string {
 }
 
 export function getInitialChatSuggestions(discoActive = false): { base: string[]; extra: string[] } {
+  const extra = INITIAL_SUGGESTIONS.slice(1, 3);
+
   if (discoActive) {
     return {
       base: [INITIAL_SUGGESTIONS[0], DISCO_EXIT_ACTION_LABEL],
-      extra: INITIAL_SUGGESTIONS.slice(1),
+      extra,
     };
   }
 
   return {
     base: [INITIAL_SUGGESTIONS[0], DISCO_ACTION_LABEL],
-    extra: INITIAL_SUGGESTIONS.slice(1).filter(suggestion => suggestion !== DISCO_EXPLAINER_LABEL),
+    extra,
   };
 }
 
@@ -545,6 +547,7 @@ export const FOLLOWUP_CONVERSATIONAL = [
 /** Initial suggestions shown before any conversation */
 export const INITIAL_SUGGESTIONS = [
   "Tell me about your AI work",
+  'Start voice mode',
   "What's your tech stack?",
   "Tell me about Jarvis",
   DISCO_EXPLAINER_LABEL,

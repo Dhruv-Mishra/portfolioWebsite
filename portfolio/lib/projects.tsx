@@ -149,7 +149,7 @@ export const PROJECTS: ProjectRecord[] = [
     lang: 'Next.js / TypeScript',
     link: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
     colorClass: 'bg-note-blue',
-    image: '/resources/PersonalPorfolio.webp',
+    image: '/resources/PersonalPortfolio.webp',
     blurDataURL: BLUR.portfolio,
     icon: Globe,
     label: 'This Website',

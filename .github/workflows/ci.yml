@@ -146,5 +146,14 @@ jobs:
           fi
           "${npm_cmd[@]}" ci
 
+      - name: Restore Next.js build cache
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+        with:
+          path: |
+            portfolio/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.{js,jsx,ts,tsx,css}') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('portfolio/package-lock.json') }}-
+
       - name: Build
         run: npm run build

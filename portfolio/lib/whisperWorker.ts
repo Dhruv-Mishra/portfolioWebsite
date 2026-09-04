@@ -42,13 +42,27 @@ function loadPipeline(model: string, onProgress: (p: WhisperProgress) => void): 
   loadedModel = model;
   pipelinePromise = (async () => {
     const mod = await import('@huggingface/transformers');
-    const { pipeline } = mod as unknown as {
+    const { pipeline, env } = mod as unknown as {
       pipeline: (
         task: string,
         model: string,
         opts?: { progress_callback?: (p: WhisperProgress) => void; dtype?: string; device?: string },
       ) => Promise<AsrPipeline>;
+      env?: {
+        backends?: {
+          onnx?: {
+            wasm?: {
+              wasmPaths?: string;
+            };
+          };
+        };
+      };
     };
+
+    if (env?.backends?.onnx?.wasm) {
+      env.backends.onnx.wasm.wasmPaths =
+        'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.20260416-b7804b056c/dist/';
+    }
     try {
       return await pipeline('automatic-speech-recognition', model, {
         progress_callback: onProgress,

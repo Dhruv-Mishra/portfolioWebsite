@@ -13,6 +13,16 @@ export function pickRandom<T>(arr: readonly T[], n?: number): T | T[] {
   if (n === undefined) {
     return arr[Math.floor(Math.random() * arr.length)];
   }
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
+  if (arr.length === 0 || n <= 0) {
+    return [];
+  }
+  const count = Math.min(n, arr.length);
+  const copy = [...arr];
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(Math.random() * (copy.length - i));
+    const temp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = temp;
+  }
+  return copy.slice(0, count);
 }

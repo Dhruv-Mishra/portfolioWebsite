@@ -61,4 +61,17 @@ if (nativeFiles.length > 0) {
   );
 }
 
-console.log('[sanitize-standalone] Removed optional native package trees and local caches.');
+const staticMediaDir = path.resolve('.next', 'static', 'media');
+try {
+  const mediaFiles = await readdir(staticMediaDir);
+  for (const file of mediaFiles) {
+    if (file.startsWith('ort-wasm') && file.endsWith('.wasm')) {
+      await rm(path.join(staticMediaDir, file), { force: true });
+      console.log(`[sanitize-standalone] Removed redundant WASM binary from static/media: ${file}`);
+    }
+  }
+} catch {
+  // static/media does not exist or has no files
+}
+
+console.log('[sanitize-standalone] Removed optional native package trees, local caches, and externalized WASM.');

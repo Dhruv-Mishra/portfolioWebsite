@@ -9,8 +9,6 @@ import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { PERSONAL_LINKS } from '@/lib/links';
 
-export const revalidate = 3600;
-
 type AboutPhotoMotionStyle = CSSProperties & {
     '--hover-tilt-lift': string;
     '--hover-tilt-scale': string;

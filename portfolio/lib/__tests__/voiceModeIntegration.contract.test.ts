@@ -78,9 +78,12 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-still');
     expect(css).toContain('.voice-orb-wash');
     expect(css).toContain('.voice-edge-halo');
-    expect(css).toContain('@keyframes voice-edge-wave-x');
-    expect(css).toContain('@keyframes voice-edge-wave-y');
-    expect(css).toContain('rgba(56, 189, 248, 0.92)');
+    expect(css).toContain('@keyframes voice-edge-breathe');
+    expect(css).toContain('@keyframes voice-edge-drift-x');
+    expect(css).toContain('@keyframes voice-edge-drift-y');
+    expect(css).toContain('--voice-edge-rgb: 8 105 130');
+    expect(css).toContain('.dark .voice-edge-halo');
+    expect(css).toContain('--voice-edge-rgb: 103 232 249');
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');

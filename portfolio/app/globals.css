@@ -778,61 +778,92 @@ html[data-matrix] [data-mobile-social-frame] {
 }
 
 .voice-edge-halo {
-  --voice-edge-speed: 2.8s;
+  --voice-edge-rgb: 8 105 130;
+  --voice-edge-breath: 5.8s;
   overflow: hidden;
+  opacity: 0.5;
   box-shadow:
-    inset 0 0 4px rgba(56, 189, 248, 0.92),
-    inset 0 0 22px rgba(56, 189, 248, 0.48);
+    inset 0 0 3px rgb(var(--voice-edge-rgb) / 0.58),
+    inset 0 0 18px rgb(var(--voice-edge-rgb) / 0.28);
   contain: paint;
+  animation: voice-edge-breathe var(--voice-edge-breath) ease-in-out infinite;
+}
+
+.dark .voice-edge-halo {
+  --voice-edge-rgb: 103 232 249;
 }
 
 .voice-edge-halo[data-phase="speaking"],
 .voice-edge-halo[data-phase="acting"] {
-  --voice-edge-speed: 1.5s;
+  --voice-edge-breath: 4.8s;
 }
 
 .voice-edge-halo [data-edge] {
   position: absolute;
   display: block;
-  background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.92), rgba(56, 189, 248, 0.46) 42%, transparent 72%);
   pointer-events: none;
+  filter: blur(2px);
   will-change: transform;
 }
 
 .voice-edge-halo [data-edge="top"],
 .voice-edge-halo [data-edge="bottom"] {
-  left: -5rem;
-  width: calc(100% + 10rem);
-  height: 18px;
-  background-size: 5rem 100%;
-  animation: voice-edge-wave-x var(--voice-edge-speed) linear infinite;
+  left: -4%;
+  width: 108%;
+  height: 24px;
+  background:
+    radial-gradient(ellipse 18% 100% at var(--edge-a) 50%, rgb(var(--voice-edge-rgb) / 0.72), transparent 72%),
+    radial-gradient(ellipse 23% 100% at var(--edge-b) 50%, rgb(var(--voice-edge-rgb) / 0.42), transparent 74%),
+    radial-gradient(ellipse 15% 100% at var(--edge-c) 50%, rgb(var(--voice-edge-rgb) / 0.64), transparent 70%);
+  animation: voice-edge-drift-x var(--edge-drift) ease-in-out infinite alternate;
 }
 
 .voice-edge-halo [data-edge="top"] {
-  top: -4px;
+  --edge-a: 11%;
+  --edge-b: 47%;
+  --edge-c: 84%;
+  --edge-drift: 8.7s;
+  top: -7px;
 }
 
 .voice-edge-halo [data-edge="bottom"] {
-  bottom: -4px;
-  animation-direction: reverse;
+  --edge-a: 23%;
+  --edge-b: 62%;
+  --edge-c: 91%;
+  --edge-drift: 11.3s;
+  bottom: -8px;
+  opacity: 0.78;
+  animation-direction: alternate-reverse;
 }
 
 .voice-edge-halo [data-edge="left"],
 .voice-edge-halo [data-edge="right"] {
-  top: -5rem;
-  width: 18px;
-  height: calc(100% + 10rem);
-  background-size: 100% 5rem;
-  animation: voice-edge-wave-y var(--voice-edge-speed) linear infinite;
+  top: -4%;
+  width: 24px;
+  height: 108%;
+  background:
+    radial-gradient(ellipse 100% 17% at 50% var(--edge-a), rgb(var(--voice-edge-rgb) / 0.68), transparent 72%),
+    radial-gradient(ellipse 100% 22% at 50% var(--edge-b), rgb(var(--voice-edge-rgb) / 0.4), transparent 74%),
+    radial-gradient(ellipse 100% 14% at 50% var(--edge-c), rgb(var(--voice-edge-rgb) / 0.62), transparent 70%);
+  animation: voice-edge-drift-y var(--edge-drift) ease-in-out infinite alternate;
 }
 
 .voice-edge-halo [data-edge="left"] {
-  left: -4px;
-  animation-direction: reverse;
+  --edge-a: 17%;
+  --edge-b: 56%;
+  --edge-c: 88%;
+  --edge-drift: 9.6s;
+  left: -7px;
+  opacity: 0.84;
 }
 
 .voice-edge-halo [data-edge="right"] {
-  right: -4px;
+  --edge-a: 8%;
+  --edge-b: 39%;
+  --edge-c: 76%;
+  --edge-drift: 12.1s;
+  right: -8px;
+  animation-direction: alternate-reverse;
 }
 
 .voice-orb-media,
@@ -1024,15 +1055,64 @@ html[data-matrix] [data-mobile-social-frame] {
   }
 }
 
-@keyframes voice-edge-wave-x {
-  to {
-    transform: translate3d(5rem, 0, 0);
+@keyframes voice-edge-breathe {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+
+  38% {
+    opacity: 0.62;
+  }
+
+  67% {
+    opacity: 0.48;
+  }
+
+  84% {
+    opacity: 0.58;
   }
 }
 
-@keyframes voice-edge-wave-y {
-  to {
-    transform: translate3d(0, 5rem, 0);
+@keyframes voice-edge-drift-x {
+  0% {
+    transform: translate3d(-1.1rem, 0, 0) scaleX(0.99);
+    opacity: 0.62;
+  }
+
+  43% {
+    transform: translate3d(0.35rem, 0, 0) scaleX(1.015);
+    opacity: 0.92;
+  }
+
+  71% {
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: translate3d(1.2rem, 0, 0) scaleX(0.995);
+    opacity: 0.84;
+  }
+}
+
+@keyframes voice-edge-drift-y {
+  0% {
+    transform: translate3d(0, -0.9rem, 0) scaleY(1.01);
+    opacity: 0.78;
+  }
+
+  57% {
+    transform: translate3d(0, 0.4rem, 0) scaleY(0.99);
+    opacity: 0.58;
+  }
+
+  79% {
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate3d(0, 1.15rem, 0) scaleY(1.015);
+    opacity: 0.72;
   }
 }
 

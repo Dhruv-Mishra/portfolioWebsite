@@ -11,15 +11,13 @@ Scope: the whole repository.
 
 ## Agent Workflow
 
-- `Lead` (GPT-5.6 Sol, XHIGH intent) owns complex or ambiguous work and the final result.
-- `Builder` (GPT-5.6 Terra, HIGH intent) implements scoped changes end to end.
-- `Fastlane` (GPT-5.6 Luna, HIGH intent) handles bounded exploration, diagnostics, mechanical work, command output, testing, and verification.
-- For non-trivial packetizable work, Lead delegates settled implementation to Builder and bounded evidence work to Fastlane. Keep Sol focused on architecture, decomposition, ambiguity, integration, and final acceptance.
-- Fan out multiple Builder or Fastlane instances only for independent slices. Pass compact task packets with anchors, fixed decisions, ownership, edit permission, acceptance checks, and expected evidence; serialize writers that share files or unresolved contracts.
-- Route downward by default: Lead can invoke Builder/Fastlane, Builder can use Fastlane for a bounded assist, and Fastlane does not spawn subagents.
-- Agent files omit restrictive tool allowlists so VS Code supplies its current default tools dynamically. Actual execution remains subject to workspace trust, approval settings, tool availability, and organization policy.
-- Start from a concrete anchor, make focused edits, validate after the first substantive edit, and repair failures before widening scope.
-- Keep implementations minimal: add only what the requested behavior and concrete risk require. Avoid speculative abstractions, compatibility layers, and broad test matrices.
+- Lead owns coordination, architecture, integration, and final acceptance; Builder owns implementation; Fastlane owns bounded investigation and checks; God owns the deepest reasoning on difficult or consequential questions. Model and effort settings live in [docs/agent-setup.md](docs/agent-setup.md).
+- Choose direct work or delegation by expected value. Only Lead delegates; other roles return their work to Lead or the requesting user.
+- Assignments define the objective, relevant evidence, constraints, owned scope, edit permission, and acceptance criteria. Work within the authority granted by the user or Lead; obtain approval before expanding scope or edit permission.
+- Parallelize independent work with non-overlapping write ownership; serialize dependent decisions and shared-file edits.
+- Ground changes in concrete evidence and local patterns. Keep changes focused and validate affected behavior with checks proportionate to risk; report results and remaining uncertainty.
+- Preserve unrelated user work and keep secrets out of output and tracked files. Destructive Git operations, deployment, publishing, commits, and pushes require explicit user authorization.
+- For UI work, preserve sketchbook language, hidden discovery layer, accessibility, themes, and mobile behavior; validate relevant viewport and theme states.
 
 ## Token Discipline
 
@@ -30,7 +28,6 @@ Scope: the whole repository.
 - Use direct PowerShell cmdlets when RTK cannot wrap them.
 - Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
 - Do not duplicate project context in agent files. Read the nearest `AGENTS.md` and linked docs on demand.
-- Use the fewest agents whose isolation saves more Sol context or elapsed time than the handoff costs; never invoke every role by ritual.
 - RTK remains the first compression layer for terminal output. Headroom complements it for large non-terminal payloads; it never replaces explicit `rtk` prefixes.
 - Use Headroom on demand only for roughly 4K+ token repetitive JSON arrays, structured logs, API/database results, or other content where compression reports material savings. Skip short content, source code, diffs, grep/search results, requirements, and already-compact RTK output.
 - Treat compressed content as an index, not exact evidence. Keep its retrieval hash and retrieve the original before exhaustive work or any decision involving errors, security, exact values, identifiers, paths, line references, commands, or code changes. If compression saves nothing or relevance is uncertain, use the original.

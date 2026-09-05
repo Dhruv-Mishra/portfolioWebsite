@@ -322,7 +322,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'page-flip', 'chat-send', 'chat-receive', 'terminal-click',
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
-      'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'modal-close', 'disco-start', 'disco-loop',
       'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
       'matrix',
     ];
@@ -337,7 +337,7 @@ describe('soundManager — debounce + per-id volume', () => {
       'page-flip', 'chat-send', 'chat-receive', 'terminal-click',
       'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
       'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
-      'modal-close', 'command-palette-pop', 'disco-start', 'disco-loop',
+      'modal-close', 'disco-start', 'disco-loop',
       'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
       'matrix',
     ];
@@ -379,7 +379,7 @@ describe('soundManager — every renderer runs without throwing', () => {
     'page-flip', 'chat-send', 'chat-receive', 'terminal-click',
     'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
     'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
-    'modal-close', 'command-palette-pop', 'disco-start',
+    'modal-close', 'disco-start',
   ];
 
   it.each(ALL)('play("%s") dispatches and never throws', async (id) => {

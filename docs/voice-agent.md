@@ -11,9 +11,9 @@ The app is `0.30.0` and later.
 
 | Topic | Decision |
 |---|---|
-| Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, command palette `action-enter-voice-mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
+| Entry | Homepage folded-note CTA `Talk to me`, plus settings `Enter voice mode`, chat-page corner control, and the chat-only `start_voice_session` tool. Starting voice does not navigate to `/chat`. |
 | Persistence | Module singleton `voiceSessionRuntime` owns the live socket, playback, capture, and action queue. React only subscribes. Same call across routes = same socket. The socket stays open only while the call is live; after a spoken idle check-in and hangup the host closes it. New call after hangup remints and greets once. |
-| HUD | Intro is a blocking black veil until `setupComplete` + first greet `turnComplete` + playback idle. Then the veil fades via a CSS opacity transition and one persistent GIF orb FLIPs into a non-modal dock. FLIP ignores agent phase (`listening`/`speaking`) and only restarts when the hero/dock slot, reduced motion, or mobile layout changes. The landscape GIF is left-cropped into a hard circle. The speaking attribute is gated on `phase === 'speaking'`; playback level scales ripple only. Acting uses a distinct amber/violet halo. Live hangup is a red phone to the right of the orb. Entry, exit, ambient, and action media are preloaded on voice intent and isolated from model PCM. Sound URLs are version-query cache-busted. Dock captions fade after ~700ms. Exiting holds a ~2.2s black veil with a picked “taking you back” line; the fade must finish before unmount. |
+| HUD | Intro is a blocking black veil until `setupComplete` + first greet `turnComplete` + playback idle. The orb appears only during intro/exit. Live mode uses a pointer-free cyan edge halo, bottom-right hangup control, and separate captions. The halo has 42px soft bands with darker cyan in light mode and brighter cyan in dark mode. Parent breathing and four independently timed, phase-offset edge flows avoid a tiled wave pattern; system or explicit reduced motion leaves static bands. Entry, exit, ambient, and action media are preloaded on voice intent and isolated from model PCM. Sound URLs are version-query cache-busted. Captions fade after ~700ms. Exiting holds a ~2.2s black veil; the fade finishes before unmount. |
 | Queue | Gemini tool calls are authoritative and execute serially. Visual actions wait for playback idle, and dependent hosts (`project-video`, `terminal`, `chat`, `guestbook`, `feedback`) must be ready before commit. Provider cancellation IDs prevent queued actions from committing. Hangup twice forces. |
 | Transport | Client-to-model WebSocket with one-use ephemeral tokens minted by `POST /api/voice/session`. `setupComplete` gates readiness. Post-ready failures remint and resume up to two times with the latest valid provider handle and no second greeting; exhausted recovery offers Try again or hangup. PCM does not transit the origin. |
 | Default voice | Male `Charon`. |
@@ -136,7 +136,6 @@ Canonical site tool names:
 - `control_project_video`
 - `open_link`
 - `open_feedback`
-- `open_command_palette`
 - `open_shortcuts`
 - `open_chat`
 - `browse_history`

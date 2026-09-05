@@ -37,7 +37,7 @@ Approved capabilities now include:
 
 - Navigate to home, about, projects, resume, chat, guestbook, stickers, or settings.
 - Open approved profiles, contact links, resume, project repositories, or the Jarvis demo.
-- Open a project modal, feedback note, or command palette.
+- Open a project modal or feedback note, or start native voice mode.
 - Select light, dark, toggle, disco, or disco-off modes.
 - Chain up to three compatible effects from explicit natural-language clauses.
 
@@ -45,7 +45,7 @@ Gates:
 
 - Only allowlisted paths, themes, project slugs, and exact URLs are accepted.
 - At most two unique external URLs and three total effects are allowed.
-- At most one transient surface, project modal, feedback note, or command palette, may open per action.
+- At most one in-page action (project modal, feedback note, voice mode, field fill, or guestbook submission) may run per action bundle.
 - Navigation cannot be combined with a transient surface.
 - Negated, explanatory, ambiguous, unresolved, conflicting, or oversized chains fall back to normal conversation.
 - Replayed assistant actions require an HMAC signature. Invalid non-empty actions fail closed.
@@ -92,6 +92,6 @@ Promotion criteria:
 
 1. Merge the reviewed feature PR into `dev/lkg`.
 2. Run `Promote dev/lkg to Staging`; it fast-forwards `deployed/staging` and starts the staging deployment workflow.
-3. Smoke-test concise factual replies, explanation-versus-action gating, each new page action, command palette on desktop/mobile, valid chains, rejected conflicts, fallback behavior, and suggestions.
+3. Smoke-test concise factual replies, explanation-versus-action gating, each new page action, voice mode on desktop/mobile, valid chains, rejected conflicts, fallback behavior, and suggestions.
 4. Compare provider input/output usage and latency against the previous staging deployment.
 5. Roll back through the repository workflow if factual quality, action safety, or latency regresses.

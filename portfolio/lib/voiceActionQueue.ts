@@ -15,7 +15,6 @@ const DEFERRED_VOICE_TOOLS = new Set<SiteToolName>([
   'open_project',
   'open_link',
   'open_feedback',
-  'open_command_palette',
   'open_shortcuts',
   'open_chat',
   'browse_history',

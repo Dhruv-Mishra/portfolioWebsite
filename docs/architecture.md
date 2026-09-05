@@ -42,13 +42,13 @@ The important distinction is that the system has ingress policies and per-proces
 ### Rendering and interaction model
 
 - The app uses Next.js 16 App Router with React 19 and strict TypeScript. Server components are the default; client components own browser state, effects, gestures, sound, and other interactive behavior.
-- The visual shell is intentionally more product-like than a document site: it includes the sketchbook navigation, terminal, command palette, project cards and modals, settings, feedback, guestbook, and a mobile chat composition.
+- The visual shell is intentionally more product-like than a document site: it includes the sketchbook navigation, terminal, project cards and modals, settings, feedback, guestbook, and a mobile chat composition.
 - `next.config.ts` produces standalone output, disables runtime image optimization, sets browser-facing security and cache headers, and pins a consistent build ID for multi-origin releases.
 - Static resources and selected Next assets can bypass Node at Nginx. Public pages receive CDN-oriented cache headers; API routes are not treated as cacheable page content.
 
 ### Native voice agent
 
-- Voice mode starts from the homepage note, settings, or the command palette and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a floating dock. The browser talks to a live audio model over WebSocket using a one-use ephemeral token from `/api/voice/session`, and `setupComplete` gates readiness.
+- Voice mode starts from the homepage note, settings, or chat and stays on the current route. A module singleton owns the live WebSocket; the HUD is an intro veil that settles into a cyan edge halo with a floating hangup control. The browser talks to a live audio model over WebSocket using a one-use ephemeral token from `/api/voice/session`, and `setupComplete` gates readiness.
 - PCM does not transit the origin. Browser playback uses a bounded prebuffered queue with resynchronization and short fades. Full-duplex capture requests browser echo cancellation and noise suppression; barge-in flushes scheduled playback.
 - Post-ready failures use provider session resumption with a freshly minted token. Exhausted recovery fully tears down media and leaves a retryable HUD.
 - Site tools are a shared, model-agnostic registry. Chat actions and the live function-calling path use the same names. Voice can pull a sanitized current-page context after client-side navigation.
@@ -154,7 +154,7 @@ flowchart TD
 ```
 
 - Assistant turns must carry a valid server HMAC before they can be reused as chat history. User turns and validated history are clipped to the route limits.
-- The action layer is deterministic and allowlisted. It can return constrained navigation, project, appearance, feedback, or command-palette actions; it does not grant arbitrary browser or operating-system access.
+- The action layer is deterministic and allowlisted. It can return constrained navigation, project, appearance, feedback, or voice-mode actions; it does not grant arbitrary browser or operating-system access.
 - The route creates a bounded request deadline and aborts individual provider attempts when their budget expires. Provider SDK retries are disabled at the client configuration point.
 - NVIDIA completions may stream from the upstream provider while the server aggregates their text. The browser-facing chat route returns a JSON response rather than an SSE token stream.
 

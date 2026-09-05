@@ -2,7 +2,7 @@
 
 Paste one fenced prompt at a time into a Gemini music/audio agent. Goal: **premium, finished, Apple Ambient / Gemini Live quality** — not stock UI beeps, not meme, not cinematic trailer.
 
-**Skip list (do not regenerate):** `disco-start.mp3`, `disco-loop.mp3`, `matrix.mp3` (matrix loop), button-click, guestbook, command-palette pop, and `portfolio/public/sounds/voice/TTSReference.mp3`. Those already have a job on the site. Only generate the sections below.
+**Skip list (do not regenerate):** `disco-start.mp3`, `disco-loop.mp3`, `matrix.mp3` (matrix loop), button-click, guestbook, and `portfolio/public/sounds/voice/TTSReference.mp3`. Those already have a job on the site. Only generate the sections below.
 
 **Wiring note for enter / exit / ambient:** enter/exit are wired to Mixkit "Software interface start" / "Software interface back" (`enter.mp3` / `exit.mp3`, Mixkit SFX Free License: https://mixkit.co/license/#sfxFree , source https://mixkit.co/free-sound-effects/interface/). Ambient still unlocks on enter and fades in after 800ms at volume `0.12` (about `0.084` on coarse pointers). Design the bed so it still feels barely-there after that fade.
 
@@ -66,7 +66,7 @@ No melody hook, no ostinato you can whistle, no arpeggiator, no sidechain pumpin
 
 ## Voice enter — agent mode startup
 
-**Purpose / when it plays.** Short premium cue when the visitor enters native voice mode (homepage “Talk to me”, settings, command palette, or chat control). Hardware-like connect, not a game power-up.
+**Purpose / when it plays.** Short premium cue when the visitor enters native voice mode (homepage “Talk to me”, settings, or chat control). Hardware-like connect, not a game power-up.
 
 **Target file:** `portfolio/public/sounds/voice/enter.mp3`  
 **Wired ID:** `voice-enter` — Mixkit “Software interface start” (2574), Mixkit SFX Free License.

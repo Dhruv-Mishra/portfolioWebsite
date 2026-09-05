@@ -27,7 +27,6 @@ describe('voice action queue', () => {
     expect(resolveVoiceToolPolicy('fill_field', { field: 'guestbook-name' })).toEqual({ timing: 'immediate', hostId: 'guestbook' });
     expect(resolveVoiceToolPolicy('fill_field', { field: 'feedback-message' })).toEqual({ timing: 'immediate', hostId: 'feedback' });
     expect(resolveVoiceToolPolicy('fill_field', { field: 'feedback-contact' })).toEqual({ timing: 'immediate', hostId: 'feedback' });
-    expect(resolveVoiceToolPolicy('fill_field', { field: 'command-palette-query' })).toEqual({ timing: 'immediate', hostId: null });
     expect(resolveVoiceToolPolicy('close_project')).toEqual({ timing: 'immediate', hostId: null });
   });
 

@@ -10,7 +10,7 @@ interface KbdProps {
 /**
  * `<Kbd>` — a paper-on-paper key cap with an asymmetric rough-sketch radius
  * and a 1px ink drop-shadow that makes the cap look slightly lifted off the
- * page. Used inside the Shortcuts Overlay and Command Palette hints.
+ * page. Used inside the Shortcuts Overlay.
  */
 const KBD_STYLE = {
   borderRadius: OVERLAY_TOKENS.kbdRadius,

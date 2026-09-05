@@ -206,9 +206,6 @@ function describeAction(action: ActionExecution): string {
   if (action.feedbackAction) {
     return '- Already opened feedback modal.';
   }
-  if (action.commandPaletteAction) {
-    return '- Already opened command palette.';
-  }
   if (action.voiceSessionAction) {
     return '- Already started native voice mode.';
   }

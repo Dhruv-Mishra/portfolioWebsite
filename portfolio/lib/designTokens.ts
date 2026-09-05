@@ -95,11 +95,6 @@ export const INTERACTION_TOKENS = {
       initial: { x: 50, opacity: 0 },
       animate: { x: 0, opacity: 1 },
     },
-    /** Command Palette entrance — subtle drop from above */
-    paletteDrop: {
-      initial: { opacity: 0, scale: 0.96, y: -12 },
-      animate: { opacity: 1, scale: 1, y: 0 },
-    },
     /** Shortcuts Overlay entrance — notebook page pinning down */
     paperPin: {
       initial: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
@@ -111,20 +106,16 @@ export const INTERACTION_TOKENS = {
     fadeScale: { opacity: 0, scale: 0.9 },
     fadeScaleRotate: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
     popOut: { opacity: 0, scale: 0.8, y: 20 },
-    /** Command Palette exit — reverse of paletteDrop */
-    paletteLift: { opacity: 0, scale: 0.96, y: -12 },
     /** Shortcuts Overlay exit — page unpin */
     paperUnpin: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
   },
 } as const;
 
-/** Overlay tokens — shared between Command Palette and Shortcuts Overlay */
+/** Shortcuts overlay and keyboard keycap tokens */
 export const OVERLAY_TOKENS = {
   backdrop: { strong: 'bg-black/35 dark:bg-black/55 backdrop-blur-sm' },
-  maxWidth: { palette: '560px', shortcuts: '440px' },
-  maxHeight: { palette: 'min(60vh, 520px)', shortcuts: 'min(70vh, 600px)' },
-  selectionAccent: 'emerald-500/70',
-  rowHeight: { desktop: 44, mobile: 40 },
+  maxWidth: { shortcuts: '440px' },
+  maxHeight: { shortcuts: 'min(70vh, 600px)' },
   kbdRadius: '6px 7px 5px 6px',
   kbdShadow: '1px 1px 0 0 var(--c-ink)',
 } as const;
@@ -272,8 +263,6 @@ export const Z_INDEX = {
   nav: 50,
   /** Full-screen modals — portaled to document.body (project detail, feedback, etc.) */
   modal: 100,
-  /** Command palette / overlay above modals */
-  palette: 150,
   /** Skip-to-main-content link when focused */
   skipNav: 200,
   /** Full-screen matrix rain canvas overlay */

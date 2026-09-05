@@ -74,7 +74,6 @@ export type SoundId =
   | 'guestbook-submit'
   | 'modal-open'
   | 'modal-close'
-  | 'command-palette-pop'
   | 'disco-start'
   | 'disco-loop'
   | 'disco-track-1'
@@ -106,7 +105,6 @@ const SECOND_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'sticker-ding',
   'feedback-sent',
   'guestbook-submit',
-  'command-palette-pop',
   'terminal-click',
   'superuser-fanfare',
 ]);
@@ -173,7 +171,6 @@ const VOLUMES: Readonly<Record<SoundId, number>> = Object.freeze({
   'guestbook-submit':   0.12,
   'modal-open':         0.06,
   'modal-close':        0.06,
-  'command-palette-pop': 0.09,
   'disco-start':        0.22,
   'disco-loop':         0.18,
   'disco-track-1':      0.18,
@@ -217,7 +214,6 @@ const DEBOUNCE_MS: Readonly<Record<SoundId, number>> = Object.freeze({
   'guestbook-submit':   400,
   'modal-open':         200,
   'modal-close':        200,
-  'command-palette-pop': 150,
   'disco-start':        1500, // never double-fire on a single reveal
   'disco-loop':         0,    // N/A — loops go through startLoop()
   'disco-track-1':      0,
@@ -846,18 +842,6 @@ function playModalClose(s: ManagerState, bundle: OneShotHandle, t: number, volum
   });
 }
 
-function playCommandPalettePop(s: ManagerState, bundle: OneShotHandle, t: number, volume: number): void {
-  // Short upward sine chirp — pop.
-  playTone(s, bundle, t, {
-    freqStart: midiToHz(72),
-    freqEnd: midiToHz(84),
-    type: 'sine',
-    duration: 0.1,
-    peakGain: volume,
-    attackSec: 0.005,
-  });
-}
-
 /**
  * Disco-start procedural fallback — a victory riff: ascending pentatonic
  * sweep + a sustained power chord. Only fires when the URL sample isn't
@@ -949,7 +933,6 @@ const SOUND_SPECS: Readonly<Record<SoundId, SoundSpec>> = Object.freeze({
   'guestbook-submit':   { render: playGuestbookSubmit },
   'modal-open':         { render: playModalOpen },
   'modal-close':        { render: playModalClose },
-  'command-palette-pop': { render: playCommandPalettePop },
 });
 
 // ─── Buffer cache for URL-backed sounds ─────────────────────────────────

@@ -3,7 +3,7 @@ import { resolveChatIntent, type ChatIntentResolution } from '@/lib/chatActionRo
 
 type Expected =
   | { kind: 'null' }
-  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; voiceSessionAction?: boolean; projectSlug?: string; commandPaletteAction?: boolean; openUrlContains?: string; openUrlContainsAll?: string[] }
+  | { kind: 'action'; navigateTo?: string; themeAction?: string; feedbackAction?: boolean; voiceSessionAction?: boolean; projectSlug?: string; openUrlContains?: string; openUrlContainsAll?: string[] }
   | { kind: 'project-info'; projectSlug: string };
 
 function check(input: string, expected: Expected) {
@@ -42,9 +42,6 @@ function check(input: string, expected: Expected) {
   if (expected.projectSlug !== undefined) {
     expect(r.action.projectSlug, `"${input}" projectSlug`).toBe(expected.projectSlug);
   }
-  if (expected.commandPaletteAction !== undefined) {
-    expect(r.action.commandPaletteAction, `"${input}" commandPaletteAction`).toBe(expected.commandPaletteAction);
-  }
   if (expected.openUrlContains !== undefined) {
     const urls = r.action.openUrls ?? [];
     expect(
@@ -71,18 +68,16 @@ describe('resolveChatIntent — exact action labels', () => {
     check('Engage disco mode', { kind: 'action', themeAction: 'disco' });
     check('Exit disco mode', { kind: 'action', themeAction: 'disco-off' });
     check('Report a bug', { kind: 'action', feedbackAction: true });
-    check('Open command palette', { kind: 'action', commandPaletteAction: true });
     check('Show me your portfolio', { kind: 'action', navigateTo: '/projects' });
     check('Show me your experience timeline', { kind: 'action', navigateTo: '/about' });
     check('Open your GitHub profile', { kind: 'action', openUrlContains: 'github.com/Dhruv-Mishra' });
   });
 });
 
-describe('resolveChatIntent — command palette intents', () => {
-  it('matches natural command palette phrasings', () => {
-    check('open command palette', { kind: 'action', commandPaletteAction: true });
-    check('show the command menu', { kind: 'action', commandPaletteAction: true });
-    check('open quick actions', { kind: 'action', commandPaletteAction: true });
+describe('resolveChatIntent — unsupported launchers', () => {
+  it('leaves removed quick-action requests unresolved', () => {
+    check('show the command menu', { kind: 'null' });
+    check('open quick actions', { kind: 'null' });
   });
 });
 
@@ -249,9 +244,9 @@ describe('resolveChatIntent — chained actions', () => {
       navigateTo: '/guestbook',
       openUrlContains: 'github.com/Dhruv-Mishra',
     });
-    check('open command palette and switch to dark mode', {
+    check('start voice mode and switch to dark mode', {
       kind: 'action',
-      commandPaletteAction: true,
+      voiceSessionAction: true,
       themeAction: 'dark',
     });
   });
@@ -262,9 +257,9 @@ describe('resolveChatIntent — chained actions', () => {
     check('open cropio and atomvault', { kind: 'null' });
     check('open github and linkedin and codeforces', { kind: 'null' });
     check('open github and settings and switch to dark mode and report a bug', { kind: 'null' });
-    check('open guestbook and command palette', { kind: 'null' });
+    check('open guestbook and start voice mode', { kind: 'null' });
     check('open guestbook and report a bug', { kind: 'null' });
-    check('open command palette and report a bug', { kind: 'null' });
+    check('start voice mode and report a bug', { kind: 'null' });
     check('open cropio and report a bug', { kind: 'null' });
     check('open github and do not open linkedin', { kind: 'null' });
     check('open github and tell me about cropio', { kind: 'null' });

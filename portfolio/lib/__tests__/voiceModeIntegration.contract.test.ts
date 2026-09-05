@@ -7,16 +7,12 @@ const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), '
 describe('voice mode integration contract', () => {
   it('keeps every requested entry point and fillable field wired to voice mode', () => {
     const settings = read('components/SettingsPanel.tsx');
-    const commandRegistry = read('lib/commandRegistry.ts');
     const chat = read('components/StickyNoteChat.tsx');
     const guestbook = read('components/GuestbookForm.tsx');
     const feedback = read('components/FeedbackNote.tsx');
-    const palette = read('components/CommandPalette.tsx');
     const terminal = read('components/Terminal.tsx');
 
     expect(settings).toContain('title="Voice Agent"');
-    expect(commandRegistry).toContain('action-enter-voice-mode');
-    expect(commandRegistry).toContain("label: 'Enter voice mode'");
     expect(chat).toContain("requestVoiceMode({ source: 'chat', topic: 'chat' })");
     expect(chat).toContain('data-voice-field="chat-composer"');
     expect(guestbook).toContain('data-voice-field="guestbook-message"');
@@ -27,7 +23,6 @@ describe('voice mode integration contract', () => {
     expect(feedback).toContain('data-voice-field="feedback-contact"');
     expect(feedback).toContain("registerSiteActionHost('feedback')");
     expect(feedback).toContain('SUBMIT_FEEDBACK_EVENT');
-    expect(palette).toContain('data-voice-field="command-palette-query"');
     expect(terminal).toContain('data-voice-field={activePrompt ? undefined : "terminal-input"}');
   });
 
@@ -42,6 +37,8 @@ describe('voice mode integration contract', () => {
     const css = read('app/globals.css');
 
     expect(enhancements).toContain('VoiceModeController');
+    expect(enhancements).toContain('{isDesktop ? <ShortcutsOverlayProvider /> : null}');
+    expect(enhancements).not.toMatch(/Hint|Toast/);
     expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
     expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
     expect(controller).toContain('runtimeImport = null');
@@ -79,8 +76,8 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-wash');
     expect(css).toContain('.voice-edge-halo');
     expect(css).toContain('@keyframes voice-edge-breathe');
-    expect(css).toContain('@keyframes voice-edge-drift-x');
-    expect(css).toContain('@keyframes voice-edge-drift-y');
+    expect(css).toContain('@keyframes voice-edge-flow-x');
+    expect(css).toContain('@keyframes voice-edge-flow-y');
     expect(css).toContain('--voice-edge-rgb: 8 105 130');
     expect(css).toContain('.dark .voice-edge-halo');
     expect(css).toContain('--voice-edge-rgb: 103 232 249');
@@ -148,6 +145,31 @@ describe('voice mode integration contract', () => {
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
     expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo [data-edge]');
+  });
+
+  it('keeps a prominent, theme-aware halo with independently phased flow and static reduced motion', () => {
+    const css = read('app/globals.css');
+    const halo = css.slice(css.indexOf('.voice-edge-halo {'), css.indexOf('.voice-orb-media,'));
+
+    expect(halo).toContain('--voice-edge-width: 42px');
+    expect(halo).toContain('height: var(--voice-edge-width)');
+    expect(halo).toContain('width: var(--voice-edge-width)');
+    expect(halo).toContain('opacity: 0.78');
+    expect(halo).toContain('inset 0 0 28px');
+    expect(halo).toContain('pointer-events: none');
+    expect(halo).toContain('overflow: hidden');
+    expect(halo).not.toContain('repeating-');
+    expect(halo.match(/--voice-edge-rgb:/g)).toHaveLength(2);
+    expect(halo).toContain('animation: voice-edge-breathe');
+    expect(halo).toContain('animation: voice-edge-flow-x var(--edge-flow) var(--edge-delay)');
+    expect(halo).toContain('animation: voice-edge-flow-y var(--edge-flow) var(--edge-delay)');
+    expect(new Set(halo.match(/--edge-flow: [\d.]+s/g)).size).toBe(4);
+    expect(new Set(halo.match(/--edge-delay: -[\d.]+s/g)).size).toBe(4);
+    for (const selector of ['html:not([data-motion="full"])', 'html[data-motion="reduced"]']) {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      expect(css).toMatch(new RegExp(`${escaped} \\.voice-edge-halo,[^{]+\\{[^}]*animation: none`));
+      expect(css).toMatch(new RegExp(`${escaped} \\.voice-edge-halo \\[data-edge\\] \\{\\s+animation: none;\\s+transform: none;`));
+    }
   });
 
   it('loads the voice runtime and prefetches media on enter, not idle mount', () => {

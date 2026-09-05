@@ -108,11 +108,6 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
     description: 'Open the feedback note when the visitor wants to report a bug or leave feedback.',
     parameters: { type: 'object', properties: {} },
   },
-  open_command_palette: {
-    name: 'open_command_palette',
-    description: 'Open the command palette when the visitor asks for quick actions or the command menu.',
-    parameters: { type: 'object', properties: {} },
-  },
   open_shortcuts: {
     name: 'open_shortcuts',
     description: 'Open the keyboard shortcuts overlay when the visitor asks for hotkeys or keyboard help.',
@@ -180,7 +175,7 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
   fill_field: {
     name: 'fill_field',
     description:
-      'Type into a visible site field when the visitor dictates guestbook, feedback, palette, terminal, or chat text. Never submit the form.',
+      'Type into a visible site field when the visitor dictates guestbook, feedback, terminal, or chat text. Never submit the form.',
     parameters: {
       type: 'object',
       properties: {

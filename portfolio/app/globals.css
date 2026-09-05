@@ -724,7 +724,6 @@ html[data-voice-mode] [data-disco-media],
 html[data-voice-mode] [data-disco-track-control],
 html[data-voice-mode] [data-sound-toggle],
 html[data-voice-mode] [data-mobile-sound-toggle],
-html[data-voice-mode] [data-shortcuts-hint],
 html[data-voice-mode] [data-feedback-tab] {
   display: none !important;
 }
@@ -780,11 +779,13 @@ html[data-matrix] [data-mobile-social-frame] {
 .voice-edge-halo {
   --voice-edge-rgb: 8 105 130;
   --voice-edge-breath: 5.8s;
+  --voice-edge-width: 42px;
+  pointer-events: none;
   overflow: hidden;
-  opacity: 0.5;
+  opacity: 0.78;
   box-shadow:
-    inset 0 0 3px rgb(var(--voice-edge-rgb) / 0.58),
-    inset 0 0 18px rgb(var(--voice-edge-rgb) / 0.28);
+    inset 0 0 6px rgb(var(--voice-edge-rgb) / 0.7),
+    inset 0 0 28px rgb(var(--voice-edge-rgb) / 0.32);
   contain: paint;
   animation: voice-edge-breathe var(--voice-edge-breath) ease-in-out infinite;
 }
@@ -808,62 +809,64 @@ html[data-matrix] [data-mobile-social-frame] {
 
 .voice-edge-halo [data-edge="top"],
 .voice-edge-halo [data-edge="bottom"] {
-  left: -4%;
-  width: 108%;
-  height: 24px;
+  left: -10%;
+  width: 120%;
+  height: var(--voice-edge-width);
   background:
     radial-gradient(ellipse 18% 100% at var(--edge-a) 50%, rgb(var(--voice-edge-rgb) / 0.72), transparent 72%),
     radial-gradient(ellipse 23% 100% at var(--edge-b) 50%, rgb(var(--voice-edge-rgb) / 0.42), transparent 74%),
     radial-gradient(ellipse 15% 100% at var(--edge-c) 50%, rgb(var(--voice-edge-rgb) / 0.64), transparent 70%);
-  animation: voice-edge-drift-x var(--edge-drift) ease-in-out infinite alternate;
+  animation: voice-edge-flow-x var(--edge-flow) var(--edge-delay) ease-in-out infinite;
 }
 
 .voice-edge-halo [data-edge="top"] {
   --edge-a: 11%;
   --edge-b: 47%;
   --edge-c: 84%;
-  --edge-drift: 8.7s;
-  top: -7px;
+  --edge-flow: 9.7s;
+  --edge-delay: -2.3s;
+  top: -9px;
 }
 
 .voice-edge-halo [data-edge="bottom"] {
   --edge-a: 23%;
   --edge-b: 62%;
   --edge-c: 91%;
-  --edge-drift: 11.3s;
-  bottom: -8px;
-  opacity: 0.78;
-  animation-direction: alternate-reverse;
+  --edge-flow: 13.1s;
+  --edge-delay: -7.1s;
+  bottom: -9px;
+  animation-direction: reverse;
 }
 
 .voice-edge-halo [data-edge="left"],
 .voice-edge-halo [data-edge="right"] {
-  top: -4%;
-  width: 24px;
-  height: 108%;
+  top: -10%;
+  width: var(--voice-edge-width);
+  height: 120%;
   background:
     radial-gradient(ellipse 100% 17% at 50% var(--edge-a), rgb(var(--voice-edge-rgb) / 0.68), transparent 72%),
     radial-gradient(ellipse 100% 22% at 50% var(--edge-b), rgb(var(--voice-edge-rgb) / 0.4), transparent 74%),
     radial-gradient(ellipse 100% 14% at 50% var(--edge-c), rgb(var(--voice-edge-rgb) / 0.62), transparent 70%);
-  animation: voice-edge-drift-y var(--edge-drift) ease-in-out infinite alternate;
+  animation: voice-edge-flow-y var(--edge-flow) var(--edge-delay) ease-in-out infinite;
 }
 
 .voice-edge-halo [data-edge="left"] {
   --edge-a: 17%;
   --edge-b: 56%;
   --edge-c: 88%;
-  --edge-drift: 9.6s;
-  left: -7px;
-  opacity: 0.84;
+  --edge-flow: 11.3s;
+  --edge-delay: -4.7s;
+  left: -9px;
 }
 
 .voice-edge-halo [data-edge="right"] {
   --edge-a: 8%;
   --edge-b: 39%;
   --edge-c: 76%;
-  --edge-drift: 12.1s;
-  right: -8px;
-  animation-direction: alternate-reverse;
+  --edge-flow: 14.9s;
+  --edge-delay: -10.9s;
+  right: -9px;
+  animation-direction: reverse;
 }
 
 .voice-orb-media,
@@ -1058,61 +1061,49 @@ html[data-matrix] [data-mobile-social-frame] {
 @keyframes voice-edge-breathe {
   0%,
   100% {
-    opacity: 0.42;
+    opacity: 0.68;
   }
 
   38% {
-    opacity: 0.62;
-  }
-
-  67% {
-    opacity: 0.48;
-  }
-
-  84% {
-    opacity: 0.58;
-  }
-}
-
-@keyframes voice-edge-drift-x {
-  0% {
-    transform: translate3d(-1.1rem, 0, 0) scaleX(0.99);
-    opacity: 0.62;
-  }
-
-  43% {
-    transform: translate3d(0.35rem, 0, 0) scaleX(1.015);
     opacity: 0.92;
   }
 
-  71% {
-    opacity: 0.7;
+  67% {
+    opacity: 0.74;
   }
 
-  100% {
-    transform: translate3d(1.2rem, 0, 0) scaleX(0.995);
-    opacity: 0.84;
+  84% {
+    opacity: 0.86;
   }
 }
 
-@keyframes voice-edge-drift-y {
-  0% {
-    transform: translate3d(0, -0.9rem, 0) scaleY(1.01);
-    opacity: 0.78;
+@keyframes voice-edge-flow-x {
+  0%,
+  100% {
+    transform: translate3d(-5%, 0, 0) scaleY(0.88);
   }
 
-  57% {
-    transform: translate3d(0, 0.4rem, 0) scaleY(0.99);
-    opacity: 0.58;
+  37% {
+    transform: translate3d(6%, 0, 0) scaleY(1.18);
+  }
+
+  71% {
+    transform: translate3d(1%, 0, 0) scaleY(0.96);
+  }
+}
+
+@keyframes voice-edge-flow-y {
+  0%,
+  100% {
+    transform: translate3d(0, 5%, 0) scaleX(1.08);
+  }
+
+  43% {
+    transform: translate3d(0, -6%, 0) scaleX(0.9);
   }
 
   79% {
-    opacity: 0.9;
-  }
-
-  100% {
-    transform: translate3d(0, 1.15rem, 0) scaleY(1.015);
-    opacity: 0.72;
+    transform: translate3d(0, -1%, 0) scaleX(1.2);
   }
 }
 
@@ -2679,7 +2670,7 @@ html[data-disco="on"] [data-disco-bounce="4"] {
 }
 
 /* 3) breath — slow scale pulse, for LARGE surfaces (terminal shell,
-   resume PDF shell, command palette card). Amplitude
+  resume PDF shell). Amplitude
    bumped to 2.5% so the surface visibly inhales/exhales with the beat. */
 @keyframes disco-breath {
 
@@ -2884,13 +2875,6 @@ html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
    [data-disco-bounce] already owns bounce + value-specific delays. */
 html[data-disco="on"] button[data-clickable] {
   animation: disco-bounce-soft 500ms ease-in-out infinite;
-}
-
-/* Command palette — gentle breath on the command palette. */
-html[data-disco="on"] [role="dialog"][aria-label="Command palette"] {
-  animation: disco-breath 2000ms ease-in-out infinite;
-  animation-delay: var(--disco-motion-delay, 0ms);
-  will-change: transform;
 }
 
 /* Disco legibility — pinned ink colors for body text utilities that would
@@ -3618,7 +3602,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .bg-\[var\(--note-user\)\],
       .bg-\[var\(--note-ai\)\],
       button[data-clickable],
-      [role="dialog"][aria-label="Command palette"],
       .bg-binding-bg,
       .bg-note-paper,
       .bg-note-yellow,
@@ -3699,7 +3682,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .bg-\[var\(--note-user\)\],
     .bg-\[var\(--note-ai\)\],
     button[data-clickable],
-    [role="dialog"][aria-label="Command palette"],
     .bg-binding-bg,
     .bg-note-paper,
     .bg-note-yellow,

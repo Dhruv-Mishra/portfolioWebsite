@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SITE_TOOL_DECLARATIONS, VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
-import { SITE_TOOL_NAMES, resolveVoiceSafeTerminalCommand } from '@/lib/siteTools';
+import { SITE_TOOL_NAMES, VOICE_FIELD_IDS, resolveVoiceSafeTerminalCommand } from '@/lib/siteTools';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import { executeSiteTool } from '@/lib/siteToolExecutor';
-import { hasActionExecution } from '@/lib/actions';
+import { hasActionExecution, toActionExecution } from '@/lib/actions';
 import {
   __resetStoreForTest,
   getAudioCategoryVolumeSync,
@@ -48,6 +48,20 @@ describe('site tool catalog', () => {
       properties: {},
     });
     expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).toContain('next_disco_track');
+  });
+
+  it('limits open tools, fillable fields, and chat metadata to current surfaces', () => {
+    expect(SITE_TOOL_NAMES.filter(name => name.startsWith('open_'))).toEqual([
+      'open_project', 'open_link', 'open_feedback', 'open_shortcuts', 'open_chat',
+    ]);
+    expect(VOICE_FIELD_IDS).toEqual([
+      'guestbook-message', 'guestbook-name', 'feedback-message', 'feedback-contact',
+      'terminal-input', 'chat-composer',
+    ]);
+    expect(Object.keys(toActionExecution({ label: 'Start voice mode', voiceSessionAction: true }))).toEqual([
+      'navigateTo', 'themeAction', 'openUrls', 'feedbackAction', 'projectSlug',
+      'voiceSessionAction', 'fieldFill', 'preferenceAction', 'guestbookSubmit',
+    ]);
   });
 
   it('accepts valid navigate and guestbook calls', () => {

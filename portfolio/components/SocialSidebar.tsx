@@ -6,10 +6,9 @@ import { useTheme } from "next-themes";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
-import { stickerBus } from '@/lib/stickerBus';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
 import { PERSONAL_LINKS } from '@/lib/links';
-import { useDiscoActive } from '@/hooks/useStickers';
+import { unlockSticker, useDiscoActive } from '@/hooks/useStickers';
 import { runThemeToggle } from '@/lib/themeToggleAction';
 import { Tooltip } from '@/components/ui/Tooltip';
 // Note: soundManager import removed — the mobile theme button now routes
@@ -17,7 +16,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 // share exactly one code path. The shared helper owns the cricket/rooster
 // audio call itself.
 
-const subscribeToHydration = () => () => {};
+const subscribeToHydration = () => () => { };
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
 
@@ -64,7 +63,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
     const handleClick = () => {
         onPress();
         // Social link click → social-butterfly. Idempotent via store dedupe.
-        stickerBus.emit('social-butterfly');
+        unlockSticker('social-butterfly');
     };
     if (isMobile) {
         return (
@@ -73,7 +72,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+                className={`relative flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
                 title={social.name}
                 aria-label={social.name}
             >
@@ -110,7 +109,7 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
             href="/settings"
             onClick={onPress}
             className={isMobile
-                ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
+                ? "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
                 : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
             title="Settings"
             aria-label="Open settings"
@@ -133,8 +132,8 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
  * gradient) stuck around because the old handler only flipped the
  * `next-themes` preference without touching `discoActive`.
  *
- * Visual placeholder dimensions are unchanged — the pre-mount `w-10 h-10`
- * shell keeps the neighbouring social icons from shuffling on hydrate.
+ * The pre-mount shell matches the 44px control so neighbouring icons do not
+ * shuffle on hydrate.
  */
 const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
     const { setTheme, resolvedTheme } = useTheme();
@@ -144,7 +143,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
         getClientHydrationSnapshot,
         getServerHydrationSnapshot,
     );
-    if (!mounted) return <div className="h-10 w-10 shrink-0" />;
+    if (!mounted) return <div className="h-11 w-11 shrink-0" />;
     const isDark = resolvedTheme === 'dark';
     const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';
     return (
@@ -154,16 +153,16 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
                 onPress();
                 runThemeToggle({ discoActive, isDark, setTheme });
             }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             title={ariaLabel}
             aria-label={ariaLabel}
             data-disco-bounce="1"
         >
             {discoActive ? (
-                     /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
-                         to 14px so it matches the sun / moon footprint at the 14px
-                   lucide sizes we ship elsewhere in the mobile pill. */
-                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
+                /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
+                    to 14px so it matches the sun / moon footprint at the 14px
+              lucide sizes we ship elsewhere in the mobile pill. */
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
                     <path d="M12 2v3" />
                     <circle cx="12" cy="13" r="7" className="fill-fuchsia-200/40 dark:fill-fuchsia-900/40" />
                     <path d="M5 13h14" opacity="0.55" />
@@ -185,7 +184,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
 });
 
 // Mobile sound toggle lives in `MobileSoundToggleFab`, a dedicated floating
-// FAB rendered by `SketchbookLayout` above the MiniChat FAB. The social pill
+// FAB rendered by `SketchbookLayout`. The social pill
 // no longer carries a mute button so we don't double-render the control on
 // narrow viewports.
 
@@ -195,6 +194,8 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
     return (
         <div
             data-social-sidebar-frame
+            data-social-sidebar-layout="mobile"
+            data-mobile-social-frame
             className="md:hidden fixed -translate-x-1/2"
             style={{
                 zIndex: Z_INDEX.sidebar,
@@ -212,7 +213,7 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
                 <button
                     type="button"
                     onClick={() => setIsDrawerExpanded((isExpanded) => !isExpanded)}
-                    className={`absolute ${isDrawerExpanded ? '-top-9 right-1' : '-top-8 right-1'} flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-indigo-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-600`}
+                    className={`absolute ${isDrawerExpanded ? '-top-12 right-1' : '-top-11 right-1'} flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-indigo-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-600`}
                     title={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
                     aria-label={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
                     aria-expanded={isDrawerExpanded}
@@ -223,7 +224,7 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
                 <div
                     id="mobile-social-drawer-content"
                     data-social-sidebar
-                    className="grid grid-cols-[repeat(4,40px)] gap-1"
+                    className="grid grid-cols-[repeat(4,44px)] gap-1"
                     role="complementary"
                     aria-label="Social media links"
                 >
@@ -280,30 +281,30 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                 max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
                 inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
             {!hideMobileBar && (
-            <MobileSocialBar>
-                {MOBILE_SOCIALS.map((social) => (
-                    <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
-                ))}
+                <MobileSocialBar>
+                    {MOBILE_SOCIALS.map((social) => (
+                        <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
+                    ))}
 
-                {onFeedbackClick && (
-                    <button
-                        type="button"
-                        onClick={() => {
-                            openPanel();
-                            onFeedbackClick();
-                        }}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
-                        title="Send feedback"
-                        aria-label="Open feedback form"
-                    >
-                        <MessageSquare size={14} strokeWidth={2.5} />
-                    </button>
-                )}
+                    {onFeedbackClick && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                openPanel();
+                                onFeedbackClick();
+                            }}
+                            className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 before:absolute before:-inset-0.5 before:min-h-[44px] before:min-w-[44px]"
+                            title="Send feedback"
+                            aria-label="Open feedback form"
+                        >
+                            <MessageSquare size={14} strokeWidth={2.5} />
+                        </button>
+                    )}
 
-                <MobileThemeButton onPress={toggle} />
+                    <MobileThemeButton onPress={toggle} />
 
-                {!isSettingsRoute && <SettingsLink isMobile onPress={openPanel} />}
-            </MobileSocialBar>
+                    {!isSettingsRoute && <SettingsLink isMobile onPress={openPanel} />}
+                </MobileSocialBar>
             )}
         </>
     );

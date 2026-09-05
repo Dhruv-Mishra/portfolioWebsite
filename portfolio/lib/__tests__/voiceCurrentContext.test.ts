@@ -19,7 +19,7 @@ const runtime = {
   pathname: '/about',
 };
 
-describe('get_current_page_context', () => {
+describe('get_recent_user_context', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -27,14 +27,14 @@ describe('get_current_page_context', () => {
   });
 
   it('declares and parses as a read-only empty-args tool', () => {
-    expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'get_current_page_context')).toMatchObject({
-      name: 'get_current_page_context',
+    expect(SITE_TOOL_DECLARATIONS.find(tool => tool.name === 'get_recent_user_context')).toMatchObject({
+      name: 'get_recent_user_context',
       parameters: { type: 'object', properties: {} },
     });
     expect(parseSiteToolCall({
-      name: 'get_current_page_context',
+      name: 'get_recent_user_context',
       args: {},
-    })).toMatchObject({ name: 'get_current_page_context', args: {} });
+    })).toMatchObject({ name: 'get_recent_user_context', args: {} });
   });
 
   it('prefers the current browser path over a stale runtime pathname and allowlists fields', () => {
@@ -76,16 +76,24 @@ describe('get_current_page_context', () => {
     });
   });
 
-  it('reads the live browser location from the executor', async () => {
+  it('reads the live browser location and recent actions from the executor', async () => {
     vi.stubGlobal('window', {
       location: { pathname: '/resume/', search: '' },
+      sessionStorage: {
+        getItem: () => JSON.stringify([
+          { kind: 'route.view', route: '/about', timestamp: Date.now() - 5000 },
+          { kind: 'terminal.run', command: 'about', timestamp: Date.now() - 1000 },
+        ]),
+        setItem: () => {},
+        removeItem: () => {},
+      },
       dispatchEvent: () => true,
       open: vi.fn(),
     });
 
     await expect(executeSiteTool({
       id: 'ctx-live',
-      name: 'get_current_page_context',
+      name: 'get_recent_user_context',
       args: {},
     }, runtime as never, { commit: false })).resolves.toMatchObject({
       ok: true,
@@ -95,9 +103,46 @@ describe('get_current_page_context', () => {
           topic: 'resume',
           theme: 'light',
         },
+        recentActions: [
+          'route.view /about',
+          'terminal.run about',
+        ],
       },
     });
     expect(runtime.router.push).not.toHaveBeenCalled();
+  });
+
+  it('caps recent actions to the newest 3 in get_recent_user_context', async () => {
+    vi.stubGlobal('window', {
+      location: { pathname: '/projects/', search: '' },
+      sessionStorage: {
+        getItem: () => JSON.stringify([
+          { kind: 'route.view', route: '/about', timestamp: Date.now() - 50_000 },
+          { kind: 'route.view', route: '/resume', timestamp: Date.now() - 40_000 },
+          { kind: 'terminal.run', command: 'about', timestamp: Date.now() - 30_000 },
+          { kind: 'chat.sent', timestamp: Date.now() - 20_000 },
+          { kind: 'project.open', slug: 'cropio', timestamp: Date.now() - 10_000 },
+        ]),
+        setItem: () => {},
+        removeItem: () => {},
+      },
+      dispatchEvent: () => true,
+      open: vi.fn(),
+    });
+
+    const result = await executeSiteTool({
+      id: 'ctx-cap-3',
+      name: 'get_recent_user_context',
+      args: {},
+    }, runtime as never, { commit: false });
+
+    expect(result.ok).toBe(true);
+    expect(result.data?.recentActions).toHaveLength(3);
+    expect(result.data?.recentActions).toEqual([
+      'terminal.run about',
+      'chat.sent',
+      'project.open cropio',
+    ]);
   });
 
   it('enriches deterministic navigate and project results without waiting on navigation', async () => {

@@ -12,6 +12,7 @@ import {
     getDiscoActiveSync,
     setMatrixEscapedImperative,
     getStickerProgressSync,
+    unlockSticker,
 } from '@/hooks/useStickers';
 import {
     parseSudoInvocation,
@@ -19,7 +20,6 @@ import {
     SUDO_DENIED_NODE,
     handleDisco,
 } from '@/lib/sudoCommands';
-import { stickerBus } from '@/lib/stickerBus';
 import { STICKER_ROSTER } from '@/lib/stickers';
 import {
     getCurrentStage,
@@ -348,14 +348,14 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             window.open(PERSONAL_LINKS.github, '_blank', 'noopener,noreferrer');
             // Terminal-originated opens go to GitHub or elsewhere — count as
             // social-butterfly since a link was actually followed.
-            stickerBus.emit('social-butterfly');
+            unlockSticker('social-butterfly');
         },
     }),
     linkedin: () => ({
         output: "Opening LinkedIn profile...",
         action: () => {
             window.open(PERSONAL_LINKS.linkedin, '_blank', 'noopener,noreferrer');
-            stickerBus.emit('social-butterfly');
+            unlockSticker('social-butterfly');
         },
     }),
     skills: () => ({
@@ -515,7 +515,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         ),
         action: () => {
             for (const sticker of STICKER_ROSTER) {
-                stickerBus.emit(sticker.id);
+                unlockSticker(sticker.id);
             }
         },
     }),
@@ -551,7 +551,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         action: () => {
             // 1. Award every regular sticker — store auto-awards superuser.
             for (const sticker of STICKER_ROSTER) {
-                stickerBus.emit(sticker.id);
+                unlockSticker(sticker.id);
             }
             // 2. Flip experimental commands on so `sudo matrix` shows up.
             setAdminPref('experimentalCommands', true);

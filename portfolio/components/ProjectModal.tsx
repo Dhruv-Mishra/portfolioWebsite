@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
-import { stickerBus } from '@/lib/stickerBus';
 import type { ProjectRecord } from '@/lib/projects';
 import {
   CONTROL_PROJECT_VIDEO_EVENT,
@@ -16,7 +15,7 @@ import {
   type ControlProjectVideoEventDetail,
 } from '@/lib/siteActionEvents';
 import type { SiteToolResult } from '@/lib/siteTools';
-import { useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
+import { unlockSticker, useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
 
 interface ProjectModalProps {
     /** Pass null when no project is selected — the modal will be hidden */
@@ -400,7 +399,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                 href={project.link}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                onClick={() => { externalLink(); stickerBus.emit('repo-hunter'); }}
+                                onClick={() => { externalLink(); unlockSticker('repo-hunter'); }}
                                 aria-label={`View source for ${project.name}`}
                                 className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors shadow-sm font-bold bg-white/30 dark:bg-black/20"
                                 data-clickable

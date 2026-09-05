@@ -3,11 +3,11 @@
  *
  * Usage:
  *   import { STICKER_ROSTER, StickerSvg, type StickerId } from '@/lib/stickers';
- *   stickerBus.emit('first-word'); // unlock a sticker
+ *   unlockSticker('first-word'); // unlock a sticker
  *   <StickerSvg id="first-word" size={60} />
  *
  * Roster:
- *   12 regular stickers reward genuine site exploration (no grindy counters
+ *   11 regular stickers reward genuine site exploration (no grindy counters
  *   or time-of-day gimmicks). Every roster entry is reachable on touch
  *   devices. The hidden `superuser` sticker is not exposed on the album
  *   until it is earned — awarded automatically the moment the user owns
@@ -18,18 +18,17 @@ import { STICKER_FAMILIES, STICKER_TOKENS, type StickerFamily } from '@/lib/desi
 
 // ─── Roster ─────────────────────────────────────────────────────────────
 export const STICKER_ROSTER = [
-  { id: 'first-word',       label: 'The First Word',        description: 'Typed your first terminal command.',         hint: 'the terminal is lonely — give it any command.',   family: 'sunshine' },
-  { id: 'theme-flipper',    label: 'Lights On, Lights Off', description: 'Flipped between day and night.',              hint: 'toggle the theme — look for a sun or moon.',      family: 'lavender' },
-  { id: 'note-sender',      label: 'Pen Pal',               description: 'Sent a note via feedback.',                   hint: 'send some real feedback — the floating icon.',    family: 'mint' },
-  { id: 'page-turner',      label: 'The Whole Tour',        description: 'Visited every page on the site.',             hint: 'visit every page on the site — all of them.',     family: 'denim' },
-  { id: 'note-passer',      label: 'Paper Trail',           description: 'Popped the mini chat open.',                  hint: 'open the little floating chat bubble.',           family: 'mint' },
-  { id: 'full-chat',        label: 'Serious Chat',          description: 'Had a real chat on the chat page.',           hint: 'open the full chat page (not the mini one).',     family: 'mint' },
-  { id: 'signed-guestbook', label: 'Left a Mark',           description: 'Pinned a note to the guestbook.',             hint: 'sign the guestbook — leave a note on the wall.',  family: 'mint' },
-  { id: 'project-explorer', label: 'Case Files',            description: 'Opened a project note.',                      hint: 'tap any project card to peek inside.',            family: 'coral' },
-  { id: 'chat-conductor',   label: 'Chat Conductor',        description: 'Let chat-me steer the ship.',                 hint: 'ask the chat to actually *do* something.',        family: 'mint' },
-  { id: 'repo-hunter',      label: 'Repo Hunter',           description: 'Followed a project back to its source.',      hint: 'source code lives a click away from each card.',  family: 'denim' },
-  { id: 'social-butterfly', label: 'Social Butterfly',      description: 'Tapped one of the social links.',             hint: 'the links along the edge go somewhere ~',         family: 'rose' },
-  { id: 'phoned-a-friend',  label: 'Phoned a Friend',       description: 'Called the voice agent at jarvis.whoisdhruv.com.', hint: 'one of the projects is a voice agent — give it a ring.', family: 'mint' },
+  { id: 'first-word', label: 'The First Word', description: 'Typed your first terminal command.', hint: 'the terminal is lonely — give it any command.', family: 'sunshine' },
+  { id: 'theme-flipper', label: 'Lights On, Lights Off', description: 'Flipped between day and night.', hint: 'toggle the theme — look for a sun or moon.', family: 'lavender' },
+  { id: 'note-sender', label: 'Pen Pal', description: 'Sent a note via feedback.', hint: 'send some real feedback — the floating icon.', family: 'mint' },
+  { id: 'page-turner', label: 'The Whole Tour', description: 'Visited every page on the site.', hint: 'visit every page on the site — all of them.', family: 'denim' },
+  { id: 'full-chat', label: 'Serious Chat', description: 'Had a real chat on the chat page.', hint: 'open the full chat page.', family: 'mint' },
+  { id: 'signed-guestbook', label: 'Left a Mark', description: 'Pinned a note to the guestbook.', hint: 'sign the guestbook — leave a note on the wall.', family: 'mint' },
+  { id: 'project-explorer', label: 'Case Files', description: 'Opened a project note.', hint: 'tap any project card to peek inside.', family: 'coral' },
+  { id: 'chat-conductor', label: 'Chat Conductor', description: 'Let chat-me steer the ship.', hint: 'ask the chat to actually *do* something.', family: 'mint' },
+  { id: 'repo-hunter', label: 'Repo Hunter', description: 'Followed a project back to its source.', hint: 'source code lives a click away from each card.', family: 'denim' },
+  { id: 'social-butterfly', label: 'Social Butterfly', description: 'Tapped one of the social links.', hint: 'the links along the edge go somewhere ~', family: 'rose' },
+  { id: 'phoned-a-friend', label: 'Phoned a Friend', description: 'Called the website voice agent.', hint: 'talk with Dhruv by voice — give the voice agent a ring.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -226,30 +225,6 @@ const NoteSenderSvg = memo(function NoteSenderSvg({ size }: IllustratedSvgProps)
       {/* Trail dashes */}
       <path d="M12 36 Q18 37 24 37" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="1.5 2.5" opacity="0.55" />
       <path d="M14 42 Q20 42 26 42" fill="none" stroke={family.ink} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="1.5 2.5" opacity="0.4" />
-    </svg>
-  );
-});
-
-/**
- * Note Passer — a folded sticky note with a pencil laid across, on mint.
- */
-const NotePasserSvg = memo(function NotePasserSvg({ size }: IllustratedSvgProps) {
-  const family = STICKER_FAMILIES.mint;
-  return (
-    <svg width={size} height={size} viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="30" cy="30" r="27" fill={family.bg} stroke={family.ink} strokeWidth={STICKER_TOKENS.strokeWidth} strokeLinejoin="round" />
-      {/* Sticky note */}
-      <rect x="14" y="20" width="26" height="26" rx="1" fill="#fff9c4" stroke={family.ink} strokeWidth="1.8" strokeLinejoin="round" />
-      {/* Folded corner */}
-      <path d="M34 40 L40 40 L40 46 Z" fill="#e7d77a" stroke={family.ink} strokeWidth="1.2" strokeLinejoin="round" />
-      {/* Ruled lines */}
-      <line x1="18" y1="28" x2="34" y2="28" stroke={family.ink} strokeWidth="1" opacity="0.4" />
-      <line x1="18" y1="33" x2="32" y2="33" stroke={family.ink} strokeWidth="1" opacity="0.4" />
-      <line x1="18" y1="38" x2="30" y2="38" stroke={family.ink} strokeWidth="1" opacity="0.4" />
-      {/* Pencil laid diagonally */}
-      <line x1="36" y1="14" x2="48" y2="26" stroke="#f59e0b" strokeWidth="3.6" strokeLinecap="round" />
-      <line x1="35" y1="13" x2="38" y2="16" stroke={family.ink} strokeWidth="3" strokeLinecap="round" />
-      <line x1="47" y1="25" x2="49" y2="27" stroke="#fb7185" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   );
 });
@@ -539,9 +514,6 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
       break;
     case 'phoned-a-friend':
       inner = <PhonedAFriendSvg size={size} />;
-      break;
-    case 'note-passer':
-      inner = <NotePasserSvg size={size} />;
       break;
     case 'full-chat':
       inner = <FullChatSvg size={size} />;

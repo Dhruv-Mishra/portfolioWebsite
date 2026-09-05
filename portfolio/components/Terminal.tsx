@@ -7,9 +7,9 @@ import { useTerminal } from "@/context/TerminalContext";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppHaptics } from "@/lib/haptics";
 import { trackTerminalCommand } from "@/lib/analytics";
-import { stickerBus } from "@/lib/stickerBus";
 import { soundManager } from "@/lib/soundManager";
-import { recordTerminalCommandImperative } from "@/hooks/useStickers";
+import { unlockSticker } from "@/hooks/useStickers";
+import { appendUserAction, isPublicTerminalCommand } from "@/lib/userActionJournal";
 import { useRouter } from "next/navigation";
 import { HEADER_NOISE_SVG } from "@/lib/assets";
 import {
@@ -212,8 +212,7 @@ export default function Terminal() {
 
         trackTerminalCommand(lowerCmd);
         soundManager.play('terminal-click');
-        stickerBus.emit('first-word');
-        recordTerminalCommandImperative(lowerCmd);
+        unlockSticker('first-word');
 
         if (lowerCmd === 'clear') {
             addToHistory("clear");
@@ -247,6 +246,9 @@ export default function Terminal() {
                 const result = await commandDef(args);
                 output = result.output;
                 action = result.action;
+                if (isPublicTerminalCommand(lowerCmd)) {
+                    appendUserAction({ kind: 'terminal.run', command: lowerCmd });
+                }
             } catch (error) {
                 console.error('Command execution error:', error);
                 errorHaptic();

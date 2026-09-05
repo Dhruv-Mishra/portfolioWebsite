@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * MobileSoundToggleFab — mobile-only floating circular FAB above MiniChat.
+ * MobileSoundToggleFab — mobile-only floating circular FAB for volume controls.
  * Tap opens a horizontal master-volume popover; it never mutes. Mute stays
  * on Settings. Hidden on md+; desktop uses `SoundToggleButton`.
  */
@@ -20,10 +20,9 @@ import { cn } from '@/lib/utils';
 import { Z_INDEX } from '@/lib/designTokens';
 
 /**
- * Position anchored to the MiniChat FAB:
- *   - MiniChat sits at calc(env(safe-area-inset-bottom,0px)+5rem) on mobile
- *     with size --c-fab-size (~3.5rem). We park ~1rem above it.
- *   - Right edge matches MiniChat (`right-4`).
+ * Mobile floating volume FAB position:
+ *   - Anchored via --c-mobile-floating-volume-bottom on mobile.
+ *   - Right edge at max(1rem, env(safe-area-inset-right, 0px)).
  */
 const FAB_POSITION_STYLE = {
   right: 'max(1rem, env(safe-area-inset-right, 0px))',
@@ -60,6 +59,7 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
   return (
     <div
       ref={rootRef}
+      data-mobile-sound-toggle
       className="md:hidden fixed"
       style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}
     >

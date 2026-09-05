@@ -7,8 +7,7 @@
  * DiscoFlagController owns dark-on-active. Disco exit does not touch
  * the underlying light/dark theme.
  */
-import { setDiscoActiveImperative } from '@/hooks/useStickers';
-import { stickerBus } from '@/lib/stickerBus';
+import { setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 export interface ThemeToggleParams {
@@ -62,6 +61,6 @@ export function runThemeToggle({ discoActive, isDark, setTheme }: ThemeTogglePar
   }
   const goingDark = !isDark;
   setTheme(goingDark ? 'dark' : 'light');
-  stickerBus.emit('theme-flipper');
+  unlockSticker('theme-flipper');
   soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
 }

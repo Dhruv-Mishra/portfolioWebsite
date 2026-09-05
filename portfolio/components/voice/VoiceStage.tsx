@@ -31,7 +31,7 @@ const DESKTOP_DOCK_STYLE = {
 
 const MOBILE_DOCK_STYLE = {
   left: '50%',
-  bottom: 'max(1rem, env(safe-area-inset-bottom) + 0.75rem)',
+  bottom: 'var(--c-mobile-floating-bottom)',
   transform: 'translateX(-50%)',
   alignItems: 'center',
 } as const;
@@ -41,7 +41,7 @@ const CAPTION_LAYER_STYLE = {
   transform: 'translateX(-50%)',
 } as const;
 
-const MOBILE_CAPTION_BOTTOM = 'calc(max(1rem, env(safe-area-inset-bottom) + 0.75rem) + 8.25rem)';
+const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-floating-bottom) + 5rem)';
 const DESKTOP_CAPTION_BOTTOM = 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)';
 
 export default function VoiceStage() {
@@ -202,6 +202,7 @@ export default function VoiceStage() {
       aria-modal={intro || exiting ? true : undefined}
       aria-label="Voice agent"
       aria-labelledby={intro || exiting ? 'voice-stage-title' : undefined}
+      data-voice-stage
       className="pointer-events-none fixed inset-0 h-[100dvh]"
       style={{ zIndex: Z_INDEX.voice }}
     >

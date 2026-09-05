@@ -151,4 +151,5 @@ describe('voice mode integration contract', () => {
     expect(controller).toContain('scheduleVoiceAssetPrefetch()');
     expect(controller).not.toMatch(/if \(!runtime && !snapshot\.active\) return/);
   });
+
 });

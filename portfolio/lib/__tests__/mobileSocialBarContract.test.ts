@@ -64,15 +64,15 @@ describe('mobile social bar component contract', () => {
     expect(mobileSocials).toBeGreaterThan(cpHistory);
     expect(feedback).toBeLessThan(theme);
     expect(theme).toBeLessThan(settings);
-    expect(source).toContain('grid-cols-[repeat(4,40px)] gap-1');
+    expect(source).toContain('grid-cols-[repeat(4,44px)] gap-1');
     expect(source).toContain("isDrawerExpanded ? 'w-max p-1.5'");
     expect(source).toContain('{MOBILE_SOCIALS.map((social) => (');
     expect(source).toContain('{onFeedbackClick && (');
     expect(source).toContain('{!isSettingsRoute && <SettingsLink isMobile onPress={openPanel} />}');
   });
 
-  it('uses compact 40px mobile controls with 14px icons', () => {
-    expect(source).toContain('flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85');
+  it('uses 44px mobile controls with compact 14px icons', () => {
+    expect(source).toContain('flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)]/85');
     expect(source).toContain('<social.icon size={14} strokeWidth={2.5} />');
     expect(source).toContain('Settings size={isMobile ? 14 : 24}');
     expect(source).toContain('width="14" height="14"');
@@ -102,8 +102,8 @@ describe('mobile social bar component contract', () => {
     expect(source).toContain("title={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}");
     expect(source).toContain('ChevronDown');
     expect(source).toContain('ChevronUp');
-    expect(source).toContain('h-8 w-8');
-    expect(source).toContain("isDrawerExpanded ? '-top-9 right-1' : '-top-8 right-1'");
+    expect(source).toContain('h-11 w-11');
+    expect(source).toContain("isDrawerExpanded ? '-top-12 right-1' : '-top-11 right-1'");
     expect(source).toContain('<ChevronDown size={14} strokeWidth={2.5} />');
     expect(source).toContain('<ChevronUp size={14} strokeWidth={2.5} />');
   });

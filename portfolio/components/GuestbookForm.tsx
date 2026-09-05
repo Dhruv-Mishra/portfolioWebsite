@@ -15,6 +15,8 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { addPendingGuestbookEntry } from '@/lib/guestbookPending';
+import { appendUserAction } from '@/lib/userActionJournal';
+import { unlockSticker } from '@/hooks/useStickers';
 import {
   ANIMATION_TOKENS,
   GUESTBOOK_ANIMATION,
@@ -177,13 +179,14 @@ export default function GuestbookForm() {
       // Fly-to-wall animation, then toast, then fresh form.
       success();
       soundManager.play('guestbook-submit');
+      appendUserAction({ kind: 'guestbook.submit' });
       addPendingGuestbookEntry({ message: trimmedMessage, name: trimmedName });
       setState('flying');
       setShowToast(true);
 
-      // Dispatch sticker earn event on the global bus — Agent D's listener handles storage.
+      // Unlock sticker directly — store handles dedupe and toast queue.
       try {
-        window.dispatchEvent(new CustomEvent('sticker:earn', { detail: { id: 'signed-guestbook' } }));
+        unlockSticker('signed-guestbook');
       } catch { /* no-op for non-browser paths */ }
 
       // Refresh server component so the new entry appears (after moderation → approval).

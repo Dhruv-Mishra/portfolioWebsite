@@ -54,7 +54,7 @@ import {
 } from '@/lib/chatModelPref';
 import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
 
-const subscribeToHydration = () => () => {};
+const subscribeToHydration = () => () => { };
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
 const getClientHostnameSnapshot = () => window.location.hostname;
@@ -433,12 +433,6 @@ export default function SettingsPanel() {
             id="chat-model"
             value={modelId}
             onValueChange={handleModelChange}
-          />
-          <SettingToggle
-            label="Quick chat button"
-            detail="Show the floating button outside chat."
-            checked={prefs.quickChatEnabled}
-            onChange={(checked) => setBooleanPref('quickChatEnabled', checked)}
           />
           {selectedModel ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">

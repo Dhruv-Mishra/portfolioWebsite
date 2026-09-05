@@ -10,8 +10,8 @@ import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
 import { isProjectSlug } from '@/lib/projectCatalog';
 import { PROJECT_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
-import { stickerBus } from '@/lib/stickerBus';
-import { recordOpenedProjectImperative } from '@/hooks/useStickers';
+import { unlockSticker } from '@/hooks/useStickers';
+import { appendUserAction } from '@/lib/userActionJournal';
 import {
   CLOSE_PROJECT_EVENT,
   OPEN_PROJECT_EVENT,
@@ -127,12 +127,12 @@ export default function Projects() {
         setHasOpenedProject(true);
         setSelectedProject(index);
         // Track opened projects — unlock `project-explorer` the first time any
-        // project modal is opened. The bus listener (useStickers/unlockSticker)
-        // dedups, so re-emits on subsequent opens are harmless.
+        // project modal is opened. The store action dedups, so re-calling
+        // on subsequent opens is harmless.
         const proj = PROJECTS[index];
         if (proj) {
-            recordOpenedProjectImperative(proj.slug);
-            stickerBus.emit('project-explorer');
+            unlockSticker('project-explorer');
+            appendUserAction({ kind: 'project.open', slug: proj.slug });
         }
     }, [openPanel]);
 
@@ -162,8 +162,8 @@ export default function Projects() {
         openPanel();
         const proj = PROJECTS[queryProjectIndex];
         if (!proj) return;
-        recordOpenedProjectImperative(proj.slug);
-        stickerBus.emit('project-explorer');
+        unlockSticker('project-explorer');
+        appendUserAction({ kind: 'project.open', slug: proj.slug });
     }, [openPanel, queryProjectIndex]);
 
     useEffect(() => {
@@ -325,7 +325,7 @@ export default function Projects() {
                                         href={proj.link}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        onClick={() => { stickerBus.emit('repo-hunter'); }}
+                                        onClick={() => { unlockSticker('repo-hunter'); }}
                                         aria-label={`View source for ${proj.name}`}
                                         className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >

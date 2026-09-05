@@ -67,8 +67,6 @@ describe('parseStoredState migration', () => {
     const state = parseStoredState(null);
     expect(state.version).toBe(STORAGE_VERSION);
     expect(state.unlocked).toEqual([]);
-    expect(state.terminalCommands).toEqual([]);
-    expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
     expect(state.matrixActive).toBe(false);
     expect(state.masterVolume).toBe(1);
@@ -99,9 +97,6 @@ describe('parseStoredState migration', () => {
     expect(state.unlocked).toContain('first-word');
     expect(state.unlocked).toContain('theme-flipper');
     expect(state.visitedRoutes).toEqual(['/', '/projects']);
-    // Post-v1 fields default to empty.
-    expect(state.terminalCommands).toEqual([]);
-    expect(state.openedProjects).toEqual([]);
     expect(state.discoActive).toBe(false);
   });
 
@@ -128,8 +123,6 @@ describe('parseStoredState migration', () => {
     expect(state.version).toBe(STORAGE_VERSION);
     expect(state.unlocked).toContain('superuser');
     expect(state.discoActive).toBe(false);
-    expect(state.terminalCommands).toEqual(['help', 'about']);
-    expect(state.openedProjects).toEqual(['cropio']);
     // v5 contract — the `discoMuted` property no longer exists on the state
     // shape, and there is no `useDiscoMuted` / `setDiscoMutedImperative`
     // export. The sitewide `soundsMuted` default of `false` is what we get.
@@ -342,18 +335,17 @@ describe('parseStoredState migration', () => {
     expect(state.matrixEscapedAt).toBe(7777);
   });
 
-  it('drops dead sticker ids (konami) on migration without losing other progress', async () => {
-    // Konami was retired in v6 because its emit path had no mobile-reachable
-    // trigger. Any persisted `konami` entry should be stripped from both
-    // `unlocked` and `unlockedAt` during migration, while the rest of the
-    // user's progress (including superuser, which was earned on the old
-    // 19-sticker roster) stays intact.
+  it('drops dead sticker ids (konami, note-passer) on migration without losing other progress', async () => {
+    // Konami was retired in v6 and note-passer in v10 (with floating chat removal).
+    // Any persisted dead entries should be stripped from both `unlocked` and
+    // `unlockedAt` during migration, while the rest of the user's progress
+    // stays intact.
     const { parseStoredState, STORAGE_VERSION } = await loadStore();
     const v4 = JSON.stringify({
       version: 4,
-      unlocked: ['first-word', 'konami', 'theme-flipper', 'superuser'],
-      unlockedAt: { 'first-word': 1, konami: 2, 'theme-flipper': 3, superuser: 4 },
-      lastEarnedAt: 4,
+      unlocked: ['first-word', 'konami', 'note-passer', 'theme-flipper', 'superuser'],
+      unlockedAt: { 'first-word': 1, konami: 2, 'note-passer': 3, 'theme-flipper': 4, superuser: 5 },
+      lastEarnedAt: 5,
       lastSeenAlbumAt: 1,
       visitedRoutes: [],
       terminalCommands: [],
@@ -363,15 +355,17 @@ describe('parseStoredState migration', () => {
     });
     const state = parseStoredState(v4);
     expect(state.version).toBe(STORAGE_VERSION);
-    // Dead id dropped from both arrays.
+    // Dead ids dropped from both arrays.
     expect(state.unlocked).not.toContain('konami');
+    expect(state.unlocked).not.toContain('note-passer');
     expect(state.unlockedAt['konami']).toBeUndefined();
+    expect(state.unlockedAt['note-passer']).toBeUndefined();
     // Other ids preserved.
     expect(state.unlocked).toContain('first-word');
     expect(state.unlocked).toContain('theme-flipper');
     expect(state.unlocked).toContain('superuser');
     expect(state.unlockedAt['first-word']).toBe(1);
-    expect(state.unlockedAt['superuser']).toBe(4);
+    expect(state.unlockedAt['superuser']).toBe(5);
   });
 
   it('matrixActive persists across reload (unlike discoActive)', async () => {
@@ -552,26 +546,6 @@ describe('unlockSticker superuser auto-award', () => {
     const final = JSON.parse(memoryStorage.getItem('dhruv-stickers') as string);
     const superuserMatches = (final.unlocked as string[]).filter((id) => id === 'superuser');
     expect(superuserMatches.length).toBe(1);
-  });
-
-  it('tracks distinct terminal commands', async () => {
-    const { recordTerminalCommandImperative, __resetStoreForTest } = await loadStore();
-    __resetStoreForTest();
-    expect(recordTerminalCommandImperative('help')).toBe(1);
-    // Idempotent on duplicate.
-    expect(recordTerminalCommandImperative('help')).toBe(1);
-    expect(recordTerminalCommandImperative('About')).toBe(2); // normalized
-    expect(recordTerminalCommandImperative('joke')).toBe(3);
-    expect(recordTerminalCommandImperative('ls')).toBe(4);
-    expect(recordTerminalCommandImperative('clear')).toBe(5);
-  });
-
-  it('tracks distinct opened projects', async () => {
-    const { recordOpenedProjectImperative, __resetStoreForTest } = await loadStore();
-    __resetStoreForTest();
-    expect(recordOpenedProjectImperative('cropio')).toBe(1);
-    expect(recordOpenedProjectImperative('cropio')).toBe(1);
-    expect(recordOpenedProjectImperative('atomvault')).toBe(2);
   });
 
   it('disco active flag toggles in-memory but is NEVER persisted', async () => {

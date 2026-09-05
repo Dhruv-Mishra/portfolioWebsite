@@ -121,7 +121,7 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
   open_chat: {
     name: 'open_chat',
     description:
-      'Open the on-page chat composer when the visitor wants to type or send a chat note. On /chat this is already open; elsewhere it opens quick chat.',
+      'Navigate to or focus the full /chat experience when the visitor wants to type or send a chat note.',
     parameters: { type: 'object', properties: {} },
   },
   browse_history: {
@@ -309,10 +309,10 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
       required: ['query'],
     },
   },
-  get_current_page_context: {
-    name: 'get_current_page_context',
+  get_recent_user_context: {
+    name: 'get_recent_user_context',
     description:
-      'Read the current allowlisted page before page-dependent answers or actions, or after the visitor may have moved. Trust this over session context. Returns route, topic, theme, disco, muted, volume, and open project only.',
+      'Read recent user actions and the current allowlisted page state when recent journey, current location, or current state matters. Trust this over session context. Returns recent actions, route, topic, theme, disco, muted, volume, and open project.',
     parameters: { type: 'object', properties: {} },
   },
   start_voice_session: {

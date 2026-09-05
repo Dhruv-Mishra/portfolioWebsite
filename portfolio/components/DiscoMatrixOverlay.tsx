@@ -62,6 +62,7 @@ import {
 import { soundManager } from '@/lib/soundManager';
 import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
 import { completeMatrixNotesEscape } from '@/app/matrix-notes/actions';
+import { Z_INDEX } from '@/lib/designTokens';
 
 const GLYPHS =
   'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ01Dhruv';
@@ -360,13 +361,14 @@ const MatrixCanvas = memo(function MatrixCanvas() {
         // full-viewport.
         width: '100lvw',
         height: '100lvh',
-        zIndex: 9998,
+        zIndex: Z_INDEX.matrixCanvas,
         background: '#000000',
         pointerEvents: 'none',
         // Promote to its own compositing layer for GPU-backed compositing.
         transform: 'translate3d(0,0,0)',
         willChange: 'transform',
       }}
+      data-matrix-canvas
     />
   );
 });
@@ -384,12 +386,13 @@ interface WakeUpButtonProps {
 const WakeUpButton = memo(function WakeUpButton({ visible, onWakeUp }: WakeUpButtonProps) {
   return (
     <div
+      data-matrix-wake
       style={{
         position: 'fixed',
         left: '50%',
         bottom: '10vh',
         transform: 'translateX(-50%)',
-        zIndex: 9999,
+        zIndex: Z_INDEX.matrixControls,
         pointerEvents: visible ? 'auto' : 'none',
         opacity: visible ? 1 : 0,
         transition: 'opacity 600ms ease-in',
@@ -399,6 +402,7 @@ const WakeUpButton = memo(function WakeUpButton({ visible, onWakeUp }: WakeUpBut
         type="button"
         onClick={onWakeUp}
         aria-label="Wake up — exit matrix overlay"
+        data-matrix-control="wake"
         tabIndex={visible ? 0 : -1}
         style={{
           fontFamily: '"Fira Code", "Menlo", monospace',
@@ -486,11 +490,12 @@ const EscapeButton = memo(function EscapeButton({
 
   return (
     <div
+      data-matrix-escape
       style={{
         position: 'fixed',
         right: 'max(1rem, env(safe-area-inset-right))',
         bottom: 'max(1rem, env(safe-area-inset-bottom))',
-        zIndex: 9999,
+        zIndex: Z_INDEX.matrixControls,
         pointerEvents: visible ? 'auto' : 'none',
         opacity: visible ? 1 : 0,
         transition: 'opacity 900ms ease-in',
@@ -499,6 +504,7 @@ const EscapeButton = memo(function EscapeButton({
       <button
         type="button"
         onClick={handleClick}
+        data-matrix-control="escape"
         aria-label={
           enabled
             ? 'Escape the Matrix — take a different way out'
@@ -579,10 +585,11 @@ const EscapeTransition = memo(function EscapeTransition({ active }: EscapeTransi
   return (
     <div
       aria-hidden="true"
+      data-matrix-transition
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 10000,
+        zIndex: Z_INDEX.matrixTransition,
         pointerEvents: 'none',
       }}
     >
@@ -882,12 +889,13 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
         <div
           role="status"
           aria-live="polite"
+          data-matrix-hint
           style={{
             position: 'fixed',
             left: '50%',
             bottom: 'calc(10vh + 72px)',
             transform: 'translateX(-50%)',
-            zIndex: 10001,
+            zIndex: Z_INDEX.matrixTransition,
             pointerEvents: 'none',
             maxWidth: 'min(92vw, 420px)',
           }}

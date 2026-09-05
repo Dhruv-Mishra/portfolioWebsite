@@ -8,7 +8,7 @@ import {
 describe('voice action queue', () => {
   it('classifies immediate vs deferred site tools', () => {
     expect(resolveVoiceToolPolicy('lookup_site_facts')).toEqual({ timing: 'immediate', hostId: null });
-    expect(resolveVoiceToolPolicy('get_current_page_context')).toEqual({ timing: 'immediate', hostId: null });
+    expect(resolveVoiceToolPolicy('get_recent_user_context')).toEqual({ timing: 'immediate', hostId: null });
     expect(resolveVoiceToolPolicy('set_theme')).toEqual({ timing: 'immediate', hostId: null });
     expect(resolveVoiceToolPolicy('navigate_to')).toEqual({ timing: 'deferred', hostId: null });
     expect(resolveVoiceToolPolicy('navigate_to', { path: '/' } as never)).toEqual({ timing: 'deferred', hostId: null });

@@ -67,7 +67,7 @@
     --c-modal-top-md: 12vh;
     --c-mobile-dock-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
     --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
-    --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 8.25rem);
+    --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 10.75rem);
     --c-mobile-floating-volume-bottom: calc(env(safe-area-inset-bottom, 0px) + 16.25rem);
     --c-mobile-floating-voice-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
     --c-page-header-h: calc(var(--c-nav-tab-pt) + var(--c-nav-tab-py) + 1.5rem);
@@ -242,6 +242,7 @@
      ≥481px (i.e. the full sketchbook aesthetic remains untouched on
      normal phones, tablets, desktops). */
   @media (max-width: 480px) {
+
     :root,
     [data-size="small"],
     [data-size="large"] {
@@ -250,11 +251,11 @@
       --t-hero: 3rem;
       --t-hero-md: 3rem;
       --t-hero-lg: 3rem;
-      --c-quick-chat-mobile-h: min(var(--c-chat-h), 66dvh);
     }
   }
 
   @media (min-width: 768px) {
+
     :root,
     [data-size="small"],
     [data-size="large"] {
@@ -268,12 +269,6 @@
 /* Keep fixed interaction surfaces reachable when landscape orientation or
    an on-screen keyboard leaves little vertical room. These overrides live
    outside Tailwind layers so they beat the generated size/position utilities. */
-@media (max-height: 640px) {
-  [data-mini-chat-panel] {
-    height: min(var(--c-chat-h), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--c-mobile-floating-bottom) - 5rem));
-  }
-}
-
 @media (min-width: 768px) and (min-height: 641px) {
   [data-social-sidebar-layout="desktop"] {
     top: 50%;
@@ -282,15 +277,6 @@
 }
 
 @media (min-width: 768px) and (max-height: 640px) {
-  [data-mini-chat-root] {
-    right: 6rem;
-  }
-
-  [data-mini-chat-panel] {
-    right: 0.5rem;
-    height: min(var(--c-chat-h-md), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 6.5rem));
-  }
-
   [data-social-sidebar-layout="desktop"] {
     top: max(0.5rem, env(safe-area-inset-top, 0px));
     bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
@@ -323,6 +309,7 @@ body {
 /* iOS Safari auto-zooms on input focus when computed font-size < 16px.
    Force 16px on mobile form controls to suppress the zoom without touching desktop sizing. */
 @media (max-width: 767px) {
+
   input,
   textarea,
   select {
@@ -343,6 +330,7 @@ label[for^="web-haptics-"] {
   height: 1px !important;
   overflow: hidden !important;
 }
+
 label[for^="web-haptics-"] input[type="checkbox"] {
   position: absolute !important;
   opacity: 0 !important;
@@ -383,11 +371,13 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
 
 @layer utilities {
+
   /* Single sticky-note paper utility. Old per-color aliases kept as synonyms so
      any existing content (projects.tsx project cards, app/error.tsx, etc.)
      keeps working through the cleanup without a wide refactor. Every alias
@@ -528,8 +518,15 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   /* CSS theme icon swap animation (replaces framer-motion AnimatePresence) */
@@ -538,8 +535,15 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   }
 
   @keyframes themeIconIn {
-    from { opacity: 0; transform: rotate(90deg) scale(0.5); }
-    to { opacity: 1; transform: rotate(0deg) scale(1); }
+    from {
+      opacity: 0;
+      transform: rotate(90deg) scale(0.5);
+    }
+
+    to {
+      opacity: 1;
+      transform: rotate(0deg) scale(1);
+    }
   }
 
   .sketch-tooltip {
@@ -584,6 +588,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
    This resets transform-based hover effects for interactive elements on touch-only devices.
    Background color hover effects are preserved — they serve as useful tap feedback. */
 @media (hover: none) and (pointer: coarse) {
+
   a:hover,
   button:hover,
   [role="button"]:hover,
@@ -591,6 +596,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     rotate: unset !important;
     scale: unset !important;
   }
+
   /* Suppress group-hover decorative transforms on touch */
   .group:hover [class*="group-hover"],
   [class*="group/"]:hover [class*="group-hover/"] {
@@ -638,8 +644,15 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
 /* ─── Guestbook wall note entrance animation ─── */
 @keyframes wall-note-in {
-  from { opacity: 0; transform: translateY(12px) rotate(var(--note-rotate-start, 0deg)); }
-  to   { opacity: 1; transform: translateY(0) rotate(var(--note-rotate-end, 0deg)); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) rotate(var(--note-rotate-start, 0deg));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--note-rotate-end, 0deg));
+  }
 }
 
 /* Sticker lavender family (others borrowed from existing tokens) */
@@ -647,36 +660,60 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   --sticker-lavender-bg: #e9d5ff;
   --sticker-lavender-ink: #581c87;
 }
+
 .dark {
   --sticker-lavender-bg: #3b2357;
   --sticker-lavender-ink: #d8b4fe;
 }
 
-.animate-wall-note-in { animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both; }
+.animate-wall-note-in {
+  animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
 
 /* ─── Listening overlay — animated bars + ellipsis (CSS-only fallback) ─── */
 @keyframes listening-bar {
-  0%, 100% { transform: scaleY(0.35); }
-  50%      { transform: scaleY(1); }
+
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+
+  50% {
+    transform: scaleY(1);
+  }
 }
+
 .animate-listening-bar {
   transform-origin: center;
   animation: listening-bar 0.9s ease-in-out infinite;
 }
+
 @keyframes listening-ellipsis {
-  0%   { opacity: 0.2; }
-  50%  { opacity: 1; }
-  100% { opacity: 0.2; }
+  0% {
+    opacity: 0.2;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.2;
+  }
 }
+
 .animate-listening-ellipsis {
   animation: listening-ellipsis 1.2s ease-in-out infinite;
 }
+
 @media (prefers-reduced-motion: reduce) {
+
   html:not([data-motion="full"]) .animate-listening-bar,
-  html:not([data-motion="full"]) .animate-listening-ellipsis { animation: none; }
+  html:not([data-motion="full"]) .animate-listening-ellipsis {
+    animation: none;
+  }
 }
 
-html[data-voice-mode] [data-mini-chat-root],
 html[data-voice-mode] [data-chat-composer] {
   display: none !important;
 }
@@ -686,19 +723,61 @@ html[data-voice-mode] .disco-spotlights,
 html[data-voice-mode] [data-disco-media],
 html[data-voice-mode] [data-disco-track-control],
 html[data-voice-mode] [data-sound-toggle],
+html[data-voice-mode] [data-mobile-sound-toggle],
 html[data-voice-mode] [data-shortcuts-hint] {
   display: none !important;
 }
 
 html[data-voice-mode="intro"] [data-social-sidebar-frame],
-html[data-voice-mode="intro"] [data-feedback-tab] {
+html[data-voice-mode="exiting"] [data-social-sidebar-frame],
+html[data-voice-mode="intro"] [data-feedback-tab],
+html[data-voice-mode="exiting"] [data-feedback-tab] {
   display: none !important;
+}
+
+html[data-matrix] [data-mobile-sound-toggle],
+html[data-matrix] [data-global-voice-fab="mobile"],
+html[data-matrix] [data-voice-launcher],
+html[data-matrix] [data-feedback-tab],
+html[data-matrix] [data-feedback-trigger] {
+  display: none !important;
+}
+
+html[data-matrix] [data-mobile-social-frame] {
+  z-index: 9998 !important;
+}
+
+@media (max-width: 767px) {
+  [data-matrix-wake] {
+    bottom: var(--c-mobile-floating-bottom) !important;
+  }
+
+  [data-matrix-escape] {
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(var(--c-mobile-floating-bottom) + 3.75rem) !important;
+    transform: translateX(-50%) !important;
+    width: max-content !important;
+    max-width: calc(100vw - 2rem) !important;
+  }
+
+  [data-matrix-control="escape"] {
+    font-size: 0.75rem !important;
+    letter-spacing: 0.18em !important;
+    padding: 0.6rem 1rem !important;
+    white-space: nowrap !important;
+  }
+
+  [data-matrix-hint] {
+    bottom: calc(var(--c-mobile-floating-bottom) + 7.5rem) !important;
+  }
 }
 
 .voice-orb {
   --voice-level: 0;
   --voice-ripple: 1;
 }
+
 .voice-orb-media,
 .voice-orb-halo,
 .voice-orb-gif,
@@ -711,6 +790,7 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   height: 100%;
   pointer-events: none;
 }
+
 .voice-orb-media {
   border-radius: 50%;
   overflow: hidden;
@@ -718,6 +798,7 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   transform: scale(var(--voice-ripple, 1));
   transition: transform 180ms ease-out;
 }
+
 .voice-orb-gif,
 .voice-orb-still {
   object-fit: cover;
@@ -728,14 +809,17 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   user-select: none;
   mix-blend-mode: normal;
 }
+
 .voice-orb-gif,
 .voice-orb-still {
   display: block;
 }
+
 .dark .voice-orb-gif,
 .dark .voice-orb-still {
   mix-blend-mode: screen;
 }
+
 .voice-orb-halo {
   border-radius: 50%;
   background: conic-gradient(from 24deg, rgba(82, 196, 255, 0.5), rgba(139, 92, 246, 0.72), rgba(236, 72, 153, 0.46), rgba(65, 214, 190, 0.64), rgba(82, 196, 255, 0.5));
@@ -746,10 +830,12 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   transform: scale(1);
   transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
+
 .dark .voice-orb-halo {
   opacity: 0.82;
   filter: blur(3px) drop-shadow(0 0 10px rgba(116, 148, 255, 0.36));
 }
+
 .voice-orb-wash {
   border-radius: 50%;
   background: radial-gradient(circle at 50% 48%, rgba(120, 164, 255, 0.18), transparent 62%);
@@ -757,24 +843,30 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   opacity: calc(0.22 + var(--voice-level, 0) * 0.38);
   transition: opacity 180ms ease-out;
 }
+
 .dark .voice-orb-wash {
   mix-blend-mode: screen;
 }
+
 .voice-orb-sheen {
   border-radius: 50%;
   background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.16), transparent 46%);
   opacity: 0.4;
 }
+
 .voice-orb-sheen.is-acting {
   background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.34), transparent 34%), radial-gradient(circle at 50% 54%, rgba(52, 211, 153, 0.26), transparent 60%);
   opacity: 0.72;
 }
+
 .dark .voice-orb-sheen {
   opacity: 0.22;
 }
+
 .voice-orb-label {
   display: block;
 }
+
 .voice-orb.is-speaking .voice-orb-media,
 .voice-orb.is-speaking .voice-orb-halo,
 .voice-orb.is-acting .voice-orb-media,
@@ -783,28 +875,34 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
 .voice-orb[data-voice-orb-speaking] .voice-orb-halo {
   will-change: transform, opacity;
 }
+
 .voice-orb-halo.is-speaking {
   animation: voice-orb-speak 1.1s ease-in-out infinite;
 }
+
 .voice-orb[data-voice-orb-speaking] .voice-orb-media,
 .voice-orb.is-acting .voice-orb-media {
   animation: none;
   transform: scale(calc(var(--voice-ripple, 1) + var(--voice-level, 0) * 0.06));
 }
+
 .voice-orb[data-voice-orb-speaking]:not(.is-acting) .voice-orb-halo {
   animation: none;
   transform: scale(calc(var(--voice-ripple, 1) + var(--voice-level, 0) * 0.1));
   opacity: calc(0.52 + var(--voice-level, 0) * 0.4 + (var(--voice-ripple, 1) - 1) * 1.2);
 }
+
 .voice-orb-wash.is-speaking,
 .voice-orb[data-voice-orb-speaking] .voice-orb-wash {
   opacity: calc(0.22 + var(--voice-level, 0) * 0.38 + (var(--voice-ripple, 1) - 1) * 0.35);
 }
+
 .voice-orb-halo.is-error {
   mask: none;
   -webkit-mask: none;
   background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(251, 113, 133, 0.42) 58%, transparent 76%);
 }
+
 .voice-orb-halo.is-acting {
   mask: none;
   -webkit-mask: none;
@@ -812,25 +910,31 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   animation: voice-orb-act-halo 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
   filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.52));
 }
+
 .dark .voice-orb-halo.is-acting {
   background: radial-gradient(circle at 50% 50%, transparent 32%, rgba(52, 211, 153, 0.34) 45%, rgba(45, 212, 191, 0.92) 57%, rgba(96, 165, 250, 0.58) 69%, transparent 82%);
   filter: drop-shadow(0 0 15px rgba(45, 212, 191, 0.7));
 }
+
 .voice-orb-wash.is-acting {
   background: radial-gradient(circle at 50% 48%, rgba(52, 211, 153, 0.5), rgba(34, 211, 238, 0.2) 42%, transparent 68%);
   mix-blend-mode: screen;
   opacity: 0.7;
 }
+
 .voice-orb-media.is-thinking {
   animation: voice-orb-act 1.8s ease-in-out infinite;
 }
+
 .voice-orb-media.is-listening {
   animation: voice-orb-listen 2.8s ease-in-out infinite;
 }
+
 .voice-stage-caption,
 .voice-dock-transcript {
   animation: voice-caption-in 0.28s ease-out;
 }
+
 .voice-dock-transcript {
   background: color-mix(in srgb, var(--c-paper) 56%, transparent);
   backdrop-filter: blur(8px);
@@ -841,60 +945,141 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
   border-radius: 0.75rem;
   transition: opacity 280ms ease-out;
 }
+
 .voice-dock-transcript[data-subtitle-phase="exiting"] {
   opacity: 0;
 }
+
 @keyframes voice-orb-speak {
-  0% { transform: scale(1); opacity: 0.55; }
-  50% { transform: scale(1.12); opacity: 0.9; }
-  100% { transform: scale(1); opacity: 0.55; }
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: scale(1.12);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
 }
+
 @keyframes voice-orb-act {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.03); opacity: 0.92; }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.03);
+    opacity: 0.92;
+  }
 }
+
 @keyframes voice-orb-act-halo {
-  0% { transform: scale(0.98); opacity: 0.54; }
-  38% { transform: scale(1.18); opacity: 1; }
-  100% { transform: scale(1.04); opacity: 0.62; }
+  0% {
+    transform: scale(0.98);
+    opacity: 0.54;
+  }
+
+  38% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.04);
+    opacity: 0.62;
+  }
 }
+
 @keyframes voice-orb-listen {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.035); opacity: 0.9; }
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.035);
+    opacity: 0.9;
+  }
 }
+
 @keyframes voice-caption-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
+
 .voice-stage-veil {
   opacity: 0;
   transition: opacity 420ms ease-out;
 }
+
 .voice-stage-veil[data-veil="intro"] {
   opacity: 1;
 }
+
 .voice-stage-veil[data-veil="live"] {
   opacity: 0;
 }
+
 .voice-stage-veil[data-veil="exiting"] {
   transition: none;
   animation: voice-stage-veil-exit-live 2040ms ease-out forwards;
 }
+
 .voice-stage-veil[data-veil="exiting"][data-veil-from="intro"] {
   animation: voice-stage-veil-exit-intro 2040ms ease-out forwards;
 }
+
 @keyframes voice-stage-veil-exit-live {
-  0% { opacity: 0; }
-  18% { opacity: 1; }
-  62% { opacity: 1; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
+
 @keyframes voice-stage-veil-exit-intro {
-  0% { opacity: 1; }
-  62% { opacity: 1; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 1;
+  }
+
+  62% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
+
 @media (prefers-reduced-motion: reduce) {
+
   html:not([data-motion="full"]) .voice-orb-gif,
   html:not([data-motion="full"]) .voice-orb-media,
   html:not([data-motion="full"]) .voice-orb-halo,
@@ -918,19 +1103,36 @@ html[data-voice-mode="intro"] [data-feedback-tab] {
     box-shadow: none;
     filter: none;
   }
+
   html:not([data-motion="full"]) .voice-orb-wash { opacity: 0.22; }
-  html:not([data-motion="full"]) .voice-dock-transcript[data-subtitle-phase="exiting"] { opacity: 1; }
+
+  html:not([data-motion="full"]) .voice-dock-transcript[data-subtitle-phase="exiting"] {
+    opacity: 1;
+  }
+
   html:not([data-motion="full"]) .voice-orb-gif {
     display: none;
   }
+
   html:not([data-motion="full"]) .voice-orb-still {
     display: block;
   }
-  html:not([data-motion="full"]) .voice-stage-veil { animation: none !important; transition: none !important; }
+
+  html:not([data-motion="full"]) .voice-stage-veil {
+    animation: none !important;
+    transition: none !important;
+  }
+
   html:not([data-motion="full"]) .voice-stage-veil[data-veil="intro"],
-  html:not([data-motion="full"]) .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
-  html:not([data-motion="full"]) .voice-stage-veil[data-veil="live"] { opacity: 0; }
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="exiting"] {
+    opacity: 1;
+  }
+
+  html:not([data-motion="full"]) .voice-stage-veil[data-veil="live"] {
+    opacity: 0;
+  }
 }
+
 html[data-motion="reduced"] .voice-orb-gif,
 html[data-motion="reduced"] .voice-orb-media,
 html[data-motion="reduced"] .voice-orb-halo,
@@ -954,15 +1156,31 @@ html[data-motion="reduced"] .voice-orb[data-voice-orb-speaking] .voice-orb-halo 
   box-shadow: none;
   filter: none;
 }
+
 html[data-motion="reduced"] .voice-orb-wash { opacity: 0.22; }
-html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"] { opacity: 1; }
+
+html[data-motion="reduced"] .voice-dock-transcript[data-subtitle-phase="exiting"] {
+  opacity: 1;
+}
+
 html[data-motion="reduced"] .voice-orb-gif {
   display: none;
 }
-html[data-motion="reduced"] .voice-stage-veil { animation: none !important; transition: none !important; }
+
+html[data-motion="reduced"] .voice-stage-veil {
+  animation: none !important;
+  transition: none !important;
+}
+
 html[data-motion="reduced"] .voice-stage-veil[data-veil="intro"],
-html[data-motion="reduced"] .voice-stage-veil[data-veil="exiting"] { opacity: 1; }
-html[data-motion="reduced"] .voice-stage-veil[data-veil="live"] { opacity: 0; }
+html[data-motion="reduced"] .voice-stage-veil[data-veil="exiting"] {
+  opacity: 1;
+}
+
+html[data-motion="reduced"] .voice-stage-veil[data-veil="live"] {
+  opacity: 0;
+}
+
 html[data-motion="reduced"] .voice-orb-still {
   display: block;
 }
@@ -975,19 +1193,43 @@ html[data-motion="reduced"] .voice-orb-still {
    ─────────────────────────────────────────────────────────────────────── */
 
 @keyframes sticker-float {
-  0%, 100% { transform: translateY(0) rotate(var(--card-rotate, 0deg)); }
-  50%      { transform: translateY(-1.5px) rotate(var(--card-rotate, 0deg)); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--card-rotate, 0deg));
+  }
+
+  50% {
+    transform: translateY(-1.5px) rotate(var(--card-rotate, 0deg));
+  }
 }
 
 @keyframes sticker-card-in {
-  from { opacity: 0; transform: translateY(12px) rotate(var(--card-rotate, 0deg)); }
-  to   { opacity: 1; transform: translateY(0)    rotate(var(--card-rotate, 0deg)); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) rotate(var(--card-rotate, 0deg));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(var(--card-rotate, 0deg));
+  }
 }
 
 @keyframes sticker-wobble {
-  0%, 100% { transform: rotate(var(--card-rotate, 0deg)); }
-  25%      { transform: rotate(calc(var(--card-rotate, 0deg) + 6deg)); }
-  75%      { transform: rotate(calc(var(--card-rotate, 0deg) - 6deg)); }
+
+  0%,
+  100% {
+    transform: rotate(var(--card-rotate, 0deg));
+  }
+
+  25% {
+    transform: rotate(calc(var(--card-rotate, 0deg) + 6deg));
+  }
+
+  75% {
+    transform: rotate(calc(var(--card-rotate, 0deg) - 6deg));
+  }
 }
 
 /* Base card — holds the static rotation token + entrance.
@@ -1018,6 +1260,7 @@ html[data-motion="reduced"] .voice-orb-still {
     transition: transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
     will-change: transform;
   }
+
   .sticker-card--locked:hover {
     animation: sticker-card-in 0.3s ease-out both, sticker-wobble 400ms ease-in-out;
     animation-delay: var(--card-entrance-delay, 0s), 0s;
@@ -1043,6 +1286,7 @@ html[data-motion="reduced"] .voice-orb-still {
     0 4px 16px -4px rgba(245, 158, 11, 0.45),
     0 2px 6px rgba(0, 0, 0, 0.12);
 }
+
 .dark .sticker-card--superuser {
   background: linear-gradient(135deg, #44340a 0%, #6b4f15 45%, #9a6f1a 100%);
   border-color: rgba(251, 191, 36, 0.45);
@@ -1051,20 +1295,19 @@ html[data-motion="reduced"] .voice-orb-still {
     0 4px 20px -4px rgba(251, 191, 36, 0.35),
     0 2px 6px rgba(0, 0, 0, 0.4);
 }
+
 .sticker-card--superuser::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   /* Slim diagonal light streak; slides right via background-position. */
-  background: linear-gradient(
-    120deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.55) 45%,
-    rgba(255, 255, 255, 0.85) 50%,
-    rgba(255, 255, 255, 0.55) 55%,
-    transparent 70%
-  );
+  background: linear-gradient(120deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.55) 45%,
+      rgba(255, 255, 255, 0.85) 50%,
+      rgba(255, 255, 255, 0.55) 55%,
+      transparent 70%);
   background-size: 240% 100%;
   background-position: 100% 0;
   mix-blend-mode: overlay;
@@ -1072,15 +1315,34 @@ html[data-motion="reduced"] .voice-orb-still {
   animation-delay: 0.8s;
   border-radius: inherit;
 }
+
 .dark .sticker-card--superuser::after {
   mix-blend-mode: screen;
 }
+
 @keyframes superuser-shimmer {
-  0% { background-position: 100% 0; opacity: 0; }
-  8% { opacity: 0.9; }
-  50% { background-position: -100% 0; opacity: 0.9; }
-  58% { opacity: 0; }
-  100% { background-position: -100% 0; opacity: 0; }
+  0% {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+
+  8% {
+    opacity: 0.9;
+  }
+
+  50% {
+    background-position: -100% 0;
+    opacity: 0.9;
+  }
+
+  58% {
+    opacity: 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+    opacity: 0;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1101,6 +1363,7 @@ html[data-motion="reduced"] .voice-orb-still {
     0 4px 14px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
+
 .dark .superuser-banner__card {
   background:
     linear-gradient(135deg, #3a2a08 0%, #5b421a 22%, #8a5f22 48%, #b48637 72%, #dda854 100%);
@@ -1121,14 +1384,12 @@ html[data-motion="reduced"] .voice-orb-still {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    120deg,
-    transparent 20%,
-    rgba(255, 255, 255, 0.55) 42%,
-    rgba(255, 255, 255, 0.92) 50%,
-    rgba(255, 255, 255, 0.55) 58%,
-    transparent 80%
-  );
+  background: linear-gradient(120deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.55) 42%,
+      rgba(255, 255, 255, 0.92) 50%,
+      rgba(255, 255, 255, 0.55) 58%,
+      transparent 80%);
   background-size: 260% 100%;
   background-position: 100% 0;
   mix-blend-mode: overlay;
@@ -1137,15 +1398,34 @@ html[data-motion="reduced"] .voice-orb-still {
   border-radius: inherit;
   z-index: 5;
 }
+
 .dark .superuser-banner__card::after {
   mix-blend-mode: screen;
 }
+
 @keyframes superuser-banner-shimmer {
-  0% { background-position: 100% 0; opacity: 0; }
-  6% { opacity: 0.85; }
-  52% { background-position: -100% 0; opacity: 0.85; }
-  60% { opacity: 0; }
-  100% { background-position: -100% 0; opacity: 0; }
+  0% {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+
+  6% {
+    opacity: 0.85;
+  }
+
+  52% {
+    background-position: -100% 0;
+    opacity: 0.85;
+  }
+
+  60% {
+    opacity: 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+    opacity: 0;
+  }
 }
 
 /* Foil typography: dark inky label on light foil, pale glowing on dark foil. */
@@ -1153,9 +1433,11 @@ html[data-motion="reduced"] .voice-orb-still {
   color: rgba(120, 53, 15, 0.85);
   letter-spacing: 0.18em;
 }
+
 .dark .superuser-banner__tag {
   color: rgba(253, 224, 71, 0.9);
 }
+
 .superuser-banner__label {
   background: linear-gradient(180deg, #7c2d12 0%, #b45309 60%, #92400e 100%);
   -webkit-background-clip: text;
@@ -1164,6 +1446,7 @@ html[data-motion="reduced"] .voice-orb-still {
   color: transparent;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
 }
+
 .dark .superuser-banner__label {
   background: linear-gradient(180deg, #fef3c7 0%, #fde68a 50%, #fbbf24 100%);
   -webkit-background-clip: text;
@@ -1172,15 +1455,19 @@ html[data-motion="reduced"] .voice-orb-still {
   color: transparent;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
 }
+
 .superuser-banner__flavor {
   color: rgba(90, 45, 10, 0.85);
 }
+
 .dark .superuser-banner__flavor {
   color: rgba(253, 224, 71, 0.85);
 }
+
 .superuser-banner__timestamp {
   color: rgba(90, 45, 10, 0.7);
 }
+
 .dark .superuser-banner__timestamp {
   color: rgba(253, 224, 71, 0.65);
 }
@@ -1195,17 +1482,20 @@ html[data-motion="reduced"] .voice-orb-still {
     0 0 0 0 rgba(251, 191, 36, 0.55);
   animation: superuser-banner-glow 2.2s ease-out both;
 }
+
 @keyframes superuser-banner-glow {
   0% {
     box-shadow:
       0 0 0 0 rgba(251, 191, 36, 0.85),
       0 0 0 0 rgba(251, 191, 36, 0.55);
   }
+
   60% {
     box-shadow:
       0 0 0 28px rgba(251, 191, 36, 0),
       0 0 0 14px rgba(251, 191, 36, 0);
   }
+
   100% {
     box-shadow:
       0 0 0 28px rgba(251, 191, 36, 0),
@@ -1217,17 +1507,33 @@ html[data-motion="reduced"] .voice-orb-still {
 .superuser-banner__medal {
   animation: superuser-banner-float 3.6s ease-in-out infinite;
 }
+
 @keyframes superuser-banner-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50%      { transform: translateY(-3px) rotate(1.5deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(1.5deg);
+  }
 }
 
 /* Reduce-motion: disable persistent decorative movement. Confetti is
    controlled separately by JavaScript. */
 @media (prefers-reduced-motion: reduce) {
-  html:not([data-motion="full"]) .superuser-banner__glow { animation: none; }
-  html:not([data-motion="full"]) .superuser-banner__medal { animation: none; }
-  html:not([data-motion="full"]) .superuser-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .superuser-banner__glow {
+    animation: none;
+  }
+
+  html:not([data-motion="full"]) .superuser-banner__medal {
+    animation: none;
+  }
+
+  html:not([data-motion="full"]) .superuser-banner__card::after {
+    animation: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1239,6 +1545,7 @@ html[data-motion="reduced"] .voice-orb-still {
 :root {
   --superuser-toast-backdrop: rgba(0, 0, 0, 0.35);
 }
+
 .dark {
   --superuser-toast-backdrop: rgba(0, 0, 0, 0.6);
 }
@@ -1269,6 +1576,7 @@ html[data-motion="reduced"] .voice-orb-still {
     0 4px 14px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(110, 231, 183, 0.18);
 }
+
 .dark .escape-banner__card {
   background:
     linear-gradient(145deg, #020d08 0%, #032016 40%, #03180f 70%, #020a07 100%);
@@ -1290,19 +1598,15 @@ html[data-motion="reduced"] .voice-orb-still {
   inset: 0;
   pointer-events: none;
   background:
-    repeating-linear-gradient(
+    repeating-linear-gradient(transparent 0,
+      transparent 14px,
+      rgba(16, 185, 129, 0.06) 14px,
+      rgba(16, 185, 129, 0.06) 15px),
+    repeating-linear-gradient(90deg,
       transparent 0,
       transparent 14px,
       rgba(16, 185, 129, 0.06) 14px,
-      rgba(16, 185, 129, 0.06) 15px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 14px,
-      rgba(16, 185, 129, 0.06) 14px,
-      rgba(16, 185, 129, 0.06) 15px
-    );
+      rgba(16, 185, 129, 0.06) 15px);
   mask-image: radial-gradient(ellipse at center, black 40%, transparent 92%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 92%);
   border-radius: inherit;
@@ -1316,14 +1620,12 @@ html[data-motion="reduced"] .voice-orb-still {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    120deg,
-    transparent 30%,
-    rgba(110, 231, 183, 0.18) 48%,
-    rgba(110, 231, 183, 0.38) 50%,
-    rgba(110, 231, 183, 0.18) 52%,
-    transparent 70%
-  );
+  background: linear-gradient(120deg,
+      transparent 30%,
+      rgba(110, 231, 183, 0.18) 48%,
+      rgba(110, 231, 183, 0.38) 50%,
+      rgba(110, 231, 183, 0.18) 52%,
+      transparent 70%);
   background-size: 280% 100%;
   background-position: 100% 0;
   mix-blend-mode: screen;
@@ -1332,18 +1634,37 @@ html[data-motion="reduced"] .voice-orb-still {
   border-radius: inherit;
   z-index: 5;
 }
+
 @keyframes escape-banner-sweep {
-  0%   { background-position: 100% 0; opacity: 0; }
-  8%   { opacity: 1; }
-  55%  { background-position: -100% 0; opacity: 1; }
-  65%  { opacity: 0; }
-  100% { background-position: -100% 0; opacity: 0; }
+  0% {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  55% {
+    background-position: -100% 0;
+    opacity: 1;
+  }
+
+  65% {
+    opacity: 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+    opacity: 0;
+  }
 }
 
 .escape-banner__tag {
   color: rgba(167, 243, 208, 0.85);
   letter-spacing: 0.28em;
 }
+
 .escape-banner__label {
   background: linear-gradient(180deg, #a7f3d0 0%, #34d399 60%, #10b981 100%);
   -webkit-background-clip: text;
@@ -1352,9 +1673,11 @@ html[data-motion="reduced"] .voice-orb-still {
   color: transparent;
   text-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
 }
+
 .escape-banner__flavor {
   color: rgba(167, 243, 208, 0.82);
 }
+
 .escape-banner__timestamp {
   color: rgba(110, 231, 183, 0.6);
 }
@@ -1368,17 +1691,20 @@ html[data-motion="reduced"] .voice-orb-still {
     0 0 0 0 rgba(110, 231, 183, 0.6);
   animation: escape-banner-glow 2.2s ease-out both;
 }
+
 @keyframes escape-banner-glow {
   0% {
     box-shadow:
       0 0 0 0 rgba(16, 185, 129, 0.9),
       0 0 0 0 rgba(110, 231, 183, 0.6);
   }
+
   60% {
     box-shadow:
       0 0 0 32px rgba(16, 185, 129, 0),
       0 0 0 16px rgba(110, 231, 183, 0);
   }
+
   100% {
     box-shadow:
       0 0 0 32px rgba(16, 185, 129, 0),
@@ -1390,15 +1716,31 @@ html[data-motion="reduced"] .voice-orb-still {
 .escape-banner__medal {
   animation: escape-banner-float 3.6s ease-in-out infinite;
 }
+
 @keyframes escape-banner-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50%      { transform: translateY(-3px) rotate(-1.5deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html:not([data-motion="full"]) .escape-banner__glow { animation: none; }
-  html:not([data-motion="full"]) .escape-banner__medal { animation: none; }
-  html:not([data-motion="full"]) .escape-banner__card::after { animation: none; }
+  html:not([data-motion="full"]) .escape-banner__glow {
+    animation: none;
+  }
+
+  html:not([data-motion="full"]) .escape-banner__medal {
+    animation: none;
+  }
+
+  html:not([data-motion="full"]) .escape-banner__card::after {
+    animation: none;
+  }
 }
 
 /* Matrix note card entrance — used on /matrix-notes. Kept separate from
@@ -1408,14 +1750,23 @@ html[data-motion="reduced"] .voice-orb-still {
     opacity: 0;
     transform: translateY(8px) scale(0.985);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
+
 @keyframes matrix-note-reduced-in {
-  from { opacity: 0; transform: none; }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: none;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1444,16 +1795,37 @@ html[data-motion="reduced"] [data-matrix-note] {
    ─────────────────────────────────────────────────────────────────────── */
 
 @keyframes disco-paper {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes disco-overlay {
-  0%, 100% { background-position: 0% 0%; }
-  25%      { background-position: 100% 0%; }
-  50%      { background-position: 100% 100%; }
-  75%      { background-position: 0% 100%; }
+
+  0%,
+  100% {
+    background-position: 0% 0%;
+  }
+
+  25% {
+    background-position: 100% 0%;
+  }
+
+  50% {
+    background-position: 100% 100%;
+  }
+
+  75% {
+    background-position: 0% 100%;
+  }
 }
 
 html[data-disco="on"] {
@@ -1467,6 +1839,7 @@ html[data-disco="on"] {
   --c-heading: #7c2d12;
   --c-highlight: #9a3412;
 }
+
 html[data-disco="on"].dark {
   --c-ink: #f5f0ff;
   --c-grid: rgba(255, 200, 255, 0.22);
@@ -1481,16 +1854,14 @@ html[data-disco="on"].dark {
 /* Light disco: vivid candy palette on body. */
 html[data-disco="on"] body {
   background:
-    linear-gradient(
-      135deg,
+    linear-gradient(135deg,
       #fde68a 0%,
       #fbcfe8 18%,
       #c7d2fe 36%,
       #bbf7d0 54%,
       #bae6fd 72%,
       #f9a8d4 90%,
-      #fde68a 100%
-    );
+      #fde68a 100%);
   background-size: 300% 300%;
   animation: disco-paper 12s linear infinite;
   /* Safari fix: the ::before and ::after pseudo-elements below use
@@ -1505,16 +1876,14 @@ html[data-disco="on"] body {
 /* Dark disco: deeper jewel tones so it reads as "club" rather than pastel. */
 html[data-disco="on"].dark body {
   background:
-    linear-gradient(
-      135deg,
+    linear-gradient(135deg,
       #7c2d12 0%,
       #701a75 18%,
       #312e81 36%,
       #14532d 54%,
       #0c4a6e 72%,
       #be185d 90%,
-      #7c2d12 100%
-    );
+      #7c2d12 100%);
   background-size: 300% 300%;
   animation: disco-paper 12s linear infinite;
 }
@@ -1547,6 +1916,7 @@ html[data-disco="on"] body::before {
   transform: translateZ(0);
   will-change: background-position;
 }
+
 @media (hover: hover) and (pointer: fine) {
   html[data-disco="on"] body::before {
     mix-blend-mode: screen;
@@ -1572,26 +1942,20 @@ html[data-disco="on"] body::before {
     height: 22vh;
     pointer-events: none;
     z-index: 0;
-    background: linear-gradient(
-      to top,
-      rgba(255, 255, 255, 0.18) 0%,
-      rgba(255, 255, 255, 0.04) 40%,
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(0, 0, 0, 1) 35%,
-      rgba(0, 0, 0, 1) 65%,
-      transparent 100%
-    );
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(0, 0, 0, 1) 35%,
-      rgba(0, 0, 0, 1) 65%,
-      transparent 100%
-    );
+    background: linear-gradient(to top,
+        rgba(255, 255, 255, 0.18) 0%,
+        rgba(255, 255, 255, 0.04) 40%,
+        transparent 100%);
+    mask-image: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 1) 35%,
+        rgba(0, 0, 0, 1) 65%,
+        transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg,
+        transparent 0%,
+        rgba(0, 0, 0, 1) 35%,
+        rgba(0, 0, 0, 1) 65%,
+        transparent 100%);
     animation: disco-floor-sweep 6s ease-in-out infinite;
     will-change: transform;
     mix-blend-mode: screen;
@@ -1599,9 +1963,20 @@ html[data-disco="on"] body::before {
 }
 
 @keyframes disco-floor-sweep {
-  0%   { transform: translateX(-30%) scaleX(0.9); opacity: 0.7; }
-  50%  { transform: translateX(30%)  scaleX(1.1); opacity: 1; }
-  100% { transform: translateX(-30%) scaleX(0.9); opacity: 0.7; }
+  0% {
+    transform: translateX(-30%) scaleX(0.9);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: translateX(30%) scaleX(1.1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(-30%) scaleX(0.9);
+    opacity: 0.7;
+  }
 }
 
 /* ─── Moving spotlight beams (DOM-rendered, transform-animated) ───────── */
@@ -1612,6 +1987,7 @@ html[data-disco="on"] body::before {
   left: -3vw;
   right: -3vw;
 }
+
 .disco-spot {
   position: absolute;
   width: 45vmax;
@@ -1623,17 +1999,21 @@ html[data-disco="on"] body::before {
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
 }
+
 .disco-spot--magenta {
   animation: disco-spot-magenta 14s ease-in-out infinite;
 }
+
 .disco-spot--cyan {
   animation: disco-spot-cyan 11s ease-in-out infinite;
   animation-delay: -2s;
 }
+
 .disco-spot--gold {
   animation: disco-spot-gold 17s ease-in-out infinite;
   animation-delay: -5s;
 }
+
 /* Three additional spotlights — paths are genuinely different shapes
    (figure-8, spiral, zigzag) rather than speed variations of the same curve.
    Peak opacity is clamped lower (~0.35) so the combined ceiling with the
@@ -1644,12 +2024,14 @@ html[data-disco="on"] body::before {
   animation: disco-spot-violet 19s ease-in-out infinite;
   animation-delay: -3.5s;
 }
+
 .disco-spot--lime {
   width: 36vmax;
   height: 36vmax;
   animation: disco-spot-lime 13s linear infinite;
   animation-delay: -7s;
 }
+
 .disco-spot--coral {
   width: 40vmax;
   height: 40vmax;
@@ -1660,62 +2042,224 @@ html[data-disco="on"] body::before {
 /* Lissajous-ish drifts — each beam has a distinct path so the scene never
    feels periodic. Opacity also breathes so beams "pulse" without scale churn. */
 @keyframes disco-spot-magenta {
-  0%   { transform: translate3d(5vw,  10vh, 0) scale(1);    opacity: 0.95; }
-  20%  { transform: translate3d(35vw, 20vh, 0) scale(1.08); opacity: 1;    }
-  40%  { transform: translate3d(60vw, 55vh, 0) scale(0.95); opacity: 0.85; }
-  60%  { transform: translate3d(30vw, 70vh, 0) scale(1.1);  opacity: 1;    }
-  80%  { transform: translate3d(10vw, 40vh, 0) scale(1);    opacity: 0.9;  }
-  100% { transform: translate3d(5vw,  10vh, 0) scale(1);    opacity: 0.95; }
+  0% {
+    transform: translate3d(5vw, 10vh, 0) scale(1);
+    opacity: 0.95;
+  }
+
+  20% {
+    transform: translate3d(35vw, 20vh, 0) scale(1.08);
+    opacity: 1;
+  }
+
+  40% {
+    transform: translate3d(60vw, 55vh, 0) scale(0.95);
+    opacity: 0.85;
+  }
+
+  60% {
+    transform: translate3d(30vw, 70vh, 0) scale(1.1);
+    opacity: 1;
+  }
+
+  80% {
+    transform: translate3d(10vw, 40vh, 0) scale(1);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate3d(5vw, 10vh, 0) scale(1);
+    opacity: 0.95;
+  }
 }
+
 @keyframes disco-spot-cyan {
-  0%   { transform: translate3d(55vw, 5vh,  0) scale(1);    opacity: 0.9; }
-  25%  { transform: translate3d(25vw, 30vh, 0) scale(1.12); opacity: 1;   }
-  50%  { transform: translate3d(15vw, 60vh, 0) scale(0.92); opacity: 0.8; }
-  75%  { transform: translate3d(55vw, 50vh, 0) scale(1.05); opacity: 1;   }
-  100% { transform: translate3d(55vw, 5vh,  0) scale(1);    opacity: 0.9; }
+  0% {
+    transform: translate3d(55vw, 5vh, 0) scale(1);
+    opacity: 0.9;
+  }
+
+  25% {
+    transform: translate3d(25vw, 30vh, 0) scale(1.12);
+    opacity: 1;
+  }
+
+  50% {
+    transform: translate3d(15vw, 60vh, 0) scale(0.92);
+    opacity: 0.8;
+  }
+
+  75% {
+    transform: translate3d(55vw, 50vh, 0) scale(1.05);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate3d(55vw, 5vh, 0) scale(1);
+    opacity: 0.9;
+  }
 }
+
 @keyframes disco-spot-gold {
-  0%   { transform: translate3d(30vw, 60vh, 0) scale(1);    opacity: 0.85; }
-  18%  { transform: translate3d(15vw, 20vh, 0) scale(1.1);  opacity: 1;    }
-  36%  { transform: translate3d(50vw, 15vh, 0) scale(0.95); opacity: 0.9;  }
-  54%  { transform: translate3d(65vw, 45vh, 0) scale(1.08); opacity: 1;    }
-  72%  { transform: translate3d(40vw, 65vh, 0) scale(1);    opacity: 0.9;  }
-  100% { transform: translate3d(30vw, 60vh, 0) scale(1);    opacity: 0.85; }
+  0% {
+    transform: translate3d(30vw, 60vh, 0) scale(1);
+    opacity: 0.85;
+  }
+
+  18% {
+    transform: translate3d(15vw, 20vh, 0) scale(1.1);
+    opacity: 1;
+  }
+
+  36% {
+    transform: translate3d(50vw, 15vh, 0) scale(0.95);
+    opacity: 0.9;
+  }
+
+  54% {
+    transform: translate3d(65vw, 45vh, 0) scale(1.08);
+    opacity: 1;
+  }
+
+  72% {
+    transform: translate3d(40vw, 65vh, 0) scale(1);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate3d(30vw, 60vh, 0) scale(1);
+    opacity: 0.85;
+  }
 }
 
 /* ── Violet — figure-8 path that crosses itself in the middle ── */
 @keyframes disco-spot-violet {
-  0%   { transform: translate3d(70vw, 10vh, 0) scale(1);    opacity: 0.25; }
-  12%  { transform: translate3d(45vw, 30vh, 0) scale(1.04); opacity: 0.35; }
-  25%  { transform: translate3d(20vw, 50vh, 0) scale(1);    opacity: 0.30; }
-  37%  { transform: translate3d(45vw, 70vh, 0) scale(1.06); opacity: 0.35; }
-  50%  { transform: translate3d(70vw, 50vh, 0) scale(1.02); opacity: 0.28; }
-  62%  { transform: translate3d(45vw, 30vh, 0) scale(1.05); opacity: 0.32; }
-  75%  { transform: translate3d(20vw, 50vh, 0) scale(0.98); opacity: 0.35; }
-  87%  { transform: translate3d(45vw, 70vh, 0) scale(1.04); opacity: 0.3;  }
-  100% { transform: translate3d(70vw, 10vh, 0) scale(1);    opacity: 0.25; }
+  0% {
+    transform: translate3d(70vw, 10vh, 0) scale(1);
+    opacity: 0.25;
+  }
+
+  12% {
+    transform: translate3d(45vw, 30vh, 0) scale(1.04);
+    opacity: 0.35;
+  }
+
+  25% {
+    transform: translate3d(20vw, 50vh, 0) scale(1);
+    opacity: 0.30;
+  }
+
+  37% {
+    transform: translate3d(45vw, 70vh, 0) scale(1.06);
+    opacity: 0.35;
+  }
+
+  50% {
+    transform: translate3d(70vw, 50vh, 0) scale(1.02);
+    opacity: 0.28;
+  }
+
+  62% {
+    transform: translate3d(45vw, 30vh, 0) scale(1.05);
+    opacity: 0.32;
+  }
+
+  75% {
+    transform: translate3d(20vw, 50vh, 0) scale(0.98);
+    opacity: 0.35;
+  }
+
+  87% {
+    transform: translate3d(45vw, 70vh, 0) scale(1.04);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: translate3d(70vw, 10vh, 0) scale(1);
+    opacity: 0.25;
+  }
 }
+
 /* ── Lime — inward spiral; visits center more often than the edges ── */
 @keyframes disco-spot-lime {
-  0%   { transform: translate3d(5vw,  5vh,  0) scale(1);    opacity: 0.22; }
-  20%  { transform: translate3d(65vw, 10vh, 0) scale(1.05); opacity: 0.3;  }
-  40%  { transform: translate3d(60vw, 60vh, 0) scale(1);    opacity: 0.28; }
-  60%  { transform: translate3d(20vw, 55vh, 0) scale(1.08); opacity: 0.32; }
-  75%  { transform: translate3d(35vw, 35vh, 0) scale(1);    opacity: 0.35; }
-  90%  { transform: translate3d(42vw, 42vh, 0) scale(1.02); opacity: 0.3;  }
-  100% { transform: translate3d(5vw,  5vh,  0) scale(1);    opacity: 0.22; }
+  0% {
+    transform: translate3d(5vw, 5vh, 0) scale(1);
+    opacity: 0.22;
+  }
+
+  20% {
+    transform: translate3d(65vw, 10vh, 0) scale(1.05);
+    opacity: 0.3;
+  }
+
+  40% {
+    transform: translate3d(60vw, 60vh, 0) scale(1);
+    opacity: 0.28;
+  }
+
+  60% {
+    transform: translate3d(20vw, 55vh, 0) scale(1.08);
+    opacity: 0.32;
+  }
+
+  75% {
+    transform: translate3d(35vw, 35vh, 0) scale(1);
+    opacity: 0.35;
+  }
+
+  90% {
+    transform: translate3d(42vw, 42vh, 0) scale(1.02);
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: translate3d(5vw, 5vh, 0) scale(1);
+    opacity: 0.22;
+  }
 }
+
 /* ── Coral — zigzag that hugs left/right edges alternately (including the
    left margin, verifying disco coverage where the binding used to be flat) ── */
 @keyframes disco-spot-coral {
-  0%   { transform: translate3d(-2vw, 15vh, 0) scale(1);    opacity: 0.3;  }
-  14%  { transform: translate3d(68vw, 25vh, 0) scale(1.04); opacity: 0.35; }
-  28%  { transform: translate3d(-1vw, 38vh, 0) scale(1.02); opacity: 0.35; }
-  42%  { transform: translate3d(66vw, 50vh, 0) scale(1);    opacity: 0.3;  }
-  56%  { transform: translate3d(-2vw, 62vh, 0) scale(1.05); opacity: 0.35; }
-  70%  { transform: translate3d(60vw, 72vh, 0) scale(1);    opacity: 0.28; }
-  84%  { transform: translate3d(-1vw, 50vh, 0) scale(1.03); opacity: 0.32; }
-  100% { transform: translate3d(-2vw, 15vh, 0) scale(1);    opacity: 0.3;  }
+  0% {
+    transform: translate3d(-2vw, 15vh, 0) scale(1);
+    opacity: 0.3;
+  }
+
+  14% {
+    transform: translate3d(68vw, 25vh, 0) scale(1.04);
+    opacity: 0.35;
+  }
+
+  28% {
+    transform: translate3d(-1vw, 38vh, 0) scale(1.02);
+    opacity: 0.35;
+  }
+
+  42% {
+    transform: translate3d(66vw, 50vh, 0) scale(1);
+    opacity: 0.3;
+  }
+
+  56% {
+    transform: translate3d(-2vw, 62vh, 0) scale(1.05);
+    opacity: 0.35;
+  }
+
+  70% {
+    transform: translate3d(60vw, 72vh, 0) scale(1);
+    opacity: 0.28;
+  }
+
+  84% {
+    transform: translate3d(-1vw, 50vh, 0) scale(1.03);
+    opacity: 0.32;
+  }
+
+  100% {
+    transform: translate3d(-2vw, 15vh, 0) scale(1);
+    opacity: 0.3;
+  }
 }
 
 /* ─── Bounce: the four-on-the-floor pulse applied to chrome ───────────────
@@ -1732,17 +2276,31 @@ html[data-disco="on"] body::before {
    translateY through the CSS `scale` property, which is independent from
    `transform` on modern browsers. Amplitude is tiny so the active-tab
    `scale-110` Tailwind class isn't visibly perturbed. */
-html[data-disco="on"] nav[aria-label="Main navigation"] > a > div {
+html[data-disco="on"] nav[aria-label="Main navigation"]>a>div {
   animation: disco-nav-bounce 500ms ease-in-out infinite;
   animation-delay: calc(var(--disco-bounce-delay, 0ms));
 }
 
 /* Stagger helpers — the Nav renders in DOM order; nth-child targets each tab. */
-html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(1) > div { --disco-bounce-delay: 0ms; }
-html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(2) > div { --disco-bounce-delay: 125ms; }
-html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(3) > div { --disco-bounce-delay: 250ms; }
-html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(4) > div { --disco-bounce-delay: 375ms; }
-html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(5) > div { --disco-bounce-delay: 500ms; }
+html[data-disco="on"] nav[aria-label="Main navigation"]>a:nth-child(1)>div {
+  --disco-bounce-delay: 0ms;
+}
+
+html[data-disco="on"] nav[aria-label="Main navigation"]>a:nth-child(2)>div {
+  --disco-bounce-delay: 125ms;
+}
+
+html[data-disco="on"] nav[aria-label="Main navigation"]>a:nth-child(3)>div {
+  --disco-bounce-delay: 250ms;
+}
+
+html[data-disco="on"] nav[aria-label="Main navigation"]>a:nth-child(4)>div {
+  --disco-bounce-delay: 375ms;
+}
+
+html[data-disco="on"] nav[aria-label="Main navigation"]>a:nth-child(5)>div {
+  --disco-bounce-delay: 500ms;
+}
 
 /* Scale-only bounce — the CSS `scale` property is separate from `transform`
    on modern engines, so this composes additively over the nav tab's inline
@@ -1753,15 +2311,36 @@ html[data-disco="on"] nav[aria-label="Main navigation"] > a:nth-child(5) > div {
    tabs still bounce. On modern Safari both paths are safe because the
    `@supports` branch only matches when the standalone property is unsupported. */
 @keyframes disco-nav-bounce {
-  0%, 100% { scale: 1; }
-  18%      { scale: 1.035; }
-  35%      { scale: 1; }
+
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  18% {
+    scale: 1.035;
+  }
+
+  35% {
+    scale: 1;
+  }
 }
+
 @supports not (scale: 1) {
   @keyframes disco-nav-bounce {
-    0%, 100% { transform: scale(1); }
-    18%      { transform: scale(1.035); }
-    35%      { transform: scale(1); }
+
+    0%,
+    100% {
+      transform: scale(1);
+    }
+
+    18% {
+      transform: scale(1.035);
+    }
+
+    35% {
+      transform: scale(1);
+    }
   }
 }
 
@@ -1770,19 +2349,38 @@ html[data-disco="on"] [data-sticker-toast] {
   animation: disco-bounce-soft 500ms ease-in-out infinite;
 }
 
-/* Theme toggle + Feedback FAB + Mini-chat + Glance badge — all bounce. */
+/* Theme toggle + Feedback FAB + Glance badge — all bounce. */
 html[data-disco="on"] [data-disco-bounce] {
   animation: disco-bounce-soft 500ms ease-in-out infinite;
 }
+
 /* Stagger some of these so not everything lifts at once. */
-html[data-disco="on"] [data-disco-bounce="2"] { animation-delay: 125ms; }
-html[data-disco="on"] [data-disco-bounce="3"] { animation-delay: 250ms; }
-html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
+html[data-disco="on"] [data-disco-bounce="2"] {
+  animation-delay: 125ms;
+}
+
+html[data-disco="on"] [data-disco-bounce="3"] {
+  animation-delay: 250ms;
+}
+
+html[data-disco="on"] [data-disco-bounce="4"] {
+  animation-delay: 375ms;
+}
 
 @keyframes disco-bounce-soft {
-  0%, 100% { transform: translateY(0); }
-  18%      { transform: translateY(-3px); }
-  35%      { transform: translateY(0); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  18% {
+    transform: translateY(-3px);
+  }
+
+  35% {
+    transform: translateY(0);
+  }
 }
 
 /* ─── Motion vocabulary — four named variants with distinct feel ─────────
@@ -1798,20 +2396,46 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    ±2.5deg around a CSS-var resting angle for a more energetic dance-floor
    feel without crossing into seizure-inducing territory. */
 @keyframes disco-wiggle {
-  0%, 100% { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  25%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg))); }
-  50%      { transform: rotate(var(--disco-wiggle-rest, 0deg)); }
-  75%      { transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg))); }
+
+  0%,
+  100% {
+    transform: rotate(var(--disco-wiggle-rest, 0deg));
+  }
+
+  25% {
+    transform: rotate(calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg)));
+  }
+
+  50% {
+    transform: rotate(var(--disco-wiggle-rest, 0deg));
+  }
+
+  75% {
+    transform: rotate(calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg)));
+  }
 }
 
 /* 2) shimmy — horizontal slide, short burst, for wide-ish elements (chat
    bubbles, guestbook notes). Amplitude bumped to ±4px. Still keeps text
    readable (no Y jitter to cross reading sightline). */
 @keyframes disco-shimmy {
-  0%, 100% { transform: translateX(0); }
-  25%      { transform: translateX(4px); }
-  50%      { transform: translateX(0); }
-  75%      { transform: translateX(-4px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(4px);
+  }
+
+  50% {
+    transform: translateX(0);
+  }
+
+  75% {
+    transform: translateX(-4px);
+  }
 }
 
 /* 2b) spin-prop — same rotational sway as `disco-wiggle`, but animates the
@@ -1820,10 +2444,23 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    tiles' hover/tap), so the dance is visible even after pointer interaction
    resolves the inline transform. */
 @keyframes disco-spin-prop {
-  0%, 100% { rotate: var(--disco-wiggle-rest, 0deg); }
-  25%      { rotate: calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg)); }
-  50%      { rotate: var(--disco-wiggle-rest, 0deg); }
-  75%      { rotate: calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg)); }
+
+  0%,
+  100% {
+    rotate: var(--disco-wiggle-rest, 0deg);
+  }
+
+  25% {
+    rotate: calc(var(--disco-wiggle-rest, 0deg) + var(--disco-wiggle-amplitude, 5deg));
+  }
+
+  50% {
+    rotate: var(--disco-wiggle-rest, 0deg);
+  }
+
+  75% {
+    rotate: calc(var(--disco-wiggle-rest, 0deg) - var(--disco-wiggle-amplitude, 5deg));
+  }
 }
 
 /* 2c) chat-sway — combined slight rotate + horizontal translation for chat
@@ -1831,36 +2468,91 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
    Framer Motion's inline transform on each sticky note instead of flattening
    its resting rotation. Amplitude stays tight so message text remains readable. */
 @keyframes disco-chat-sway {
-  0%, 100% { translate: 0 0;    rotate: 0deg; }
-  25%      { translate: 4px 0;  rotate: 2deg; }
-  50%      { translate: 0 0;    rotate: 0deg; }
-  75%      { translate: -4px 0; rotate: -2deg; }
+
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+
+  25% {
+    translate: 4px 0;
+    rotate: 2deg;
+  }
+
+  50% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+
+  75% {
+    translate: -4px 0;
+    rotate: -2deg;
+  }
 }
+
 @supports not (translate: 1px) {
   @keyframes disco-chat-sway {
-    0%, 100% { transform: translateX(0);    rotate: 0deg; }
-    25%      { transform: translateX(4px);  rotate: 2deg; }
-    50%      { transform: translateX(0);    rotate: 0deg; }
-    75%      { transform: translateX(-4px); rotate: -2deg; }
+
+    0%,
+    100% {
+      transform: translateX(0);
+      rotate: 0deg;
+    }
+
+    25% {
+      transform: translateX(4px);
+      rotate: 2deg;
+    }
+
+    50% {
+      transform: translateX(0);
+      rotate: 0deg;
+    }
+
+    75% {
+      transform: translateX(-4px);
+      rotate: -2deg;
+    }
   }
 }
 
 /* 3) breath — slow scale pulse, for LARGE surfaces (terminal shell,
-   mini-chat panel, resume PDF shell, command palette card). Amplitude
+   resume PDF shell, command palette card). Amplitude
    bumped to 2.5% so the surface visibly inhales/exhales with the beat. */
 @keyframes disco-breath {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.025); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.025);
+  }
 }
 
 /* 4) bob — vertical bob with a tiny rotation kick, for smaller standalone
    elements (hint text, badges, hero CTAs). Amplitude tuned so text stays
    readable mid-bob. */
 @keyframes disco-bob {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  25%      { transform: translateY(-5px) rotate(0.8deg); }
-  50%      { transform: translateY(0) rotate(0deg); }
-  75%      { transform: translateY(-3px) rotate(-0.8deg); }
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  25% {
+    transform: translateY(-5px) rotate(0.8deg);
+  }
+
+  50% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  75% {
+    transform: translateY(-3px) rotate(-0.8deg);
+  }
 }
 
 /* Generic variant selector — read `data-disco-motion` and map to a keyframe.
@@ -1877,6 +2569,7 @@ html[data-disco="on"] [data-disco-motion="wiggle"] {
   transform-origin: center;
   will-change: rotate;
 }
+
 @supports not (rotate: 1deg) {
   html[data-disco="on"] [data-disco-motion="wiggle"] {
     animation: disco-wiggle var(--disco-motion-duration, 1200ms) ease-in-out infinite;
@@ -1884,16 +2577,19 @@ html[data-disco="on"] [data-disco-motion="wiggle"] {
     will-change: transform;
   }
 }
+
 html[data-disco="on"] [data-disco-motion="shimmy"] {
   animation: disco-shimmy 800ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform;
 }
+
 html[data-disco="on"] [data-disco-motion="breath"] {
   animation: disco-breath 2000ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform;
 }
+
 html[data-disco="on"] [data-disco-motion="bob"] {
   animation: disco-bob 1100ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
@@ -1907,7 +2603,7 @@ html[data-disco="on"] [data-disco-motion="bob"] {
 /* Guestbook notes — the outer article wrapper already animates an entrance
    via `.animate-wall-note-in`. We only apply disco motion to the INNER
    body (`article > div`) so the rotation on the article is untouched. */
-html[data-disco="on"] article.animate-wall-note-in > div {
+html[data-disco="on"] article.animate-wall-note-in>div {
   /* Standalone-rotate variant so the inner wiggle composes with any
      transform left on the wrapping <article> by its entrance animation. */
   animation: disco-spin-prop 1400ms ease-in-out infinite;
@@ -1915,8 +2611,9 @@ html[data-disco="on"] article.animate-wall-note-in > div {
   transform-origin: center;
   will-change: rotate;
 }
+
 @supports not (rotate: 1deg) {
-  html[data-disco="on"] article.animate-wall-note-in > div {
+  html[data-disco="on"] article.animate-wall-note-in>div {
     animation: disco-wiggle 1400ms ease-in-out infinite;
     will-change: transform;
   }
@@ -1934,6 +2631,7 @@ html[data-disco="on"] .sticker-card--unlocked {
   animation-delay: var(--card-entrance-delay, 0s), var(--card-float-delay, 0s), var(--disco-motion-delay, 0ms);
   animation-fill-mode: both, none, none;
 }
+
 html[data-disco="on"] .sticker-card--locked {
   animation:
     sticker-card-in 0.3s ease-out both,
@@ -1941,10 +2639,19 @@ html[data-disco="on"] .sticker-card--locked {
   animation-delay: var(--card-entrance-delay, 0s), var(--disco-motion-delay, 0ms);
   animation-fill-mode: both, none;
 }
+
 @keyframes disco-card-scale {
-  0%, 100% { scale: 1; }
-  50%      { scale: 1.025; }
+
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  50% {
+    scale: 1.025;
+  }
 }
+
 /* Safari ≤14.3 fallback — standalone `scale:` unsupported, so use the older
    `transform: scale()` form. The card's idle float animation already owns
    `transform`, so on the fallback path the beat-scale overwrites that for the
@@ -1952,8 +2659,15 @@ html[data-disco="on"] .sticker-card--locked {
    is not visually detectable). */
 @supports not (scale: 1) {
   @keyframes disco-card-scale {
-    0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.025); }
+
+    0%,
+    100% {
+      transform: scale(1);
+    }
+
+    50% {
+      transform: scale(1.025);
+    }
   }
 }
 
@@ -1976,6 +2690,7 @@ html[data-disco="on"] .animate-page-sheet {
   animation: pageSheetIn 0.35s ease-out both, disco-spin-prop 1400ms ease-in-out infinite -0.5s;
   transform-origin: center;
 }
+
 @supports not (rotate: 1deg) {
   html[data-disco="on"] .animate-page-sheet {
     animation: pageSheetIn 0.35s ease-out both, disco-wiggle 1400ms ease-in-out infinite -0.5s;
@@ -1993,6 +2708,7 @@ html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
 }
 
 @media (hover: hover) and (pointer: fine) {
+
   html[data-disco="on"] .bg-\[var\(--note-user\)\],
   html[data-disco="on"] .bg-\[var\(--note-ai\)\] {
     animation-name: disco-chat-sway, disco-card-hue;
@@ -2009,7 +2725,7 @@ html[data-disco="on"] button[data-clickable] {
   animation: disco-bounce-soft 500ms ease-in-out infinite;
 }
 
-/* Mini-chat panel (when open) — gentle breath on the command palette. */
+/* Command palette — gentle breath on the command palette. */
 html[data-disco="on"] [role="dialog"][aria-label="Command palette"] {
   animation: disco-breath 2000ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
@@ -2028,6 +2744,7 @@ html[data-disco="on"].dark .text-gray-600 {
   color: #f1f5f9 !important;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
 }
+
 html[data-disco="on"]:not(.dark) .text-gray-400,
 html[data-disco="on"]:not(.dark) .text-gray-500 {
   /* Light disco: gray-400 on a mixed-pastel gradient can drop below AA on the
@@ -2044,16 +2761,19 @@ html[data-disco="on"] main {
   /* Scrolling container must never dance — would break reading flow. */
   animation: none !important;
 }
+
 html[data-disco="on"] input:focus,
 html[data-disco="on"] textarea:focus {
   /* Keep the raw control itself stable; the opt-in disco wrapper may still dance. */
   animation: none !important;
 }
+
 html[data-disco="on"] .custom-cursor,
 html[data-disco="on"] [data-cursor] {
   /* Cursor layer never participates — tracking jitters feel like input lag. */
   animation: none !important;
 }
+
 html[data-disco="on"] p:not([data-disco-motion]),
 html[data-disco="on"] li:not([data-disco-motion]) {
   /* Long-form text nodes inside cards already inherit their parent's
@@ -2091,9 +2811,17 @@ html[data-disco="on"] .bg-binding-bg {
      the spine itself breathes with the beat. */
   animation: disco-binding-pulse 1s ease-in-out infinite;
 }
+
 @keyframes disco-binding-pulse {
-  0%, 100% { filter: hue-rotate(0deg) saturate(1)   brightness(1);   }
-  50%      { filter: hue-rotate(25deg) saturate(1.4) brightness(1.1); }
+
+  0%,
+  100% {
+    filter: hue-rotate(0deg) saturate(1) brightness(1);
+  }
+
+  50% {
+    filter: hue-rotate(25deg) saturate(1.4) brightness(1.1);
+  }
 }
 
 /* Note cards / project cards — hue cycle via `filter` on the card surface.
@@ -2107,6 +2835,7 @@ html[data-disco="on"] .bg-binding-bg {
    provide the disco color variety; cards still shimmy via transform, which
    stays on the compositor. */
 @media (hover: hover) and (pointer: fine) {
+
   html[data-disco="on"] .bg-note-paper,
   html[data-disco="on"] .bg-note-yellow,
   html[data-disco="on"] .bg-note-blue,
@@ -2117,6 +2846,7 @@ html[data-disco="on"] .bg-binding-bg {
     animation: disco-card-hue 6s linear infinite;
     animation-delay: var(--disco-card-delay, 0ms);
   }
+
   /* Nested media carries the parent's hue tint — we intentionally do NOT run
      the reverse-filter animation anymore. Previously, every <img>/<video>
      inside a disco-colored card ran its OWN filter animation to counteract
@@ -2130,12 +2860,27 @@ html[data-disco="on"] .bg-binding-bg {
      If a specific project screenshot ever needs to stay true-color, it can opt
      out individually via `style={{ filter: 'none !important' }}`. */
 }
+
 @keyframes disco-card-hue {
-  0%   { filter: hue-rotate(0deg)   saturate(1.3); }
-  25%  { filter: hue-rotate(60deg)  saturate(1.5); }
-  50%  { filter: hue-rotate(180deg) saturate(1.3); }
-  75%  { filter: hue-rotate(300deg) saturate(1.5); }
-  100% { filter: hue-rotate(360deg) saturate(1.3); }
+  0% {
+    filter: hue-rotate(0deg) saturate(1.3);
+  }
+
+  25% {
+    filter: hue-rotate(60deg) saturate(1.5);
+  }
+
+  50% {
+    filter: hue-rotate(180deg) saturate(1.3);
+  }
+
+  75% {
+    filter: hue-rotate(300deg) saturate(1.5);
+  }
+
+  100% {
+    filter: hue-rotate(360deg) saturate(1.3);
+  }
 }
 
 /* Headings — color cycle through vibrant, readable hues. We previously used
@@ -2170,16 +2915,18 @@ html[data-disco="on"] h3 {
      disco effect. Using `currentColor` explicitly is a no-op on untouched
      descendants but documents intent. */
 }
+
 /* Force the color cycle down into typical nested inline content so a
    descendant `<strong class="text-gray-900">` inside an `<h1>` doesn't paint
    gray over the disco color. Scoped to content nodes only — links keep their
    own accent color because they're already brand-colored and easily
    distinguishable under disco. */
-html[data-disco="on"] h1 > :where(strong, em, span, b, i),
-html[data-disco="on"] h2 > :where(strong, em, span, b, i),
-html[data-disco="on"] h3 > :where(strong, em, span, b, i) {
+html[data-disco="on"] h1> :where(strong, em, span, b, i),
+html[data-disco="on"] h2> :where(strong, em, span, b, i),
+html[data-disco="on"] h3> :where(strong, em, span, b, i) {
   color: inherit;
 }
+
 /* Dark disco: start with a color that reads on the jewel-tone backdrop. */
 html[data-disco="on"].dark h1,
 html[data-disco="on"].dark h2,
@@ -2203,6 +2950,7 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="wiggle"] {
   transform-origin: center;
   will-change: color, rotate;
 }
+
 html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="shimmy"] {
   animation:
     disco-heading-color 6s linear infinite,
@@ -2210,6 +2958,7 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="shimmy"] {
   animation-delay: 0ms, var(--disco-motion-delay, 0ms);
   will-change: color, transform;
 }
+
 html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="breath"] {
   animation:
     disco-heading-color 6s linear infinite,
@@ -2217,6 +2966,7 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="breath"] {
   animation-delay: 0ms, var(--disco-motion-delay, 0ms);
   will-change: color, transform;
 }
+
 html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="bob"] {
   animation:
     disco-heading-color 6s linear infinite,
@@ -2224,6 +2974,7 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="bob"] {
   animation-delay: 0ms, var(--disco-motion-delay, 0ms);
   will-change: color, transform;
 }
+
 @supports not (rotate: 1deg) {
   html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="wiggle"] {
     animation:
@@ -2233,15 +2984,39 @@ html[data-disco="on"] :is(h1, h2, h3)[data-disco-motion="bob"] {
     will-change: color, transform;
   }
 }
+
 @keyframes disco-heading-color {
-  0%   { color: #dc2626; }
-  14%  { color: #ea580c; }
-  28%  { color: #ca8a04; }
-  42%  { color: #16a34a; }
-  57%  { color: #0891b2; }
-  71%  { color: #7c3aed; }
-  85%  { color: #db2777; }
-  100% { color: #dc2626; }
+  0% {
+    color: #dc2626;
+  }
+
+  14% {
+    color: #ea580c;
+  }
+
+  28% {
+    color: #ca8a04;
+  }
+
+  42% {
+    color: #16a34a;
+  }
+
+  57% {
+    color: #0891b2;
+  }
+
+  71% {
+    color: #7c3aed;
+  }
+
+  85% {
+    color: #db2777;
+  }
+
+  100% {
+    color: #dc2626;
+  }
 }
 
 /* Note: `.disco-mute-btn` was removed in the single-mute consolidation. The
@@ -2264,16 +3039,31 @@ html[data-disco="on"] [data-terminal-placeholder] {
    join the dance via `data-disco-motion` attributes wired in their
    components. The keyframes themselves were bumped above to read as more
    energetic; the rules below are the additional surface coverage. */
-html[data-disco="on"] [data-social-sidebar] > * {
+html[data-disco="on"] [data-social-sidebar]>* {
   animation: disco-bob 1100ms ease-in-out infinite;
   animation-delay: var(--disco-motion-delay, 0ms);
   will-change: transform;
 }
-html[data-disco="on"] [data-social-sidebar] > *:nth-child(1) { --disco-motion-delay: 0ms; }
-html[data-disco="on"] [data-social-sidebar] > *:nth-child(2) { --disco-motion-delay: 110ms; }
-html[data-disco="on"] [data-social-sidebar] > *:nth-child(3) { --disco-motion-delay: 220ms; }
-html[data-disco="on"] [data-social-sidebar] > *:nth-child(4) { --disco-motion-delay: 330ms; }
-html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-delay: 440ms; }
+
+html[data-disco="on"] [data-social-sidebar]>*:nth-child(1) {
+  --disco-motion-delay: 0ms;
+}
+
+html[data-disco="on"] [data-social-sidebar]>*:nth-child(2) {
+  --disco-motion-delay: 110ms;
+}
+
+html[data-disco="on"] [data-social-sidebar]>*:nth-child(3) {
+  --disco-motion-delay: 220ms;
+}
+
+html[data-disco="on"] [data-social-sidebar]>*:nth-child(4) {
+  --disco-motion-delay: 330ms;
+}
+
+html[data-disco="on"] [data-social-sidebar]>*:nth-child(5) {
+  --disco-motion-delay: 440ms;
+}
 
 /* Legacy shimmer guard. The shared contract at the end of this file now
   settles every decorative disco loop for both motion preference paths. */
@@ -2291,13 +3081,33 @@ html[data-disco="on"] [data-social-sidebar] > *:nth-child(5) { --disco-motion-de
    ─────────────────────────────────────────────────────────────────────── */
 
 @keyframes sudo-rainbow-cycle {
-  0%   { text-decoration-color: #ef4444; }
-  16%  { text-decoration-color: #f97316; }
-  33%  { text-decoration-color: #eab308; }
-  50%  { text-decoration-color: #22c55e; }
-  66%  { text-decoration-color: #06b6d4; }
-  83%  { text-decoration-color: #8b5cf6; }
-  100% { text-decoration-color: #ef4444; }
+  0% {
+    text-decoration-color: #ef4444;
+  }
+
+  16% {
+    text-decoration-color: #f97316;
+  }
+
+  33% {
+    text-decoration-color: #eab308;
+  }
+
+  50% {
+    text-decoration-color: #22c55e;
+  }
+
+  66% {
+    text-decoration-color: #06b6d4;
+  }
+
+  83% {
+    text-decoration-color: #8b5cf6;
+  }
+
+  100% {
+    text-decoration-color: #ef4444;
+  }
 }
 
 html[data-sudo-rainbow="on"] a {
@@ -2330,13 +3140,35 @@ html[data-sudo-rainbow="on"] a {
    ─────────────────────────────────────────────────────────────────── */
 
 @keyframes terminal-auth-shake-keyframes {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  15%      { transform: translate3d(-6px, 0, 0); }
-  30%      { transform: translate3d(6px, 0, 0); }
-  45%      { transform: translate3d(-5px, 0, 0); }
-  60%      { transform: translate3d(5px, 0, 0); }
-  75%      { transform: translate3d(-2px, 0, 0); }
-  90%      { transform: translate3d(2px, 0, 0); }
+
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  15% {
+    transform: translate3d(-6px, 0, 0);
+  }
+
+  30% {
+    transform: translate3d(6px, 0, 0);
+  }
+
+  45% {
+    transform: translate3d(-5px, 0, 0);
+  }
+
+  60% {
+    transform: translate3d(5px, 0, 0);
+  }
+
+  75% {
+    transform: translate3d(-2px, 0, 0);
+  }
+
+  90% {
+    transform: translate3d(2px, 0, 0);
+  }
 }
 
 .terminal-auth-shake {
@@ -2344,12 +3176,10 @@ html[data-sudo-rainbow="on"] a {
   will-change: transform;
   /* Narrow amber flash behind the text so the shake reads as "denied" at
      a glance even without color context. */
-  background: linear-gradient(
-    180deg,
-    rgba(220, 38, 38, 0.08) 0%,
-    rgba(220, 38, 38, 0.0) 60%,
-    rgba(220, 38, 38, 0.0) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(220, 38, 38, 0.08) 0%,
+      rgba(220, 38, 38, 0.0) 60%,
+      rgba(220, 38, 38, 0.0) 100%);
   padding: 2px 4px;
   border-radius: 2px;
 }
@@ -2412,8 +3242,15 @@ html[data-sudo-rainbow="on"] a {
 }
 
 @keyframes terminal-decrypt-caret {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2436,13 +3273,11 @@ html[data-sudo-rainbow="on"] a {
   inset: 0;
   pointer-events: none;
   background:
-    repeating-linear-gradient(
-      0deg,
+    repeating-linear-gradient(0deg,
       rgba(16, 185, 129, 0.04) 0px,
       rgba(16, 185, 129, 0.04) 2px,
       transparent 2px,
-      transparent 6px
-    );
+      transparent 6px);
   opacity: 0.55;
   z-index: 0;
 }
@@ -2456,13 +3291,16 @@ html[data-sudo-rainbow="on"] a {
    pulsing emerald outer glow. Always animates — reduced motion override is
    intentional, see note above. */
 @keyframes admin-experimental-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45),
-                0 0 20px rgba(16, 185, 129, 0.22);
+      0 0 20px rgba(16, 185, 129, 0.22);
   }
+
   50% {
     box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.0),
-                0 0 32px rgba(16, 185, 129, 0.45);
+      0 0 32px rgba(16, 185, 129, 0.45);
   }
 }
 
@@ -2498,7 +3336,7 @@ html[data-sudo-rainbow="on"] a {
   color: var(--escape-color);
   box-shadow: 0 0 20px var(--escape-glow);
   transition: background 260ms ease, border-color 260ms ease,
-              color 260ms ease, box-shadow 260ms ease, filter 420ms ease;
+    color 260ms ease, box-shadow 260ms ease, filter 420ms ease;
 }
 
 /* Chat bubble — red LLM response for "Only root should know that." */
@@ -2610,11 +3448,11 @@ html:not([data-pref-sketch="on"]) .sticker-card {
    final visual state. Puzzle/auth timing is intentionally outside this list. */
 @layer utilities {
   @media (prefers-reduced-motion: reduce) {
+
     html:not([data-motion="full"])[data-disco="on"] body,
     html:not([data-motion="full"])[data-disco="on"] body::before,
     html:not([data-motion="full"])[data-disco="on"] body::after,
-    html:not([data-motion="full"])[data-disco="on"] :where(
-      nav[aria-label="Main navigation"] > a > div,
+    html:not([data-motion="full"])[data-disco="on"] :where(nav[aria-label="Main navigation"] > a > div,
       article.animate-wall-note-in > div,
       .bg-\[var\(--note-user\)\],
       .bg-\[var\(--note-ai\)\],
@@ -2631,14 +3469,12 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       h1,
       h2,
       h3,
-      [data-social-sidebar] > *
-    ) {
+      [data-social-sidebar] > *) {
       animation: none !important;
       transition-duration: 0.01ms !important;
     }
 
-    html:not([data-motion="full"]) :where(
-      .animate-hero-title,
+    html:not([data-motion="full"]) :where(.animate-hero-title,
       .animate-hero-subtitle,
       .animate-hero-badge,
       .animate-nav-tab,
@@ -2661,8 +3497,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       [data-superuser-toast],
       [data-disco-motion],
       [data-disco-bounce],
-      [data-hover-tilt]
-    ) {
+      [data-hover-tilt]) {
       animation: none !important;
       transition-duration: 0.01ms !important;
     }
@@ -2671,20 +3506,34 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       opacity: 1 !important;
     }
 
-    html:not([data-motion="full"]) .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
-    html:not([data-motion="full"]) .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
+    html:not([data-motion="full"]) .animate-hero-title {
+      transform: scale(1) rotate(-4deg) !important;
+    }
+
+    html:not([data-motion="full"]) .animate-hero-badge {
+      transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important;
+    }
+
     html:not([data-motion="full"]) .animate-social-link,
-    html:not([data-motion="full"]) .animate-page-sheet { transform: translateY(0) !important; }
-    html:not([data-motion="full"]) .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
-    html:not([data-motion="full"]) .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+    html:not([data-motion="full"]) .animate-page-sheet {
+      transform: translateY(0) !important;
+    }
+
+    html:not([data-motion="full"]) .animate-wall-note-in {
+      transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important;
+    }
+
+    html:not([data-motion="full"]) .sticker-card {
+      transform: rotate(var(--card-rotate, 0deg)) !important;
+    }
+
     html:not([data-motion="full"]) [data-hover-tilt] { transform: none !important; }
   }
 
   html[data-motion="reduced"][data-disco="on"] body,
   html[data-motion="reduced"][data-disco="on"] body::before,
   html[data-motion="reduced"][data-disco="on"] body::after,
-  html[data-motion="reduced"][data-disco="on"] :where(
-    nav[aria-label="Main navigation"] > a > div,
+  html[data-motion="reduced"][data-disco="on"] :where(nav[aria-label="Main navigation"] > a > div,
     article.animate-wall-note-in > div,
     .bg-\[var\(--note-user\)\],
     .bg-\[var\(--note-ai\)\],
@@ -2701,14 +3550,12 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     h1,
     h2,
     h3,
-    [data-social-sidebar] > *
-  ) {
+    [data-social-sidebar] > *) {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
 
-  html[data-motion="reduced"] :where(
-    .animate-hero-title,
+  html[data-motion="reduced"] :where(.animate-hero-title,
     .animate-hero-subtitle,
     .animate-hero-badge,
     .animate-nav-tab,
@@ -2731,8 +3578,7 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     [data-superuser-toast],
     [data-disco-motion],
     [data-disco-bounce],
-    [data-hover-tilt]
-  ) {
+    [data-hover-tilt]) {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
@@ -2741,11 +3587,26 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     opacity: 1 !important;
   }
 
-  html[data-motion="reduced"] .animate-hero-title { transform: scale(1) rotate(-4deg) !important; }
-  html[data-motion="reduced"] .animate-hero-badge { transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important; }
-  html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) { transform: translateY(0) !important; }
-  html[data-motion="reduced"] .animate-wall-note-in { transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important; }
-  html[data-motion="reduced"] .sticker-card { transform: rotate(var(--card-rotate, 0deg)) !important; }
+  html[data-motion="reduced"] .animate-hero-title {
+    transform: scale(1) rotate(-4deg) !important;
+  }
+
+  html[data-motion="reduced"] .animate-hero-badge {
+    transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important;
+  }
+
+  html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) {
+    transform: translateY(0) !important;
+  }
+
+  html[data-motion="reduced"] .animate-wall-note-in {
+    transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important;
+  }
+
+  html[data-motion="reduced"] .sticker-card {
+    transform: rotate(var(--card-rotate, 0deg)) !important;
+  }
+
   html[data-motion="reduced"] [data-hover-tilt] { transform: none !important; }
 }
 
@@ -2756,21 +3617,25 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   background: transparent;
   cursor: pointer;
 }
+
 .floating-volume-slider {
   height: 2.75rem;
   touch-action: none;
 }
+
 .master-volume-slider:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--c-ink) 50%, transparent);
   outline-offset: 2px;
   border-radius: 999px;
 }
+
 .master-volume-slider::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--c-ink) 22%, var(--c-paper));
   border: 1px dashed color-mix(in srgb, var(--c-ink) 35%, transparent);
 }
+
 .master-volume-slider::-webkit-slider-thumb {
   appearance: none;
   width: 16px;
@@ -2781,12 +3646,14 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   border: 2px solid var(--c-ink);
   box-shadow: 1px 1px 0 color-mix(in srgb, var(--c-ink) 18%, transparent);
 }
+
 .master-volume-slider::-moz-range-track {
   height: 6px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--c-ink) 22%, var(--c-paper));
   border: 1px dashed color-mix(in srgb, var(--c-ink) 35%, transparent);
 }
+
 .master-volume-slider::-moz-range-thumb {
   width: 16px;
   height: 16px;
@@ -2795,20 +3662,24 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   border: 2px solid var(--c-ink);
   box-shadow: 1px 1px 0 color-mix(in srgb, var(--c-ink) 18%, transparent);
 }
+
 .master-volume-slider--vertical {
   writing-mode: vertical-lr;
   direction: rtl;
   width: 2.75rem;
   height: 6.5rem;
 }
+
 .master-volume-slider--vertical::-webkit-slider-runnable-track {
   width: 6px;
   height: 100%;
 }
+
 .master-volume-slider--vertical::-webkit-slider-thumb {
   margin-top: 0;
   margin-left: -6px;
 }
+
 html[data-disco="on"] .master-volume-slider::-webkit-slider-thumb,
 html[data-disco="on"] .master-volume-slider::-moz-range-thumb {
   border-color: color-mix(in srgb, var(--c-heading) 80%, #f472b6);

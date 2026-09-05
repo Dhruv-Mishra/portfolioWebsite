@@ -1,7 +1,7 @@
 /**
  * matrixToastBus — tiny event bus for the matrix-escape achievement toast.
  *
- * We don't piggyback on the stickerBus because stickers are guarded by
+ * We don't piggyback on the sticker store because stickers are guarded by
  * sticker IDs and the "escape" achievement isn't a sticker (it has its
  * own banner on /stickers). Kept as an explicit fire path for future
  * flows (debug helpers, manual re-trigger) — the home-mount auto-fire

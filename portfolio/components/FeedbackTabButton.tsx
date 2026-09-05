@@ -18,6 +18,7 @@ export default function FeedbackTabButton({ onClick }: { onClick: () => void }) 
             }}
             style={{ zIndex: Z_INDEX.sidebar }}
             data-feedback-tab
+            data-feedback-trigger
             className={cn(
                 "hidden md:flex fixed bottom-20 right-4 md:right-8",
                 "w-10 h-10 md:w-11 md:h-11 rounded-full",

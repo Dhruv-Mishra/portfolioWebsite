@@ -2,13 +2,13 @@
 
 import { useEffect, type CSSProperties } from 'react';
 import StickyNoteChat from '@/components/StickyNoteChat';
-import { stickerBus } from '@/lib/stickerBus';
+import { unlockSticker } from '@/hooks/useStickers';
 
 export default function ChatPage() {
   // Scope-cut: emit on page mount rather than on first message.
   // Opening the dedicated chat page is itself the meaningful signal.
   useEffect(() => {
-    stickerBus.emit('full-chat');
+    unlockSticker('full-chat');
   }, []);
 
   return (

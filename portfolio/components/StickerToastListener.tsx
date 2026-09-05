@@ -1,22 +1,19 @@
 "use client";
 
 /**
- * StickerToastListener — the one component that:
- *   1. Subscribes to stickerBus events and calls unlockSticker(id).
- *   2. Renders the bottom-left sticky-note toast when a new sticker is
- *      earned, with auto-dismiss and tap-to-open-album behavior.
+ * StickerToastListener — presentation-only component that renders the
+ * bottom-left sticky-note toast when a new sticker is earned, with
+ * auto-dismiss and tap-to-open-album behavior.
  *
- * Mounted once by EagerEnhancements so the bus listener is always live.
+ * Mounted once by EagerEnhancements so the toast listener is live.
  */
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { stickerBus } from '@/lib/stickerBus';
 import { getSticker, StickerSvg, SUPERUSER_STICKER } from '@/lib/stickers';
 import {
   useActiveStickerToast,
-  unlockSticker,
   dismissActiveToast,
 } from '@/hooks/useStickers';
 import { useAdminPrefs } from '@/hooks/useAdminPrefs';
@@ -42,17 +39,6 @@ export default function StickerToastListener(): React.ReactElement | null {
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const timerRef = useRef<number | null>(null);
-
-  // Bridge bus -> store. Always run so the underlying unlock fires even
-  // when the toast UI is suppressed (glance badge stays in sync).
-  useEffect(() => {
-    const off = stickerBus.on((evt) => {
-      if (evt.type === 'earn') {
-        unlockSticker(evt.id);
-      }
-    });
-    return off;
-  }, []);
 
   // Suppress toast UI on /chat on mobile (chat owns the bottom of the
   // viewport there) or when the user has muted sticker toasts.

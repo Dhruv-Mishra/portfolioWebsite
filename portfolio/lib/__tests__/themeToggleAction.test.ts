@@ -6,9 +6,7 @@ import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('@/hooks/useStickers', () => ({
   setDiscoActiveImperative: vi.fn(),
-}));
-vi.mock('@/lib/stickerBus', () => ({
-  stickerBus: { emit: vi.fn() },
+  unlockSticker: vi.fn(),
 }));
 vi.mock('@/lib/soundManager', () => ({
   soundManager: { play: vi.fn() },
@@ -18,8 +16,7 @@ vi.mock('@/components/DiscoMediaLayer', () => ({
 }));
 
 import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
-import { setDiscoActiveImperative } from '@/hooks/useStickers';
-import { stickerBus } from '@/lib/stickerBus';
+import { setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 describe('runThemeToggle', () => {
@@ -33,10 +30,10 @@ describe('runThemeToggle', () => {
     expect(setDiscoActiveImperative).toHaveBeenCalledTimes(1);
     expect(setDiscoActiveImperative).toHaveBeenCalledWith(false);
     expect(setTheme).not.toHaveBeenCalled();
-    // Sticker bus + sound manager must NOT fire for the disco-exit path —
+    // Unlock sticker + sound manager must NOT fire for the disco-exit path —
     // exiting disco should be silent; the audio teardown happens inside the
     // DiscoMediaLayer unmount.
-    expect(stickerBus.emit).not.toHaveBeenCalled();
+    expect(unlockSticker).not.toHaveBeenCalled();
     expect(soundManager.play).not.toHaveBeenCalled();
   });
 
@@ -54,7 +51,7 @@ describe('runThemeToggle', () => {
     runThemeToggle({ discoActive: false, isDark: false, setTheme });
     expect(setDiscoActiveImperative).not.toHaveBeenCalled();
     expect(setTheme).toHaveBeenCalledWith('dark');
-    expect(stickerBus.emit).toHaveBeenCalledWith('theme-flipper');
+    expect(unlockSticker).toHaveBeenCalledWith('theme-flipper');
     expect(soundManager.play).toHaveBeenCalledWith('theme-dark');
   });
 
@@ -63,7 +60,7 @@ describe('runThemeToggle', () => {
     runThemeToggle({ discoActive: false, isDark: true, setTheme });
     expect(setDiscoActiveImperative).not.toHaveBeenCalled();
     expect(setTheme).toHaveBeenCalledWith('light');
-    expect(stickerBus.emit).toHaveBeenCalledWith('theme-flipper');
+    expect(unlockSticker).toHaveBeenCalledWith('theme-flipper');
     expect(soundManager.play).toHaveBeenCalledWith('theme-light');
   });
 

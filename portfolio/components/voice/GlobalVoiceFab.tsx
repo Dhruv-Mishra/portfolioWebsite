@@ -54,6 +54,7 @@ function GlobalVoiceFabImpl({ variant = 'desktop' }: GlobalVoiceFabProps): React
       <button
         type="button"
         onClick={startVoice}
+        data-global-voice-fab="desktop"
         className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
         aria-label="Talk with Dhruv by voice"
         title="Talk to me"
@@ -69,6 +70,8 @@ function GlobalVoiceFabImpl({ variant = 'desktop' }: GlobalVoiceFabProps): React
       onClick={startVoice}
       aria-label="Talk with Dhruv by voice"
       title="Talk to me"
+      data-global-voice-fab="mobile"
+      data-voice-launcher
       className={cn(
         'fixed h-[max(var(--c-fab-size),44px)] w-[max(var(--c-fab-size),44px)] rounded-full',
         'flex items-center justify-center shadow-lg',

@@ -5,9 +5,8 @@
  *
  * Architecture:
  *   - A module-level singleton holds the canonical state (unlocked set,
- *     lastEarnedAt, lastSeenAlbumAt, visitedRoutes, sudo mode, disco toggle,
- *     terminalCommands set, openedProjects set). LocalStorage is the
- *     persistence layer with explicit version gating + migration.
+ *     lastEarnedAt, lastSeenAlbumAt, visitedRoutes, sudo mode, disco toggle).
+ *     LocalStorage is the persistence layer with explicit version gating + migration.
  *   - A toast queue runs serially with a 500ms gap between toasts.
  *   - React consumers subscribe via useSyncExternalStore for tearing-free reads.
  *
@@ -27,7 +26,7 @@
  * result is what gates the re-render; the store guarantees slice references
  * are identity-stable until that specific field mutates.
  *
- * Also exposes `unlockSticker(id)` (imperative) used from the bus listener.
+ * Also exposes `unlockSticker(id)` (imperative) used from direct callers.
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import {
@@ -44,6 +43,10 @@ import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 
 const STORAGE_KEY = 'dhruv-stickers';
 /**
+ * v10 — retired the `note-passer` ("Paper Trail") sticker with the removal
+ *       of floating/mini chat. Dropped from `unlocked` on migration and added
+ *       to `DEAD_STICKER_IDS`. Removed ungated `terminalCommands` and
+ *       `openedProjects` detector state.
  * v9 — added three persisted audio-category volumes (0..1, default 1).
  * v8 — added persisted `masterVolume` (clamped 0..1). Binary mute stays a
  *      separate `soundsMuted` flag and never overwrites the remembered
@@ -79,7 +82,7 @@ const STORAGE_KEY = 'dhruv-stickers';
  * v2 — added superuser tracking, unique terminal command set, opened-project
  *      set, sudo/disco flags.
  */
-export const STORAGE_VERSION = 9 as const;
+export const STORAGE_VERSION = 10 as const;
 export const DEFAULT_MASTER_VOLUME = 1;
 
 // ─── State shape ────────────────────────────────────────────────────────
@@ -90,10 +93,6 @@ export interface StickerState {
   lastEarnedAt: number;
   lastSeenAlbumAt: number;
   visitedRoutes: string[];
-  /** Distinct terminal commands run — unlocks `terminal-addict` at size ≥5 */
-  terminalCommands: string[];
-  /** Distinct project slugs whose modal has been opened — unlocks `project-explorer` the first time any project is opened */
-  openedProjects: string[];
   /**
    * Runtime-only disco flag. NOT persisted — every page load begins with disco
    * OFF. The field lives on the in-memory state so selectors can subscribe to
@@ -161,12 +160,12 @@ const VALID_STICKER_IDS: ReadonlySet<StickerId> = new Set<StickerId>([
 
 /**
  * Dead sticker ids dropped on migration. When a sticker is retired from the
- * roster (e.g. konami in v6), its id may still be persisted in old blobs.
- * These ids are scrubbed from `unlocked` on load so the superuser
- * auto-award predicate doesn't get confused and so the album doesn't try
- * to render a missing SVG.
+ * roster (e.g. konami in v6, note-passer in v10), its id may still be
+ * persisted in old blobs. These ids are scrubbed from `unlocked` on load so the
+ * superuser auto-award predicate doesn't get confused and so the album doesn't
+ * try to render a missing SVG.
  */
-const DEAD_STICKER_IDS: ReadonlySet<string> = new Set<string>(['konami']);
+const DEAD_STICKER_IDS: ReadonlySet<string> = new Set<string>(['konami', 'note-passer']);
 
 export function clampMasterVolume(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_MASTER_VOLUME;
@@ -191,8 +190,6 @@ function defaultState(): StickerState {
     lastEarnedAt: 0,
     lastSeenAlbumAt: 0,
     visitedRoutes: [],
-    terminalCommands: [],
-    openedProjects: [],
     discoActive: false,
     soundsMuted: false,
     masterVolume: DEFAULT_MASTER_VOLUME,
@@ -214,13 +211,11 @@ function defaultState(): StickerState {
  *     it is unconditionally scrubbed.
  *   - v2/v3/v4 blobs may carry a `discoMuted` boolean — DROPPED in v5. The
  *     sitewide `soundsMuted` preference now governs the disco loop too.
- *   - v1–v5 blobs may include a persisted `konami` sticker id. Dropped in
- *     v6 (roster retirement). The rest of the `unlocked` array is kept
- *     so the superuser auto-award predicate still works correctly on the
- *     reduced 18-sticker roster.
- *   - v3+ adds terminalCommands / openedProjects, v4+ adds soundsMuted /
- *     superuserRevealedAt, v6+ adds matrixActive, v8+ adds masterVolume,
- *     v9+ adds voiceAgentVolume / siteSfxVolume / chatTtsVolume.
+ *   - Retired `konami` (v6) and `note-passer` (v10) sticker ids are scrubbed.
+ *     The rest of `unlocked` is kept so the superuser predicate remains valid.
+ *   - Historical terminalCommands / openedProjects fields are ignored. v4+
+ *     adds soundsMuted / superuserRevealedAt, v6+ adds matrixActive, v8+ adds
+ *     masterVolume, and v9+ adds voiceAgentVolume / siteSfxVolume / chatTtsVolume.
  *     Missing fields default to empty/false/0/1.
  *
  * Invariants that hold regardless of input version:
@@ -262,12 +257,6 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
   const visitedRoutes = Array.isArray(parsed.visitedRoutes)
     ? (parsed.visitedRoutes as unknown[]).filter((r): r is string => typeof r === 'string')
     : [];
-  const terminalCommands = Array.isArray(parsed.terminalCommands)
-    ? (parsed.terminalCommands as unknown[]).filter((c): c is string => typeof c === 'string')
-    : [];
-  const openedProjects = Array.isArray(parsed.openedProjects)
-    ? (parsed.openedProjects as unknown[]).filter((p): p is string => typeof p === 'string')
-    : [];
 
   return {
     version: STORAGE_VERSION,
@@ -276,8 +265,6 @@ function migrateToCurrent(parsed: Record<string, unknown>): StickerState {
     lastEarnedAt: typeof parsed.lastEarnedAt === 'number' ? parsed.lastEarnedAt : 0,
     lastSeenAlbumAt: typeof parsed.lastSeenAlbumAt === 'number' ? parsed.lastSeenAlbumAt : 0,
     visitedRoutes,
-    terminalCommands,
-    openedProjects,
     /** Always false on load — discoActive is session-only, never persisted. */
     discoActive: false,
     /** v8 preference — clamped 0..1. Missing/invalid values default to 1. */
@@ -548,7 +535,7 @@ export function unlockSticker(id: StickerId): void {
   if (!VALID_STICKER_IDS.has(id)) return;
   // Master kill-switch: if the user has paused sticker earning via admin
   // prefs (or the `stickers off` terminal command), drop the unlock on the
-  // floor \u2014 no roster mutation, no bus emit, no toast.
+  // floor — no roster mutation, no toast.
   if (!getAdminPrefsSnapshot().stickersEnabled) return;
   const current = store.state;
   if (current.unlocked.includes(id)) return;
@@ -615,46 +602,6 @@ export function addVisitedRouteImperative(route: string): void {
   store.state = next;
   writeToStorage(next);
   emitChange();
-}
-
-/**
- * Record a distinct terminal command invocation. Returns the new distinct
- * count so the caller can decide whether to emit terminal-addict.
- */
-export function recordTerminalCommandImperative(cmd: string): number {
-  initializeStoreOnce();
-  if (!cmd || typeof cmd !== 'string') return store.state.terminalCommands.length;
-  const normalized = cmd.trim().toLowerCase();
-  if (!normalized) return store.state.terminalCommands.length;
-  const current = store.state;
-  if (current.terminalCommands.includes(normalized)) return current.terminalCommands.length;
-  const next: StickerState = {
-    ...current,
-    terminalCommands: [...current.terminalCommands, normalized],
-  };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
-  return next.terminalCommands.length;
-}
-
-/**
- * Record that a project modal has been opened. Returns the new distinct
- * count so the caller can decide whether to emit project-explorer.
- */
-export function recordOpenedProjectImperative(slug: string): number {
-  initializeStoreOnce();
-  if (!slug || typeof slug !== 'string') return store.state.openedProjects.length;
-  const current = store.state;
-  if (current.openedProjects.includes(slug)) return current.openedProjects.length;
-  const next: StickerState = {
-    ...current,
-    openedProjects: [...current.openedProjects, slug],
-  };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
-  return next.openedProjects.length;
 }
 
 /** Explicit setter for the disco flag — used by sudo commands. */

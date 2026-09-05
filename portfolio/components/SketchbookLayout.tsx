@@ -16,8 +16,8 @@ import GlobalVoiceFab from './voice/GlobalVoiceFab';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
 
-// MobileSoundToggleFab — mobile-only floating FAB stacked above the MiniChat
-// FAB. Client-only so its `useSoundsMuted` subscription doesn't SSR-mismatch.
+// MobileSoundToggleFab — mobile-only floating FAB for volume controls.
+// Client-only so its `useSoundsMuted` subscription doesn't SSR-mismatch.
 const MobileSoundToggleFab = dynamic(() => import('./MobileSoundToggleFab'), {
     ssr: false,
     loading: () => null,

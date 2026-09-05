@@ -7,7 +7,8 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
-import { stickerBus } from '@/lib/stickerBus';
+import { unlockSticker } from '@/hooks/useStickers';
+import { appendUserAction } from '@/lib/userActionJournal';
 import { cn } from '@/lib/utils';
 import { rateLimiter, RATE_LIMITS } from '@/lib/rateLimit';
 import { Modal } from '@/components/ui/Modal';
@@ -226,7 +227,8 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       setState('success');
   success();
       soundManager.play('feedback-sent');
-      stickerBus.emit('note-sender');
+      unlockSticker('note-sender');
+      appendUserAction({ kind: 'feedback.submit' });
       clearDraft();
       // Auto-close after success
       successTimeoutRef.current = setTimeout(() => {

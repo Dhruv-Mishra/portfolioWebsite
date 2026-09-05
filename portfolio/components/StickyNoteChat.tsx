@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -15,6 +15,7 @@ import {
 } from '@/lib/matrixChatIntercept';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
+import { appendUserAction } from '@/lib/userActionJournal';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import { cn, pickRandom } from '@/lib/utils';
 import { CHAT_CONFIG } from '@/lib/chatContext';
@@ -46,8 +47,7 @@ import {
   getPromotedFollowupActions,
 } from '@/lib/actions';
 import { getSuggestionResponse } from '@/lib/suggestionResponses';
-import { stickerBus } from '@/lib/stickerBus';
-import { useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
+import { unlockSticker, useDiscoActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
@@ -443,41 +443,42 @@ const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect
   const isDisco = Boolean(isAction && (text === DISCO_ACTION_LABEL || text === DISCO_EXIT_ACTION_LABEL));
   const suggestionStyle = getSuggestionStyle(isDisco, isAction, index);
   return (
-  <m.button
-    initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
-    animate={SUGGESTION_ITEM_ANIMATE}
-    exit={SUGGESTION_ITEM_EXIT}
-    transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { delay: index * 0.07, duration: 0.2 }}
-    whileHover={SUGGESTION_HOVER}
-    whileTap={SUGGESTION_TAP}
-    onClick={handleClick}
-    data-disco-motion={isDisco ? 'wiggle' : 'bob'}
-    className={cn(
-      "min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5 border-2 rounded shadow-sm font-hand text-sm max-[480px]:text-[13px] md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
-      compact && "px-3 py-1.5 text-xs max-[480px]:px-2.5 max-[480px]:py-1 max-[480px]:text-[11px] md:text-sm",
-      isDisco
-        ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
-        : cn(
+    <m.button
+      initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
+      animate={SUGGESTION_ITEM_ANIMATE}
+      exit={SUGGESTION_ITEM_EXIT}
+      transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { delay: index * 0.07, duration: 0.2 }}
+      whileHover={SUGGESTION_HOVER}
+      whileTap={SUGGESTION_TAP}
+      onClick={handleClick}
+      data-disco-motion={isDisco ? 'wiggle' : 'bob'}
+      className={cn(
+        "min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5 border-2 rounded shadow-sm font-hand text-sm max-[480px]:text-[13px] md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
+        compact && "px-3 py-1.5 text-xs max-[480px]:px-2.5 max-[480px]:py-1 max-[480px]:text-[11px] md:text-sm",
+        isDisco
+          ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
+          : cn(
             "bg-[var(--c-paper)] text-[var(--c-ink)]",
             isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
           ),
-    )}
-    style={suggestionStyle}
-  >
-    <span className={cn(
-      "flex items-center gap-1 max-[480px]:gap-0.5 text-[10px] max-[480px]:text-[9px] font-bold uppercase tracking-wider mb-0.5",
-      isDisco
-        ? "text-fuchsia-700"
-        : isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
-    )}>
-      {isDisco
-        ? <span aria-hidden="true">🪩</span>
-        : isAction ? <Zap size={10} className="text-amber-500 max-[480px]:h-2 max-[480px]:w-2" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
-      {isDisco ? 'disco' : (isAction ? 'action' : 'suggestion')}
-    </span>
-    {text}
-  </m.button>
-); });
+      )}
+      style={suggestionStyle}
+    >
+      <span className={cn(
+        "flex items-center gap-1 max-[480px]:gap-0.5 text-[10px] max-[480px]:text-[9px] font-bold uppercase tracking-wider mb-0.5",
+        isDisco
+          ? "text-fuchsia-700"
+          : isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
+      )}>
+        {isDisco
+          ? <span aria-hidden="true">🪩</span>
+          : isAction ? <Zap size={10} className="text-amber-500 max-[480px]:h-2 max-[480px]:w-2" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
+        {isDisco ? 'disco' : (isAction ? 'action' : 'suggestion')}
+      </span>
+      {text}
+    </m.button>
+  );
+});
 
 // Hardcoded "Enter the Matrix" chip — only renders when the user has
 // already escaped the puzzle. Distinct matrix-green diagonal-stripe styling
@@ -838,8 +839,8 @@ const StickyNote = memo(function StickyNote({
           // Filler text: same color, just faded + italic to distinguish from final response
           !isUser && isDisplayingFiller && "italic opacity-50",
         )}
-        // Prevent note from collapsing to 0 height during erase→type transition
-        style={MIN_HEIGHT_STYLE}
+          // Prevent note from collapsing to 0 height during erase→type transition
+          style={MIN_HEIGHT_STYLE}
         >
           {isUser ? (
             message.content
@@ -951,7 +952,7 @@ interface ChatInputAreaProps {
   composerRef: React.RefObject<HTMLDivElement | null>;
 }
 
-const subscribeToComposerHydration = () => () => {};
+const subscribeToComposerHydration = () => () => { };
 const getClientComposerHydrationSnapshot = () => true;
 const getServerComposerHydrationSnapshot = () => false;
 
@@ -1238,13 +1239,13 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
       ref={composerRef}
       data-chat-composer
       className={cn(
-      "absolute inset-x-0 pointer-events-none",
-      // Lift the input bar off the viewport bottom on both breakpoints so
-      // the user's eye is drawn TO it (rather than it disappearing into
-      // the page chrome). Mobile gets ~8px, desktop a generous ~24px so
-      // the sticky-note feels like a card the visitor can grab.
-      "bottom-2 md:bottom-6",
-      "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
+        "absolute inset-x-0 pointer-events-none",
+        // Lift the input bar off the viewport bottom on both breakpoints so
+        // the user's eye is drawn TO it (rather than it disappearing into
+        // the page chrome). Mobile gets ~8px, desktop a generous ~24px so
+        // the sticky-note feels like a card the visitor can grab.
+        "bottom-2 md:bottom-6",
+        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
@@ -1279,51 +1280,51 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
               )}
               style={INPUT_TOOLBAR_DISCO_STYLE}
             >
-            {!compact && modelPrefHydrated && model ? (
-              <Link
-                href="/settings?focus=ai-model"
-                prefetch={false}
-                data-chat-model-settings-link
-                className="inline-flex min-h-11 max-w-32 items-center truncate px-1 font-code text-[10px] text-[var(--c-ink)]/60 underline decoration-dotted underline-offset-4 transition-colors hover:text-[var(--c-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 max-[480px]:max-w-24 max-[480px]:text-[9px]"
-                title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
-                aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
-              >
-                {modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}
-              </Link>
-            ) : null}
-            {supportsImages ? (
-              <Tooltip label="Attach image">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || isCompressingImage}
-                  className={cn(
-                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45",
-                    compact && "md:h-8 md:w-8",
-                  )}
-                  title="Attach image"
-                  aria-label="Attach image"
+              {!compact && modelPrefHydrated && model ? (
+                <Link
+                  href="/settings?focus=ai-model"
+                  prefetch={false}
+                  data-chat-model-settings-link
+                  className="inline-flex min-h-11 max-w-32 items-center truncate px-1 font-code text-[10px] text-[var(--c-ink)]/60 underline decoration-dotted underline-offset-4 transition-colors hover:text-[var(--c-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 max-[480px]:max-w-24 max-[480px]:text-[9px]"
+                  title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
+                  aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
                 >
-                  {isCompressingImage ? <Loader2 size={14} className="max-[480px]:h-3 max-[480px]:w-3 animate-spin" aria-hidden="true" /> : <ImagePlus size={15} className="max-[480px]:h-3 max-[480px]:w-3" aria-hidden="true" />}
-                </button>
-              </Tooltip>
-            ) : null}
-            {hasMessages && (
-              <Tooltip label="Clear chat history">
-              <button
-                type="button"
-                onClick={() => setConfirmKind('clear')}
-                className={cn(
-                  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400",
-                  compact && "md:h-8 md:w-8",
-                )}
-                title="Clear chat history"
-                aria-label="Clear chat history"
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-              </Tooltip>
-            )}
+                  {modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}
+                </Link>
+              ) : null}
+              {supportsImages ? (
+                <Tooltip label="Attach image">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading || isCompressingImage}
+                    className={cn(
+                      "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45",
+                      compact && "md:h-8 md:w-8",
+                    )}
+                    title="Attach image"
+                    aria-label="Attach image"
+                  >
+                    {isCompressingImage ? <Loader2 size={14} className="max-[480px]:h-3 max-[480px]:w-3 animate-spin" aria-hidden="true" /> : <ImagePlus size={15} className="max-[480px]:h-3 max-[480px]:w-3" aria-hidden="true" />}
+                  </button>
+                </Tooltip>
+              ) : null}
+              {hasMessages && (
+                <Tooltip label="Clear chat history">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmKind('clear')}
+                    className={cn(
+                      "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400",
+                      compact && "md:h-8 md:w-8",
+                    )}
+                    title="Clear chat history"
+                    aria-label="Clear chat history"
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                </Tooltip>
+              )}
             </div>
           </div>
         )}
@@ -1399,65 +1400,65 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
             ) : null}
             <div className="flex min-w-0 flex-1 items-end gap-2" onClick={() => inputRef.current?.focus()}>
               <div className="relative flex-1 min-h-[44px]">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
-                aria-label="Chat message"
-                data-voice-field="chat-composer"
-                className={cn(
-                  // Auto-grow textarea: rows=1 baseline; useLayoutEffect
-                  // measures scrollHeight and applies inline height up to
-                  // ~3-4 lines, then internal overflow-y kicks in.
-                  "w-full min-h-[44px] bg-transparent py-2.5 resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
-                  // Placeholder text uses the SAME font-size as typed text;
-                  // greyer color is applied via the overlay span below
-                  // (the textarea's native placeholder is unused on
-                  // purpose — we render a custom typewriter overlay).
-                  compact ? "text-sm md:text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
-                  (speech.isListening || speech.isTranscribing) && "invisible",
-                )}
-              />
-              {/* Typewriter placeholder overlay — same font-size as the
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
+                  aria-label="Chat message"
+                  data-voice-field="chat-composer"
+                  className={cn(
+                    // Auto-grow textarea: rows=1 baseline; useLayoutEffect
+                    // measures scrollHeight and applies inline height up to
+                    // ~3-4 lines, then internal overflow-y kicks in.
+                    "w-full min-h-[44px] bg-transparent py-2.5 resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
+                    // Placeholder text uses the SAME font-size as typed text;
+                    // greyer color is applied via the overlay span below
+                    // (the textarea's native placeholder is unused on
+                    // purpose — we render a custom typewriter overlay).
+                    compact ? "text-sm md:text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
+                    (speech.isListening || speech.isTranscribing) && "invisible",
+                  )}
+                />
+                {/* Typewriter placeholder overlay — same font-size as the
                   textarea (mobile: text-base, desktop: text-lg) so swapping
                   in real typed text doesn't reflow. Color is the only
                   difference: muted ink rather than full ink. */}
-              {!input && !speech.isListening && !speech.isTranscribing && (
-                <span
-                  ref={placeholderRef}
-                  aria-hidden
-                  className={cn(
-                    "absolute left-0 top-2.5 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
-                    compact ? "text-sm md:text-base" : "text-base md:text-lg",
-                  )}
+                {!input && !speech.isListening && !speech.isTranscribing && (
+                  <span
+                    ref={placeholderRef}
+                    aria-hidden
+                    className={cn(
+                      "absolute left-0 top-2.5 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
+                      compact ? "text-sm md:text-base" : "text-base md:text-lg",
+                    )}
+                  />
+                )}
+                <ListeningOverlay
+                  isListening={speech.isListening}
+                  isTranscribing={speech.isTranscribing}
+                  backend={speech.backend}
+                  interim={speech.interimTranscript}
+                  analyser={speech.analyser}
+                />
+              </div>
+
+              {(input.length > 0 || speech.isListening || speech.isTranscribing) && (
+                <ClearButton
+                  onClick={() => {
+                    if (speech.isListening) speech.stop();
+                    speech.reset();
+                    baseInputRef.current = '';
+                    pendingTranscriptRef.current = '';
+                    composerHistoryRef.current = resetComposerHistoryNavigation(composerHistoryRef.current);
+                    setInput('');
+                    setTimeout(() => inputRef.current?.focus(), 0);
+                  }}
+                  size={compact ? 12 : 14}
                 />
               )}
-              <ListeningOverlay
-                isListening={speech.isListening}
-                isTranscribing={speech.isTranscribing}
-                backend={speech.backend}
-                interim={speech.interimTranscript}
-                analyser={speech.analyser}
-              />
-            </div>
-
-            {(input.length > 0 || speech.isListening || speech.isTranscribing) && (
-              <ClearButton
-                onClick={() => {
-                  if (speech.isListening) speech.stop();
-                  speech.reset();
-                  baseInputRef.current = '';
-                  pendingTranscriptRef.current = '';
-                  composerHistoryRef.current = resetComposerHistoryNavigation(composerHistoryRef.current);
-                  setInput('');
-                  setTimeout(() => inputRef.current?.focus(), 0);
-                }}
-                size={compact ? 12 : 14}
-              />
-            )}
 
               {/* Paperclip send button stays paired with the textarea as
                   the primary action for typed or dictated text. */}
@@ -1774,7 +1775,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       (action.openUrls && action.openUrls.length > 0) ||
       action.navigateTo
     ) {
-      stickerBus.emit('chat-conductor');
+      unlockSticker('chat-conductor');
     }
 
     // Theme switching
@@ -1809,6 +1810,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       openPanel();
       setProjectModalLoaded(true);
       setSelectedProjectSlug(action.projectSlug);
+      appendUserAction({ kind: 'project.open', slug: action.projectSlug });
     }
 
 
@@ -2014,12 +2016,16 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     restoreComposerFocusAfterRemoteSendRef.current = focusWasInComposer ? focusRequestId : null;
     remoteSendLoadingStartedForFocusRef.current = null;
     if (!image && sendHardcoded(text, getSuggestionResponse(text))) {
+      appendUserAction({ kind: 'chat.sent' });
       restoreComposerFocusAfterRemoteSendRef.current = null;
       if (focusWasInComposer) restoreComposerFocusIfAppropriate(composerRef.current);
       return true;
     }
     const accepted = sendMessage(text, image);
     void accepted.then((wasAccepted) => {
+      if (wasAccepted) {
+        appendUserAction({ kind: 'chat.sent' });
+      }
       if (
         !wasAccepted &&
         restoreComposerFocusAfterRemoteSendRef.current === focusRequestId &&
@@ -2047,15 +2053,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       attachSiteActionResult(event, handleSendFromInput(message).then((accepted) => (
         accepted
           ? {
-              ok: true,
-              spokenText: 'Queued that note.',
-              data: { accepted: true, nextAction: 'Want me to wait for the reply, or ask something else?' },
-            }
+            ok: true,
+            spokenText: 'Queued that note.',
+            data: { accepted: true, nextAction: 'Want me to wait for the reply, or ask something else?' },
+          }
           : {
-              ok: false,
-              spokenText: 'Chat is not open right now.',
-              errorCode: 'chat-unavailable',
-            }
+            ok: false,
+            spokenText: 'Chat is not open right now.',
+            errorCode: 'chat-unavailable',
+          }
       )));
     };
     const openHandler = (raw: Event) => {
@@ -2100,9 +2106,15 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     // unavailable or origin/rate-limit checks reject live requests.
     const canned = getSuggestionResponse(text);
     if (sendHardcoded(text, canned)) {
+      appendUserAction({ kind: 'chat.sent' });
       return;
     }
-    sendMessage(text);
+    const accepted = sendMessage(text);
+    void accepted.then((wasAccepted) => {
+      if (wasAccepted) {
+        appendUserAction({ kind: 'chat.sent' });
+      }
+    });
   }, [selection, sendMessage, sendHardcoded, stopTtsPlayback]);
 
   const handleSpeakMessage = useCallback((message: ChatMessage) => {
@@ -2238,110 +2250,98 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
       {/* ─── Messages + Input (overlaid) ─── */}
       <div className="relative flex-1 min-h-0">
-      {!compact && selectedModel ? (
-        <div
-          data-chat-model-float
-          className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2"
-        >
+        {!compact && selectedModel ? (
           <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"
-          />
-          <Link
-            href="/settings?focus=ai-model"
-            prefetch={false}
-            className="pointer-events-auto relative mt-0.5 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate rounded-full bg-[var(--c-paper)]/70 px-3 font-hand text-xs font-bold text-[var(--c-ink)]/65 shadow-sm underline decoration-dotted underline-offset-4 backdrop-blur-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
-            title={selectedModelDisplayName}
-            aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
+            data-chat-model-float
+            className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2"
           >
-            {selectedModelDisplayName}
-          </Link>
-        </div>
-      ) : null}
-      {/* ─── Custom pill scrollbar ─── */}
-      <PillScrollbar scrollRef={messagesScrollRef} />
-      {/* ─── Messages Area ─── */}
-      <div
-        ref={messagesScrollRef}
-        className={cn(
-        "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
-        !compact && "pt-12",
-        compact && "px-2 pt-4 gap-4",
-      )}
-        style={{
-          touchAction: 'pan-y',
-          paddingBottom: 'calc(var(--chat-composer-height, 0px) + env(safe-area-inset-bottom, 0px) + 0.75rem)',
-        }}>
-        {/* Messages (welcome note is always first) */}
-        {messages.map((msg, idx) => {
-          // Show "old notes" divider before the first non-welcome old message
-          const showDivider = hasOldMessages && msg.isOld && msg.id !== 'welcome' &&
-            !messages.slice(0, idx).some(m => m.isOld && m.id !== 'welcome');
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"
+            />
+            <Link
+              href="/settings?focus=ai-model"
+              prefetch={false}
+              className="pointer-events-auto relative mt-0.5 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate rounded-full bg-[var(--c-paper)]/70 px-3 font-hand text-xs font-bold text-[var(--c-ink)]/65 shadow-sm underline decoration-dotted underline-offset-4 backdrop-blur-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
+              title={selectedModelDisplayName}
+              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
+            >
+              {selectedModelDisplayName}
+            </Link>
+          </div>
+        ) : null}
+        {/* ─── Custom pill scrollbar ─── */}
+        <PillScrollbar scrollRef={messagesScrollRef} />
+        {/* ─── Messages Area ─── */}
+        <div
+          ref={messagesScrollRef}
+          className={cn(
+            "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
+            !compact && "pt-12",
+            compact && "px-2 pt-4 gap-4",
+          )}
+          style={{
+            touchAction: 'pan-y',
+            paddingBottom: 'calc(var(--chat-composer-height, 0px) + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+          }}>
+          {/* Messages (welcome note is always first) */}
+          {messages.map((msg, idx) => {
+            // Show "old notes" divider before the first non-welcome old message
+            const showDivider = hasOldMessages && msg.isOld && msg.id !== 'welcome' &&
+              !messages.slice(0, idx).some(m => m.isOld && m.id !== 'welcome');
 
-          return (
-            <div key={msg.id}>
-              {showDivider && (
-                <div className="flex items-center gap-3 opacity-40 my-2 mb-4">
-                  <div className="flex-1 h-px bg-[var(--c-grid)]" />
-                  <span className="font-hand text-xs text-[var(--c-ink)]">old notes</span>
-                  <div className="flex-1 h-px bg-[var(--c-grid)]" />
-                </div>
-              )}
-              <StickyNote
-                message={msg}
-                compact={compact}
-                isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
-                isTtsActive={ttsActiveMessageId === msg.id}
-                onSpeak={handleSpeakMessage}
-                onTtsRestart={handleTtsRestart}
-                onTtsSpeedChange={handleTtsSpeedChange}
-                onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterStart(msg) : undefined}
-                onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterDone(msg.id) : undefined}
-                showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
-                ttsPlaybackSpeed={ttsPlaybackSpeed}
-                ttsPlaybackError={ttsPlaybackError}
-                ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
-              />
-            </div>
-          );
-        })}
+            return (
+              <div key={msg.id}>
+                {showDivider && (
+                  <div className="flex items-center gap-3 opacity-40 my-2 mb-4">
+                    <div className="flex-1 h-px bg-[var(--c-grid)]" />
+                    <span className="font-hand text-xs text-[var(--c-ink)]">old notes</span>
+                    <div className="flex-1 h-px bg-[var(--c-grid)]" />
+                  </div>
+                )}
+                <StickyNote
+                  message={msg}
+                  compact={compact}
+                  isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                  isTtsActive={ttsActiveMessageId === msg.id}
+                  onSpeak={handleSpeakMessage}
+                  onTtsRestart={handleTtsRestart}
+                  onTtsSpeedChange={handleTtsSpeedChange}
+                  onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterStart(msg) : undefined}
+                  onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterDone(msg.id) : undefined}
+                  showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
+                  ttsPlaybackSpeed={ttsPlaybackSpeed}
+                  ttsPlaybackError={ttsPlaybackError}
+                  ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
+                />
+              </div>
+            );
+          })}
 
-        {/* Suggested questions — shown after typewriter finishes.
+          {/* Suggested questions — shown after typewriter finishes.
             Base (hardcoded) suggestions render immediately when ready;
             Extra (LLM) suggestions animate in alongside without re-mounting base. */}
-        <AnimatePresence>
-          {!isLoading && (() => {
-            const lastAssistant = messages.findLast(m => m.role === 'assistant');
-            return !!lastAssistant && readyForAssistantId === lastAssistant.id;
-          })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0 || matrixEscaped) && (
-              <m.div
-                key="suggestions-container"
-                initial={SUGGESTIONS_CONTAINER_INITIAL}
-                animate={SUGGESTIONS_CONTAINER_ANIMATE}
-                exit={SUGGESTIONS_CONTAINER_EXIT}
-                transition={SUGGESTIONS_CONTAINER_TRANSITION}
-                className="flex flex-wrap justify-center gap-2 max-[480px]:gap-1.5 md:gap-3 mt-2 max-[480px]:mt-1.5"
-              >
-                {matrixEscaped && (
-                  <MatrixEscapeChip
-                    compact={compact}
-                    onSelect={handleEnterMatrix}
-                    skipEntrance={!hasHadInteraction}
-                  />
-                )}
-                {baseSuggestions.slice(0, 4 - (matrixEscaped ? 1 : 0)).map((q, i) => (
-                  <SuggestionStrip
-                    key={q}
-                    text={q}
-                    isAction={ACTION_SUGGESTION_SET.has(q)}
-                    compact={compact}
-                    onSelect={handleSuggestion}
-                    index={i}
-                    skipEntrance={!hasHadInteraction}
-                  />
-                ))}
-                <AnimatePresence>
-                  {extraSuggestions.slice(0, Math.max(0, 4 - (matrixEscaped ? 1 : 0) - baseSuggestions.length)).map((q, i) => (
+          <AnimatePresence>
+            {!isLoading && (() => {
+              const lastAssistant = messages.findLast(m => m.role === 'assistant');
+              return !!lastAssistant && readyForAssistantId === lastAssistant.id;
+            })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0 || matrixEscaped) && (
+                <m.div
+                  key="suggestions-container"
+                  initial={SUGGESTIONS_CONTAINER_INITIAL}
+                  animate={SUGGESTIONS_CONTAINER_ANIMATE}
+                  exit={SUGGESTIONS_CONTAINER_EXIT}
+                  transition={SUGGESTIONS_CONTAINER_TRANSITION}
+                  className="flex flex-wrap justify-center gap-2 max-[480px]:gap-1.5 md:gap-3 mt-2 max-[480px]:mt-1.5"
+                >
+                  {matrixEscaped && (
+                    <MatrixEscapeChip
+                      compact={compact}
+                      onSelect={handleEnterMatrix}
+                      skipEntrance={!hasHadInteraction}
+                    />
+                  )}
+                  {baseSuggestions.slice(0, 4 - (matrixEscaped ? 1 : 0)).map((q, i) => (
                     <SuggestionStrip
                       key={q}
                       text={q}
@@ -2352,32 +2352,44 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                       skipEntrance={!hasHadInteraction}
                     />
                   ))}
-                </AnimatePresence>
-              </m.div>
-        )}
-        </AnimatePresence>
+                  <AnimatePresence>
+                    {extraSuggestions.slice(0, Math.max(0, 4 - (matrixEscaped ? 1 : 0) - baseSuggestions.length)).map((q, i) => (
+                      <SuggestionStrip
+                        key={q}
+                        text={q}
+                        isAction={ACTION_SUGGESTION_SET.has(q)}
+                        compact={compact}
+                        onSelect={handleSuggestion}
+                        index={i}
+                        skipEntrance={!hasHadInteraction}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </m.div>
+              )}
+          </AnimatePresence>
 
-        {/* Rate limit note */}
-        {error && rateLimitRemaining && (
-          <RateLimitNote seconds={rateLimitRemaining} />
-        )}
+          {/* Rate limit note */}
+          {error && rateLimitRemaining && (
+            <RateLimitNote seconds={rateLimitRemaining} />
+          )}
 
-        {error && !rateLimitRemaining && (
-          <ServiceErrorNote message={error} />
-        )}
+          {error && !rateLimitRemaining && (
+            <ServiceErrorNote message={error} />
+          )}
 
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* ─── Input Area (isolated component to prevent keystroke re-renders) ─── */}
-      <ChatInputArea
-        onSend={handleSendFromInput}
-        isLoading={isLoading}
-        compact={compact}
-        hasMessages={hasMessages}
-        onClear={handleClearDesk}
-        composerRef={composerRef}
-      />
+        {/* ─── Input Area (isolated component to prevent keystroke re-renders) ─── */}
+        <ChatInputArea
+          onSend={handleSendFromInput}
+          isLoading={isLoading}
+          compact={compact}
+          hasMessages={hasMessages}
+          onClear={handleClearDesk}
+          composerRef={composerRef}
+        />
       </div>
 
     </div>

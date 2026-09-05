@@ -519,7 +519,7 @@ describe('voice session runtime singleton', () => {
     await vi.advanceTimersByTimeAsync(VOICE_IDLE_CHECKIN_MS);
     runtime.fakeCaller.emit('toolCall', {
       id: 'idle-context',
-      name: 'get_current_page_context',
+      name: 'get_recent_user_context',
       args: {},
     } as SiteToolCall);
     await Promise.resolve();

@@ -16,6 +16,7 @@ import {
   readAuthoritativePathname,
   withVoicePageContext,
 } from '@/lib/voiceCurrentContext';
+import { formatUserActionJournal } from '@/lib/userActionJournal';
 import {
   browseHistory,
   buildProjectHref,
@@ -428,12 +429,13 @@ export async function executeSiteTool(
     }
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
-    case 'get_current_page_context': {
+    case 'get_recent_user_context': {
       const pageContext = buildVoiceCurrentPageContext({ runtime });
       if (!pageContext) {
         return fail('I could not read this page just now.', 'page-context-unavailable');
       }
-      return ok('Here is the current page.', { pageContext });
+      const recentActions = formatUserActionJournal();
+      return ok('Here is the recent user context.', { pageContext, recentActions });
     }
     case 'start_voice_session':
       if (commit) requestVoiceMode({ source: 'tool' });

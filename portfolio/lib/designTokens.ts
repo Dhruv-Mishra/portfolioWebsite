@@ -236,20 +236,24 @@ export const CURSOR_TRAIL = {
  * a card) use regular Tailwind classes and are NOT centralized.
  *
  * Layer hierarchy (lowest → highest):
- * ┌─────────────────────────────────────────────────┐
- * │  cursor       10003   Custom pencil/chalk        │
- * │  contextMenu  10002   Desktop context menu       │
- * │  voice        10001   Native voice stage         │
- * │  skipNav        200   Skip-to-content (focused)  │
- * │  modal          100   Full-screen modals (portal) │
- * │  nav             50   Navigation, MiniChat, Theme │
- * │  sidebar         40   SocialSidebar, FeedbackTab  │
- * │  binding         30   Stitched binding spine       │
- * │  crease          20   Crease / fold shadows        │
- * │  content         10   Main scrollable content      │
- * │  texture          1   Paper noise overlay          │
- * │  base             0   Grid pattern, doodles        │
- * └─────────────────────────────────────────────────┘
+ * ┌────────────────────────────────────────────────────────┐
+ * │  cursor            10003   Custom pencil/chalk         │
+ * │  contextMenu       10002   Desktop context menu        │
+ * │  voice             10001   Native voice stage          │
+ * │  matrixTransition  10000   Matrix escape / hint toast  │
+ * │  matrixControls     9999   Matrix wake / escape buttons│
+ * │  matrixSocial       9998   Mobile social in Matrix     │
+ * │  matrixCanvas       9997   Matrix rain canvas          │
+ * │  skipNav             200   Skip-to-content (focused)   │
+ * │  modal               100   Full-screen modals (portal) │
+ * │  nav                  50   Navigation, ThemeToggle     │
+ * │  sidebar              40   SocialSidebar, FeedbackTab   │
+ * │  binding              30   Stitched binding spine        │
+ * │  crease               20   Crease / fold shadows         │
+ * │  content              10   Main scrollable content       │
+ * │  texture               1   Paper noise overlay           │
+ * │  base                  0   Grid pattern, doodles         │
+ * └────────────────────────────────────────────────────────┘
  */
 export const Z_INDEX = {
   /** Background grid pattern and doodle illustrations */
@@ -264,7 +268,7 @@ export const Z_INDEX = {
   binding: 30,
   /** Social sidebar links, Feedback trigger button */
   sidebar: 40,
-  /** Navigation header, MiniChat FAB, Theme toggle */
+  /** Navigation header, Theme toggle */
   nav: 50,
   /** Full-screen modals — portaled to document.body (project detail, feedback, etc.) */
   modal: 100,
@@ -272,7 +276,15 @@ export const Z_INDEX = {
   palette: 150,
   /** Skip-to-main-content link when focused */
   skipNav: 200,
-  /** Native voice stage — above skip-nav, below the desktop context menu */
+  /** Full-screen matrix rain canvas overlay */
+  matrixCanvas: 9997,
+  /** Mobile social bar under matrix overlay — above canvas, below matrix controls */
+  matrixSocial: 9998,
+  /** Matrix UI buttons (WAKE UP, ESCAPE) */
+  matrixControls: 9999,
+  /** Matrix escape transition and hint toast — below voice stage */
+  matrixTransition: 10000,
+  /** Native voice stage — above matrix, below the desktop context menu */
   voice: 10001,
   /** Desktop context menu, above full-screen effects but below the custom cursor */
   contextMenu: 10002,
@@ -372,10 +384,10 @@ export const GUESTBOOK_ANIMATION = {
 /** Sticker color families — background + ink pairs for the 6 palettes */
 export const STICKER_FAMILIES = {
   sunshine: { bg: '#fff9c4', ink: '#5d4037' },
-  denim:    { bg: '#b3e5fc', ink: '#0c4a6e' },
-  mint:     { bg: '#c5e1a5', ink: '#14532d' },
-  coral:    { bg: '#ffccbc', ink: '#7c2d12' },
-  rose:     { bg: '#f8bbd0', ink: '#831843' },
+  denim: { bg: '#b3e5fc', ink: '#0c4a6e' },
+  mint: { bg: '#c5e1a5', ink: '#14532d' },
+  coral: { bg: '#ffccbc', ink: '#7c2d12' },
+  rose: { bg: '#f8bbd0', ink: '#831843' },
   lavender: { bg: '#e9d5ff', ink: '#581c87' },
 } as const;
 

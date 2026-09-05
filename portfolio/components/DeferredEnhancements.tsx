@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { LAYOUT_TOKENS } from "@/lib/designTokens";
 
-const MiniChat = dynamic(() => import("@/components/MiniChat"), { ssr: false });
 const SketchbookCursor = dynamic(() => import("@/components/SketchbookCursor"), { ssr: false });
 const StickerToastListener = dynamic(() => import("@/components/StickerToastListener"), { ssr: false });
 const StickerGlanceBadge = dynamic(() => import("@/components/StickerGlanceBadge"), { ssr: false });
@@ -102,7 +101,6 @@ export default function DeferredEnhancements() {
                 </>
             ) : null}
             {mountStage >= 3 ? <AssetPrefetchController /> : null}
-            {mountStage >= 2 && pathname !== "/chat" ? <MiniChat /> : null}
         </>
     );
 }

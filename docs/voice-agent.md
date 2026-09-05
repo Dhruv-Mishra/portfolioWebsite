@@ -17,7 +17,7 @@ The app is `0.30.0` and later.
 | Queue | Gemini tool calls are authoritative and execute serially. Visual actions wait for playback idle, and dependent hosts (`project-video`, `terminal`, `chat`, `guestbook`, `feedback`) must be ready before commit. Provider cancellation IDs prevent queued actions from committing. Hangup twice forces. |
 | Transport | Client-to-model WebSocket with one-use ephemeral tokens minted by `POST /api/voice/session`. `setupComplete` gates readiness. Post-ready failures remint and resume up to two times with the latest valid provider handle and no second greeting; exhausted recovery offers Try again or hangup. PCM does not transit the origin. |
 | Default voice | Male `Charon`. |
-| Context | Tiny initial page snapshot plus on-demand `lookup_site_facts` and read-only `get_current_page_context`. The current-context tool samples an allowlisted browser route, project, theme, and preferences; it never exposes raw URLs, DOM, or form values. |
+| Context | Tiny initial page snapshot plus on-demand `lookup_site_facts` and read-only `get_recent_user_context`. The recent-context tool samples lazy live context (allowlisted browser route, project, theme, preferences) plus recent semantic events from the bounded action journal; it never exposes raw URLs, DOM, or form values. |
 | Tools | Voice uses the canonical `siteTools` contract. Text chat keeps deterministic signed actions and reuses the same browser executor and events where needed; text providers receive no tool catalog. `hint` is the one puzzle-safe voice terminal command. |
 | Audio | Gemini Live uses PCM16 little-endian at 16 kHz in and 24 kHz out. Playback uses a bounded prebuffered queue, explicit decoding, short gain ramps, and stale-audio resynchronization. Capture remains full-duplex and requests browser echo cancellation and noise suppression. |
 | Compression | The settings toggle is **low-network mode**: larger capture frames, no live transcripts, no ambient music. |
@@ -153,7 +153,7 @@ Canonical site tool names:
 - `submit_guestbook`
 - `submit_feedback`
 - `lookup_site_facts`
-- `get_current_page_context`
+- `get_recent_user_context`
 - `start_voice_session`
 - `end_voice_session`
 

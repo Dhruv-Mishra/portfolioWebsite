@@ -11,8 +11,8 @@
  */
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { addVisitedRouteImperative } from '@/hooks/useStickers';
-import { stickerBus } from '@/lib/stickerBus';
+import { addVisitedRouteImperative, unlockSticker } from '@/hooks/useStickers';
+import { appendUserAction, sanitizeRoute } from '@/lib/userActionJournal';
 
 const CORE_ROUTES: readonly string[] = ['/', '/projects', '/about', '/resume', '/chat'];
 
@@ -33,6 +33,11 @@ export function useVisitedPagesTracker(): void {
     // Persist the route visit
     addVisitedRouteImperative(pathname);
 
+    const route = sanitizeRoute(pathname);
+    if (route) {
+      appendUserAction({ kind: 'route.view', route });
+    }
+
     // Read the newly-updated visited list from localStorage directly to avoid
     // stale-closure surprises with useSyncExternalStore during rapid nav.
     let visited: string[] = [];
@@ -49,7 +54,7 @@ export function useVisitedPagesTracker(): void {
     }
 
     if (hasVisitedAllCore(visited)) {
-      stickerBus.emit('page-turner');
+      unlockSticker('page-turner');
     }
   }, [pathname]);
 }

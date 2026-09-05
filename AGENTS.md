@@ -11,15 +11,15 @@ Scope: the whole repository.
 
 ## Agent Workflow
 
-- `Lead` (GPT-5.6 Sol, XHIGH intent) owns complex or ambiguous work and the final result.
-- `Builder` (GPT-5.6 Terra, HIGH intent) implements scoped changes end to end.
-- `Fastlane` (GPT-5.6 Luna, HIGH intent) handles bounded exploration, diagnostics, mechanical work, command output, testing, and verification.
-- For non-trivial packetizable work, Lead delegates settled implementation to Builder and bounded evidence work to Fastlane. Keep Sol focused on architecture, decomposition, ambiguity, integration, and final acceptance.
-- Fan out multiple Builder or Fastlane instances only for independent slices. Pass compact task packets with anchors, fixed decisions, ownership, edit permission, acceptance checks, and expected evidence; serialize writers that share files or unresolved contracts.
-- Route downward by default: Lead can invoke Builder/Fastlane, Builder can use Fastlane for a bounded assist, and Fastlane does not spawn subagents.
-- Agent files omit restrictive tool allowlists so VS Code supplies its current default tools dynamically. Actual execution remains subject to workspace trust, approval settings, tool availability, and organization policy.
-- Start from a concrete anchor, make focused edits, validate after the first substantive edit, and repair failures before widening scope.
-- Keep implementations minimal: add only what the requested behavior and concrete risk require. Avoid speculative abstractions, compatibility layers, and broad test matrices.
+- The four roles are `Lead`, `Builder`, `Fastlane`, and `God`; exact model and effort settings live in [docs/agent-setup.md](docs/agent-setup.md).
+- Lead owns ordinary planning, architecture, bounded delegation, integration, and final acceptance. It works directly when a handoff costs more than the task.
+- Only Lead delegates: Builder owns settled implementation and local repair; Fastlane supplies bounded evidence or checks and may make only explicitly authorized mechanical edits.
+- God is a reasoning-only escalation for difficult, consequential unresolved decisions after focused evidence. It never performs routine planning, execution, coding, testing, or coordination.
+- Packets contain only the objective, relevant anchors or verified facts, constraints, owned files and edit permission, acceptance check, and needed output. Parallelize independent work only; never require a role chain or duplicate reviews.
+- Start from a concrete anchor, validate immediately after the first substantive edit, and repair locally before widening scope.
+- Keep implementations minimal: make the smallest testable change without speculative abstractions or broad test matrices.
+- Preserve unrelated user work; never expose secrets, run destructive Git commands, deploy, publish, or commit without explicit authorization.
+- For UI work, preserve sketchbook language, hidden discovery layer, accessibility, themes, and mobile behavior; validate relevant viewport and theme states.
 
 ## Token Discipline
 

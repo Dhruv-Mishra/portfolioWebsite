@@ -18,6 +18,6 @@ Scope: GitHub workflows, repository instructions, and agent definitions.
 
 - Keep `.agent.md` files role-specific and concise.
 - Prefer pointing agents to directory-level `AGENTS.md` over duplicating long project rules in every agent file.
-- Keep the active roster to `Lead`, `Builder`, and `Fastlane`; add a role only when it provides a durable capability boundary.
-- Do not add restrictive per-agent tool lists. Permissions are still controlled by VS Code, not prompt text.
+- The active roster is `Lead`, `Builder`, `Fastlane`, and `God`; `God` is the narrow reasoning-only escalation boundary.
+- Do not add restrictive per-agent tool lists, except `God` uses `[read, search, web]` for its reasoning-only role. Tool availability never bypasses VS Code trust, approval, or organization policy.
 - The app already uses Vitest; do not tell agents to bootstrap a new test framework unless component testing dependencies are intentionally added.

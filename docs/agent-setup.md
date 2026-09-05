@@ -1,26 +1,25 @@
 # Copilot Agent Setup
 
-This repository uses three VS Code custom agents. The small roster keeps context isolated without paying for a mandatory planning, implementation, test, review, audit, and documentation chain on every task.
+This repository uses four VS Code custom agents. The short contracts isolate expensive reasoning without a mandatory planning, implementation, testing, review, or documentation chain.
 
-| Agent | Model | Effort intent | Use |
+| Agent | Requested model | Effort | Use |
 |---|---|---|---|
-| Lead | GPT-5.6 Sol | XHIGH | Complex reasoning, architecture, ambiguous debugging, orchestration, and final ownership |
-| Builder | GPT-5.6 Terra | HIGH | Balanced implementation, tests, docs, and repair loops |
-| Fastlane | GPT-5.6 Luna | HIGH | Bounded research, mechanical work, command output, and verification |
+| Lead | GPT-5.6 Sol (copilot) | High | User outcome, ordinary planning and architecture, bounded delegation, integration, final acceptance |
+| Builder | Gemini 3.8 Flash (copilot) | High | Settled scoped features, fixes, tests, docs, and local repair |
+| Fastlane | GPT-5.6 Luna (copilot) | Max | Bounded evidence, research, diagnostics, checks, and authorized exact mechanical edits |
+| God | GPT-6 Astra (copilot) | High | Difficult, consequential unresolved architecture, correctness, or diagnostic reasoning after focused evidence |
 
-Use Lead for complex work. Lead should delegate non-trivial work whenever it can form a bounded packet: settled implementation goes to Builder, while exploration, code-path discovery, error analysis, commands, tests, and verification go to Fastlane. Select Builder directly for already-scoped implementation and Fastlane directly for bounded work.
+All roles are user-invocable. Delegation is flat: only Lead may invoke `God`, `Builder`, or `Fastlane`; each other role has no subagents. Lead works directly when delegation costs more than a trivial task. For non-trivial work, packets contain only the objective, relevant anchors or verified facts, constraints, owned files and edit permission, acceptance check, and needed output. Parallelize independent work only; serialize shared-file writers and unresolved contracts.
 
-Use multiple cheap agents when two or more work items are independent: separate Fastlane instances can inspect different code paths or run separate checks, and separate Builders can own non-overlapping implementation slices with fixed interfaces. Serialize agents that edit the same files or depend on an unresolved shared contract. Do not invoke all three roles by ritual; each subagent has an independent context and consumes credits, so the saved Sol context or elapsed time must exceed the handoff cost.
-
-Do not add permanent Oracle or Architect agents. Sol/Lead already owns architecture, tradeoffs, decomposition, conflict resolution, and final acceptance; a renamed duplicate would add prompt and routing overhead without model diversity. For high-blast-radius or hard-to-reverse work, Lead should write or consume an explicit plan before delegating implementation.
+Builder owns settled implementation and its immediate local validation/repair loop. Fastlane is otherwise read-only and may edit only with explicit permission. God has only read, search, and web tools, and returns an actionable decision, rationale, assumptions/risks, and a smallest discriminating check or missing evidence. It is not automatic for architecture or security work, and never codes, executes commands, tests, coordinates, or replaces ordinary planning. Lead may reject advice based on evidence. Do not add role chains, worker escalation loops, duplicate self-review, or repeated failures without new evidence.
 
 ## VS Code Setup
 
-1. Use VS Code 1.128.0 or newer and enable all three GPT-5.6 models in **Chat: Manage Language Models**.
-2. Open each model's picker submenu and select **XHIGH** for Sol when offered, and **HIGH** for Terra and Luna. VS Code remembers effort per model/session. `.agent.md` has no documented effort property, so adding `effort:` would be inert or invalid.
-3. Trust the workspace. In **Configure Tools**, select all tools that agents may use. The agent files intentionally omit `tools`, which avoids a restrictive or stale allowlist and uses VS Code's dynamic defaults.
-4. Use downward routing: Lead may invoke Builder and Fastlane; Builder may invoke Fastlane only for a bounded discovery or verification assist; Fastlane invokes no subagents. This prevents cheap workers from routing routine work back to Sol.
-5. Use **Chat: Open Customizations** and Chat diagnostics after changing an agent, model, MCP server, or instruction file.
+1. Use VS Code 1.128.0 or newer. In **Chat: Manage Language Models** and the model picker, confirm the four requested models in the table are available and enabled. Astra and Gemini catalogue availability is not verified by this repository configuration.
+2. Each agent frontmatter explicitly requests its table model and `reasoning-effort`: High for Astra, Sol, and Flash; Max for Luna. The selected model must support that effort. There are no fallback model arrays, so VS Code must not silently select a different model.
+3. For Astra, Sol, and Luna, open the VS Code picker context control and confirm the normal default context is selected, not `1M`. This is a manual setup requirement: no supported workspace or agent-frontmatter field enforces a context selection.
+4. Trust the workspace. In **Configure Tools**, select tools as needed. Builder, Fastlane, and Lead omit `tools` to retain VS Code's dynamic defaults; God intentionally uses `[read, search, web]`. Tool availability never bypasses workspace trust, approvals, extension state, or organization policy.
+5. Use flat routing: Lead may invoke God, Builder, and Fastlane; all other roles invoke no subagents. Use **Chat: Open Customizations** and Chat diagnostics after changing an agent, model, MCP server, or instruction file.
 6. Install RTK's native Copilot integration with `rtk init -g --copilot --auto-patch`, restart VS Code, and keep `rg` on `PATH`. The hook applies to terminal calls from the main agent and subagents; explicit `rtk` prefixes remain the portable fallback.
 
 Tool availability does not bypass VS Code approvals, workspace trust, extension state, or organization policy. Prompt text cannot auto-approve tools.

@@ -46,9 +46,18 @@ describe('Projects modal interaction contract', () => {
     expect(projectModal).toMatch(/const attemptAutoplay = useCallback\(\(node: HTMLVideoElement, muted: boolean\) => \{/);
     expect(projectModal).toMatch(/node\.muted = muted;/);
     expect(projectModal).toMatch(/void node\.play\(\)[\s\S]*?\.catch\(\(\) => \{[\s\S]*?setShowPlayButton\(true\);/);
-    expect(projectModal).toMatch(/useEffect\(\(\) => \{[\s\S]*?video\.pause\(\);[\s\S]*?video\.currentTime = 0;[\s\S]*?attemptAutoplay\(video, isMutedRef\.current\);[\s\S]*?\}, \[attemptAutoplay, hasVideo, project, videoSrc\]\);/);
+    expect(projectModal).toMatch(/useEffect\(\(\) => \{[\s\S]*?video\.pause\(\);[\s\S]*?video\.currentTime = 0;[\s\S]*?video\.muted = false;[\s\S]*?attemptAutoplay\(video, false\);[\s\S]*?\}, \[attemptAutoplay, hasVideo, project, videoSrc\]\);/);
     expect(projectModal).not.toMatch(/\[attemptAutoplay, hasVideo, isMuted, project, videoSrc\]/);
     expect(projectModal).not.toMatch(/setIsMuted\(true\);[\s\S]*?node\.muted = true;/);
+  });
+
+  it('starts every project preview unmuted and keeps the play fallback', () => {
+    expect(projectModal).toContain('const isMutedRef = useRef(false)');
+    expect(projectModal).toContain('const [isMuted, setIsMuted] = useState(false)');
+    expect(projectModal).toContain('isMutedRef.current = false');
+    expect(projectModal).toContain('video.muted = false');
+    expect(projectModal).toContain('muted={isMuted}');
+    expect(projectModal).toContain('setShowPlayButton(true)');
   });
 
   it('registers the preview host only after play can be attempted', () => {

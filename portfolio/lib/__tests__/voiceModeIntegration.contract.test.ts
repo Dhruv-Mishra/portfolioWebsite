@@ -78,7 +78,9 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-still');
     expect(css).toContain('.voice-orb-wash');
     expect(css).toContain('.voice-edge-halo');
-    expect(css).toContain('@keyframes voice-edge-breathe');
+    expect(css).toContain('@keyframes voice-edge-wave-x');
+    expect(css).toContain('@keyframes voice-edge-wave-y');
+    expect(css).toContain('rgba(56, 189, 248, 0.92)');
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
@@ -122,6 +124,10 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain("right: 'max(1.25rem, env(safe-area-inset-right) + 1rem)'");
     expect(stage).toContain("right: 'max(0.75rem, env(safe-area-inset-right) + 0.5rem)'");
     expect(stage).toContain('data-phase={snapshot.phase}');
+    expect(stage).toContain('data-edge="top"');
+    expect(stage).toContain('data-edge="right"');
+    expect(stage).toContain('data-edge="bottom"');
+    expect(stage).toContain('data-edge="left"');
     expect(stage).toContain('aria-label="Hang up voice call"');
     expect(stage).toContain('/microphone|voice input/i.test(snapshot.error)');
     expect(stage).toContain('Enable mic');
@@ -138,7 +144,7 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain('{PHASE_LABEL[phase]}');
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
-    expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo');
+    expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo [data-edge]');
   });
 
   it('loads the voice runtime and prefetches media on enter, not idle mount', () => {

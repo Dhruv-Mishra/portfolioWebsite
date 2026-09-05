@@ -90,9 +90,9 @@ describe('mobile visibility and stacking contract', () => {
       expect(voiceStageSrc).not.toContain("bottom: 'var(--c-mobile-dock-bottom)'");
       expect(voiceStageSrc).toContain("bottom: 'var(--c-mobile-floating-bottom)'");
 
-      // Place captions above the raised dock
+      // Keep captions bottom-centered without lifting them into page content.
       expect(voiceStageSrc).toContain(
-        "const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-floating-bottom) + 5rem)'",
+        "const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-dock-bottom) + 3.5rem)'",
       );
     });
 

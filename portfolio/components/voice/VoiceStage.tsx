@@ -39,7 +39,7 @@ const CAPTION_LAYER_STYLE = {
   transform: 'translateX(-50%)',
 } as const;
 
-const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-floating-bottom) + 5rem)';
+const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-dock-bottom) + 3.5rem)';
 const DESKTOP_CAPTION_BOTTOM = 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)';
 
 export default function VoiceStage() {
@@ -147,7 +147,12 @@ export default function VoiceStage() {
           aria-hidden
           className="voice-edge-halo absolute inset-0"
           data-phase={snapshot.phase}
-        />
+        >
+          <span data-edge="top" />
+          <span data-edge="right" />
+          <span data-edge="bottom" />
+          <span data-edge="left" />
+        </div>
       ) : null}
 
       {intro || exiting ? (

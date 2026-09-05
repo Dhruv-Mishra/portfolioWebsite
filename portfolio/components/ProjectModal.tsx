@@ -57,12 +57,12 @@ const FOLD_COLOR_MODAL_STYLE = {
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const isMutedRef = useRef(true);
+    const isMutedRef = useRef(false);
     const playGenerationRef = useRef(0);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
     const masterVolume = useMasterVolume();
     const soundsMuted = useSoundsMuted();
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
     const [showPlayButton, setShowPlayButton] = useState(false);
     const [hasMountedVideo, setHasMountedVideo] = useState(false);
 
@@ -234,8 +234,11 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         if (!project || !hasVideo || !video) return;
         video.pause();
         video.currentTime = 0;
+        isMutedRef.current = false;
+        video.muted = false;
+        setIsMuted(false);
         setShowPlayButton(false);
-        attemptAutoplay(video, isMutedRef.current);
+        attemptAutoplay(video, false);
     }, [attemptAutoplay, hasVideo, project, videoSrc]);
 
     useEffect(() => {
@@ -290,7 +293,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                                             ref={setVideoRef}
                                             src={videoSrc}
                                             poster={project.image}
-                                            muted
+                                            muted={isMuted}
                                             loop
                                             playsInline
                                             preload="metadata"

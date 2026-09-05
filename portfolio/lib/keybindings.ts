@@ -13,7 +13,7 @@
 export type KeybindingGroup = 'Navigate' | 'Actions' | 'Dismiss';
 
 export interface Keybinding {
-  /** Stable identifier for the binding (also used by CommandContext routing) */
+  /** Stable identifier for the binding */
   id: string;
   /** Ordered key sequence — single-key bindings use a single-element array */
   keys: string[];
@@ -35,12 +35,11 @@ export const KEYBINDINGS: Keybinding[] = [
   { id: 'nav-stickers', keys: ['g', 's'], label: 'Go to Stickers', group: 'Navigate' },
 
   // ── Actions ─────────────────────────────────────────────────────
-  { id: 'action-palette', keys: ['Ctrl/⌘ K'], label: 'Open Command Palette', group: 'Actions' },
   { id: 'action-theme', keys: ['t'], label: 'Toggle Theme', group: 'Actions' },
   { id: 'action-shortcuts', keys: ['?'], label: 'Show Shortcuts', group: 'Actions' },
 
   // ── Dismiss ─────────────────────────────────────────────────────
-  { id: 'dismiss-esc', keys: ['Esc'], label: 'Close overlay / palette', group: 'Dismiss' },
+  { id: 'dismiss-esc', keys: ['Esc'], label: 'Close overlay', group: 'Dismiss' },
 ];
 
 /** Chord-navigation map — used by useGlobalHotkeys for the `g <letter>` chord */

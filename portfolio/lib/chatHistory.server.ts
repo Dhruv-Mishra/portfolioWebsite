@@ -50,10 +50,6 @@ function normalizeAction(action: ActionExecution | null | undefined): ActionExec
     normalized.projectSlug = action.projectSlug;
   }
 
-  if (action.commandPaletteAction) {
-    normalized.commandPaletteAction = true;
-  }
-
   if (action.voiceSessionAction) {
     normalized.voiceSessionAction = true;
   }

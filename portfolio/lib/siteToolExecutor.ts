@@ -291,9 +291,6 @@ export async function executeSiteTool(
     case 'open_feedback':
       if (commit) requestOpenFeedback();
       return ok('Opening the feedback note.');
-    case 'open_command_palette':
-      if (commit) window.dispatchEvent(new CustomEvent('open-command-palette'));
-      return ok('Opening the command palette.');
     case 'open_shortcuts':
       if (commit) requestOpenShortcuts();
       return ok('Opening keyboard shortcuts.');

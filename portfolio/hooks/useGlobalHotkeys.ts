@@ -87,8 +87,7 @@ export function useGlobalHotkeys({
       }
       // Never hijack when the user is in the middle of a composing input.
       if (e.isComposing) return;
-      // Ignore bindings with ctrl/meta/alt — those belong to system shortcuts
-      // or to the palette itself (handled elsewhere).
+      // Ignore bindings with ctrl/meta/alt; those belong to system shortcuts.
       if (e.ctrlKey || e.metaKey || e.altKey) {
         disarmChord();
         return;

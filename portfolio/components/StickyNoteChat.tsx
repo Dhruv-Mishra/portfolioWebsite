@@ -742,7 +742,7 @@ const StickyNote = memo(function StickyNote({
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
-  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit);
+  const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit);
   const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
   const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
@@ -1618,7 +1618,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       if (message.isOld || message.role !== 'assistant') continue;
       if (handledActionsRef.current.has(message.id)) continue;
 
-      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.commandPaletteAction || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit;
+      const hasAction = message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit;
       if (!hasAction) continue;
 
       handledActionsRef.current.add(message.id);
@@ -1767,7 +1767,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       action.themeAction ||
       action.feedbackAction ||
       action.projectSlug ||
-      action.commandPaletteAction ||
       action.voiceSessionAction ||
       action.fieldFill ||
       action.preferenceAction ||
@@ -1837,10 +1836,6 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
           discoActive,
         });
       });
-    }
-    if (action.commandPaletteAction) {
-      openPanel();
-      window.dispatchEvent(new CustomEvent('open-command-palette'));
     }
 
     // Open URLs in new tabs — handle popup blockers

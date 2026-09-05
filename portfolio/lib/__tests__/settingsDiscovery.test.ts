@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '@/app/sitemap';
-import { buildCommandEntries } from '@/lib/commandRegistry';
 import { TERMINAL_COMMAND_NAME_SET } from '@/lib/terminalCommandNames';
 import { createCommandRegistry } from '@/lib/terminalCommands';
 
@@ -12,23 +11,6 @@ const socialSidebar = fs.readFileSync(
 );
 
 describe('settings discovery', () => {
-  it('registers a command-palette entry that navigates to settings', () => {
-    const entry = buildCommandEntries().find((command) => command.id === 'nav-settings');
-    const push = vi.fn();
-
-    expect(entry?.label).toBe('Settings');
-    entry?.run({
-      router: { push } as never,
-      setTheme: vi.fn(),
-      resolvedTheme: 'light',
-      discoActive: false,
-      openFeedback: vi.fn(),
-      openShortcuts: vi.fn(),
-      runTerminalCommand: vi.fn(),
-    });
-    expect(push).toHaveBeenCalledWith('/settings');
-  });
-
   it('includes settings in terminal autocomplete', () => {
     expect(TERMINAL_COMMAND_NAME_SET.has('settings')).toBe(true);
   });

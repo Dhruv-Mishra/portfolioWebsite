@@ -6,7 +6,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * Media-query probe for "true" desktop — a device with hover capability and a
  * fine pointer. This filters out phones, tablets, and touch-first hybrid
  * devices where hover+fine-pointer is unreliable. Consumers use this to gate
- * desktop-only chrome (command palette, shortcuts overlay, keyboard hints) so
+ * desktop-only chrome (shortcuts overlay) so
  * their JS never ships to mobile.
  *
  * SSR / pre-hydration default is `false` — we prefer not to render

@@ -547,6 +547,7 @@ describe('voice session runtime singleton', () => {
     });
 
     runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
+  runtime.fakeCaller.emit('turnComplete', true);
     runtime.fakePlayback.setBusy(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
@@ -603,7 +604,7 @@ describe('voice session runtime singleton', () => {
 
     expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
       ok: true,
-      spokenText: 'Leaving voice mode.',
+      spokenText: 'Goodbye.',
     });
     expect(voiceSounds.playVoiceAction).not.toHaveBeenCalled();
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
@@ -615,6 +616,12 @@ describe('voice session runtime singleton', () => {
     expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
 
     runtime.fakePlayback.setBusy(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
+      active: true,
+      hud: 'live',
+    });
+
+    runtime.fakeCaller.emit('turnComplete', true);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'exiting',
@@ -630,7 +637,6 @@ describe('voice session runtime singleton', () => {
   it('waits for idle when end_voice_session arrives during goodbye playback', async () => {
     vi.useFakeTimers();
     const runtime = await boot();
-    runtime.fakeCaller.emit('turnComplete', true);
     runtime.fakePlayback.setBusy(true);
 
     runtime.fakeCaller.emit('toolCall', {
@@ -645,6 +651,10 @@ describe('voice session runtime singleton', () => {
     expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({ ok: true });
     expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
 
+    runtime.fakeCaller.emit('audio', new ArrayBuffer(2));
+    runtime.fakeCaller.emit('turnComplete', true);
+    expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
+
     runtime.fakePlayback.setBusy(false);
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
@@ -656,6 +666,37 @@ describe('voice session runtime singleton', () => {
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('silences repeated end_voice_session tool calls while hangup is pending', async () => {
+    const runtime = await boot();
+    goLive(runtime);
+
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'end-first',
+      name: 'end_voice_session',
+      args: { reason: 'user' },
+    } as SiteToolCall);
+    runtime.fakeCaller.emit('toolCall', {
+      id: 'end-again',
+      name: 'end_voice_session',
+      args: { reason: 'user' },
+    } as SiteToolCall);
+
+    await vi.waitFor(() => {
+      expect(runtime.fakeCaller.toolResults).toHaveLength(2);
+    });
+    expect(runtime.fakeCaller.toolResults[0]?.result).toMatchObject({
+      ok: true,
+      spokenText: 'Goodbye.',
+    });
+    expect(runtime.fakeCaller.toolResults[1]?.result).toMatchObject({
+      ok: true,
+      spokenText: '',
+      data: { alreadyEnding: true },
+    });
+
+    runtime.resetVoiceSessionRuntimeForTests();
   });
 
   it('dedupes Gemini tool calls by id only, not by semantic args', async () => {
@@ -864,6 +905,7 @@ describe('voice session runtime singleton', () => {
     expect(getVoiceSessionSnapshot().hangupPending).toBe(true);
 
     fakeCaller.emit('audio', new ArrayBuffer(2));
+  fakeCaller.emit('turnComplete', true);
     fakePlayback.setBusy(false);
     expect(getVoiceSessionSnapshot()).toMatchObject({
       active: true,

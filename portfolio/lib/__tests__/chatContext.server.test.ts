@@ -254,13 +254,4 @@ describe('buildDhruvSystemPrompt — recent action context', () => {
     expect(prompt).toContain('handled a dark theme action');
   });
 
-  it('narrates a command palette action', async () => {
-    const prompt = await build([
-      { role: 'user', content: 'open command palette' },
-      { role: 'assistant', content: 'done', action: { commandPaletteAction: true } },
-      { role: 'user', content: 'nice' },
-    ]);
-
-    expect(prompt).toContain('Already opened command palette');
-  });
 });

@@ -73,12 +73,12 @@ describe('mobile visibility and stacking contract', () => {
       );
     });
 
-    it('allows hiding social frame and feedback tab only during blocking voice intro and exiting veil', () => {
+    it('keeps social links live while reserving the feedback corner for voice controls', () => {
       expect(globalsCss).toMatch(
         /html\[data-voice-mode="intro"\]\s+\[data-social-sidebar-frame\],[^}]*html\[data-voice-mode="exiting"\]\s+\[data-social-sidebar-frame\][^}]*display:\s*none\s*!important;/,
       );
       expect(globalsCss).toMatch(
-        /html\[data-voice-mode="intro"\]\s+\[data-feedback-tab\],[^}]*html\[data-voice-mode="exiting"\]\s+\[data-feedback-tab\][^}]*display:\s*none\s*!important;/,
+        /html\[data-voice-mode\]\s+\[data-feedback-tab\][^}]*display:\s*none\s*!important;/,
       );
     });
 
@@ -90,9 +90,9 @@ describe('mobile visibility and stacking contract', () => {
       expect(voiceStageSrc).not.toContain("bottom: 'var(--c-mobile-dock-bottom)'");
       expect(voiceStageSrc).toContain("bottom: 'var(--c-mobile-floating-bottom)'");
 
-      // Place captions above the raised dock
+      // Keep captions bottom-centered without lifting them into page content.
       expect(voiceStageSrc).toContain(
-        "const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-floating-bottom) + 5rem)'",
+        "const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-dock-bottom) + 3.5rem)'",
       );
     });
 

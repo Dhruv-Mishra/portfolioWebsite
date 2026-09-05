@@ -338,19 +338,6 @@ function resolveTheme(input: string): ActionResolution | null {
   return null;
 }
 
-function resolveCommandPalette(input: string): ActionResolution | null {
-  if (!/\b(open|show)\s+(?:the\s+)?(?:command\s+(?:palette|menu)|quick\s+actions)\b/i.test(input)) {
-    return null;
-  }
-
-  const action: ActionExecution = { commandPaletteAction: true };
-  return {
-    kind: 'action',
-    action,
-    reply: getActionFallbackReply(action) ?? 'Opening the command palette ~',
-  };
-}
-
 function resolveVoiceSession(input: string): ActionResolution | null {
   if (!/\b(?:start|enter|open|switch to)\s+(?:the\s+)?(?:native\s+)?voice(?:\s+(?:mode|agent|session|experience))\b/i.test(input)) {
     return null;
@@ -424,11 +411,6 @@ function resolveSingleChatIntent(normalized: string): ChatIntentResolution | nul
     return theme;
   }
 
-  const commandPalette = resolveCommandPalette(normalized);
-  if (commandPalette) {
-    return commandPalette;
-  }
-
   const voiceSession = resolveVoiceSession(normalized);
   if (voiceSession) {
     return voiceSession;
@@ -471,7 +453,6 @@ function countActionEffects(action: ActionExecution): number {
     Number(Boolean(action.themeAction)) +
     Number(Boolean(action.feedbackAction)) +
     Number(Boolean(action.projectSlug)) +
-    Number(Boolean(action.commandPaletteAction)) +
     Number(Boolean(action.voiceSessionAction)) +
     Number(Boolean(action.fieldFill)) +
     Number(Boolean(action.preferenceAction)) +
@@ -495,8 +476,6 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
       next.feedbackAction ||
       current.projectSlug ||
       next.projectSlug ||
-      current.commandPaletteAction ||
-      next.commandPaletteAction ||
       current.voiceSessionAction ||
       next.voiceSessionAction ||
       current.fieldFill ||
@@ -510,7 +489,6 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
 
   const transientSurfaceCount = Number(Boolean(current.feedbackAction || next.feedbackAction)) +
     Number(Boolean(current.projectSlug || next.projectSlug)) +
-    Number(Boolean(current.commandPaletteAction || next.commandPaletteAction)) +
     Number(Boolean(current.voiceSessionAction || next.voiceSessionAction)) +
     Number(Boolean(current.fieldFill || next.fieldFill)) +
     Number(Boolean(current.guestbookSubmit || next.guestbookSubmit));
@@ -533,7 +511,6 @@ function mergeChainActions(current: ActionExecution, next: ActionExecution): Act
     openUrls: openUrls.length ? openUrls : undefined,
     feedbackAction: current.feedbackAction || next.feedbackAction || undefined,
     projectSlug: current.projectSlug ?? next.projectSlug,
-    commandPaletteAction: current.commandPaletteAction || next.commandPaletteAction || undefined,
     voiceSessionAction: current.voiceSessionAction || next.voiceSessionAction || undefined,
     fieldFill: current.fieldFill ?? next.fieldFill,
     preferenceAction: current.preferenceAction ?? next.preferenceAction,

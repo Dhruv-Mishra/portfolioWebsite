@@ -76,10 +76,10 @@ describe('chat history action validation', () => {
     expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { navigateTo: '/admin' } })).toBeNull();
     expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { openUrls: ['https://example.com'] } })).toBeNull();
     expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { feedbackAction: false } })).toBeNull();
-    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { commandPaletteAction: true, extra: 'tampered' } as never })).toBeNull();
-    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { themeAction: 'dark', projectSlug: 'cropio', commandPaletteAction: true, feedbackAction: true } })).toBeNull();
+    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { retiredAction: true } as never })).toBeNull();
+    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { themeAction: 'dark', projectSlug: 'cropio', voiceSessionAction: true, feedbackAction: true } })).toBeNull();
     expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { projectSlug: 'cropio', feedbackAction: true } })).toBeNull();
-    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { navigateTo: '/projects', commandPaletteAction: true } })).toBeNull();
+    expect(verifyAssistantMessage({ role: 'assistant', content, signature, action: { navigateTo: '/projects', voiceSessionAction: true } })).toBeNull();
     expect(() => signAssistantMessage(content, { navigateTo: '/admin' })).toThrow('Invalid chat action');
   });
 
@@ -93,7 +93,7 @@ describe('chat history action validation', () => {
   });
 
   it('signs and verifies an allowlisted composite action', () => {
-    const action = { commandPaletteAction: true, themeAction: 'dark' as const, openUrls: ['https://github.com/Dhruv-Mishra'] };
+    const action = { voiceSessionAction: true, themeAction: 'dark' as const, openUrls: ['https://github.com/Dhruv-Mishra'] };
     const signature = signAssistantMessage(content, action);
 
     expect(verifyAssistantMessage({ role: 'assistant', content, signature, action })).toEqual({

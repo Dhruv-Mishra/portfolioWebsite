@@ -10,7 +10,6 @@ export const SITE_TOOL_NAMES = [
   'control_project_video',
   'open_link',
   'open_feedback',
-  'open_command_palette',
   'open_shortcuts',
   'open_chat',
   'browse_history',
@@ -40,7 +39,6 @@ export const VOICE_FIELD_IDS = [
   'guestbook-name',
   'feedback-message',
   'feedback-contact',
-  'command-palette-query',
   'terminal-input',
   'chat-composer',
 ] as const;
@@ -174,7 +172,6 @@ export type SiteToolArgsMap = {
   control_project_video: { action: ProjectVideoAction };
   open_link: { key: ApprovedLinkKey };
   open_feedback: Record<string, never>;
-  open_command_palette: Record<string, never>;
   open_shortcuts: Record<string, never>;
   open_chat: Record<string, never>;
   browse_history: { direction: BrowseHistoryDirection };

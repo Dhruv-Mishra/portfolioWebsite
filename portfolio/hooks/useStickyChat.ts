@@ -48,7 +48,6 @@ export interface ChatMessage {
   openUrlsFailed?: boolean; // True if any popup was blocked — show fallback links
   feedbackAction?: boolean; // True when the feedback modal should open
   projectSlug?: ProjectSlug; // Open a specific project modal on the current page
-  commandPaletteAction?: boolean; // True when the command palette should open
   voiceSessionAction?: boolean;
   fieldFill?: ActionExecution['fieldFill'];
   preferenceAction?: ActionExecution['preferenceAction'];
@@ -852,7 +851,6 @@ export function useStickyChat(): UseStickyChat {
             openUrls: m.openUrls,
             feedbackAction: m.feedbackAction,
             projectSlug: m.projectSlug,
-            commandPaletteAction: m.commandPaletteAction,
             voiceSessionAction: m.voiceSessionAction,
             fieldFill: m.fieldFill,
             preferenceAction: m.preferenceAction,
@@ -938,7 +936,6 @@ export function useStickyChat(): UseStickyChat {
                   openUrls: serverAction?.openUrls,
                   feedbackAction: serverAction?.feedbackAction,
                   projectSlug: serverAction?.projectSlug,
-                  commandPaletteAction: serverAction?.commandPaletteAction,
                   voiceSessionAction: serverAction?.voiceSessionAction,
                   fieldFill: serverAction?.fieldFill,
                   preferenceAction: serverAction?.preferenceAction,
@@ -1096,7 +1093,6 @@ export function useStickyChat(): UseStickyChat {
       openUrls: action?.openUrls,
       feedbackAction: action?.feedbackAction,
       projectSlug: action?.projectSlug,
-      commandPaletteAction: action?.commandPaletteAction,
       voiceSessionAction: action?.voiceSessionAction,
       fieldFill: action?.fieldFill,
       preferenceAction: action?.preferenceAction,

@@ -29,7 +29,6 @@ export interface ActionExecution {
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
-  commandPaletteAction?: boolean;
   voiceSessionAction?: boolean;
   fieldFill?: FieldFillAction;
   preferenceAction?: PreferenceAction;
@@ -44,7 +43,6 @@ export interface ActionDef {
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
-  commandPaletteAction?: boolean;
   voiceSessionAction?: boolean;
   fieldFill?: FieldFillAction;
   preferenceAction?: PreferenceAction;
@@ -66,7 +64,6 @@ const ACTION_EXECUTION_KEYS = new Set([
   'openUrls',
   'feedbackAction',
   'projectSlug',
-  'commandPaletteAction',
   'voiceSessionAction',
   'fieldFill',
   'preferenceAction',
@@ -133,10 +130,6 @@ const PROJECT_MODAL_ACTIONS: ActionDef[] = PROJECT_ACTIONS.map(project => ({
  */
 export const ACTION_REGISTRY: ActionDef[] = [
   ...PROJECT_MODAL_ACTIONS,
-  {
-    label: 'Open command palette',
-    commandPaletteAction: true,
-  },
   {
     label: 'Show me your portfolio',
     navigateTo: '/projects',
@@ -302,10 +295,6 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
     return false;
   }
 
-  if (candidate.commandPaletteAction !== undefined && candidate.commandPaletteAction !== true) {
-    return false;
-  }
-
   if (candidate.voiceSessionAction !== undefined && candidate.voiceSessionAction !== true) {
     return false;
   }
@@ -365,7 +354,6 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
 
   const transientSurfaceCount = Number(candidate.feedbackAction === true) +
     Number(candidate.projectSlug !== undefined) +
-    Number(candidate.commandPaletteAction === true) +
     Number(candidate.voiceSessionAction === true) +
     Number(candidate.fieldFill !== undefined) +
     Number(candidate.guestbookSubmit !== undefined);
@@ -377,7 +365,6 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
     Number(candidate.themeAction !== undefined) +
     Number(candidate.feedbackAction === true) +
     Number(candidate.projectSlug !== undefined) +
-    Number(candidate.commandPaletteAction === true) +
     Number(candidate.voiceSessionAction === true) +
     Number(candidate.fieldFill !== undefined) +
     Number(candidate.preferenceAction !== undefined) +
@@ -398,7 +385,6 @@ export function toActionExecution(action: ActionDef): ActionExecution {
     openUrls: action.openUrls ? [...action.openUrls] : undefined,
     feedbackAction: action.feedbackAction,
     projectSlug: action.projectSlug,
-    commandPaletteAction: action.commandPaletteAction,
     voiceSessionAction: action.voiceSessionAction,
     fieldFill: action.fieldFill ? { ...action.fieldFill } : undefined,
     preferenceAction: action.preferenceAction ? { ...action.preferenceAction } : undefined,
@@ -435,10 +421,6 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
 
   if (action.feedbackAction) {
     return 'Opening the feedback note ~';
-  }
-
-  if (action.commandPaletteAction) {
-    return 'Opening the command palette ~';
   }
 
   if (action.voiceSessionAction) {
@@ -553,5 +535,4 @@ export const INITIAL_SUGGESTIONS = [
   DISCO_EXPLAINER_LABEL,
   "What's the Escape the Matrix puzzle?",
   "Report a bug",
-  'Open command palette',
 ] as const;

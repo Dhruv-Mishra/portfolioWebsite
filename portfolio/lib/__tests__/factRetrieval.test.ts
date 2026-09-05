@@ -179,12 +179,13 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(facts.map((fact) => fact.id)).toContain('site-matrix-puzzle');
   });
 
-  it('does not route command-palette questions to the terminal overview fact', async () => {
-    const facts = await retrieveRelevantFacts('how does the command palette work?', { limit: 6 });
-    const ids = facts.map((fact) => fact.id);
+  it('grounds keyboard help in the remaining opt-in shortcuts', async () => {
+    const facts = await retrieveRelevantFacts('keyboard shortcuts hotkeys question mark', { limit: 6 });
+    const shortcuts = facts.find((fact) => fact.id === 'site-shortcuts');
 
-    expect(ids).toContain('site-command-palette');
-    expect(ids).not.toContain('site-terminal');
+    expect(shortcuts?.text).toContain('`?` opens the shortcuts overlay');
+    expect(shortcuts?.text).toContain('`t` toggles the theme');
+    expect(shortcuts?.text).not.toMatch(/(?:cmd|ctrl)\s*\+\s*k/i);
   });
 
   it('surfaces the about-page timeline fact when asked about the experience timeline', async () => {

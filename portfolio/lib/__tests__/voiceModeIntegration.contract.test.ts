@@ -7,16 +7,12 @@ const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), '
 describe('voice mode integration contract', () => {
   it('keeps every requested entry point and fillable field wired to voice mode', () => {
     const settings = read('components/SettingsPanel.tsx');
-    const commandRegistry = read('lib/commandRegistry.ts');
     const chat = read('components/StickyNoteChat.tsx');
     const guestbook = read('components/GuestbookForm.tsx');
     const feedback = read('components/FeedbackNote.tsx');
-    const palette = read('components/CommandPalette.tsx');
     const terminal = read('components/Terminal.tsx');
 
     expect(settings).toContain('title="Voice Agent"');
-    expect(commandRegistry).toContain('action-enter-voice-mode');
-    expect(commandRegistry).toContain("label: 'Enter voice mode'");
     expect(chat).toContain("requestVoiceMode({ source: 'chat', topic: 'chat' })");
     expect(chat).toContain('data-voice-field="chat-composer"');
     expect(guestbook).toContain('data-voice-field="guestbook-message"');
@@ -27,7 +23,6 @@ describe('voice mode integration contract', () => {
     expect(feedback).toContain('data-voice-field="feedback-contact"');
     expect(feedback).toContain("registerSiteActionHost('feedback')");
     expect(feedback).toContain('SUBMIT_FEEDBACK_EVENT');
-    expect(palette).toContain('data-voice-field="command-palette-query"');
     expect(terminal).toContain('data-voice-field={activePrompt ? undefined : "terminal-input"}');
   });
 
@@ -42,6 +37,8 @@ describe('voice mode integration contract', () => {
     const css = read('app/globals.css');
 
     expect(enhancements).toContain('VoiceModeController');
+    expect(enhancements).toContain('{isDesktop ? <ShortcutsOverlayProvider /> : null}');
+    expect(enhancements).not.toMatch(/Hint|Toast/);
     expect(controller).not.toMatch(/from ['"]@\/lib\/voiceSessionRuntime['"]/);
     expect(controller).toContain("import('@/lib/voiceSessionRuntime')");
     expect(controller).toContain('runtimeImport = null');
@@ -77,6 +74,16 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-gif');
     expect(css).toContain('.voice-orb-still');
     expect(css).toContain('.voice-orb-wash');
+    expect(css).toContain('.voice-edge-halo');
+    expect(css).toContain('@keyframes voice-edge-breathe');
+    expect(css).toContain('@keyframes voice-edge-action-pulse');
+    expect(css).not.toContain('@keyframes voice-edge-flow-x');
+    expect(css).not.toContain('@keyframes voice-edge-flow-y');
+    expect(css).toContain('--voice-edge-rgb: 126 64 184');
+    expect(css).toContain('.dark .voice-edge-halo');
+    expect(css).toContain('--voice-edge-rgb: 202 148 255');
+    expect(css).toContain('--voice-edge-rgb: 22 163 74');
+    expect(css).toContain('--voice-edge-rgb: 74 222 128');
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
@@ -104,10 +111,9 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain('reducedMotion={reducedMotion}');
     expect(stage).toContain('VOICE_EXIT_VEIL_MS');
     expect(stage).toContain('data-voice-exit-chrome');
-    expect(stage).toContain('data-voice-exit-orb');
-    expect(stage).toContain('activeAnimation.cancel()');
-    expect(stage).not.toMatch(/\[exiting, intro, live, reducedMotion, isMobile, snapshot\.phase\]/);
-    expect(stage).toMatch(/\}, \[exiting, intro, live, reducedMotion, isMobile\]\);/);
+    expect(stage).not.toContain('data-voice-exit-orb');
+    expect(stage).not.toContain('orbAnimationRef');
+    expect(stage).not.toContain('dockSlotRef');
     expect(css).toContain('transition: opacity 420ms ease-out');
     expect(css).not.toContain('@keyframes voice-stage-veil-intro');
     expect(css).not.toContain('@keyframes voice-stage-veil-live');
@@ -118,6 +124,13 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain("const speakingNow = phase === 'speaking'");
     expect(orb).not.toContain('level > SPEAKING_LEVEL');
     expect(stage).toMatch(/style=\{isMobile \? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE\}/);
+    expect(stage).toContain("right: 'max(1.25rem, env(safe-area-inset-right) + 1rem)'");
+    expect(stage).toContain("right: 'max(0.75rem, env(safe-area-inset-right) + 0.5rem)'");
+    expect(stage).toContain('data-phase={snapshot.phase}');
+    expect(stage).toContain('data-edge="right"');
+    expect(stage).toContain('data-edge="left"');
+    expect(stage).not.toContain('data-edge="top"');
+    expect(stage).not.toContain('data-edge="bottom"');
     expect(stage).toContain('aria-label="Hang up voice call"');
     expect(stage).toContain('/microphone|voice input/i.test(snapshot.error)');
     expect(stage).toContain('Enable mic');
@@ -126,6 +139,10 @@ describe('voice mode integration contract', () => {
     expect(stage).not.toContain('PhoneOff');
     expect(stage).toContain('flex flex-row items-center gap-3');
     expect(stage).not.toContain('flex-col-reverse');
+    expect(stage.match(/<VoiceOrb/g) ?? []).toHaveLength(2);
+    expect(stage).toContain("snapshot.phase === 'acting'");
+    expect(stage).toContain('size="dock"');
+    expect(stage).toContain('showLabel={false}');
     expect(stage).toContain('font-hand text-xs leading-snug');
     expect(orb).toMatch(/\{reducedMotion \? \([\s\S]*voice-orb-still[\s\S]*\) : \([\s\S]*voice-orb-gif/);
     expect(orb.match(/<img\b/g) ?? []).toHaveLength(2);
@@ -133,6 +150,26 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain('{PHASE_LABEL[phase]}');
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
+    expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo [data-edge]');
+  });
+
+  it('keeps a prominent side-only breathing halo with green action pulses and static reduced motion', () => {
+    const css = read('app/globals.css');
+    const halo = css.slice(css.indexOf('.voice-edge-halo {'), css.indexOf('.voice-orb-media,'));
+
+    expect(halo).toContain('--voice-edge-width: 48px');
+    expect(halo).toContain('width: var(--voice-edge-width)');
+    expect(halo).toContain('pointer-events: none');
+    expect(halo).toContain('overflow: hidden');
+    expect(halo.match(/--voice-edge-rgb:/g)).toHaveLength(4);
+    expect(halo).toContain('animation: voice-edge-breathe');
+    expect(halo).toContain('animation: voice-edge-action-pulse');
+    expect(halo).not.toMatch(/voice-edge-flow|translate3d|data-edge="top"|data-edge="bottom"/);
+    for (const selector of ['html:not([data-motion="full"])', 'html[data-motion="reduced"]']) {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      expect(css).toMatch(new RegExp(`${escaped} \\.voice-edge-halo,[^{]+\\{[^}]*animation: none`));
+      expect(css).toMatch(new RegExp(`${escaped} \\.voice-edge-halo \\[data-edge\\] \\{\\s+animation: none;\\s+transform: none;`));
+    }
   });
 
   it('loads the voice runtime and prefetches media on enter, not idle mount', () => {

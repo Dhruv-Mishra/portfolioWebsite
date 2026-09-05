@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
 import { MicOff, Phone, RotateCcw } from 'lucide-react';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
@@ -22,18 +22,16 @@ const VEIL_FADE_MS = 420;
 const REDUCED_VEIL_MS = 0;
 const EXIT_TEARDOWN_MARGIN_MS = 160;
 const EXIT_VEIL_FADE_MS = VOICE_EXIT_VEIL_MS - EXIT_TEARDOWN_MARGIN_MS;
-const FLIP_MS = 520;
 
 const DESKTOP_DOCK_STYLE = {
-  left: 'max(6.5rem, env(safe-area-inset-left) + var(--c-binding-w-md) + 4rem)',
+  right: 'max(1.25rem, env(safe-area-inset-right) + 1rem)',
   bottom: 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)',
 } as const;
 
 const MOBILE_DOCK_STYLE = {
-  left: '50%',
+  right: 'max(0.75rem, env(safe-area-inset-right) + 0.5rem)',
   bottom: 'var(--c-mobile-floating-bottom)',
-  transform: 'translateX(-50%)',
-  alignItems: 'center',
+  alignItems: 'flex-end',
 } as const;
 
 const CAPTION_LAYER_STYLE = {
@@ -41,7 +39,7 @@ const CAPTION_LAYER_STYLE = {
   transform: 'translateX(-50%)',
 } as const;
 
-const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-floating-bottom) + 5rem)';
+const MOBILE_CAPTION_BOTTOM = 'calc(var(--c-mobile-dock-bottom) + 3.5rem)';
 const DESKTOP_CAPTION_BOTTOM = 'max(1.25rem, env(safe-area-inset-bottom) + 1rem)';
 
 export default function VoiceStage() {
@@ -54,16 +52,6 @@ export default function VoiceStage() {
   const isMobile = useIsMobile();
   const leaveButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const heroSlotRef = useRef<HTMLDivElement>(null);
-  const dockSlotRef = useRef<HTMLDivElement>(null);
-  const orbNodeRef = useRef<HTMLDivElement>(null);
-  const lastOrbRectRef = useRef<DOMRect | null>(null);
-  const orbAnimationRef = useRef<Animation | null>(null);
-  const flipTargetRef = useRef<{
-    slot: 'hero' | 'dock' | null;
-    reducedMotion: boolean;
-    isMobile: boolean;
-  }>({ slot: null, reducedMotion: false, isMobile: false });
 
   const exiting = snapshot.hud === 'exiting';
   const intro = !exiting && (snapshot.hud === 'intro' || !snapshot.introComplete);
@@ -103,71 +91,6 @@ export default function VoiceStage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-
-  useLayoutEffect(() => {
-    const targetSlot: 'hero' | 'dock' = live ? 'dock' : 'hero';
-    const previousTarget = flipTargetRef.current;
-    const slotChanged = previousTarget.slot !== targetSlot;
-    const motionChanged = previousTarget.reducedMotion !== reducedMotion;
-    const mobileChanged = previousTarget.isMobile !== isMobile;
-    if (previousTarget.slot !== null && !slotChanged && !motionChanged && !mobileChanged) {
-      return;
-    }
-
-    flipTargetRef.current = { slot: targetSlot, reducedMotion, isMobile };
-
-    const activeAnimation = orbAnimationRef.current;
-    if (activeAnimation) {
-      activeAnimation.cancel();
-      orbAnimationRef.current = null;
-    }
-
-    const slot = targetSlot === 'hero' ? heroSlotRef.current : dockSlotRef.current;
-    const node = orbNodeRef.current;
-    if (!slot || !node) return;
-
-    const last = slot.getBoundingClientRect();
-    node.style.left = `${last.left}px`;
-    node.style.top = `${last.top}px`;
-    node.style.width = `${last.width}px`;
-    node.style.height = `${last.height}px`;
-
-    if (reducedMotion || !lastOrbRectRef.current) {
-      lastOrbRectRef.current = last;
-      return;
-    }
-
-    const first = lastOrbRectRef.current;
-    lastOrbRectRef.current = last;
-    const dx = first.left - last.left;
-    const dy = first.top - last.top;
-    const sx = first.width / Math.max(last.width, 1);
-    const sy = first.height / Math.max(last.height, 1);
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.02) return;
-
-    const animation = node.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` },
-        { transform: 'none' },
-      ],
-      {
-        duration: FLIP_MS,
-        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-        fill: 'both',
-      },
-    );
-    orbAnimationRef.current = animation;
-    const clearAnimation = () => {
-      if (orbAnimationRef.current === animation) orbAnimationRef.current = null;
-    };
-    animation.addEventListener('finish', clearAnimation, { once: true });
-    animation.addEventListener('cancel', clearAnimation, { once: true });
-    return () => {
-      if (orbAnimationRef.current !== animation) return;
-      animation.cancel();
-      orbAnimationRef.current = null;
-    };
-  }, [exiting, intro, live, reducedMotion, isMobile]);
 
   const hangup = (
     <button
@@ -219,6 +142,17 @@ export default function VoiceStage() {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(90,140,255,0.18),transparent_42%),radial-gradient(circle_at_50%_80%,rgba(255,255,255,0.05),transparent_36%)]" />
       </m.div>
 
+      {live ? (
+        <div
+          aria-hidden
+          className="voice-edge-halo absolute inset-0"
+          data-phase={snapshot.phase}
+        >
+          <span data-edge="right" />
+          <span data-edge="left" />
+        </div>
+      ) : null}
+
       {intro || exiting ? (
         <m.div
           initial={{
@@ -259,10 +193,9 @@ export default function VoiceStage() {
             </div>
           </header>
           <div className="relative flex flex-1 flex-col items-center justify-center px-6">
-            <div
-              ref={heroSlotRef}
-              className="h-44 w-44 md:h-56 md:w-56"
-              aria-hidden
+            <VoiceOrb
+              phase={snapshot.phase}
+              reducedMotion={reducedMotion}
             />
             <p
               role="status"
@@ -297,12 +230,15 @@ export default function VoiceStage() {
             style={isMobile ? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE}
           >
             <div className="flex flex-row items-center gap-3">
-              <div
-                ref={dockSlotRef}
-                className="h-16 w-16 md:h-20 md:w-20"
-                aria-hidden
-              />
               {retry}
+              {snapshot.phase === 'acting' ? (
+                <VoiceOrb
+                  phase={snapshot.phase}
+                  reducedMotion={reducedMotion}
+                  size="dock"
+                  showLabel={false}
+                />
+              ) : null}
               {hangup}
             </div>
           </div>
@@ -342,31 +278,6 @@ export default function VoiceStage() {
         </>
       )}
 
-      <m.div
-        ref={orbNodeRef}
-        className="pointer-events-none fixed origin-center"
-        initial={{ opacity: 1 }}
-        animate={{
-          opacity: reducedMotion
-            ? 1
-            : exiting
-              ? [1, 1, 0, 0]
-              : 1,
-        }}
-        transition={{
-          duration: (!reducedMotion && exiting ? EXIT_VEIL_FADE_MS : 0) / 1000,
-          times: !reducedMotion && exiting ? [0, 0.18, 0.62, 1] : undefined,
-          ease: 'easeOut',
-        }}
-        data-voice-exit-orb={exiting ? 'true' : undefined}
-      >
-        <VoiceOrb
-          phase={snapshot.phase}
-          reducedMotion={reducedMotion}
-          size={intro || exiting ? 'hero' : 'dock'}
-          showLabel={intro || exiting}
-        />
-      </m.div>
     </div>
   );
 }

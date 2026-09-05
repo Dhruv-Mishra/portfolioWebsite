@@ -98,7 +98,6 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
       return { key } as SiteToolArgsMap[Name];
     }
     case 'open_feedback':
-    case 'open_command_palette':
     case 'open_shortcuts':
     case 'open_chat':
     case 'close_project':

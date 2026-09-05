@@ -10,7 +10,7 @@ import { runThemeToggle } from '@/lib/themeToggleAction';
 
 /**
  * Lazy-loaded overlay UI. The overlay is only pulled the first time the
- * user requests it — either via `?` or via the palette action.
+ * user requests it via `?` or a site action.
  */
 const ShortcutsOverlay = dynamic(() => import('@/components/ShortcutsOverlay'), {
   ssr: false,
@@ -20,7 +20,7 @@ const ShortcutsOverlay = dynamic(() => import('@/components/ShortcutsOverlay'), 
 /**
  * ShortcutsOverlayProvider — owns:
  *   - The open / closed state for the shortcuts overlay
- *   - The `open-shortcuts` CustomEvent bridge (dispatched by the palette)
+ *   - The `open-shortcuts` CustomEvent bridge for site actions
  *   - All global hotkeys (`?`, `t`, and the `g <letter>` chord). The hotkey
  *     hook itself suppresses `?` on touch-only devices.
  *
@@ -46,7 +46,6 @@ export default function ShortcutsOverlayProvider() {
     ));
   }, []);
 
-  // Bridge from CustomEvent (used by the palette).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.addEventListener('open-shortcuts', handleOpen);

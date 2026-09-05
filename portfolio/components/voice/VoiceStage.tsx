@@ -231,14 +231,12 @@ export default function VoiceStage() {
           >
             <div className="flex flex-row items-center gap-3">
               {retry}
-              {snapshot.phase === 'acting' ? (
-                <VoiceOrb
-                  phase={snapshot.phase}
-                  reducedMotion={reducedMotion}
-                  size="dock"
-                  showLabel={false}
-                />
-              ) : null}
+              <VoiceOrb
+                phase={snapshot.phase}
+                reducedMotion={reducedMotion}
+                size="dock"
+                showLabel={false}
+              />
               {hangup}
             </div>
           </div>

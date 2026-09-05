@@ -11,14 +11,12 @@ Scope: the whole repository.
 
 ## Agent Workflow
 
-- The four roles are `Lead`, `Builder`, `Fastlane`, and `God`; exact model and effort settings live in [docs/agent-setup.md](docs/agent-setup.md).
-- Lead owns ordinary planning, architecture, bounded delegation, integration, and final acceptance. It works directly when a handoff costs more than the task.
-- Only Lead delegates: Builder owns settled implementation and local repair; Fastlane supplies bounded evidence or checks and may make only explicitly authorized mechanical edits.
-- God is a reasoning-only escalation for difficult, consequential unresolved decisions after focused evidence. It never performs routine planning, execution, coding, testing, or coordination.
-- Packets contain only the objective, relevant anchors or verified facts, constraints, owned files and edit permission, acceptance check, and needed output. Parallelize independent work only; never require a role chain or duplicate reviews.
-- Start from a concrete anchor, validate immediately after the first substantive edit, and repair locally before widening scope.
-- Keep implementations minimal: make the smallest testable change without speculative abstractions or broad test matrices.
-- Preserve unrelated user work; never expose secrets, run destructive Git commands, deploy, publish, or commit without explicit authorization.
+- Lead owns coordination, architecture, integration, and final acceptance; Builder owns implementation; Fastlane owns bounded investigation and checks; God owns the deepest reasoning on difficult or consequential questions. Model and effort settings live in [docs/agent-setup.md](docs/agent-setup.md).
+- Choose direct work or delegation by expected value. Only Lead delegates; other roles return their work to Lead or the requesting user.
+- Assignments define the objective, relevant evidence, constraints, owned scope, edit permission, and acceptance criteria. Work within the authority granted by the user or Lead; obtain approval before expanding scope or edit permission.
+- Parallelize independent work with non-overlapping write ownership; serialize dependent decisions and shared-file edits.
+- Ground changes in concrete evidence and local patterns. Keep changes focused and validate affected behavior with checks proportionate to risk; report results and remaining uncertainty.
+- Preserve unrelated user work and keep secrets out of output and tracked files. Destructive Git operations, deployment, publishing, commits, and pushes require explicit user authorization.
 - For UI work, preserve sketchbook language, hidden discovery layer, accessibility, themes, and mobile behavior; validate relevant viewport and theme states.
 
 ## Token Discipline
@@ -30,7 +28,6 @@ Scope: the whole repository.
 - Use direct PowerShell cmdlets when RTK cannot wrap them.
 - Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
 - Do not duplicate project context in agent files. Read the nearest `AGENTS.md` and linked docs on demand.
-- Use the fewest agents whose isolation saves more Sol context or elapsed time than the handoff costs; never invoke every role by ritual.
 - RTK remains the first compression layer for terminal output. Headroom complements it for large non-terminal payloads; it never replaces explicit `rtk` prefixes.
 - Use Headroom on demand only for roughly 4K+ token repetitive JSON arrays, structured logs, API/database results, or other content where compression reports material savings. Skip short content, source code, diffs, grep/search results, requirements, and already-compact RTK output.
 - Treat compressed content as an index, not exact evidence. Keep its retrieval hash and retrieve the original before exhaustive work or any decision involving errors, security, exact values, identifiers, paths, line references, commands, or code changes. If compression saves nothing or relevance is uncertain, use the original.

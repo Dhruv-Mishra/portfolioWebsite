@@ -148,9 +148,7 @@ export default function VoiceStage() {
           className="voice-edge-halo absolute inset-0"
           data-phase={snapshot.phase}
         >
-          <span data-edge="top" />
           <span data-edge="right" />
-          <span data-edge="bottom" />
           <span data-edge="left" />
         </div>
       ) : null}
@@ -233,6 +231,14 @@ export default function VoiceStage() {
           >
             <div className="flex flex-row items-center gap-3">
               {retry}
+              {snapshot.phase === 'acting' ? (
+                <VoiceOrb
+                  phase={snapshot.phase}
+                  reducedMotion={reducedMotion}
+                  size="dock"
+                  showLabel={false}
+                />
+              ) : null}
               {hangup}
             </div>
           </div>

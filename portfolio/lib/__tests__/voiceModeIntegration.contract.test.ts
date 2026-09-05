@@ -76,11 +76,14 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-wash');
     expect(css).toContain('.voice-edge-halo');
     expect(css).toContain('@keyframes voice-edge-breathe');
-    expect(css).toContain('@keyframes voice-edge-flow-x');
-    expect(css).toContain('@keyframes voice-edge-flow-y');
-    expect(css).toContain('--voice-edge-rgb: 8 105 130');
+    expect(css).toContain('@keyframes voice-edge-action-pulse');
+    expect(css).not.toContain('@keyframes voice-edge-flow-x');
+    expect(css).not.toContain('@keyframes voice-edge-flow-y');
+    expect(css).toContain('--voice-edge-rgb: 126 64 184');
     expect(css).toContain('.dark .voice-edge-halo');
-    expect(css).toContain('--voice-edge-rgb: 103 232 249');
+    expect(css).toContain('--voice-edge-rgb: 202 148 255');
+    expect(css).toContain('--voice-edge-rgb: 22 163 74');
+    expect(css).toContain('--voice-edge-rgb: 74 222 128');
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
@@ -124,10 +127,10 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain("right: 'max(1.25rem, env(safe-area-inset-right) + 1rem)'");
     expect(stage).toContain("right: 'max(0.75rem, env(safe-area-inset-right) + 0.5rem)'");
     expect(stage).toContain('data-phase={snapshot.phase}');
-    expect(stage).toContain('data-edge="top"');
     expect(stage).toContain('data-edge="right"');
-    expect(stage).toContain('data-edge="bottom"');
     expect(stage).toContain('data-edge="left"');
+    expect(stage).not.toContain('data-edge="top"');
+    expect(stage).not.toContain('data-edge="bottom"');
     expect(stage).toContain('aria-label="Hang up voice call"');
     expect(stage).toContain('/microphone|voice input/i.test(snapshot.error)');
     expect(stage).toContain('Enable mic');
@@ -136,7 +139,10 @@ describe('voice mode integration contract', () => {
     expect(stage).not.toContain('PhoneOff');
     expect(stage).toContain('flex flex-row items-center gap-3');
     expect(stage).not.toContain('flex-col-reverse');
-    expect(stage.match(/<VoiceOrb/g) ?? []).toHaveLength(1);
+    expect(stage.match(/<VoiceOrb/g) ?? []).toHaveLength(2);
+    expect(stage).toContain("snapshot.phase === 'acting'");
+    expect(stage).toContain('size="dock"');
+    expect(stage).toContain('showLabel={false}');
     expect(stage).toContain('font-hand text-xs leading-snug');
     expect(orb).toMatch(/\{reducedMotion \? \([\s\S]*voice-orb-still[\s\S]*\) : \([\s\S]*voice-orb-gif/);
     expect(orb.match(/<img\b/g) ?? []).toHaveLength(2);
@@ -147,24 +153,18 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo [data-edge]');
   });
 
-  it('keeps a prominent, theme-aware halo with independently phased flow and static reduced motion', () => {
+  it('keeps a prominent side-only breathing halo with green action pulses and static reduced motion', () => {
     const css = read('app/globals.css');
     const halo = css.slice(css.indexOf('.voice-edge-halo {'), css.indexOf('.voice-orb-media,'));
 
-    expect(halo).toContain('--voice-edge-width: 42px');
-    expect(halo).toContain('height: var(--voice-edge-width)');
+    expect(halo).toContain('--voice-edge-width: 48px');
     expect(halo).toContain('width: var(--voice-edge-width)');
-    expect(halo).toContain('opacity: 0.78');
-    expect(halo).toContain('inset 0 0 28px');
     expect(halo).toContain('pointer-events: none');
     expect(halo).toContain('overflow: hidden');
-    expect(halo).not.toContain('repeating-');
-    expect(halo.match(/--voice-edge-rgb:/g)).toHaveLength(2);
+    expect(halo.match(/--voice-edge-rgb:/g)).toHaveLength(4);
     expect(halo).toContain('animation: voice-edge-breathe');
-    expect(halo).toContain('animation: voice-edge-flow-x var(--edge-flow) var(--edge-delay)');
-    expect(halo).toContain('animation: voice-edge-flow-y var(--edge-flow) var(--edge-delay)');
-    expect(new Set(halo.match(/--edge-flow: [\d.]+s/g)).size).toBe(4);
-    expect(new Set(halo.match(/--edge-delay: -[\d.]+s/g)).size).toBe(4);
+    expect(halo).toContain('animation: voice-edge-action-pulse');
+    expect(halo).not.toMatch(/voice-edge-flow|translate3d|data-edge="top"|data-edge="bottom"/);
     for (const selector of ['html:not([data-motion="full"])', 'html[data-motion="reduced"]']) {
       const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       expect(css).toMatch(new RegExp(`${escaped} \\.voice-edge-halo,[^{]+\\{[^}]*animation: none`));

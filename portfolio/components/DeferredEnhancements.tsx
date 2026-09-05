@@ -20,7 +20,7 @@ export default function DeferredEnhancements() {
     const pathname = usePathname();
     const [mountStage, setMountStage] = useState(0);
     const mountedStageRef = useRef(0);
-    const [isDesktop, setIsDesktop] = useState(false);
+    const [isCursorEligible, setIsCursorEligible] = useState(false);
 
     useEffect(() => {
         if (mountedStageRef.current >= 3) return;
@@ -75,13 +75,13 @@ export default function DeferredEnhancements() {
     }, [pathname]);
 
     useEffect(() => {
-        const mediaQuery = window.matchMedia(`(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px)`);
-        const syncDesktopState = () => setIsDesktop(mediaQuery.matches);
+        const mediaQuery = window.matchMedia(`(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px) and (hover: hover) and (pointer: fine)`);
+        const syncCursorEligibility = () => setIsCursorEligible(mediaQuery.matches);
 
-        syncDesktopState();
-        mediaQuery.addEventListener("change", syncDesktopState);
+        syncCursorEligibility();
+        mediaQuery.addEventListener("change", syncCursorEligibility);
 
-        return () => mediaQuery.removeEventListener("change", syncDesktopState);
+        return () => mediaQuery.removeEventListener("change", syncCursorEligibility);
     }, []);
 
     if (mountStage === 0) {
@@ -90,7 +90,7 @@ export default function DeferredEnhancements() {
 
     return (
         <>
-            {isDesktop ? <SketchbookCursor /> : null}
+            {isCursorEligible ? <SketchbookCursor /> : null}
             <StickerToastListener />
             <EscapeToastListener />
             {mountStage >= 2 ? (

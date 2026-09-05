@@ -9,10 +9,23 @@ const readSource = (relativePath: string) => fs.readFileSync(
 );
 
 const eagerSource = readSource('components/EagerEnhancements.tsx');
+const deferredSource = readSource('components/DeferredEnhancements.tsx');
 const menuSource = readSource('components/DesktopContextMenu.tsx');
 const cursorSource = readSource('components/SketchbookCursor.tsx');
 
 describe('desktop context menu contract', () => {
+  it('loads the deferred cursor only on wide hover-capable fine pointers and tracks eligibility changes', () => {
+    expect(deferredSource).toContain('const [isCursorEligible, setIsCursorEligible] = useState(false)');
+    expect(deferredSource).toContain('window.matchMedia(`(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px) and (hover: hover) and (pointer: fine)`)');
+    expect(deferredSource).toContain('const syncCursorEligibility = () => setIsCursorEligible(mediaQuery.matches)');
+    expect(deferredSource).toContain('syncCursorEligibility();');
+    expect(deferredSource).toContain('mediaQuery.addEventListener("change", syncCursorEligibility)');
+    expect(deferredSource).toContain('mediaQuery.removeEventListener("change", syncCursorEligibility)');
+    expect(deferredSource).toContain('{isCursorEligible ? <SketchbookCursor /> : null}');
+    expect(deferredSource).toMatch(/if \(mountStage === 0\)\s*\{\s*return null;\s*\}/);
+    expect(cursorSource).toContain("window.matchMedia('(hover: hover) and (pointer: fine)')");
+  });
+
   it('fetches the menu chunk only after a fine-pointer media query matches', () => {
     expect(eagerSource).toContain("window.matchMedia('(hover: hover) and (pointer: fine)')");
     expect(eagerSource).toContain("if (!finePointer.matches)");

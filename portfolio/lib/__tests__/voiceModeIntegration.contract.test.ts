@@ -77,6 +77,8 @@ describe('voice mode integration contract', () => {
     expect(css).toContain('.voice-orb-gif');
     expect(css).toContain('.voice-orb-still');
     expect(css).toContain('.voice-orb-wash');
+    expect(css).toContain('.voice-edge-halo');
+    expect(css).toContain('@keyframes voice-edge-breathe');
     expect(css).not.toContain('.voice-orb-indicator');
     expect(css).not.toContain('@keyframes voice-orb-indicator-speak');
     expect(css).toContain('@keyframes voice-orb-speak');
@@ -104,10 +106,9 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain('reducedMotion={reducedMotion}');
     expect(stage).toContain('VOICE_EXIT_VEIL_MS');
     expect(stage).toContain('data-voice-exit-chrome');
-    expect(stage).toContain('data-voice-exit-orb');
-    expect(stage).toContain('activeAnimation.cancel()');
-    expect(stage).not.toMatch(/\[exiting, intro, live, reducedMotion, isMobile, snapshot\.phase\]/);
-    expect(stage).toMatch(/\}, \[exiting, intro, live, reducedMotion, isMobile\]\);/);
+    expect(stage).not.toContain('data-voice-exit-orb');
+    expect(stage).not.toContain('orbAnimationRef');
+    expect(stage).not.toContain('dockSlotRef');
     expect(css).toContain('transition: opacity 420ms ease-out');
     expect(css).not.toContain('@keyframes voice-stage-veil-intro');
     expect(css).not.toContain('@keyframes voice-stage-veil-live');
@@ -118,6 +119,9 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain("const speakingNow = phase === 'speaking'");
     expect(orb).not.toContain('level > SPEAKING_LEVEL');
     expect(stage).toMatch(/style=\{isMobile \? MOBILE_DOCK_STYLE : DESKTOP_DOCK_STYLE\}/);
+    expect(stage).toContain("right: 'max(1.25rem, env(safe-area-inset-right) + 1rem)'");
+    expect(stage).toContain("right: 'max(0.75rem, env(safe-area-inset-right) + 0.5rem)'");
+    expect(stage).toContain('data-phase={snapshot.phase}');
     expect(stage).toContain('aria-label="Hang up voice call"');
     expect(stage).toContain('/microphone|voice input/i.test(snapshot.error)');
     expect(stage).toContain('Enable mic');
@@ -126,6 +130,7 @@ describe('voice mode integration contract', () => {
     expect(stage).not.toContain('PhoneOff');
     expect(stage).toContain('flex flex-row items-center gap-3');
     expect(stage).not.toContain('flex-col-reverse');
+    expect(stage.match(/<VoiceOrb/g) ?? []).toHaveLength(1);
     expect(stage).toContain('font-hand text-xs leading-snug');
     expect(orb).toMatch(/\{reducedMotion \? \([\s\S]*voice-orb-still[\s\S]*\) : \([\s\S]*voice-orb-gif/);
     expect(orb.match(/<img\b/g) ?? []).toHaveLength(2);
@@ -133,6 +138,7 @@ describe('voice mode integration contract', () => {
     expect(orb).toContain('{PHASE_LABEL[phase]}');
     expect(orb).not.toContain('voice-orb-indicator');
     expect(stage).toContain('h-[100dvh]');
+    expect(css).toContain('html[data-motion="reduced"] .voice-edge-halo');
   });
 
   it('loads the voice runtime and prefetches media on enter, not idle mount', () => {

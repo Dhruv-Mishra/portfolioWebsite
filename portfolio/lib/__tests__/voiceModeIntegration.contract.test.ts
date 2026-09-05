@@ -140,7 +140,7 @@ describe('voice mode integration contract', () => {
     expect(stage).toContain('flex flex-row items-center gap-3');
     expect(stage).not.toContain('flex-col-reverse');
     expect(stage.match(/<VoiceOrb/g) ?? []).toHaveLength(2);
-    expect(stage).toContain("snapshot.phase === 'acting'");
+    expect(stage).not.toContain("snapshot.phase === 'acting'");
     expect(stage).toContain('size="dock"');
     expect(stage).toContain('showLabel={false}');
     expect(stage).toContain('font-hand text-xs leading-snug');

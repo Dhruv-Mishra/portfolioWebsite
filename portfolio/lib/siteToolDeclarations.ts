@@ -322,7 +322,8 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
   },
   end_voice_session: {
     name: 'end_voice_session',
-    description: 'Leave voice mode gracefully when the visitor says goodbye, hang up, or exit voice.',
+    description:
+      'For a voice-requested hangup, call once only after the visitor clearly affirms "Should I end the call?". Never call on the initial request. After success, say only "Goodbye." and do not ask again.',
     parameters: {
       type: 'object',
       properties: {

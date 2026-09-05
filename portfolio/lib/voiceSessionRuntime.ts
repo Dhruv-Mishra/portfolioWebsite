@@ -166,7 +166,6 @@ const seenVoiceToolIds = new Set<string>();
 const cancelledVoiceToolIds = new Set<string>();
 let farewellArmed = false;
 let farewellHeard = false;
-let farewellSawPlayback = false;
 let farewellTurnComplete = false;
 let subtitleIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let subtitleFadeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -605,7 +604,6 @@ function waitForProjectVideoControl(
 function resetFarewellWait(): void {
   farewellArmed = false;
   farewellHeard = false;
-  farewellSawPlayback = false;
   farewellTurnComplete = false;
 }
 
@@ -672,14 +670,13 @@ function markFarewellHeard(): void {
 function markFarewellPlayback(): void {
   if (!farewellArmed) return;
   farewellHeard = true;
-  farewellSawPlayback = true;
 }
 
 function canHangupNow(): boolean {
   if (stopping || playback?.isBusy()) return false;
   if (!farewellArmed) return true;
   if (!farewellHeard) return false;
-  return farewellSawPlayback || farewellTurnComplete;
+  return farewellTurnComplete;
 }
 
 function armAgentFarewellHangup(reason: VoiceExitReason): void {
@@ -687,7 +684,6 @@ function armAgentFarewellHangup(reason: VoiceExitReason): void {
   resetIdleWatch();
   farewellArmed = true;
   farewellHeard = playback?.isBusy() === true;
-  farewellSawPlayback = farewellHeard;
   farewellTurnComplete = false;
   patch({
     hangupPending: true,
@@ -896,10 +892,13 @@ async function handleSiteToolCall(call: SiteToolCall, generation: number): Promi
   const policy = resolveVoiceToolPolicy(call.name, hostArgsForVoiceTool(call));
   const runtime = requireHostRuntime();
   let result: SiteToolResult;
-  if (alreadySeen) {
+  if (call.name === 'end_voice_session' && (alreadySeen || snapshot.hangupPending)) {
+    result = { ok: true, spokenText: '', data: { alreadyEnding: true } };
+  } else if (alreadySeen) {
     result = { ok: true, spokenText: 'Already handling that.' };
   } else if (call.name === 'end_voice_session') {
     result = await executeSiteToolSafely(call, runtime, false);
+    if (result.ok) result = { ...result, spokenText: 'Goodbye.' };
   } else if (call.name === 'control_project_video') {
     result = await waitForProjectVideoControl(call, generation);
   } else if (policy.timing === 'deferred' || policy.hostId !== null) {

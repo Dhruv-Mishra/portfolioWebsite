@@ -20,25 +20,14 @@ The shared guide defines assignment permissions and ownership. Fastlane is read-
 3. For Astra, Sol, and Luna, open the VS Code picker context control and confirm the normal default context is selected, not `1M`. This is a manual setup requirement: no supported workspace or agent-frontmatter field enforces a context selection.
 4. Trust the workspace. In **Configure Tools**, select tools as needed. All four roles omit `tools` to retain VS Code's dynamic defaults. Tool availability never bypasses workspace trust, approvals, extension state, or organization policy.
 5. Use flat routing: Lead may invoke God, Builder, and Fastlane; all other roles invoke no subagents. Use **Chat: Open Customizations** and Chat diagnostics after changing an agent, model, MCP server, or instruction file.
-6. Install RTK's native Copilot integration with `rtk init -g --copilot --auto-patch`, restart VS Code, and keep `rg` on `PATH`. The hook applies to terminal calls from the main agent and subagents; explicit `rtk` prefixes remain the portable fallback.
 
-Tool availability does not bypass VS Code approvals, workspace trust, extension state, or organization policy. Prompt text cannot auto-approve tools.
+## Context Practices
 
-RTK 0.43.0's `init --show`, `verify`, and once-daily reminder inspect only the Claude hook, so a Copilot-only installation can misleadingly report "hook not installed." Verify Copilot separately by checking `~/.copilot/hooks/rtk-rewrite.json` and piping the documented `Bash` payload into `rtk hook copilot`; a successful result contains `updatedInput.command: "rtk git status"`.
-
-## Token Practices
-
-- RTK is the first compression layer for external terminal commands. Prefer VS Code's structured tools, which already return bounded output, and use direct PowerShell cmdlets when RTK cannot wrap them.
-- Use `rtk git status|diff|log|show|branch|add|commit|push|pull` for Git. Apply `rtk --ultra-compact` to routine status, branch, and list output only; keep normal RTK output for diffs, failures, and diagnostics.
-- From `portfolio/`, prefer `rtk vitest run`, `rtk lint`, `rtk tsc --noEmit --pretty false`, and `rtk playwright test`. Use `rtk vitest run <file> -t "<name>"` for focused tests.
-- Use `rtk npm run build` for this app because npm must run `prebuild` embeddings and `postbuild` sanitization. Use `rtk npm run <script>` for other lifecycle-dependent scripts and package operations.
-- Use `rtk rg`, `rtk read`, `rtk ls`, and `rtk find` for shell-based exploration. Use `rtk test <command>`, `rtk err <command>`, or `rtk summary <command>` only when no specialized adapter exists.
-- RTK saves full failed-command output through its failure tee by default. Read the referenced tee file instead of rerunning a noisy failure raw.
-- Check adoption with `rtk gain --history`; use `rtk discover --all --since 7` for supported session sources. Telemetry is optional and remains disabled unless explicitly enabled.
-- Start a new chat for an unrelated task. Use `/fork` for an alternate approach and `/compact <focus>` when a long session accumulates stale context.
+- Prefer VS Code's structured tools and direct, narrowly scoped terminal commands. Keep exact failures and diagnostics available.
+- Start a new chat for unrelated work; use `/fork` for alternatives and `/compact <focus>` when stale context accumulates.
 - Keep the model, effort, tools, MCP set, and instruction prefix stable within a task to preserve prompt-cache hits.
-- Exclude generated output from search/indexing. Keep build logs and temporary screenshots outside agent context.
-- Inspect per-turn credits, the context-window control, Agent Debug Logs, and Cache Explorer before adding another optimization layer.
+- Exclude generated output, build logs, and temporary screenshots from agent context.
+- Use Agent Debug Logs and Cache Explorer to measure context or cache problems before adding optimization layers.
 
 ## Zvec-Grep Workspace Search
 
@@ -64,17 +53,11 @@ Zvec is not used by the website's runtime facts RAG. That corpus currently conta
 
 ## Headroom
 
-The workspace registers Headroom 0.31 as an on-demand stdio MCP server in `.vscode/mcp.json`, using a `${userHome}`-resolved executable path with telemetry and background update checks disabled. Native VS Code Copilot Chat is not a documented `headroom wrap` target, so do not run a proxy or redirect model traffic. Keep output shaping and effort routing off; both can alter response behavior.
+The workspace registers Headroom 0.31 as an on-demand stdio MCP server in `.vscode/mcp.json`, with telemetry and background update checks disabled. Do not proxy or redirect VS Code Copilot Chat traffic, and keep output shaping and effort routing off.
 
-Headroom complements RTK rather than replacing it. RTK filters terminal output before it reaches an agent. Headroom is reserved for large repetitive JSON, structured logs, and API/database payloads that did not already pass through RTK. Its MCP call is explicit, originals remain retrievable by hash for one hour, and agents must retrieve exact content before exhaustive, security-sensitive, failure-sensitive, or code-changing decisions.
-
-Do not call Headroom on every result. The installed pipeline intentionally passes through errors, code, grep results, short content, and payloads with no net reduction. In local verification, protected error data and representative 1.5K-token payloads produced 0% savings, while direct library diagnostics confirmed compression for larger root JSON arrays. Use a practical 4K-token floor and keep Headroom only when session stats show material savings without extra retrieval churn.
+Reserve Headroom for repetitive structured payloads above roughly 4K tokens when it shows material savings. Skip errors, code, diffs, search results, and short content; retrieve the original by hash before exact, security-sensitive, failure-sensitive, or code-changing decisions.
 
 After changing `.vscode/mcp.json`, restart that MCP server or reload the VS Code window once. Verify with the Headroom stats tool; the proxy may remain unreachable because MCP-only compression is local and does not require it.
-
-## Caveman
-
-The reviewed Caveman projects are prompt-style compression conventions rather than a verified VS Code compression layer. Their useful behavior is already represented by the concise agent prompts and RTK rules.
 
 ## MCP Shortlist
 
@@ -94,10 +77,7 @@ Do not add filesystem, generic memory, sequential-thinking, or duplicate fetch/s
 - [VS Code context engineering](https://code.visualstudio.com/docs/copilot/guides/context-engineering-guide)
 - [VS Code usage optimization](https://code.visualstudio.com/docs/copilot/guides/optimize-usage)
 - [GitHub Copilot model comparison](https://docs.github.com/en/copilot/reference/ai-models/model-comparison)
-- [RTK](https://github.com/rtk-ai/rtk)
 - [Headroom](https://github.com/headroomlabs-ai/headroom)
-- [Caveman Universal](https://github.com/terasites-ltda/caveman-universal)
-- [Caveman UTC](https://github.com/leonardomg1/Caveman-UTC)
 - [GitHub MCP Server](https://github.com/github/github-mcp-server)
 - [Context7](https://github.com/upstash/context7)
 - [Playwright MCP](https://github.com/microsoft/playwright-mcp)

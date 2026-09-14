@@ -16,8 +16,6 @@ Scope: GitHub workflows, repository instructions, and agent definitions.
 
 ## Agent Definition Notes
 
-- Write concise role contracts: responsibilities, desired outcomes, and hard guardrails. Let agents choose their methods.
-- Keep shared permissions and operating rules in root and directory-level `AGENTS.md` rather than repeating them in agent bodies.
-- Keep the `Lead`, `Builder`, `Fastlane`, and `God` contracts consistent with the root guide and [agent setup](../docs/agent-setup.md).
-- Preserve configured models, efforts, invocation flags, and flat delegation metadata. All four roles omit `tools` to inherit VS Code's configured defaults; tool access remains subject to trust, approvals, and organization policy.
+- Keep role contracts concise and consistent with the root guide and [agent setup](../docs/agent-setup.md); keep shared rules out of agent bodies.
+- Preserve configured models, efforts, invocation flags, flat delegation metadata, and omitted `tools` fields.
 - The app already uses Vitest; do not tell agents to bootstrap a new test framework unless component testing dependencies are intentionally added.

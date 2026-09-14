@@ -16,5 +16,5 @@ Scope: App Router pages, layouts, metadata, and API routes.
 
 ## Validation
 
-- Run `rtk lint` after route changes.
-- Run targeted tests with `rtk vitest run lib/__tests__/<file> -t "<name>"` when route behavior depends on shared server logic.
+- Run `npm run lint` after route changes.
+- Run targeted tests with `npx vitest run lib/__tests__/<file> -t "<name>"` when route behavior depends on shared server logic.

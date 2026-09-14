@@ -19,31 +19,23 @@ Scope: the whole repository.
 - Preserve unrelated user work and keep secrets out of output and tracked files. Destructive Git operations, deployment, publishing, commits, and pushes require explicit user authorization.
 - For UI work, preserve sketchbook language, hidden discovery layer, accessibility, themes, and mobile behavior; validate relevant viewport and theme states.
 
-## Token Discipline
+## Tooling
 
-- Use zvec-grep hybrid search when wording or location is unknown, or when a question needs semantic, relationship, or cross-file discovery. Read the returned source before deciding or editing; use `rtk npm run search:query -- "<query>"` if the MCP tool is unavailable.
-- Use VS Code search or `rtk rg` for known symbols, exact strings, filenames, regexes, and exhaustive occurrences. A focused exact follow-up after semantic discovery is preferred over repeated broad probes.
-- The local daemon refreshes the index in the background. Without it, run `rtk npm run search:update` after major source or documentation changes; if the index is unavailable or stale, fall back to native search rather than blocking the task.
-- Prefer VS Code read/edit tools over terminal equivalents.
-- RTK's global Copilot hook rewrites supported terminal commands automatically, including subagent calls. Still write the `rtk` prefix explicitly so behavior degrades safely when hooks are unavailable.
-- Use specialized adapters when possible: `rtk git ...`, `rtk vitest run`, `rtk lint`, `rtk tsc`, `rtk playwright test`, `rtk rg`, and `rtk read`. Use `rtk npm run ...` when npm lifecycle scripts matter and `rtk test <command>` or `rtk err <command>` as fallbacks.
-- Use `rtk --ultra-compact` only for routine status/list output. Keep normal RTK output for diffs, diagnostics, failures, and anything where exact detail matters.
-- Use direct PowerShell cmdlets when RTK cannot wrap them.
-- Keep output filtered while preserving errors, warnings, paths, commands, and validation evidence.
-- Do not duplicate project context in agent files. Read the nearest `AGENTS.md` and linked docs on demand.
-- RTK remains the first compression layer for terminal output. Headroom complements it for large non-terminal payloads; it never replaces explicit `rtk` prefixes.
-- Use Headroom on demand only for roughly 4K+ token repetitive JSON arrays, structured logs, API/database results, or other content where compression reports material savings. Skip short content, source code, diffs, grep/search results, requirements, and already-compact RTK output.
-- Treat compressed content as an index, not exact evidence. Keep its retrieval hash and retrieve the original before exhaustive work or any decision involving errors, security, exact values, identifiers, paths, line references, commands, or code changes. If compression saves nothing or relevance is uncertain, use the original.
-- Do not enable Headroom proxy routing, output shaping, effort routing, failure learning, or automatic instruction writes for native VS Code Copilot Chat. Check Headroom stats only after substantial tool-heavy work, not after every call.
-- See [docs/agent-setup.md](docs/agent-setup.md) for model effort, tool, compression, and MCP setup notes.
+- Use zvec-grep hybrid search when wording or location is unknown or the question spans relationships across files. Read returned source before deciding or editing; use `npm run search:query -- "<query>"` if its MCP tool is unavailable.
+- Use VS Code search or native `rg` for exact symbols, strings, paths, regexes, and exhaustive matches. Without the zvec-grep daemon, run `npm run search:update` after major source or documentation changes; fall back to native search if the index is unavailable.
+- Prefer VS Code search, read, edit, and diagnostic tools over terminal equivalents. Run terminal commands directly with narrow native flags while preserving errors, warnings, paths, commands, and validation evidence.
+- Keep shared guidance here and folder-specific guidance in the nearest `AGENTS.md`; do not repeat project context in agent definitions.
+- Use Headroom only for large repetitive structured payloads when it shows material savings. Retrieve the original before decisions involving failures, security, exact values, or code changes.
+- Keep Headroom proxy routing, output shaping, effort routing, failure learning, and automatic instruction writes disabled for VS Code Copilot Chat.
+- See [docs/agent-setup.md](docs/agent-setup.md) for model, context, zvec-grep, Headroom, and MCP setup.
 
 ## Commands
 
-- `rtk npm run dev` starts the app from the root.
-- `rtk npm run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
-- `rtk npm run lint` runs ESLint from the root.
-- `rtk npm run typecheck` runs TypeScript checks from the root.
-- From `portfolio/`, `rtk vitest run` runs the canonical suite. For targeted tests, use `rtk vitest run <file> -t "<name>"`.
+- `npm run dev` starts the app from the root.
+- `npm run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
+- `npm run lint` runs ESLint from the root.
+- `npm run typecheck` runs TypeScript checks from the root.
+- From `portfolio/`, use `npm test`; for targeted tests, use `npx vitest run <file> -t "<name>"`.
 
 ## Deployment Facts
 

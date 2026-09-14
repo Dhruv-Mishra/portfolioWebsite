@@ -4,10 +4,10 @@
 		{
 			"label": "QA: Vitest baseline",
 			"type": "shell",
-			"command": "rtk",
+			"command": "npm",
 			"args": [
-				"vitest",
-				"run"
+				"run",
+				"test"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}/portfolio"

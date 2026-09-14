@@ -40,6 +40,28 @@ RTK 0.43.0's `init --show`, `verify`, and once-daily reminder inspect only the C
 - Exclude generated output from search/indexing. Keep build logs and temporary screenshots outside agent context.
 - Inspect per-turn credits, the context-window control, Agent Debug Logs, and Cache Explorer before adding another optimization layer.
 
+## Zvec-Grep Workspace Search
+
+The repository pins `@zvec/zvec-grep` as development tooling. It combines ranked lexical and local vector retrieval for source, documentation, configuration, and curated fact Markdown. It improves evidence discovery and can reduce agent tool calls or context usage; it does not make the underlying LLM faster.
+
+From the repository root, create the machine-local index once and start the loopback MCP server:
+
+```powershell
+npm ci --prefix portfolio
+npm run search:index
+npm run search:server
+```
+
+The initial index uses `local/potion-code-16m-v2`. Repository content and queries stay on the machine, the model cache stays under the user's zvec-grep home, and `.zvec-grep/` remains untracked. Do not grant remote embedding access or store provider credentials in the repository.
+
+Use `npm run search:query -- "where theme preferences are restored"` for terminal search, `npm run search:status` for index readiness, and `npm run search:update` for an explicit incremental refresh. `npm run search:server:status` checks MCP readiness; `npm run search:server:stop` stops the daemon. Active daemon workspaces use file watching and periodic reconciliation, so indexing is intentionally not attached to a Git hook.
+
+The checked-in `.vscode/mcp.json` connects to `http://127.0.0.1:7999/mcp` with zvec-grep's search-only agent toolset. Reload VS Code or start a new chat after first setup. Use semantic or hybrid retrieval when the location or wording is unknown and native search for exact identifiers, strings, paths, regexes, or exhaustive matches.
+
+Keep separate indexes for Windows and Linux/WSL working copies. Do not run daemons from both environments against the same `.zvec-grep/` directory.
+
+Zvec is not used by the website's runtime facts RAG. That corpus currently contains 34 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
+
 ## Headroom
 
 The workspace registers Headroom 0.31 as an on-demand stdio MCP server in `.vscode/mcp.json`, using a `${userHome}`-resolved executable path with telemetry and background update checks disabled. Native VS Code Copilot Chat is not a documented `headroom wrap` target, so do not run a proxy or redirect model traffic. Keep output shaping and effort routing off; both can alter response behavior.

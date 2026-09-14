@@ -1,0 +1,32 @@
+# zvec-grep local index & cache
+.zvec-grep/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Lockfiles and large generated JSON
+package-lock.json
+portfolio/package-lock.json
+portfolio/lib/facts.embeddings.json
+
+# Build & compiler artifacts
+.next/
+portfolio/.next/
+out/
+portfolio/out/
+dist/
+portfolio/dist/
+
+# Temporary, cache, and test output
+.TEMP/
+portfolio/tmp/
+tmp/
+coverage/
+portfolio/coverage/
+*.log
+
+# Tool-specific state
+.playwright-mcp/
+.serena/
+ResumeBuilder/

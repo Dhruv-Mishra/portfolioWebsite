@@ -13,3 +13,6 @@ node_modules/
 # the wrong tree and breaks the VPS deploy. The only real lockfile lives at
 # portfolio/package-lock.json.
 /package-lock.json
+
+# zvec-grep machine-local state
+/.zvec-grep/

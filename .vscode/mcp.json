@@ -8,6 +8,10 @@
 				"HEADROOM_TELEMETRY": "off",
 				"HEADROOM_UPDATE_CHECK": "off"
 			}
+		},
+		"Zvec Grep": {
+			"type": "http",
+			"url": "http://127.0.0.1:7999/mcp"
 		}
 	},
 	"inputs": []

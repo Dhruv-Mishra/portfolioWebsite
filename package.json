@@ -6,6 +6,13 @@
     "build": "npm --prefix portfolio run build",
     "start": "npm --prefix portfolio run start",
     "lint": "npm --prefix portfolio run lint",
-    "typecheck": "npm --prefix portfolio run typecheck"
+    "typecheck": "npm --prefix portfolio run typecheck",
+    "search:index": "npm --prefix portfolio run search:index",
+    "search:update": "npm --prefix portfolio run search:update",
+    "search:query": "npm --prefix portfolio run search:query --",
+    "search:status": "npm --prefix portfolio run search:status",
+    "search:server": "npm --prefix portfolio run search:server",
+    "search:server:status": "npm --prefix portfolio run search:server:status",
+    "search:server:stop": "npm --prefix portfolio run search:server:stop"
   }
 }

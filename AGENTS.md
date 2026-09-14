@@ -21,7 +21,10 @@ Scope: the whole repository.
 
 ## Token Discipline
 
-- Prefer VS Code search/read/edit tools over terminal equivalents.
+- Use zvec-grep hybrid search when wording or location is unknown, or when a question needs semantic, relationship, or cross-file discovery. Read the returned source before deciding or editing; use `rtk npm run search:query -- "<query>"` if the MCP tool is unavailable.
+- Use VS Code search or `rtk rg` for known symbols, exact strings, filenames, regexes, and exhaustive occurrences. A focused exact follow-up after semantic discovery is preferred over repeated broad probes.
+- The local daemon refreshes the index in the background. Without it, run `rtk npm run search:update` after major source or documentation changes; if the index is unavailable or stale, fall back to native search rather than blocking the task.
+- Prefer VS Code read/edit tools over terminal equivalents.
 - RTK's global Copilot hook rewrites supported terminal commands automatically, including subagent calls. Still write the `rtk` prefix explicitly so behavior degrades safely when hooks are unavailable.
 - Use specialized adapters when possible: `rtk git ...`, `rtk vitest run`, `rtk lint`, `rtk tsc`, `rtk playwright test`, `rtk rg`, and `rtk read`. Use `rtk npm run ...` when npm lifecycle scripts matter and `rtk test <command>` or `rtk err <command>` as fallbacks.
 - Use `rtk --ultra-compact` only for routine status/list output. Keep normal RTK output for diffs, diagnostics, failures, and anything where exact detail matters.

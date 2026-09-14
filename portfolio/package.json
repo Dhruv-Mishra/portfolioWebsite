@@ -20,6 +20,13 @@
     "test:watch": "vitest",
     "tts:smoke": "tsx scripts/smoke-local-tts.ts",
     "build:embeddings": "tsx scripts/build-embeddings.ts",
+    "search:index": "zg index .. --mode direct --embedding local/potion-code-16m-v2 --ignore-file .zvec-grepignore --reset-paths",
+    "search:update": "zg index .. --mode direct",
+    "search:query": "zg query --human",
+    "search:status": "zg status .. --mode direct",
+    "search:server": "zg server on",
+    "search:server:status": "zg server status --check-ready",
+    "search:server:stop": "zg server off",
     "prepare": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
@@ -44,6 +51,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-test-renderer": "^19.1.0",
+    "@zvec/zvec-grep": "0.2.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "react-test-renderer": "^19.2.8",

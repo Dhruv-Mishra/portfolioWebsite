@@ -1,3 +1,7 @@
+import type { ProjectSlug } from '@/lib/projectSlugs';
+
+export { isProjectSlug, PROJECT_SLUG_LIST, type ProjectSlug } from '@/lib/projectSlugs';
+
 export const PROJECT_ACTIONS = [
   {
     slug: 'jarvis-voice-agent',
@@ -31,7 +35,7 @@ export const PROJECT_ACTIONS = [
     slug: 'personal-portfolio',
     label: 'Show me the portfolio project',
     verbs: ['show', 'open', 'view', 'tell'],
-    keywords: ['portfolio\s*project', 'website\s*project', 'sketchbook\s*site', 'this\s*site'],
+    keywords: ['portfolio\\s*project', 'website\\s*project', 'sketchbook\\s*site', 'this\\s*site'],
     response: 'Opening the portfolio project right here ~',
   },
   {
@@ -62,12 +66,10 @@ export const PROJECT_ACTIONS = [
     keywords: ['atomvault', 'bank\\s*vault', 'banking\\s*database'],
     response: 'Opening AtomVault right here ~',
   },
-] as const;
-
-export type ProjectSlug = (typeof PROJECT_ACTIONS)[number]['slug'];
-
-const PROJECT_SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
-
-export function isProjectSlug(value: string): value is ProjectSlug {
-  return PROJECT_SLUG_SET.has(value);
-}
+] as const satisfies ReadonlyArray<{
+  slug: ProjectSlug;
+  label: string;
+  verbs: readonly string[];
+  keywords: readonly string[];
+  response: string;
+}>;

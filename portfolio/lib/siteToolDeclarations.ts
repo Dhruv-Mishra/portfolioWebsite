@@ -337,5 +337,8 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
 export const SITE_TOOL_DECLARATIONS: SiteToolDeclaration[] =
   SITE_TOOL_NAMES.map(name => SITE_TOOL_DECLARATION_MAP[name]);
 
-export const VOICE_LIVE_TOOL_DECLARATIONS: SiteToolDeclaration[] =
-  SITE_TOOL_DECLARATIONS.filter(tool => tool.name !== 'start_voice_session');
+// gemini-3.8-live defaults to NON_BLOCKING; the serial action queue relies on blocking turns.
+export const VOICE_LIVE_TOOL_DECLARATIONS: Array<SiteToolDeclaration & { behavior: 'BLOCKING' }> =
+  SITE_TOOL_DECLARATIONS
+    .filter(tool => tool.name !== 'start_voice_session')
+    .map(tool => ({ ...tool, behavior: 'BLOCKING' as const }));

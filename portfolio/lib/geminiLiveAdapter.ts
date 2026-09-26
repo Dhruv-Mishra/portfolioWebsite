@@ -191,9 +191,6 @@ export class GeminiLiveCaller implements VoiceCaller {
                     prebuiltVoiceConfig: { voiceName: VOICE_AGENT_VOICE_NAME },
                   },
                 },
-                thinkingConfig: {
-                  thinkingLevel: 'MINIMAL',
-                },
                 temperature: 0.7,
               },
               systemInstruction: {

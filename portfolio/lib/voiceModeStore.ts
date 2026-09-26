@@ -5,7 +5,7 @@ import type { VoiceExitReason } from '@/lib/voiceAgentProtocol';
 import {
   parseVoiceInvocationContext,
   type VoiceInvocationContext,
-} from '@/lib/voiceClientSnapshot';
+} from '@/lib/voiceInvocation';
 import { disposePrimedVoiceAudio, primeVoiceEnterAudio } from '@/lib/voiceAudioActivation';
 import { playVoiceToggle, primeVoiceSounds, startVoiceAmbient } from '@/lib/voiceSounds';
 import { unlockSticker } from '@/hooks/useStickers';

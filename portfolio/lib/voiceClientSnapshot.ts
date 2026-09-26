@@ -1,5 +1,5 @@
-import { VALID_NAVIGATION_PATHS } from '@/lib/actions';
-import { isProjectSlug, type ProjectSlug } from '@/lib/projectCatalog';
+import type { NavigationPath } from '@/lib/navigationPaths';
+import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 import {
   MASTER_VOLUME_PERCENT_MAX,
   MASTER_VOLUME_PERCENT_MIN,
@@ -10,41 +10,28 @@ import {
   VOICE_SUGGESTION_VARIATIONS,
   type VoiceWelcomeVariation,
 } from '@/lib/voiceAgentProtocol';
+import {
+  asRecord,
+  normalizeRoute,
+  readAllowlisted,
+  VOICE_SOURCE_SET as SOURCE_SET,
+  VOICE_TOPIC_SET as TOPIC_SET,
+  type VoiceInvocationSource,
+  type VoiceInvocationTopic,
+} from '@/lib/voiceInvocation';
 
-export const VOICE_INVOCATION_SOURCES = [
-  'home',
-  'nav',
-  'resume',
-  'settings',
-  'chat',
-  'command',
-  'tool',
-  'generic',
-] as const;
-
-export type VoiceInvocationSource = (typeof VOICE_INVOCATION_SOURCES)[number];
-
-export const VOICE_INVOCATION_TOPICS = [
-  'resume',
-  'projects',
-  'about',
-  'guestbook',
-  'chat',
-  'settings',
-  'stickers',
-  'home',
-  'generic',
-] as const;
-
-export type VoiceInvocationTopic = (typeof VOICE_INVOCATION_TOPICS)[number];
-
-export interface VoiceInvocationContext {
-  source?: VoiceInvocationSource;
-  topic?: VoiceInvocationTopic;
-}
+export {
+  VOICE_INVOCATION_SOURCES,
+  VOICE_INVOCATION_TOPICS,
+  topicFromPath,
+  parseVoiceInvocationContext,
+  type VoiceInvocationSource,
+  type VoiceInvocationTopic,
+  type VoiceInvocationContext,
+} from '@/lib/voiceInvocation';
 
 export interface VoiceClientSnapshot {
-  route?: (typeof VALID_NAVIGATION_PATHS)[number];
+  route?: NavigationPath;
   theme?: 'light' | 'dark';
   disco?: boolean;
   muted?: boolean;
@@ -53,10 +40,6 @@ export interface VoiceClientSnapshot {
   topic?: VoiceInvocationTopic;
   openProject?: ProjectSlug;
 }
-
-const SOURCE_SET = new Set<string>(VOICE_INVOCATION_SOURCES);
-const TOPIC_SET = new Set<string>(VOICE_INVOCATION_TOPICS);
-const ROUTE_SET = new Set<string>(VALID_NAVIGATION_PATHS);
 
 const CONTEXTUAL_WELCOMES: Record<VoiceInvocationTopic, readonly VoiceWelcomeVariation[]> = {
   resume: [
@@ -96,48 +79,6 @@ const CONTEXTUAL_WELCOMES: Record<VoiceInvocationTopic, readonly VoiceWelcomeVar
     { greeting: "Sketchbook's open. Where should we look first?", hint: VOICE_SUGGESTION_VARIATIONS[11] },
   ],
 };
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function readAllowlisted(
-  record: Record<string, unknown>,
-  key: string,
-  allowed: Set<string>,
-): string | undefined {
-  const value = record[key];
-  return typeof value === 'string' && allowed.has(value) ? value : undefined;
-}
-
-function normalizeRoute(path: string): (typeof VALID_NAVIGATION_PATHS)[number] | undefined {
-  const trimmed = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
-  return ROUTE_SET.has(trimmed) ? trimmed as (typeof VALID_NAVIGATION_PATHS)[number] : undefined;
-}
-
-export function topicFromPath(path: string | null | undefined): VoiceInvocationTopic {
-  const route = path ? normalizeRoute(path) : undefined;
-  if (route === '/') return 'home';
-  if (route === '/resume') return 'resume';
-  if (route === '/projects') return 'projects';
-  if (route === '/about') return 'about';
-  if (route === '/guestbook') return 'guestbook';
-  if (route === '/chat') return 'chat';
-  if (route === '/settings') return 'settings';
-  if (route === '/stickers') return 'stickers';
-  return 'generic';
-}
-
-export function parseVoiceInvocationContext(raw: unknown): VoiceInvocationContext | undefined {
-  const record = asRecord(raw);
-  if (!record) return undefined;
-  if ('nativeEvent' in record || 'currentTarget' in record) return undefined;
-  const source = readAllowlisted(record, 'source', SOURCE_SET) as VoiceInvocationSource | undefined;
-  const topic = readAllowlisted(record, 'topic', TOPIC_SET) as VoiceInvocationTopic | undefined;
-  if (!source && !topic) return undefined;
-  return { source, topic };
-}
 
 export function parseVoiceClientSnapshot(raw: unknown): VoiceClientSnapshot | undefined {
   const record = asRecord(raw);

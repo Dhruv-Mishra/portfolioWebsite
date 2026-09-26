@@ -6,7 +6,7 @@
  * for the current visitor. No framer; pure static JSX + narrow subscription.
  */
 import { useMemo } from 'react';
-import { STICKER_ROSTER, type StickerId } from '@/lib/stickers';
+import { STICKER_ROSTER, type StickerId } from '@/lib/stickerRoster';
 import { useStickerUnlocked, useStickerProgress } from '@/hooks/useStickers';
 
 const DIVIDER = '─'.repeat(56);

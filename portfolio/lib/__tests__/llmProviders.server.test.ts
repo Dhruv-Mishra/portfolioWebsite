@@ -33,13 +33,13 @@ describe('getSuggestionsProviders', () => {
 
     expect(getChatModelRuntimeCatalog()).toEqual({
       models: [
-        { id: 'qwen-3.6-27b', provider: 'groq', available: true },
+        { id: 'qwen-3.8-27b', provider: 'groq', available: true },
         { id: 'minimax-m3', provider: 'nvidia', available: true },
         { id: 'deepseek-v4-flash', provider: 'nvidia', available: true },
         { id: 'nemotron-3-super-120b-a12b', provider: 'nvidia', available: true },
         { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
       ],
-      deploymentCanaryModelIds: ['qwen-3.6-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
+      deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
     });
   });
 
@@ -86,8 +86,8 @@ describe('getSuggestionsProviders', () => {
     expect(defaultProviders).toEqual({
       primary: expect.objectContaining({
         kind: 'groq',
-        model: 'qwen/qwen3.6-27b',
-        modelId: 'qwen-3.6-27b',
+        model: 'qwen/qwen3.8-27b',
+        modelId: 'qwen-3.8-27b',
         supportsImages: true,
         imageInputOrder: 'text-first',
       }),

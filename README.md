@@ -35,7 +35,7 @@ The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfoli
 
 - **Sketchbook UI:** responsive themes, terminal navigation, page turns, sound, and hidden interactions.
 - **Grounded chat:** a local Markdown corpus and committed embeddings shape server-built context; credentials remain server-side.
-- **Exact model selection:** five allowlisted choices: Groq Qwen 3.6 27B, three NVIDIA models, and an optional text-only local agent. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
+- **Exact model selection:** five allowlisted choices: Groq Qwen 3.8 27B, three NVIDIA models, and an optional text-only local agent. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
 - **Voice and workflows:** a live voice agent over Gemini WebSocket, plus browser-native or local Whisper input and Pocket TTS with device-speech fallback in chat, along with guestbook, feedback, stickers, and validated chat actions.
 
 For the component, API, runtime, and delivery boundaries behind these surfaces, read the [architecture HLD](docs/architecture.md).
@@ -59,7 +59,7 @@ This keeps enough detail for screenshots and visual questions while reducing bas
 
 | Runtime | Model | Capability |
 |---|---|---|
-| Groq | Qwen 3.6 27B | Recommended, fast, vision |
+| Groq | Qwen 3.8 27B | Recommended, fast, vision |
 | NVIDIA | MiniMax M3 | Preview, vision; non-commercial use only |
 | NVIDIA | DeepSeek V4 Flash | Fast |
 | NVIDIA | Nemotron 3 Super 120B | Reasoning |

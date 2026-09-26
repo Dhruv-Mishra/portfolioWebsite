@@ -74,8 +74,8 @@ const GROQ_PROVIDER = {
   label: 'groq-primary',
   apiKey: 'test-key',
   baseURL: 'https://api.groq.com/openai/v1',
-  model: 'qwen/qwen3.6-27b',
-  modelId: 'qwen-3.6-27b' as const,
+  model: 'qwen/qwen3.8-27b',
+  modelId: 'qwen-3.8-27b' as const,
   supportsImages: true,
   imageInputOrder: 'text-first' as const,
   sampling: { temperature: 0.6, topP: 0.95, maxCompletionTokens: 384 },
@@ -158,7 +158,7 @@ describe('chat route provider payload mapping', () => {
       signature: string;
     };
 
-    expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.6-27b');
+    expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.8-27b');
     expect(body.reply).toBe('provider reply.');
     expect(verifyAssistantMessage({
       role: 'assistant',

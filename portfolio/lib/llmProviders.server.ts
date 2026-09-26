@@ -107,7 +107,7 @@ function getLocalAgentProvider(): LLMProvider | null {
 }
 
 function getNvidiaProvider(
-  modelId: Exclude<ChatModelId, 'qwen-3.6-27b' | 'qwen-3.5-4b-local'>,
+  modelId: Exclude<ChatModelId, 'qwen-3.8-27b' | 'qwen-3.5-4b-local'>,
   maxTokens = MAIN_CHAT_MAX_TOKENS,
 ): LLMProvider | null {
   const apiKey = process.env.NVIDIA_API_KEY;

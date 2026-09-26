@@ -298,6 +298,7 @@ describe('release version promotion', () => {
     expect(stagingCanaryJob).not.toContain('CHAT_CANARY_FAILURES=()');
     expect(stagingCanaryJob).not.toContain('fail "Staging chat canary failed');
     expect(stagingCanaryJob).not.toContain('qwen-3.6-27b');
+    expect(stagingCanaryJob).not.toContain('qwen-3.8-27b');
 
     expect(stagingDeploy).toContain('Note GHCR credential fallback');
     expect(stagingDeploy).toContain('::notice::GHCR_READ_TOKEN is not configured');

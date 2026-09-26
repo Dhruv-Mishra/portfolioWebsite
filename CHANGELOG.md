@@ -23,6 +23,7 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Changed
 
+- Updated default Groq chat model to Qwen 3.8 27B (`qwen/qwen3.8-27b`).
 - Voice agent uses stable `gemini-3.8-live`; voice tools declare `BLOCKING` to keep serial action turns.
 - Next.js 16.3.6 (critical RCE advisories), React 19.3.0, in-range dependency updates; production audit clean.
 - Homepage JS ~3% smaller (sticker roster, navigation paths, voice invocation, and project slugs split into leaf modules; doodles rendered on the server).

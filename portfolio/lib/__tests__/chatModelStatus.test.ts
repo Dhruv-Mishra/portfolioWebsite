@@ -18,15 +18,15 @@ describe('chat model status', () => {
   it('accepts configured-unavailable models while retaining local health and canary IDs', () => {
     expect(parseChatModelStatusPayload({
       models: [
-        { id: 'qwen-3.6-27b', available: true },
+        { id: 'qwen-3.8-27b', available: true },
         { id: 'minimax-m3', available: false },
       ],
-      deploymentCanaryModelIds: ['qwen-3.6-27b', 'unknown-model'],
+      deploymentCanaryModelIds: ['qwen-3.8-27b', 'unknown-model'],
       localModelStatus: { healthy: true, modelName: 'gemma-4-e2b-phone' },
     })).toEqual({
       advisoryIssueModelIds: [],
       configuredUnavailableModelIds: ['minimax-m3'],
-      deploymentCanaryModelIds: ['qwen-3.6-27b'],
+      deploymentCanaryModelIds: ['qwen-3.8-27b'],
       local: { healthy: true, modelName: 'gemma-4-e2b-phone' },
     });
   });
@@ -36,7 +36,7 @@ describe('chat model status', () => {
       healthy: true,
       modelName: 'gemma-4-e2b-phone',
     })).toBe('gemma-4-e2b-phone');
-    expect(getChatModelDisplayName(getChatModel('qwen-3.6-27b'), null)).toBe('Qwen 3.6 27B');
+    expect(getChatModelDisplayName(getChatModel('qwen-3.8-27b'), null)).toBe('Qwen 3.8 27B');
   });
 
   it('rejects malformed status payloads', () => {
@@ -58,7 +58,7 @@ describe('chat model status', () => {
       advisoryHealth: {
         expiresAt: '2099-08-09T00:20:00.000Z',
         models: [
-          { id: 'qwen-3.6-27b', state: 'degraded' },
+          { id: 'qwen-3.8-27b', state: 'degraded' },
           { id: 'minimax-m3', state: 'unhealthy' },
           { id: 'deepseek-v4-flash', state: 'healthy' },
           { id: 'nemotron-3-super-120b-a12b', state: 'unknown' },
@@ -66,8 +66,8 @@ describe('chat model status', () => {
       },
     });
 
-    expect(status?.advisoryIssueModelIds).toEqual(['qwen-3.6-27b', 'minimax-m3']);
-    expect(status && isChatModelFacingIssues('qwen-3.6-27b', {
+    expect(status?.advisoryIssueModelIds).toEqual(['qwen-3.8-27b', 'minimax-m3']);
+    expect(status && isChatModelFacingIssues('qwen-3.8-27b', {
       ...status,
       issueModelIds: [],
     })).toBe(true);
@@ -79,7 +79,7 @@ describe('chat model status', () => {
       models: [],
       advisoryHealth: {
         expiresAt: '2020-08-09T00:20:00.000Z',
-        models: [{ id: 'qwen-3.6-27b', state: 'unhealthy' }],
+        models: [{ id: 'qwen-3.8-27b', state: 'unhealthy' }],
       },
     })?.advisoryIssueModelIds).toEqual([]);
   });

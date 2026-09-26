@@ -21,7 +21,7 @@ function createSnapshot(overrides: Record<string, unknown> = {}) {
       site: 'staging.whoisdhruv.com',
     },
     models: [{
-      id: 'qwen-3.6-27b',
+      id: 'qwen-3.8-27b',
       state: 'degraded',
       checkedAt: '2026-08-09T00:00:00.000Z',
       latencyMs: 1_200,
@@ -49,7 +49,7 @@ describe('model health snapshots', () => {
   it('returns only the fresh, public model advisory shape from a strict v1 snapshot', () => {
     expect(parseModelHealthSnapshot(createSnapshot(), 'staging', NOW)).toEqual({
       expiresAt: '2026-08-09T00:20:00.000Z',
-      models: [{ id: 'qwen-3.6-27b', state: 'degraded' }],
+      models: [{ id: 'qwen-3.8-27b', state: 'degraded' }],
     });
   });
 

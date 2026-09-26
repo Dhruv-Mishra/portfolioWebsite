@@ -1,4 +1,4 @@
-export const DEFAULT_CHAT_MODEL_ID = 'qwen-3.6-27b' as const;
+export const DEFAULT_CHAT_MODEL_ID = 'qwen-3.8-27b' as const;
 
 export const CHAT_MODEL_CAPABILITIES = ['fast', 'image', 'reasoning', 'slow'] as const;
 export type ChatModelCapability = (typeof CHAT_MODEL_CAPABILITIES)[number];
@@ -23,11 +23,11 @@ type ChatModelDefinition = ChatModelDefinitionBase & (
 
 export const CHAT_MODELS = [
   {
-    id: 'qwen-3.6-27b',
+    id: 'qwen-3.8-27b',
     provider: 'groq',
     group: 'Recommended',
-    upstreamModel: 'qwen/qwen3.6-27b',
-    label: 'Qwen 3.6 27B',
+    upstreamModel: 'qwen/qwen3.8-27b',
+    label: 'Qwen 3.8 27B',
     quality: 'Recommended',
     supportsImages: true,
     imageInputOrder: 'text-first',

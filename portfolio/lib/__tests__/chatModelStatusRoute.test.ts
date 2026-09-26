@@ -41,13 +41,13 @@ describe('chat model status route', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     await expect(response.json()).resolves.toEqual({
       models: [
-        { id: 'qwen-3.6-27b', provider: 'groq', available: true },
+        { id: 'qwen-3.8-27b', provider: 'groq', available: true },
         { id: 'minimax-m3', provider: 'nvidia', available: true },
         { id: 'deepseek-v4-flash', provider: 'nvidia', available: true },
         { id: 'nemotron-3-super-120b-a12b', provider: 'nvidia', available: true },
         { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
       ],
-      deploymentCanaryModelIds: ['qwen-3.6-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
+      deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
       localModelStatus: { healthy: true, modelName: 'gemma-4-e2b-phone' },
       advisoryHealth: null,
     });
@@ -87,7 +87,7 @@ describe('chat model status route', () => {
       probeMode: 'canary',
       source: { workflow: 'publish-model-health', runId: '123456', site: 'staging.whoisdhruv.com' },
       models: [{
-        id: 'qwen-3.6-27b',
+        id: 'qwen-3.8-27b',
         state: 'degraded',
         checkedAt: '2099-08-09T00:00:00.000Z',
         latencyMs: 1_200,
@@ -105,7 +105,7 @@ describe('chat model status route', () => {
 
     expect(body.advisoryHealth).toEqual({
       expiresAt: '2099-08-09T00:20:00.000Z',
-      models: [{ id: 'qwen-3.6-27b', state: 'degraded' }],
+      models: [{ id: 'qwen-3.8-27b', state: 'degraded' }],
     });
     expect(serializedBody).not.toContain('top-secret-token');
     expect(serializedBody).not.toContain('Dhruv-Mishra/portfolio-model-health');

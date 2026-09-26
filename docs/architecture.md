@@ -178,7 +178,7 @@ The retrieval bundle is built from the Markdown fact corpus and committed so run
 
 | Selection | Current provider path | Capability handling | Failure behavior |
 |---|---|---|---|
-| Recommended default | Groq Qwen 3.6 27B | Vision-capable | Local static fallback when unavailable |
+| Recommended default | Groq Qwen 3.8 27B | Vision-capable | Local static fallback when unavailable |
 | 3 NVIDIA selections | NVIDIA's OpenAI-compatible endpoint | Per-model vision and sampling compatibility | Local static fallback when unavailable |
 | Local agent | Configured OpenAI-compatible endpoint | Optional and text-only; shows its healthy backend name | Local static fallback when unavailable |
 

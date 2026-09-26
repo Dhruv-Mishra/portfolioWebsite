@@ -8,7 +8,7 @@ The active catalog contains five selections: one Groq default, three NVIDIA mode
 
 | Group | Model | Image input | Registry role |
 |---|---|---:|---|
-| Recommended | Groq Qwen 3.6 27B | Yes | Default selection |
+| Recommended | Groq Qwen 3.8 27B | Yes | Default selection |
 | NVIDIA | MiniMax M3 | Yes | Preview; non-commercial use only |
 | NVIDIA | DeepSeek V4 Flash | No | Fast |
 | NVIDIA | Nemotron 3 Super 120B | No | Strong reasoning |

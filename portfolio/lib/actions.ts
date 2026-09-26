@@ -1,5 +1,6 @@
 // lib/actions.ts — Chat action metadata and follow-up suggestions
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import { VALID_NAVIGATION_PATHS, type NavigationPath } from '@/lib/navigationPaths';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   isSitePreferenceKey,
@@ -49,10 +50,9 @@ export interface ActionDef {
   guestbookSubmit?: GuestbookSubmitAction;
 }
 
-export const VALID_NAVIGATION_PATHS = ['/', '/about', '/projects', '/resume', '/chat', '/guestbook', '/stickers', '/settings'] as const;
+export { VALID_NAVIGATION_PATHS };
 export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
 
-type NavigationPath = (typeof VALID_NAVIGATION_PATHS)[number];
 type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
 
 const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);

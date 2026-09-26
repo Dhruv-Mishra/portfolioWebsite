@@ -1,11 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import {
-    LightbulbDoodle, PencilDoodle, StarDoodle,
-    BugDoodle, PaperPlaneDoodle, SaturnDoodle,
-    CloudDoodle, SmileyDoodle, LightningDoodle
-} from './SketchbookDoodles';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
@@ -51,7 +46,7 @@ const GRID_PATTERN_STYLE = {
     contain: 'strict',
 } as const;
 
-export default function SketchbookLayout({ children }: { children: React.ReactNode }) {
+export default function SketchbookLayout({ children, doodles }: { children: React.ReactNode; doodles?: React.ReactNode }) {
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [feedbackLoaded, setFeedbackLoaded] = useState(false);
     const [showMobileSoundToggle, setShowMobileSoundToggle] = useState(false);
@@ -121,15 +116,7 @@ export default function SketchbookLayout({ children }: { children: React.ReactNo
                     style={{ zIndex: Z_INDEX.base }}
                     aria-hidden="true"
                 >
-                    <LightbulbDoodle />
-                    <CloudDoodle />
-                    <PencilDoodle />
-                    <StarDoodle />
-                    <BugDoodle />
-                    <SmileyDoodle />
-                    <LightningDoodle />
-                    <PaperPlaneDoodle />
-                    <SaturnDoodle />
+                    {doodles}
                 </div>
 
                 {/* Crease Shadow near spiral — width derived from --c-spiral-w */}

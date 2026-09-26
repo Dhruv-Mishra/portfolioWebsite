@@ -4,7 +4,7 @@ import { memo, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { AudioLines } from 'lucide-react';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
-import { topicFromPath } from '@/lib/voiceClientSnapshot';
+import { topicFromPath } from '@/lib/voiceInvocation';
 import { cn } from '@/lib/utils';
 import { Z_INDEX } from '@/lib/designTokens';
 

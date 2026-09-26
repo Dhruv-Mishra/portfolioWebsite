@@ -56,7 +56,14 @@ function resolveBuildId(): string {
 
 const BUILD_ID = resolveBuildId();
 
+const SITE_VERSION: string = JSON.parse(
+  fs.readFileSync(path.join(CONFIG_DIR, "package.json"), "utf8"),
+).version;
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_SITE_VERSION: SITE_VERSION,
+  },
   // Standalone output for minimal server footprint (~50MB vs ~150MB) — critical for 1GB RAM VMs
   output: 'standalone',
   // File-trace the standalone bundle against this file's dir. Without this,
@@ -129,7 +136,6 @@ const nextConfig: NextConfig = {
       'web-haptics',
       'web-haptics/react',
     ],
-    optimizeCss: true,
   },
   // Allow LAN devices (e.g. mobile on same WiFi) to access dev server
   allowedDevOrigins: ['http://192.168.1.38:3000'],

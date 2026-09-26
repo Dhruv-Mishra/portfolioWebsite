@@ -20,7 +20,7 @@ import {
     SUDO_DENIED_NODE,
     handleDisco,
 } from '@/lib/sudoCommands';
-import { STICKER_ROSTER } from '@/lib/stickers';
+import { STICKER_ROSTER } from '@/lib/stickerRoster';
 import {
     getCurrentStage,
     getHintForStage,

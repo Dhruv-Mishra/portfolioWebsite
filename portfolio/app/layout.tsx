@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
+import {
+  BugDoodle, CloudDoodle, LightbulbDoodle, LightningDoodle, PaperPlaneDoodle,
+  PencilDoodle, SaturnDoodle, SmileyDoodle, StarDoodle,
+} from "@/components/SketchbookDoodles";
 import Navigation from "@/components/Navigation";
 import RouteScrollSurface from "@/components/RouteScrollSurface";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -82,6 +86,21 @@ const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admi
  * now flows to the viewport width, so the browser has no reason to shrink
  * the layout down.
  */
+// Rendered on the server so the decorative SVGs stay out of the client bundle.
+const SKETCHBOOK_DOODLES = (
+  <>
+    <LightbulbDoodle />
+    <CloudDoodle />
+    <PencilDoodle />
+    <StarDoodle />
+    <BugDoodle />
+    <SmileyDoodle />
+    <LightningDoodle />
+    <PaperPlaneDoodle />
+    <SaturnDoodle />
+  </>
+);
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -188,7 +207,7 @@ export default function RootLayout({
         <Analytics />
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <SketchbookLayout>
+            <SketchbookLayout doodles={SKETCHBOOK_DOODLES}>
               <Navigation />
               <RouteScrollSurface>{children}</RouteScrollSurface>
             </SketchbookLayout>

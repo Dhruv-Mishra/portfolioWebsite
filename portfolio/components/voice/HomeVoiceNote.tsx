@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import { AudioLines } from 'lucide-react';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
-import type { VoiceInvocationContext } from '@/lib/voiceClientSnapshot';
+import type { VoiceInvocationContext } from '@/lib/voiceInvocation';
 import { cn } from '@/lib/utils';
 
 interface HomeVoiceNoteProps {

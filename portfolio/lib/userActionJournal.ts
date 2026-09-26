@@ -1,5 +1,5 @@
-import { VALID_NAVIGATION_PATHS } from '@/lib/actions';
-import { isProjectSlug, type ProjectSlug } from '@/lib/projectCatalog';
+import { VALID_NAVIGATION_PATHS } from '@/lib/navigationPaths';
+import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 
 export const USER_ACTION_JOURNAL_STORAGE_KEY = 'dhruv-user-actions-v1';
 export const USER_ACTION_JOURNAL_MAX_ENTRIES = 10;

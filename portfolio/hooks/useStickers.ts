@@ -37,7 +37,7 @@ import {
   type StickerId,
   type RegularStickerId,
   type SuperuserId,
-} from '@/lib/stickers';
+} from '@/lib/stickerRoster';
 import { STICKER_TIMING } from '@/lib/designTokens';
 import { getAdminPrefsSnapshot } from '@/hooks/useAdminPrefs';
 

@@ -1,4 +1,4 @@
-export const VOICE_AGENT_MODEL_ID = 'gemini-3.1-flash-live-preview';
+export const VOICE_AGENT_MODEL_ID = 'gemini-3.8-live';
 export const VOICE_AGENT_VOICE_NAME = 'Puck';
 export const VOICE_AGENT_INPUT_RATE = 16_000;
 export const VOICE_AGENT_OUTPUT_RATE = 24_000;

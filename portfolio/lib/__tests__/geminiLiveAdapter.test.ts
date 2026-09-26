@@ -260,11 +260,10 @@ describe('gemini live adapter connect and send path', () => {
     socket?.open();
     await Promise.resolve();
     expect(socket?.sent).toHaveLength(1);
-    expect(JSON.parse(socket?.sent[0] ?? '{}')).toMatchObject({
-      setup: {
-        generationConfig: { thinkingConfig: { thinkingLevel: 'MINIMAL' } },
-      },
-    });
+    const setup = JSON.parse(socket?.sent[0] ?? '{}').setup;
+    expect(setup.model).toBe('models/gemini-3.8-live');
+    expect(setup.generationConfig.thinkingConfig).toBeUndefined();
+    expect(setup.tools[0].functionDeclarations.every((tool: { behavior?: string }) => tool.behavior === 'BLOCKING')).toBe(true);
 
     let resolved = false;
     void connecting.then(() => {

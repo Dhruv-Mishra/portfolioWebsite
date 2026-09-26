@@ -23,6 +23,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Changed
 
+- Voice agent uses stable `gemini-3.8-live`; voice tools declare `BLOCKING` to keep serial action turns.
+- Next.js 16.3.6 (critical RCE advisories), React 19.3.0, in-range dependency updates; production audit clean.
+- Homepage JS ~3% smaller (sticker roster, navigation paths, voice invocation, and project slugs split into leaf modules; doodles rendered on the server).
 - Nav tabs now follow the pending page-turn destination instead of waiting for `usePathname()`.
 - Reduced-motion and immersion-off navigations keep a destination snapshot until the route lands or the 5s watchdog fires.
 - Voice runtime now loads lazily on enter.
@@ -37,6 +40,8 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Fixed
 
+- Client bundles no longer include the full `package.json`; only the version is exposed.
+- Portfolio-project chat keywords escape `\s`, so "portfolio project" and "this site" match again.
 - Navigation `aria-current` is on the `Link`.
 - `not-found` and `error` no longer depend on Framer Motion.
 - Voice enter cue plays on the click stack; HTMLAudio fades clamp to `[0, 1]`.

@@ -14,6 +14,7 @@ import { Analytics } from "@/components/Analytics";
 import DeferredEnhancements from "@/components/DeferredEnhancements";
 import EagerEnhancements from "@/components/EagerEnhancements";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
+import { OG_IMAGE, SITE_DESCRIPTION } from "@/lib/pageMetadata";
 import "./globals.css";
 
 // Both DeferredEnhancements and EagerEnhancements are client components
@@ -51,7 +52,7 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "@id": `${SITE.url}/#website`,
       "url": SITE.url,
       "name": "Dhruv Mishra Portfolio",
-      "description": "AI-forward software engineer at Microsoft building practical AI tools, high-performance systems, and reliable production infrastructure.",
+      "description": SITE_DESCRIPTION,
       "publisher": { "@id": "https://whoisdhruv.com/#person" }
     },
     {
@@ -60,13 +61,18 @@ const STRUCTURED_DATA_LD = JSON.stringify({
       "name": SITE.name,
       "url": SITE.url,
       "jobTitle": "Software Engineer",
-      "worksFor": { "@type": "Organization", "name": "Microsoft" },
-      "description": "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and performance-critical infrastructure.",
+      "worksFor": { "@type": "Organization", "name": "Microsoft", "url": "https://www.microsoft.com" },
+      "description": "Software engineer at Microsoft who builds production AI agents and the Azure backend services they run on.",
       "image": `${SITE.url}/resources/aboutPhoto.webp`,
       "email": PERSONAL_LINKS.email.replace(/^mailto:/, ''),
-      "alumniOf": { "@type": "CollegeOrUniversity", "name": "IIIT Delhi" },
-      "knowsAbout": ["AI agents", "LLM tooling", "voice AI", "production systems", "distributed systems", "performance optimization", "cloud infrastructure"],
-      "sameAs": [PERSONAL_LINKS.linkedin, PERSONAL_LINKS.github]
+      "address": { "@type": "PostalAddress", "addressLocality": "Noida", "addressCountry": "IN" },
+      "alumniOf": {
+        "@type": "CollegeOrUniversity",
+        "name": "Indraprastha Institute of Information Technology Delhi (IIIT-Delhi)",
+        "url": "https://www.iiitd.ac.in"
+      },
+      "knowsAbout": ["AI agents", "LLM agents", "Model Context Protocol (MCP)", "Retrieval-augmented generation", "Voice AI", "Azure", "Distributed systems", "Backend engineering", "Performance optimization", "C#", "TypeScript", "Python", "C++"],
+      "sameAs": [PERSONAL_LINKS.linkedin, PERSONAL_LINKS.github, PERSONAL_LINKS.codeforces]
     }
   ]
 });
@@ -112,9 +118,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Dhruv Mishra | AI & Software Engineer",
-  description: "Software Engineer at Microsoft working across AI-forward software engineering, high-performance systems, and production infrastructure. Builds voice agents, AI tools, distributed backends, and reliable cloud systems.",
-  keywords: ["Dhruv Mishra", "AI Software Engineer", "Software Engineer at Microsoft", "AI Agents", "Voice AI", "LLM Tooling", "Multimodal AI", "Production Systems", "Distributed Systems", "Performance Optimization", "Cloud Infrastructure", "Full Stack Developer", "Competitive Programming"],
+  title: "Dhruv Mishra | Software Engineer, AI Agents",
+  description: SITE_DESCRIPTION,
+  keywords: ["Dhruv Mishra", "Software Engineer", "Microsoft", "AI Agents", "LLM Agents", "MCP", "Model Context Protocol", "Voice AI", "RAG", "Azure", "Backend Engineer", "Distributed Systems", "C#", "TypeScript", "Python", "Competitive Programming"],
   authors: [{ name: SITE.name, url: PERSONAL_LINKS.linkedin }],
   creator: "Dhruv Mishra",
   publisher: "Dhruv Mishra",
@@ -136,26 +142,17 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: SITE.url,
-    title: "Dhruv Mishra | AI & Software Engineer",
-    description: "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and reliable cloud infrastructure.",
+    title: "Dhruv Mishra | Software Engineer, AI Agents",
+    description: SITE_DESCRIPTION,
     siteName: "Dhruv Mishra Portfolio",
-    images: [
-      {
-        // 1200x630 sketchbook card generated from /resources/aboutPhoto.webp.
-        // Prefer this wide asset over the 512 PWA icon so OG/Twitter can use
-        // the canonical 1.91:1 large-image slot without stretching a square.
-        url: '/resources/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Dhruv Mishra - Software Engineer Portfolio',
-      },
-    ],
+    // 1200x630 sketchbook card generated from /resources/aboutPhoto.webp.
+    images: [OG_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Dhruv Mishra | AI & Software Engineer",
-    description: "Software Engineer at Microsoft working across AI-forward software engineering, production systems, and reliable cloud infrastructure.",
-    images: ['/resources/og-image.png'],
+    title: "Dhruv Mishra | Software Engineer, AI Agents",
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE.url],
   },
   robots: {
     index: true,
@@ -185,14 +182,15 @@ export default function RootLayout({
           Google Analytics: warm the DNS for the gtag.js origin + the beacon
           endpoint. The Analytics component loads GA via next/script with
           `strategy="lazyOnload"`, so the actual request fires well after the
-          LCP frame — cheap to prefetch DNS early (one UDP roundtrip, ~20–80 ms
-          saved at beacon time on cold connections). Rendered unconditionally:
-          even without a `NEXT_PUBLIC_GA_ID`, a dns-prefetch for an unused
-          origin is a no-op (the browser just never looks up the name).
+          LCP frame. Browsers resolve dns-prefetch hints whether or not the
+          origin is used, so only emit them when GA is configured.
         */}
-        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
-        <link rel="manifest" href="/manifest.json" />
+        {process.env.NEXT_PUBLIC_GA_ID ? (
+          <>
+            <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+            <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+          </>
+        ) : null}        <link rel="manifest" href="/manifest.json" />
         {/* theme-color meta tags are emitted by the `viewport` export above. */}
 
         {/* Structured Data (JSON-LD) for SEO */}

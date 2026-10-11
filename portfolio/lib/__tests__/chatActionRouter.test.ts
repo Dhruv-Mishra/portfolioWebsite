@@ -197,16 +197,19 @@ describe('resolveChatIntent — project action intents', () => {
     check('open cropio', { kind: 'action', projectSlug: 'cropio' });
     check('pull up fluent ui', { kind: 'action', projectSlug: 'fluent-ui-android' });
     check('open atomvault', { kind: 'action', projectSlug: 'atomvault' });
+    check('show me invoke', { kind: 'action', projectSlug: 'invoke' });
   });
 
   it('opens project repos when repo/github keyword present', () => {
     check('open the cropio repo', { kind: 'action', openUrlContains: 'Cropio-ImageEditor' });
     check('show me the fluent ui github', { kind: 'action', openUrlContains: 'fluentui-android' });
     check('pull up the atomvault source', { kind: 'action', openUrlContains: 'AtomVault' });
+    check('open the invoke repo', { kind: 'action', openUrlContains: 'Invoke-Voice' });
   });
 
   it('returns project-info for explanation requests', () => {
     check('tell me about cropio', { kind: 'project-info', projectSlug: 'cropio' });
+    check('tell me about invoke', { kind: 'project-info', projectSlug: 'invoke' });
     check('what is course evaluator', { kind: 'project-info', projectSlug: 'course-evaluator' });
     check('explain the bloom filter research', { kind: 'project-info', projectSlug: 'bloom-filter-research' });
   });

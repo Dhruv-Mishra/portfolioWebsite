@@ -1,17 +1,10 @@
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/pageMetadata';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Chat | Dhruv Mishra',
-  description: 'Chat with Dhruv Mishra — ask about his work at Microsoft, projects, tech stack, hobbies, and more through an AI-powered sticky note chat.',
-  alternates: {
-    canonical: '/chat',
-  },
-  openGraph: {
-    title: 'Chat | Dhruv Mishra',
-    description: 'Chat with Dhruv Mishra through an interactive AI-powered sticky note interface.',
-    url: 'https://whoisdhruv.com/chat',
-  },
-};
+  description: 'Ask Dhruv Mishra about his work at Microsoft, his projects, tech stack, or hobbies. Answers come from a RAG chatbot grounded in facts about him.',
+  path: '/chat',
+});
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   return children;

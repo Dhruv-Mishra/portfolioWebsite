@@ -26,25 +26,25 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['project', 'portfolio', 'work', 'built', 'shipped', 'microsoft'],
     messages: [
-      "Got a bit scrambled there — I've built Jarvis (a voice-to-voice AI agent), Cropio as an AI portrait cropper, this AI-powered portfolio, and Bloom Filter research with a 300% throughput gain. Projects page has the full list!",
-      "Sorry, lost my thread for a sec. I've built AI tools, an NLP course evaluator, a contactless vital-checkup system with OpenCV, a hybrid movie recommender, and more — check the projects page ~",
-      "My notes got mixed up. At Microsoft I work across production software, performance engineering, and reliable infrastructure; side projects go deeper into AI agents and tooling. Projects page has the broader list!",
+      "Got a bit scrambled there. I've built Invoke (voice-controlled coding agents), Jarvis (a voice dispatch agent), Cropio as an AI portrait cropper, and this site's voice agent. Projects page has the full list!",
+      "Sorry, lost my thread for a sec. I've built AI tools, an NLP course evaluator, a contactless vital-checkup system with OpenCV, a hybrid movie recommender, and more. Check the projects page ~",
+      "My notes got mixed up. At Microsoft I build production AI agents and the Azure backend services they run on; side projects go deeper into voice agents. Projects page has the broader list!",
     ],
   },
   {
     keywords: ['resume', 'cv', 'experience', 'education', 'skills', 'background', 'hire', 'hiring'],
     messages: [
-      "A little foggy right now — but quick version: Microsoft Software Engineer working across AI-forward software and production systems, FHL winner, IIIT Delhi 8.96 GPA. Resume page has the rest!",
-      "Bit scattered, sorry. I'm at Microsoft working across performance-critical software, reliable infrastructure, and production systems at 7B+ daily-hit scale. The resume page has the details ~",
+      "A little foggy right now, but quick version: Software Engineer at Microsoft building AI agents and Azure backend services, Microsoft Hackathon winner, IIIT Delhi 8.96 GPA. Resume page has the rest!",
+      "Bit scattered, sorry. I'm at Microsoft building incident-triage AI agents and backend services that handle 7B+ requests a day. The resume page has the details ~",
       "Brain glitch there. IIIT Delhi CS & Applied Math grad, Codeforces Expert (max 1703), Code Jam Global Rank 291, currently at Microsoft — resume page has it all!",
     ],
   },
   {
     keywords: ['tech', 'stack', 'react', 'nextjs', 'typescript', 'rust', 'programming', 'coding', 'language', 'framework'],
     messages: [
-      "Got a bit turned around — I use TypeScript, Python, C#, C++, Kotlin, Java, SQL, JavaScript, KQL, C, Bash, and PowerShell. This site runs Next.js 16 + Tailwind v4. Ask me again!",
-      "Head's in a muddle. My stack includes AI agents, LLM tooling, React, Next.js, Git, cloud infrastructure, CI/CD, NPM, and mobile platform work when the problem calls for it. Try again in a sec!",
-      "Lost the thread there. My stack spans AI tooling, production systems, distributed systems, data structures, databases, and ML. Give it another shot ~",
+      "Got a bit turned around. I mostly use C#, TypeScript, and Python, plus C++, Kotlin, Java, and SQL. This site runs Next.js 16 + Tailwind v4. Ask me again!",
+      "Head's in a muddle. My stack includes LLM agents, MCP, RAG, Azure, Redis, Node.js, React, Next.js, Docker, and Android when the problem calls for it. Try again in a sec!",
+      "Lost the thread there. My stack spans AI agents, backend services, distributed systems, data structures, and ML. Give it another shot ~",
     ],
   },
   {

@@ -59,7 +59,7 @@ function buildExperienceTimelineMarkdown(): string {
   }).join('\n\n');
 }
 
-const SUMMARY = `Dhruv Mishra — AI-forward Software Engineer at Microsoft. CS & Applied Math, IIIT Delhi. Codeforces Expert. Builds practical AI tools, high-performance production systems, distributed services, and reliable cloud infrastructure.`;
+const SUMMARY = `Dhruv Mishra is a Software Engineer at Microsoft who builds production AI agents and the Azure backend services they run on. CS & Applied Math (Honors), IIIT Delhi. Codeforces Expert. Side projects: Invoke (voice-controlled coding agents), Jarvis (a voice dispatch agent), and this site's live voice agent.`;
 
 /**
  * /llms.txt — curated index per llmstxt.org spec. Lists the canonical .md

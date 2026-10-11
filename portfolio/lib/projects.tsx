@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { Activity, Database, Film, Globe, Mic, ScrollText, Scissors, Search, Smartphone } from 'lucide-react';
+import { Activity, Bot, Database, Film, Globe, Mic, ScrollText, Scissors, Search, Smartphone } from 'lucide-react';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 
 export interface ProjectRecord {
@@ -32,15 +32,42 @@ const BLUR = {
   bloom: 'data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoIAAgABwBaJYwCdAFAAAD+7GIwcDJji+dtKgAA',
   cropio: 'data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoIAAgAA4BaJQBOgB5QDXsAAP6w3JgPqIX1RsNkiMiKH6vAAAA=',
   jarvis: 'data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAABwAQCdASoIAAgAA4BaJYwCdAFAAAD+6MGt8PCbJcRSgfhep/X66H/9aWT9wGazr3lJSAAA',
+  invoke: 'data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAACwAQCdASoIAAgAA4BaJQBOgBtkKPgcAP6YLfHR8LVVMCKXTBrZntLWmsvXXMR274kwhG9AAAA=',
 } as const;
 
 export const PROJECTS: ProjectRecord[] = [
   {
-    slug: 'jarvis-voice-agent',
-    name: 'Jarvis — Voice Agent',
+    slug: 'invoke',
+    name: 'Invoke — Voice Coding Agents',
     desc: (
       <>
-        A <strong>voice-to-voice AI agent</strong> that picks up the phone, holds a <span className="underline decoration-wavy decoration-emerald-400">full human-sounding conversation</span>, and actually <em>operates the website for you</em> — navigates pages, fills forms, opens maps, sends quotes, and <span className="bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">negotiates in real time</span>. A <strong>live AI agent with tool calling</strong> over a long-lived WebSocket, persona switching, phone-line audio compression, and <span className="underline decoration-double decoration-teal-500">SPA continuity across page changes</span>. Live demo at <a href="https://jarvis.whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-800/70 hover:ring-emerald-500 hover:text-emerald-900 dark:hover:text-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">jarvis.whoisdhruv.com&nbsp;↗</a> — meant as an alternative to traditional customer support and dispatch agents.
+        A Windows <strong>voice assistant for running coding agents</strong>. It handles simple requests itself and hands bigger coding tasks to <span className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">GitHub Copilot CLI agents</span>, each working in <span className="underline decoration-wavy decoration-violet-400">its own Git worktree</span> so several can run at once. Speech-to-text, the LLM, and text-to-speech all <strong>run locally</strong> (Parakeet, quantized Gemma/Qwen on llama.cpp, and Kokoro). <span className="font-semibold">Speculative decoding</span> with a draft model made generation 35% faster.
+      </>
+    ),
+    lang: 'Electron / Node.js / Python',
+    link: 'https://github.com/Dhruv-Mishra/Invoke-Voice',
+    colorClass: 'bg-note-purple',
+    image: '/resources/Invoke.webp',
+    blurDataURL: BLUR.invoke,
+    video: null,
+    icon: Bot,
+    label: 'Coding Agents',
+    stack: ['Electron', 'Node.js', 'Python', 'llama.cpp', 'MCP', 'Copilot CLI'],
+    role: 'AI Agents + Desktop',
+    year: '2026',
+    duration: 'Ongoing',
+    highlights: [
+      'Delegates coding and research tasks to GitHub Copilot CLI agents, each coding task in an isolated Git worktree',
+      'Runs speech recognition, the language model, and speech synthesis locally with Parakeet, llama.cpp, and Kokoro',
+      'A benchmark harness picked a speech model with 57% fewer errors than Whisper Small at 5x the speed',
+    ],
+  },
+  {
+    slug: 'jarvis-voice-agent',
+    name: 'Jarvis — Voice Dispatch Agent',
+    desc: (
+      <>
+        A <strong>voice AI dispatch agent</strong> for a demo logistics app. Place a call and it looks up loads, assigns carriers, <span className="bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">negotiates freight rates</span>, and submits quotes while you talk to it. It uses an <strong>LLM planner with MCP tools</strong> and <span className="underline decoration-wavy decoration-emerald-400">RAG over load and carrier data</span>, streams audio over a long-lived WebSocket, and keeps the call alive as you move between pages. Live demo at <a href="https://jarvis.whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded ring-1 ring-emerald-300/60 dark:ring-emerald-700/60 transition-colors hover:bg-emerald-200 dark:hover:bg-emerald-800/70 hover:ring-emerald-500 hover:text-emerald-900 dark:hover:text-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">jarvis.whoisdhruv.com&nbsp;↗</a>.
       </>
     ),
     lang: 'JavaScript / Node.js',
@@ -51,14 +78,39 @@ export const PROJECTS: ProjectRecord[] = [
     video: '/resources/audioAgent.mp4',
     icon: Mic,
     label: 'Voice Agent',
-    stack: ['Live AI Agent', 'Tool Calling', 'WebSockets', 'Node.js', 'AudioWorklet', 'Vanilla JS'],
+    stack: ['Voice AI', 'MCP', 'RAG', 'Tool Calling', 'WebSockets', 'Node.js', 'AudioWorklet'],
     role: 'Full Stack + Voice AI',
     year: '2026',
     duration: 'Ongoing',
     highlights: [
-      'Voice-to-voice agent that performs real website actions via tool calls — navigation, form filling, quote generation, negotiation',
-      'Phone-call UX with ambient compression, persona switching, barge-in support, and seamless SPA navigation that never drops the call',
-      'Live alternative to human customer support / dispatch agents — try it at jarvis.whoisdhruv.com',
+      'Takes real actions in the app through tool calls: load lookups, carrier assignment, rate negotiation, and quotes',
+      'Phone-call UX with barge-in, personas, and phone-line audio filtering; the call survives page changes',
+      'Try it live at jarvis.whoisdhruv.com',
+    ],
+  },
+  {
+    slug: 'personal-portfolio',
+    name: 'This Portfolio',
+    desc: (
+      <>
+        The site you&apos;re on. Its main feature is a <strong>live voice agent</strong> you can talk to and <span className="underline decoration-wavy decoration-amber-400">interrupt mid-sentence</span>: full-duplex audio over a WebSocket, with <span className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">25+ tools</span> to navigate pages, open projects, fill forms, and run terminal commands for you. There&apos;s also a <strong>RAG chatbot</strong> with 5 selectable LLMs, one of them self-hosted, a <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">retro terminal</span>, and a hand-drawn sketchbook look. Built with <span className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-1.5 py-0.5 rounded text-sm">Next.js 16</span> and deployed as Docker images through GitHub Actions. Live at <a href="https://whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded ring-1 ring-indigo-300/60 dark:ring-indigo-700/60 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-800/70 hover:ring-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">whoisdhruv.com&nbsp;↗</a>.
+      </>
+    ),
+    lang: 'Next.js / TypeScript',
+    link: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
+    colorClass: 'bg-note-blue',
+    image: '/resources/PersonalPortfolio.webp',
+    blurDataURL: BLUR.portfolio,
+    icon: Globe,
+    label: 'This Website',
+    stack: ['Next.js', 'React', 'TypeScript', 'Gemini Live', 'RAG', 'Docker', 'GitHub Actions'],
+    role: 'Full Stack + Voice AI',
+    year: '2025',
+    duration: 'Ongoing',
+    highlights: [
+      'Full-duplex voice agent with 25+ site tools that can navigate, fill forms, and run commands',
+      'RAG chatbot over a curated fact base with 5 selectable LLMs, one of them self-hosted',
+      'Docker images built and deployed by GitHub Actions to Linux VMs behind Nginx and Cloudflare',
     ],
   },
   {
@@ -92,7 +144,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Fluent UI Android',
     desc: (
       <>
-        A <strong>comprehensive</strong> native Android library enabling developers to build <span className="underline decoration-wavy decoration-blue-400">uniform Microsoft 365</span> experiences. I managed its release lifecycle as <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">sole owner</span> across 10 releases for <em>10+ partner teams</em>, including Copilot, Office, Outlook, OneDrive, and Teams.
+        Microsoft&apos;s open-source <strong>Jetpack Compose</strong> component library for building <span className="underline decoration-wavy decoration-blue-400">Microsoft 365</span> Android apps. As its <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded">primary maintainer</span> I shipped 10 releases used by Copilot, Office, Outlook, OneDrive, and Teams, and owned the library&apos;s security compliance.
       </>
     ),
     lang: 'Kotlin / Java',
@@ -107,9 +159,9 @@ export const PROJECTS: ProjectRecord[] = [
     year: '2024',
     duration: '6 months',
     highlights: [
-      'Managed the release lifecycle as sole owner across 10 releases',
-      'Supported 10+ partner teams including Copilot, Office, Outlook, OneDrive, and Teams',
-      'Worked across Kotlin, Java, Jetpack Compose, XML, Gradle, and Maven',
+      'Primary maintainer; shipped 10 releases',
+      'Used by Copilot, Office, Outlook, OneDrive, and Teams',
+      'Owned the library\'s security compliance',
     ],
   },
   {
@@ -138,37 +190,11 @@ export const PROJECTS: ProjectRecord[] = [
     ],
   },
   {
-    slug: 'personal-portfolio',
-    name: 'Personal Portfolio',
-    desc: (
-      <>
-        A <strong>high-performance</strong> portfolio website built with <span className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-1.5 py-0.5 rounded text-sm">Next.js 16</span>. Features a custom <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono bg-emerald-100 dark:bg-emerald-900/50 px-1 rounded">terminal interface</span>, <span className="underline decoration-wavy decoration-amber-400">AI-powered chat</span>, and a <span className="italic">hand-drawn aesthetic</span>. Visitors can talk to the sketchbook through <span className="text-rose-600 dark:text-rose-400 font-semibold">native on-page voice mode</span> that answers in first person and can navigate or act. Runs across <span className="underline decoration-wavy decoration-indigo-400">multi-cloud VMs</span> on <span className="text-sky-600 dark:text-sky-400 font-semibold">Azure</span>, <span className="text-blue-600 dark:text-blue-400 font-semibold">GCP</span>, and <span className="text-orange-600 dark:text-orange-400 font-semibold">Oracle Cloud</span> with a custom traffic manager, distributed backend, Cloudflare edge caching, Nginx reverse proxies, and parallel <span className="font-semibold">GitHub Actions</span> CI/CD. Live at <a href="https://whoisdhruv.com" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-1.5 py-0.5 rounded ring-1 ring-indigo-300/60 dark:ring-indigo-700/60 transition-colors hover:bg-indigo-200 dark:hover:bg-indigo-800/70 hover:ring-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">whoisdhruv.com&nbsp;↗</a>.
-      </>
-    ),
-    lang: 'Next.js / TypeScript',
-    link: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
-    colorClass: 'bg-note-blue',
-    image: '/resources/PersonalPortfolio.webp',
-    blurDataURL: BLUR.portfolio,
-    icon: Globe,
-    label: 'This Website',
-    stack: ['Next.js', 'React', 'TypeScript', 'Tailwind CSS', 'Azure', 'GCP', 'Oracle Cloud', 'Nginx'],
-    role: 'Full Stack',
-    year: '2025',
-    duration: 'Ongoing',
-    highlights: [
-      'Hand-drawn sketchbook aesthetic with custom pencil/chalk cursor',
-      'AI-powered chat and interactive terminal built from scratch',
-      'Native on-page voice mode (Talk to me) that can navigate and act on the site, not just chat.',
-      'Multi-cloud VMs across Azure, GCP, and Oracle Cloud with custom traffic management',
-    ],
-  },
-  {
     slug: 'bloom-filter-research',
     name: 'Bloom Filter Research',
     desc: (
       <>
-        Research at <strong>DCLL</strong> focusing on optimizing <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded border border-blue-200 dark:border-blue-700">Counting Bloom Filters</span> for <span className="underline decoration-wavy decoration-blue-400">high-concurrency systems</span>. Achieved a massive <span className="text-emerald-600 dark:text-emerald-400 font-bold underline decoration-double decoration-emerald-400">300% throughput increase</span> via <em>relaxed synchronization</em> techniques in C++.
+        Undergraduate research at IIIT Delhi&apos;s <strong>Distributed Computing Lab</strong> on <span className="bg-blue-100 dark:bg-blue-900/50 px-1 rounded border border-blue-200 dark:border-blue-700">Counting Bloom Filters</span> under <span className="underline decoration-wavy decoration-blue-400">high contention</span>. I built a lock-free C++ filter with <em>relaxed synchronization</em> that reached <span className="text-emerald-600 dark:text-emerald-400 font-bold underline decoration-double decoration-emerald-400">3x the baseline throughput</span>.
       </>
     ),
     lang: 'Research / C++',
@@ -183,9 +209,9 @@ export const PROJECTS: ProjectRecord[] = [
     year: '2024',
     duration: '8 months',
     highlights: [
-      'Published at IIIT Delhi\'s DCLL research lab',
-      '300% throughput improvement via relaxed synchronization',
-      'Benchmarked against state-of-the-art concurrent filter implementations',
+      'Published in the IIIT Delhi research repository',
+      'Lock-free design with 3x baseline throughput under high contention',
+      'Benchmarked against existing concurrent filter implementations',
     ],
   },
   {
@@ -217,7 +243,7 @@ export const PROJECTS: ProjectRecord[] = [
     name: 'Course Evaluator',
     desc: (
       <>
-        An <strong>intelligent Python tool</strong> designed to detect <span className="underline decoration-wavy decoration-orange-400">redundant course content</span> across university curriculums. By leveraging <span className="bg-yellow-200 dark:bg-yellow-800/50 px-1 rounded">fuzzy matching</span> and <span className="italic">text similarity algorithms</span>, it helps students and faculty identify overlapping modules, <span className="underline decoration-double decoration-amber-500">optimizing course selection</span>.
+        A Python tool that finds <span className="underline decoration-wavy decoration-orange-400">overlapping course content</span> across university curriculums. It uses <span className="bg-yellow-200 dark:bg-yellow-800/50 px-1 rounded">fuzzy matching</span> and <span className="italic">text similarity</span> to flag modules that cover the same material, so students don&apos;t end up <span className="underline decoration-double decoration-amber-500">taking the same course twice</span>.
       </>
     ),
     lang: 'Python',

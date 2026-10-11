@@ -2,12 +2,12 @@
 
 This repository uses four VS Code custom agents. Role contracts define responsibilities and outcomes; agents choose their methods within the shared scope, permission, and safety rules in [AGENTS.md](../AGENTS.md).
 
-| Agent | Requested model | Effort | Use |
-|---|---|---|---|
-| Lead | GPT-5.6 Sol (copilot) | High | User outcome, planning, architecture, coordination, integration, final acceptance |
-| Builder | Gemini 3.8 Flash (copilot) | High | Implementation of scoped features, fixes, tests, and documentation |
-| Fastlane | GPT-5.6 Luna (copilot) | Max | Bounded investigation, research, diagnostics, and checks |
-| God | GPT-6 Astra (copilot) | High | Deepest reasoning on difficult or consequential architecture, correctness, and diagnostic questions |
+| Agent | Requested model | Effort | Context | Use |
+|---|---|---|---|---|
+| Lead | Claude Opus 5.5 (copilot) | Medium | Default | User outcome, planning, architecture, coordination, integration, final acceptance |
+| Builder | GPT-6.1 Sol (copilot) | XHigh | Small | Implementation of scoped features, fixes, tests, and documentation |
+| Fastlane | GPT-6 Luna (copilot) | Max | Small | Bounded investigation, research, diagnostics, and checks |
+| God | Claude Opus 5.5 (copilot) | XHigh | Default | Deepest reasoning on difficult or consequential architecture, correctness, and diagnostic questions |
 
 All roles are user-invocable. Only Lead delegates to `God`, `Builder`, or `Fastlane`; the other roles have no subagents. Lead chooses direct work or delegation by expected value and owns integration and final acceptance.
 
@@ -15,9 +15,9 @@ The shared guide defines assignment permissions and ownership. Fastlane is read-
 
 ## VS Code Setup
 
-1. Use VS Code 1.128.0 or newer. In **Chat: Manage Language Models** and the model picker, confirm the four requested models in the table are available and enabled. Astra and Gemini catalogue availability is not verified by this repository configuration.
-2. Each agent frontmatter explicitly requests its table model and `reasoning-effort`: High for Astra, Sol, and Flash; Max for Luna. The selected model must support that effort. There are no fallback model arrays, so VS Code must not silently select a different model.
-3. For Astra, Sol, and Luna, open the VS Code picker context control and confirm the normal default context is selected, not `1M`. This is a manual setup requirement: no supported workspace or agent-frontmatter field enforces a context selection.
+1. Use VS Code 1.128.0 or newer. In **Chat: Manage Language Models** and the model picker, confirm the three requested models in the table are available and enabled.
+2. Each agent frontmatter explicitly requests its table model and `reasoning-effort`: Medium for Lead, XHigh for Builder and God, Max for Fastlane. The selected model must support that effort. There are no fallback model arrays, so VS Code must not silently select a different model.
+3. For Builder (Sol) and Fastlane (Luna), open the VS Code picker context control and select the small default context, not `1M`. This is a manual setup requirement: no supported workspace or agent-frontmatter field enforces a context selection.
 4. Trust the workspace. In **Configure Tools**, select tools as needed. All four roles omit `tools` to retain VS Code's dynamic defaults. Tool availability never bypasses workspace trust, approvals, extension state, or organization policy.
 5. Use flat routing: Lead may invoke God, Builder, and Fastlane; all other roles invoke no subagents. Use **Chat: Open Customizations** and Chat diagnostics after changing an agent, model, MCP server, or instruction file.
 
@@ -49,7 +49,7 @@ The checked-in `.vscode/mcp.json` connects to `http://127.0.0.1:7999/mcp` with z
 
 Keep separate indexes for Windows and Linux/WSL working copies. Do not run daemons from both environments against the same `.zvec-grep/` directory.
 
-Zvec is not used by the website's runtime facts RAG. That corpus currently contains 34 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
+Zvec is not used by the website's runtime facts RAG. That corpus currently contains 35 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
 
 ## Headroom
 

@@ -1,16 +1,11 @@
-import type { Metadata } from 'next';
 import SettingsPanel from '@/components/SettingsPanel';
+import { pageMetadata } from '@/lib/pageMetadata';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Settings | Dhruv Mishra',
   description: 'Appearance, accessibility, sound, sticker, and voice preferences for Dhruv Mishra\'s portfolio.',
-  alternates: { canonical: '/settings' },
-  openGraph: {
-    title: 'Settings | Dhruv Mishra',
-    description: 'Appearance, accessibility, sound, sticker, and voice preferences for Dhruv Mishra\'s portfolio.',
-    url: 'https://whoisdhruv.com/settings',
-  },
-};
+  path: '/settings',
+});
 
 export default function SettingsPage() {
   return <SettingsPanel />;

@@ -15,6 +15,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Added
 
+- Invoke (voice-controlled coding agents) project card, fact, chat routing, and repo link.
+- Home hero names Dhruv Mishra and his role and links resume, projects, and email before the terminal.
+- Per-page Open Graph image and Twitter card on every route; About `ProfilePage` JSON-LD.
 - Pull-request CI with lint, typecheck, test, and production build.
 - Nginx `private, no-store` cache bypass for `/admin` and `/matrix-notes`.
 - Voice HUD and agent state-machine documentation.
@@ -23,6 +26,10 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Changed
 
+- Resume PDF, resume facts, experience timeline, About copy, project cards, chat replies, and terminal output updated to the October 2026 resume; generic marketing phrasing removed.
+- Next.js 16.3.8 (high-severity cache-poisoning and SSRF advisories), patched sharp and source-map-js; production audit clean.
+- Google Analytics DNS hints only render when GA is configured.
+- CI jobs have explicit timeouts.
 - Updated default Groq chat model to Qwen 3.8 27B (`qwen/qwen3.8-27b`).
 - Voice agent uses stable `gemini-3.8-live`; voice tools declare `BLOCKING` to keep serial action turns.
 - Next.js 16.3.6 (critical RCE advisories), React 19.3.0, in-range dependency updates; production audit clean.
@@ -41,6 +48,8 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Fixed
 
+- Portfolio project modal video: the file was misspelled `PersonalPorfolio.mp4`, so the derived `PersonalPortfolio.mp4` path 404'd.
+- Removed dead code and unreferenced public files (`MatrixNotesGate`, an unused adapter export, unused CSS, `og-default.png`, a duplicate favicon, a stale public README).
 - Client bundles no longer include the full `package.json`; only the version is exposed.
 - Portfolio-project chat keywords escape `\s`, so "portfolio project" and "this site" match again.
 - Navigation `aria-current` is on the `Link`.

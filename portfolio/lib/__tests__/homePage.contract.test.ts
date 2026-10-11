@@ -10,7 +10,7 @@ describe('homepage hero contract', () => {
     const homeNote = read('components/voice/HomeVoiceNote.tsx');
     const mounts = home.match(/<HomeVoiceNote\b/g) ?? [];
     const introIdx = home.indexOf(
-      'turning complex technical problems into elegant, reliable solutions.',
+      'and the Azure backend services they run on.',
     );
     const voiceIdx = home.indexOf('<HomeVoiceNote');
     const terminalIdx = home.indexOf('data-disco-home-terminal');
@@ -20,6 +20,17 @@ describe('homepage hero contract', () => {
     expect(introIdx).toBeGreaterThan(-1);
     expect(voiceIdx).toBeGreaterThan(introIdx);
     expect(terminalIdx).toBeGreaterThan(voiceIdx);
+  });
+
+  it('names Dhruv, his role, and resume/email links before the terminal', () => {
+    const home = read('app/page.tsx');
+    const terminalIdx = home.indexOf('data-disco-home-terminal');
+
+    expect(home.indexOf('>Dhruv Mishra</a>')).toBeGreaterThan(-1);
+    expect(home.indexOf('a software engineer at Microsoft')).toBeGreaterThan(-1);
+    expect(home.indexOf('href="/resume"')).toBeGreaterThan(-1);
+    expect(home.indexOf('href="/resume"')).toBeLessThan(terminalIdx);
+    expect(home.indexOf('href={PERSONAL_LINKS.email}')).toBeLessThan(terminalIdx);
   });
 
   it('keeps the large guestbook note and a quieter version badge, without the Hello World badge', () => {

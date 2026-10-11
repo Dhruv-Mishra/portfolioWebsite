@@ -2,8 +2,8 @@
 name: Lead
 description: "Owns user outcomes, planning, architecture, coordination, integration, and final acceptance."
 argument-hint: "State the objective, anchors, constraints, and known evidence."
-model: "GPT-5.6 Sol (copilot)"
-reasoning-effort: high
+model: "Claude Opus 5.5 (copilot)"
+reasoning-effort: medium
 target: vscode
 agents: [God, Builder, Fastlane]
 user-invocable: true

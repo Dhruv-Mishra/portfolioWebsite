@@ -4,6 +4,13 @@ export { isProjectSlug, PROJECT_SLUG_LIST, type ProjectSlug } from '@/lib/projec
 
 export const PROJECT_ACTIONS = [
   {
+    slug: 'invoke',
+    label: 'Show me Invoke',
+    verbs: ['show', 'open', 'view', 'tell'],
+    keywords: ['invoke(\\s*voice)?', 'voice[-\\s]*controlled\\s*coding', 'coding\\s*agents?'],
+    response: 'Opening Invoke right here ~',
+  },
+  {
     slug: 'jarvis-voice-agent',
     label: 'Show me Jarvis Voice Agent',
     verbs: ['show', 'open', 'view', 'tell'],

@@ -1,17 +1,11 @@
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/pageMetadata';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'About | Dhruv Mishra',
-  description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft working across AI-forward software engineering, production systems, infrastructure optimization, and competitive programming.',
-  alternates: {
-    canonical: '/about',
-  },
-  openGraph: {
-    title: 'About | Dhruv Mishra',
-    description: 'Learn about Dhruv Mishra — Software Engineer at Microsoft working across AI and software engineering.',
-    url: 'https://whoisdhruv.com/about',
-  },
-};
+  description: 'About Dhruv Mishra, a software engineer at Microsoft who builds production AI agents and Azure backend services. Career timeline, education, and what he works on.',
+  path: '/about',
+  socialDescription: 'Software engineer at Microsoft building production AI agents and Azure backend services.',
+});
 
 export default function AboutLayout({ children }: { children: React.ReactNode }) {
   return children;

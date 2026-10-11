@@ -1,8 +1,8 @@
 ---
 id: resume-microsoft-intern
-tags: [microsoft intern, internship, microsoft loop, connection management, jira, trello, github integration, azure devops, power platform, connector, rest apis]
+tags: [microsoft intern, internship, microsoft loop, connection management, typescript, jira, trello, github integration, azure devops, power platform, connector, rest apis, test coverage]
 priority: 6
 category: resume
 ---
 
-Software Engineering Intern at Microsoft (May 2023 to July 2023, Noida, India). Architected a connection management service for Microsoft Loop that synchronized connection states across multiple third-party integrations (Jira, Trello, GitHub), now serving as the generic backend for all third-party integrations. Integrated GitHub and Azure DevOps REST APIs into Power Platform Connectors, enabling automated workflows for thousands of enterprise developers.
+Software Engineering Intern at Microsoft (May 2023 to July 2023, Noida, India). Built a TypeScript connection-management backend for Microsoft Loop that syncs Jira, Trello, and GitHub connection state. It was later reused as the shared backend for Loop's third-party integrations. Also integrated the GitHub and Azure DevOps REST APIs into the Microsoft Power Platform Connector and raised the module's test coverage to over 60%.

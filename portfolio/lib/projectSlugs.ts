@@ -1,4 +1,5 @@
 export const PROJECT_SLUG_LIST = [
+  'invoke',
   'jarvis-voice-agent',
   'fluent-ui-android',
   'course-evaluator',

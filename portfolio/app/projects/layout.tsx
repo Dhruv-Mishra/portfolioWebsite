@@ -1,19 +1,12 @@
 import { Suspense } from 'react';
-import type { Metadata } from 'next';
 import { LoadingSpinner } from '@/components/Loading';
+import { pageMetadata } from '@/lib/pageMetadata';
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: 'Projects | Dhruv Mishra',
-  description: 'Explore projects by Dhruv Mishra — AI agents, voice AI, AI tooling, production web systems, recommender systems, research, and more.',
-  alternates: {
-    canonical: '/projects',
-  },
-  openGraph: {
-    title: 'Projects | Dhruv Mishra',
-    description: 'Explore projects by Dhruv Mishra — Jarvis voice agent, Cropio, AI tooling, production systems, and concurrent data-structure research.',
-    url: 'https://whoisdhruv.com/projects',
-  },
-};
+  description: 'Projects by Dhruv Mishra: Invoke (voice-controlled coding agents), Jarvis (a voice dispatch agent), this site\'s live voice agent, Fluent UI Android, and concurrency research.',
+  path: '/projects',
+});
 
 export default function ProjectsLayout({ children }: { children: React.ReactNode }) {
   return (

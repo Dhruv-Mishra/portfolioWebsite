@@ -5,4 +5,4 @@ priority: 8
 category: resume
 ---
 
-B.Tech in Computer Science and Applied Mathematics from Indraprastha Institute of Information Technology (IIIT-Delhi), December 2020 to June 2024. Graduated with Academic Honors, CGPA 8.96 / 10.0. Undergraduate Researcher at DCLL under Prof. Bapi Chatterjee, achieving 300% throughput boost in Counting Bloom Filters with minimal impact on false positive/negative rates using relaxation and concurrency. Developed a Course Recommendation System as an engineering project under Prof. Dhruv Kumar.
+B.Tech (Honors) in Computer Science and Applied Mathematics from Indraprastha Institute of Information Technology (IIIT-Delhi), December 2020 to May 2024, CGPA 8.96 / 10.0. Researcher at the Distributed Computing Lab under Prof. Bapi Chatterjee, working on relaxed concurrent Counting Bloom Filters: I built a lock-free C++ Counting Bloom Filter with 3x the throughput of the baseline under high contention. Also built a Course Recommendation System, a Python NLP similarity-scoring recommender, under Prof. Dhruv Kumar.

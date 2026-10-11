@@ -239,9 +239,9 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         output: (
             <div className="space-y-2">
                 <p>Hey, I&apos;m <strong className="text-emerald-400">Dhruv</strong> 👋</p>
-                <p>I build and optimize software systems that need to be fast, reliable, and boring in production.</p>
-                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong> working across AI-forward software engineering, production systems, and performance-critical infrastructure.</p>
-                <p>I come from a strong CS background, enjoy competitive programming, and love optimizing things — from code to PC hardware.</p>
+                <p>I&apos;m a <strong className="text-emerald-400">Software Engineer at Microsoft</strong>. I build production AI agents and the Azure backend services they run on.</p>
+                <p>Lately that&apos;s LLM incident-triage agents built on MCP tools. On my own time I build voice agents, like the one on this site.</p>
+                <p>I studied CS and Applied Math at IIIT Delhi, still enjoy competitive programming, and like tuning things, from code to PC hardware.</p>
             </div>
         )
     }),
@@ -365,19 +365,19 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                     <div>
                         <p className="text-emerald-400 font-bold border-b border-gray-600 mb-2 uppercase tracking-wider text-xs">Core Tech</p>
                         <div className="pl-1 space-y-1 text-gray-300">
-                            <p>• <span className="text-white font-semibold">Languages:</span> C++, C#, Python, TypeScript, Java, Kotlin</p>
-                            <p>• <span className="text-white font-semibold">Frontend:</span> Next.js, React, Tailwind, Framer Motion</p>
-                            <p>• <span className="text-white font-semibold">Backend:</span> Node.js, MySQL, Azure, CI/CD</p>
-                            <p>• <span className="text-white font-semibold">Mobile:</span> Android SDK, Jetpack Compose, DI (Hilt)</p>
+                            <p>• <span className="text-white font-semibold">Languages:</span> C#, TypeScript, Python, C++, Kotlin, Java</p>
+                            <p>• <span className="text-white font-semibold">AI:</span> LLM agents, MCP, tool calling, RAG, llama.cpp</p>
+                            <p>• <span className="text-white font-semibold">Backend:</span> Azure, Service Fabric, Cosmos DB, Redis, Node.js, Docker</p>
+                            <p>• <span className="text-white font-semibold">Frontend + Mobile:</span> Next.js, React, Electron, Jetpack Compose</p>
                         </div>
                     </div>
                     <div>
                         <p className="text-blue-400 font-bold border-b border-gray-600 mb-2 uppercase tracking-wider text-xs">Competencies</p>
                         <div className="pl-1 space-y-1 text-gray-300">
+                            <p>• AI Agents & Multi-Agent Systems</p>
                             <p>• System Design & Scalability</p>
-                            <p>• High-Performance Computing</p>
                             <p>• Distributed Systems</p>
-                            <p>• OOP & Clean Architecture</p>
+                            <p>• Performance & Cost Optimization</p>
                             <p>• Algorithms (Codeforces Expert)</p>
                         </div>
                     </div>
@@ -387,8 +387,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
                     <p className="text-amber-400 font-bold mb-1 text-xs uppercase tracking-wider">Rankings & Achievements</p>
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-400">
                         <span>🏆 Codeforces Expert (Max 1703)</span>
-                        <span>⭐ Microsoft FHL Winner</span>
-                        <span>🥇 Google Farewell Round (Global Rank 291)</span>
+                        <span>⭐ Microsoft Hackathon 2026 Most Voted</span>
+                        <span>🥇 Code Jam 2023 Round A (Global Rank 291)</span>
                         <span>🎓 IIITD CSAM Honors (8.96 GPA)</span>
                     </div>
                 </div>
@@ -439,9 +439,9 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             };
         }
         const files: Record<string, string> = {
-            "about.md": "Dhruv Mishra: Algorithmic thinker, Developer, and Problem Solver.",
-            "projects.json": "[ { \"name\": \"Jarvis Voice Agent\", \"stack\": \"Gemini Live + Node.js + WebSockets\" }, { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
-            "jarvis.md": "Jarvis: voice-to-voice AI agent that holds full human-sounding phone calls and operates the website via Gemini Live tool calling \u2014 navigation, form filling, quote generation, negotiation. Live demo at jarvis.whoisdhruv.com.",
+            "about.md": "Dhruv Mishra: Software Engineer at Microsoft. Builds AI agents and the backend services they run on.",
+            "projects.json": "[ { \"name\": \"Invoke\", \"stack\": \"Electron + Node.js + llama.cpp + MCP\" }, { \"name\": \"Jarvis Voice Agent\", \"stack\": \"Gemini Live + Node.js + WebSockets\" }, { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
+            "jarvis.md": "Jarvis: voice AI dispatch agent for a demo freight app. Looks up loads, assigns carriers, negotiates rates, and submits quotes over a live call, using MCP tools and RAG. Live demo at jarvis.whoisdhruv.com.",
             "cropio.md": "Cropio: privacy-conscious AI portrait cropper. Uses YOLO11 pose estimation, an interactive crop editor, full-resolution browser export, and semantic search over local IndexedDB embeddings.",
             "contact.txt": "Email: dhruvmishra.id@gmail.com\nPhone: (+91) 9599377944",
             "resume.pdf": "Error: Binary file not readable. Try 'open resume.pdf'",

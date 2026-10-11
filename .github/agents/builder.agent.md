@@ -2,8 +2,8 @@
 name: Builder
 description: "Owns implementation of scoped features, fixes, tests, and documentation."
 argument-hint: "Provide the objective, owned scope, agreed contracts, constraints, edit permission, and acceptance criteria."
-model: "Gemini 3.8 Flash (copilot)"
-reasoning-effort: high
+model: "GPT-6.1 Sol (copilot)"
+reasoning-effort: xhigh
 target: vscode
 agents: []
 user-invocable: true

@@ -1,15 +1,16 @@
 ---
 id: resume-microsoft-current
-tags: [microsoft, shellservice, shell, office mobile, wxp, excel, compose shimmer, compose, baseline profiles, xml, app apdex, cogs, infrastructure, vm scale sets, log replication, fluent ui android, android shared service, s360, security compliance, fhl, wxp actionease]
+tags: [microsoft, ai agents, llm agents, incident triage, on-call, mcp, tool calling, kusto, azure, service fabric, redis, cosmos db, vm scale sets, autoscaling, cost savings, office for the web, pdf encryption, sandboxing, rms, ipc, office android, wxp, excel, compose shimmer, baseline profiles, fluent ui android, security compliance, hackathon, shell assistant, wxp actionease, ai champ]
 priority: 10
 category: resume
 ---
 
-Software Engineer at Microsoft (June 2024 to present, Noida, India). Highlights from the current role:
+Software Engineer at Microsoft (June 2024 to present, Noida, India). I build production AI agents and the Azure backend services they run on. Highlights from the current role:
 
-- Revamped Excel's Compose Shimmer loading architecture by adding Compose warmup sequences on the UI thread, baseline profiles, and optimized XML/Compose interactions, reducing component load time by 99% (300ms to 3ms) while staying on Compose for millions of users.
-- Identified and patched inefficiencies in VM Scale Sets and log replication strategies, producing verified annualized savings of $240,000 for the ShellService backend handling 7B+ hits per day.
-- Managed the release lifecycle as sole owner for Fluent UI Android across 10 releases for 10+ partner teams including Copilot, Office, Outlook, OneDrive, and Teams.
-- Secured the Android Shared Service by achieving 100% security compliance as the Sole Security Owner.
-- Reduced external file open latency by about 500ms for Office Mobile (WXP) by designing custom baseline profiles for critical cold-start scenarios, boosting App Apdex scores.
-- Won the Microsoft Global FHL 2025 Award (Fundamental Category) for "WXP ActionEase".
+- Built and shipped LLM incident-triage agents for on-call engineers. MCP servers give the agent Kusto, service-health, and config tools through structured tool calls, with fallback logic and escalation to a human. They cut manual triage of low and mid-severity incidents by 40%, measured by replaying resolved incidents with known mitigations and confirmed by developer usage.
+- Cut Azure spend by $240k a year (about 15%) on a Service Fabric backend that handles more than 7 billion requests a day. I raised the Redis cache hit ratio from 31% to 80%, tuned Cosmos DB and log retention, and retuned autoscaling across 12+ VM Scale Sets while staying within the 99.99% availability target. The savings were measured over three months of Geneva/Kusto telemetry.
+- Shipped PDF encryption for Word, Excel, and PowerPoint in Office for the web by sandboxing a C++ encryption SDK. The native code no longer has direct network access, and its Azure Rights Management Service (RMS) calls go through a C# proxy over IPC.
+- Cut Office Android cold-start and file-open latency by about 500ms with custom baseline profiles for Word, Excel, and PowerPoint, and brought Excel's loading-shimmer time down from 300ms to 3ms. Both were validated through staged-rollout telemetry.
+- Primary maintainer of Fluent UI Android, Microsoft's open-source Jetpack Compose library. Shipped 10 releases used by Copilot, Office, Outlook, OneDrive, and Teams, and owned its security compliance.
+- Won Most Voted at Microsoft Hackathon 2026 with "Shell Assistant", an incident-response agent, and the Fundamental Category at Microsoft Hackathon 2025 with "WXP ActionEase".
+- AI Champ on the Microsoft AI Productivity team, where I run workshops on multi-agent engineering and LLM automation.

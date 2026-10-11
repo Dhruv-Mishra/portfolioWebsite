@@ -8,7 +8,7 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
 import { useAppHaptics } from '@/lib/haptics';
 import { PROJECTS } from '@/lib/projects';
-import { isProjectSlug } from '@/lib/projectCatalog';
+import { isProjectSlug } from '@/lib/projectSlugs';
 import { PROJECT_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
 import { unlockSticker } from '@/hooks/useStickers';
 import { appendUserAction } from '@/lib/userActionJournal';

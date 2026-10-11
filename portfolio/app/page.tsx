@@ -5,6 +5,7 @@ import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle, PenLine } from "lucide-react";
 import { SITE_VERSION_LABEL } from "@/lib/siteVersion";
+import { PERSONAL_LINKS } from "@/lib/links";
 
 export default function Home() {
 
@@ -52,14 +53,25 @@ export default function Home() {
         style={{ '--disco-motion-delay': '90ms' } as CSSProperties}
         className="animate-hero-subtitle text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center max-w-lg font-hand leading-loose -rotate-1 mt-4"
       >
-        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" aria-label="Dhruv's LinkedIn Profile" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-300 hover:scale-105 hover:-rotate-2 inline-block transition-[color,transform,text-decoration-color] duration-200">Dhruv</a>.
-        I build <strong
+        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" aria-label="Dhruv Mishra's LinkedIn Profile" className="font-bold text-indigo-700 dark:text-indigo-400 decoration-indigo-300 underline underline-offset-4 hover:decoration-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-300 hover:scale-105 hover:-rotate-2 inline-block transition-[color,transform,text-decoration-color] duration-200">Dhruv Mishra</a>,
+        a software engineer at Microsoft. I build <strong
           style={{ color: 'var(--c-highlight)' }}
           className="transition-none font-black"
         >
-          AI tools and production systems
-        </strong>, turning complex technical problems into elegant, reliable solutions.
+          AI agents
+        </strong> and the Azure backend services they run on.
       </p>
+
+      <nav
+        aria-label="Quick links"
+        className="animate-hero-subtitle -mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-hand text-lg text-gray-500 dark:text-gray-400"
+      >
+        <Link href="/resume" prefetch={false} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">resume</Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/projects" prefetch={false} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">projects</Link>
+        <span aria-hidden="true">·</span>
+        <a href={PERSONAL_LINKS.email} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">email me</a>
+      </nav>
 
       <HomeVoiceNote context={{ source: 'home', topic: 'home' }} />
 

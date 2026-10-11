@@ -8,6 +8,7 @@ import { RESUME_PDF_URL } from '@/lib/siteVersion';
 export default function ResumePage() {
     return (
         <div className="h-full min-h-[24rem] px-1 py-2 pb-8 sm:px-4 md:min-h-[36rem] md:px-12 flex flex-col items-center justify-center relative z-10 box-border">
+            <h1 className="sr-only">Dhruv Mishra&apos;s resume</h1>
             <ResumeOpenPdfButton href={RESUME_PDF_URL} />
             <HomeVoiceNote
                 label="Ask me about it"

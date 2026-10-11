@@ -3,7 +3,6 @@ import type { SiteToolResult } from '@/lib/siteTools';
 import {
   VOICE_AGENT_INPUT_RATE,
   VOICE_AGENT_MODEL_ID,
-  VOICE_AGENT_OUTPUT_RATE,
   VOICE_AGENT_VOICE_NAME,
   VOICE_LIVE_WS_PATH,
 } from '@/lib/voiceAgentConfig';
@@ -449,5 +448,3 @@ export class GeminiLiveCaller implements VoiceCaller {
 export function createGeminiLiveCaller(): VoiceCaller {
   return new GeminiLiveCaller();
 }
-
-export const GEMINI_LIVE_OUTPUT_RATE = VOICE_AGENT_OUTPUT_RATE;

@@ -629,14 +629,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
    Uses will-change sparingly to avoid excessive GPU memory consumption on low-end devices.
    When GPU is unavailable, these gracefully fall back to CPU compositing. */
 
-/* Defer rendering of off-screen content — the browser skips paint for elements outside
-   the viewport and paints them just-in-time as they scroll into view.
-  contain-intrinsic-size provides a placeholder height to prevent layout shift. */
-.content-defer {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 500px;
-}
-
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
@@ -670,7 +662,7 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   animation: wall-note-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) both;
 }
 
-/* ─── Listening overlay — animated bars + ellipsis (CSS-only fallback) ─── */
+/* ─── Listening overlay — animated bars (CSS-only fallback) ─── */
 @keyframes listening-bar {
 
   0%,
@@ -688,28 +680,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   animation: listening-bar 0.9s ease-in-out infinite;
 }
 
-@keyframes listening-ellipsis {
-  0% {
-    opacity: 0.2;
-  }
-
-  50% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0.2;
-  }
-}
-
-.animate-listening-ellipsis {
-  animation: listening-ellipsis 1.2s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
 
-  html:not([data-motion="full"]) .animate-listening-bar,
-  html:not([data-motion="full"]) .animate-listening-ellipsis {
+  html:not([data-motion="full"]) .animate-listening-bar {
     animation: none;
   }
 }
@@ -2847,12 +2820,6 @@ html[data-disco="on"] textarea:focus {
   animation: none !important;
 }
 
-html[data-disco="on"] .custom-cursor,
-html[data-disco="on"] [data-cursor] {
-  /* Cursor layer never participates — tracking jitters feel like input lag. */
-  animation: none !important;
-}
-
 html[data-disco="on"] p:not([data-disco-motion]),
 html[data-disco="on"] li:not([data-disco-motion]) {
   /* Long-form text nodes inside cards already inherit their parent's
@@ -3387,37 +3354,6 @@ html[data-sudo-rainbow="on"] a {
   animation: admin-experimental-pulse 2.8s ease-in-out infinite;
 }
 
-/* Escape button — disabled vs enabled. Disabled is the "tinted gray" state
-   (before disco is active); enabled is the bright matrix-green. The
-   transition between them is a quick color-crossfade. Always animates. */
-.escape-button--disabled {
-  --escape-bg: rgba(75, 85, 99, 0.35);
-  --escape-border: rgba(107, 114, 128, 0.5);
-  --escape-color: #9ca3af;
-  --escape-glow: rgba(107, 114, 128, 0.25);
-  cursor: not-allowed;
-  filter: saturate(0.3);
-}
-
-.escape-button--enabled {
-  --escape-bg: rgba(6, 78, 59, 0.45);
-  --escape-border: rgba(52, 211, 153, 0.85);
-  --escape-color: #00ff41;
-  --escape-glow: rgba(0, 255, 65, 0.55);
-  cursor: pointer;
-  filter: none;
-}
-
-/* ChAin the CSS-var-driven colors onto the button component's core style. */
-.escape-button--chromed {
-  background: var(--escape-bg);
-  border-color: var(--escape-border);
-  color: var(--escape-color);
-  box-shadow: 0 0 20px var(--escape-glow);
-  transition: background 260ms ease, border-color 260ms ease,
-    color 260ms ease, box-shadow 260ms ease, filter 420ms ease;
-}
-
 /* Chat bubble — red LLM response for "Only root should know that." */
 .matrix-chat-denied {
   color: #dc2626;
@@ -3562,7 +3498,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
       .sketch-tooltip,
       .animate-wall-note-in,
       .animate-listening-bar,
-      .animate-listening-ellipsis,
       .sticker-card,
       .sticker-card--superuser::after,
       .superuser-banner__glow,
@@ -3642,7 +3577,6 @@ html:not([data-pref-sketch="on"]) .sticker-card {
     .sketch-tooltip,
     .animate-wall-note-in,
     .animate-listening-bar,
-    .animate-listening-ellipsis,
     .sticker-card,
     .sticker-card--superuser::after,
     .superuser-banner__glow,

@@ -2,7 +2,7 @@
 name: Fastlane
 description: "Provides bounded investigation, research, diagnostics, and checks with decisive evidence."
 argument-hint: "State one bounded objective, anchors, edit permission, acceptance check, and required evidence."
-model: "GPT-5.6 Luna (copilot)"
+model: "GPT-6 Luna (copilot)"
 reasoning-effort: max
 target: vscode
 agents: []

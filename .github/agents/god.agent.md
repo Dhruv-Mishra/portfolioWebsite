@@ -2,8 +2,8 @@
 name: God
 description: "Provides the deepest reasoning on difficult or consequential architecture, correctness, and diagnostic questions."
 argument-hint: "Provide the question, relevant evidence, constraints, requested outcome, and any edit permission."
-model: "GPT-6 Astra (copilot)"
-reasoning-effort: high
+model: "Claude Opus 5.5 (copilot)"
+reasoning-effort: xhigh
 target: vscode
 agents: []
 user-invocable: true

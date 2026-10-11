@@ -6,38 +6,56 @@ const projectsPage = fs.readFileSync(
   path.join(process.cwd(), 'app', 'projects', 'page.tsx'),
   'utf8',
 );
+const projectsLayout = fs.readFileSync(
+  path.join(process.cwd(), 'app', 'projects', 'layout.tsx'),
+  'utf8',
+);
+const gridController = fs.readFileSync(
+  path.join(process.cwd(), 'components', 'ProjectGridController.tsx'),
+  'utf8',
+);
 const projectModal = fs.readFileSync(
   path.join(process.cwd(), 'components', 'ProjectModal.tsx'),
   'utf8',
 );
 
 describe('Projects modal interaction contract', () => {
-  it('opens the indexed project when the card surface is clicked', () => {
-    expect(projectsPage).toMatch(/onClick=\{\(event\) => handleCardClick\(event, i\)\}/);
-    expect(projectsPage).toMatch(/const handleCardClick = useCallback[\s\S]*?openProject\(index\);/);
+  it('keeps the card grid server-rendered and confines search params to a Suspense leaf', () => {
+    expect(projectsPage).not.toMatch(/^["']use client["']/m);
+    expect(projectsPage).not.toMatch(/useSearchParams|searchParams|useState|useEffect/);
+    expect(projectsPage).toContain('<ProjectGridController');
+    expect(projectsLayout).not.toContain('Suspense');
+    expect(gridController).toMatch(/^"use client";/);
+    expect(gridController).toMatch(/function ProjectQuerySync[\s\S]*?useSearchParams\(\)/);
+    expect(gridController).toMatch(/<Suspense fallback=\{null\}>\s*<ProjectQuerySync onQuerySlug=\{handleQuerySlug\} \/>\s*<\/Suspense>/);
+    expect(gridController.match(/useSearchParams\(\)/g)).toHaveLength(1);
   });
 
-  it('leaves nested links and buttons in control of their own actions', () => {
-    expect(projectsPage).toMatch(/event\.target\.closest\('a, button'\)/);
-    expect(projectsPage).toMatch(/<button[\s\S]*?onClick=\{\(\) => openProject\(i\)\}[\s\S]*?aria-label=\{`View details for \$\{proj\.name\}`\}/);
+  it('opens the project when the card surface or details button is clicked', () => {
+    expect(projectsPage).toContain('data-project-slug={proj.slug}');
+    expect(projectsPage).toMatch(/<button[\s\S]*?aria-label=\{`View details for \$\{proj\.name\}`\}/);
+    expect(gridController).toMatch(/<div className=\{className\} onClick=\{handleGridClick\}>/);
+    expect(gridController).toMatch(/const handleGridClick = useCallback[\s\S]*?closest<HTMLElement>\('\[data-project-slug\]'\)[\s\S]*?openProjectBySlug\(slug\);/);
+  });
+
+  it('leaves nested links in control of their own navigation', () => {
+    expect(projectsPage).toMatch(/data-project-source\s*aria-label=\{`View source for \$\{proj\.name\}`\}/);
+    expect(gridController).toMatch(/closest\('\[data-project-source\]'\)\) \{\s*unlockSticker\('repo-hunter'\);\s*return;/);
+    expect(gridController).toMatch(/if \(event\.target\.closest\('a'\)\) return;/);
   });
 
   it('opens an allowlisted project from the typed query or voice event', () => {
-    expect(projectsPage).toContain('readProjectSlugFromSearch');
-    expect(projectsPage).toContain('OPEN_PROJECT_EVENT');
-    expect(projectsPage).toContain('openProjectBySlug');
+    expect(gridController).toContain('readProjectSlugFromSearch');
+    expect(gridController).toContain('OPEN_PROJECT_EVENT');
+    expect(gridController).toMatch(/const openProjectBySlug = useCallback\(\(slug: string\) => \{\s*if \(!isProjectSlug\(slug\)/);
   });
 
   it('keeps query opening, event opening, and close as top-level hooks', () => {
-    expect(projectsPage).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedProject\(null\);\s*if \(querySlug\) \{\s*router\.replace\('\/projects'\);\s*\}\s*\}, \[closePanel, querySlug, router\]\);/);
-    expect(projectsPage).toContain('CLOSE_PROJECT_EVENT');
-    expect(projectsPage).toContain('readProjectSlugFromSearch');
-    expect(projectsPage).toMatch(/if \(querySlug !== appliedQuerySlug\)/);
-    expect(projectsPage).toMatch(/window\.addEventListener\(OPEN_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(OPEN_PROJECT_EVENT, handler\);/);
-    expect(projectsPage).toMatch(/window\.addEventListener\(CLOSE_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(CLOSE_PROJECT_EVENT, handler\);/);
-    expect(projectsPage).not.toMatch(/const handleCloseModal = useCallback\([\s\S]*useEffect\([\s\S]*\}, \[closePanel\]\)/);
-    expect(projectsPage).not.toMatch(/setSelectedPr\s*$/m);
-    expect(projectsPage).not.toMatch(/openProjectBySlug\]\);oject/);
+    expect(gridController).toMatch(/const handleCloseModal = useCallback\(\(\) => \{\s*closePanel\(\);\s*setSelectedSlug\(null\);\s*if \(querySlug\) \{\s*router\.replace\('\/projects'\);\s*\}\s*\}, \[closePanel, querySlug, router\]\);/);
+    expect(gridController).toContain('CLOSE_PROJECT_EVENT');
+    expect(gridController).toMatch(/const reportQuerySlug = useEffectEvent[\s\S]*?useEffect\(\(\) => \{\s*reportQuerySlug\(querySlug\);\s*\}, \[querySlug\]\);/);
+    expect(gridController).toMatch(/window\.addEventListener\(OPEN_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(OPEN_PROJECT_EVENT, handler\);/);
+    expect(gridController).toMatch(/window\.addEventListener\(CLOSE_PROJECT_EVENT, handler\);\s*return \(\) => window\.removeEventListener\(CLOSE_PROJECT_EVENT, handler\);/);
   });
 
   it('resets and retries playback when the mounted project source changes', () => {

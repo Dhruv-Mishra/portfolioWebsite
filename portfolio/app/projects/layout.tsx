@@ -1,5 +1,3 @@
-import { Suspense } from 'react';
-import { LoadingSpinner } from '@/components/Loading';
 import { pageMetadata } from '@/lib/pageMetadata';
 
 export const metadata = pageMetadata({
@@ -9,9 +7,5 @@ export const metadata = pageMetadata({
 });
 
 export default function ProjectsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<LoadingSpinner message="Loading projects..." />}>
-      {children}
-    </Suspense>
-  );
+  return children;
 }

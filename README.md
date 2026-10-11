@@ -2,6 +2,8 @@
 
 The source for [whoisdhruv.com](https://whoisdhruv.com), an interactive portfolio built as a hand-drawn engineering sketchbook. It combines a command-line interface, grounded multimodal AI chat, project case studies, custom speech, a public guestbook, and a small discovery layer that rewards exploration.
 
+Built by Dhruv Mishra, a software engineer at Microsoft who builds AI agents and Azure backend services. [Resume](https://whoisdhruv.com/resume) · [LinkedIn](https://www.linkedin.com/in/dhruv-mishra-id/)
+
 [Visit production](https://whoisdhruv.com) · [Preview staging](https://staging.whoisdhruv.com) · [Read the app guide](portfolio/README.md)
 
 ## Documentation

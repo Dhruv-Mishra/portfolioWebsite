@@ -1,27 +1,11 @@
-"use client";
-import { useState, useCallback, useEffect, type CSSProperties, type MouseEvent } from 'react';
-import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
+import type { CSSProperties } from 'react';
 import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
-import { useAppHaptics } from '@/lib/haptics';
+import ProjectGridController from '@/components/ProjectGridController';
 import { PROJECTS } from '@/lib/projects';
-import { isProjectSlug } from '@/lib/projectSlugs';
 import { PROJECT_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
-import { unlockSticker } from '@/hooks/useStickers';
-import { appendUserAction } from '@/lib/userActionJournal';
-import {
-  CLOSE_PROJECT_EVENT,
-  OPEN_PROJECT_EVENT,
-  attachSiteActionResult,
-  readProjectSlugFromSearch,
-  type OpenProjectEventDetail,
-} from '@/lib/siteActionEvents';
-
-// Dynamic import — ProjectModal only renders on user click.
-const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
 
 // Pre-computed per-card style values — deterministic (index-based), hoisted to module scope
 const ROTATIONS = PROJECT_TOKENS.rotations;
@@ -101,98 +85,6 @@ const CARD_STYLES = PROJECTS.map((_, i) => {
 });
 
 export default function Projects() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const querySlug = readProjectSlugFromSearch(searchParams.toString());
-    const queryProjectIndex = (() => {
-        if (!querySlug || !isProjectSlug(querySlug)) return null;
-        const index = PROJECTS.findIndex(project => project.slug === querySlug);
-        return index >= 0 ? index : null;
-    })();
-    const [selectedProject, setSelectedProject] = useState<number | null>(queryProjectIndex);
-    const [appliedQuerySlug, setAppliedQuerySlug] = useState(querySlug);
-    const [hasOpenedProject, setHasOpenedProject] = useState(() => queryProjectIndex !== null);
-
-    if (querySlug !== appliedQuerySlug) {
-        setAppliedQuerySlug(querySlug);
-        if (queryProjectIndex !== null) {
-            setSelectedProject(queryProjectIndex);
-            setHasOpenedProject(true);
-        }
-    }
-    const { closePanel, openPanel } = useAppHaptics();
-
-    const openProject = useCallback((index: number) => {
-        openPanel();
-        setHasOpenedProject(true);
-        setSelectedProject(index);
-        // Track opened projects — unlock `project-explorer` the first time any
-        // project modal is opened. The store action dedups, so re-calling
-        // on subsequent opens is harmless.
-        const proj = PROJECTS[index];
-        if (proj) {
-            unlockSticker('project-explorer');
-            appendUserAction({ kind: 'project.open', slug: proj.slug });
-        }
-    }, [openPanel]);
-
-    const handleCardClick = useCallback((event: MouseEvent<HTMLDivElement>, index: number) => {
-        if (event.target instanceof Element && event.target.closest('a, button')) return;
-        openProject(index);
-    }, [openProject]);
-
-    const handleCloseModal = useCallback(() => {
-        closePanel();
-        setSelectedProject(null);
-        if (querySlug) {
-            router.replace('/projects');
-        }
-    }, [closePanel, querySlug, router]);
-
-    const openProjectBySlug = useCallback((slug: string) => {
-        if (!isProjectSlug(slug)) return false;
-        const index = PROJECTS.findIndex(project => project.slug === slug);
-        if (index < 0) return false;
-        openProject(index);
-        return true;
-    }, [openProject]);
-
-    useEffect(() => {
-        if (queryProjectIndex === null) return;
-        openPanel();
-        const proj = PROJECTS[queryProjectIndex];
-        if (!proj) return;
-        unlockSticker('project-explorer');
-        appendUserAction({ kind: 'project.open', slug: proj.slug });
-    }, [openPanel, queryProjectIndex]);
-
-    useEffect(() => {
-        const handler = (raw: Event) => {
-            const event = raw as CustomEvent<OpenProjectEventDetail>;
-            const slug = event.detail?.slug;
-            if (!slug || !openProjectBySlug(slug)) return;
-            attachSiteActionResult(event, {
-                ok: true,
-                spokenText: 'Queued that project to open.',
-                data: { slug, accepted: true, nextAction: 'I can play, pause, mute, or unmute the preview if it has a video.' },
-            });
-        };
-        window.addEventListener(OPEN_PROJECT_EVENT, handler);
-        return () => window.removeEventListener(OPEN_PROJECT_EVENT, handler);
-    }, [openProjectBySlug]);
-
-    useEffect(() => {
-        const handler = (raw: Event) => {
-            handleCloseModal();
-            attachSiteActionResult(raw, {
-                ok: true,
-                spokenText: 'Closing that project.',
-            });
-        };
-        window.addEventListener(CLOSE_PROJECT_EVENT, handler);
-        return () => window.removeEventListener(CLOSE_PROJECT_EVENT, handler);
-    }, [handleCloseModal]);
-
     return (
         <div className="flex flex-col h-full pt-0">
             {/* h1 needs its own padding because the outer div is full-bleed and the
@@ -203,7 +95,7 @@ export default function Projects() {
                 My Projects
             </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
+            <ProjectGridController className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
                 {PROJECTS.map((proj, i) => {
                     const styles = CARD_STYLES[i];
                     const hasVideo = proj.video !== null;
@@ -219,7 +111,7 @@ export default function Projects() {
                             data-clickable
                             data-hover-tilt
                             data-disco-motion="wiggle"
-                            onClick={(event) => handleCardClick(event, i)}
+                            data-project-slug={proj.slug}
                             className={CARD_INTERACTION_CLASS}
                             style={styles.disco}
                         >
@@ -325,7 +217,7 @@ export default function Projects() {
                                         href={proj.link}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        onClick={() => { unlockSticker('repo-hunter'); }}
+                                        data-project-source
                                         aria-label={`View source for ${proj.name}`}
                                         className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
                                     >
@@ -334,7 +226,6 @@ export default function Projects() {
                                     <button
                                         type="button"
                                         data-clickable
-                                        onClick={() => openProject(i)}
                                         aria-label={`View details for ${proj.name}`}
                                         className="flex min-h-11 items-center gap-1.5 px-3 pr-6 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                                     >
@@ -346,15 +237,7 @@ export default function Projects() {
                         </div>
                     );
                 })}
-            </div>
-
-            {/* Project Detail Modal with Video */}
-            {hasOpenedProject ? (
-                <ProjectModal
-                    project={selectedProject === null ? null : PROJECTS[selectedProject]}
-                    onClose={handleCloseModal}
-                />
-            ) : null}
+            </ProjectGridController>
         </div>
     );
 }

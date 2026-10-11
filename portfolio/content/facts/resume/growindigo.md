@@ -1,8 +1,8 @@
 ---
 id: resume-growindigo
-tags: [growindigo, software engineering intern, crop prediction, crop classification, xgboost, random forest, google earth engine, machine learning, python, internship]
+tags: [growindigo, machine learning engineer, ml engineer, crop prediction, crop classification, xgboost, random forest, google earth engine, machine learning, python]
 priority: 6
 category: resume
 ---
 
-Software Engineering Intern at growIndigo (February 2024 to June 2024, Delhi, India). Reduced crop classification workflow time by 80% while increasing accuracy to 93%+ by replacing Google Earth Engine scaling with a custom Python classification pipeline using XGBoost and Random Forests.
+Machine Learning Engineer at growIndigo (February 2024 to June 2024, Delhi, India). Replaced a manual Google Earth Engine crop-classification workflow with a Python pipeline built on XGBoost and Random Forest, improving classification accuracy from 80% to 93%.

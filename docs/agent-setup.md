@@ -49,7 +49,7 @@ The checked-in `.vscode/mcp.json` connects to `http://127.0.0.1:7999/mcp` with z
 
 Keep separate indexes for Windows and Linux/WSL working copies. Do not run daemons from both environments against the same `.zvec-grep/` directory.
 
-Zvec is not used by the website's runtime facts RAG. That corpus currently contains 34 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
+Zvec is not used by the website's runtime facts RAG. That corpus currently contains 35 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
 
 ## Headroom
 

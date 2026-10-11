@@ -7,7 +7,14 @@ import ExperienceTimeline from '@/components/ExperienceTimeline';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { experienceTimelineEntries } from '@/lib/experienceTimeline';
-import { PERSONAL_LINKS } from '@/lib/links';
+import { PERSONAL_LINKS, SITE } from '@/lib/links';
+
+const PROFILE_PAGE_LD = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    url: `${SITE.url}/about`,
+    mainEntity: { '@id': `${SITE.url}/#person` },
+});
 
 type AboutPhotoMotionStyle = CSSProperties & {
     '--hover-tilt-lift': string;
@@ -28,21 +35,22 @@ const ABOUT_PHOTO_MOTION_STYLE: AboutPhotoMotionStyle = {
 const CAREER_SNAPSHOT = [
     {
         label: 'Microsoft',
-        value: 'AI-forward software, production systems, infrastructure',
+        value: 'Production AI agents and the Azure services they run on',
     },
     {
-        label: 'ML systems',
-        value: 'growIndigo workflow time down 80%, accuracy to 93%+',
+        label: 'growIndigo',
+        value: 'ML pipeline that took crop-classification accuracy from 80% to 93%',
     },
     {
         label: 'IIIT Delhi',
-        value: 'CSAM Honors with systems, ML, and research depth',
+        value: 'CS and Applied Math (Honors), concurrency research',
     },
 ] as const;
 
 export default function About() {
     return (
         <div className="mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col px-1.5 py-2 pb-8 sm:px-0">
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: PROFILE_PAGE_LD }} />
             <div className="relative mx-auto w-full min-w-0 max-w-4xl md:px-3">
                 <div className="animate-page-sheet relative min-h-[400px] w-full min-w-0 max-w-full text-gray-800 shadow-[3px_4px_9px_rgba(0,0,0,0.18)] md:transform md:-rotate-1 md:shadow-[5px_5px_15px_rgba(0,0,0,0.2)]">
                     {/* Realistic Tape - Top Left (Outside Clipped Area) */}
@@ -140,16 +148,16 @@ export default function About() {
                                 Hey, I&apos;m <a href={PERSONAL_LINKS.linkedin} target="_blank" rel="noopener noreferrer" className="font-bold bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">Dhruv</a> 👋
                             </p>
                             <p>
-                                I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong> working across <span className="underline decoration-wavy decoration-blue-400">AI-forward software engineering</span> and production systems that need to be fast, reliable, and <span className="italic">boring</span> in production.
+                                I&apos;m a <strong className="text-gray-900">Software Engineer at Microsoft</strong>. I build <span className="underline decoration-wavy decoration-blue-400">production AI agents</span> and the Azure backend services they run on.
                             </p>
                             <p>
-                                I like building <span className="underline decoration-wavy decoration-green-400">practical AI tools</span>, high-performance product experiences, and reliable infrastructure. Recent Microsoft proof points include <strong className="text-emerald-700">7 billion+ daily backend hits</strong>, $240K/year verified savings, and a 99% faster critical loading path.
+                                Most of my recent work is LLM incident-triage agents. MCP servers give the agent Kusto, service-health, and config tools, so on-call engineers spend less time on routine incidents. I also cut <strong className="text-emerald-700">$240K a year</strong> from the Azure bill of a backend that handles over 7 billion requests a day.
                             </p>
                             <p>
-                                I work across <span className="font-bold text-sky-600">TypeScript</span>, <span className="font-bold text-yellow-700">Python</span>, <span className="font-bold text-blue-700">C#</span>, <span className="font-bold text-cyan-700">C++</span>, <span className="font-bold text-cyan-700">Kotlin</span>, and <span className="font-bold text-orange-700">Java</span>. My work ranges from AI agents and web systems to platform engineering, distributed systems, and infrastructure that quietly does its job well.
+                                I mostly write <span className="font-bold text-blue-700">C#</span>, <span className="font-bold text-sky-600">TypeScript</span>, and <span className="font-bold text-yellow-700">Python</span>, with <span className="font-bold text-cyan-700">C++</span> and <span className="font-bold text-cyan-700">Kotlin</span> when the job calls for them. On my own time I build voice agents: <Link href="/projects?project=invoke" prefetch={false} className="font-bold text-indigo-800 underline decoration-indigo-300 underline-offset-4 hover:decoration-indigo-600">Invoke</Link> hands coding tasks to Copilot CLI agents when you ask out loud, and <Link href="/projects?project=jarvis-voice-agent" prefetch={false} className="font-bold text-indigo-800 underline decoration-indigo-300 underline-offset-4 hover:decoration-indigo-600">Jarvis</Link> negotiates freight rates over a phone call.
                             </p>
                             <p>
-                                I&apos;m an active <span className="underline decoration-wavy decoration-rose-400">open source contributor</span> and love collaborating on work that pushes boundaries. Outside code, I&apos;m into <span className="italic">strength training</span>, <span className="italic">PC overclocking</span>, <span className="italic">chess</span>, and following the latest in <span className="italic">AI systems and longevity research</span>.
+                                I maintain <span className="underline decoration-wavy decoration-rose-400">Fluent UI Android</span>, Microsoft&apos;s open-source Compose library. Outside code, I&apos;m into <span className="italic">strength training</span>, <span className="italic">PC overclocking</span>, <span className="italic">chess</span>, and reading about <span className="italic">AI systems and longevity research</span>.
                             </p>
                             <p>
                                 I graduated with <strong className="text-gray-900">Honors in CSAM</strong> from <a href="https://www.linkedin.com/in/dhruv-mishra-id/details/education/" target="_blank" rel="noopener noreferrer" className="bg-indigo-200 hover:bg-indigo-300 px-1.5 py-0.5 rounded text-indigo-800 transition-[background-color,transform] inline-block hover:-rotate-2">IIIT Delhi</a>, and spend time honing my skills through <a href={PERSONAL_LINKS.codeforces} target="_blank" rel="noopener noreferrer" className="bg-emerald-200 hover:bg-emerald-300 px-1.5 py-0.5 rounded text-emerald-800 transition-[background-color,transform] inline-block hover:-rotate-2">competitive programming</a>.

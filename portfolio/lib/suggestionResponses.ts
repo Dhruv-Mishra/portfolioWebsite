@@ -11,19 +11,19 @@
 const RESPONSES: ReadonlyMap<string, string> = new Map([
   [
     "Tell me about your AI work",
-    "I think of my work as AI-forward software engineering: practical agents, production systems, and tools that actually do useful work. Jarvis is the clearest example: a voice-to-voice AI agent that can operate websites through tool calling. Cropio is a smaller AI tool for portrait framing, and this portfolio has its own retrieval-backed chat and action layer. At Microsoft, the same taste shows up as performance, reliability, and infrastructure work at serious scale.",
+    "At work I build LLM incident-triage agents for on-call engineers. MCP servers give the agent Kusto, service-health, and config tools, with fallback logic and a human in the loop, and it cut manual triage of routine incidents by about 40%. On my own time I build voice agents: Invoke hands coding tasks to Copilot CLI agents by voice, Jarvis negotiates freight rates over a phone call, and this site has a voice agent you can interrupt mid-sentence.",
   ],
   [
     "What do you work on at Microsoft?",
-    "I'm a Software Engineer at Microsoft working across AI-forward software engineering, performance-critical product experiences, and production infrastructure. Day to day that means making systems faster, cheaper, more reliable, and easier to operate at scale. The resume has the concrete proof points; the short version is practical engineering where every ms and every incident path matters ~",
+    "I'm a Software Engineer at Microsoft. I build production AI agents and the Azure backend services they run on. Recent work: incident-triage agents built on MCP tools, $240k a year in Azure savings on a backend serving 7B+ requests a day, sandboxed PDF encryption for Office on the web, and faster Office Android startup. I also maintain Fluent UI Android. The resume page has the details ~",
   ],
   [
     "What's your tech stack?",
-    "Daily drivers: TypeScript, Python, C#, C++, Kotlin, Java, and SQL depending on the job. On the AI/web side I lean on LLM tool calling, RAG, Next.js, React, Tailwind, Node.js, and cloud infrastructure. I still have deep mobile/platform experience, but the bigger pattern is choosing the right tool for reliable software that ships ^_^",
+    "Daily drivers: C#, TypeScript, and Python, plus C++, Kotlin, Java, and SQL depending on the job. On the AI side I work with LLM agents, MCP, tool calling, RAG, and local models on llama.cpp. For backend and cloud it's Azure (Service Fabric, Cosmos DB), Redis, Node.js, and Docker, and on the web it's Next.js, React, and Tailwind ^_^",
   ],
   [
     "Tell me about Jarvis",
-    "Jarvis is my personal side-project — a voice-to-voice AI agent that picks up the phone, holds a real conversation, and actually drives a website on the caller's behalf via tool calling. Think alternative to traditional support / dispatch agents. Vanilla JS frontend with an AudioWorklet streaming 16 kHz PCM, Node.js backend bridging a long-lived WebSocket to a live AI agent, and tool schemas that let the model click buttons, fill forms, and navigate pages for real. Live demo at jarvis.whoisdhruv.com if you want to call it, code is open at github.com/Dhruv-Mishra/AudioControlledAgenticWebsite. Want me to pull up the project card?",
+    "Jarvis is a personal side project: a voice AI dispatch agent for a demo freight app. You place a call and it looks up loads, assigns carriers, negotiates freight rates, and submits quotes while you talk. It uses an LLM planner with MCP tools and RAG over load and carrier data. The frontend streams 16 kHz PCM from an AudioWorklet to a Node.js backend over a long-lived WebSocket, and the call stays up as you move between pages. Live demo at jarvis.whoisdhruv.com, code at github.com/Dhruv-Mishra/AudioControlledAgenticWebsite. Want me to pull up the project card?",
   ],
   [
     "Tell me about Cropio",
@@ -39,7 +39,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What projects have you worked on?",
-    "A few favorites: Jarvis, a voice-to-voice AI agent that can operate websites; Cropio, an AI portrait cropper; this portfolio with retrieval-backed chat and actions; Course Evaluator, IVC Vital Checkup, AtomVault, a hybrid recommender, Fluent UI Android, and my Counting Bloom Filter research. The projects page has the full wall, but those are the ones I usually point people at first ~",
+    "A few favorites: Invoke, a voice assistant that hands coding tasks to Copilot CLI agents; Jarvis, a voice dispatch agent that negotiates freight rates; this portfolio and its live voice agent; Cropio, an AI portrait cropper; Fluent UI Android; and my Counting Bloom Filter research. The projects page has the full wall ~",
   ],
   [
     "How does Cropio work?",
@@ -47,7 +47,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "Tell me about your time at IIIT Delhi",
-    "IIIT Delhi was where the systems side of my brain really got sharper. I did Computer Science and Applied Mathematics, graduated with Academic Honors and an 8.96 CGPA, spent a lot of time in competitive programming, and did undergraduate research at DCLL on high-concurrency Counting Bloom Filters. Good mix of theory, engineering, and getting humbled by hard problems.",
+    "I did Computer Science and Applied Mathematics at IIIT Delhi and graduated with Honors and an 8.96 CGPA. I spent a lot of time on competitive programming, and did research at the Distributed Computing Lab on lock-free Counting Bloom Filters. Good mix of theory, engineering, and getting humbled by hard problems.",
   ],
   [
     "What's your favorite language?",
@@ -55,15 +55,15 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "How did you get into competitive programming?",
-    "Competitive programming started as curiosity and turned into a very effective way to train problem-solving under pressure. I reached Codeforces Expert at 1703 and CodeChef 5-star at 2003, with a few fun contest results like Google Code Jam Farewell Round A global rank 291. It taught me to be fast, precise, and deeply suspicious of edge cases.",
+    "Competitive programming started as curiosity and turned into a very effective way to train problem-solving under pressure. I reached Codeforces Expert at 1703 and CodeChef 5-star at 2003, with a few fun contest results like global rank 291 in Google Code Jam 2023 Round A. It taught me to be fast, precise, and deeply suspicious of edge cases.",
   ],
   [
     "What do you enjoy most about your work?",
-    "I like work where intelligence, performance, and reliability meet real users. The fun part is building tools that feel useful, then making the underlying systems fast, cheap, observable, and boring in production. That taste shows up in my AI side projects and in Microsoft-scale performance and infrastructure work.",
+    "I like building agents that do real work for people, then making the systems under them fast and cheap enough to run all day. The incident-triage agents at Microsoft are a good example: the fun part is the agent, but most of the work is the tools, the fallbacks, and proving it actually saves on-call time.",
   ],
   [
     "Tell me about your research",
-    "My undergraduate research was at IIIT Delhi's DCLL lab under Prof. Bapi Chatterjee, focused on optimizing Counting Bloom Filters for high-concurrency systems. The work used relaxed synchronization in C++ and achieved around a 300% throughput increase while keeping false positive/negative behavior minimally affected. Very systems-y, very satisfying.",
+    "My undergraduate research was at IIIT Delhi's Distributed Computing Lab under Prof. Bapi Chatterjee, on relaxed concurrent Counting Bloom Filters. I built a lock-free C++ Counting Bloom Filter that got 3x the baseline throughput under high contention while keeping false positive and false negative rates close to the strict version. Very systems-y, very satisfying.",
   ],
   [
     "What are your hobbies?",

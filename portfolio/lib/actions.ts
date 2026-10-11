@@ -101,6 +101,7 @@ const OPEN_LINK_TOOL_OPTIONS = [
   { key: 'email', url: PERSONAL_LINKS.email, fallbackReply: 'Opening email ~' },
   { key: 'phone', url: PERSONAL_LINKS.phone, fallbackReply: 'Opening the phone shortcut ~' },
   { key: 'resume', url: PERSONAL_LINKS.resume, fallbackReply: 'Opening the resume PDF ~' },
+  { key: 'project-invoke', url: PROJECT_LINKS.invoke, fallbackReply: 'Opening the Invoke repo ~' },
   { key: 'project-jarvis', url: PROJECT_LINKS.jarvis, fallbackReply: 'Opening the Jarvis voice agent repo ~' },
   { key: 'project-jarvis-demo', url: PROJECT_LINKS.jarvisDemo, fallbackReply: 'Calling Jarvis live ~' },
   { key: 'project-fluentui', url: PROJECT_LINKS.fluentui, fallbackReply: 'Opening the Fluent UI repo ~' },
@@ -185,6 +186,10 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Open chat settings',
     navigateTo: '/settings',
+  },
+  {
+    label: 'Open the Invoke repo',
+    openUrls: [PROJECT_LINKS.invoke],
   },
   {
     label: 'Open the Cropio repo',

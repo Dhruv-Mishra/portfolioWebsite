@@ -31,7 +31,7 @@ describe('chat model status route', () => {
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }));
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'LFM3-1.7B' }, { id: 'LFM3-Omni-2B' }] }));
     vi.stubGlobal('fetch', fetchMock);
     await getLocalAgentStatus();
     fetchMock.mockClear();
@@ -42,13 +42,14 @@ describe('chat model status route', () => {
     await expect(response.json()).resolves.toEqual({
       models: [
         { id: 'qwen-3.8-27b', provider: 'groq', available: true },
-        { id: 'minimax-m3', provider: 'nvidia', available: true },
-        { id: 'deepseek-v4-flash', provider: 'nvidia', available: true },
-        { id: 'nemotron-3-super-120b-a12b', provider: 'nvidia', available: true },
+        { id: 'minimax-m3.1-flash', provider: 'nvidia', available: true },
+        { id: 'deepseek-v4.1-flash', provider: 'nvidia', available: true },
+        { id: 'nemotron-3.5-super-vl-120b-a12b', provider: 'nvidia', available: true },
         { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
+        { id: 'lfm3-omni-local', provider: 'local', available: true },
       ],
-      deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3', 'qwen-3.5-4b-local'],
-      localModelStatus: { healthy: true, modelName: 'gemma-4-e2b-phone' },
+      deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3.1-flash', 'qwen-3.5-4b-local'],
+      localModelStatus: { healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] },
       advisoryHealth: null,
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -71,7 +72,7 @@ describe('chat model status route', () => {
     const response = await GET(statusRequest('?fresh=1'));
     const body = await response.json() as { localModelStatus: { healthy: boolean; modelName: string } };
 
-    expect(body.localModelStatus).toEqual({ healthy: false, modelName: 'Local model' });
+    expect(body.localModelStatus).toEqual({ healthy: false, modelName: 'Local model', models: [] });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

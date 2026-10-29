@@ -440,7 +440,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         }
         const files: Record<string, string> = {
             "about.md": "Dhruv Mishra: Software Engineer at Microsoft. Builds AI agents and the backend services they run on.",
-            "projects.json": "[ { \"name\": \"Invoke\", \"stack\": \"Electron + Node.js + llama.cpp + MCP\" }, { \"name\": \"Jarvis Voice Agent\", \"stack\": \"Gemini Live + Node.js + WebSockets\" }, { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, ... ]",
+            "projects.json": "[ { \"name\": \"Invoke\", \"stack\": \"Electron + Node.js + llama.cpp + MCP\" }, { \"name\": \"Jarvis Voice Agent\", \"stack\": \"Gemini Live + Node.js + WebSockets\" }, { \"name\": \"Portfolio\", \"stack\": \"Next.js\" }, { \"name\": \"Cropio\", \"stack\": \"Next.js + FastAPI + YOLO11 Pose\" }, { \"name\": \"Port Solace\", \"stack\": \"three.js + WebGL + WebRTC\" }, ... ]",
             "jarvis.md": "Jarvis: voice AI dispatch agent for a demo freight app. Looks up loads, assigns carriers, negotiates rates, and submits quotes over a live call, using MCP tools and RAG. Live demo at jarvis.whoisdhruv.com.",
             "cropio.md": "Cropio: privacy-conscious AI portrait cropper. Uses YOLO11 pose estimation, an interactive crop editor, full-resolution browser export, and semantic search over local IndexedDB embeddings.",
             "contact.txt": "Email: dhruvmishra.id@gmail.com\nPhone: (+91) 9599377944",

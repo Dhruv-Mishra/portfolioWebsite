@@ -1,0 +1,77 @@
+[Unit]
+Description=Local LLM (llama.cpp) API server
+# --swa-full keeps the whole sliding-window KV so llama.cpp can resume from the checkpoint at the
+# end of the shared system prompt; without it, LFM3's 256-token window blocks most prefix reuse.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=llm
+Group=llm
+WorkingDirectory=/opt/llm
+EnvironmentFile=/etc/llm/llm-server.env
+Environment=LD_LIBRARY_PATH=/opt/llm/bin
+Environment=MALLOC_ARENA_MAX=2
+Environment=OMP_PROC_BIND=close
+Environment=OMP_PLACES=cores
+ExecStart=/opt/llm/bin/llama-server \
+    --model ${LLM_MODEL} \
+    --alias ${LLM_ALIASES} \
+    --host 127.0.0.1 \
+    --port 8080 \
+    --api-key-file /etc/llm/api-key \
+    --parallel ${LLM_SLOTS} \
+    --ctx-size ${LLM_CTX} \
+    --threads 4 \
+    --threads-batch 4 \
+    --batch-size 2048 \
+    --ubatch-size ${LLM_UBATCH} \
+    --flash-attn on \
+    --swa-full \
+    --cache-type-k ${LLM_KV_TYPE} \
+    --cache-type-v ${LLM_KV_TYPE} \
+    --load-mode mmap+mlock \
+    --cache-ram 2048 \
+    --cont-batching \
+    --jinja \
+    --reasoning off \
+    --temp 0.1 \
+    --top-k 50 \
+    --repeat-penalty 1.1 \
+    --n-predict 512 \
+    --metrics \
+    --no-slots \
+    --no-webui \
+    --timeout 600
+Restart=always
+RestartSec=3s
+TimeoutStartSec=5min
+TimeoutStopSec=30s
+Nice=-5
+CPUWeight=10000
+IOWeight=10000
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+TasksMax=256
+OOMScoreAdjust=-900
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

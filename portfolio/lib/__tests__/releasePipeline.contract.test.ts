@@ -104,13 +104,16 @@ describe('release version promotion', () => {
   });
 
   it.each([
-    ['staging', stagingDeploy, 'portfolio-staging-image'],
-    ['production', productionDeploy, 'portfolio-production-image'],
-  ])('builds %s once in Docker with an isolated BuildKit cache', (_name, workflow, scope) => {
+    ['staging', stagingDeploy, 'needs: [build, checks]'],
+    ['production', productionDeploy, 'needs: [build, checks]'],
+  ])('builds %s once in Docker with the shared registry layer cache and gates rollout on checks', (_name, workflow, gate) => {
     expect(workflow).not.toContain('- name: Build Next.js (standalone)');
     expect(workflow).not.toContain('actions/upload-artifact');
-    expect(workflow).toContain(`cache-from: type=gha,scope=${scope}`);
-    expect(workflow).toContain(`cache-to: type=gha,mode=max,scope=${scope}`);
+    expect(workflow).not.toContain('type=gha');
+    expect(workflow).toContain('cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache');
+    expect(workflow).toContain('cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min');
+    expect(workflow).toContain(gate);
+    expect(workflow).toContain('run: npm test');
     expect(workflow).toContain('org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}');
   });
 

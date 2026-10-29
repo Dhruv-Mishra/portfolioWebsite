@@ -39,7 +39,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What projects have you worked on?",
-    "A few favorites: Invoke, a voice assistant that hands coding tasks to Copilot CLI agents; Jarvis, a voice dispatch agent that negotiates freight rates; this portfolio and its live voice agent; Cropio, an AI portrait cropper; Fluent UI Android; and my Counting Bloom Filter research. The projects page has the full wall ~",
+    "A few favorites: Invoke, a voice assistant that hands coding tasks to Copilot CLI agents; Jarvis, a voice dispatch agent that negotiates freight rates; this portfolio and its live voice agent; Cropio, an AI portrait cropper; Port Solace, a co-op voxel open-world game you can play in the browser; Fluent UI Android; and my Counting Bloom Filter research. The projects page has the full wall ~",
   ],
   [
     "How does Cropio work?",

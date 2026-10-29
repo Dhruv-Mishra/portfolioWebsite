@@ -377,6 +377,19 @@ export async function getRelevantFactContext(
   return facts.map((fact) => `- ${fact.text}`).join('\n');
 }
 
+let anchorFactContext: { text: string; count: number } | null = null;
+
+/** Anchor facts in their fixed retrieval order, formatted like {@link getRelevantFactContext}. */
+export function getAnchorFactContext(): { text: string; count: number } {
+  anchorFactContext ??= (() => {
+    const anchors = partitionFacts(LOADED.facts).anchors.sort((left, right) => (
+      right.priority - left.priority || left.id.localeCompare(right.id)
+    ));
+    return { text: anchors.map((fact) => `- ${fact.text}`).join('\n'), count: anchors.length };
+  })();
+  return anchorFactContext;
+}
+
 /** Lookup a fact by its project slug — powers chatActionRouter project-info replies. */
 export function getFactBySlug(slug: ProjectSlug): Fact | null {
   for (const fact of LOADED.facts) {

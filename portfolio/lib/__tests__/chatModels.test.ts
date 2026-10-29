@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHAT_MODELS, DEFAULT_CHAT_MODEL_ID, getChatModel, isChatModelId } from '@/lib/chatModels';
+import {
+  CHAT_MODELS,
+  DEFAULT_CHAT_MODEL_ID,
+  ON_DEVICE_CHAT_ENABLED,
+  SELECTABLE_CHAT_MODELS,
+  getChatModel,
+  isBrowserChatModelId,
+  isChatModelId,
+  isLocalChatModelId,
+  isSelectableChatModelId,
+} from '@/lib/chatModels';
+import { readChatModelPref } from '@/lib/chatModelPref';
 
 describe('chat model catalog', () => {
   it('uses Qwen as the recommended default and allowlists every supported upstream model', () => {
@@ -11,24 +22,45 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(5);
+    expect(CHAT_MODELS).toHaveLength(7);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.8-27b',
-      'minimaxai/minimax-m3',
-      'deepseek-ai/deepseek-v4-flash-0731',
-      'nvidia/nemotron-3-super-120b-a12b',
-      'gemma-4-e2b-phone',
+      'minimaxai/minimax-m3.1-flash',
+      'deepseek-ai/deepseek-v4.1-flash',
+      'nvidia/nemotron-3.5-super-vl-120b-a12b',
+      'LFM3-1.7B',
+      'LFM3-Omni-2B',
+      'daveycodez/LFM3-1.7B-Web',
     ]);
     expect(getChatModel('qwen-3.5-4b-local')).toEqual({
       id: 'qwen-3.5-4b-local',
       provider: 'local',
       group: 'Local agent',
-      upstreamModel: 'gemma-4-e2b-phone',
-      label: 'Local model',
+      upstreamModel: 'LFM3-1.7B',
+      label: 'LFM3 1.7B',
       quality: 'Local agent',
       supportsImages: false,
-      capabilities: ['slow'],
+      capabilities: ['fast'],
     });
+    expect(getChatModel('lfm3-omni-local')).toEqual({
+      id: 'lfm3-omni-local',
+      provider: 'local',
+      group: 'Local agent',
+      upstreamModel: 'LFM3-Omni-2B',
+      label: 'LFM3 Omni 2B',
+      quality: 'Local vision',
+      supportsImages: true,
+      imageInputOrder: 'image-first',
+      capabilities: ['image', 'slow'],
+    });
+  });
+
+  it('identifies both local agent models', () => {
+    expect(CHAT_MODELS.filter((model) => isLocalChatModelId(model.id)).map((model) => model.id)).toEqual([
+      'qwen-3.5-4b-local',
+      'lfm3-omni-local',
+    ]);
+    expect(isLocalChatModelId('qwen-3.8-27b')).toBe(false);
   });
 
   it('rejects unknown client model identifiers', () => {
@@ -38,30 +70,50 @@ describe('chat model catalog', () => {
     expect(isChatModelId('qwen-3.5-4b-local')).toBe(true);
   });
 
+  it('marks only the on-device model as browser-run', () => {
+    expect(CHAT_MODELS.filter((model) => isBrowserChatModelId(model.id)).map((model) => model.id)).toEqual(['on-device']);
+    expect(isBrowserChatModelId('qwen-3.8-27b')).toBe(false);
+    expect(isBrowserChatModelId('unknown')).toBe(false);
+  });
+
+  it('keeps the on-device model unselectable while the feature is off', () => {
+    expect(ON_DEVICE_CHAT_ENABLED).toBe(false);
+    expect(SELECTABLE_CHAT_MODELS.map((model) => model.id)).not.toContain('on-device');
+    expect(isSelectableChatModelId('on-device')).toBe(false);
+    expect(readChatModelPref('on-device')).toBe(DEFAULT_CHAT_MODEL_ID);
+  });
+
   it('declares picker capabilities explicitly for every model', () => {
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [model.id, model.capabilities]))).toEqual({
       'qwen-3.8-27b': ['fast', 'image'],
-      'minimax-m3': ['image'],
-      'deepseek-v4-flash': ['fast'],
-      'nemotron-3-super-120b-a12b': ['reasoning', 'slow'],
-      'qwen-3.5-4b-local': ['slow'],
+      'minimax-m3.1-flash': ['image'],
+      'deepseek-v4.1-flash': ['fast', 'image'],
+      'nemotron-3.5-super-vl-120b-a12b': ['reasoning', 'image', 'slow'],
+      'qwen-3.5-4b-local': ['fast'],
+      'lfm3-omni-local': ['image', 'slow'],
+      'on-device': ['slow'],
     });
   });
 
   it('advertises images only for documented vision models with an explicit payload order', () => {
     expect(CHAT_MODELS.filter((model) => model.supportsImages).map((model) => model.id)).toEqual([
       'qwen-3.8-27b',
-      'minimax-m3',
+      'minimax-m3.1-flash',
+      'deepseek-v4.1-flash',
+      'nemotron-3.5-super-vl-120b-a12b',
+      'lfm3-omni-local',
     ]);
     expect(Object.fromEntries(CHAT_MODELS.map((model) => [
       model.id,
       'imageInputOrder' in model ? model.imageInputOrder : null,
     ]))).toEqual({
       'qwen-3.8-27b': 'text-first',
-      'minimax-m3': 'text-first',
-      'deepseek-v4-flash': null,
-      'nemotron-3-super-120b-a12b': null,
+      'minimax-m3.1-flash': 'text-first',
+      'deepseek-v4.1-flash': 'text-first',
+      'nemotron-3.5-super-vl-120b-a12b': 'text-first',
       'qwen-3.5-4b-local': null,
+      'lfm3-omni-local': 'image-first',
+      'on-device': null,
     });
     for (const model of CHAT_MODELS) {
       expect(model.capabilities.some((capability) => capability === 'image')).toBe(model.supportsImages);

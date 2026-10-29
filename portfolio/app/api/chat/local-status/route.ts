@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
-import { getLocalAgentStatus } from '@/lib/localAgentStatus.server';
+import { getLocalAgentStatus, type LocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const UNAVAILABLE_STATUS = { healthy: false, modelName: 'Local model' };
+const UNAVAILABLE_STATUS: LocalAgentStatus = { healthy: false, modelName: 'Local model', models: [] };
 
 const localStatusRateLimiter = createServerRateLimiter({
   maxRequests: 60,

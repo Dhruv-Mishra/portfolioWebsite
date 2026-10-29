@@ -198,6 +198,7 @@ describe('resolveChatIntent — project action intents', () => {
     check('pull up fluent ui', { kind: 'action', projectSlug: 'fluent-ui-android' });
     check('open atomvault', { kind: 'action', projectSlug: 'atomvault' });
     check('show me invoke', { kind: 'action', projectSlug: 'invoke' });
+    check('open port solace', { kind: 'action', projectSlug: 'port-solace' });
   });
 
   it('opens project repos when repo/github keyword present', () => {
@@ -205,11 +206,13 @@ describe('resolveChatIntent — project action intents', () => {
     check('show me the fluent ui github', { kind: 'action', openUrlContains: 'fluentui-android' });
     check('pull up the atomvault source', { kind: 'action', openUrlContains: 'AtomVault' });
     check('open the invoke repo', { kind: 'action', openUrlContains: 'Invoke-Voice' });
+    check('open the port solace repo', { kind: 'action', openUrlContains: 'VoxelGame' });
   });
 
   it('returns project-info for explanation requests', () => {
     check('tell me about cropio', { kind: 'project-info', projectSlug: 'cropio' });
     check('tell me about invoke', { kind: 'project-info', projectSlug: 'invoke' });
+    check('tell me about port solace', { kind: 'project-info', projectSlug: 'port-solace' });
     check('what is course evaluator', { kind: 'project-info', projectSlug: 'course-evaluator' });
     check('explain the bloom filter research', { kind: 'project-info', projectSlug: 'bloom-filter-research' });
   });

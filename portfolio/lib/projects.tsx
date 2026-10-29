@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
-import { Activity, Bot, Database, Film, Globe, Mic, ScrollText, Scissors, Search, Smartphone } from 'lucide-react';
+import { Activity, Bot, Database, Film, Gamepad2, Globe, Mic, ScrollText, Scissors, Search, Smartphone } from 'lucide-react';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 
 export interface ProjectRecord {
@@ -33,35 +33,10 @@ const BLUR = {
   cropio: 'data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoIAAgAA4BaJQBOgB5QDXsAAP6w3JgPqIX1RsNkiMiKH6vAAAA=',
   jarvis: 'data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAABwAQCdASoIAAgAA4BaJYwCdAFAAAD+6MGt8PCbJcRSgfhep/X66H/9aWT9wGazr3lJSAAA',
   invoke: 'data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAACwAQCdASoIAAgAA4BaJQBOgBtkKPgcAP6YLfHR8LVVMCKXTBrZntLWmsvXXMR274kwhG9AAAA=',
+  portSolace: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoIAAgABUB8JYwAAp25DspYAP6f65uYVmPxtLnADcN5Xi4A',
 } as const;
 
 export const PROJECTS: ProjectRecord[] = [
-  {
-    slug: 'invoke',
-    name: 'Invoke — Voice Coding Agents',
-    desc: (
-      <>
-        A Windows <strong>voice assistant for running coding agents</strong>. It handles simple requests itself and hands bigger coding tasks to <span className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">GitHub Copilot CLI agents</span>, each working in <span className="underline decoration-wavy decoration-violet-400">its own Git worktree</span> so several can run at once. Speech-to-text, the LLM, and text-to-speech all <strong>run locally</strong> (Parakeet, quantized Gemma/Qwen on llama.cpp, and Kokoro). <span className="font-semibold">Speculative decoding</span> with a draft model made generation 35% faster.
-      </>
-    ),
-    lang: 'Electron / Node.js / Python',
-    link: 'https://github.com/Dhruv-Mishra/Invoke-Voice',
-    colorClass: 'bg-note-purple',
-    image: '/resources/Invoke.webp',
-    blurDataURL: BLUR.invoke,
-    video: null,
-    icon: Bot,
-    label: 'Coding Agents',
-    stack: ['Electron', 'Node.js', 'Python', 'llama.cpp', 'MCP', 'Copilot CLI'],
-    role: 'AI Agents + Desktop',
-    year: '2026',
-    duration: 'Ongoing',
-    highlights: [
-      'Delegates coding and research tasks to GitHub Copilot CLI agents, each coding task in an isolated Git worktree',
-      'Runs speech recognition, the language model, and speech synthesis locally with Parakeet, llama.cpp, and Kokoro',
-      'A benchmark harness picked a speech model with 57% fewer errors than Whisper Small at 5x the speed',
-    ],
-  },
   {
     slug: 'jarvis-voice-agent',
     name: 'Jarvis — Voice Dispatch Agent',
@@ -137,6 +112,32 @@ export const PROJECTS: ProjectRecord[] = [
       'Generates multiple portrait crop suggestions with pose detection and deterministic fallbacks',
       'Supports drag-resize editing, aspect ratio presets, and full-resolution browser exports',
       'Adds AI descriptions and semantic search over saved sessions via local IndexedDB embeddings',
+    ],
+  },
+  {
+    slug: 'invoke',
+    name: 'Invoke — Voice Coding Agents',
+    desc: (
+      <>
+        A Windows <strong>voice assistant for running coding agents</strong>. It handles simple requests itself and hands bigger coding tasks to <span className="bg-violet-100 dark:bg-violet-900/50 px-1 rounded">GitHub Copilot CLI agents</span>, each working in <span className="underline decoration-wavy decoration-violet-400">its own Git worktree</span> so several can run at once. Speech-to-text, the LLM, and text-to-speech all <strong>run locally</strong> (Parakeet, quantized Gemma/Qwen on llama.cpp, and Kokoro). <span className="font-semibold">Speculative decoding</span> with a draft model made generation 35% faster.
+      </>
+    ),
+    lang: 'Electron / Node.js / Python',
+    link: 'https://github.com/Dhruv-Mishra/Invoke-Voice',
+    colorClass: 'bg-note-purple',
+    image: '/resources/Invoke.webp',
+    blurDataURL: BLUR.invoke,
+    video: null,
+    icon: Bot,
+    label: 'Coding Agents',
+    stack: ['Electron', 'Node.js', 'Python', 'llama.cpp', 'MCP', 'Copilot CLI'],
+    role: 'AI Agents + Desktop',
+    year: '2026',
+    duration: 'Ongoing',
+    highlights: [
+      'Delegates coding and research tasks to GitHub Copilot CLI agents, each coding task in an isolated Git worktree',
+      'Runs speech recognition, the language model, and speech synthesis locally with Parakeet, llama.cpp, and Kokoro',
+      'A benchmark harness picked a speech model with 57% fewer errors than Whisper Small at 5x the speed',
     ],
   },
   {
@@ -285,6 +286,32 @@ export const PROJECTS: ProjectRecord[] = [
     highlights: [
       'Full ACID compliance with transaction rollback and recovery',
       'Role-based access control with admin, teller, and customer roles',
+    ],
+  },
+  {
+    slug: 'port-solace',
+    name: 'Port Solace',
+    desc: (
+      <>
+        A <strong>voxel open-world game that runs in the browser</strong>, set in a harbour city where the lights never quite go out. Drive cars, fly planes, ride jet skis, and pull off a <span className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">co-op heist</span> with up to four friends over <span className="underline decoration-wavy decoration-amber-400">peer-to-peer WebRTC</span>. Under the hood it&apos;s <strong>three.js with a custom streaming engine</strong>: Web Worker meshing, LOD cross-fades, and shader pre-warming so <span className="font-semibold">nothing stutters mid-play</span>, on desktop and phones. Play it at <a href="https://port-solace.vercel.app" target="_blank" rel="noopener noreferrer" className="font-mono text-sm font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded ring-1 ring-amber-300/60 dark:ring-amber-700/60 transition-colors hover:bg-amber-200 dark:hover:bg-amber-800/70 hover:ring-amber-500 hover:text-amber-900 dark:hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">port-solace.vercel.app&nbsp;↗</a>.
+      </>
+    ),
+    lang: 'JavaScript / three.js',
+    link: 'https://github.com/Dhruv-Mishra/VoxelGame',
+    colorClass: 'bg-note-yellow',
+    image: '/resources/PortSolace.webp',
+    blurDataURL: BLUR.portSolace,
+    video: null,
+    icon: Gamepad2,
+    label: 'Voxel Game',
+    stack: ['JavaScript', 'three.js', 'WebGL', 'WebRTC', 'Web Workers', 'Cloudflare Workers', 'Web Audio'],
+    role: 'Game Dev + Graphics',
+    year: '2026',
+    duration: 'Ongoing',
+    highlights: [
+      'Co-op for up to four players over WebRTC data channels, with a Cloudflare Worker that only brokers the join',
+      'Streams a voxel city and an outland four times its size, meshed in Web Workers with dithered LOD cross-fades',
+      'Shaders are compiled ahead of time so no program links during play; per-frame code allocates nothing',
     ],
   },
 ];

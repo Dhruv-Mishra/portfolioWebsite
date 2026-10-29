@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from 'react';
-import { DEFAULT_CHAT_MODEL_ID, isChatModelId, type ChatModelId } from '@/lib/chatModels';
+import { DEFAULT_CHAT_MODEL_ID, isSelectableChatModelId, type ChatModelId } from '@/lib/chatModels';
 
 export const CHAT_MODEL_PREF_STORAGE_KEY = 'chat-model-pref';
 export const CHAT_MODEL_PREF_EVENT = 'chat-model-pref:change';
@@ -14,7 +14,7 @@ export const CHAT_HISTORY_STORAGE_KEYS = [
 ] as const;
 
 export function readChatModelPref(value: unknown): ChatModelId {
-  return isChatModelId(value) ? value : DEFAULT_CHAT_MODEL_ID;
+  return isSelectableChatModelId(value) ? value : DEFAULT_CHAT_MODEL_ID;
 }
 
 export function getChatModelPref(): ChatModelId {
@@ -59,7 +59,7 @@ export function useChatModelPref(): {
   const modelId = useSyncExternalStore<ChatModelId>(subscribe, getChatModelPref, () => DEFAULT_CHAT_MODEL_ID);
 
   const setModelId = useCallback((next: ChatModelId) => {
-    if (!isChatModelId(next)) return;
+    if (!isSelectableChatModelId(next)) return;
     try {
       window.localStorage.setItem(CHAT_MODEL_PREF_STORAGE_KEY, next);
     } catch {

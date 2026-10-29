@@ -93,16 +93,12 @@ jobs:
             exit 1
           fi
 
-  build:
-    name: Build staging image
+  # Lint, typecheck, and tests run beside the image build; deploys wait for both.
+  checks:
+    name: Lint, typecheck, and test
     needs: guard-staging-ref
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    outputs:
-      image: ${{ steps.image-meta.outputs.image }}
-      image_digest: ${{ steps.docker-build.outputs.digest }}
-      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
-      release_version: ${{ steps.release-meta.outputs.version }}
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -120,15 +116,8 @@ jobs:
         env:
           SKIP_EMBEDDINGS_BUILD: "1"
           ONNXRUNTIME_NODE_INSTALL: skip
-        run: |
-          npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        # npm ci already fails on a lockfile that is out of sync with package.json.
+        run: npx -y npm@${{ env.CI_NPM_VERSION }} ci
 
       - name: Lint
         working-directory: portfolio
@@ -141,6 +130,21 @@ jobs:
       - name: Test
         working-directory: portfolio
         run: npm test
+
+  build:
+    name: Build staging image
+    needs: guard-staging-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      image: ${{ steps.image-meta.outputs.image }}
+      image_digest: ${{ steps.docker-build.outputs.digest }}
+      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
+      release_version: ${{ steps.release-meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Resolve release metadata
         id: release-meta
@@ -191,8 +195,11 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
-          cache-from: type=gha,scope=portfolio-staging-image
-          cache-to: type=gha,mode=max,scope=portfolio-staging-image
+          # Registry cache in GHCR: final-image layers are already pushed, so exporting is cheap,
+          # and staging/production share the slow apt + PyTorch layers instead of evicting each
+          # other from the 10 GB Actions cache.
+          cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
@@ -228,7 +235,7 @@ jobs:
 
   preflight-staging:
     name: Preflight ${{ matrix.server.name }}
-    needs: build
+    needs: [build, checks]
     runs-on: ubuntu-latest
     timeout-minutes: 3
 
@@ -1130,7 +1137,7 @@ jobs:
             -H "Sec-Fetch-Site: same-origin" \
             -H "Cache-Control: no-cache" \
             -X POST \
-            --data '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"Reply with exactly: STAGING_NVIDIA_OK"}]}' \
+            --data '{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"Reply with exactly: STAGING_NVIDIA_OK"}]}' \
             -D "$chat_headers_file" \
             -o "$chat_body_file" \
             -w "%{http_code}" \
@@ -1158,7 +1165,7 @@ jobs:
             echo "::error::staging chat returned a non-JSON response"
             exit 1
           fi
-          if ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline([[:space:]]|$)' "$chat_headers_file"; then
+          if ! grep -qiE '^x-chat-fallback:[[:space:]]*deepseek-v4\.1-flash([[:space:]]|$)' "$chat_headers_file"; then
             echo "::error::staging NVIDIA chat did not use the online provider"
             exit 1
           fi
@@ -1166,7 +1173,7 @@ jobs:
           const fs = require('node:fs');
           const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 
-          if (body?.modelId !== 'deepseek-v4-flash' || typeof body?.reply !== 'string' || !body.reply.trim()) {
+          if (body?.modelId !== 'deepseek-v4.1-flash' || typeof body?.reply !== 'string' || !body.reply.trim()) {
             throw new Error('Chat response did not contain a non-empty DeepSeek Flash reply');
           }
           NODE

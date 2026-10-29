@@ -141,6 +141,8 @@ export const APPROVED_LINK_KEYS = [
   'project-recommender',
   'project-atomvault',
   'project-bloomfilter',
+  'project-portsolace',
+  'project-portsolace-play',
 ] as const;
 
 export type ApprovedLinkKey = (typeof APPROVED_LINK_KEYS)[number];
@@ -164,6 +166,8 @@ export const APPROVED_LINKS: Record<ApprovedLinkKey, string> = {
   'project-recommender': PROJECT_LINKS.recommender,
   'project-atomvault': PROJECT_LINKS.atomvault,
   'project-bloomfilter': PROJECT_LINKS.bloomfilter,
+  'project-portsolace': PROJECT_LINKS.portSolace,
+  'project-portsolace-play': PROJECT_LINKS.portSolaceDemo,
 };
 
 export type SiteToolArgsMap = {

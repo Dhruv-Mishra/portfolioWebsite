@@ -6,6 +6,7 @@ import { getChatModel } from '@/lib/chatModels';
 import {
   getChatModelDisplayName,
   isChatModelFacingIssues,
+  isLocalChatModelHealthy,
   parseChatModelStatusPayload,
 } from '@/lib/chatModelStatus';
 
@@ -19,24 +20,38 @@ describe('chat model status', () => {
     expect(parseChatModelStatusPayload({
       models: [
         { id: 'qwen-3.8-27b', available: true },
-        { id: 'minimax-m3', available: false },
+        { id: 'minimax-m3.1-flash', available: false },
       ],
       deploymentCanaryModelIds: ['qwen-3.8-27b', 'unknown-model'],
-      localModelStatus: { healthy: true, modelName: 'gemma-4-e2b-phone' },
+      localModelStatus: { healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] },
     })).toEqual({
       advisoryIssueModelIds: [],
-      configuredUnavailableModelIds: ['minimax-m3'],
+      configuredUnavailableModelIds: ['minimax-m3.1-flash'],
       deploymentCanaryModelIds: ['qwen-3.8-27b'],
-      local: { healthy: true, modelName: 'gemma-4-e2b-phone' },
+      local: { healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] },
     });
   });
 
-  it('uses the healthy backend local model name without changing other catalog labels', () => {
-    expect(getChatModelDisplayName(getChatModel('qwen-3.5-4b-local'), {
-      healthy: true,
-      modelName: 'gemma-4-e2b-phone',
-    })).toBe('gemma-4-e2b-phone');
-    expect(getChatModelDisplayName(getChatModel('qwen-3.8-27b'), null)).toBe('Qwen 3.8 27B');
+  it('marks each local model healthy only while the gateway serves it', () => {
+    const textOnly = { healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B'] };
+    expect(isLocalChatModelHealthy(getChatModel('qwen-3.5-4b-local'), textOnly)).toBe(true);
+    expect(isLocalChatModelHealthy(getChatModel('lfm3-omni-local'), textOnly)).toBe(false);
+    expect(isLocalChatModelHealthy(getChatModel('lfm3-omni-local'), { ...textOnly, models: ['lfm3-omni-2b'] })).toBe(true);
+    expect(isLocalChatModelHealthy(getChatModel('qwen-3.5-4b-local'), { ...textOnly, healthy: false })).toBe(false);
+    expect(isLocalChatModelHealthy(getChatModel('qwen-3.8-27b'), textOnly)).toBe(false);
+  });
+
+  it('treats a legacy status without a model list as serving only its advertised model', () => {
+    expect(parseChatModelStatusPayload({
+      models: [],
+      localModelStatus: { healthy: true, modelName: 'LFM3-1.7B' },
+    })?.local).toEqual({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B'] });
+  });
+
+  it('uses catalog labels for display names', () => {
+    expect(getChatModelDisplayName(getChatModel('qwen-3.5-4b-local'))).toBe('LFM3 1.7B');
+    expect(getChatModelDisplayName(getChatModel('qwen-3.8-27b'))).toBe('Qwen 3.8 27B');
+    expect(getChatModelDisplayName(undefined)).toBe('');
   });
 
   it('rejects malformed status payloads', () => {
@@ -59,19 +74,19 @@ describe('chat model status', () => {
         expiresAt: '2099-08-09T00:20:00.000Z',
         models: [
           { id: 'qwen-3.8-27b', state: 'degraded' },
-          { id: 'minimax-m3', state: 'unhealthy' },
-          { id: 'deepseek-v4-flash', state: 'healthy' },
-          { id: 'nemotron-3-super-120b-a12b', state: 'unknown' },
+          { id: 'minimax-m3.1-flash', state: 'unhealthy' },
+          { id: 'deepseek-v4.1-flash', state: 'healthy' },
+          { id: 'nemotron-3.5-super-vl-120b-a12b', state: 'unknown' },
         ],
       },
     });
 
-    expect(status?.advisoryIssueModelIds).toEqual(['qwen-3.8-27b', 'minimax-m3']);
+    expect(status?.advisoryIssueModelIds).toEqual(['qwen-3.8-27b', 'minimax-m3.1-flash']);
     expect(status && isChatModelFacingIssues('qwen-3.8-27b', {
       ...status,
       issueModelIds: [],
     })).toBe(true);
-    expect(status && isChatModelFacingIssues('deepseek-v4-flash', {
+    expect(status && isChatModelFacingIssues('deepseek-v4.1-flash', {
       ...status,
       issueModelIds: [],
     })).toBe(false);

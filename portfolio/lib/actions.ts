@@ -112,6 +112,8 @@ const OPEN_LINK_TOOL_OPTIONS = [
   { key: 'project-recommender', url: PROJECT_LINKS.recommender, fallbackReply: 'Opening the Hybrid Recommender repo ~' },
   { key: 'project-atomvault', url: PROJECT_LINKS.atomvault, fallbackReply: 'Opening the AtomVault repo ~' },
   { key: 'project-bloomfilter', url: PROJECT_LINKS.bloomfilter, fallbackReply: 'Opening the Bloom Filter research link ~' },
+  { key: 'project-portsolace', url: PROJECT_LINKS.portSolace, fallbackReply: 'Opening the Port Solace repo ~' },
+  { key: 'project-portsolace-play', url: PROJECT_LINKS.portSolaceDemo, fallbackReply: 'Launching Port Solace ~' },
 ] as const;
 
 const OPEN_LINK_OPTIONS_BY_URL = new Map<string, (typeof OPEN_LINK_TOOL_OPTIONS)[number]>(
@@ -202,6 +204,14 @@ export const ACTION_REGISTRY: ActionDef[] = [
   {
     label: 'Try the Jarvis voice agent live',
     openUrls: [PROJECT_LINKS.jarvisDemo],
+  },
+  {
+    label: 'Open the Port Solace repo',
+    openUrls: [PROJECT_LINKS.portSolace],
+  },
+  {
+    label: 'Play Port Solace',
+    openUrls: [PROJECT_LINKS.portSolaceDemo],
   },
   {
     label: 'Open your GitHub profile',

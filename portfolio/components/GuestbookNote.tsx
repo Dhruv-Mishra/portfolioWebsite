@@ -1,6 +1,4 @@
-"use client";
-
-import { memo, useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import {
@@ -30,6 +28,7 @@ function hashId(id: number): number {
 /** Hoisted style fragments — avoid per-render allocation. */
 const FOLD_CORNER_LEFT_STYLE = { background: GRADIENT_TOKENS.foldCornerAlt } as const;
 const FOLD_CORNER_RIGHT_STYLE = { background: GRADIENT_TOKENS.foldCorner } as const;
+const BODY_STYLE = { backgroundColor: 'var(--note-paper)' } as const;
 
 /** Corner-variant tape override: used on desktop for every 4th note for visual variety. */
 const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden md:block';
@@ -45,14 +44,11 @@ const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden
  *   wrapper and keep the tape as a sibling of (not a child of) the clipped body,
  *   so it escapes the clip while the message text remains truncated.
  */
-export const GuestbookNote = memo(function GuestbookNote({ entry, index }: GuestbookNoteProps) {
-  const hash = useMemo(() => hashId(entry.id), [entry.id]);
+export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
+  const hash = hashId(entry.id);
 
   // Rotation: -5deg .. +5deg driven by hash.
-  const rotation = useMemo(() => {
-    const normalized = (hash % 1000) / 1000;
-    return WALL_NOTE_ROTATION.minDeg + normalized * WALL_NOTE_ROTATION.rangeDeg;
-  }, [hash]);
+  const rotation = WALL_NOTE_ROTATION.minDeg + ((hash % 1000) / 1000) * WALL_NOTE_ROTATION.rangeDeg;
 
   // Left/right fold corner alternates by hash parity.
   const foldLeft = hash % 2 === 0;
@@ -63,22 +59,17 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
   // Entrance stagger capped at 480ms so scrolled-far notes don't animate with huge delays.
   const animationDelay = `${Math.min(index * GUESTBOOK_LIMITS.entranceStaggerMs, GUESTBOOK_LIMITS.entranceStaggerCapMs)}ms`;
 
-  // Format date once — pure helper so SSR-stable for entries older than 30 days.
-  const formattedDate = useMemo(() => formatRelativeOrShort(entry.createdAt), [entry.createdAt]);
+  const formattedDate = formatRelativeOrShort(entry.createdAt);
 
   const signatureId = `note-${entry.id}-sig`;
 
-  const wrapperStyle = useMemo<React.CSSProperties>(() => ({
+  const wrapperStyle: CSSProperties = {
     transform: `rotate(${rotation}deg)`,
     // Custom props read by the @keyframes wall-note-in rule.
     ['--note-rotate-start' as string]: `${rotation + 2}deg`,
     ['--note-rotate-end' as string]: `${rotation}deg`,
     animationDelay,
-  }), [rotation, animationDelay]);
-
-  const bodyStyle = useMemo<React.CSSProperties>(() => ({
-    backgroundColor: 'var(--note-paper)',
-  }), []);
+  };
 
   return (
     // OUTER wrapper: owns rotation + entrance animation; overflow is VISIBLE so
@@ -102,7 +93,7 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
           It keeps the background color, min/max height, and padding that were
           previously on <article>. overflow: hidden only applies here. */}
       <div
-        style={bodyStyle}
+        style={BODY_STYLE}
         className={cn(
           'relative overflow-hidden',
           'min-h-[140px] max-h-[260px]',
@@ -145,4 +136,4 @@ export const GuestbookNote = memo(function GuestbookNote({ entry, index }: Guest
       </div>
     </article>
   );
-});
+}

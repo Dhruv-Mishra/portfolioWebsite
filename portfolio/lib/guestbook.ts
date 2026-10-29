@@ -63,6 +63,9 @@ const RELATIVE_CUTOFF_DAYS = 30;
  * which is itself deterministic). Relative-time rendering may differ across the hydration
  * boundary for very recent entries; that's acceptable for a low-churn wall.
  */
+const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+const SHORT_DATE_FORMAT = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' });
+
 export function formatRelativeOrShort(createdAt: string, now: Date = new Date()): string {
   const created = new Date(createdAt);
   if (Number.isNaN(created.getTime())) return '';
@@ -71,7 +74,7 @@ export function formatRelativeOrShort(createdAt: string, now: Date = new Date())
   const diffDays = diffMs / MS_PER_DAY;
 
   if (diffDays < RELATIVE_CUTOFF_DAYS && diffDays >= 0) {
-    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+    const rtf = RELATIVE_TIME_FORMAT;
     // Pick the largest unit that yields |value| >= 1, falling through progressively.
     const diffSec = Math.round(diffMs / 1000);
     const absSec = Math.abs(diffSec);
@@ -85,7 +88,7 @@ export function formatRelativeOrShort(createdAt: string, now: Date = new Date())
     return rtf.format(-diffDay, 'day');
   }
 
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(created);
+  return SHORT_DATE_FORMAT.format(created);
 }
 
 /**

@@ -9,6 +9,7 @@ const MAX_LOCAL_MODEL_NAME_LENGTH = 128;
 export interface LocalModelStatus {
   healthy: boolean;
   modelName: string;
+  models: readonly string[];
 }
 
 export interface ChatModelStatusSnapshot {
@@ -53,7 +54,11 @@ function parseLocalModelStatus(value: unknown): LocalModelStatus | null {
   const modelName = value.modelName.trim();
   if (modelName.length === 0 || modelName.length > MAX_LOCAL_MODEL_NAME_LENGTH) return null;
 
-  return { healthy: value.healthy, modelName };
+  const models = Array.isArray(value.models)
+    ? value.models.filter((model): model is string => typeof model === 'string' && model.length <= MAX_LOCAL_MODEL_NAME_LENGTH)
+    : [modelName];
+
+  return { healthy: value.healthy, modelName, models };
 }
 
 function isConfiguredUnavailable(value: unknown): boolean {
@@ -182,12 +187,14 @@ export function isChatModelFacingIssues(modelId: ChatModelId, status: ChatModelS
     || status.issueModelIds.includes(modelId);
 }
 
-export function getChatModelDisplayName(
-  model: ChatModel | undefined,
-  localStatus: LocalModelStatus | null | undefined,
-): string {
-  if (!model) return '';
-  return model.provider === 'local' && localStatus?.healthy ? localStatus.modelName : model.label;
+export function getChatModelDisplayName(model: ChatModel | undefined): string {
+  return model?.label ?? '';
+}
+
+export function isLocalChatModelHealthy(model: ChatModel | undefined, localStatus: LocalModelStatus | null | undefined): boolean {
+  if (model?.provider !== 'local' || !localStatus?.healthy) return false;
+  const upstreamModel = model.upstreamModel.toLowerCase();
+  return localStatus.models.some((served) => served.toLowerCase() === upstreamModel);
 }
 
 export function useChatModelStatus(): ChatModelStatusSnapshot {

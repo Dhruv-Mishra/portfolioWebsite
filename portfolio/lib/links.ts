@@ -26,6 +26,8 @@ export const PROJECT_LINKS = {
   recommender: 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
   atomvault: 'https://github.com/Dhruv-Mishra/AtomVault',
   bloomfilter: 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',
+  portSolace: 'https://github.com/Dhruv-Mishra/VoxelGame',
+  portSolaceDemo: 'https://port-solace.vercel.app',
 } as const;
 
 /** Site metadata */

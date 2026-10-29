@@ -83,7 +83,7 @@ describe('settings chat model contract', () => {
     expect(picker).toContain("model.id === value && 'border-l-emerald-600");
     expect(picker).not.toContain("model.id === activeModelId && 'bg-amber");
     expect(picker).not.toContain('focus-visible:ring-amber');
-    expect(source).toContain("selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'");
+    expect(source).toContain('{CHAT_PROVIDER_LABELS[selectedModel.provider]}');
   });
 
   it('places the model listbox within the available viewport space', () => {
@@ -121,7 +121,7 @@ describe('settings chat model contract', () => {
 
   it('links the current chat model to a focused, visibly marked settings target', () => {
     expect(chatSource).toContain('href="/settings?focus=ai-model"');
-    expect(chatSource).toContain('const selectedModelDisplayName = getChatModelDisplayName(selectedModel, modelStatus.local);');
+    expect(chatSource).toContain('const selectedModelDisplayName = getChatModelDisplayName(selectedModel);');
     expect(chatSource).toContain('Current AI model: ${selectedModelDisplayName}. Change in Settings');
     expect(chatSource).toContain('Current AI model: ${modelDisplayName}. Change in Settings');
     expect(chatSource.match(/title=\{selectedModelDisplayName\}/g)).toHaveLength(2);

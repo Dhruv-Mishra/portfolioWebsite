@@ -156,7 +156,7 @@ flowchart TD
 - Assistant turns must carry a valid server HMAC before they can be reused as chat history. User turns and validated history are clipped to the route limits.
 - The action layer is deterministic and allowlisted. It can return constrained navigation, project, appearance, feedback, or voice-mode actions; it does not grant arbitrary browser or operating-system access.
 - The route creates a bounded request deadline and aborts individual provider attempts when their budget expires. Provider SDK retries are disabled at the client configuration point.
-- NVIDIA completions may stream from the upstream provider while the server aggregates their text. The browser-facing chat route returns a JSON response rather than an SSE token stream.
+- The chat client asks for a streamed reply: once a provider is called, the route returns NDJSON `delta` events and a final signed `done` event. Requests without `stream: true`, validation errors, canned intents, and pre-provider fallbacks get one JSON response.
 
 ### Retrieval-augmented generation
 
@@ -180,7 +180,7 @@ The retrieval bundle is built from the Markdown fact corpus and committed so run
 |---|---|---|---|
 | Recommended default | Groq Qwen 3.8 27B | Vision-capable | Local static fallback when unavailable |
 | 3 NVIDIA selections | NVIDIA's OpenAI-compatible endpoint | Per-model vision and sampling compatibility | Local static fallback when unavailable |
-| Local agent | Configured OpenAI-compatible endpoint | Optional and text-only; shows its healthy backend name | Local static fallback when unavailable |
+| Local agent | Self-hosted gateway (LFM3 1.7B text, LFM3 Omni 2B vision) | Optional; each model shows healthy while the gateway serves it | Local static fallback when unavailable |
 
 The route accepts only IDs in the model registry. A model selection maps to its configured provider path; the application does not silently swap the user's selected model for a different model after a provider failure. The picker fetches a short-lived same-origin status snapshot that can identify configured-unavailable models, deployment canaries, and the healthy local-agent backend name. It also marks a failed model in the current browser tab without persisting that signal or changing the selected route. See [AI and RAG](ai-and-rag.md) for the active registry and configuration requirements.
 

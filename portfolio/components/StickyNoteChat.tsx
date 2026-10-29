@@ -61,7 +61,7 @@ import {
 } from '@/lib/siteActionEvents';
 import { compressChatImage, type ChatImageAttachment } from '@/lib/chatImageCompression';
 import { getChatModel } from '@/lib/chatModels';
-import { getChatModelDisplayName, useChatModelStatus } from '@/lib/chatModelStatus';
+import { getChatModelDisplayName } from '@/lib/chatModelStatus';
 import {
   appendComposerHistory,
   canNavigateComposerHistory,
@@ -85,10 +85,24 @@ function getNextTtsPlaybackSpeed(current: TtsPlaybackSpeed): TtsPlaybackSpeed {
 }
 
 // ─── Typewriter hook: reveals text gradually (only for new AI messages) ───
-// Supports erase→type transitions for filler text swaps and filler→real response.
-// State-driven rendering keeps the displayed note text in sync even when a new
-// response lands mid-animation.
+// Erases only back to the prefix shared with the next text, so streamed replies keep typing
+// forward and a final correction rewrites just its tail. Start/complete callbacks fire only for
+// final text (not filler, not provisional streamed text).
 type TypewriterPhase = 'idle' | 'typing' | 'erasing';
+
+function getSharedPrefixLength(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  let index = 0;
+  while (index < max && a.charCodeAt(index) === b.charCodeAt(index)) index += 1;
+  return index;
+}
+
+// Types several characters per tick when far behind so the note never trails a fast stream.
+function getTypeStep(backlog: number): number {
+  if (backlog > 160) return Math.ceil(backlog / 40);
+  if (backlog > 48) return 2;
+  return 1;
+}
 
 function useTypewriter(
   text: string,
@@ -97,12 +111,16 @@ function useTypewriter(
   speed = TIMING_TOKENS.typeSpeed,
   onStart?: () => void,
   onComplete?: () => void,
+  isStreaming = false,
 ) {
   const [phase, setPhase] = useState<TypewriterPhase>('idle');
   const [displayedText, setDisplayedText] = useState(skip ? text : '');
   const displayedTextRef = useRef(skip ? text : '');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runIdRef = useRef(0);
+  const startedTextRef = useRef<string | null>(null);
+  const completedTextRef = useRef<string | null>(null);
+  const displayedIsFillerRef = useRef(false);
   const eraseSpeed = Math.max(speed * 0.6, 8); // base: TIMING_TOKENS.eraseSpeed
   const notifyStart = useEffectEvent(() => onStart?.());
   const notifyComplete = useEffectEvent(() => onComplete?.());
@@ -120,6 +138,7 @@ function useTypewriter(
   useEffect(() => {
     if (skip) return;
     const activeRunId = ++runIdRef.current;
+    const isFinalText = !isFiller && !isStreaming;
 
     const schedule = (callback: () => void, delay: number) => {
       timerRef.current = setTimeout(() => {
@@ -133,27 +152,37 @@ function useTypewriter(
       setDisplayedText(nextText);
     };
 
-    const finish = (finalText: string, finalIsFiller: boolean) => {
+    const announceStart = (targetText: string) => {
+      if (!isFinalText || startedTextRef.current === targetText) return;
+      startedTextRef.current = targetText;
+      notifyStart();
+    };
+
+    const finish = (finalText: string) => {
       updateDisplayedText(finalText);
       setPhase('idle');
       phaseRef.current = 'idle';
       timerRef.current = null;
-      if (!finalIsFiller) notifyComplete();
+      if (!isFinalText || completedTextRef.current === finalText) return;
+      announceStart(finalText);
+      completedTextRef.current = finalText;
+      notifyComplete();
     };
 
-    const startTyping = (targetText: string, targetIsFiller: boolean, startIndex = 0) => {
+    const startTyping = (targetText: string, startIndex = 0) => {
       setPhase('typing');
       phaseRef.current = 'typing';
-      if (!targetIsFiller) notifyStart();
+      displayedIsFillerRef.current = isFiller;
+      announceStart(targetText);
 
       const tick = (index: number) => {
         if (runIdRef.current !== activeRunId) return;
 
-        const nextIndex = index + 1;
+        const nextIndex = Math.min(targetText.length, index + getTypeStep(targetText.length - index));
         updateDisplayedText(targetText.slice(0, nextIndex));
 
         if (nextIndex >= targetText.length) {
-          finish(targetText, targetIsFiller);
+          finish(targetText);
           return;
         }
 
@@ -161,25 +190,25 @@ function useTypewriter(
       };
 
       if (startIndex >= targetText.length) {
-        finish(targetText, targetIsFiller);
+        finish(targetText);
         return;
       }
 
       schedule(() => tick(startIndex), speed);
     };
 
-    const startErasing = (fromText: string, toText: string, toIsFiller: boolean) => {
+    const startErasing = (fromText: string, toText: string, keepLength: number) => {
       setPhase('erasing');
       phaseRef.current = 'erasing';
 
       const tick = (remainingLength: number) => {
         if (runIdRef.current !== activeRunId) return;
 
-        const nextLength = remainingLength - 1;
-        updateDisplayedText(fromText.slice(0, Math.max(0, nextLength)));
+        const nextLength = Math.max(keepLength, remainingLength - 1);
+        updateDisplayedText(fromText.slice(0, nextLength));
 
-        if (nextLength <= 0) {
-          startTyping(toText, toIsFiller);
+        if (nextLength <= keepLength) {
+          startTyping(toText, keepLength);
           return;
         }
 
@@ -197,21 +226,25 @@ function useTypewriter(
       return;
     }
 
-    if (text === currentText && phaseRef.current === 'idle') {
+    if (text === currentText) {
+      finish(text);
       return;
     }
 
-    if (!currentText) {
-      startTyping(text, isFiller);
-      return;
+    // Filler is never a draft of the reply, so it is always fully erased.
+    const keepLength = isFiller || displayedIsFillerRef.current || phaseRef.current === 'erasing'
+      ? 0
+      : getSharedPrefixLength(currentText, text);
+    if (keepLength === currentText.length) {
+      startTyping(text, keepLength);
+    } else {
+      startErasing(currentText, text, keepLength);
     }
-
-    startErasing(currentText, text, isFiller);
 
     return () => {
       clearActiveTimer();
     };
-  }, [text, skip, speed, eraseSpeed, isFiller, clearActiveTimer]);
+  }, [text, skip, speed, eraseSpeed, isFiller, isStreaming, clearActiveTimer]);
 
   return {
     displayedText: skip ? text : displayedText,
@@ -324,6 +357,35 @@ const NOTE_SPRING = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.defaul
 const FOLD_STYLE_USER = { background: GRADIENT_TOKENS.foldCorner } as const;
 const FOLD_STYLE_AI = { background: GRADIENT_TOKENS.foldCornerAlt } as const;
 const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
+
+// Eases a note's height while its text grows, instead of jumping a full line at each wrap.
+// Writes the height straight to the DOM so streaming text does not cause extra React renders.
+function useSmoothHeight(enabled: boolean) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!enabled || !outer || !inner || typeof ResizeObserver === 'undefined') return;
+
+    const syncHeight = () => {
+      outer.style.height = `${inner.offsetHeight}px`;
+    };
+    syncHeight();
+    outer.style.overflow = 'hidden';
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(inner);
+
+    return () => {
+      observer.disconnect();
+      outer.style.height = '';
+      outer.style.overflow = '';
+    };
+  }, [enabled]);
+
+  return { outerRef, innerRef };
+}
 
 // ─── Suggested Question Strip ───
 // Static rotation styles hoisted to module scope to avoid re-creating objects per render
@@ -718,6 +780,7 @@ const StickyNote = memo(function StickyNote({
   isLoading = false,
   isTtsActive = false,
   onSpeak,
+  onRetry,
   onTtsRestart,
   onTtsSpeedChange,
   onTypewriterStart,
@@ -732,6 +795,7 @@ const StickyNote = memo(function StickyNote({
   isLoading?: boolean;
   isTtsActive?: boolean;
   onSpeak?: (message: ChatMessage) => void;
+  onRetry?: (message: ChatMessage) => void;
   onTtsRestart?: (message: ChatMessage) => void;
   onTtsSpeedChange?: (message: ChatMessage) => void;
   onTypewriterStart?: (message: ChatMessage) => void;
@@ -747,16 +811,18 @@ const StickyNote = memo(function StickyNote({
   const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
-  const { displayedText, isFiller: isDisplayingFiller } = useTypewriter(
+  const { displayedText, isFiller: isDisplayingFiller, isTyping } = useTypewriter(
     message.content,
     !!message.isFiller,
     isUser || !!message.isOld,
     TIMING_TOKENS.typeSpeed,
     onTypewriterStart ? () => onTypewriterStart(message) : undefined,
     onTypewriterDone ? () => onTypewriterDone(message.id) : undefined,
+    !!message.isStreaming,
   );
+  const { outerRef: textHeightRef, innerRef: textRef } = useSmoothHeight(!isUser && (isTyping || !!message.isStreaming));
   const showPencil = !isUser && isLoading;
-  const canSpeak = canSpeakAssistantMessage(message) && !isDisplayingFiller;
+  const canSpeak = canSpeakAssistantMessage(message) && !isDisplayingFiller && !message.isStreaming;
 
   return (
     <m.div
@@ -834,7 +900,8 @@ const StickyNote = memo(function StickyNote({
 
       {/* Message content — rendered inline so the note grows naturally with typewritten text */}
       <div className={cn("relative", canSpeak && "pr-8")}>
-        <div className={cn(
+        <div ref={textHeightRef} className="transition-[height] duration-200 ease-out motion-reduce:transition-none">
+        <div ref={textRef} className={cn(
           "whitespace-pre-wrap break-words leading-relaxed",
           // Filler text: same color, just faded + italic to distinguish from final response
           !isUser && isDisplayingFiller && "italic opacity-50",
@@ -847,6 +914,7 @@ const StickyNote = memo(function StickyNote({
           ) : (
             <MatrixAwareAssistantText message={message} displayedText={displayedText} />
           )}
+        </div>
         </div>
         {isUser && message.imagePreviewDataUrl ? (
           <div className="mt-3 flex max-w-full items-center gap-2 border-t border-dashed border-[var(--note-user-ink)]/25 pt-2">
@@ -865,6 +933,19 @@ const StickyNote = memo(function StickyNote({
           <p className="mt-2 font-sans text-xs leading-snug text-rose-700 dark:text-rose-300" role="status">
             {ttsPlaybackError}
           </p>
+        ) : null}
+        {!isUser && onRetry && !isDisplayingFiller && displayedText === message.content ? (
+          <button
+            type="button"
+            onClick={() => onRetry(message)}
+            className={cn(
+              'mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-sm border-2 border-dashed border-[var(--note-ai-ink)]/30 px-3 font-hand text-sm font-bold text-[var(--note-ai-ink)] transition-colors md:min-h-8',
+              'hover:bg-[var(--note-ai-ink)]/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
+            )}
+          >
+            <RotateCcw size={13} aria-hidden="true" />
+            Try again
+          </button>
         ) : null}
       </div>
 
@@ -1046,14 +1127,13 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   type ConfirmKind = 'clear' | 'enableLocal' | null;
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
   const { modelId } = useChatModelPref();
-  const modelStatus = useChatModelStatus();
   const modelPrefHydrated = useSyncExternalStore(
     subscribeToComposerHydration,
     getClientComposerHydrationSnapshot,
     getServerComposerHydrationSnapshot,
   );
   const model = getChatModel(modelId);
-  const modelDisplayName = getChatModelDisplayName(model, modelStatus.local);
+  const modelDisplayName = getChatModelDisplayName(model);
   const supportsImages = modelPrefHydrated && (model?.supportsImages ?? false);
 
   useEffect(() => {
@@ -1528,7 +1608,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
 export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
-  const { messages, isLoading, error, sendMessage, sendHardcoded, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
+  const { messages, isLoading, error, sendMessage, retryMessage, sendHardcoded, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
@@ -1536,8 +1616,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const { enabled: speakByDefault } = useSpeakByDefaultPref();
   const { modelId } = useChatModelPref();
   const selectedModel = getChatModel(modelId);
-  const modelStatus = useChatModelStatus();
-  const selectedModelDisplayName = getChatModelDisplayName(selectedModel, modelStatus.local);
+  const selectedModelDisplayName = getChatModelDisplayName(selectedModel);
   const {
     activeMessageId: ttsActiveMessageId,
     error: ttsPlaybackError,
@@ -2120,6 +2199,12 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     });
   }, [selection, sendMessage, sendHardcoded, stopTtsPlayback]);
 
+  const handleRetryMessage = useCallback((message: ChatMessage) => {
+    stopTtsPlayback();
+    selection();
+    if (retryMessage(message.id)) soundManager.play('chat-send');
+  }, [retryMessage, selection, stopTtsPlayback]);
+
   const handleSpeakMessage = useCallback((message: ChatMessage) => {
     autoSpokenAssistantRef.current = message.id;
     setTtsControlsMessageId(message.id);
@@ -2308,6 +2393,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
                   isTtsActive={ttsActiveMessageId === msg.id}
                   onSpeak={handleSpeakMessage}
+                  onRetry={msg.retryPrompt && !isLoading && idx === messages.length - 1 ? handleRetryMessage : undefined}
                   onTtsRestart={handleTtsRestart}
                   onTtsSpeedChange={handleTtsSpeedChange}
                   onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterStart : undefined}

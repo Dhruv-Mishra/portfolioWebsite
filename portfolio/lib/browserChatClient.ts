@@ -7,7 +7,10 @@ import {
   type BrowserChatTurn,
 } from '@/lib/browserChatPrompt';
 import {
+  BROWSER_CHAT_CACHE_NAME,
   BROWSER_CHAT_MODEL_REVISION,
+  BROWSER_CHAT_REQUIRED_BYTES,
+  BROWSER_CHAT_WEIGHTS_URL,
   type BrowserChatWorkerRequest,
   type BrowserChatWorkerResponse,
 } from '@/lib/browserChatShared';
@@ -32,6 +35,7 @@ let status: BrowserChatStatus | null = null;
 let worker: Worker | null = null;
 let loadPromise: Promise<void> | null = null;
 let factsPromise: Promise<readonly BrowserChatFact[]> | null = null;
+let cacheChecked = false;
 let nextId = 1;
 const pending = new Map<number, Pending>();
 const listeners = new Set<() => void>();
@@ -65,7 +69,39 @@ function setStatus(next: Partial<BrowserChatStatus>): void {
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
+  if (!cacheChecked) {
+    cacheChecked = true;
+    void syncDownloadedWithCache();
+  }
   return () => listeners.delete(listener);
+}
+
+async function hasCachedWeights(): Promise<boolean> {
+  if (typeof caches === 'undefined' || !(await caches.has(BROWSER_CHAT_CACHE_NAME))) return false;
+  const cache = await caches.open(BROWSER_CHAT_CACHE_NAME);
+  return (await cache.match(BROWSER_CHAT_WEIGHTS_URL)) !== undefined;
+}
+
+// The ready flag can outlive evicted or cleared site storage; the Cache API is the source of truth,
+// so a stale flag never triggers a silent 900 MB re-download without consent.
+async function syncDownloadedWithCache(): Promise<void> {
+  try {
+    const cached = await hasCachedWeights();
+    if (cached === getStatus().downloaded || getStatus().phase === 'loading') return;
+    writeDownloaded(cached);
+    setStatus({ downloaded: cached });
+  } catch {
+    // Cache inspection is best effort.
+  }
+}
+
+async function assertStorageAvailable(): Promise<void> {
+  if (getStatus().downloaded) return;
+  const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
+  if (!estimate?.quota) return;
+  if (estimate.quota - (estimate.usage ?? 0) < BROWSER_CHAT_REQUIRED_BYTES) {
+    throw new Error('Not enough browser storage for the on-device model. Free up about 1 GB and retry.');
+  }
 }
 
 export function useBrowserChatStatus(): BrowserChatStatus {
@@ -121,8 +157,9 @@ function request(message: DistributiveOmit<BrowserChatWorkerRequest, 'id'>): { i
 export function loadBrowserChatModel(): Promise<void> {
   loadPromise ??= (async () => {
     setStatus({ phase: 'loading', progress: getStatus().downloaded ? null : 0, error: null });
-    void navigator.storage?.persist?.().catch(() => false);
     try {
+      await assertStorageAvailable();
+      await navigator.storage?.persist?.().catch(() => false);
       await request({ type: 'load' }).done;
       writeDownloaded(true);
       setStatus({ phase: 'ready', progress: null, downloaded: true });

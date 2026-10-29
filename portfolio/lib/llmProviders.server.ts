@@ -6,8 +6,11 @@ import {
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
   isBrowserChatModelId,
+  isLocalChatModelId,
   type ChatImageInputOrder,
   type ChatModelId,
+  type LocalChatModelId,
+  type NvidiaChatModelId,
   type ServerChatModelId,
 } from '@/lib/chatModels';
 import { deriveLocalAgentUrls } from '@/lib/localAgentStatus.server';
@@ -53,6 +56,7 @@ const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 const MAIN_STOP = ['\n\n\n', '\nUser:', '\nAssistant:'];
 const MAIN_CHAT_MAX_TOKENS = 512;
+const REASONING_CHAT_MAX_TOKENS = 2048;
 const SUGGESTIONS_MAX_TOKENS = 512;
 
 function getGroqQwenProvider(): LLMProvider | null {
@@ -78,10 +82,10 @@ function getGroqQwenProvider(): LLMProvider | null {
   };
 }
 
-function getLocalAgentProvider(): LLMProvider | null {
+function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
   const apiKey = process.env.LOCAL_AGENT_API_KEY;
   const baseUrlValue = process.env.LOCAL_AGENT_BASE_URL;
-  const model = getChatModel('qwen-3.5-4b-local');
+  const model = getChatModel(modelId);
   if (!apiKey?.trim() || !baseUrlValue?.trim() || !model || model.provider !== 'local') return null;
 
   let baseURL: string;
@@ -97,33 +101,46 @@ function getLocalAgentProvider(): LLMProvider | null {
     baseURL,
     model: model.upstreamModel,
     modelId: model.id,
-    label: 'Local agent',
+    label: `local:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
-    sampling: {
-      temperature: 0.7,
-      topP: 0.8,
-      maxTokens: 512,
-      extraBody: { chat_template_kwargs: { enable_thinking: false } },
-    },
+    ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
+    // LiquidAI's recommended sampling: low temperature for LFM3 text, greedy for the omni model.
+    sampling: model.supportsImages
+      ? {
+          temperature: 0,
+          maxTokens: 512,
+          extraBody: { chat_template_kwargs: { enable_thinking: false } },
+        }
+      : {
+          temperature: 0.1,
+          maxTokens: 512,
+          extraBody: {
+            top_k: 50,
+            repeat_penalty: 1.1,
+            chat_template_kwargs: { enable_thinking: false },
+          },
+        },
   };
 }
 
 function getNvidiaProvider(
-  modelId: Exclude<ServerChatModelId, 'qwen-3.8-27b' | 'qwen-3.5-4b-local'>,
-  maxTokens = MAIN_CHAT_MAX_TOKENS,
+  modelId: NvidiaChatModelId,
+  maxTokens?: number,
 ): LLMProvider | null {
   const apiKey = process.env.NVIDIA_API_KEY;
   const model = getChatModel(modelId);
   if (!apiKey || !model || model.provider !== 'nvidia') return null;
 
-  const extraBody = (() => {
+  const { extraBody, defaultMaxTokens } = ((): { extraBody?: Record<string, unknown>; defaultMaxTokens: number } => {
     switch (model.id) {
-      case 'minimax-m3':
-        return { chat_template_kwargs: { thinking_mode: 'disabled' } };
-      case 'deepseek-v4-flash':
-        return { chat_template_kwargs: { thinking: false } };
-      default:
-        return undefined;
+      case 'minimax-m3.1-flash':
+        // M3.1 has no thinking-off switch; low effort keeps replies quick.
+        return { extraBody: { chat_template_kwargs: { reasoning_effort: 'low' } }, defaultMaxTokens: MAIN_CHAT_MAX_TOKENS };
+      case 'deepseek-v4.1-flash':
+        return { extraBody: { chat_template_kwargs: { thinking: false } }, defaultMaxTokens: MAIN_CHAT_MAX_TOKENS };
+      case 'nemotron-3.5-super-vl-120b-a12b':
+        // Thinking stays on for the reasoning pick, so the budget must cover the hidden trace too.
+        return { extraBody: { chat_template_kwargs: { enable_thinking: true } }, defaultMaxTokens: REASONING_CHAT_MAX_TOKENS };
     }
   })();
 
@@ -138,7 +155,7 @@ function getNvidiaProvider(
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     sampling: {
       temperature: 0.6,
-      maxTokens,
+      maxTokens: maxTokens ?? defaultMaxTokens,
       extraBody,
     },
   };
@@ -158,8 +175,8 @@ export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MOD
     return toChatProviders([getGroqQwenProvider()]);
   }
 
-  if (selectedModelId === 'qwen-3.5-4b-local') {
-    return toChatProviders([getLocalAgentProvider()]);
+  if (isLocalChatModelId(selectedModelId)) {
+    return toChatProviders([getLocalAgentProvider(selectedModelId)]);
   }
 
   if (isBrowserChatModelId(selectedModelId)) {
@@ -193,7 +210,7 @@ export function getChatModelRuntimeCatalog(): ChatModelRuntimeCatalog {
 }
 
 export function getSuggestionsProviders(): { primary: LLMProvider | null; fallback: LLMProvider | null; legacyFallback: LLMProvider | null } {
-  const nvidia = getNvidiaProvider('deepseek-v4-flash', SUGGESTIONS_MAX_TOKENS);
+  const nvidia = getNvidiaProvider('deepseek-v4.1-flash', SUGGESTIONS_MAX_TOKENS);
   return { primary: nvidia, fallback: null, legacyFallback: null };
 }
 

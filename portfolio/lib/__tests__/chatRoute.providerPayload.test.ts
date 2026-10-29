@@ -22,7 +22,7 @@ const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, ge
   })),
   createProviderClientMock: vi.fn(),
   getChatProvidersMock: vi.fn(),
-  getLocalAgentStatusMock: vi.fn(async () => ({ healthy: true, modelName: 'gemma-4-e2b-phone' })),
+  getLocalAgentStatusMock: vi.fn(async () => ({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] })),
   groqCreateMock: vi.fn<GroqCreate>(async () => ({
     choices: [{ message: { content: 'provider reply' } }],
   })),
@@ -96,8 +96,8 @@ const NVIDIA_VISION_PROVIDER = {
   label: 'nvidia-minimax',
   apiKey: 'nvidia-key',
   baseURL: 'https://integrate.api.nvidia.com/v1',
-  model: 'minimaxai/minimax-m3',
-  modelId: 'minimax-m3' as const,
+  model: 'minimaxai/minimax-m3.1-flash',
+  modelId: 'minimax-m3.1-flash' as const,
   supportsImages: true,
   imageInputOrder: 'text-first' as const,
   sampling: {
@@ -296,7 +296,7 @@ describe('chat route provider payload mapping', () => {
     const nvidiaPayload = nvidiaCreateMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(nvidiaPayload).not.toHaveProperty('tools');
     expect(nvidiaPayload).not.toHaveProperty('tool_choice');
-    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3');
+    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3.1-flash');
     await expect(response.json()).resolves.toMatchObject({ reply: 'NVIDIA fallback reply.' });
   });
 
@@ -313,14 +313,14 @@ describe('chat route provider payload mapping', () => {
     });
 
     const response = await POST(createChatRequest(undefined, {
-      model: 'minimax-m3',
+      model: 'minimax-m3.1-flash',
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
     }));
 
     expect(createProviderClientMock).toHaveBeenCalledTimes(1);
     expect(createProviderClientMock).toHaveBeenCalledWith(NVIDIA_VISION_PROVIDER);
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
-    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3');
+    expect(response.headers.get('X-Chat-Fallback')).toBe('minimax-m3.1-flash');
     await expect(response.json()).resolves.toMatchObject({ reply: 'vision fallback reply.' });
   });
 
@@ -418,7 +418,7 @@ describe('chat route provider payload mapping', () => {
     });
 
     const response = await POST(createChatRequest(requestController.signal, {
-      model: 'minimax-m3',
+      model: 'minimax-m3.1-flash',
     }));
 
     expect(nvidiaCreateMock).toHaveBeenCalledTimes(1);
@@ -444,7 +444,7 @@ describe('chat route provider payload mapping', () => {
       },
     }));
 
-    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3' }));
+    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3.1-flash' }));
 
     expect(warningSpy).toHaveBeenCalledWith('LLM provider failed', expect.objectContaining({
       code: 'provider-timeout',
@@ -464,7 +464,7 @@ describe('chat route provider payload mapping', () => {
       chat: { completions: { create: nvidiaCreateMock } },
     });
 
-    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3' }));
+    const response = await POST(createChatRequest(undefined, { model: 'minimax-m3.1-flash' }));
 
     expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-timeout');
@@ -486,6 +486,62 @@ describe('chat route provider payload mapping', () => {
 
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('all-providers-failed');
     expect(response.headers.get('X-Chat-Fallback-Reason')).not.toContain('secret');
+  });
+
+  it('returns a busy fallback without retrying when the local queue sheds the request', async () => {
+    const localProvider = {
+      kind: 'openai' as const,
+      label: 'Local agent',
+      apiKey: 'local-key',
+      baseURL: 'https://llm.example/v1',
+      model: 'LFM3-1.7B',
+      modelId: 'qwen-3.5-4b-local' as const,
+      supportsImages: false,
+      sampling: { temperature: 0.1, maxTokens: 512 },
+    };
+    getChatProvidersMock.mockReturnValue({ primary: localProvider, fallbacks: [] });
+    const localCreateMock = vi.fn(async () => {
+      throw new OpenAI.APIError(503, { message: 'busy', code: 'queue_full' }, 'busy', new Headers());
+    });
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+
+    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+    const body = await response.json() as { reply: string; degraded: boolean };
+
+    expect(localCreateMock).toHaveBeenCalledTimes(1);
+    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-busy');
+    expect(body.degraded).toBe(true);
+    expect(body.reply).toContain('in a queue');
+  });
+
+  it('keeps one fixed system message for the local model and moves turn context into the latest user turn', async () => {
+    const localProvider = {
+      kind: 'openai' as const,
+      label: 'Local agent',
+      apiKey: 'local-key',
+      baseURL: 'https://llm.example/v1',
+      model: 'LFM3-1.7B',
+      modelId: 'qwen-3.5-4b-local' as const,
+      supportsImages: false,
+      sampling: { temperature: 0.1, maxTokens: 512 },
+    };
+    getChatProvidersMock.mockReturnValue({ primary: localProvider, fallbacks: [] });
+    const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'local reply' } }] }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+
+    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.5-4b-local');
+    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true });
+    const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
+    expect(payload.messages).toEqual([
+      { role: 'system', content: 'stable system prompt' },
+      {
+        role: 'user',
+        content: "Your own notes for this reply (not written by the visitor; never mention them):\nconditional system prompt\n\nVisitor's message:\nTell me about your work",
+      },
+    ]);
   });
 
   it('finalizes and signs static fallback replies when no provider is configured', async () => {
@@ -556,7 +612,7 @@ describe('chat route provider payload mapping', () => {
 
   it('rejects images for a text-only model', async () => {
     const response = await POST(createChatRequest(undefined, {
-      model: 'nemotron-3-super-120b-a12b',
+      model: 'qwen-3.5-4b-local',
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
     }));
 
@@ -565,14 +621,104 @@ describe('chat route provider payload mapping', () => {
     expect(groqCreateMock).not.toHaveBeenCalled();
   });
 
-  it('rechecks local-agent health on each local-model request and fails closed when it is down', async () => {
-    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: false, modelName: 'Local model' });
+  it('rechecks local-agent health unless a recent check was healthy, and fails closed when it is down', async () => {
+    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: false, modelName: 'Local model', models: [] });
 
     const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
 
-    expect(getLocalAgentStatusMock).toHaveBeenCalledWith({ force: true });
+    expect(getLocalAgentStatusMock).toHaveBeenCalledWith({ maxHealthyAgeMs: 60_000 });
     expect(getChatProvidersMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('local-agent-unhealthy');
+  });
+
+  it('fails closed for the omni model when the gateway only serves the text model', async () => {
+    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B'] });
+
+    const response = await POST(createChatRequest(undefined, { model: 'lfm3-omni-local' }));
+
+    expect(getChatProvidersMock).not.toHaveBeenCalled();
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('local-agent-unhealthy');
+  });
+
+  it('sends an omni image first and keeps turn context in the latest user turn', async () => {
+    const omniProvider = {
+      kind: 'openai' as const,
+      label: 'local:LFM3-Omni-2B',
+      apiKey: 'local-key',
+      baseURL: 'https://llm.example/v1',
+      model: 'LFM3-Omni-2B',
+      modelId: 'lfm3-omni-local' as const,
+      supportsImages: true,
+      imageInputOrder: 'image-first' as const,
+      sampling: { temperature: 0, maxTokens: 512 },
+    };
+    getChatProvidersMock.mockReturnValue({ primary: omniProvider, fallbacks: [] });
+    const omniCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'A lynx' } }] }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: omniCreateMock } } });
+    const dataUrl = 'data:image/png;base64,aGVsbG8=';
+
+    const response = await POST(createChatRequest(undefined, { model: 'lfm3-omni-local', image: { dataUrl } }));
+
+    expect(response.headers.get('X-Chat-Fallback')).toBe('lfm3-omni-local');
+    const payload = omniCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
+    expect(payload.messages[0]).toEqual({ role: 'system', content: 'stable system prompt' });
+    expect(payload.messages[1]).toMatchObject({
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: dataUrl } },
+        { type: 'text', text: expect.stringContaining("Visitor's message:\nTell me about your work") },
+      ],
+    });
+  });
+});
+
+describe('chat route streaming', () => {
+  async function readEvents(response: Response): Promise<Array<Record<string, unknown>>> {
+    const text = await response.text();
+    return text.split('\n').filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resolveChatIntentMock.mockReturnValue(null);
+    getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallbacks: [] });
+  });
+
+  it('streams sanitized deltas and finishes with the signed final reply', async () => {
+    groqCreateMock.mockImplementationOnce((async (payload: Record<string, unknown>) => {
+      expect(payload.stream).toBe(true);
+      return (async function* () {
+        for (const content of ['<think>plan</think>Hi', ' there', ', I build things']) {
+          yield { choices: [{ delta: { content } }] };
+        }
+      })();
+    }) as unknown as GroqCreate);
+
+    const response = await POST(createChatRequest(undefined, { stream: true }));
+    const events = await readEvents(response);
+
+    expect(response.headers.get('content-type')).toContain('application/x-ndjson');
+    const deltas = events.filter((event) => event.type === 'delta').map((event) => event.text).join('');
+    expect(deltas).toBe('Hi there, I build things');
+    const done = events.at(-1) as { type: string; reply: string; action: null; signature: string; modelId: string };
+    expect(done).toMatchObject({ type: 'done', reply: 'Hi there, I build things.', modelId: 'qwen-3.8-27b' });
+    expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: done.action, signature: done.signature })).not.toBeNull();
+  });
+
+  it('finishes the stream with a degraded fallback when the provider fails', async () => {
+    groqCreateMock.mockRejectedValueOnce(Object.assign(new Error('busy'), { status: 503 }));
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'done', degraded: true, fallbackReason: 'provider-busy' });
+  });
+
+  it('keeps early validation errors as plain JSON', async () => {
+    const response = await POST(createChatRequest(undefined, { stream: true, model: 'llama-3.1-8b-instant' }));
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get('content-type')).toContain('application/json');
   });
 });

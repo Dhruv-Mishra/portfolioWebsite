@@ -37,7 +37,7 @@ Built by Dhruv Mishra, a software engineer at Microsoft who builds AI agents and
 
 - **Sketchbook UI:** responsive themes, terminal navigation, page turns, sound, and hidden interactions.
 - **Grounded chat:** a local Markdown corpus and committed embeddings shape server-built context; credentials remain server-side.
-- **Exact model selection:** five allowlisted choices: Groq Qwen 3.8 27B, three NVIDIA models, and an optional text-only local agent. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
+- **Exact model selection:** six allowlisted choices: Groq Qwen 3.8 27B, three NVIDIA models, and two self-hosted LiquidAI models (LFM3 1.7B for text, LFM3 Omni 2B for images). Replies stream into the note as they are generated. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
 - **Voice and workflows:** a live voice agent over Gemini WebSocket, plus browser-native or local Whisper input and Pocket TTS with device-speech fallback in chat, along with guestbook, feedback, stickers, and validated chat actions.
 
 For the component, API, runtime, and delivery boundaries behind these surfaces, read the [architecture HLD](docs/architecture.md).
@@ -62,10 +62,10 @@ This keeps enough detail for screenshots and visual questions while reducing bas
 | Runtime | Model | Capability |
 |---|---|---|
 | Groq | Qwen 3.8 27B | Recommended, fast, vision |
-| NVIDIA | MiniMax M3 | Preview, vision; non-commercial use only |
-| NVIDIA | DeepSeek V4 Flash | Fast |
-| NVIDIA | Nemotron 3 Super 120B | Reasoning |
-| Local agent | Optional configured model | Text-only; healthy backend name shown when available |
+| NVIDIA | MiniMax M3.1 Flash | Vision; research and development use only |
+| NVIDIA | DeepSeek V4.1 Flash | Fast, vision |
+| NVIDIA | Nemotron 3.5 Super VL 120B | Reasoning, vision |
+| Local agent | LFM3 1.7B and LFM3 Omni 2B on a self-hosted Arm VM | Text and vision; one shared CPU queue |
 
 The picker reads a short-lived, same-origin status snapshot. It can flag configured-unavailable models, display deployment-canary models, and replace the local-agent label with its healthy backend model name. A failed request marks that model as having issues for the current tab; it never causes a silent model switch.
 

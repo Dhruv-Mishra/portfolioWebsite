@@ -121,7 +121,7 @@ describe('settings chat model contract', () => {
 
   it('links the current chat model to a focused, visibly marked settings target', () => {
     expect(chatSource).toContain('href="/settings?focus=ai-model"');
-    expect(chatSource).toContain('const selectedModelDisplayName = getChatModelDisplayName(selectedModel, modelStatus.local);');
+    expect(chatSource).toContain('const selectedModelDisplayName = getChatModelDisplayName(selectedModel);');
     expect(chatSource).toContain('Current AI model: ${selectedModelDisplayName}. Change in Settings');
     expect(chatSource).toContain('Current AI model: ${modelDisplayName}. Change in Settings');
     expect(chatSource.match(/title=\{selectedModelDisplayName\}/g)).toHaveLength(2);

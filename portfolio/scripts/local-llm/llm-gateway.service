@@ -1,0 +1,38 @@
+[Unit]
+Description=Local LLM admission queue (in front of llm-server and llm-omni)
+After=network-online.target llm-server.service llm-omni.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=llm
+Group=llm
+EnvironmentFile=/etc/llm/llm-gateway.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/llm/gateway/llm-gateway.mjs
+Restart=always
+RestartSec=2s
+TimeoutStopSec=35s
+Nice=-2
+MemoryMax=256M
+LimitNOFILE=65536
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

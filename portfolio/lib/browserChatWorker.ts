@@ -2,10 +2,12 @@
 
 import type { InterruptableStoppingCriteria, ProgressInfo, TextGenerationPipeline } from '@huggingface/transformers';
 import {
+  BROWSER_CHAT_CACHE_NAME,
   BROWSER_CHAT_MAX_NEW_TOKENS,
   BROWSER_CHAT_MODEL_DTYPE,
   BROWSER_CHAT_MODEL_REPO,
   BROWSER_CHAT_MODEL_REVISION,
+  BROWSER_CHAT_REPO_URL_PREFIX,
   type BrowserChatWorkerRequest,
   type BrowserChatWorkerResponse,
 } from './browserChatShared';
@@ -30,18 +32,32 @@ function errorMessage(error: unknown): string {
 
 function loadGenerator(): Promise<TextGenerationPipeline> {
   generatorPromise ??= (async () => {
-    const { pipeline } = await import('@huggingface/transformers');
-    return pipeline('text-generation', BROWSER_CHAT_MODEL_REPO, {
+    const { env, pipeline } = await import('@huggingface/transformers');
+    env.useBrowserCache = true;
+    env.cacheKey = BROWSER_CHAT_CACHE_NAME;
+    const generator = await pipeline('text-generation', BROWSER_CHAT_MODEL_REPO, {
       ...MODEL_OPTIONS,
       progress_callback: (info: ProgressInfo) => {
         if (info.status === 'progress_total') post({ type: 'progress', progress: info.progress / 100 });
       },
     });
+    void deleteCachedModelFiles((url) => !url.startsWith(`${BROWSER_CHAT_REPO_URL_PREFIX}${BROWSER_CHAT_MODEL_REVISION}/`));
+    return generator;
   })().catch((error: unknown) => {
     generatorPromise = null;
     throw error;
   });
   return generatorPromise;
+}
+
+// Revisions are pinned, so cached files never go stale in place; old revisions only need pruning.
+async function deleteCachedModelFiles(matches: (url: string) => boolean): Promise<void> {
+  if (!(await caches.has(BROWSER_CHAT_CACHE_NAME))) return;
+  const cache = await caches.open(BROWSER_CHAT_CACHE_NAME);
+  const requests = await cache.keys();
+  await Promise.all(requests
+    .filter((cached) => cached.url.startsWith(BROWSER_CHAT_REPO_URL_PREFIX) && matches(cached.url))
+    .map((cached) => cache.delete(cached)));
 }
 
 function readReply(output: unknown): string {
@@ -79,12 +95,7 @@ async function clearCache(id: number) {
   const loaded = generatorPromise;
   generatorPromise = null;
   if (loaded) await loaded.then((generator) => generator.dispose()).catch(() => undefined);
-  const { env } = await import('@huggingface/transformers');
-  const cache = await caches.open(env.cacheKey);
-  const requests = await cache.keys();
-  await Promise.all(requests
-    .filter((cached) => cached.url.includes(`/${BROWSER_CHAT_MODEL_REPO}/`))
-    .map((cached) => cache.delete(cached)));
+  await deleteCachedModelFiles(() => true);
   post({ type: 'cleared', id });
 }
 

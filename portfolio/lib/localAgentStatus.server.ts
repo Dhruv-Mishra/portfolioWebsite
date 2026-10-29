@@ -10,6 +10,8 @@ const MAX_MODEL_NAME_LENGTH = 128;
 export interface LocalAgentStatus {
   healthy: boolean;
   modelName: string;
+  /** Model ids the gateway currently serves; the first one is `modelName`. */
+  models: string[];
 }
 
 export interface LocalAgentUrls {
@@ -19,6 +21,7 @@ export interface LocalAgentUrls {
 }
 
 interface CachedStatus {
+  checkedAt: number;
   expiresAt: number;
   value: LocalAgentStatus;
 }
@@ -29,28 +32,25 @@ let pendingStatus: Promise<LocalAgentStatus> | null = null;
 const unavailableStatus = (): LocalAgentStatus => ({
   healthy: false,
   modelName: LOCAL_MODEL_FALLBACK_NAME,
+  models: [],
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function getAdvertisedModelName(payload: unknown): string | null {
-  if (!isRecord(payload) || !Array.isArray(payload.data)) return null;
+function getAdvertisedModelNames(payload: unknown): string[] {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return [];
 
-  for (const entry of payload.data) {
-    if (!isRecord(entry) || typeof entry.id !== 'string') continue;
+  return payload.data.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.id !== 'string') return [];
     const modelName = entry.id.trim();
-    if (
-      modelName.length > 0
+    return modelName.length > 0
       && modelName.length <= MAX_MODEL_NAME_LENGTH
       && /^[\x20-\x7E]+$/.test(modelName)
-    ) {
-      return modelName;
-    }
-  }
-
-  return null;
+      ? [modelName]
+      : [];
+  });
 }
 
 export function deriveLocalAgentUrls(baseUrlValue: string): LocalAgentUrls {
@@ -127,23 +127,32 @@ async function checkLocalAgentStatus(): Promise<LocalAgentStatus> {
     });
     if (!modelsResponse.ok) return unavailableStatus();
 
-    const modelName = getAdvertisedModelName(await modelsResponse.json());
-    return modelName ? { healthy: true, modelName } : unavailableStatus();
+    const models = getAdvertisedModelNames(await modelsResponse.json());
+    return models.length > 0 ? { healthy: true, modelName: models[0], models } : unavailableStatus();
   } catch {
     return unavailableStatus();
   }
 }
 
 export async function getLocalAgentStatus(
-  options?: { force?: boolean },
+  options?: { force?: boolean; maxHealthyAgeMs?: number },
 ): Promise<LocalAgentStatus> {
-  if (!options?.force && cachedStatus && cachedStatus.expiresAt > Date.now()) {
+  const now = Date.now();
+  if (
+    options?.maxHealthyAgeMs !== undefined
+    && cachedStatus?.value.healthy
+    && now - cachedStatus.checkedAt <= options.maxHealthyAgeMs
+  ) {
+    return cachedStatus.value;
+  }
+  if (!options?.force && options?.maxHealthyAgeMs === undefined && cachedStatus && cachedStatus.expiresAt > now) {
     return cachedStatus.value;
   }
   if (pendingStatus) return pendingStatus;
 
   const statusRequest = checkLocalAgentStatus().then((value) => {
-    cachedStatus = { value, expiresAt: Date.now() + CACHE_TTL_MS };
+    const checkedAt = Date.now();
+    cachedStatus = { value, checkedAt, expiresAt: checkedAt + CACHE_TTL_MS };
     return value;
   });
   pendingStatus = statusRequest;

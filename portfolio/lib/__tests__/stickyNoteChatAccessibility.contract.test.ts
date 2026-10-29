@@ -37,8 +37,9 @@ describe('sticky note chat standalone accessibility contract', () => {
   it('auto-plays a new speakable assistant reply when its final text starts typewriting', () => {
     expect(source).toContain('const { enabled: speakByDefault } = useSpeakByDefaultPref();');
     expect(source).toContain('const autoSpokenAssistantRef = useRef<string | null>(null);');
-    expect(source).toContain('if (!targetIsFiller) notifyStart();');
-    expect(source).toContain('canSpeakAssistantMessage(message)');
+    expect(source).toContain('const isFinalText = !isFiller && !isStreaming;');
+    expect(source).toContain('if (!isFinalText || startedTextRef.current === targetText) return;');
+    expect(source).toContain('canSpeakAssistantMessage(message) && !isDisplayingFiller && !message.isStreaming');
     expect(source).toContain('ttsActiveMessageId === message.id');
     expect(source).toContain('autoSpokenAssistantRef.current === message.id');
     expect(source).toContain('autoSpokenAssistantRef.current = message.id;');

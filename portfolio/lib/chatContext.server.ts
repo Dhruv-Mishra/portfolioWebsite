@@ -20,7 +20,7 @@ import {
   OFF_TOPIC_BLOCK,
   STYLE_BLOCK,
 } from '@/lib/chatPromptBlocks';
-import { getRelevantFactContext } from '@/lib/factRetrieval.server';
+import { getAnchorFactContext, getRelevantFactContext } from '@/lib/factRetrieval.server';
 import { TTS_LLM_RULES } from '@/lib/ttsPrompts';
 
 // ── Prompt blocks ───────────────────────────────────────────────────
@@ -249,6 +249,12 @@ export interface BuildPromptOptions {
   factLimit?: number;
   /** Bypass embeddings retrieval — used by tests for determinism. */
   factsOverride?: string;
+  /**
+   * Put the always-on anchor facts in `stable` so the whole system prompt is a reusable prefix.
+   * Hybrid/recurrent local models can only resume from a checkpoint at a message boundary,
+   * so per-turn content must stay out of the system message for prefix caching to work.
+   */
+  anchorsInStable?: boolean;
 }
 
 /**
@@ -325,14 +331,18 @@ export async function buildDhruvSystemPromptParts(
   // light and stops the model from anchoring onto whichever fact happens to
   // rank first (e.g. the Microsoft Shell role).
   const skipFacts = options.factsOverride === undefined && isPureGreeting(latestMessage);
+  const anchors = options.anchorsInStable ? getAnchorFactContext() : null;
+  const retrievalOptions = anchors
+    ? { limit: Math.max(1, (options.factLimit ?? 6) - anchors.count), includeAnchors: false }
+    : { limit: options.factLimit };
   const facts = options.factsOverride
-    ?? (skipFacts ? '' : await getRelevantFactContext(retrievalQuery, { limit: options.factLimit }));
+    ?? (skipFacts ? '' : await getRelevantFactContext(retrievalQuery, retrievalOptions));
   if (facts) {
-    conditionalSections.push(`Relevant facts:\n${facts}`);
+    conditionalSections.push(`${anchors ? 'More relevant facts' : 'Relevant facts'}:\n${facts}`);
   }
 
   return {
-    stable: STABLE_SYSTEM_PROMPT,
+    stable: anchors?.text ? `${STABLE_SYSTEM_PROMPT}\n\nRelevant facts:\n${anchors.text}` : STABLE_SYSTEM_PROMPT,
     conditional: conditionalSections.join('\n\n'),
   };
 }

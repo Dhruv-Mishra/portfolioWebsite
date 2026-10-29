@@ -190,7 +190,8 @@ export default function RootLayout({
             <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
             <link rel="dns-prefetch" href="https://www.google-analytics.com" />
           </>
-        ) : null}        <link rel="manifest" href="/manifest.json" />
+        ) : null}
+        <link rel="manifest" href="/manifest.json" />
         {/* theme-color meta tags are emitted by the `viewport` export above. */}
 
         {/* Structured Data (JSON-LD) for SEO */}

@@ -6,17 +6,25 @@ import type { ActionExecution } from '@/lib/actions';
 import { resolveChatIntent } from '@/lib/chatActionRouter';
 import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
-import { finalizeAssistantReplyText } from '@/lib/chatSanitization';
+import { finalizeAssistantReplyText, sanitizeAssistantReplyText } from '@/lib/chatSanitization';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import {
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
   isBrowserChatModelId,
   isChatModelId,
+  isLocalChatModelId,
   type ChatImageInputOrder,
   type ChatModelId,
 } from '@/lib/chatModels';
-import type { ChatImage, ClientChatMessage, SanitizedChatMessage } from '@/lib/chatTransport';
+import {
+  CHAT_STREAM_CONTENT_TYPE,
+  type ChatImage,
+  type ChatReplyPayload,
+  type ChatStreamEvent,
+  type ClientChatMessage,
+  type SanitizedChatMessage,
+} from '@/lib/chatTransport';
 import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
 import {
   LLM_MAIN_RESPONSE_TIMEOUT_MS,
@@ -42,6 +50,7 @@ interface ProviderCallResult {
 
 type ProviderFailureCode =
   | 'invalid-provider-response'
+  | 'provider-busy'
   | 'provider-error'
   | 'provider-timeout'
   | 'request-aborted'
@@ -52,9 +61,17 @@ type FallbackReason =
   | 'invalid-provider-response'
   | 'local-agent-unhealthy'
   | 'no-providers-configured'
+  | 'provider-busy'
   | 'provider-timeout'
   | 'request-aborted'
   | 'server-deadline-exceeded';
+
+const BUSY_FALLBACK_REPLY = "A lot of people are chatting with me right now, so my brain is in a queue. Give it a few seconds and ask again, or switch models in Settings for a quicker reply!";
+// Small models otherwise read first-person facts in the user turn as the visitor talking about themselves.
+const TURN_CONTEXT_HEADER = 'Your own notes for this reply (not written by the visitor; never mention them):';
+const TURN_MESSAGE_HEADER = "Visitor's message:";
+const LOCAL_MODEL_HISTORY_BUDGET = { maxMessages: 5, maxChars: 1_600 };
+const LOCAL_HEALTH_REUSE_MS = 60_000;
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 300_000;
@@ -143,6 +160,15 @@ function normalizeProviderConversation(messages: SanitizedChatMessage[]): Saniti
   return normalized;
 }
 
+function withTurnContext(messages: SanitizedChatMessage[], context: string): SanitizedChatMessage[] {
+  const last = messages.at(-1);
+  if (!last || last.role !== 'user') return messages;
+  return [
+    ...messages.slice(0, -1),
+    { ...last, content: `${TURN_CONTEXT_HEADER}\n${context}\n\n${TURN_MESSAGE_HEADER}\n${last.content}` },
+  ];
+}
+
 function getValidatedImage(value: unknown): ChatImage | null | 'invalid' {
   if (value === undefined) return null;
   if (!value || typeof value !== 'object' || Array.isArray(value) || typeof (value as { dataUrl?: unknown }).dataUrl !== 'string') {
@@ -178,24 +204,24 @@ function getOrderedProviders(
     });
 }
 
-function createFallbackResponse(
-  latestUserMessage: string,
-  reason?: FallbackReason,
-) {
-  const reply = finalizeAssistantReplyText(getContextualFallback(latestUserMessage));
-  const headers: Record<string, string> = {
-    'Cache-Control': 'no-store',
-    'X-Chat-Fallback': 'localStatic',
-  };
-  if (reason) {
-    headers['X-Chat-Fallback-Reason'] = reason;
-  }
-  return Response.json({
+function createFallbackPayload(latestUserMessage: string, reason?: FallbackReason): ChatReplyPayload {
+  const reply = finalizeAssistantReplyText(
+    reason === 'provider-busy' ? BUSY_FALLBACK_REPLY : getContextualFallback(latestUserMessage),
+  );
+  return {
     reply,
     action: null,
     degraded: true,
     signature: signAssistantMessage(reply, null),
-  }, { headers });
+    ...(reason ? { fallbackReason: reason } : {}),
+  };
+}
+
+function createFallbackResponse(
+  latestUserMessage: string,
+  reason?: FallbackReason,
+) {
+  return createReplyResponse(createFallbackPayload(latestUserMessage, reason));
 }
 
 function getFallbackReason(
@@ -207,6 +233,9 @@ function getFallbackReason(
   if (routeDeadlineSignal.aborted) return 'server-deadline-exceeded';
   if (providerFailureCodes.length > 0 && providerFailureCodes.every((code) => code === 'provider-timeout')) {
     return 'provider-timeout';
+  }
+  if (providerFailureCodes.length > 0 && providerFailureCodes.every((code) => code === 'provider-busy')) {
+    return 'provider-busy';
   }
   if (providerFailureCodes.length > 0 && providerFailureCodes.every((code) => code === 'invalid-provider-response')) {
     return 'invalid-provider-response';
@@ -221,7 +250,10 @@ export async function POST(request: NextRequest) {
     () => routeDeadlineController.abort('server-deadline-exceeded'),
     LLM_MAIN_RESPONSE_TIMEOUT_MS,
   );
-  const routeSignal = AbortSignal.any([request.signal, routeDeadlineController.signal]);
+  // A streamed reply outlives this handler, so the stream clears the deadline when it settles.
+  let streamOwnsDeadline = false;
+  const streamCancelController = new AbortController();
+  const routeSignal = AbortSignal.any([request.signal, routeDeadlineController.signal, streamCancelController.signal]);
 
   try {
     // Block cross-origin requests (prevents LLM credit abuse from other sites)
@@ -239,9 +271,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { messages?: unknown; model?: unknown; image?: unknown };
+    let body: { messages?: unknown; model?: unknown; image?: unknown; stream?: unknown };
     try {
-      body = await readBoundedJson<{ messages?: unknown; model?: unknown; image?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
+      body = await readBoundedJson<{ messages?: unknown; model?: unknown; image?: unknown; stream?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
     } catch (error) {
       if (error instanceof BoundedJsonError) {
         return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
@@ -265,6 +297,7 @@ export async function POST(request: NextRequest) {
     }
 
     const selectedModel = getChatModel(selectedModelId);
+    const isLocalModel = isLocalChatModelId(selectedModelId);
     const image = getValidatedImage(body.image);
     if (image === 'invalid') {
       return Response.json({ error: 'Image must be a JPEG, PNG, or WebP data URL under 180 KB' }, { status: 400 });
@@ -290,7 +323,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Select a signed, bounded recent history after assistant verification.
-    const sanitized = selectRecentChatHistory(validMessages);
+    // The CPU-hosted local model pays for every history token in prompt time, so it keeps two turns.
+    const sanitized = selectRecentChatHistory(
+      validMessages,
+      isLocalModel ? LOCAL_MODEL_HISTORY_BUDGET : undefined,
+    );
 
     if (sanitized.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });
@@ -327,23 +364,34 @@ export async function POST(request: NextRequest) {
     // The conditional block (off-topic / UI / terminal / matrix overrides,
     // recent UI actions, retrieved facts) is emitted as a separate system
     // message, and only when non-empty.
-    const { stable, conditional } = await buildDhruvSystemPromptParts(sanitized, { factLimit: 6 });
-    const providerConversation = normalizeProviderConversation(sanitized);
-    if (providerConversation.length === 0) {
+    // The CPU-hosted local model reuses its KV/recurrent state only from a checkpoint at a
+    // message boundary, so it gets one fixed system message (rules + anchor facts) and the
+    // per-turn context rides on the latest user message instead.
+    const turnContextInUserMessage = isLocalModel;
+    const { stable, conditional } = await buildDhruvSystemPromptParts(
+      sanitized,
+      turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true } : { factLimit: 6 },
+    );
+    const normalizedConversation = normalizeProviderConversation(sanitized);
+    if (normalizedConversation.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });
     }
+    const providerConversation = turnContextInUserMessage && conditional
+      ? withTurnContext(normalizedConversation, conditional)
+      : normalizedConversation;
     const promptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: stable },
-      ...(conditional ? [{ role: 'system' as const, content: conditional }] : []),
+      ...(conditional && !turnContextInUserMessage ? [{ role: 'system' as const, content: conditional }] : []),
     ];
-if (selectedModelId === 'qwen-3.5-4b-local') {
-      const localStatus = await getLocalAgentStatus({ force: true });
-      if (!localStatus.healthy) {
+    if (isLocalModel) {
+      // A recent healthy check is enough; a dead agent still fails fast at the provider call.
+      const localStatus = await getLocalAgentStatus({ maxHealthyAgeMs: LOCAL_HEALTH_REUSE_MS });
+      const upstreamModel = selectedModel?.upstreamModel.toLowerCase();
+      if (!localStatus.healthy || !localStatus.models.some((served) => served.toLowerCase() === upstreamModel)) {
         return createFallbackResponse(latestUserMessage, 'local-agent-unhealthy');
       }
     }
 
-    
     const { primary, fallbacks } = getChatProviders(selectedModelId);
     const providers = getOrderedProviders(primary, fallbacks)
       .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder));
@@ -353,85 +401,143 @@ if (selectedModelId === 'qwen-3.5-4b-local') {
       return createFallbackResponse(latestUserMessage, 'no-providers-configured');
     }
 
-    let result: ProviderCallResult | null = null;
-    const providerErrors: string[] = [];
-    const providerFailureCodes: ProviderFailureCode[] = [];
+    const generateReply = async (onDelta?: (text: string) => void): Promise<ChatReplyPayload> => {
+      let result: ProviderCallResult | null = null;
+      let streamedAny = false;
+      const emitDelta = onDelta && ((text: string) => {
+        streamedAny = true;
+        onDelta(text);
+      });
+      const providerErrors: string[] = [];
+      const providerFailureCodes: ProviderFailureCode[] = [];
 
-    const fallbackAttemptBudget = providers.length > 1
-      ? Math.floor(LLM_PROVIDER_FALLBACK_RESERVE_MS / (providers.length - 1))
-      : 0;
+      const fallbackAttemptBudget = providers.length > 1
+        ? Math.floor(LLM_PROVIDER_FALLBACK_RESERVE_MS / (providers.length - 1))
+        : 0;
 
-    providerLoop: for (let i = 0; i < providers.length; i += 1) {
-      const provider = providers[i];
-      const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
-      const apiMessages = [
-        ...promptMessages,
-        ...toProviderMessages(
-          providerConversation,
-          image ?? undefined,
-          provider.imageInputOrder,
-        ),
-      ];
-      const providerBudgetDeadline = Date.now() + LLM_PROVIDER_TIMEOUT_MS;
+      providerLoop: for (let i = 0; i < providers.length; i += 1) {
+        const provider = providers[i];
+        const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
+        const apiMessages = [
+          ...promptMessages,
+          ...toProviderMessages(
+            providerConversation,
+            image ?? undefined,
+            provider.imageInputOrder,
+          ),
+        ];
+        const providerBudgetDeadline = Date.now() + LLM_PROVIDER_TIMEOUT_MS;
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const remainingProviderBudgetMs = providerBudgetDeadline - Date.now();
-        const remainingRouteBudgetMs = routeDeadlineAt - Date.now() - fallbackReserveMs;
-        const allowedAttemptMs = Math.max(0, Math.min(remainingProviderBudgetMs, remainingRouteBudgetMs));
-        const attemptTimeoutMs = Math.min(
-          attempt === 0 ? LLM_PROVIDER_TIMEOUT_MS : INVALID_PROVIDER_RESPONSE_RETRY_TIMEOUT_MS,
-          allowedAttemptMs,
-        );
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const remainingProviderBudgetMs = providerBudgetDeadline - Date.now();
+          const remainingRouteBudgetMs = routeDeadlineAt - Date.now() - fallbackReserveMs;
+          const allowedAttemptMs = Math.max(0, Math.min(remainingProviderBudgetMs, remainingRouteBudgetMs));
+          const attemptTimeoutMs = Math.min(
+            attempt === 0 ? LLM_PROVIDER_TIMEOUT_MS : INVALID_PROVIDER_RESPONSE_RETRY_TIMEOUT_MS,
+            allowedAttemptMs,
+          );
 
-        if (routeSignal.aborted) break providerLoop;
-        if (attemptTimeoutMs <= 0 || (attempt === 1 && attemptTimeoutMs < MIN_INVALID_PROVIDER_RESPONSE_RETRY_MS)) break;
+          if (routeSignal.aborted) break providerLoop;
+          if (attemptTimeoutMs <= 0 || (attempt === 1 && attemptTimeoutMs < MIN_INVALID_PROVIDER_RESPONSE_RETRY_MS)) break;
 
-        try {
-          result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs);
-          break providerLoop;
-        } catch (err) {
-          const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
-          providerFailureCodes.push(code);
-          providerErrors.push(`${provider.label}: ${code}`);
-          console.warn('LLM provider failed', {
-            provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
-            code,
-            errorName: err instanceof Error ? err.name : 'UnknownError',
-          });
+          try {
+            result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs, emitDelta);
+            break providerLoop;
+          } catch (err) {
+            const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
+            providerFailureCodes.push(code);
+            providerErrors.push(`${provider.label}: ${code}`);
+            console.warn('LLM provider failed', {
+              provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
+              code,
+              errorName: err instanceof Error ? err.name : 'UnknownError',
+            });
 
-          if (code !== 'invalid-provider-response') break;
+            // Text the visitor has already seen must not be followed by a different provider's reply.
+            if (streamedAny) break providerLoop;
+            if (code !== 'invalid-provider-response') break;
+          }
         }
       }
+
+      if (!result) {
+        console.error('All LLM providers failed; returning local fallback reply.', {
+          attempted: providers.map(p => p.label),
+          errors: providerErrors,
+        });
+        return createFallbackPayload(
+          latestUserMessage,
+          getFallbackReason(providerFailureCodes, request.signal, routeDeadlineController.signal),
+        );
+      }
+
+      return {
+        reply: result.reply,
+        action: result.action,
+        signature: signAssistantMessage(result.reply, result.action),
+        modelId: result.modelId,
+      };
+    };
+
+    if (body.stream === true) {
+      streamOwnsDeadline = true;
+      return createStreamingResponse(generateReply, streamCancelController, () => clearTimeout(routeDeadlineTimeout));
     }
 
-    if (!result) {
-      console.error('All LLM providers failed; returning local fallback reply.', {
-        attempted: providers.map(p => p.label),
-        errors: providerErrors,
-      });
-      return createFallbackResponse(
-        latestUserMessage,
-        getFallbackReason(providerFailureCodes, request.signal, routeDeadlineController.signal),
-      );
-    }
-
-    return Response.json({
-      reply: result.reply,
-      action: result.action,
-      signature: signAssistantMessage(result.reply, result.action),
-      modelId: result.modelId,
-    }, {
-      headers: {
-        'Cache-Control': 'no-store',
-        'X-Chat-Fallback': result.modelId,
-      },
-    });
+    return createReplyResponse(await generateReply());
   } catch (err) {
     console.error('Chat API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   } finally {
-    clearTimeout(routeDeadlineTimeout);
+    if (!streamOwnsDeadline) clearTimeout(routeDeadlineTimeout);
   }
+}
+
+function createReplyResponse({ fallbackReason, ...payload }: ChatReplyPayload): Response {
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-store',
+    'X-Chat-Fallback': payload.degraded ? 'localStatic' : (payload.modelId ?? 'legacy'),
+  };
+  if (fallbackReason) {
+    headers['X-Chat-Fallback-Reason'] = fallbackReason;
+  }
+  return Response.json(payload, { headers });
+}
+
+function createStreamingResponse(
+  generate: (onDelta: (text: string) => void) => Promise<ChatReplyPayload>,
+  cancelController: AbortController,
+  onSettled: () => void,
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: ChatStreamEvent) => {
+        if (!cancelController.signal.aborted) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+      try {
+        const payload = await generate((text) => send({ type: 'delta', text }));
+        send({ type: 'done', ...payload });
+      } catch (error) {
+        // The client treats a stream without `done` as a failed request.
+        console.error('Chat stream error:', error);
+      } finally {
+        onSettled();
+        if (!cancelController.signal.aborted) controller.close();
+      }
+    },
+    cancel() {
+      cancelController.abort('request-aborted');
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': `${CHAT_STREAM_CONTENT_TYPE}; charset=utf-8`,
+      'Cache-Control': 'no-store',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
 
 /**
@@ -439,38 +545,43 @@ if (selectedModelId === 'qwen-3.5-4b-local') {
  * the client.
  */
 async function callProvider(
-  provider: import('@/lib/llmProviders.server').LLMProvider,
+  provider: LLMProvider,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   routeSignal: AbortSignal,
   timeoutMs: number,
+  onDelta?: (text: string) => void,
 ): Promise<ProviderCallResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort('provider-timeout'), timeoutMs);
   const signal = AbortSignal.any([routeSignal, controller.signal]);
+  // NVIDIA always streams; the others stream only when the client asked for a streamed reply.
+  const stream = provider.kind === 'nvidia' || onDelta !== undefined;
 
   try {
-    let rawContent: unknown;
+    let rawContent: string;
 
     if (provider.kind === 'groq') {
       const groq = new Groq({ apiKey: provider.apiKey, maxRetries: 0 });
-      const completion = await groq.chat.completions.create({
+      const params = {
         model: provider.model,
         messages: messages as Groq.Chat.Completions.ChatCompletionMessageParam[],
         temperature: provider.sampling.temperature,
         ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
         ...(provider.sampling.maxCompletionTokens !== undefined ? { max_completion_tokens: provider.sampling.maxCompletionTokens } : {}),
         ...provider.sampling.extraBody,
-        stream: false,
-      }, {
-        signal,
-      });
-      rawContent = completion.choices?.[0]?.message?.content;
-    } else if (provider.kind === 'nvidia') {
+      };
+      if (stream) {
+        rawContent = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+      } else {
+        const completion = await groq.chat.completions.create({ ...params, stream: false }, { signal });
+        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
+      }
+    } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
         ? foldSystemMessagesIntoFirstUser(messages)
         : collapseLeadingSystemMessages(messages);
       const client = createProviderClient(provider);
-      const completionParams = {
+      const params = {
         model: provider.model,
         messages: collapsedMessages,
         temperature: provider.sampling.temperature,
@@ -478,44 +589,15 @@ async function callProvider(
         ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
         ...provider.sampling.extraBody,
       };
-
-      const completion = await client.chat.completions.create({
-        ...completionParams,
-        stream: true,
-      }, {
-        signal,
-      });
-      let streamedContent = '';
-      for await (const chunk of completion) {
-        if (signal.aborted) {
-          throw new OpenAI.APIUserAbortError();
-        }
-        streamedContent += getDeltaText(chunk.choices?.[0]?.delta?.content);
+      if (stream) {
+        rawContent = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+      } else {
+        const completion = await client.chat.completions.create({ ...params, stream: false }, { signal });
+        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
       }
-      if (signal.aborted) {
-        throw new OpenAI.APIUserAbortError();
-      }
-      rawContent = streamedContent;
-    } else {
-      const collapsedMessages = provider.acceptsSystemMessages === false
-        ? foldSystemMessagesIntoFirstUser(messages)
-        : collapseLeadingSystemMessages(messages);
-      const client = createProviderClient(provider);
-      const completion = await client.chat.completions.create({
-        model: provider.model,
-        messages: collapsedMessages,
-        temperature: provider.sampling.temperature,
-        ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
-        ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
-        ...provider.sampling.extraBody,
-        stream: false,
-      }, {
-        signal,
-      });
-      rawContent = completion.choices?.[0]?.message?.content;
     }
 
-    const rawReply = stripThinkTags(getDeltaText(rawContent));
+    const rawReply = stripThinkTags(rawContent);
     const reply = finalizeAssistantReplyText(rawReply);
 
     if (!reply) {
@@ -554,7 +636,38 @@ function getProviderFailureCode(
   if (error instanceof OpenAI.APIUserAbortError || (error instanceof Error && error.name === 'AbortError')) {
     return 'provider-timeout';
   }
+  const status = typeof error === 'object' && error !== null ? (error as { status?: unknown }).status : undefined;
+  if (status === 429 || status === 503) {
+    return 'provider-busy';
+  }
   return 'provider-error';
+}
+
+async function readCompletionStream(
+  chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown } }> }>,
+  signal: AbortSignal,
+  onDelta?: (text: string) => void,
+): Promise<string> {
+  let raw = '';
+  let shown = '';
+  for await (const chunk of chunks) {
+    if (signal.aborted) throw new OpenAI.APIUserAbortError();
+    raw += getDeltaText(chunk.choices?.[0]?.delta?.content);
+    if (!onDelta) continue;
+    // Only forward text that extends what was already shown; the final `done` event corrects the rest.
+    const preview = getStreamingPreview(raw);
+    if (preview.length > shown.length && preview.startsWith(shown)) {
+      onDelta(preview.slice(shown.length));
+      shown = preview;
+    }
+  }
+  if (signal.aborted) throw new OpenAI.APIUserAbortError();
+  return raw;
+}
+
+function getStreamingPreview(raw: string): string {
+  // Hide reasoning blocks, including one that is still open.
+  return sanitizeAssistantReplyText(raw.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, ''));
 }
 
 function getDeltaText(content: unknown): string {

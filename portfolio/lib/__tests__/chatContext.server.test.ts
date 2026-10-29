@@ -183,6 +183,24 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     expect(first.conditional).not.toBe(second.conditional);
   });
 
+  it('moves anchor facts into a stable prefix for the cache-friendly local layout', async () => {
+    const work = await buildDhruvSystemPromptParts(
+      [{ role: 'user', content: 'what do you work on?' }],
+      { anchorsInStable: true },
+    );
+    const study = await buildDhruvSystemPromptParts(
+      [{ role: 'user', content: 'where did you study?' }],
+      { anchorsInStable: true },
+    );
+
+    expect(work.stable).toBe(study.stable);
+    expect(work.stable.startsWith(`${STABLE_SYSTEM_PROMPT}\n\nRelevant facts:\n- `)).toBe(true);
+    expect(work.conditional).not.toContain('Relevant facts:\n');
+    for (const anchorLine of work.stable.split('\n').filter((line) => line.startsWith('- '))) {
+      expect(work.conditional).not.toContain(anchorLine);
+    }
+  });
+
   it('simple "hi" produces a materially shorter prompt than an action+terminal+off-topic query', async () => {
     const simple = await build([{ role: 'user', content: 'hi' }]);
     const heavy = await build([

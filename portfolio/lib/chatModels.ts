@@ -35,46 +35,59 @@ export const CHAT_MODELS = [
     isRecommended: true,
   },
   {
-    id: 'minimax-m3',
+    id: 'minimax-m3.1-flash',
     provider: 'nvidia',
     group: 'NVIDIA',
-    upstreamModel: 'minimaxai/minimax-m3',
-    label: 'MiniMax M3',
-    quality: 'Preview',
+    upstreamModel: 'minimaxai/minimax-m3.1-flash',
+    label: 'MiniMax M3.1 Flash',
+    quality: 'Vision',
     supportsImages: true,
     imageInputOrder: 'text-first',
     capabilities: ['image'],
-    caveat: 'Preview model; non-commercial use only.',
+    caveat: 'Research and development use only.',
   },
   {
-    id: 'deepseek-v4-flash',
+    id: 'deepseek-v4.1-flash',
     provider: 'nvidia',
     group: 'NVIDIA',
-    upstreamModel: 'deepseek-ai/deepseek-v4-flash-0731',
-    label: 'DeepSeek V4 Flash',
+    upstreamModel: 'deepseek-ai/deepseek-v4.1-flash',
+    label: 'DeepSeek V4.1 Flash',
     quality: 'Fast',
-    supportsImages: false,
-    capabilities: ['fast'],
+    supportsImages: true,
+    imageInputOrder: 'text-first',
+    capabilities: ['fast', 'image'],
   },
   {
-    id: 'nemotron-3-super-120b-a12b',
+    id: 'nemotron-3.5-super-vl-120b-a12b',
     provider: 'nvidia',
     group: 'NVIDIA',
-    upstreamModel: 'nvidia/nemotron-3-super-120b-a12b',
-    label: 'Nemotron 3 Super 120B',
+    upstreamModel: 'nvidia/nemotron-3.5-super-vl-120b-a12b',
+    label: 'Nemotron 3.5 Super VL 120B',
     quality: 'Strong reasoning',
-    supportsImages: false,
-    capabilities: ['reasoning', 'slow'],
+    supportsImages: true,
+    imageInputOrder: 'text-first',
+    capabilities: ['reasoning', 'image', 'slow'],
   },
   {
     id: 'qwen-3.5-4b-local',
     provider: 'local',
     group: 'Local agent',
-    upstreamModel: 'gemma-4-e2b-phone',
-    label: 'Local model',
+    upstreamModel: 'LFM3-1.7B',
+    label: 'LFM3 1.7B',
     quality: 'Local agent',
     supportsImages: false,
-    capabilities: ['slow'],
+    capabilities: ['fast'],
+  },
+  {
+    id: 'lfm3-omni-local',
+    provider: 'local',
+    group: 'Local agent',
+    upstreamModel: 'LFM3-Omni-2B',
+    label: 'LFM3 Omni 2B',
+    quality: 'Local vision',
+    supportsImages: true,
+    imageInputOrder: 'image-first',
+    capabilities: ['image', 'slow'],
   },
   {
     id: 'on-device',
@@ -107,9 +120,11 @@ export function isChatModelId(modelId: unknown): modelId is ChatModelId {
 }
 
 export type BrowserChatModelId = Extract<ChatModel, { provider: 'browser' }>['id'];
+export type LocalChatModelId = Extract<ChatModel, { provider: 'local' }>['id'];
+export type NvidiaChatModelId = Extract<ChatModel, { provider: 'nvidia' }>['id'];
 export type ServerChatModelId = Exclude<ChatModelId, BrowserChatModelId>;
 
-// Off until a published transformers.js release (>= 4.3.2) supports the lfm3 architecture.
+// Off until the pinned WebGPU build passes a browser smoke test on transformers.js 4.3.2 (first lfm3 release).
 export const ON_DEVICE_CHAT_ENABLED: boolean = false;
 
 export const SELECTABLE_CHAT_MODELS: readonly ChatModel[] = CHAT_MODELS.filter(
@@ -122,4 +137,8 @@ export function isSelectableChatModelId(modelId: unknown): modelId is ChatModelI
 
 export function isBrowserChatModelId(modelId: unknown): modelId is BrowserChatModelId {
   return typeof modelId === 'string' && getChatModel(modelId)?.provider === 'browser';
+}
+
+export function isLocalChatModelId(modelId: unknown): modelId is LocalChatModelId {
+  return typeof modelId === 'string' && getChatModel(modelId)?.provider === 'local';
 }

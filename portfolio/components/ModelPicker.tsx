@@ -6,6 +6,7 @@ import { CHAT_PROVIDER_LABELS, SELECTABLE_CHAT_MODELS, type ChatModelCapability,
 import {
   getChatModelDisplayName,
   isChatModelFacingIssues,
+  isLocalChatModelHealthy,
   refreshChatModelStatus,
   useChatModelStatus,
 } from '@/lib/chatModelStatus';
@@ -40,7 +41,6 @@ const VISIBLE_MODEL_GROUPS = MODEL_GROUPS.filter((group) => SELECTABLE_CHAT_MODE
 const VIEWPORT_MARGIN = 12;
 const LISTBOX_GAP = 8;
 const NAVIGATION_MARGIN = 8;
-const LOCAL_MODEL_ID = 'qwen-3.5-4b-local';
 
 type ListboxPlacement = 'top' | 'bottom';
 
@@ -73,7 +73,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
   const listboxId = useId();
   const selectedModel = SELECTABLE_CHAT_MODELS.find((model) => model.id === value);
   const activeIndex = SELECTABLE_CHAT_MODELS.findIndex((model) => model.id === activeModelId);
-  const selectedModelIsHealthyLocal = selectedModel?.id === LOCAL_MODEL_ID && modelStatus.local?.healthy;
+  const selectedModelIsHealthyLocal = isLocalChatModelHealthy(selectedModel, modelStatus.local);
 
   useEffect(() => {
     if (!open) return;
@@ -182,7 +182,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
       >
         <span className="flex min-w-0 flex-1 items-start gap-2">
           <span className="min-w-0">
-            <span className="block break-words font-bold leading-tight">{getChatModelDisplayName(selectedModel, modelStatus.local)}</span>
+            <span className="block break-words font-bold leading-tight">{getChatModelDisplayName(selectedModel)}</span>
             <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? CHAT_PROVIDER_LABELS[selectedModel.provider] : null}</span>
           </span>
           {selectedModelIsHealthyLocal ? <LocalModelHealthDot /> : null}
@@ -224,7 +224,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
             <div key={group} role="group" aria-label={group} className="px-1">
               <p className="px-3 pb-1 pt-2 font-code text-[10px] uppercase text-[var(--c-ink)]/50">{group}</p>
               {SELECTABLE_CHAT_MODELS.filter((model) => model.group === group).map((model) => {
-                const modelIsHealthyLocal = model.id === LOCAL_MODEL_ID && modelStatus.local?.healthy;
+                const modelIsHealthyLocal = isLocalChatModelHealthy(model, modelStatus.local);
                 const modelHasIssues = isChatModelFacingIssues(model.id, modelStatus);
 
                 return (
@@ -246,7 +246,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                   )}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block break-words text-base font-bold leading-tight text-[var(--c-heading)]">{getChatModelDisplayName(model, modelStatus.local)}</span>
+                    <span className="block break-words text-base font-bold leading-tight text-[var(--c-heading)]">{getChatModelDisplayName(model)}</span>
                     <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{CHAT_PROVIDER_LABELS[model.provider]} · {model.quality}</span>
                     {modelHasIssues ? <span className="block text-sm font-bold leading-snug text-rose-700 dark:text-rose-300">Facing issues</span> : null}
                   </span>

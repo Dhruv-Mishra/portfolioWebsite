@@ -1,0 +1,76 @@
+[Unit]
+Description=Local omni LLM (llama.cpp, text + image + audio input) API server
+# Shares the CPU with llm-server.service; llm-gateway admits one generation at a time across both.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=llm
+Group=llm
+WorkingDirectory=/opt/llm
+EnvironmentFile=/etc/llm/llm-omni.env
+Environment=LD_LIBRARY_PATH=/opt/llm/bin
+Environment=MALLOC_ARENA_MAX=2
+Environment=OMP_PROC_BIND=close
+Environment=OMP_PLACES=cores
+# --image-max-tokens caps each image at 256 tokens: ~5 s of prompt time on 4 Neoverse-N1 cores
+# instead of ~17 s for a 1024 px photo at the default budget. Greedy decoding per LiquidAI.
+ExecStart=/opt/llm/bin/llama-server \
+    --model ${OMNI_MODEL} \
+    --mmproj ${OMNI_MMPROJ} \
+    --alias ${OMNI_ALIASES} \
+    --host 127.0.0.1 \
+    --port 8082 \
+    --api-key-file /etc/llm/api-key \
+    --parallel 1 \
+    --ctx-size ${OMNI_CTX} \
+    --threads 4 \
+    --threads-batch 4 \
+    --batch-size 2048 \
+    --ubatch-size 512 \
+    --flash-attn on \
+    --swa-full \
+    --image-max-tokens ${OMNI_IMAGE_MAX_TOKENS} \
+    --load-mode mmap+mlock \
+    --cache-ram 2048 \
+    --cont-batching \
+    --jinja \
+    --reasoning off \
+    --temp 0 \
+    --n-predict 512 \
+    --metrics \
+    --no-slots \
+    --no-webui \
+    --timeout 600
+Restart=always
+RestartSec=3s
+TimeoutStartSec=5min
+TimeoutStopSec=30s
+Nice=-5
+CPUWeight=10000
+IOWeight=10000
+LimitMEMLOCK=infinity
+LimitNOFILE=65536
+TasksMax=256
+OOMScoreAdjust=-900
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

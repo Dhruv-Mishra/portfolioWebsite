@@ -14,11 +14,10 @@ Branch: `feat/on-device-lfm3`. Hand-off notes for continuing on another machine.
 - Settings checks WebGPU and `shader-f16` support, asks for consent, shows download progress, and can delete the cached model. `ModelPicker` lists only selectable models and adds an "On device" group when enabled.
 - Tests: `browserChatPrompt.test.ts` plus updated catalog, route, provider, and settings tests. `npm run typecheck` and the full Vitest suite (1026 tests) pass.
 
-**Blocker:** Transformers.js `latest` is 4.3.1 (checked 2026-10-29), which has no `lfm3` architecture. To enable:
+**Remaining step:** Transformers.js 4.3.2 (which adds `lfm3`) is now in the lockfile. To enable:
 
-1. In `portfolio/`, install `@huggingface/transformers@^4.3.2` once it is published.
-2. Set `ON_DEVICE_CHAT_ENABLED = true`.
-3. Smoke-test WebGPU with Playwright on a production build. Check load, generate, abort, clear cache, and the 16K-token limit.
+1. Set `ON_DEVICE_CHAT_ENABLED = true`.
+2. Smoke-test WebGPU with Playwright on a production build. Check load, generate, abort, clear cache, and the 16K-token limit.
 
 ## Browser Model Swap (ONNX)
 
@@ -66,9 +65,30 @@ The quality and size figures come from the build's model card and were not measu
 | LiquidAI `QAD-Q4_0` | 1,001 MB | 0.169 | 1.296 | 81.4% | 394 / 142 | 57.0 / 38.0 |
 | `Q8_0` (reference) | 1,761 MB | – | – | – | 240 / 116 | 33.6 / 21.9 |
 
-**Pick: `bartowski/LFM3-1.7B-GGUF:IQ4_XS`.** It is the smallest, closest to the reference, and fastest at generation. Its only cost is 3–9% slower prompt processing than `Q4_K_M`. Mean KLD error bars were ±0.002–0.004.
+**Pick on x86: `bartowski/LFM3-1.7B-GGUF:IQ4_XS`.** It is the smallest, closest to the reference, and fastest at generation. Its only cost is 3–9% slower prompt processing than `Q4_K_M`. Mean KLD error bars were ±0.002–0.004.
 
 The quantization-aware-distilled `QAD-Q4_0` may score lower on closeness than on actual task accuracy. It has no published task scores, though, and its prompt processing is about 30% slower.
+
+## ARM VM Benchmark (deployed)
+
+The x86 pick does not carry over to `ARM_Hunar` (4× Neoverse-N1, dotprod, no i8mm). There, Q4_0 and IQ4_NL get weight repacking, but IQ4_XS and the K-quants do not. Measurements used llama.cpp `b11982` built with `GGML_NATIVE=ON`, 4 threads, flash attention, `llama-bench` `pp512`/`tg128`. KLD was measured against bartowski `Q8_0` on the same facts corpus.
+
+| Quant | Prompt t/s | Generation t/s | Mean KLD ↓ | Same top token ↑ |
+|---|---|---|---|---|
+| **LiquidAI `QAD-Q4_0`** | **133** | **28.5** | 0.178 | 79.8% |
+| bartowski `Q4_0` | 117 | 27.5 | 0.180 | 79.3% |
+| bartowski `IQ4_NL` | 88 (105 with KleidiAI) | 24.2 (25.5) | **0.063** | **87.6%** |
+| LiquidAI `Q4_K_M` | 77 | 25.4 | 0.112 | 83.7% |
+| bartowski `IQ4_XS` | 45 | 22.9 | 0.093 | 84.6% |
+
+**Deployed: `QAD-Q4_0`**, chosen for speed. A KleidiAI build was slower on Q4_0 prompts (116 t/s), so the plain native build is used. IQ4_NL is the quality fallback if answers drift: it gave comparable answers on the four test prompts at about 25% higher latency.
+
+Server findings:
+
+- One slot gives the lowest mean latency. Prompt processing is CPU-bound, and 2 or 4 slots did not raise throughput.
+- LFM3 is hybrid with a 256-token sliding window. Without `--swa-full`, llama.cpp can restore a checkpoint only if it sits at least 256 tokens before the shared prefix ends, so most multi-turn requests reprocessed everything. With `--swa-full` and the cache-friendly prompt layout in the chat route, the 845-token system prompt is reused on every warm request. That costs about 190 MB more RAM.
+- N-gram speculation (`ngram-simple`, `ngram-mod`) had low acceptance and made decoding slower, so it is off.
+- Request flow: Cloudflare → nginx → `llm-gateway` bounded queue → `llama-server`. Configs and the installer are in `portfolio/scripts/local-llm`; details are in `docs/ai-and-rag.md`.
 
 ## Decisions
 
@@ -77,16 +97,10 @@ The quantization-aware-distilled `QAD-Q4_0` may score lower on closeness than on
   - Transformers.js has no draft-model or prompt-lookup option.
   - LFM3 has no smaller model with the same tokenizer to act as a drafter. LFM2 uses a different vocabulary.
   - On a CPU, a drafter for a ~2B model rarely pays off.
-  - Worth trying on the VM: llama.cpp n-gram or prompt-lookup speculation, which copies tokens from retrieved facts. Check `llama-server --help` on the deployed build.
+  - llama.cpp n-gram speculation was tested on the VM and rejected (see above).
 
 ## Next Steps
 
 1. Enable on-device chat once Transformers.js 4.3.2 or later is published (see the steps above).
-2. Optionally move the VM local agent (currently `gemma-4-e2b-phone`) to LFM3 with a llama.cpp `b11960`+ build:
-
-   ```bash
-   llama-server -hf bartowski/LFM3-1.7B-GGUF:IQ4_XS --jinja --temp 0.1 --top-k 50 --repeat-penalty 1.1
-   ```
-
-   Then set `upstreamModel` and `label` for `qwen-3.5-4b-local` in `portfolio/lib/chatModels.ts` and update the matching tests. The VM config is not in this repo.
+2. Deploy the site so the chat route uses the cache-friendly local prompt layout. Until then, the VM still answers the old layout correctly, but the prompt cache rarely hits.
 3. Remove this file, or fold the relevant parts into `docs/ai-and-rag.md`, before merging.

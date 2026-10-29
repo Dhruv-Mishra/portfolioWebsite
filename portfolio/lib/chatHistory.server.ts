@@ -134,15 +134,20 @@ export function verifyAssistantMessage(message: ClientChatMessage): SanitizedCha
  * budget. The latest message is always retained because each entry has
  * already passed the route's per-message content cap.
  */
-export function selectRecentChatHistory(messages: readonly SanitizedChatMessage[]): SanitizedChatMessage[] {
+export function selectRecentChatHistory(
+  messages: readonly SanitizedChatMessage[],
+  budget: { maxMessages?: number; maxChars?: number } = {},
+): SanitizedChatMessage[] {
+  const maxMessages = budget.maxMessages ?? MAX_RECENT_MESSAGES;
+  const maxChars = budget.maxChars ?? MAX_RECENT_CONTENT_CHARS;
   const selectedNewestFirst: SanitizedChatMessage[] = [];
   let contentChars = 0;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     const isLatest = selectedNewestFirst.length === 0;
-    const withinMessageBudget = selectedNewestFirst.length < MAX_RECENT_MESSAGES;
-    const withinContentBudget = contentChars + message.content.length <= MAX_RECENT_CONTENT_CHARS;
+    const withinMessageBudget = selectedNewestFirst.length < maxMessages;
+    const withinContentBudget = contentChars + message.content.length <= maxChars;
 
     if (!isLatest && (!withinMessageBudget || !withinContentBudget)) {
       break;

@@ -10,9 +10,10 @@ const source = fs.readFileSync(
 describe('sticky chat model and image request contract', () => {
   it('sends the selected model and request-only image data to chat', () => {
     expect(source).toContain('const requestedModelId = getChatModelPref();');
-    expect(source).toContain("if (requestedModelId === 'qwen-3.5-4b-local')");
+    expect(source).toContain('if (isLocalChatModelId(requestedModelId))');
     expect(source).toContain('void refreshChatModelStatus({ force: true });');
     expect(source).toContain('model: requestedModelId');
+    expect(source).toContain('stream: true,');
     expect(source).toContain("...(image ? { image: { dataUrl: image.dataUrl } } : {})");
     expect(source).toContain('sendMessage: (content: string, image?: ChatImageAttachment) => Promise<boolean>');
   });
@@ -20,6 +21,7 @@ describe('sticky chat model and image request contract', () => {
   it('keeps image previews out of persistent chat history and clears mounted chats on model changes', () => {
     expect(source).toContain('delete persistentMessage.imagePreviewDataUrl;');
     expect(source).toContain('delete persistentMessage.imageName;');
+    expect(source).toContain('delete persistentMessage.isStreaming;');
     expect(source).toContain('CHAT_MODEL_SWITCH_CLEAR_EVENT');
     expect(source).toContain('clearForCrossTabModelSwitch');
   });

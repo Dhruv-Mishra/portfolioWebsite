@@ -1,4 +1,4 @@
-// hooks/useStickyChat.ts — Chat logic with buffered LLM responses and localStorage persistence
+// hooks/useStickyChat.ts — Chat logic with streamed LLM responses and localStorage persistence
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -18,7 +18,9 @@ import {
   getChatModelPref,
 } from '@/lib/chatModelPref';
 import { markChatModelFacingIssues, refreshChatModelStatus } from '@/lib/chatModelStatus';
-import { isBrowserChatModelId } from '@/lib/chatModels';
+import { isBrowserChatModelId, isLocalChatModelId } from '@/lib/chatModels';
+import { CHAT_STREAM_CONTENT_TYPE } from '@/lib/chatTransport';
+import { readChatStream } from '@/lib/chatStream';
 import type { ChatImageAttachment } from '@/lib/chatImageCompression';
 import {
   advanceInterrogation,
@@ -42,6 +44,7 @@ export interface ChatMessage {
   timestamp: number;
   isOld?: boolean; // Messages loaded from localStorage
   isFiller?: boolean; // True when showing thinking/filler text (not final response)
+  isStreaming?: boolean; // True while a streamed reply is still arriving (provisional text)
   clientOnly?: boolean; // True when emitted by a deterministic frontend-only path
   navigateTo?: string; // Page path to navigate to
   themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off'; // Theme switch action
@@ -71,6 +74,8 @@ export interface ChatMessage {
   imagePreviewDataUrl?: string;
   imageName?: string;
   imageBytes?: number;
+  /** Set on fallback replies (busy, timeout, provider failure) so the prompt can be resent; session-only. */
+  retryPrompt?: string;
 }
 
 interface UseStickyChat {
@@ -78,6 +83,7 @@ interface UseStickyChat {
   isLoading: boolean;
   error: string | null;
   sendMessage: (content: string, image?: ChatImageAttachment) => Promise<boolean>;
+  retryMessage: (assistantId: string) => boolean;
   sendCanned: (userText: string, response: string, action?: ActionExecution | null) => boolean;
   sendHardcoded: (userText: string, response: string | null) => boolean;
   clearMessages: () => void;
@@ -115,8 +121,6 @@ function isRecoverableClientFailure(error: unknown): boolean {
 function generateId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
-// (stripActionTags removed — no longer needed without streaming)
 
 // Tiered filler messages — each tier shown at its corresponding delay.
 // Written to sound like Dhruv: casual, thoughtful, a little nerdy, and still in-theme.
@@ -314,11 +318,13 @@ function saveMessages(messages: ChatMessage[]) {
         const persistentMessage = { ...message };
         delete persistentMessage.isOld;
         delete persistentMessage.isFiller;
+        delete persistentMessage.isStreaming;
         delete persistentMessage.clientOnly;
         delete persistentMessage.oracleEmitted;
         delete persistentMessage.imagePreviewDataUrl;
         delete persistentMessage.imageName;
         delete persistentMessage.imageBytes;
+        delete persistentMessage.retryPrompt;
         return persistentMessage;
       })
       .slice(-CHAT_CONFIG.maxStoredMessages);
@@ -771,7 +777,7 @@ export function useStickyChat(): UseStickyChat {
     setRateLimitRemaining(null);
     setError(null);
     const requestedModelId = getChatModelPref();
-    if (requestedModelId === 'qwen-3.5-4b-local') {
+    if (isLocalChatModelId(requestedModelId)) {
       void refreshChatModelStatus({ force: true });
     }
 
@@ -835,6 +841,17 @@ export function useStickyChat(): UseStickyChat {
     fillerCleanupRef.current = clearFillerTimers;
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    // Images are request-scoped and not kept, so only text prompts can be retried.
+    const retryPrompt = image ? undefined : trimmed;
+    const showFallbackReply = () => {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: getContextualFallback(trimmed), isFiller: false, isStreaming: undefined, retryPrompt }
+            : m
+        )
+      );
+    };
 
     void (async () => {
       try {
@@ -877,7 +894,7 @@ export function useStickyChat(): UseStickyChat {
         { role: 'user' as const, content: trimmed },
       ];
 
-      let data: { reply?: unknown; action?: unknown; signature?: unknown };
+      let data: { reply?: unknown; action?: unknown; signature?: unknown; degraded?: unknown };
       if (isBrowserChatModelId(requestedModelId)) {
         const { generateBrowserChatReply } = await import('@/lib/browserChatClient');
         const reply = await generateBrowserChatReply(
@@ -897,15 +914,22 @@ export function useStickyChat(): UseStickyChat {
           body: JSON.stringify({
             messages: conversationMessages,
             model: requestedModelId,
+            stream: true,
             ...(image ? { image: { dataUrl: image.dataUrl } } : {}),
           }),
           signal: controller.signal,
         });
 
-        clearTimeout(timeoutId);
-        clearFillerTimers();
         if (abortControllerRef.current !== controller) return;
-        if (response.headers.get('X-Chat-Fallback') === 'localStatic') {
+        const streamBody = response.ok && (response.headers.get('Content-Type') ?? '').includes(CHAT_STREAM_CONTENT_TYPE)
+          ? response.body
+          : null;
+        // Streamed replies keep the filler notes until the first words arrive.
+        if (!streamBody) clearFillerTimers();
+        if (
+          response.headers.get('X-Chat-Fallback') === 'localStatic'
+          && response.headers.get('X-Chat-Fallback-Reason') !== 'provider-busy'
+        ) {
           markChatModelFacingIssues(requestedModelId);
         }
 
@@ -914,20 +938,44 @@ export function useStickyChat(): UseStickyChat {
           if (isRecoverableServerFailure(response.status)) {
             setError(null);
             clearPendingChatRecovery(assistantId);
-            setMessages(prev =>
-              prev.map(m =>
-                m.id === assistantId
-                  ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-                  : m
-              )
-            );
+            showFallbackReply();
             return;
           }
 
           throw new Error(errorData.error || `Error (${response.status})`);
         }
 
-        data = await response.json();
+        if (streamBody) {
+          let streamedText = '';
+          let frame: number | null = null;
+          const flushStreamedText = () => {
+            frame = null;
+            const text = streamedText;
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === assistantId ? { ...m, content: text, isFiller: false, isStreaming: true } : m
+              )
+            );
+          };
+          try {
+            const payload = await readChatStream(streamBody, (delta) => {
+              if (abortControllerRef.current !== controller) return;
+              if (!streamedText) clearFillerTimers();
+              streamedText += delta;
+              frame ??= requestAnimationFrame(flushStreamedText);
+            });
+            data = payload;
+            if (payload.degraded === true && payload.fallbackReason !== 'provider-busy') {
+              markChatModelFacingIssues(requestedModelId);
+            }
+          } finally {
+            if (frame !== null) cancelAnimationFrame(frame);
+            clearFillerTimers();
+          }
+        } else {
+          data = await response.json();
+        }
+        clearTimeout(timeoutId);
       }
       if (abortControllerRef.current !== controller) return;
       clearPendingChatRecovery(assistantId);
@@ -948,6 +996,7 @@ export function useStickyChat(): UseStickyChat {
                   ...m,
                   content: displayContent,
                   isFiller: false,
+                  isStreaming: undefined,
                   navigateTo: serverAction?.navigateTo,
                   themeAction: serverAction?.themeAction,
                   openUrls: serverAction?.openUrls,
@@ -958,18 +1007,13 @@ export function useStickyChat(): UseStickyChat {
                   preferenceAction: serverAction?.preferenceAction,
                   guestbookSubmit: serverAction?.guestbookSubmit,
                   signature: typeof data.signature === 'string' ? data.signature : undefined,
+                  retryPrompt: data.degraded === true && !hasAction ? retryPrompt : undefined,
                 }
               : m
           )
         );
       } else {
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId
-              ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-              : m
-          )
-        );
+        showFallbackReply();
       }
       } catch (err) {
       clearTimeout(timeoutId);
@@ -985,16 +1029,12 @@ export function useStickyChat(): UseStickyChat {
         }
         if (reason === 'timeout') {
           clearPendingChatRecovery(assistantId);
-          setMessages(prev =>
-            prev.map(m =>
-              m.id === assistantId
-                ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-                : m
-            )
-          );
+          showFallbackReply();
         } else {
-          // Manual/navigation abort — drop empty placeholder
-          setMessages(prev => prev.filter(m => m.id !== assistantId || m.content));
+          // Manual/navigation abort — drop an empty placeholder, keep any streamed text as final
+          setMessages(prev => prev
+            .filter(m => m.id !== assistantId || m.content)
+            .map(m => (m.id === assistantId ? { ...m, isStreaming: undefined } : m)));
         }
         return;
       }
@@ -1004,22 +1044,18 @@ export function useStickyChat(): UseStickyChat {
       } else if (isRecoverableClientFailure(err)) {
         setError(null);
         clearPendingChatRecovery(assistantId);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId
-              ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-              : m
-          )
-        );
+        showFallbackReply();
         return;
       }
 
+      clearPendingChatRecovery(assistantId);
       setError(getDisplayErrorMessage(err));
 
       setMessages(prev =>
         prev.filter(m => m.id !== assistantId)
       );
       } finally {
+      clearTimeout(timeoutId);
       if (abortControllerRef.current === controller) {
         isLoadingRef.current = false;
         setIsLoading(false);
@@ -1137,11 +1173,31 @@ export function useStickyChat(): UseStickyChat {
     return sendCanned(userText, reply, action);
   }, [sendCanned]);
 
+  const retryMessage = useCallback((assistantId: string): boolean => {
+    if (isLoadingRef.current) return false;
+    const current = messagesRef.current;
+    const index = current.findIndex((message) => message.id === assistantId);
+    const prompt = current[index]?.retryPrompt;
+    if (!prompt || index !== current.length - 1) return false;
+
+    // Drop the failed exchange so the resent prompt is not duplicated in history.
+    const previous = current[index - 1];
+    messagesRef.current = current.slice(0, previous?.role === 'user' ? index - 1 : index);
+    void sendMessage(prompt).then((sent) => {
+      if (!sent) {
+        messagesRef.current = current;
+        setMessages(current);
+      }
+    });
+    return true;
+  }, [sendMessage]);
+
   return {
     messages,
     isLoading,
     error,
     sendMessage,
+    retryMessage,
     sendCanned,
     sendHardcoded,
     clearMessages,

@@ -734,8 +734,8 @@ const StickyNote = memo(function StickyNote({
   onSpeak?: (message: ChatMessage) => void;
   onTtsRestart?: (message: ChatMessage) => void;
   onTtsSpeedChange?: (message: ChatMessage) => void;
-  onTypewriterStart?: () => void;
-  onTypewriterDone?: () => void;
+  onTypewriterStart?: (message: ChatMessage) => void;
+  onTypewriterDone?: (messageId: string) => void;
   showTtsControls?: boolean;
   ttsPlaybackSpeed?: TtsPlaybackSpeed;
   ttsPlaybackError?: string | null;
@@ -752,8 +752,8 @@ const StickyNote = memo(function StickyNote({
     !!message.isFiller,
     isUser || !!message.isOld,
     TIMING_TOKENS.typeSpeed,
-    onTypewriterStart,
-    onTypewriterDone,
+    onTypewriterStart ? () => onTypewriterStart(message) : undefined,
+    onTypewriterDone ? () => onTypewriterDone(message.id) : undefined,
   );
   const showPencil = !isUser && isLoading;
   const canSpeak = canSpeakAssistantMessage(message) && !isDisplayingFiller;
@@ -1905,6 +1905,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     executeAction(action);
   }, [executeAction, messages]);
 
+  // Stable identities let memoized StickyNotes skip re-rendering while replies stream in.
+  const typewriterHandlersRef = useRef({ start: handleTypewriterStart, done: handleTypewriterDone });
+  useLayoutEffect(() => {
+    typewriterHandlersRef.current = { start: handleTypewriterStart, done: handleTypewriterDone };
+  }, [handleTypewriterStart, handleTypewriterDone]);
+  const notifyNoteTypewriterStart = useCallback((message: ChatMessage) => typewriterHandlersRef.current.start(message), []);
+  const notifyNoteTypewriterDone = useCallback((messageId: string) => typewriterHandlersRef.current.done(messageId), []);
+
   useEffect(() => {
     const lastAssistant = messages.findLast((message) => message.role === 'assistant' && message.id !== 'welcome');
     if (!lastAssistant || lastAssistant.isOld || isLoading) {
@@ -2302,8 +2310,8 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
                   onSpeak={handleSpeakMessage}
                   onTtsRestart={handleTtsRestart}
                   onTtsSpeedChange={handleTtsSpeedChange}
-                  onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterStart(msg) : undefined}
-                  onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? () => handleTypewriterDone(msg.id) : undefined}
+                  onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterStart : undefined}
+                  onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterDone : undefined}
                   showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
                   ttsPlaybackSpeed={ttsPlaybackSpeed}
                   ttsPlaybackError={ttsPlaybackError}

@@ -9,6 +9,7 @@ export const PROJECT_SLUG_LIST = [
   'hybrid-recommender',
   'bloom-filter-research',
   'atomvault',
+  'port-solace',
 ] as const;
 
 export type ProjectSlug = (typeof PROJECT_SLUG_LIST)[number];

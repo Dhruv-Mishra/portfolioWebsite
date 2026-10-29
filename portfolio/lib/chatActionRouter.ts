@@ -89,6 +89,7 @@ const PROJECT_REPO_TARGETS: Partial<Record<ProjectSlug, string>> = {
   'hybrid-recommender': PROJECT_LINKS.recommender,
   'bloom-filter-research': PROJECT_LINKS.bloomfilter,
   'atomvault': PROJECT_LINKS.atomvault,
+  'port-solace': PROJECT_LINKS.portSolace,
 };
 
 const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
@@ -102,6 +103,7 @@ const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
   { slug: 'hybrid-recommender', aliases: ['hybrid recommender', 'movie recommender'] },
   { slug: 'bloom-filter-research', aliases: ['bloom filter research', 'bloom filter'] },
   { slug: 'atomvault', aliases: ['atomvault', 'atom vault'] },
+  { slug: 'port-solace', aliases: ['port solace', 'solace', 'voxel game', 'voxelgame'] },
 ];
 
 function normalizeInput(input: string): string {

@@ -73,6 +73,13 @@ export const PROJECT_ACTIONS = [
     keywords: ['atomvault', 'bank\\s*vault', 'banking\\s*database'],
     response: 'Opening AtomVault right here ~',
   },
+  {
+    slug: 'port-solace',
+    label: 'Show me Port Solace',
+    verbs: ['show', 'open', 'view', 'tell'],
+    keywords: ['port\\s*solace', 'solace', 'voxel\\s*game', 'voxel\\s*city'],
+    response: 'Opening Port Solace right here ~',
+  },
 ] as const satisfies ReadonlyArray<{
   slug: ProjectSlug;
   label: string;

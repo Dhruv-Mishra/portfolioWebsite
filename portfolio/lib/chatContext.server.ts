@@ -155,7 +155,7 @@ const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
   // offer to open the relevant project modal.
-  /\b(project|projects|invoke|cropio|jarvis|fluent|bloom filter|nlp|movie recommender|vital|opencv)\b/i,
+  /\b(project|projects|invoke|cropio|jarvis|fluent|bloom filter|nlp|movie recommender|vital|opencv|solace|voxel)\b/i,
 ];
 
 const TERMINAL_PATTERNS: readonly RegExp[] = [

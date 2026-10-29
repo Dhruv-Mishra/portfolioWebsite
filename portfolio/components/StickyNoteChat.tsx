@@ -1135,6 +1135,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
   const model = getChatModel(modelId);
   const modelDisplayName = getChatModelDisplayName(model);
   const supportsImages = modelPrefHydrated && (model?.supportsImages ?? false);
+  const imageMaxPixels = model && 'imageMaxPixels' in model ? model.imageMaxPixels : undefined;
 
   useEffect(() => {
     const clearAttachmentForModelSwitch = () => {
@@ -1188,7 +1189,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     setIsCompressingImage(true);
     setAttachmentStatus('Preparing image...');
     try {
-      const nextAttachment = await compressChatImage(file, controller.signal);
+      const nextAttachment = await compressChatImage(file, controller.signal, { maxPixels: imageMaxPixels });
       if (imageCompressionGenerationRef.current !== compressionGeneration || !supportsImages) return;
       setAttachment(nextAttachment);
       setAttachmentStatus(`Image ready, ${Math.ceil(nextAttachment.bytes / 1024)} KB.`);
@@ -1204,7 +1205,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         imageCompressionAbortRef.current = null;
       }
     }
-  }, [supportsImages]);
+  }, [imageMaxPixels, supportsImages]);
 
   // Live-merge speech transcript into the textarea. While the mic is
   // actively listening we DON'T touch `setInput` — every interim token

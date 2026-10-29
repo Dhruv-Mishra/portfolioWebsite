@@ -42,8 +42,16 @@ describe('chat image compression helpers', () => {
     });
   });
 
+  it('applies an optional pixel budget on top of the dimension cap', () => {
+    const budget = 256 * 32 * 32;
+    const fitted = fitChatImageDimensions({ width: 4000, height: 3000 }, CHAT_IMAGE_MAX_DIMENSION, budget);
+    expect(fitted).toEqual({ width: 591, height: 443 });
+    expect(fitted.width * fitted.height).toBeLessThanOrEqual(budget);
+    expect(fitChatImageDimensions({ width: 400, height: 300 }, CHAT_IMAGE_MAX_DIMENSION, budget)).toEqual({ width: 400, height: 300 });
+  });
+
   it('uses abortable asynchronous blob encoding and releases fallback object URLs on decode failure', () => {
-    expect(source).toContain('compressChatImage(file: File, signal?: AbortSignal)');
+    expect(source).toContain('options: ChatImageCompressionOptions = {}');
     expect(source).toContain('canvas.toBlob(');
     expect(source).toContain('blobToDataUrl(blob, signal)');
     expect(source).toContain('throwIfAborted(signal);');
@@ -178,5 +186,35 @@ describe('chat image compression helpers', () => {
     expect(drawImage).toHaveBeenNthCalledWith(1, expect.any(MockImage), 0, 0, 1280, 640);
     expect(drawImage).toHaveBeenNthCalledWith(2, expect.any(MockImage), 0, 0, 1050, 525);
     expect(result.bytes).toBeLessThanOrEqual(CHAT_IMAGE_MAX_ENCODED_BYTES);
+  });
+
+  it('downscales a small but oversized original to the model pixel budget instead of reusing it', async () => {
+    const drawImage = vi.fn();
+    const toBlob = vi.fn((callback: BlobCallback) => {
+      callback(new Blob([new Uint8Array(40 * 1024)], { type: 'image/jpeg' }));
+    });
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ imageSmoothingEnabled: false, imageSmoothingQuality: 'low', fillStyle: '', fillRect: vi.fn(), drawImage })),
+      toBlob,
+    } as unknown as HTMLCanvasElement;
+    const readAsDataURL = vi.fn(function (this: { result: string; onload: (() => void) | null }, blob: Blob) {
+      this.result = `data:${blob.type};base64,QUJD`;
+      queueMicrotask(() => this.onload?.());
+    });
+
+    vi.stubGlobal('window', { createImageBitmap: true });
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 2000, height: 1500, close: vi.fn() }));
+    vi.stubGlobal('FileReader', class { result = ''; onload: (() => void) | null = null; onerror = null; onabort = null; readAsDataURL = readAsDataURL; });
+    vi.stubGlobal('document', { createElement: vi.fn(() => canvas) });
+
+    const file = { name: 'screenshot.png', type: 'image/png', size: 90 * 1024 } as File;
+    const result = await compressChatImage(file, undefined, { maxPixels: 256 * 32 * 32 });
+
+    expect(result.bytes).toBe(40 * 1024);
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 591, 443);
+    expect(readAsDataURL).toHaveBeenCalledTimes(1);
+    expect(readAsDataURL.mock.calls[0][0].type).toBe('image/jpeg');
   });
 });

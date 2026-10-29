@@ -12,6 +12,11 @@ export interface ChatImageAttachment {
   bytes: number;
 }
 
+export interface ChatImageCompressionOptions {
+  /** Largest width x height worth sending; the model would downscale anything bigger anyway. */
+  maxPixels?: number;
+}
+
 type ImageSize = { width: number; height: number };
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -30,12 +35,16 @@ export function getDataUrlDecodedByteLength(dataUrl: string): number {
   return Math.floor((base64.length * 3) / 4) - padding;
 }
 
-export function fitChatImageDimensions({ width, height }: ImageSize, maxDimension = CHAT_IMAGE_MAX_DIMENSION): ImageSize {
-  if (width <= maxDimension && height <= maxDimension) return { width, height };
-  const scale = maxDimension / Math.max(width, height);
+export function fitChatImageDimensions(
+  { width, height }: ImageSize,
+  maxDimension = CHAT_IMAGE_MAX_DIMENSION,
+  maxPixels = Number.POSITIVE_INFINITY,
+): ImageSize {
+  const scale = Math.min(1, maxDimension / Math.max(width, height), Math.sqrt(maxPixels / (width * height)));
+  if (scale >= 1) return { width, height };
   return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
   };
 }
 
@@ -121,20 +130,27 @@ function blobToDataUrl(blob: Blob, signal?: AbortSignal): Promise<string> {
   });
 }
 
-export async function compressChatImage(file: File, signal?: AbortSignal): Promise<ChatImageAttachment> {
+export async function compressChatImage(
+  file: File,
+  signal?: AbortSignal,
+  options: ChatImageCompressionOptions = {},
+): Promise<ChatImageAttachment> {
   assertValidImageFile(file);
   throwIfAborted(signal);
-  const original = file.size <= CHAT_IMAGE_MAX_ENCODED_BYTES
-    ? {
-        dataUrl: await blobToDataUrl(file, signal),
-        filename: file.name,
-        bytes: file.size,
-      }
-    : undefined;
   const loaded = await loadImage(file);
+  let dimensions = fitChatImageDimensions(loaded, CHAT_IMAGE_MAX_DIMENSION, options.maxPixels);
+  // A small original is only reusable when it already fits the size limits.
+  const originalFits = dimensions.width === loaded.width && dimensions.height === loaded.height;
 
   try {
-    let dimensions = fitChatImageDimensions(loaded);
+    const original = file.size <= CHAT_IMAGE_MAX_ENCODED_BYTES && originalFits
+      ? {
+          dataUrl: await blobToDataUrl(file, signal),
+          filename: file.name,
+          bytes: file.size,
+        }
+      : undefined;
+
     for (let pass = 0; pass < 6; pass += 1) {
       throwIfAborted(signal);
       const canvas = document.createElement('canvas');
@@ -161,10 +177,11 @@ export async function compressChatImage(file: File, signal?: AbortSignal): Promi
         height: Math.max(1, Math.round(dimensions.height * CHAT_IMAGE_DOWNSCALE_FACTOR)),
       };
     }
+
+    if (original) return original;
   } finally {
     loaded.release();
   }
 
-  if (original) return original;
   throw new Error('That image could not be compressed small enough. Try a simpler image.');
 }

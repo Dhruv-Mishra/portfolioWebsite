@@ -36,15 +36,7 @@ jobs:
           cache-dependency-path: portfolio/package-lock.json
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: npx -y npm@10.9.8 ci
 
       - name: Lint
         run: npm run lint
@@ -72,15 +64,7 @@ jobs:
           cache-dependency-path: portfolio/package-lock.json
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: npx -y npm@10.9.8 ci
 
       - name: Typecheck
         run: npm run typecheck
@@ -108,15 +92,7 @@ jobs:
           cache-dependency-path: portfolio/package-lock.json
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: npx -y npm@10.9.8 ci
 
       - name: Test
         run: npm test
@@ -144,15 +120,7 @@ jobs:
           cache-dependency-path: portfolio/package-lock.json
 
       - name: Install dependencies
-        run: |
-          npm_cmd=(npx -y npm@10.9.8)
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@10.9.8 install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
+        run: npx -y npm@10.9.8 ci
 
       - name: Restore Next.js build cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

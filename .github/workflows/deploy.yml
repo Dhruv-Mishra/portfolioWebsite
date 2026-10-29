@@ -126,6 +126,47 @@ jobs:
           fi
 
   # ───────────────────────────────────────────────────────────────────────────
+  # CHECKS — lint, typecheck, and tests run beside the image build
+  # ───────────────────────────────────────────────────────────────────────────
+  checks:
+    name: Lint, typecheck, and test
+    needs: guard-production-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: portfolio/package-lock.json
+
+      - name: Install dependencies
+        working-directory: portfolio
+        # SKIP_EMBEDDINGS_BUILD=1 reuses the committed lib/facts.embeddings.json.
+        # npm ci already fails on a lockfile that is out of sync with package.json.
+        env:
+          SKIP_EMBEDDINGS_BUILD: '1'
+          ONNXRUNTIME_NODE_INSTALL: skip
+        run: npx -y npm@${{ env.CI_NPM_VERSION }} ci
+
+      - name: Lint
+        working-directory: portfolio
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: portfolio
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: portfolio
+        run: npm test
+
+  # ───────────────────────────────────────────────────────────────────────────
   # BUILD — runs once on ubuntu-latest, produces a single immutable image
   # ───────────────────────────────────────────────────────────────────────────
   build:
@@ -142,48 +183,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        working-directory: portfolio
-        # SKIP_EMBEDDINGS_BUILD=1 tells the prebuild hook to reuse the committed
-        # lib/facts.embeddings.json rather than hitting the embeddings API.
-        # Avoids needing LLM_API_KEY as an Actions secret.
-        env:
-          SKIP_EMBEDDINGS_BUILD: '1'
-          ONNXRUNTIME_NODE_INSTALL: skip
-        # Two-stage install: a fast dry-run first to surface lockfile drift
-        # with a clear, actionable error before paying the full install cost.
-        # The pre-commit hook in .githooks/ should prevent this from firing,
-        # but this guard catches bypasses (--no-verify), Dependabot edge cases,
-        # and any future drift introduced outside the hook's scope.
-        run: |
-          npm_cmd=(npx -y npm@${{ env.CI_NPM_VERSION }})
-
-          if ! "${npm_cmd[@]}" ci --dry-run >/dev/null 2>&1; then
-            echo "::error::Lockfile out of sync with package.json. Regenerate locally with: cd portfolio && npx -y npm@${{ env.CI_NPM_VERSION }} install --package-lock-only --include=optional"
-            "${npm_cmd[@]}" ci --dry-run
-            exit 1
-          fi
-          "${npm_cmd[@]}" ci
-
-      - name: Lint
-        working-directory: portfolio
-        run: npm run lint
-
-      - name: Typecheck
-        working-directory: portfolio
-        run: npm run typecheck
-
-      - name: Test
-        working-directory: portfolio
-        run: npm test
 
       - name: Resolve release metadata
         id: release-meta
@@ -234,8 +233,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
-          cache-from: type=gha,scope=portfolio-production-image
-          cache-to: type=gha,mode=max,scope=portfolio-production-image
+          # Registry cache in GHCR, shared with staging; see deploy-staging.yml.
+          cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
             NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
@@ -275,7 +275,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────────────────
   approve-production:
     name: Approve production promotion
-    needs: build
+    needs: [build, checks]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 

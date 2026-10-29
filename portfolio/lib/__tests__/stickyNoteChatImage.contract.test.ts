@@ -31,6 +31,6 @@ describe('sticky note chat image attachment contract', () => {
     expect(source).toContain("imageCompressionAbortRef.current?.abort('superseded');");
     expect(source).toContain("imageCompressionAbortRef.current?.abort('model-switch');");
     expect(source).toContain("imageCompressionAbortRef.current?.abort('unmount');");
-    expect(source).toContain('compressChatImage(file, controller.signal)');
+    expect(source).toContain('compressChatImage(file, controller.signal, { maxPixels: imageMaxPixels })');
   });
 });

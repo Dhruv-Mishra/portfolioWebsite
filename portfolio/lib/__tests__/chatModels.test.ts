@@ -51,6 +51,7 @@ describe('chat model catalog', () => {
       quality: 'Local vision',
       supportsImages: true,
       imageInputOrder: 'image-first',
+      imageMaxPixels: 262_144,
       capabilities: ['image', 'slow'],
     });
   });

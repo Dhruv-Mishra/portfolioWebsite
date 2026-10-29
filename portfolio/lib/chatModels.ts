@@ -17,8 +17,8 @@ interface ChatModelDefinitionBase {
 }
 
 type ChatModelDefinition = ChatModelDefinitionBase & (
-  | { supportsImages: true; imageInputOrder: ChatImageInputOrder }
-  | { supportsImages: false; imageInputOrder?: never }
+  | { supportsImages: true; imageInputOrder: ChatImageInputOrder; imageMaxPixels?: number }
+  | { supportsImages: false; imageInputOrder?: never; imageMaxPixels?: never }
 );
 
 export const CHAT_MODELS = [
@@ -87,6 +87,8 @@ export const CHAT_MODELS = [
     quality: 'Local vision',
     supportsImages: true,
     imageInputOrder: 'image-first',
+    // LFM3 Omni spends one token per 32x32 px and llm-omni caps images at 256 tokens.
+    imageMaxPixels: 256 * 32 * 32,
     capabilities: ['image', 'slow'],
   },
   {

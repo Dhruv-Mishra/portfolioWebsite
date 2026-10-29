@@ -18,6 +18,7 @@ import {
   getChatModelPref,
 } from '@/lib/chatModelPref';
 import { markChatModelFacingIssues, refreshChatModelStatus } from '@/lib/chatModelStatus';
+import { isBrowserChatModelId } from '@/lib/chatModels';
 import type { ChatImageAttachment } from '@/lib/chatImageCompression';
 import {
   advanceInterrogation,
@@ -425,6 +426,11 @@ export function useStickyChat(): UseStickyChat {
       (m) => m.id !== 'welcome' && !m.oracleEmitted,
     );
     if (currentMessages.length === 0) return;
+    // On-device chats stay local; server suggestions would send the conversation upstream.
+    if (isBrowserChatModelId(getChatModelPref())) {
+      setSuggestions([]);
+      return;
+    }
 
     // Abort any in-flight suggestion request to prevent stale results / leaks
     suggestionsAbortRef.current?.abort('superseded');
@@ -871,50 +877,61 @@ export function useStickyChat(): UseStickyChat {
         { role: 'user' as const, content: trimmed },
       ];
 
-      timeoutId = setTimeout(() => {
-        controller.abort('timeout');
-      }, CHAT_CONFIG.responseTimeoutMs);
+      let data: { reply?: unknown; action?: unknown; signature?: unknown };
+      if (isBrowserChatModelId(requestedModelId)) {
+        const { generateBrowserChatReply } = await import('@/lib/browserChatClient');
+        const reply = await generateBrowserChatReply(
+          conversationMessages.map(({ role, content }) => ({ role, content })),
+          controller.signal,
+        );
+        clearFillerTimers();
+        data = { reply };
+      } else {
+        timeoutId = setTimeout(() => {
+          controller.abort('timeout');
+        }, CHAT_CONFIG.responseTimeoutMs);
 
-      const response = await fetch(CHAT_RESPONSE_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: conversationMessages,
-          model: requestedModelId,
-          ...(image ? { image: { dataUrl: image.dataUrl } } : {}),
-        }),
-        signal: controller.signal,
-      });
+        const response = await fetch(CHAT_RESPONSE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: conversationMessages,
+            model: requestedModelId,
+            ...(image ? { image: { dataUrl: image.dataUrl } } : {}),
+          }),
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeoutId);
-      clearFillerTimers();
-      if (abortControllerRef.current !== controller) return;
-      if (response.headers.get('X-Chat-Fallback') === 'localStatic') {
-        markChatModelFacingIssues(requestedModelId);
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        if (isRecoverableServerFailure(response.status)) {
-          setError(null);
-          clearPendingChatRecovery(assistantId);
-          setMessages(prev =>
-            prev.map(m =>
-              m.id === assistantId
-                ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
-                : m
-            )
-          );
-          return;
+        clearTimeout(timeoutId);
+        clearFillerTimers();
+        if (abortControllerRef.current !== controller) return;
+        if (response.headers.get('X-Chat-Fallback') === 'localStatic') {
+          markChatModelFacingIssues(requestedModelId);
         }
 
-        throw new Error(errorData.error || `Error (${response.status})`);
-      }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          if (isRecoverableServerFailure(response.status)) {
+            setError(null);
+            clearPendingChatRecovery(assistantId);
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, content: getContextualFallback(trimmed), isFiller: false }
+                  : m
+              )
+            );
+            return;
+          }
 
-      const data = await response.json();
+          throw new Error(errorData.error || `Error (${response.status})`);
+        }
+
+        data = await response.json();
+      }
       if (abortControllerRef.current !== controller) return;
       clearPendingChatRecovery(assistantId);
-      const rawReply: string = data.reply || '';
+      const rawReply = typeof data.reply === 'string' ? data.reply : '';
       const safeReply = sanitizeAssistantReplyText(rawReply);
       const serverAction = hasActionExecution(data.action as ActionExecution | null | undefined)
         ? data.action as ActionExecution
@@ -982,7 +999,9 @@ export function useStickyChat(): UseStickyChat {
         return;
       }
 
-      if (isRecoverableClientFailure(err)) {
+      if (isBrowserChatModelId(requestedModelId)) {
+        markChatModelFacingIssues(requestedModelId);
+      } else if (isRecoverableClientFailure(err)) {
         setError(null);
         clearPendingChatRecovery(assistantId);
         setMessages(prev =>

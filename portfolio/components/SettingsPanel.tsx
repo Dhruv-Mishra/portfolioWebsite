@@ -45,7 +45,22 @@ import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { ModelPicker } from '@/components/ModelPicker';
-import { getChatModel, type ChatModelId } from '@/lib/chatModels';
+import {
+  CHAT_PROVIDER_LABELS,
+  DEFAULT_CHAT_MODEL_ID,
+  getChatModel,
+  isBrowserChatModelId,
+  type BrowserChatModelId,
+  type ChatModelId,
+} from '@/lib/chatModels';
+import {
+  deleteBrowserChatModel,
+  isBrowserChatSupported,
+  loadBrowserChatModel,
+  useBrowserChatStatus,
+  type BrowserChatStatus,
+} from '@/lib/browserChatClient';
+import { BROWSER_CHAT_DOWNLOAD_SIZE_LABEL } from '@/lib/browserChatShared';
 import {
   CHAT_HISTORY_STORAGE_KEYS,
   clearChatHistoryStorage,
@@ -285,9 +300,50 @@ function BuildChannelStatus({
   );
 }
 
+function OnDeviceModelStatus({
+  status,
+  onRetry,
+  onDelete,
+}: {
+  status: BrowserChatStatus;
+  onRetry: () => void;
+  onDelete: () => void;
+}) {
+  const message = status.phase === 'loading'
+    ? status.progress === null
+      ? 'Loading the on-device model...'
+      : `Downloading the on-device model... ${Math.round(status.progress * 100)}%`
+    : status.phase === 'ready'
+      ? 'Ready on this device.'
+      : status.phase === 'error'
+        ? `Could not load the on-device model: ${status.error}`
+        : status.downloaded
+          ? 'Downloaded on this device.'
+          : 'Not downloaded yet.';
+  const buttonClassName = 'inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-3 font-hand text-base font-bold text-[var(--c-heading)] hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500';
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
+      <p role="status" aria-live="polite" className="min-w-0 flex-1">{message}</p>
+      {status.phase === 'error' || (status.phase === 'idle' && !status.downloaded) ? (
+        <button type="button" onClick={onRetry} className={buttonClassName}>
+          {status.phase === 'error' ? 'Retry' : 'Download'}
+        </button>
+      ) : null}
+      {status.downloaded && status.phase !== 'loading' ? (
+        <button type="button" onClick={onDelete} className={buttonClassName}>
+          Delete downloaded model
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SettingsPanel() {
   const [experimentalDialogOpen, setExperimentalDialogOpen] = useState(false);
   const [pendingModelId, setPendingModelId] = useState<ChatModelId | null>(null);
+  const [onDeviceRequest, setOnDeviceRequest] = useState<{ modelId: BrowserChatModelId; supported: boolean } | null>(null);
+  const browserChatStatus = useBrowserChatStatus();
   const [redirectPending, setRedirectPending] = useState(false);
   const modelCancelRef = useRef<HTMLButtonElement>(null);
   const modelTargetFocusedRef = useRef(false);
@@ -352,15 +408,29 @@ export default function SettingsPanel() {
     dispatchChatModelSwitchClear();
     setModelId(nextModelId);
     setPendingModelId(null);
+    setOnDeviceRequest(null);
+    if (isBrowserChatModelId(nextModelId)) void loadBrowserChatModel().catch(() => undefined);
   };
 
   const handleModelChange = (nextModelId: ChatModelId) => {
     if (nextModelId === modelId) return;
+    if (isBrowserChatModelId(nextModelId) && !browserChatStatus.downloaded) {
+      void isBrowserChatSupported().then((supported) => setOnDeviceRequest({ modelId: nextModelId, supported }));
+      return;
+    }
     if (hasPersistedChatMessages()) {
       setPendingModelId(nextModelId);
       return;
     }
     applyModelSwitch(nextModelId);
+  };
+
+  const handleDeleteOnDeviceModel = () => {
+    void deleteBrowserChatModel()
+      .then(() => {
+        if (isBrowserChatModelId(modelId)) applyModelSwitch(DEFAULT_CHAT_MODEL_ID);
+      })
+      .catch(() => undefined);
   };
 
   const handleExperimentalChange = (nextEnabled: boolean) => {
@@ -436,7 +506,7 @@ export default function SettingsPanel() {
           />
           {selectedModel ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--c-ink)]/20 pt-3 font-hand text-sm text-[var(--c-ink)]/75 md:text-base">
-              <span>{selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'}</span>
+              <span>{CHAT_PROVIDER_LABELS[selectedModel.provider]}</span>
               <span className="inline-flex items-center gap-1 rounded-sm border border-[var(--c-ink)]/20 px-2 py-0.5">
                 <ImageIcon size={14} aria-hidden />
                 {selectedModel.supportsImages ? 'Vision' : 'Text'}
@@ -449,6 +519,13 @@ export default function SettingsPanel() {
               ) : null}
               {'caveat' in selectedModel && selectedModel.caveat ? <span className="basis-full text-sm text-rose-700 dark:text-rose-300">{selectedModel.caveat}</span> : null}
             </div>
+          ) : null}
+          {isBrowserChatModelId(modelId) || browserChatStatus.downloaded ? (
+            <OnDeviceModelStatus
+              status={browserChatStatus}
+              onRetry={() => void loadBrowserChatModel().catch(() => undefined)}
+              onDelete={handleDeleteOnDeviceModel}
+            />
           ) : null}
         </SettingsGroup>
 
@@ -641,6 +718,41 @@ export default function SettingsPanel() {
           >
             Switch and clear chat
           </button>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={onDeviceRequest !== null}
+        onClose={() => setOnDeviceRequest(null)}
+        ariaLabelledBy="on-device-model-title"
+        ariaDescribedBy="on-device-model-description"
+        className="mt-[var(--c-modal-top)] w-[calc(100%-1.5rem)] max-w-lg border-2 border-dashed border-amber-700/55 bg-[var(--c-paper)] p-6 shadow-xl md:p-8 dark:border-amber-300/55"
+        backdropClassName="bg-black/35 dark:bg-black/60"
+      >
+        <h2 id="on-device-model-title" className="font-hand text-2xl font-bold text-[var(--c-heading)] md:text-3xl">
+          {onDeviceRequest?.supported === false ? 'On-device chat is not available here' : 'Run chat on your device?'}
+        </h2>
+        <p id="on-device-model-description" className="mt-3 font-hand text-base leading-relaxed text-[var(--c-ink)]/75 md:text-lg">
+          {onDeviceRequest?.supported === false
+            ? 'This browser does not expose WebGPU with 16-bit float support, which the on-device model needs. Try a recent Chrome or Edge on a laptop or desktop.'
+            : `This downloads ${getChatModel(onDeviceRequest?.modelId)?.label ?? 'the model'} (${BROWSER_CHAT_DOWNLOAD_SIZE_LABEL}) from Hugging Face once and keeps it in your browser cache. Replies are generated on your GPU, so your messages never leave this device. The first load can take a few minutes, and switching clears this conversation.`}
+        </p>
+        <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setOnDeviceRequest(null)}
+            className="min-h-11 rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            {onDeviceRequest?.supported === false ? 'Got it' : 'Cancel'}
+          </button>
+          {onDeviceRequest?.supported ? (
+            <button
+              type="button"
+              onClick={() => applyModelSwitch(onDeviceRequest.modelId)}
+              className="min-h-11 rounded-sm border-2 border-amber-800/65 bg-amber-400/35 px-5 py-2 font-hand text-base font-bold text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 dark:border-amber-200/65 dark:bg-amber-300/20"
+            >
+              Download and switch
+            </button>
+          ) : null}
         </div>
       </Modal>
       <Modal

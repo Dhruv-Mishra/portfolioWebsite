@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Brain, Check, ChevronDown, Image, Turtle, Zap, type LucideIcon } from 'lucide-react';
-import { CHAT_MODELS, type ChatModelCapability, type ChatModelId } from '@/lib/chatModels';
+import { CHAT_PROVIDER_LABELS, SELECTABLE_CHAT_MODELS, type ChatModelCapability, type ChatModelId } from '@/lib/chatModels';
 import {
   getChatModelDisplayName,
   isChatModelFacingIssues,
@@ -35,12 +35,8 @@ const CAPABILITY_DETAILS: Record<ChatModelCapability, { label: string; Icon: Luc
   },
 };
 
-const MODEL_GROUPS = ['Recommended', 'NVIDIA', 'Local agent'] as const;
-const PROVIDER_LABELS = {
-  groq: 'Groq',
-  nvidia: 'NVIDIA',
-  local: 'Local agent',
-} as const;
+const MODEL_GROUPS = ['Recommended', 'NVIDIA', 'Local agent', 'On device'] as const;
+const VISIBLE_MODEL_GROUPS = MODEL_GROUPS.filter((group) => SELECTABLE_CHAT_MODELS.some((model) => model.group === group));
 const VIEWPORT_MARGIN = 12;
 const LISTBOX_GAP = 8;
 const NAVIGATION_MARGIN = 8;
@@ -75,8 +71,8 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Partial<Record<ChatModelId, HTMLDivElement>>>({});
   const listboxId = useId();
-  const selectedModel = CHAT_MODELS.find((model) => model.id === value);
-  const activeIndex = CHAT_MODELS.findIndex((model) => model.id === activeModelId);
+  const selectedModel = SELECTABLE_CHAT_MODELS.find((model) => model.id === value);
+  const activeIndex = SELECTABLE_CHAT_MODELS.findIndex((model) => model.id === activeModelId);
   const selectedModelIsHealthyLocal = selectedModel?.id === LOCAL_MODEL_ID && modelStatus.local?.healthy;
 
   useEffect(() => {
@@ -133,8 +129,8 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
   };
 
   const moveActiveOption = (nextIndex: number) => {
-    const boundedIndex = Math.max(0, Math.min(nextIndex, CHAT_MODELS.length - 1));
-    setActiveModelId(CHAT_MODELS[boundedIndex].id);
+    const boundedIndex = Math.max(0, Math.min(nextIndex, SELECTABLE_CHAT_MODELS.length - 1));
+    setActiveModelId(SELECTABLE_CHAT_MODELS[boundedIndex].id);
   };
 
   const handleOptionKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -153,7 +149,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
         break;
       case 'End':
         event.preventDefault();
-        moveActiveOption(CHAT_MODELS.length - 1);
+        moveActiveOption(SELECTABLE_CHAT_MODELS.length - 1);
         break;
       case 'Enter':
       case ' ':
@@ -187,7 +183,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
         <span className="flex min-w-0 flex-1 items-start gap-2">
           <span className="min-w-0">
             <span className="block break-words font-bold leading-tight">{getChatModelDisplayName(selectedModel, modelStatus.local)}</span>
-            <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? PROVIDER_LABELS[selectedModel.provider] : null}</span>
+            <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{selectedModel?.group} · {selectedModel ? CHAT_PROVIDER_LABELS[selectedModel.provider] : null}</span>
           </span>
           {selectedModelIsHealthyLocal ? <LocalModelHealthDot /> : null}
         </span>
@@ -224,10 +220,10 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
             placement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
           )}
         >
-          {MODEL_GROUPS.map((group) => (
+          {VISIBLE_MODEL_GROUPS.map((group) => (
             <div key={group} role="group" aria-label={group} className="px-1">
               <p className="px-3 pb-1 pt-2 font-code text-[10px] uppercase text-[var(--c-ink)]/50">{group}</p>
-              {CHAT_MODELS.filter((model) => model.group === group).map((model) => {
+              {SELECTABLE_CHAT_MODELS.filter((model) => model.group === group).map((model) => {
                 const modelIsHealthyLocal = model.id === LOCAL_MODEL_ID && modelStatus.local?.healthy;
                 const modelHasIssues = isChatModelFacingIssues(model.id, modelStatus);
 
@@ -251,7 +247,7 @@ export function ModelPicker({ id, value, onValueChange }: ModelPickerProps) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block break-words text-base font-bold leading-tight text-[var(--c-heading)]">{getChatModelDisplayName(model, modelStatus.local)}</span>
-                    <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{PROVIDER_LABELS[model.provider]} · {model.quality}</span>
+                    <span className="block break-words text-sm leading-snug text-[var(--c-ink)]/60">{CHAT_PROVIDER_LABELS[model.provider]} · {model.quality}</span>
                     {modelHasIssues ? <span className="block text-sm font-bold leading-snug text-rose-700 dark:text-rose-300">Facing issues</span> : null}
                   </span>
                   <span className="flex shrink-0 items-center gap-1" aria-label={model.capabilities.map((capability) => CAPABILITY_DETAILS[capability].label).join(', ')}>

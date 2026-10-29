@@ -11,6 +11,7 @@ import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import {
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
+  isBrowserChatModelId,
   isChatModelId,
   type ChatImageInputOrder,
   type ChatModelId,
@@ -258,6 +259,9 @@ export async function POST(request: NextRequest) {
         : null;
     if (!selectedModelId) {
       return Response.json({ error: 'Unsupported chat model' }, { status: 400 });
+    }
+    if (isBrowserChatModelId(selectedModelId)) {
+      return Response.json({ error: 'The selected model runs in the browser' }, { status: 400 });
     }
 
     const selectedModel = getChatModel(selectedModelId);

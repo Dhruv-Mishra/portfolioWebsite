@@ -5,8 +5,10 @@ import {
   CHAT_MODELS,
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
+  isBrowserChatModelId,
   type ChatImageInputOrder,
   type ChatModelId,
+  type ServerChatModelId,
 } from '@/lib/chatModels';
 import { deriveLocalAgentUrls } from '@/lib/localAgentStatus.server';
 
@@ -37,8 +39,8 @@ export interface ChatProviders {
 }
 
 export interface ChatModelRuntimeStatus {
-  id: ChatModelId;
-  provider: (typeof CHAT_MODELS)[number]['provider'];
+  id: ServerChatModelId;
+  provider: Exclude<(typeof CHAT_MODELS)[number]['provider'], 'browser'>;
   available: boolean;
 }
 
@@ -107,7 +109,7 @@ function getLocalAgentProvider(): LLMProvider | null {
 }
 
 function getNvidiaProvider(
-  modelId: Exclude<ChatModelId, 'qwen-3.8-27b' | 'qwen-3.5-4b-local'>,
+  modelId: Exclude<ServerChatModelId, 'qwen-3.8-27b' | 'qwen-3.5-4b-local'>,
   maxTokens = MAIN_CHAT_MAX_TOKENS,
 ): LLMProvider | null {
   const apiKey = process.env.NVIDIA_API_KEY;
@@ -160,15 +162,23 @@ export function getChatProviders(selectedModelId: ChatModelId = DEFAULT_CHAT_MOD
     return toChatProviders([getLocalAgentProvider()]);
   }
 
+  if (isBrowserChatModelId(selectedModelId)) {
+    return toChatProviders([]);
+  }
+
   return toChatProviders([getNvidiaProvider(selectedModelId)]);
 }
 
 export function getChatModelRuntimeCatalog(): ChatModelRuntimeCatalog {
-  const models = CHAT_MODELS.map((model) => ({
-    id: model.id,
-    provider: model.provider,
-    available: getChatProviders(model.id).primary !== null,
-  }));
+  const models: ChatModelRuntimeStatus[] = CHAT_MODELS.flatMap((model) => (
+    model.provider === 'browser'
+      ? []
+      : [{
+          id: model.id,
+          provider: model.provider,
+          available: getChatProviders(model.id).primary !== null,
+        }]
+  ));
   const configuredProviders = new Set<ChatModelRuntimeStatus['provider']>();
   const deploymentCanaryModelIds = models.flatMap((model) => {
     if (!model.available || configuredProviders.has(model.provider)) {

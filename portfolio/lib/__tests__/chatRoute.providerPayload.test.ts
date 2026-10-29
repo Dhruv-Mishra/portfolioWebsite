@@ -168,6 +168,13 @@ describe('chat route provider payload mapping', () => {
     })).not.toBeNull();
   });
 
+  it('rejects the on-device model before calling any provider', async () => {
+    const response = await POST(createChatRequest(undefined, { model: 'on-device' }));
+
+    expect(response.status).toBe(400);
+    expect(getChatProvidersMock).not.toHaveBeenCalled();
+  });
+
   it('keeps verified assistant action for prompt assembly but strips it from provider messages', async () => {
     const assistantAction: ActionExecution = { projectSlug: 'cropio' };
     const assistantContent = 'Opening Cropio now.';

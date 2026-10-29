@@ -15,6 +15,10 @@ describe('getSuggestionsProviders', () => {
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
 
     for (const model of CHAT_MODELS) {
+      if (model.provider === 'browser') {
+        expect(getChatProviders(model.id)).toEqual({ primary: null, fallbacks: [] });
+        continue;
+      }
       const provider = getChatProviders(model.id).primary;
       const outputLimit = provider?.sampling.maxCompletionTokens ?? provider?.sampling.maxTokens;
 

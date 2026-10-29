@@ -4,7 +4,7 @@ The chat route accepts only model IDs defined in [the model registry](../portfol
 
 ## Current Model Registry
 
-The active catalog contains five selections: one Groq default, three NVIDIA models, and one optional local agent.
+The active catalog contains six entries: one Groq default, three NVIDIA models, one optional local agent, and one on-device model that is currently disabled.
 
 | Group | Model | Image input | Registry role |
 |---|---|---:|---|
@@ -13,8 +13,13 @@ The active catalog contains five selections: one Groq default, three NVIDIA mode
 | NVIDIA | DeepSeek V4 Flash | No | Fast |
 | NVIDIA | Nemotron 3 Super 120B | No | Strong reasoning |
 | Local agent | Local model | No | Optional OpenAI-compatible endpoint |
+| On device | LFM3 1.7B | No | Runs in the browser with WebGPU; disabled |
 
 The local-agent entry requires both `LOCAL_AGENT_BASE_URL` and `LOCAL_AGENT_API_KEY`. Staging and production deploys inject `https://llm.whoisdhruv.com/v1` plus the matching `STAGING_LOCAL_AGENT_API_KEY` / `PRODUCTION_LOCAL_AGENT_API_KEY` secret. The default entry requires `GROQ_API_KEY`; NVIDIA selections require `NVIDIA_API_KEY`. An unsupported ID is rejected before a provider is called.
+
+## On-Device Model
+
+The `on-device` entry never reaches a server provider; the chat route rejects it. It is hidden from the picker and rejected as a saved preference while `ON_DEVICE_CHAT_ENABLED` is `false`, because the locked Transformers.js release (4.3.1) does not support the `lfm3` architecture; enable it after upgrading to 4.3.2 or later. When enabled, selecting it in Settings checks for WebGPU with `shader-f16`, asks for consent, then downloads the pinned `daveycodez/LFM3-1.7B-Web` revision (q4f16, about 900 MB) from Hugging Face into the browser cache. That community build re-quantizes the `onnx-community/LFM3-1.7B-ONNX` weights with GPTQ for the fused WebGPU kernels, trims the vocabulary to about 49K tokens, and caps sequences at 16,384 tokens. A Web Worker runs it with Transformers.js. Each turn ranks the static `/chat/facts` corpus locally (anchors plus tag/text matches), so the conversation never leaves the device and server suggestions are skipped. Settings shows download progress and can delete the cached model.
 
 ## Advisory Model Health
 

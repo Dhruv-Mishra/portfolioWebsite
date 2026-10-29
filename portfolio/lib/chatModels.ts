@@ -6,8 +6,8 @@ export type ChatImageInputOrder = 'image-first' | 'text-first';
 
 interface ChatModelDefinitionBase {
   id: string;
-  provider: 'groq' | 'nvidia' | 'local';
-  group: 'Recommended' | 'NVIDIA' | 'Local agent';
+  provider: 'groq' | 'nvidia' | 'local' | 'browser';
+  group: 'Recommended' | 'NVIDIA' | 'Local agent' | 'On device';
   upstreamModel: string;
   label: string;
   quality: string;
@@ -76,10 +76,27 @@ export const CHAT_MODELS = [
     supportsImages: false,
     capabilities: ['slow'],
   },
+  {
+    id: 'on-device',
+    provider: 'browser',
+    group: 'On device',
+    upstreamModel: 'daveycodez/LFM3-1.7B-Web',
+    label: 'LFM3 1.7B',
+    quality: 'Runs in your browser',
+    supportsImages: false,
+    capabilities: ['slow'],
+  },
 ] as const satisfies readonly ChatModelDefinition[];
 
 export type ChatModel = (typeof CHAT_MODELS)[number];
 export type ChatModelId = ChatModel['id'];
+
+export const CHAT_PROVIDER_LABELS: Record<ChatModel['provider'], string> = {
+  groq: 'Groq',
+  nvidia: 'NVIDIA',
+  local: 'Local agent',
+  browser: 'Your browser',
+};
 
 export function getChatModel(modelId: string | undefined): ChatModel | undefined {
   return CHAT_MODELS.find((model) => model.id === modelId);
@@ -87,4 +104,22 @@ export function getChatModel(modelId: string | undefined): ChatModel | undefined
 
 export function isChatModelId(modelId: unknown): modelId is ChatModelId {
   return typeof modelId === 'string' && getChatModel(modelId) !== undefined;
+}
+
+export type BrowserChatModelId = Extract<ChatModel, { provider: 'browser' }>['id'];
+export type ServerChatModelId = Exclude<ChatModelId, BrowserChatModelId>;
+
+// Off until a published transformers.js release (>= 4.3.2) supports the lfm3 architecture.
+export const ON_DEVICE_CHAT_ENABLED: boolean = false;
+
+export const SELECTABLE_CHAT_MODELS: readonly ChatModel[] = CHAT_MODELS.filter(
+  (model) => model.provider !== 'browser' || ON_DEVICE_CHAT_ENABLED,
+);
+
+export function isSelectableChatModelId(modelId: unknown): modelId is ChatModelId {
+  return SELECTABLE_CHAT_MODELS.some((model) => model.id === modelId);
+}
+
+export function isBrowserChatModelId(modelId: unknown): modelId is BrowserChatModelId {
+  return typeof modelId === 'string' && getChatModel(modelId)?.provider === 'browser';
 }

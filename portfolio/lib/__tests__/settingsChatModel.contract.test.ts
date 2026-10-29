@@ -83,7 +83,7 @@ describe('settings chat model contract', () => {
     expect(picker).toContain("model.id === value && 'border-l-emerald-600");
     expect(picker).not.toContain("model.id === activeModelId && 'bg-amber");
     expect(picker).not.toContain('focus-visible:ring-amber');
-    expect(source).toContain("selectedModel.provider === 'local' ? 'Local agent' : selectedModel.provider === 'groq' ? 'Groq' : 'NVIDIA'");
+    expect(source).toContain('{CHAT_PROVIDER_LABELS[selectedModel.provider]}');
   });
 
   it('places the model listbox within the available viewport space', () => {

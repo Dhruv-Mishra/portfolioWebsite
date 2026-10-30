@@ -13,7 +13,7 @@
 //     saving tokens on cold-start turns.
 import 'server-only';
 
-import type { ActionExecution } from '@/lib/actions';
+import { VALID_THEME_ACTIONS, type ActionExecution } from '@/lib/actions';
 import {
   IDENTITY_BLOCK,
   NEVER_INVENT_BLOCK,
@@ -21,13 +21,13 @@ import {
   STYLE_BLOCK,
 } from '@/lib/chatPromptBlocks';
 import { getAnchorFactContext, getRelevantFactContext } from '@/lib/factRetrieval.server';
-import { TTS_LLM_RULES } from '@/lib/ttsPrompts';
+import { REPLY_LENGTH_HINT, classifyReplyLength, isPureGreeting } from '@/lib/replyLength';
 
 // ── Prompt blocks ───────────────────────────────────────────────────
 
 const UI_ACTION_BLOCK = `Interaction:
 - UI actions handled outside you. Never mention tools, function calls, JSON, or action syntax.
-- Theme actions available: dark, light, toggle, disco (engages disco mode), disco-off (exits it).
+- Theme actions available: ${VALID_THEME_ACTIONS.join(', ')} (disco engages disco mode; disco-off exits it).
 - Info / explanation / comparison / small talk → plain text reply.
 - Already-opened items → answer follow-ups directly, don't re-narrate the open.
 - Casual ack or topic change after a UI action → stay conversational.
@@ -165,18 +165,6 @@ function mentionsTerminal(message: string): boolean {
   return TERMINAL_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-// Pure greetings / acks / very short small-talk. When matched, skip fact
-// retrieval so the model isn't tempted to dump Microsoft Shell context onto
-// a simple "hi".
-const GREETING_PATTERN = /^(hi+|hey+|hello+|yo+|sup|hola|namaste|howdy|good\s+(morning|afternoon|evening|night)|gm|gn|thanks?|thank you|ty|cool|nice|ok(ay)?|got it|cheers|bye+|see ya|later)[\s!.,~:)\-]*$/i;
-
-function isPureGreeting(message: string): boolean {
-  if (!message) return false;
-  const trimmed = message.trim();
-  if (trimmed.length > 40) return false;
-  return GREETING_PATTERN.test(trimmed);
-}
-
 // ── Recent-action context ───────────────────────────────────────────
 
 function describeAction(action: ActionExecution): string {
@@ -278,7 +266,7 @@ export interface SystemPromptParts {
  * The cache-friendly stable prefix. Exposed for testing — must NEVER be
  * mutated per turn; any change here invalidates upstream prompt caches.
  */
-export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, TTS_LLM_RULES, NEVER_INVENT_BLOCK].join('\n\n');
+export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK].join('\n\n');
 
 /**
  * Assemble the system prompt as two parts (stable prefix + conditional
@@ -340,6 +328,9 @@ export async function buildDhruvSystemPromptParts(
   if (facts) {
     conditionalSections.push(`${anchors ? 'More relevant facts' : 'Relevant facts'}:\n${facts}`);
   }
+
+  // Last, so it sits closest to the visitor's message where small models weigh it most.
+  conditionalSections.push(REPLY_LENGTH_HINT[classifyReplyLength(latestMessage)]);
 
   return {
     stable: anchors?.text ? `${STABLE_SYSTEM_PROMPT}\n\nRelevant facts:\n${anchors.text}` : STABLE_SYSTEM_PROMPT,

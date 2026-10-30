@@ -1,6 +1,6 @@
 // app/api/feedback/route.ts — Server-side proxy for GitHub Issues feedback
 import { NextRequest } from 'next/server';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -52,18 +52,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: FeedbackBody;
-    try {
-      body = await readBoundedJson<FeedbackBody>(request, MAX_FEEDBACK_BODY_BYTES);
-    } catch (error) {
-      if (error instanceof BoundedJsonError) {
-        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-      }
-      throw error;
-    }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    const body = await readJsonObjectOrError<FeedbackBody>(request, MAX_FEEDBACK_BODY_BYTES);
+    if (body instanceof Response) return body;
 
     const token = process.env.GITHUB_FEEDBACK_TOKEN;
     const repo = process.env.GITHUB_FEEDBACK_REPO;

@@ -29,7 +29,7 @@ import { MATRIX_PUZZLE_KEYS, readSessionFlag, writeSessionFlag } from '@/lib/mat
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
-import { Z_INDEX } from '@/lib/designTokens';
+import { FONT_STACKS, MATRIX_COLORS, Z_INDEX } from '@/lib/designTokens';
 
 const TOAST_INITIAL = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
 const TOAST_ANIMATE = { opacity: 1, y: 0, rotate: -2, scale: 1 } as const;
@@ -148,21 +148,21 @@ const EscapeSigil = memo(function EscapeSigil({ size }: { size: number }) {
           <stop offset="100%" stopColor="#000" />
         </radialGradient>
         <linearGradient id="esc-toast-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6ee7b7" />
-          <stop offset="100%" stopColor="#10b981" />
+          <stop offset="0%" stopColor={MATRIX_COLORS.lead} />
+          <stop offset="100%" stopColor={MATRIX_COLORS.glyph} />
         </linearGradient>
       </defs>
       <circle cx="24" cy="24" r="22" fill="none" stroke="url(#esc-toast-ring)" strokeWidth="2" />
-      <circle cx="24" cy="24" r="17" fill="url(#esc-toast-bg)" stroke="#10b981" strokeWidth="1" />
-      <rect x="16" y="20" width="16" height="10" rx="2" fill="#020d08" stroke="#10b981" strokeWidth="1" />
+      <circle cx="24" cy="24" r="17" fill="url(#esc-toast-bg)" stroke={MATRIX_COLORS.glyph} strokeWidth="1" />
+      <rect x="16" y="20" width="16" height="10" rx="2" fill={MATRIX_COLORS.void} stroke={MATRIX_COLORS.glyph} strokeWidth="1" />
       <text
         x="24"
         y="27.5"
         textAnchor="middle"
-        fontFamily="'Fira Code', monospace"
+        fontFamily={FONT_STACKS.mono}
         fontSize="6.2"
         fontWeight="bold"
-        fill="#6ee7b7"
+        fill={MATRIX_COLORS.lead}
         letterSpacing="1.2"
       >
         ESC

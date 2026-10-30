@@ -5,6 +5,7 @@ import {
   STYLE_BLOCK,
 } from '@/lib/chatPromptBlocks';
 import type { Fact } from '@/lib/factTypes';
+import { REPLY_LENGTH_HINT, classifyReplyLength } from '@/lib/replyLength';
 
 export type BrowserChatFact = Pick<Fact, 'id' | 'text' | 'tags' | 'priority' | 'anchor'>;
 
@@ -69,13 +70,14 @@ export function buildBrowserChatMessages(
   history: readonly BrowserChatTurn[],
 ): BrowserChatPromptMessage[] {
   const recent = history.slice(-HISTORY_LIMIT);
-  const query = recent
-    .filter((turn) => turn.role === 'user')
+  const userTurns = recent.filter((turn) => turn.role === 'user');
+  const query = userTurns
     .slice(-QUERY_USER_TURNS)
     .map((turn) => turn.content)
     .join(' ');
   const factText = selectBrowserChatFacts(facts, query).map((fact) => fact.text.trim()).join('\n\n');
-  const system = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, `Relevant facts:\n${factText}`]
+  const lengthHint = REPLY_LENGTH_HINT[classifyReplyLength(userTurns.at(-1)?.content ?? '')];
+  const system = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, `Relevant facts:\n${factText}`, lengthHint]
     .join('\n\n');
 
   return [{ role: 'system', content: system }, ...recent];

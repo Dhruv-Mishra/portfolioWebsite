@@ -13,7 +13,7 @@
 //   transient IP rate limiting, honeypot handling, and strict validation.
 
 import { NextRequest } from 'next/server';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import {
@@ -87,18 +87,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: SubmissionBody;
-    try {
-      body = await readBoundedJson<SubmissionBody>(request, MAX_MATRIX_NOTES_BODY_BYTES);
-    } catch (error) {
-      if (error instanceof BoundedJsonError) {
-        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-      }
-      throw error;
-    }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    const body = await readJsonObjectOrError<SubmissionBody>(request, MAX_MATRIX_NOTES_BODY_BYTES);
+    if (body instanceof Response) return body;
 
     // Honeypot — non-empty `website` → silent success (bot signature).
     if (asString(body.website).trim().length > 0) {

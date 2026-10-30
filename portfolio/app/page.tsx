@@ -3,9 +3,54 @@ import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
-import { Coffee, MessageCircle, PenLine } from "lucide-react";
+import { Coffee, MessageCircle, PenLine, type LucideIcon } from "lucide-react";
 import { SITE_VERSION_LABEL } from "@/lib/siteVersion";
 import { PERSONAL_LINKS } from "@/lib/links";
+import { PAPER_PALETTE } from "@/lib/designTokens";
+
+const QUICK_LINK_CLASS = "inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200";
+const TAPE_CLASS = "absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]";
+
+interface NoteCtaProps {
+  href: string;
+  ariaLabel: string;
+  label: string;
+  icon: LucideIcon;
+  delayMs: number;
+  className: string;
+  /** Static Tailwind classes per part, kept literal so Tailwind can scan them. */
+  tone: { body: string; rule: string; icon: string; text: string; arrow: string };
+  fold: string;
+}
+
+function NoteCta({ href, ariaLabel, label, icon: Icon, delayMs, className, tone, fold }: NoteCtaProps) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      data-disco-motion="wiggle"
+      style={{ '--disco-motion-delay': `${delayMs}ms` } as CSSProperties}
+      className={`group relative inline-block animate-hero-subtitle ${className}`}
+      aria-label={ariaLabel}
+    >
+      <div className={`relative px-5 py-3 shadow-sm md:shadow-md rotate-2 md:group-hover:rotate-0 transition-transform duration-300 border ${tone.body}`}>
+        <div className={TAPE_CLASS} />
+        <div className={`absolute inset-x-4 top-[52%] h-px pointer-events-none ${tone.rule}`} />
+        <div className={`absolute inset-x-4 top-[76%] h-px pointer-events-none ${tone.rule}`} />
+        <div className="flex items-center gap-2.5">
+          <Icon size={20} className={`transition-colors shrink-0 ${tone.icon}`} strokeWidth={1.8} />
+          <span className={`font-hand text-base md:text-lg transition-colors ${tone.text}`}>{label}</span>
+          <span className={`md:group-hover:translate-x-1 transition-transform duration-200 ${tone.arrow}`}>→</span>
+        </div>
+        {/* Dog-ear fold */}
+        <div
+          className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
+          style={{ background: fold, clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }}
+        />
+      </div>
+    </Link>
+  );
+}
 
 export default function Home() {
 
@@ -66,11 +111,11 @@ export default function Home() {
         aria-label="Quick links"
         className="animate-hero-subtitle -mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-hand text-lg text-gray-500 dark:text-gray-400"
       >
-        <Link href="/resume" prefetch={false} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">resume</Link>
+        <Link href="/resume" prefetch={false} className={QUICK_LINK_CLASS}>resume</Link>
         <span aria-hidden="true">·</span>
-        <Link href="/projects" prefetch={false} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">projects</Link>
+        <Link href="/projects" prefetch={false} className={QUICK_LINK_CLASS}>projects</Link>
         <span aria-hidden="true">·</span>
-        <a href={PERSONAL_LINKS.email} className="inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200">email me</a>
+        <a href={PERSONAL_LINKS.email} className={QUICK_LINK_CLASS}>email me</a>
       </nav>
 
       <HomeVoiceNote context={{ source: 'home', topic: 'home' }} />
@@ -105,79 +150,38 @@ export default function Home() {
         Try typing <span className="text-indigo-500 bg-gray-100 px-1 rounded">projects</span> to view my work...
       </div>
 
-      {/* Passed Note — Chat CTA */}
-      <Link
+      <NoteCta
         href="/chat"
-        prefetch={false}
-        data-disco-motion="wiggle"
-        style={{ '--disco-motion-delay': '420ms' } as CSSProperties}
-        className="group mt-6 relative inline-block animate-hero-subtitle"
-        aria-label="Chat with AI Dhruv"
-      >
-        {/* Folded note body */}
-        <div className="relative bg-[#fff9c4] dark:bg-[#fef9c3]/90 px-5 py-3 shadow-sm md:shadow-md rotate-2 md:group-hover:rotate-0 transition-transform duration-300 border border-yellow-300/40">
-          {/* Tape strip on top */}
-          <div
-            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]"
-          />
-          {/* Ruled lines (decorative) */}
-          <div className="absolute inset-x-4 top-[52%] h-px bg-blue-300/20 pointer-events-none" />
-          <div className="absolute inset-x-4 top-[76%] h-px bg-blue-300/20 pointer-events-none" />
-          {/* Content */}
-          <div className="flex items-center gap-2.5">
-            <MessageCircle className="w-5 h-5 text-indigo-500/70 md:group-hover:text-indigo-600 transition-colors shrink-0" strokeWidth={1.8} />
-            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-800 md:group-hover:text-indigo-700 transition-colors">
-              Pass me a note
-            </span>
-            <span className="text-indigo-400 md:group-hover:translate-x-1 transition-transform duration-200">→</span>
-          </div>
-          {/* Dog-ear fold */}
-          <div
-            className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
-            style={{
-              background: 'linear-gradient(135deg, #fff9c4 45%, #e5e1a8 50%, #d4d09a 100%)',
-              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
-            }}
-          />
-        </div>
-      </Link>
-
-      {/* Guestbook CTA — coral sibling of the chat CTA */}
-      <Link
+        ariaLabel="Chat with AI Dhruv"
+        label="Pass me a note"
+        icon={MessageCircle}
+        delayMs={420}
+        className="mt-6"
+        tone={{
+          body: "bg-paper-yellow dark:bg-[#fef9c3]/90 border-yellow-300/40",
+          rule: "bg-blue-300/20",
+          icon: "text-indigo-500/70 md:group-hover:text-indigo-600",
+          text: "text-gray-700 dark:text-gray-800 md:group-hover:text-indigo-700",
+          arrow: "text-indigo-400",
+        }}
+        fold={`linear-gradient(135deg, ${PAPER_PALETTE.yellow} 45%, #e5e1a8 50%, #d4d09a 100%)`}
+      />
+      <NoteCta
         href="/guestbook"
-        prefetch={false}
-        data-disco-motion="wiggle"
-        style={{ '--disco-motion-delay': '560ms' } as CSSProperties}
-        className="group mt-4 relative inline-block animate-hero-subtitle"
-        aria-label="Sign Dhruv's sketchbook guestbook"
-      >
-        {/* Folded note body */}
-        <div className="relative bg-[#ffccbc] dark:bg-[#3e2723] px-5 py-3 shadow-sm md:shadow-md rotate-2 md:group-hover:rotate-0 transition-transform duration-300 border border-orange-300/40">
-          {/* Tape strip on top */}
-          <div
-            className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]"
-          />
-          {/* Ruled lines (decorative) */}
-          <div className="absolute inset-x-4 top-[52%] h-px bg-rose-300/25 pointer-events-none" />
-          <div className="absolute inset-x-4 top-[76%] h-px bg-rose-300/25 pointer-events-none" />
-          {/* Content */}
-          <div className="flex items-center gap-2.5">
-            <PenLine size={20} className="text-rose-500/70 md:group-hover:text-rose-600 transition-colors shrink-0" strokeWidth={1.8} />
-            <span className="font-hand text-base md:text-lg text-gray-700 dark:text-gray-200 md:group-hover:text-rose-700 dark:md:group-hover:text-rose-300 transition-colors">
-              Sign my sketchbook ✎
-            </span>
-            <span className="text-rose-400 md:group-hover:translate-x-1 transition-transform duration-200">→</span>
-          </div>
-          {/* Dog-ear fold */}
-          <div
-            className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
-            style={{
-              background: 'linear-gradient(135deg, #ffccbc 45%, #e6a895 50%, #cc8a77 100%)',
-              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
-            }}
-          />
-        </div>
-      </Link>
+        ariaLabel="Sign Dhruv's sketchbook guestbook"
+        label="Sign my sketchbook ✎"
+        icon={PenLine}
+        delayMs={560}
+        className="mt-4"
+        tone={{
+          body: "bg-paper-coral dark:bg-paper-coral-dark border-orange-300/40",
+          rule: "bg-rose-300/25",
+          icon: "text-rose-500/70 md:group-hover:text-rose-600",
+          text: "text-gray-700 dark:text-gray-200 md:group-hover:text-rose-700 dark:md:group-hover:text-rose-300",
+          arrow: "text-rose-400",
+        }}
+        fold={`linear-gradient(135deg, ${PAPER_PALETTE.coral} 45%, #e6a895 50%, #cc8a77 100%)`}
+      />
     </div>
   );
 }

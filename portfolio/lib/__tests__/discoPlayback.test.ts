@@ -46,15 +46,6 @@ function createManager() {
 }
 
 describe('DiscoPlaybackController', () => {
-  it('defines the existing loop followed by all three new tracks', () => {
-    expect(DISCO_TRACKS.map((track) => track.id)).toEqual([
-      'disco-loop',
-      'disco-track-1',
-      'disco-track-2',
-      'disco-track-3',
-    ]);
-  });
-
   it('cycles through four tracks and wraps to the existing loop', async () => {
     const { manager, completeCue } = createManager();
     manager.playToCompletion.mockResolvedValue(true);

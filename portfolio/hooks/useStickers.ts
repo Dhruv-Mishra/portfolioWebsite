@@ -462,6 +462,14 @@ function emitChange(): void {
   for (const l of store.listeners) l();
 }
 
+/** Publish a new state: optionally recompute progress, persist, then notify subscribers. */
+function commitState(next: StickerState, { recompute = false } = {}): void {
+  store.state = next;
+  if (recompute) recomputeProgress();
+  writeToStorage(next);
+  emitChange();
+}
+
 function subscribe(listener: () => void): () => void {
   initializeStoreOnce();
   store.listeners.add(listener);
@@ -563,10 +571,7 @@ export function unlockSticker(id: StickerId): void {
     };
   }
 
-  store.state = next;
-  recomputeProgress();
-  writeToStorage(next);
-  emitChange();
+  commitState(next, { recompute: true });
   enqueueToast(id);
   // Also enqueue the superuser toast so the user sees both pops.
   if (
@@ -583,11 +588,7 @@ export function markAlbumSeenImperative(): void {
   const current = store.state;
   const nextSeen = Date.now();
   if (current.lastSeenAlbumAt >= nextSeen) return;
-  const next: StickerState = { ...current, lastSeenAlbumAt: nextSeen };
-  store.state = next;
-  recomputeProgress();
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, lastSeenAlbumAt: nextSeen }, { recompute: true });
 }
 
 export function addVisitedRouteImperative(route: string): void {
@@ -595,13 +596,7 @@ export function addVisitedRouteImperative(route: string): void {
   if (!route || typeof route !== 'string') return;
   const current = store.state;
   if (current.visitedRoutes.includes(route)) return;
-  const next: StickerState = {
-    ...current,
-    visitedRoutes: [...current.visitedRoutes, route],
-  };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, visitedRoutes: [...current.visitedRoutes, route] });
 }
 
 /** Explicit setter for the disco flag — used by sudo commands. */
@@ -609,10 +604,7 @@ export function setDiscoActiveImperative(active: boolean): void {
   initializeStoreOnce();
   const current = store.state;
   if (current.discoActive === active) return;
-  const next: StickerState = { ...current, discoActive: active };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, discoActive: active });
 }
 
 /**
@@ -625,10 +617,7 @@ export function setMatrixActiveImperative(active: boolean): void {
   initializeStoreOnce();
   const current = store.state;
   if (current.matrixActive === active) return;
-  const next: StickerState = { ...current, matrixActive: active };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, matrixActive: active });
 }
 
 /**
@@ -647,7 +636,7 @@ export function setMatrixEscapedImperative(escaped: boolean): void {
   initializeStoreOnce();
   const current = store.state;
   if (current.matrixEscaped === escaped) return;
-  const next: StickerState = {
+  commitState({
     ...current,
     matrixEscaped: escaped,
     matrixEscapedAt:
@@ -656,10 +645,7 @@ export function setMatrixEscapedImperative(escaped: boolean): void {
         : escaped
           ? current.matrixEscapedAt
           : 0,
-  };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  });
 }
 
 /** Persist the user's mute preference for sitewide sound effects (v4+). */
@@ -667,10 +653,7 @@ export function setSoundsMutedImperative(muted: boolean): void {
   initializeStoreOnce();
   const current = store.state;
   if (current.soundsMuted === muted) return;
-  const next: StickerState = { ...current, soundsMuted: muted };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, soundsMuted: muted });
 }
 
 export interface SetMasterVolumeOptions {
@@ -700,10 +683,7 @@ export function setMasterVolumeImperative(
   if (current.masterVolume === masterVolume && current.soundsMuted === soundsMuted) {
     return masterVolume;
   }
-  const next: StickerState = { ...current, masterVolume, soundsMuted };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, masterVolume, soundsMuted });
   return masterVolume;
 }
 
@@ -720,10 +700,7 @@ export function setAudioCategoryVolumeImperative(
   const field = AUDIO_CATEGORY_FIELDS[category];
   const nextVolume = clampMasterVolume(volume);
   if (current[field] === nextVolume) return nextVolume;
-  const next: StickerState = { ...current, [field]: nextVolume };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, [field]: nextVolume });
   return nextVolume;
 }
 
@@ -736,10 +713,7 @@ export function setSuperuserRevealedAtImperative(revealedAt: number): void {
   initializeStoreOnce();
   const current = store.state;
   if (current.superuserRevealedAt >= revealedAt) return;
-  const next: StickerState = { ...current, superuserRevealedAt: revealedAt };
-  store.state = next;
-  writeToStorage(next);
-  emitChange();
+  commitState({ ...current, superuserRevealedAt: revealedAt });
 }
 
 /**
@@ -748,16 +722,13 @@ export function setSuperuserRevealedAtImperative(revealedAt: number): void {
  */
 export function resetStickerProgressImperative(): void {
   initializeStoreOnce();
-  store.state = defaultState();
   store.toastQueue = [];
   if (store.toastTimerId !== null) {
     clearTimeout(store.toastTimerId);
     store.toastTimerId = null;
   }
   store.activeToast = null;
-  recomputeProgress();
-  writeToStorage(store.state);
-  emitChange();
+  commitState(defaultState(), { recompute: true });
 }
 
 export function dismissActiveToast(): void {

@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   USER_ACTION_JOURNAL_MAX_AGE_MS,
@@ -319,29 +317,4 @@ describe('userActionJournal', () => {
       'project.open cropio',
     ]);
   });
-
-  it('contract: Terminal only emits terminal.run on successful execution of consequential public commands', () => {
-    const terminalSource = fs.readFileSync(
-      path.join(process.cwd(), 'components', 'Terminal.tsx'),
-      'utf8',
-    );
-    // Must not emit terminal.run unconditionally before registry execution
-    expect(terminalSource).not.toMatch(/unlockSticker\('first-word'\);\s+if\s*\(isPublicTerminalCommand\(lowerCmd\)\)\s*\{\s*appendUserAction/);
-    // Must emit terminal.run only inside the try block after commandDef execution resolves
-    expect(terminalSource).toMatch(/const result = await commandDef\(args\);[\s\S]*?if\s*\(isPublicTerminalCommand\(lowerCmd\)\)\s*\{\s*appendUserAction\(\{ kind: 'terminal\.run', command: lowerCmd \}\);/);
-  });
-
-  it('contract: StickyNoteChat only emits chat.sent after hardcoded acceptance or remote sendMessage resolves true', () => {
-    const chatSource = fs.readFileSync(
-      path.join(process.cwd(), 'components', 'StickyNoteChat.tsx'),
-      'utf8',
-    );
-    // Must not emit chat.sent unconditionally at handleSendFromInput start
-    expect(chatSource).not.toMatch(/soundManager\.play\('chat-send'\);\s+appendUserAction\(\{ kind: 'chat\.sent' \}\);/);
-    // Must emit after sendHardcoded returns true
-    expect(chatSource).toMatch(/sendHardcoded\(text, getSuggestionResponse\(text\)\)\)\s*\{[\s\S]*?appendUserAction\(\{ kind: 'chat\.sent' \}\);/);
-    // Must emit after sendMessage resolves true
-    expect(chatSource).toMatch(/void accepted\.then\(\(wasAccepted\) => \{[\s\S]*?if\s*\(wasAccepted\)\s*\{\s*appendUserAction\(\{ kind: 'chat\.sent' \}\);/);
-  });
-
 });

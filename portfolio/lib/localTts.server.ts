@@ -696,22 +696,6 @@ export function resolveLocalTtsOptions(input: { speed?: unknown; voice?: unknown
   return { speed, voice: DEFAULT_VOICE };
 }
 
-export function encodePcm16(samples: Float32Array): Buffer {
-  const buffer = Buffer.allocUnsafe(samples.length * 2);
-
-  for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex += 1) {
-    const clipped = Math.max(-1, Math.min(1, samples[sampleIndex]));
-    const scaled = clipped < 0 ? clipped * 0x8000 : clipped * 0x7fff;
-    buffer.writeInt16LE(Math.round(scaled), sampleIndex * 2);
-  }
-
-  return buffer;
-}
-
-export function encodePcm16Wav(samples: Float32Array, sampleRate = SAMPLE_RATE): Buffer {
-  return encodePcm16BufferWav(encodePcm16(samples), sampleRate);
-}
-
 function encodePcm16BufferWav(pcm: Buffer, sampleRate = SAMPLE_RATE): Buffer {
   const header = Buffer.alloc(44);
 

@@ -33,8 +33,6 @@ env:
   STAGING_DOMAIN: staging.whoisdhruv.com
   STAGING_PORT: "3010"
   STAGING_LOCAL_AGENT_BASE_URL: https://llm.whoisdhruv.com/v1
-  NODE_VERSION: "22"
-  CI_NPM_VERSION: "10.9.8"
   DEPLOY_MODE: image
   DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
   NEXT_PUBLIC_GA_ID: ""
@@ -104,20 +102,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        working-directory: portfolio
-        env:
-          SKIP_EMBEDDINGS_BUILD: "1"
-          ONNXRUNTIME_NODE_INSTALL: skip
-        # npm ci already fails on a lockfile that is out of sync with package.json.
-        run: npx -y npm@${{ env.CI_NPM_VERSION }} ci
+      - name: Setup Node.js and dependencies
+        uses: ./.github/actions/setup-portfolio
 
       - name: Lint
         working-directory: portfolio
@@ -811,18 +797,8 @@ jobs:
 
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
-            TTS_STREAM_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE"' EXIT
-
-            TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
-              -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \
-              -H "Origin: https://${SVC_DOMAIN}" -H "Sec-Fetch-Site: same-origin" \
-              --data '{"text":"Staging topology verification.","stream":true}' \
-              -o "$TTS_STREAM_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/api/tts" 2>/dev/null || echo "000")
-            [ "$TTS_HTTP_CODE" = "200" ] || fail "Pocket TTS HTTPS route returned HTTP $TTS_HTTP_CODE"
-            grep -q '"type":"ready"' "$TTS_STREAM_FILE" && grep -q '"type":"chunk"' "$TTS_STREAM_FILE" && grep -q '"type":"done"' "$TTS_STREAM_FILE" \
-              || fail "Pocket TTS HTTPS stream was incomplete"
-            echo "Pocket TTS HTTPS topology verified"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
+            # deploy.sh already synthesized speech through this host's HTTPS route before succeeding.
 
             curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"
@@ -904,91 +880,6 @@ jobs:
             fi
 
             echo "Staging verified on ${{ matrix.server.name }}: v${{ needs.build.outputs.release_version }} on :$SVC_PORT"
-
-      - name: Audit staging model canaries
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          MODEL_STATUS_URL="https://${{ env.STAGING_DOMAIN }}/api/chat/model-status"
-          MODEL_STATUS_FILE="$(mktemp)"
-          trap 'rm -f "$MODEL_STATUS_FILE"' EXIT
-
-          if ! curl -fsS --max-time 15 -H "Accept: application/json" \
-            -o "$MODEL_STATUS_FILE" "$MODEL_STATUS_URL"; then
-            echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
-            echo "Model probes skipped because the core model-status route was unavailable: \`$MODEL_STATUS_URL\`." >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Staging model-status route failed: $MODEL_STATUS_URL"
-            exit 0
-          fi
-
-          if ! jq -e '
-            (.deploymentCanaryModelIds | type == "array") and
-            (.deploymentCanaryModelIds | all(.[]; type == "string" and length > 0 and test("^[^\\r\\n]+$")))
-          ' "$MODEL_STATUS_FILE" >/dev/null; then
-            echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
-            echo "Model probes skipped because \`deploymentCanaryModelIds\` was missing or invalid." >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Staging model-status response schema is invalid"
-            exit 0
-          fi
-
-          mapfile -t DEPLOYMENT_CANARY_MODEL_IDS < <(jq -r '.deploymentCanaryModelIds[]' "$MODEL_STATUS_FILE")
-          {
-            echo "## Staging model canary audit"
-            echo ""
-            echo "| Model | HTTP | Result |"
-            echo "|---|---:|---|"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "${#DEPLOYMENT_CANARY_MODEL_IDS[@]}" -eq 0 ]; then
-            echo "| _none returned_ | - | Warning: no configured provider-family canaries |" >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Staging model-status returned no deployment canary model IDs"
-          fi
-
-          for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do
-            CHAT_HEADERS_FILE="$(mktemp)"
-            CHAT_BODY_FILE="$(mktemp)"
-            CHAT_HTTP_CODE="000"
-            CHAT_ELAPSED_SECONDS="unknown"
-            CHAT_CURL_METRICS=""
-            if CHAT_CURL_METRICS="$(curl -sk --max-time 100 \
-              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
-              -H "Origin: https://${{ env.STAGING_DOMAIN }}" -H "Referer: https://${{ env.STAGING_DOMAIN }}/" -H "Sec-Fetch-Site: same-origin" \
-              --data "$(jq -nc --arg model "$CHAT_MODEL" '{model: $model, messages: [{role: "user", content: "Staging deployment canary health check. Please provide a brief acknowledgement."}]}')" \
-              -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w '%{http_code} %{time_total}' "https://${{ env.STAGING_DOMAIN }}/chat/respond" 2>/dev/null)"; then
-              CHAT_CURL_EXIT=0
-            else
-              CHAT_CURL_EXIT=$?
-            fi
-            if [[ "$CHAT_CURL_METRICS" =~ ^([0-9]{3})[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
-              CHAT_HTTP_CODE="${BASH_REMATCH[1]}"
-              CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"
-            fi
-
-            CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} curl_exit=${CHAT_CURL_EXIT} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"
-            CHAT_CANARY_FAILURE=""
-            if [ "$CHAT_HTTP_CODE" != "200" ]; then
-              CHAT_CANARY_FAILURE="expected HTTP 200"
-            elif ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
-              CHAT_CANARY_FAILURE="expected JSON content type"
-            elif ! grep -qiE '^x-chat-fallback:[[:space:]]*primaryOnline[[:space:]]*$' "$CHAT_HEADERS_FILE"; then
-              CHAT_CANARY_FAILURE="provider did not report primaryOnline"
-            elif ! jq -e --arg model "$CHAT_MODEL" '
-              .modelId == $model and (.reply | type == "string" and length > 0)
-            ' "$CHAT_BODY_FILE" >/dev/null; then
-              CHAT_CANARY_FAILURE="response contract invalid"
-            fi
-            rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
-
-            if [ -n "$CHAT_CANARY_FAILURE" ]; then
-              echo "::warning::Staging chat canary degraded: ${CHAT_CANARY_DIAGNOSTICS}; ${CHAT_CANARY_FAILURE}"
-              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Warning: ${CHAT_CANARY_FAILURE} |" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "Staging chat canary verified: ${CHAT_MODEL}"
-              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Verified |" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
 
       - name: Staging deployment success (${{ matrix.server.name }})
         if: success()
@@ -1183,3 +1074,96 @@ jobs:
           fi
 
           echo "Staging Cloudflare URL responded: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+
+  # Warning-only model probes run once against the edge after rollout, off the deploy critical path.
+  audit-staging-models:
+    name: Audit staging model canaries
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Audit staging model canaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MODEL_STATUS_URL="https://${{ env.STAGING_DOMAIN }}/api/chat/model-status"
+          MODEL_STATUS_FILE="$(mktemp)"
+          trap 'rm -f "$MODEL_STATUS_FILE"' EXIT
+
+          if ! curl -fsS --max-time 15 -H "Accept: application/json" \
+            -o "$MODEL_STATUS_FILE" "$MODEL_STATUS_URL"; then
+            echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "Model probes skipped because the core model-status route was unavailable: \`$MODEL_STATUS_URL\`." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Staging model-status route failed: $MODEL_STATUS_URL"
+            exit 0
+          fi
+
+          if ! jq -e '
+            (.deploymentCanaryModelIds | type == "array") and
+            (.deploymentCanaryModelIds | all(.[]; type == "string" and length > 0 and test("^[^\\r\\n]+$")))
+          ' "$MODEL_STATUS_FILE" >/dev/null; then
+            echo "## Staging model canary audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "Model probes skipped because \`deploymentCanaryModelIds\` was missing or invalid." >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Staging model-status response schema is invalid"
+            exit 0
+          fi
+
+          mapfile -t DEPLOYMENT_CANARY_MODEL_IDS < <(jq -r '.deploymentCanaryModelIds[]' "$MODEL_STATUS_FILE")
+          {
+            echo "## Staging model canary audit"
+            echo ""
+            echo "| Model | HTTP | Result |"
+            echo "|---|---:|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#DEPLOYMENT_CANARY_MODEL_IDS[@]}" -eq 0 ]; then
+            echo "| _none returned_ | - | Warning: no configured provider-family canaries |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Staging model-status returned no deployment canary model IDs"
+          fi
+
+          for CHAT_MODEL in "${DEPLOYMENT_CANARY_MODEL_IDS[@]}"; do
+            CHAT_HEADERS_FILE="$(mktemp)"
+            CHAT_BODY_FILE="$(mktemp)"
+            CHAT_HTTP_CODE="000"
+            CHAT_ELAPSED_SECONDS="unknown"
+            CHAT_CURL_METRICS=""
+            if CHAT_CURL_METRICS="$(curl -sk --max-time 100 \
+              -X POST -H "Accept: application/json" -H "Content-Type: application/json" \
+              -H "Origin: https://${{ env.STAGING_DOMAIN }}" -H "Referer: https://${{ env.STAGING_DOMAIN }}/" -H "Sec-Fetch-Site: same-origin" \
+              --data "$(jq -nc --arg model "$CHAT_MODEL" '{model: $model, messages: [{role: "user", content: "Staging deployment canary health check. Please provide a brief acknowledgement."}]}')" \
+              -D "$CHAT_HEADERS_FILE" -o "$CHAT_BODY_FILE" -w '%{http_code} %{time_total}' "https://${{ env.STAGING_DOMAIN }}/chat/respond" 2>/dev/null)"; then
+              CHAT_CURL_EXIT=0
+            else
+              CHAT_CURL_EXIT=$?
+            fi
+            if [[ "$CHAT_CURL_METRICS" =~ ^([0-9]{3})[[:space:]]+([0-9]+([.][0-9]+)?)$ ]]; then
+              CHAT_HTTP_CODE="${BASH_REMATCH[1]}"
+              CHAT_ELAPSED_SECONDS="${BASH_REMATCH[2]}"
+            fi
+            CHAT_SERVED_BY="$(grep -i '^x-chat-fallback:' "$CHAT_HEADERS_FILE" | head -n 1 | cut -d: -f2- | tr -d '[:space:]' || true)"
+
+            CHAT_CANARY_DIAGNOSTICS="model=${CHAT_MODEL} status=${CHAT_HTTP_CODE} served_by=${CHAT_SERVED_BY:-none} curl_exit=${CHAT_CURL_EXIT} elapsed_seconds=${CHAT_ELAPSED_SECONDS}"
+            CHAT_CANARY_FAILURE=""
+            if [ "$CHAT_HTTP_CODE" != "200" ]; then
+              CHAT_CANARY_FAILURE="expected HTTP 200"
+            elif ! grep -qiE '^content-type:[[:space:]]*application/json([;[:space:]]|$)' "$CHAT_HEADERS_FILE"; then
+              CHAT_CANARY_FAILURE="expected JSON content type"
+            elif [ "$CHAT_SERVED_BY" != "$CHAT_MODEL" ]; then
+              CHAT_CANARY_FAILURE="reply was not served by the selected model"
+            elif ! jq -e --arg model "$CHAT_MODEL" '
+              .modelId == $model and (.reply | type == "string" and length > 0)
+            ' "$CHAT_BODY_FILE" >/dev/null; then
+              CHAT_CANARY_FAILURE="response contract invalid"
+            fi
+            rm -f "$CHAT_HEADERS_FILE" "$CHAT_BODY_FILE"
+
+            if [ -n "$CHAT_CANARY_FAILURE" ]; then
+              echo "::warning::Staging chat canary degraded: ${CHAT_CANARY_DIAGNOSTICS}; ${CHAT_CANARY_FAILURE}"
+              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Warning: ${CHAT_CANARY_FAILURE} |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Staging chat canary verified: ${CHAT_MODEL}"
+              echo "| \`${CHAT_MODEL}\` | \`${CHAT_HTTP_CODE}\` | Verified |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done

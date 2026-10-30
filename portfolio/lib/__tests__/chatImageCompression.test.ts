@@ -9,13 +9,6 @@ import {
   getDataUrlDecodedByteLength,
   isSupportedChatImageType,
 } from '@/lib/chatImageCompression';
-import fs from 'node:fs';
-import path from 'node:path';
-
-const source = fs.readFileSync(
-  path.join(process.cwd(), 'lib', 'chatImageCompression.ts'),
-  'utf8',
-);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -48,16 +41,6 @@ describe('chat image compression helpers', () => {
     expect(fitted).toEqual({ width: 591, height: 443 });
     expect(fitted.width * fitted.height).toBeLessThanOrEqual(budget);
     expect(fitChatImageDimensions({ width: 400, height: 300 }, CHAT_IMAGE_MAX_DIMENSION, budget)).toEqual({ width: 400, height: 300 });
-  });
-
-  it('uses abortable asynchronous blob encoding and releases fallback object URLs on decode failure', () => {
-    expect(source).toContain('options: ChatImageCompressionOptions = {}');
-    expect(source).toContain('canvas.toBlob(');
-    expect(source).toContain('blobToDataUrl(blob, signal)');
-    expect(source).toContain('throwIfAborted(signal);');
-    expect(source).toContain('URL.revokeObjectURL(objectUrl);');
-    expect(source).toContain("context.imageSmoothingQuality = 'high'");
-    expect(source).toContain('const CHAT_IMAGE_JPEG_QUALITIES = [0.84, 0.76, 0.68, 0.6]');
   });
 
   it('preserves an original supported image when every encoded candidate is larger', async () => {

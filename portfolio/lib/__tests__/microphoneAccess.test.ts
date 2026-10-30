@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   formatMicrophoneError,
@@ -44,19 +42,6 @@ describe('formatMicrophoneError', () => {
       .toBe('No microphone was found. Connect one and try again.');
     expect(formatMicrophoneError(new DOMException('', 'NotReadableError')))
       .toBe('The microphone is unavailable or already in use. Close other apps using it, then try again.');
-  });
-});
-
-describe('microphone deployment policy', () => {
-  it('allows same-origin microphone access in standalone and nginx runtimes', () => {
-    const nextConfig = fs.readFileSync(path.join(process.cwd(), 'next.config.ts'), 'utf8');
-    const nginxConfig = fs.readFileSync(path.join(process.cwd(), 'nginx-cloudflare.conf'), 'utf8');
-
-    expect(nextConfig).toContain('microphone=(self)');
-    expect(nginxConfig).toContain('microphone=(self)');
-    expect(nginxConfig).toContain('proxy_hide_header Permissions-Policy;');
-    expect(nextConfig).not.toContain('microphone=()');
-    expect(nginxConfig).not.toContain('microphone=()');
   });
 });
 

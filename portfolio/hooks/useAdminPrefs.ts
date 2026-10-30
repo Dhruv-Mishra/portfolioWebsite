@@ -264,18 +264,3 @@ export function getAdminPrefsSnapshot(): AdminPrefs {
   initOnce();
   return state;
 }
-
-/** @internal — test helper, never call in app code. */
-export function __resetAdminPrefsForTest(): void {
-  if (
-    storageListenerAttached
-    && typeof window !== 'undefined'
-    && typeof window.removeEventListener === 'function'
-  ) {
-    window.removeEventListener('storage', handleStorageEvent);
-  }
-  state = defaultPrefs();
-  initialized = false;
-  storageListenerAttached = false;
-  listeners.clear();
-}

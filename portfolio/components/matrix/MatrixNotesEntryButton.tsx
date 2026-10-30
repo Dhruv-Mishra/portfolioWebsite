@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMatrixActive, useMatrixEscaped } from '@/hooks/useStickers';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { Z_INDEX } from '@/lib/designTokens';
+import { FONT_STACKS, Z_INDEX } from '@/lib/designTokens';
 
 export default function MatrixNotesEntryButton(): React.ReactElement | null {
   const pathname = usePathname();
@@ -73,7 +73,7 @@ function MatrixGlyph({ size }: { size: number }): React.ReactElement {
         x="8"
         y="11"
         textAnchor="middle"
-        fontFamily="'Fira Code', monospace"
+        fontFamily={FONT_STACKS.mono}
         fontSize="7"
         fontWeight="bold"
         stroke="none"

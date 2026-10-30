@@ -11,6 +11,9 @@ import { PERSONAL_LINKS } from '@/lib/links';
 import { unlockSticker, useDiscoActive } from '@/hooks/useStickers';
 import { runThemeToggle } from '@/lib/themeToggleAction';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { cn } from '@/lib/utils';
+
+const MOBILE_ROUND_BUTTON = "flex shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-sticker transition-[color,transform] duration-200 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-gray-600";
 // Note: soundManager import removed — the mobile theme button now routes
 // audio playback through `runThemeToggle` so the desktop + mobile handlers
 // share exactly one code path. The shared helper owns the cricket/rooster
@@ -72,7 +75,7 @@ const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onP
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
-                className={`relative flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 ${social.color} rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
+                className={cn(MOBILE_ROUND_BUTTON, 'relative h-11 w-11 font-hand focus-visible:outline-indigo-500', social.color)}
                 title={social.name}
                 aria-label={social.name}
             >
@@ -109,7 +112,7 @@ const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPres
             href="/settings"
             onClick={onPress}
             className={isMobile
-                ? "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-emerald-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-gray-600"
+                ? cn(MOBILE_ROUND_BUTTON, "relative h-11 w-11 hover:text-emerald-600 focus-visible:outline-emerald-500")
                 : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
             title="Settings"
             aria-label="Open settings"
@@ -153,7 +156,7 @@ const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { o
                 onPress();
                 runThemeToggle({ discoActive, isDark, setTheme });
             }}
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 transition-[color,transform] duration-200 hover:text-amber-500 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            className={cn(MOBILE_ROUND_BUTTON, "relative h-11 w-11 font-hand hover:text-amber-500 focus-visible:outline-indigo-500")}
             title={ariaLabel}
             aria-label={ariaLabel}
             data-disco-bounce="1"
@@ -213,7 +216,7 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
                 <button
                     type="button"
                     onClick={() => setIsDrawerExpanded((isExpanded) => !isExpanded)}
-                    className={`absolute ${isDrawerExpanded ? '-top-12 right-1' : '-top-11 right-1'} flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-[1px_2px_4px_rgba(0,0,0,0.15)] transition-[color,transform] duration-200 hover:text-indigo-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-600`}
+                    className={cn(MOBILE_ROUND_BUTTON, 'absolute h-11 w-11 hover:text-indigo-600 focus-visible:outline-indigo-500', isDrawerExpanded ? '-top-12 right-1' : '-top-11 right-1')}
                     title={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
                     aria-label={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
                     aria-expanded={isDrawerExpanded}
@@ -293,7 +296,7 @@ export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: (
                                 openPanel();
                                 onFeedbackClick();
                             }}
-                            className="relative flex h-10 w-10 shrink-0 items-center justify-center bg-[var(--c-paper)]/85 text-gray-500 hover:text-purple-600 transition-[color,transform] duration-200 rounded-full shadow-[1px_2px_4px_rgba(0,0,0,0.15)] border-2 border-dashed border-[var(--c-grid)] dark:border-gray-600 active:scale-95 font-hand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 before:absolute before:-inset-0.5 before:min-h-[44px] before:min-w-[44px]"
+                            className={cn(MOBILE_ROUND_BUTTON, "relative h-10 w-10 font-hand hover:text-purple-600 focus-visible:outline-purple-500 before:absolute before:-inset-0.5 before:min-h-[44px] before:min-w-[44px]")}
                             title="Send feedback"
                             aria-label="Open feedback form"
                         >

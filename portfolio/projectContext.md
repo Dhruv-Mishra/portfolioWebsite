@@ -16,8 +16,8 @@ Core interaction ideas:
 ## Current Stack
 
 - Next.js 16 App Router with standalone output.
-- React 19, TypeScript 5 strict mode, Tailwind CSS 4, Framer Motion 12.
-- ESLint 9 and Vitest 4.
+- React 19, TypeScript 6 strict mode, Tailwind CSS 4, Framer Motion 14.
+- ESLint 9 and Vitest 5.
 - Exact-model chat routing: Groq Qwen is the default, selectable NVIDIA models use NVIDIA NIM, and provider failures degrade locally without cross-model substitution.
 - Linux VMs behind Cloudflare and Nginx. Staging and production use Docker image deploys; artifact mode remains available as a fallback.
 

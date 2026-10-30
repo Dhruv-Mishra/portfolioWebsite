@@ -12,6 +12,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  SKIP_EMBEDDINGS_BUILD: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+# Job names are referenced by branch protection; keep them stable.
 jobs:
   lint:
     name: Lint
@@ -20,26 +25,16 @@ jobs:
     defaults:
       run:
         working-directory: portfolio
-    env:
-      SKIP_EMBEDDINGS_BUILD: '1'
-      ONNXRUNTIME_NODE_INSTALL: skip
-      NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-portfolio
+      - name: Restore ESLint cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        run: npx -y npm@10.9.8 ci
-
-      - name: Lint
-        run: npm run lint
+          path: portfolio/.eslintcache
+          key: ${{ runner.os }}-eslint-${{ hashFiles('portfolio/package-lock.json', 'portfolio/eslint.config.mjs') }}-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-eslint-${{ hashFiles('portfolio/package-lock.json', 'portfolio/eslint.config.mjs') }}-
+      - run: npm run lint -- --cache --cache-location .eslintcache
 
   typecheck:
     name: Typecheck
@@ -48,26 +43,10 @@ jobs:
     defaults:
       run:
         working-directory: portfolio
-    env:
-      SKIP_EMBEDDINGS_BUILD: '1'
-      ONNXRUNTIME_NODE_INSTALL: skip
-      NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        run: npx -y npm@10.9.8 ci
-
-      - name: Typecheck
-        run: npm run typecheck
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-portfolio
+      - run: npm run typecheck
 
   test:
     name: Test
@@ -76,26 +55,10 @@ jobs:
     defaults:
       run:
         working-directory: portfolio
-    env:
-      SKIP_EMBEDDINGS_BUILD: '1'
-      ONNXRUNTIME_NODE_INSTALL: skip
-      NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        run: npx -y npm@10.9.8 ci
-
-      - name: Test
-        run: npm test
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-portfolio
+      - run: npm test
 
   build:
     name: Build
@@ -104,32 +67,14 @@ jobs:
     defaults:
       run:
         working-directory: portfolio
-    env:
-      SKIP_EMBEDDINGS_BUILD: '1'
-      ONNXRUNTIME_NODE_INSTALL: skip
-      NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        run: npx -y npm@10.9.8 ci
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-portfolio
       - name: Restore Next.js build cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            portfolio/.next/cache
+          path: portfolio/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('portfolio/package-lock.json') }}-${{ hashFiles('portfolio/**/*.{js,jsx,ts,tsx,css}') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('portfolio/package-lock.json') }}-
-
-      - name: Build
-        run: npm run build
+      - run: npm run build

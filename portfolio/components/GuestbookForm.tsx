@@ -455,7 +455,7 @@ export default function GuestbookForm() {
               role="alert"
               className={cn(
                 'relative mt-4 p-3 shadow-sm',
-                'bg-[#ffccbc] dark:bg-[#3e2723]',
+                'bg-paper-coral dark:bg-paper-coral-dark',
                 'text-orange-900 dark:text-orange-200',
                 'font-hand text-sm',
               )}

@@ -12,6 +12,10 @@ Scope: GitHub workflows, repository instructions, and agent definitions.
 
 - Staging deploys are guarded to `deployed/staging`.
 - Production deploy workflow is guarded to `deployed/production`; `dev/lkg` is the primary development branch.
+- Node setup and `npm ci` go through `.github/actions/setup-portfolio`; do not inline them again.
+- Pin every third-party action to a full commit SHA (enforced by `lib/__tests__/workflowSecurity.test.ts`).
+- CI job names (`Lint`, `Typecheck`, `Test`, `Build`) are branch-protection checks; renaming them requires a settings change.
+- Keep warning-only probes (model canaries) out of the deploy critical path; `deploy.sh` owns per-host health and rollback.
 - Avoid secrets, VM hostnames, SSH details, and Cloudflare credentials in tracked docs.
 
 ## Agent Definition Notes

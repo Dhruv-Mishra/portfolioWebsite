@@ -64,7 +64,6 @@ env:
   DOMAIN: whoisdhruv.com
   PRODUCTION_LOCAL_AGENT_BASE_URL: https://llm.whoisdhruv.com/v1
   NODE_VERSION: '22'
-  CI_NPM_VERSION: '10.9.8'
   DEPLOY_MODE: image
   DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
   NEXT_PUBLIC_GA_ID: ''
@@ -138,21 +137,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: portfolio/package-lock.json
-
-      - name: Install dependencies
-        working-directory: portfolio
-        # SKIP_EMBEDDINGS_BUILD=1 reuses the committed lib/facts.embeddings.json.
-        # npm ci already fails on a lockfile that is out of sync with package.json.
-        env:
-          SKIP_EMBEDDINGS_BUILD: '1'
-          ONNXRUNTIME_NODE_INSTALL: skip
-        run: npx -y npm@${{ env.CI_NPM_VERSION }} ci
+      - name: Setup Node.js and dependencies
+        uses: ./.github/actions/setup-portfolio
 
       - name: Lint
         working-directory: portfolio
@@ -999,17 +985,8 @@ jobs:
 
             HTML_FILE="$(mktemp)"
             ASSET_FILE="$(mktemp)"
-            TTS_STREAM_FILE="$(mktemp)"
-            trap 'rm -f "$HTML_FILE" "$ASSET_FILE" "$TTS_STREAM_FILE"' EXIT
-            TTS_HTTP_CODE=$(curl -sk --max-time 300 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
-              -X POST -H "Accept: application/x-ndjson" -H "Content-Type: application/json" \
-              -H "Origin: https://${SVC_DOMAIN}" -H "Sec-Fetch-Site: same-origin" \
-              --data '{"text":"Production topology verification.","stream":true}' \
-              -o "$TTS_STREAM_FILE" -w "%{http_code}" "https://${SVC_DOMAIN}/api/tts" 2>/dev/null || echo "000")
-            [ "$TTS_HTTP_CODE" = "200" ] || fail "Pocket TTS HTTPS route returned HTTP $TTS_HTTP_CODE"
-            grep -q '"type":"ready"' "$TTS_STREAM_FILE" && grep -q '"type":"chunk"' "$TTS_STREAM_FILE" && grep -q '"type":"done"' "$TTS_STREAM_FILE" \
-              || fail "Pocket TTS HTTPS stream was incomplete"
-            echo "Pocket TTS HTTPS topology verified"
+            trap 'rm -f "$HTML_FILE" "$ASSET_FILE"' EXIT
+            # deploy.sh already synthesized speech through this host's HTTPS route before succeeding.
 
             curl -sk --max-time 10 --resolve "${SVC_DOMAIN}:443:127.0.0.1" \
               "https://${SVC_DOMAIN}/?asset_probe=${{ github.sha }}" > "$HTML_FILE"

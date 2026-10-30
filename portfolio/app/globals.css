@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* next-themes toggles .dark on <html>; without this, dark: follows the OS setting instead of the site toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-paper: var(--c-paper);
   --color-ink: var(--c-ink);
@@ -7,6 +10,14 @@
   --color-binding-bg: var(--c-binding-bg);
   --color-binding-border: var(--c-binding-border);
   --color-binding-stitch: var(--c-binding-stitch);
+
+  /* Fixed sticky-note paper (same in light and dark). Mirrors PAPER_PALETTE in lib/designTokens.ts (parity-tested).
+     Distinct from the theme-aware .bg-note-* utilities below, which follow --note-paper. */
+  --color-paper-yellow: #fff9c4;
+  --color-paper-coral: #ffccbc;
+  --color-paper-coral-dark: #3e2723;
+
+  --shadow-sticker: 1px 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 @layer base {

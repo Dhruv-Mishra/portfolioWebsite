@@ -29,27 +29,9 @@ The shared guide defines assignment permissions and ownership. Fastlane is read-
 - Exclude generated output, build logs, and temporary screenshots from agent context.
 - Use Agent Debug Logs and Cache Explorer to measure context or cache problems before adding optimization layers.
 
-## Zvec-Grep Workspace Search
+## Code Search
 
-The repository pins `@zvec/zvec-grep` as development tooling. It combines ranked lexical and local vector retrieval for source, documentation, configuration, and curated fact Markdown. It improves evidence discovery and can reduce agent tool calls or context usage; it does not make the underlying LLM faster.
-
-From the repository root, create the machine-local index once and start the loopback MCP server:
-
-```powershell
-npm ci --prefix portfolio
-npm run search:index
-npm run search:server
-```
-
-The initial index uses `local/potion-code-16m-v2`. Repository content and queries stay on the machine, the model cache stays under the user's zvec-grep home, and `.zvec-grep/` remains untracked. Do not grant remote embedding access or store provider credentials in the repository.
-
-Use `npm run search:query -- "where theme preferences are restored"` for terminal search, `npm run search:status` for index readiness, and `npm run search:update` for an explicit incremental refresh. `npm run search:server:status` checks MCP readiness; `npm run search:server:stop` stops the daemon. Active daemon workspaces use file watching and periodic reconciliation, so indexing is intentionally not attached to a Git hook.
-
-The checked-in `.vscode/mcp.json` connects to `http://127.0.0.1:7999/mcp` with zvec-grep's search-only agent toolset. Reload VS Code or start a new chat after first setup. Use semantic or hybrid retrieval when the location or wording is unknown and native search for exact identifiers, strings, paths, regexes, or exhaustive matches.
-
-Keep separate indexes for Windows and Linux/WSL working copies. Do not run daemons from both environments against the same `.zvec-grep/` directory.
-
-Zvec is not used by the website's runtime facts RAG. That corpus currently contains 35 facts and already uses a committed embedding bundle, content-hash reuse, query caching, and a tiny in-memory cosine scan. Reconsider a vector database only after corpus growth or measured retrieval latency or quality demonstrates a need.
+Use VS Code semantic search for unknown wording and exact search (`rg`) for identifiers and paths. The repository is small enough (~500 files) that a separate vector index added a 380 MB dev dependency and a daemon that went stale without measurable gain, so `zvec-grep` was removed. The runtime facts RAG uses a committed embedding bundle and an in-memory cosine scan; reconsider a vector database only if the corpus or measured retrieval latency demands it.
 
 ## Headroom
 

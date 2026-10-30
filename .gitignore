@@ -14,5 +14,3 @@ node_modules/
 # portfolio/package-lock.json.
 /package-lock.json
 
-# zvec-grep machine-local state
-/.zvec-grep/

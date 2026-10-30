@@ -56,11 +56,6 @@ async function load() {
 }
 
 describe('discoHaptics — lifecycle', () => {
-  it('exports the correct beat interval constant (500ms = 120 BPM)', async () => {
-    const { __test } = await load();
-    expect(__test.DISCO_BEAT_INTERVAL_MS).toBe(500);
-  });
-
   it('startDiscoHaptics schedules an interval that fires the pulse every 500ms', async () => {
     const { startDiscoHaptics, stopDiscoHaptics, __test } = await load();
     const pulse = vi.fn();

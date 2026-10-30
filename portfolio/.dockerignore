@@ -26,3 +26,7 @@ Dockerfile*
 docker-compose*.yml
 docker-compose*.yaml
 build-output.txt
+# Not needed to build or run the image; excluding them keeps test-only changes from busting the build cache.
+lib/__tests__
+vitest.config.ts
+scripts/local-llm

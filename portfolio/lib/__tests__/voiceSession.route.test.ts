@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const mintVoiceSessionMock = vi.hoisted(() => vi.fn());
 const consoleErrorMock = vi.hoisted(() => vi.fn());
+const getRelevantFactContextMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/serverRateLimit', () => ({
   createServerRateLimiter: vi.fn(() => ({
@@ -19,9 +20,14 @@ vi.mock('@/lib/voiceSession.server', () => ({
   mintVoiceSession: mintVoiceSessionMock,
 }));
 
-import { POST } from '@/app/api/voice/session/route';
+vi.mock('@/lib/factRetrieval.server', () => ({
+  getRelevantFactContext: getRelevantFactContextMock,
+}));
 
-function sessionRequest(body: Record<string, unknown>): NextRequest {
+import { POST } from '@/app/api/voice/session/route';
+import { POST as factsPOST } from '@/app/api/voice/facts/route';
+
+function sessionRequest(body: Record<string, unknown>, signal?: AbortSignal): NextRequest {
   const payload = JSON.stringify(body);
   return new Request('https://whoisdhruv.com/api/voice/session', {
     method: 'POST',
@@ -31,6 +37,7 @@ function sessionRequest(body: Record<string, unknown>): NextRequest {
       'content-length': String(Buffer.byteLength(payload)),
     },
     body: payload,
+    signal,
   }) as unknown as NextRequest;
 }
 
@@ -73,5 +80,67 @@ describe('/api/voice/session', () => {
       snapshot: expect.objectContaining({ route: '/projects' }),
     });
     expect(consoleErrorMock).not.toHaveBeenCalled();
+  });
+});
+
+describe.each([
+  ['facts', factsPOST],
+  ['session', POST],
+] as const)('/api/voice/%s body errors', (_name, handler) => {
+  beforeEach(() => {
+    mintVoiceSessionMock.mockClear();
+    getRelevantFactContextMock.mockClear();
+  });
+
+  it('returns 400 when the request was aborted before its body was read', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const response = await handler(sessionRequest({}, controller.signal));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid JSON body' });
+    expect(mintVoiceSessionMock).not.toHaveBeenCalled();
+    expect(getRelevantFactContextMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the body stream fails', async () => {
+    const request = new Request('https://whoisdhruv.com/api/voice/test', {
+      method: 'POST',
+      headers: { 'content-length': '2' },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error('Connection lost'));
+        },
+      }),
+      duplex: 'half',
+    } as RequestInit & { duplex: 'half' }) as unknown as NextRequest;
+
+    const response = await handler(request);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid JSON body' });
+    expect(mintVoiceSessionMock).not.toHaveBeenCalled();
+    expect(getRelevantFactContextMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [undefined, '{}', 411],
+    ['2049', '{}', 413],
+    ['1', '{', 400],
+    ['2', '[]', 400],
+    ['4', 'null', 400],
+  ] as const)('preserves validation status %s / %s -> %s', async (contentLength, body, status) => {
+    const request = new Request('https://whoisdhruv.com/api/voice/test', {
+      method: 'POST',
+      headers: contentLength === undefined ? undefined : { 'content-length': contentLength },
+      body,
+    }) as unknown as NextRequest;
+
+    const response = await handler(request);
+
+    expect(response.status).toBe(status);
+    expect(mintVoiceSessionMock).not.toHaveBeenCalled();
+    expect(getRelevantFactContextMock).not.toHaveBeenCalled();
   });
 });

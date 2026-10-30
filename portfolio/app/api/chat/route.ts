@@ -25,7 +25,7 @@ import {
   type ClientChatMessage,
   type SanitizedChatMessage,
 } from '@/lib/chatTransport';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import {
   LLM_MAIN_RESPONSE_TIMEOUT_MS,
   LLM_PROVIDER_FALLBACK_RESERVE_MS,
@@ -39,6 +39,7 @@ import { getLocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
+import { REPLY_TOKEN_CAP, classifyReplyLength } from '@/lib/replyLength';
 
 export const runtime = 'nodejs';
 
@@ -271,18 +272,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { messages?: unknown; model?: unknown; image?: unknown; stream?: unknown };
-    try {
-      body = await readBoundedJson<{ messages?: unknown; model?: unknown; image?: unknown; stream?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
-    } catch (error) {
-      if (error instanceof BoundedJsonError) {
-        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-      }
-      throw error;
-    }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    const body = await readJsonObjectOrError<{ messages?: unknown; model?: unknown; image?: unknown; stream?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
+    if (body instanceof Response) return body;
 
     const selectedModelId = body.model === undefined
       ? DEFAULT_CHAT_MODEL_ID
@@ -393,8 +384,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);
+    // Small local models fill whatever budget they get, so cap output by the shape of the question.
+    const localReplyTokenCap = isLocalModel ? REPLY_TOKEN_CAP[classifyReplyLength(latestUserMessage)] : undefined;
     const providers = getOrderedProviders(primary, fallbacks)
-      .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder));
+      .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder))
+      .map((provider) => localReplyTokenCap === undefined ? provider : {
+        ...provider,
+        sampling: { ...provider.sampling, maxTokens: Math.min(provider.sampling.maxTokens ?? localReplyTokenCap, localReplyTokenCap) },
+      });
 
     if (providers.length === 0) {
       console.error('No LLM providers are configured; returning local fallback reply.');
@@ -558,7 +555,7 @@ async function callProvider(
   const stream = provider.kind === 'nvidia' || onDelta !== undefined;
 
   try {
-    let rawContent: string;
+    let completion: string;
 
     if (provider.kind === 'groq') {
       const groq = new Groq({ apiKey: provider.apiKey, maxRetries: 0 });
@@ -571,10 +568,9 @@ async function callProvider(
         ...provider.sampling.extraBody,
       };
       if (stream) {
-        rawContent = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+        completion = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
       } else {
-        const completion = await groq.chat.completions.create({ ...params, stream: false }, { signal });
-        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
+        completion = getDeltaText((await groq.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message?.content);
       }
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
@@ -590,14 +586,13 @@ async function callProvider(
         ...provider.sampling.extraBody,
       };
       if (stream) {
-        rawContent = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+        completion = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
       } else {
-        const completion = await client.chat.completions.create({ ...params, stream: false }, { signal });
-        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
+        completion = getDeltaText((await client.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message?.content);
       }
     }
 
-    const rawReply = stripThinkTags(rawContent);
+    const rawReply = stripThinkTags(completion);
     const reply = finalizeAssistantReplyText(rawReply);
 
     if (!reply) {

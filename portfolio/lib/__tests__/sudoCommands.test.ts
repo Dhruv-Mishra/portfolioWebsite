@@ -77,23 +77,14 @@ describe('dispatchSudo', () => {
     expect(result.output).toBeTruthy();
   });
 
-  it('disco yes also falls through to unknown (sudo path removed)', () => {
-    const result = dispatchSudo(parseSudoInvocation(['disco', 'yes']), ctx);
-    expect(result.action).toBeUndefined();
-    expect(result.output).toBeTruthy();
-  });
-
-  it('disco no also falls through to unknown (sudo path removed)', () => {
-    const result = dispatchSudo(parseSudoInvocation(['disco', 'no']), ctx);
-    expect(result.action).toBeUndefined();
-    expect(result.output).toBeTruthy();
-  });
-
-  it('disco off also falls through to unknown (sudo path removed)', () => {
-    const result = dispatchSudo(parseSudoInvocation(['disco', 'off']), ctx);
-    expect(result.action).toBeUndefined();
-    expect(result.output).toBeTruthy();
-  });
+  it.each(['disco yes', 'disco no', 'disco off'])(
+    '%s also falls through to unknown (sudo path removed)',
+    (command) => {
+      const result = dispatchSudo(parseSudoInvocation(command.split(' ')), ctx);
+      expect(result.action).toBeUndefined();
+      expect(result.output).toBeTruthy();
+    },
+  );
 
   it('reset without confirmation does NOT expose an action (warning only)', () => {
     const result = dispatchSudo(parseSudoInvocation(['reset']), ctx);

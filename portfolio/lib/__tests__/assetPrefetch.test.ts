@@ -181,33 +181,13 @@ describe('scheduleVoiceAssetPrefetch', () => {
     expect(idleCalls.length).toBe(1);
   });
 
-  it('skips entirely when Data Saver is on', async () => {
+  it.each([
+    ['when Data Saver is on', { saveData: true }],
+    ['on 2g', { effectiveType: '2g' }],
+    ['on 3g', { effectiveType: '3g' }],
+  ])('skips entirely %s', async (_label, connection) => {
     Object.defineProperty(globalThis, 'navigator', {
-      value: { connection: { saveData: true } },
-      configurable: true,
-      writable: true,
-    });
-    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
-    __resetAssetPrefetchForTest();
-    scheduleVoiceAssetPrefetch();
-    expect(idleCalls.length).toBe(0);
-  });
-
-  it('skips entirely on 2g', async () => {
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { connection: { effectiveType: '2g' } },
-      configurable: true,
-      writable: true,
-    });
-    const { scheduleVoiceAssetPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
-    __resetAssetPrefetchForTest();
-    scheduleVoiceAssetPrefetch();
-    expect(idleCalls.length).toBe(0);
-  });
-
-  it('skips entirely on 3g', async () => {
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { connection: { effectiveType: '3g' } },
+      value: { connection },
       configurable: true,
       writable: true,
     });

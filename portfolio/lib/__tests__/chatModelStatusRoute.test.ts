@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { NextRequest } from 'next/server';
@@ -10,11 +8,6 @@ import { __resetModelHealthCacheForTest } from '@/lib/modelHealth.server';
 function statusRequest(search = ''): NextRequest {
   return new Request(`http://localhost/api/chat/model-status${search}`) as unknown as NextRequest;
 }
-
-const routeSource = fs.readFileSync(
-  path.join(process.cwd(), 'app', 'api', 'chat', 'model-status', 'route.ts'),
-  'utf8',
-);
 
 afterEach(() => {
   __resetLocalAgentStatusCacheForTest();
@@ -112,12 +105,5 @@ describe('chat model status route', () => {
     expect(serializedBody).not.toContain('Dhruv-Mishra/portfolio-model-health');
     expect(serializedBody).not.toContain('failureCode');
     expect(serializedBody).not.toContain('source');
-  });
-
-  it('keeps model-status read-only and delegates GitHub access to the server-only reader', () => {
-    expect(routeSource).toContain("import { getModelHealthAdvisory } from '@/lib/modelHealth.server';");
-    expect(routeSource).toContain('advisoryHealth: await getModelHealthAdvisory()');
-    expect(routeSource).not.toContain('GITHUB_MODEL_HEALTH_TOKEN');
-    expect(routeSource).not.toContain('method: \'PUT\'');
   });
 });

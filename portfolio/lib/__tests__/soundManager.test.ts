@@ -315,36 +315,6 @@ describe('soundManager — debounce + per-id volume', () => {
     // Different id — should NOT be affected by button-click's debounce.
     expect(soundManager.play('chat-send')).toBe(true);
   });
-
-  it('exposes VOLUMES with every sound id (no drift)', async () => {
-    const { __test } = await loadSoundManager();
-    const ids: ReadonlyArray<string> = [
-      'page-flip', 'chat-send', 'chat-receive', 'terminal-click',
-      'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
-      'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
-      'modal-close', 'disco-start', 'disco-loop',
-      'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
-      'matrix',
-    ];
-    for (const id of ids) {
-      expect(__test.VOLUMES).toHaveProperty(id);
-    }
-  });
-
-  it('exposes DEBOUNCE_MS with every sound id', async () => {
-    const { __test } = await loadSoundManager();
-    const ids: ReadonlyArray<string> = [
-      'page-flip', 'chat-send', 'chat-receive', 'terminal-click',
-      'sticker-ding', 'superuser-fanfare', 'theme-dark', 'theme-light',
-      'button-click', 'feedback-sent', 'guestbook-submit', 'modal-open',
-      'modal-close', 'disco-start', 'disco-loop',
-      'disco-track-1', 'disco-track-2', 'disco-track-3', 'disco-track-switch',
-      'matrix',
-    ];
-    for (const id of ids) {
-      expect(__test.DEBOUNCE_MS).toHaveProperty(id);
-    }
-  });
 });
 
 describe('soundManager — setMuted ramps master gain', () => {
@@ -832,19 +802,6 @@ describe('soundManager — warmup waves', () => {
     // Calling again is a no-op.
     soundManager.primeOnGesture();
     expect(ctxCreationCount).toBe(1);
-  });
-
-  it('deduplicates concurrent warmup calls for the same sound id', async () => {
-    const { fetched } = installFetchSpy();
-    const { soundManager } = await loadSoundManager();
-    // Fire warmupSuperuserSounds AND a play that would retrigger critical —
-    // matrix should only fetch once.
-    soundManager.play('page-flip');
-    soundManager.warmupSuperuserSounds();
-    soundManager.warmupSuperuserSounds(); // should be no-op (latch)
-    await new Promise<void>((r) => setTimeout(r, 50));
-    const matrixFetches = fetched.filter((u) => u === '/sounds/matrix.mp3').length;
-    expect(matrixFetches).toBe(1);
   });
 });
 

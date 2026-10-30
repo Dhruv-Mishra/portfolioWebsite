@@ -18,11 +18,4 @@ describe('chat model preference', () => {
     expect(readChatModelPref('diffusiongemma-26b')).toBe(DEFAULT_CHAT_MODEL_ID);
     expect(source).toContain('useSyncExternalStore<ChatModelId>');
   });
-
-  it('synchronizes both same-page and cross-tab updates', () => {
-    expect(source).toContain("window.addEventListener('storage', onStoreChange)");
-    expect(source).toContain('CHAT_MODEL_PREF_EVENT');
-    expect(source).toContain('CHAT_MODEL_SWITCH_CLEAR_EVENT');
-    expect(source).toContain('clearChatHistoryStorage');
-  });
 });

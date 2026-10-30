@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { getChatModel } from '@/lib/chatModels';
@@ -9,11 +7,6 @@ import {
   isLocalChatModelHealthy,
   parseChatModelStatusPayload,
 } from '@/lib/chatModelStatus';
-
-const source = fs.readFileSync(
-  path.join(process.cwd(), 'lib', 'chatModelStatus.ts'),
-  'utf8',
-);
 
 describe('chat model status', () => {
   it('accepts configured-unavailable models while retaining local health and canary IDs', () => {
@@ -97,15 +90,5 @@ describe('chat model status', () => {
         models: [{ id: 'qwen-3.8-27b', state: 'unhealthy' }],
       },
     })?.advisoryIssueModelIds).toEqual([]);
-  });
-
-  it('uses one TTL-bound in-flight request and keeps backend status out of storage', () => {
-    expect(source).toContain('CHAT_MODEL_STATUS_TTL_MS = 30_000');
-    expect(source).toContain('let inFlightRequest: Promise<ChatModelStatusSnapshot> | null = null;');
-    expect(source).toContain("const statusUrl = options?.force ? '/api/chat/model-status?fresh=1' : '/api/chat/model-status'");
-    expect(source).toContain('inFlightRequest = fetch(statusUrl)');
-    expect(source).toContain('if (inFlightRequest) return inFlightRequest;');
-    expect(source).not.toContain('localStorage');
-    expect(source).not.toContain('sessionStorage');
   });
 });

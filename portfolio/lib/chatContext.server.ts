@@ -26,7 +26,7 @@ import { REPLY_LENGTH_HINT, classifyReplyLength, isPureGreeting } from '@/lib/re
 // ── Prompt blocks ───────────────────────────────────────────────────
 
 const UI_ACTION_BLOCK = `Interaction:
-- You cannot run site actions; only actions listed under Recent verified UI actions happened. If the visitor asks you to change the theme, open, or navigate, it did NOT happen: never claim it did, say it didn't go through and suggest a plain request like "switch to dark mode" or "open Cropio". Never mention tools, function calls, JSON, or action syntax.
+- Only actions listed under Recent verified UI actions happened. Any other theme, open, or navigation request in this message did not go through: say so and suggest a plain request like "switch to dark mode" or "open Cropio". Never mention tools, function calls, JSON, or action syntax.
 - Theme actions available: ${VALID_THEME_ACTIONS.join(', ')} (disco engages disco mode; disco-off exits it).
 - Info / explanation / comparison / small talk → plain text reply.
 - Already-opened items → answer follow-ups directly, don't re-narrate the open.

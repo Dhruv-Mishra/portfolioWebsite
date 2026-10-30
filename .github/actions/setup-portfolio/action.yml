@@ -1,0 +1,20 @@
+name: Setup portfolio
+description: Install Node.js and the portfolio's locked npm dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: portfolio/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: portfolio
+      env:
+        SKIP_EMBEDDINGS_BUILD: '1'
+        ONNXRUNTIME_NODE_INSTALL: skip
+      run: npx -y npm@10.9.8 ci --no-audit --no-fund

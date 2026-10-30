@@ -4,7 +4,7 @@
  * Where values live:
  *   - Theme-dependent values (light/dark/disco colors, responsive sizes) are CSS custom
  *     properties in app/globals.css, because selectors and media queries switch them at runtime.
- *   - Tailwind utilities come from the `@theme` block in globals.css (e.g. `bg-note-yellow`).
+ *   - Tailwind utilities come from the `@theme` block in globals.css (e.g. `bg-paper-yellow`).
  *   - Everything JS needs (Framer Motion configs, canvas/SVG colors, z-index layers, timings)
  *     lives here. Hex values shared with `@theme` are checked by lib/__tests__/designTokens.test.ts.
  *

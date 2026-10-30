@@ -4,16 +4,16 @@ import { describe, expect, it } from 'vitest';
 
 import { PAPER_PALETTE } from '@/lib/designTokens';
 
-// Tailwind utilities (bg-note-*) and TS consumers (SVG, inline gradients) must render the same paper.
+// Tailwind utilities (bg-paper-*) and TS consumers (SVG, inline gradients) must render the same paper.
 describe('design token parity', () => {
-  it('keeps @theme note colors equal to PAPER_PALETTE', () => {
+  it('keeps @theme paper colors equal to PAPER_PALETTE', () => {
     const css = fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
     const theme = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
-    const noteColors = Object.fromEntries(
-      [...theme.matchAll(/--color-note-([\w-]+):\s*(#[0-9a-f]{6})/gi)].map(([, name, hex]) => [name, hex.toLowerCase()]),
+    const paperColors = Object.fromEntries(
+      [...theme.matchAll(/--color-paper-([\w-]+):\s*(#[0-9a-f]{6})/gi)].map(([, name, hex]) => [name, hex.toLowerCase()]),
     );
 
-    expect(noteColors).toEqual({
+    expect(paperColors).toEqual({
       yellow: PAPER_PALETTE.yellow,
       coral: PAPER_PALETTE.coral,
       'coral-dark': PAPER_PALETTE.coralDark,

@@ -1002,7 +1002,7 @@ const RateLimitNote = memo(function RateLimitNote({ seconds }: { seconds: number
     <m.div
       initial={RATE_LIMIT_INITIAL}
       animate={RATE_LIMIT_ANIMATE}
-      className="relative max-w-sm mx-auto p-4 bg-note-coral dark:bg-note-coral-dark text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
+      className="relative max-w-sm mx-auto p-4 bg-paper-coral dark:bg-paper-coral-dark text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
     >
       <TapeStrip />
       Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.

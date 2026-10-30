@@ -158,7 +158,7 @@ export default function Home() {
         delayMs={420}
         className="mt-6"
         tone={{
-          body: "bg-note-yellow dark:bg-[#fef9c3]/90 border-yellow-300/40",
+          body: "bg-paper-yellow dark:bg-[#fef9c3]/90 border-yellow-300/40",
           rule: "bg-blue-300/20",
           icon: "text-indigo-500/70 md:group-hover:text-indigo-600",
           text: "text-gray-700 dark:text-gray-800 md:group-hover:text-indigo-700",
@@ -174,7 +174,7 @@ export default function Home() {
         delayMs={560}
         className="mt-4"
         tone={{
-          body: "bg-note-coral dark:bg-note-coral-dark border-orange-300/40",
+          body: "bg-paper-coral dark:bg-paper-coral-dark border-orange-300/40",
           rule: "bg-rose-300/25",
           icon: "text-rose-500/70 md:group-hover:text-rose-600",
           text: "text-gray-700 dark:text-gray-200 md:group-hover:text-rose-700 dark:md:group-hover:text-rose-300",

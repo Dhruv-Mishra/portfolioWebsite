@@ -22,7 +22,7 @@ const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, ge
   })),
   createProviderClientMock: vi.fn(),
   getChatProvidersMock: vi.fn(),
-  getLocalAgentStatusMock: vi.fn(async () => ({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] })),
+  getLocalAgentStatusMock: vi.fn(async () => ({ healthy: false, modelName: 'Local model', models: [] })),
   groqCreateMock: vi.fn<GroqCreate>(async () => ({
     choices: [{ message: { content: 'provider reply' } }],
   })),
@@ -515,7 +515,7 @@ describe('chat route provider payload mapping', () => {
     expect(body.reply).toContain('in a queue');
   });
 
-  it('keeps one fixed system message for the local model and moves turn context into the latest user turn', async () => {
+  it('sends local chat without health preflight and keeps one fixed system message', async () => {
     const localProvider = {
       kind: 'openai' as const,
       label: 'Local agent',
@@ -532,6 +532,7 @@ describe('chat route provider payload mapping', () => {
 
     const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
 
+    expect(getLocalAgentStatusMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.5-4b-local');
     expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true });
     const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
@@ -665,26 +666,6 @@ describe('chat route provider payload mapping', () => {
     expect(groqCreateMock).not.toHaveBeenCalled();
   });
 
-  it('rechecks local-agent health unless a recent check was healthy, and fails closed when it is down', async () => {
-    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: false, modelName: 'Local model', models: [] });
-
-    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
-
-    expect(getLocalAgentStatusMock).toHaveBeenCalledWith({ maxHealthyAgeMs: 60_000 });
-    expect(getChatProvidersMock).not.toHaveBeenCalled();
-    expect(response.headers.get('X-Chat-Fallback')).toBe('localStatic');
-    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('local-agent-unhealthy');
-  });
-
-  it('fails closed for the omni model when the gateway only serves the text model', async () => {
-    getLocalAgentStatusMock.mockResolvedValueOnce({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B'] });
-
-    const response = await POST(createChatRequest(undefined, { model: 'lfm3-omni-local' }));
-
-    expect(getChatProvidersMock).not.toHaveBeenCalled();
-    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('local-agent-unhealthy');
-  });
-
   it('sends an omni image first and keeps turn context in the latest user turn', async () => {
     const omniProvider = {
       kind: 'openai' as const,
@@ -704,6 +685,7 @@ describe('chat route provider payload mapping', () => {
 
     const response = await POST(createChatRequest(undefined, { model: 'lfm3-omni-local', image: { dataUrl } }));
 
+    expect(getLocalAgentStatusMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('lfm3-omni-local');
     const payload = omniCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: unknown }> };
     expect(payload.messages[0]).toEqual({ role: 'system', content: 'stable system prompt' });

@@ -35,7 +35,6 @@ import {
   stripThinkTags,
 } from '@/lib/llmConfig';
 import { createProviderClient, getChatProviders, type LLMProvider } from '@/lib/llmProviders.server';
-import { getLocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
@@ -60,7 +59,6 @@ type ProviderFailureCode =
 type FallbackReason =
   | 'all-providers-failed'
   | 'invalid-provider-response'
-  | 'local-agent-unhealthy'
   | 'no-providers-configured'
   | 'provider-busy'
   | 'provider-timeout'
@@ -72,7 +70,6 @@ const BUSY_FALLBACK_REPLY = "A lot of people are chatting with me right now, so 
 const TURN_CONTEXT_HEADER = 'Your own notes for this reply (not written by the visitor; never mention them):';
 const TURN_MESSAGE_HEADER = "Visitor's message:";
 const LOCAL_MODEL_HISTORY_BUDGET = { maxMessages: 5, maxChars: 1_600 };
-const LOCAL_HEALTH_REUSE_MS = 60_000;
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 300_000;
@@ -374,14 +371,6 @@ export async function POST(request: NextRequest) {
       { role: 'system', content: stable },
       ...(conditional && !turnContextInUserMessage ? [{ role: 'system' as const, content: conditional }] : []),
     ];
-    if (isLocalModel) {
-      // A recent healthy check is enough; a dead agent still fails fast at the provider call.
-      const localStatus = await getLocalAgentStatus({ maxHealthyAgeMs: LOCAL_HEALTH_REUSE_MS });
-      const upstreamModel = selectedModel?.upstreamModel.toLowerCase();
-      if (!localStatus.healthy || !localStatus.models.some((served) => served.toLowerCase() === upstreamModel)) {
-        return createFallbackResponse(latestUserMessage, 'local-agent-unhealthy');
-      }
-    }
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);
     // Small local models fill whatever budget they get, so cap output by the shape of the question.

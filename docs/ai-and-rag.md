@@ -22,6 +22,10 @@ Both local-agent entries require `LOCAL_AGENT_BASE_URL` and `LOCAL_AGENT_API_KEY
 
 The chat client sends `stream: true`. Once a request reaches a provider, the route answers with `application/x-ndjson`: `delta` events carry provisional, sanitized text (reasoning blocks and trailing tool artifacts are withheld), and one final `done` event carries the finalized, signed reply plus `degraded`/`fallbackReason` when a fallback was used. Validation errors, canned intents, and pre-provider fallbacks stay plain JSON, and requests without `stream: true` get the JSON reply as before. A provider that fails after text was shown is not retried or replaced. The note types the stream forward from the shared prefix, catches up on long backlogs, and eases its height as lines wrap; TTS and actions start only on the final text.
 
+## Reply Length
+
+Small local models fill whatever output budget they get, so length is controlled in two places that share one classifier ([replyLength.ts](../portfolio/lib/replyLength.ts)). Each turn is `brief` (greetings, thanks), `detailed` (explain, compare, walk through, tell me more), or `standard`. The matching hint (one sentence / under 60 words / under 150 words) is the last line of the per-turn context, closest to the visitor's message. Local models also get a matching `max_tokens` cap of 80, 160, or 360 under the 512-token server ceiling, and any reply that stops at the token limit is trimmed to its last full sentence. Speech normalization happens in code (`adaptTextForSpeech`), so the prompt carries no TTS rules.
+
 ## Local Agent Endpoint
 
 `llm.whoisdhruv.com` runs two LiquidAI models on a 4-core Arm Neoverse-N1 VM (`ARM_Hunar`) with a native llama.cpp `b11982` build: `LFM3-1.7B-QAD-Q4_0` for text and `LFM3-Omni-2B-Q4_0` with the `Q8_0` projector for images. The setup files live in [portfolio/scripts/local-llm](../portfolio/scripts/local-llm): `install.sh`, the `llm-server`, `llm-omni`, and `llm-gateway` systemd units with their env files, and the nginx site.

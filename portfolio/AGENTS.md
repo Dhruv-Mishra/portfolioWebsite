@@ -4,10 +4,12 @@ Scope: the Next.js application under this directory.
 
 ## App Rules
 
-- Next.js 16 App Router, React 19, TypeScript strict mode, Tailwind CSS 4, Framer Motion 12.
+- Next.js 16 App Router, React 19, TypeScript 6 strict mode, Tailwind CSS 4, Framer Motion 14 (`LazyMotion` + `m`), Vitest 5.
 - Server components by default. Add `"use client"` only for browser state, effects, events, or client-only libraries.
 - Use `@/*` imports and `cn()` from `@/lib/utils` for conditional class names.
 - Preserve light/dark theme support and mobile behavior. Use `h-[100dvh]` for viewport-height UI.
+- Look-and-feel values come from tokens: TS values from `lib/designTokens.ts`, Tailwind utilities from the `@theme` block in `app/globals.css`, theme-dependent values from CSS custom properties. Do not add raw hex, rgba, z-index, or font-stack literals to components.
+- Note: Tailwind's `dark:` variant follows `prefers-color-scheme`; the site theme toggles the `.dark` class, so theme-aware colors belong in CSS custom properties.
 
 ## Commands
 

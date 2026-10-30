@@ -115,11 +115,11 @@ Deploy health checks validate each VM, release SHA, and TTS synthesis before act
 
 ### Stack
 
-- Next.js 16 App Router, React 19, and strict TypeScript 5
-- Tailwind CSS 4, Framer Motion 12, and Lucide icons
+- Next.js 16 App Router, React 19, and strict TypeScript 6
+- Tailwind CSS 4, Framer Motion 14, and Lucide icons
 - Groq SDK plus OpenAI-compatible NVIDIA and optional legacy providers
 - Transformers.js for local transcription and Pocket TTS 2.1 for server speech
-- Vitest 4 and ESLint 9
+- Vitest 5 and ESLint 9
 - Dockerized standalone output on Linux VMs behind Cloudflare and Nginx
 
 ## Local Development

@@ -26,6 +26,12 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Changed
 
+- Local chat answers are shorter and more direct: tighter persona rules, a per-turn length hint, intent-based `max_tokens` caps for local models, and sentence-boundary trimming for truncated replies.
+- framer-motion 14, TypeScript 6, Vitest 5, Vite 8, openai 7, lucide-react 1 (GitHub/LinkedIn icons are now local SVGs).
+- Look-and-feel values centralized in `lib/designTokens.ts` and `@theme` utilities; persisted preferences share `LocalPreference`; API routes share `readJsonObjectOrError`.
+- CI and deploy checks share one setup action; staging model audits run once after rollout instead of on every host, and the duplicate per-host TTS synthesis is gone.
+- `@zvec/zvec-grep` (380 MB dev dependency), its scripts, and its MCP entry removed.
+- 32 source-text contract test files and redundant cases removed (1053 -> 812 behavioral tests), along with dead code and one-off scripts.
 - Resume PDF, resume facts, experience timeline, About copy, project cards, chat replies, and terminal output updated to the October 2026 resume; generic marketing phrasing removed.
 - Next.js 16.3.8 (high-severity cache-poisoning and SSRF advisories), patched sharp and source-map-js; production audit clean.
 - Google Analytics DNS hints only render when GA is configured.

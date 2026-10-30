@@ -303,42 +303,6 @@ export async function clearTtsAudioCache(): Promise<void> {
   });
 }
 
-export async function deleteTtsAudioForMessage(messageId: string): Promise<void> {
-  const database = await openDb();
-  if (!database) return;
-
-  await new Promise<void>((resolve) => {
-    const transaction = database.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.openCursor();
-
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (!cursor) return;
-      const record = cursor.value as CachedTtsAudio;
-      if (record.version !== CACHE_VERSION) {
-        continueCursorAfter(cursor.delete(), cursor);
-        return;
-      }
-
-      const currentMessageIds = getAssociatedMessageIds(record);
-      const nextMessageIds = currentMessageIds.filter(associatedMessageId => associatedMessageId !== messageId);
-      if (nextMessageIds.length === currentMessageIds.length) {
-        cursor.continue();
-        return;
-      }
-      if (nextMessageIds.length === 0) {
-        continueCursorAfter(cursor.delete(), cursor);
-        return;
-      }
-      continueCursorAfter(cursor.update(withAssociations(record, nextMessageIds)), cursor);
-    };
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => resolve();
-    transaction.onabort = () => resolve();
-  });
-}
-
 export async function pruneTtsAudioCache(retainedMessageIds: readonly string[]): Promise<void> {
   const retained = new Set(retainedMessageIds);
   const database = await openDb();

@@ -44,20 +44,6 @@ export interface CommandResult {
 
 export type CommandHandler = (args: string[]) => CommandResult | Promise<CommandResult>;
 
-export function createInitialTerminalOutput(): React.ReactNode {
-    return (
-        <div className="text-gray-400 text-sm font-mono leading-relaxed">
-            <p>
-                <span className="text-emerald-400">[✓]</span>{' '}
-                <span className="text-white">Portfolio {APP_VERSION} ready.</span>{' '}
-                <span className="text-gray-500">Type</span>{' '}
-                <span className="text-emerald-400 font-bold">&apos;help&apos;</span>{' '}
-                <span className="text-gray-500">to explore.</span>
-            </p>
-        </div>
-    );
-}
-
 export const createCommandRegistry = (router: AppRouterInstance): Record<string, CommandHandler> => ({
     help: (args: string[]) => {
         // Paginated help — full descriptions are restored, but commands

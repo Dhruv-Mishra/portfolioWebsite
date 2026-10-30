@@ -70,19 +70,8 @@ const REDUCED_MOTION_DURATION_MS = 500;
  * Module-scope registry of bar ids that have already completed their
  * animation. Survives React re-mounts (and therefore page-internal
  * navigation that remounts the Terminal tree) but NOT full page reloads.
- * Exported for tests only — production code should never read/write it.
  */
 const completedBarIds = new Set<string>();
-
-/** Test-only hook so the vitest harness can reset state between runs. */
-export function __resetDecryptBarRegistryForTests(): void {
-  completedBarIds.clear();
-}
-
-/** Test-only hook so the vitest harness can assert completion state. */
-export function __hasDecryptBarCompletedForTests(id: string): boolean {
-  return completedBarIds.has(id);
-}
 
 interface TerminalDecryptBarProps {
   /**

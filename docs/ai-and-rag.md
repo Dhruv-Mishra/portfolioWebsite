@@ -24,7 +24,7 @@ The chat client sends `stream: true`. Once a request reaches a provider, the rou
 
 ## Reply Length
 
-Small local models fill whatever output budget they get, so length is controlled in two places that share one classifier ([replyLength.ts](../portfolio/lib/replyLength.ts)). Each turn is `brief` (greetings, thanks), `detailed` (explain, compare, walk through, tell me more), or `standard`. The matching hint (one sentence / under 60 words / under 150 words) is the last line of the per-turn context, closest to the visitor's message. Local models also get a matching `max_tokens` cap of 80, 160, or 360 under the 512-token server ceiling, and any reply that stops at the token limit is trimmed to its last full sentence. Speech normalization happens in code (`adaptTextForSpeech`), so the prompt carries no TTS rules.
+Small local models fill whatever output budget they get, so length is controlled in two places that share one classifier ([replyLength.ts](../portfolio/lib/replyLength.ts)). Each turn is `brief` (greetings, thanks), `detailed` (explain, compare, walk through, tell me more), or `standard`. The matching hint (one sentence / under 60 words / under 150 words) is the last line of the per-turn context, closest to the visitor's message. Local models also get a matching `max_tokens` cap of 80, 160, or 360 under the 512-token server ceiling. Token-limited replies retain the provider's text rather than guessing sentence boundaries and discarding content. Speech normalization happens in code (`adaptTextForSpeech`), so the prompt carries no TTS rules.
 
 ## Local Agent Endpoint
 

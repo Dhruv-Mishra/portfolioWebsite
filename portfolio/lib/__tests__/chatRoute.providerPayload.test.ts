@@ -8,7 +8,7 @@ import { signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.
 type GroqCreate = (
   payload: Record<string, unknown>,
   options?: { signal?: AbortSignal },
-) => Promise<{ choices: Array<{ message: { content: string } }> }>;
+) => Promise<{ choices: Array<{ message: { content: string }; finish_reason?: string }> }>;
 
 type NvidiaStreamCreate = (
   payload: Record<string, unknown>,
@@ -544,7 +544,7 @@ describe('chat route provider payload mapping', () => {
     ]);
   });
 
-  it('caps local output by question shape and trims a length-truncated reply to its last sentence', async () => {
+  it('caps local output by question shape without discarding provider text', async () => {
     getChatProvidersMock.mockReturnValue({
       primary: {
         kind: 'openai' as const,
@@ -570,7 +570,22 @@ describe('chat route provider payload mapping', () => {
     const body = await response.json() as { reply: string };
 
     expect((localCreateMock.mock.calls[0] as unknown[])[0]).toMatchObject({ max_tokens: 80 });
-    expect(body.reply).toBe('Hey there!');
+    expect(body.reply).toBe('Hey there! Ask me about my projects and I can also tell you about.');
+  });
+
+  it.each([
+    ['paragraphs', 'First sentence. Second complete sentence.\n\nUnfinished continuation', 'Second complete sentence.'],
+    ['abbreviations', 'I build products at Microsoft.\nMy degree is a B.Tech. in computer science.\nMy recent work includes', 'in computer science.'],
+    ['CRLF', 'First sentence. A second complete answer!\r\nAn unfinished fragment', 'A second complete answer!'],
+    ['quotes', 'First sentence. He said "This is complete."\nThen unfinished', 'He said "This is complete."'],
+  ])('preserves complete sentences in length-limited replies with %s', async (_name, content, expected) => {
+    groqCreateMock.mockResolvedValue({ choices: [{ message: { content }, finish_reason: 'length' }] });
+
+    const response = await POST(createChatRequest());
+    const body = await response.json() as { reply: string; action: null; signature: string };
+
+    expect(body.reply).toContain(expected);
+    expect(verifyAssistantMessage({ role: 'assistant', content: body.reply, action: body.action, signature: body.signature })).not.toBeNull();
   });
 
   it('finalizes and signs static fallback replies when no provider is configured', async () => {
@@ -732,6 +747,21 @@ describe('chat route streaming', () => {
     expect(deltas).toBe('Hi there, I build things');
     const done = events.at(-1) as { type: string; reply: string; action: null; signature: string; modelId: string };
     expect(done).toMatchObject({ type: 'done', reply: 'Hi there, I build things.', modelId: 'qwen-3.8-27b' });
+    expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: done.action, signature: done.signature })).not.toBeNull();
+  });
+
+  it('preserves streamed content when the provider reaches its token limit', async () => {
+    const content = 'I build products at Microsoft.\nMy degree is a B.Tech. in computer science.\n\nHe said "This is complete."\nMy recent work includes';
+    groqCreateMock.mockImplementationOnce((async () => (async function* () {
+      yield { choices: [{ delta: { content } }] };
+      yield { choices: [{ delta: {}, finish_reason: 'length' }] };
+    })()) as unknown as GroqCreate);
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+    const done = events.at(-1) as { reply: string; action: null; signature: string };
+
+    expect(events.filter((event) => event.type === 'delta').map((event) => event.text).join('')).toBe(content);
+    expect(done).toMatchObject({ type: 'done', reply: `${content}.` });
     expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: done.action, signature: done.signature })).not.toBeNull();
   });
 

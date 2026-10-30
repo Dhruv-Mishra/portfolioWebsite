@@ -27,11 +27,3 @@ export function classifyReplyLength(message: string): ReplyLength {
   if (isPureGreeting(message)) return 'brief';
   return DETAIL_PATTERN.test(message) ? 'detailed' : 'standard';
 }
-
-// Cut a length-capped reply back to its last complete sentence instead of ending mid-thought.
-export function trimToLastSentence(text: string): string {
-  const trimmed = text.trimEnd();
-  if (/[.!?…]["')\]]*$/.test(trimmed)) return trimmed;
-  const lastEnd = Math.max(...['. ', '! ', '? ', '… '].map((mark) => trimmed.lastIndexOf(mark)));
-  return lastEnd > 0 ? trimmed.slice(0, lastEnd + 1) : trimmed;
-}

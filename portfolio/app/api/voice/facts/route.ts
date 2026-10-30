@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { readJsonObjectOrError } from '@/lib/boundedJson.server';
+import { BoundedJsonError, readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { getRelevantFactContext } from '@/lib/factRetrieval.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { VOICE_FACTS_LIMIT } from '@/lib/voiceAgentConfig';
@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await readJsonObjectOrError<FactsBody>(request, 2_048);
+  const body = await readJsonObjectOrError<FactsBody>(request, 2_048)
+    .catch(() => new BoundedJsonError('invalid-json', 400).toResponse());
   if (body instanceof Response) return body;
 
   const query = typeof body.query === 'string' ? body.query.trim() : '';

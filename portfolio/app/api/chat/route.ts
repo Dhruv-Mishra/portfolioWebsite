@@ -402,9 +402,9 @@ export async function POST(request: NextRequest) {
 
     const generateReply = async (onDelta?: (text: string) => void): Promise<ChatReplyPayload> => {
       let result: ProviderCallResult | null = null;
-      let streamedAny = false;
+      let streamedText = '';
       const emitDelta = onDelta && ((text: string) => {
-        streamedAny = true;
+        streamedText += text;
         onDelta(text);
       });
       const providerErrors: string[] = [];
@@ -452,8 +452,12 @@ export async function POST(request: NextRequest) {
               errorName: err instanceof Error ? err.name : 'UnknownError',
             });
 
-            // Text the visitor has already seen must not be followed by a different provider's reply.
-            if (streamedAny) break providerLoop;
+            // Text the visitor has already seen stays the reply; swapping it for a canned or different reply reads as a rewrite.
+            if (streamedText) {
+              const reply = finalizeAssistantReplyText(streamedText);
+              if (reply) result = { reply, action: null, modelId: provider.modelId ?? 'legacy' };
+              break providerLoop;
+            }
             if (code !== 'invalid-provider-response') break;
           }
         }

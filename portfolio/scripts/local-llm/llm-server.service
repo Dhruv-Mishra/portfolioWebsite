@@ -1,7 +1,7 @@
 [Unit]
 Description=Local LLM (llama.cpp) API server
-# --swa-full keeps the whole sliding-window KV so llama.cpp can resume from the checkpoint at the
-# end of the shared system prompt; without it, LFM3's 256-token window blocks most prefix reuse.
+# Qwen3.5 is hybrid (Gated DeltaNet + full attention), so llama.cpp resumes only from saved checkpoints;
+# the chat route keeps the system message fixed so the checkpoint at its end is reused on every turn.
 After=network-online.target
 Wants=network-online.target
 
@@ -28,7 +28,6 @@ ExecStart=/opt/llm/bin/llama-server \
     --batch-size 2048 \
     --ubatch-size ${LLM_UBATCH} \
     --flash-attn on \
-    --swa-full \
     --cache-type-k ${LLM_KV_TYPE} \
     --cache-type-v ${LLM_KV_TYPE} \
     --load-mode mmap+mlock \
@@ -36,9 +35,9 @@ ExecStart=/opt/llm/bin/llama-server \
     --cont-batching \
     --jinja \
     --reasoning off \
-    --temp 0.1 \
-    --top-k 50 \
-    --repeat-penalty 1.1 \
+    --temp 0.3 \
+    --top-p 0.8 \
+    --top-k 20 \
     --n-predict 512 \
     --metrics \
     --no-slots \

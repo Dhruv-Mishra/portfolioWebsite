@@ -2,6 +2,7 @@ import React, { useImperativeHandle } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStickyChat } from '@/hooks/useStickyChat';
+import { CHAT_STREAM_CONTENT_TYPE } from '@/lib/chatTransport';
 import { isInterrogationActive, resetInterrogationState } from '@/lib/matrixChatIntercept';
 import { rateLimiter } from '@/lib/rateLimit';
 
@@ -232,5 +233,44 @@ describe('useStickyChat suggestion controller finalization', () => {
     expect(chatRef.current!.isSuggestionsLoading).toBe(false);
 
     await act(async () => renderer.unmount());
+  });
+});
+
+describe('useStickyChat streamed replies', () => {
+  it('keeps streamed text instead of a canned fallback when the stream breaks', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`${JSON.stringify({ type: 'delta', text: 'I spend weekends lifting' })}\n`));
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'Content-Type': CHAT_STREAM_CONTENT_TYPE }),
+      body,
+    }) as Response);
+    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
+    const chatRef = React.createRef<StickyChat>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { ref: chatRef }));
+    });
+    await act(async () => {
+      await chatRef.current!.sendMessage('how do you usually spend your weekends?');
+      await vi.runAllTimersAsync();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(chatRef.current!.messages.at(-1)).toMatchObject({ role: 'assistant', content: 'I spend weekends lifting' });
+
+    await act(async () => renderer.unmount());
+    vi.unstubAllGlobals();
   });
 });

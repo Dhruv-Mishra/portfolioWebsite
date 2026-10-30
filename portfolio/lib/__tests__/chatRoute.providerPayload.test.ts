@@ -824,6 +824,20 @@ describe('chat route streaming', () => {
     expect(events[0]).toMatchObject({ type: 'done', degraded: true, fallbackReason: 'provider-busy' });
   });
 
+  it('keeps streamed text as the reply when the provider fails mid-stream', async () => {
+    groqCreateMock.mockImplementationOnce((async () => (async function* () {
+      yield { choices: [{ delta: { content: 'I build AI agents at Microsoft' } }] };
+      throw Object.assign(new Error('socket hang up'), { status: 502 });
+    })()) as unknown as GroqCreate);
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+    const done = events.at(-1) as { reply: string; degraded?: boolean; action: null; signature: string };
+
+    expect(done).toMatchObject({ type: 'done', reply: 'I build AI agents at Microsoft.' });
+    expect(done.degraded).toBeUndefined();
+    expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: done.action, signature: done.signature })).not.toBeNull();
+  });
+
   it('keeps early validation errors as plain JSON', async () => {
     const response = await POST(createChatRequest(undefined, { stream: true, model: 'llama-3.1-8b-instant' }));
 

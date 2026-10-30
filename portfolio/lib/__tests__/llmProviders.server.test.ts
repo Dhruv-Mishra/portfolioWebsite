@@ -140,7 +140,7 @@ describe('getSuggestionsProviders', () => {
     ['https://llm.whoisdhruv.com/v1/', 'https://llm.whoisdhruv.com/v1'],
     ['https://llm.whoisdhruv.com/llm?discard=true#fragment', 'https://llm.whoisdhruv.com/llm/v1'],
     ['https://llm.whoisdhruv.com/llm/v1', 'https://llm.whoisdhruv.com/llm/v1'],
-  ])('uses the local LFM3 agent with canonical base URL %s', (configuredBaseUrl, baseURL) => {
+  ])('uses the local Qwen3.5 agent with canonical base URL %s', (configuredBaseUrl, baseURL) => {
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
     vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
     vi.stubEnv('LOCAL_AGENT_BASE_URL', configuredBaseUrl);
@@ -151,16 +151,16 @@ describe('getSuggestionsProviders', () => {
         kind: 'openai',
         apiKey: 'local-agent-key',
         baseURL,
-        model: 'LFM3-1.7B',
+        model: 'Qwen3.5-4B',
         modelId: 'qwen-3.5-4b-local',
-        label: 'local:LFM3-1.7B',
+        label: 'local:Qwen3.5-4B',
         supportsImages: false,
         sampling: {
-          temperature: 0.1,
+          temperature: 0.3,
+          topP: 0.8,
           maxTokens: 512,
           extraBody: {
-            top_k: 50,
-            repeat_penalty: 1.1,
+            top_k: 20,
             chat_template_kwargs: { enable_thinking: false },
           },
         },

@@ -28,7 +28,7 @@ const INITIAL_MEDIA_RUN_MS = intEnv('INITIAL_MEDIA_RUN_MS', INITIAL_RUN_MS * 2);
 const API_KEY_FILE = env('API_KEY_FILE', '');
 const MEDIA_PATTERN = /"(?:image_url|input_audio|video_url)"/;
 
-// UPSTREAMS="text|http://127.0.0.1:8080|LFM3-1.7B,alias;omni|http://127.0.0.1:8082|LFM3-Omni-2B".
+// UPSTREAMS="text|http://127.0.0.1:8080|Qwen3.5-4B,alias;omni|http://127.0.0.1:8082|LFM3-Omni-2B".
 // The first upstream also receives requests whose model is missing or unknown.
 function parseUpstreams() {
   const spec = env('UPSTREAMS', '').trim();
@@ -42,6 +42,7 @@ function parseUpstreams() {
   return entries.map(({ name, url, models }) => ({
     name,
     url: new URL(url),
+    ids: models,
     models: new Set(models.map((model) => model.toLowerCase())),
     agent: new http.Agent({ keepAlive: true, maxSockets: MAX_ACTIVE + 8 }),
     queue: [],
@@ -335,7 +336,12 @@ async function handleModels(req, res) {
   }
   const headers = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
   const results = await Promise.all(upstreams.map((upstream) => fetchUpstreamJson(upstream, '/v1/models', headers)));
-  const data = results.flatMap((result) => (result.status === 200 && Array.isArray(result.body.data) ? result.body.data : []));
+  // Configured ids keep their order (canonical name first); llama-server sorts its --alias list.
+  const data = results.flatMap((result, index) => {
+    if (result.status !== 200 || !Array.isArray(result.body.data)) return [];
+    const { ids } = upstreams[index];
+    return ids.length ? ids.map((id) => ({ id, object: 'model', owned_by: 'llamacpp' })) : result.body.data;
+  });
   sendJson(res, 200, { object: 'list', data });
 }
 

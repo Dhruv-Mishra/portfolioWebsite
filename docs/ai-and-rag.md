@@ -12,7 +12,7 @@ The active catalog contains seven entries: one Groq default, three NVIDIA models
 | NVIDIA | MiniMax M3.1 Flash | Yes | Research and development use only |
 | NVIDIA | DeepSeek V4.1 Flash | Yes | Fast; also generates suggestions |
 | NVIDIA | Nemotron 3.5 Super VL 120B | Yes | Strong reasoning (thinking on) |
-| Local agent | LFM3 1.7B | No | Self-hosted text model |
+| Local agent | Qwen3.5 4B | No | Self-hosted text model |
 | Local agent | LFM3 Omni 2B | Yes | Self-hosted vision model |
 | On device | LFM3 1.7B | No | Runs in the browser with WebGPU; disabled |
 
@@ -28,15 +28,42 @@ Small local models fill whatever output budget they get, so length is controlled
 
 ## Local Agent Endpoint
 
-`llm.whoisdhruv.com` runs two LiquidAI models on a 4-core Arm Neoverse-N1 VM (`ARM_Hunar`) with a native llama.cpp `b11982` build: `LFM3-1.7B-QAD-Q4_0` for text and `LFM3-Omni-2B-Q4_0` with the `Q8_0` projector for images. The setup files live in [portfolio/scripts/local-llm](../portfolio/scripts/local-llm): `install.sh`, the `llm-server`, `llm-omni`, and `llm-gateway` systemd units with their env files, and the nginx site.
+`llm.whoisdhruv.com` runs two models on a 4-core Arm Neoverse-N1 VM (`ARM_Hunar`) with a native llama.cpp `b11982` build: Qwen3.5 4B for text and `LFM3-Omni-2B-Q4_0` with the `Q8_0` projector for images. The setup files live in [portfolio/scripts/local-llm](../portfolio/scripts/local-llm): `install.sh`, the `llm-server`, `llm-omni`, and `llm-gateway` systemd units with their env files, the nginx site, and the `toolbench` benchmark.
 
-- Request path: Cloudflare, then nginx, then `llm-gateway` (`127.0.0.1:8081`), then `llm-server` (`127.0.0.1:8080`) or `llm-omni` (`127.0.0.1:8082`) by the request's `model` field. Unknown models go to the text server. `/v1/models` lists `LFM3-1.7B` (with its old aliases) and `LFM3-Omni-2B` from whichever servers are up, so the site marks each local model healthy separately.
-- Quant choice: Q4_0 uses llama.cpp's ARM weight repacking. In `llama-bench` on this CPU (`pp512`/`tg128`), it processed prompts at about 133 tokens/s and generated about 28 tokens/s. IQ4_XS managed 45 and 23, and Q4_K_M 77 and 25. IQ4_NL is closer to Q8_0 (KLD 0.063 against 0.178) but about a third slower on prompts.
+- Request path: Cloudflare, then nginx, then `llm-gateway` (`127.0.0.1:8081`), then `llm-server` (`127.0.0.1:8080`) or `llm-omni` (`127.0.0.1:8082`) by the request's `model` field. Unknown models go to the text server. `/v1/models` lists the configured ids of every upstream that answers, in `UPSTREAMS` order (`Qwen3.5-4B` first, then its old aliases, then `LFM3-Omni-2B`), so the site marks each local model healthy separately and older builds that ask for `LFM3-1.7B` keep working.
+- Text model: `Qwen3.5-4B-Q4S-E8.gguf`, quantized on the VM from bartowski's BF16 with his imatrix. It is Q4_0 for ARM weight repacking, with `Q8_0` for the tied 248K-token embedding, every `ssm_out`, and the full-attention `attn_q` tensors. bartowski's Q4_0 keeps the embedding at Q6_K, which has no repacked kernel; this mix decodes about 4% faster (10.7 vs 10.3 tokens/s in `llama-bench`) at the same benchmark score. A pure Q4_0 was 20% faster but lost 10 points on tool calls. Sampling is temperature 0.3, top-p 0.8, top-k 20, with thinking off.
 - Queue: `llm-gateway` is a dependency-free Node proxy. It checks the bearer key before admitting work, buffers the body (up to `MAX_BODY_BYTES`), and queues it per model. Both servers share the same four cores, so one CPU lane (`MAX_ACTIVE=1`) admits work across both, taking the next job round-robin across the model queues so a burst of image requests cannot starve text chat. Up to `MAX_QUEUE` requests per model wait for at most `MAX_QUEUE_WAIT_MS`. Admission estimates the wait from per-model moving averages, kept separately for text and media prompts, and rejects a request immediately when it would not start in time. Overflow or a stale wait gets `503` with `Retry-After` and an OpenAI-style `server_busy` error. A client that disconnects leaves the queue, and an in-flight disconnect cancels the llama.cpp task. `/health` reports each upstream and the queue depth; `/gateway/stats` stays loopback-only.
-- Omni model: on this CPU its text speed matches LFM3 1.7B (about 126 prompt and 29 generated tokens/s). `--image-max-tokens 256` cuts a 1024 px photo from about 750 to 256 image tokens, so the image costs about 5 seconds of prompt time instead of 17; the projector quant barely changes encode time, so it stays `Q8_0`. The browser already downscales Omni attachments to that budget (`imageMaxPixels`, 256 x 32 x 32 px), so uploads are about 50 KB instead of up to 128 KB and the server does no extra resizing. Cloud vision models keep the 1280 px limit for detail. Sampling is greedy, as LiquidAI recommends. A 12-second audio clip transcribes in about 2.5 seconds through `input_audio`, but the site only sends text and images: dictation already covers spoken questions, and video costs hundreds of image tokens per second of footage on a CPU.
+- Omni model: on this CPU its text speed is about 126 prompt and 29 generated tokens/s. `--image-max-tokens 256` cuts a 1024 px photo from about 750 to 256 image tokens, so the image costs about 5 seconds of prompt time instead of 17; the projector quant barely changes encode time, so it stays `Q8_0`. The browser already downscales Omni attachments to that budget (`imageMaxPixels`, 256 x 32 x 32 px), so uploads are about 50 KB instead of up to 128 KB and the server does no extra resizing. Cloud vision models keep the 1280 px limit for detail. Sampling is greedy, as LiquidAI recommends. A 12-second audio clip transcribes in about 2.5 seconds through `input_audio`, but the site only sends text and images: dictation already covers spoken questions, and video costs hundreds of image tokens per second of footage on a CPU.
 - Busy handling: the chat route maps provider `429`/`503` to the `provider-busy` fallback reason. Users see a busy reply with a **Try again** button, and the model is not marked as facing issues.
-- Prompt cache: LFM3 is a hybrid model, so llama.cpp can only resume from a saved checkpoint, not from an arbitrary shared prefix. For both local models the route sends one fixed system message (rules plus the anchor facts). Per-turn blocks and ranked facts go into the latest user message, and history is capped at five messages or 1,600 characters. `--swa-full` lets llama.cpp restore the checkpoint that lands exactly at the end of that system message; without it, the 256-token sliding window blocks most reuse. Warm requests skip the roughly 845-token system prompt; with streaming, the first words appear in under a second and the full reply follows at about 28 tokens/s. For comparison, the previous Gemma 4 E2B service logged about 48 prompt tokens/s and 15 generated tokens/s.
+- Prompt cache: Qwen3.5 and LFM3 are hybrid models, so llama.cpp can only resume from a saved checkpoint, not from an arbitrary shared prefix. For both local models the route sends one fixed system message (rules plus the anchor facts). Per-turn blocks and ranked facts go into the latest user message, and history is capped at five messages or 1,600 characters. llama.cpp's first checkpoint lands at the end of that system message, so warm requests skip its roughly 750 tokens and process only the turn (about 180 tokens for a first question). Putting every fact in the cached system message was slower: the checkpoint landed about 300 tokens short and prefill slowed at the longer context.
+- Speed: on the VM the 4B text model prefills about 41 tokens/s and generates about 11 tokens/s, so a first question streams its first words after about 4 seconds. The previous LFM3 1.7B was faster (about 1.6 seconds and 27 tokens/s) but failed most tool-calling cases.
 - Slots: one per server. Prompt processing is CPU-bound, so extra slots only split the four cores and raise mean latency; the gateway queue handles fairness instead.
+
+## Local Model Benchmark
+
+`portfolio/scripts/local-llm/toolbench.ts` scores an OpenAI-compatible endpoint on 53 tool-calling cases and 18 grounded-chat cases, then reports prefill, decode, hidden-thinking tokens, and time to the first visible token. Tool cases use the real 24-tool site catalog (`siteToolDeclarations.ts`) with direct, indirect, buried-in-long-text, multi-turn ("switch it back"), multi-call, and must-not-call requests, including a prompt injection in pasted text. Chat cases use the production local prompt layout and check grounded facts, hallucination traps, policy, and style. From `portfolio/`:
+
+```bash
+npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --base http://127.0.0.1:8080/v1 --label NAME [--think off|on|low|high] [--budget N] [--repeat N]
+npx tsx scripts/local-llm/toolbench.ts --compare tmp/toolbench/*.json
+```
+
+October 2026 results (quality on a GPU with 2 repeats at each model's sampling; speed and time to first visible token on the VM):
+
+| Model and mode | Tools | Chat | First visible token on VM |
+|---|---:|---:|---:|
+| **Qwen3.5 4B, thinking off** | **87-90%** | **94%** | **about 4 s** |
+| Qwen3.5 4B, thinking 32-80 tokens | 89-95% | 83-89% | 7-13 s |
+| Spark-X2.6 4B, thinking off / low (80 tokens) | 68% / 90% | 92% / 86% | 5 s / 13 s |
+| MiniCPM5 2B, thinking 120 tokens | 75% | 81% | about 11 s |
+| Spark-X2.6 1.7B, thinking low (160 tokens) | 67% | 81% | about 10 s |
+| Qwen3.5 2B, thinking 160 tokens | 69% | 78% | about 9 s |
+| LFM3 1.7B, thinking 200 tokens / off | 64% / 36% | 78% / 78% | 9 s / 1.6 s |
+
+- Small models need thinking: it doubled Spark 1.7B and LFM3 tool scores. Unbudgeted thinking ran past 1,000 tokens (55 seconds on the VM) at the 90th percentile, so any thinking model needs `reasoning_budget_tokens`; capped budgets lost almost nothing. Even budgeted, the 2B class stayed behind Qwen3.5 4B without thinking while taking twice as long.
+- Spark 1.7B Q4_0 without thinking scored 34% against 52% for Q8_0; with thinking the gap closed, and mixed Q8_0-attention quants did not help.
+- Abliterated and heretic variants (Qwen3.5 2B/4B, Spark, LFM3) scored the same or lower; Huihui's Qwen3.5 2B gained tool calls but lost chat policy.
+- Speculative decoding did not pay off on four CPU cores: Qwen3.5's built-in MTP head accepted about 55% of drafts but decoded slower, and MiniCPM5's DSpark drafter cut decode to 3 tokens/s. Gemma 4 E2B's MTP drafter was the only gain (+28%).
 
 ## On-Device Model
 

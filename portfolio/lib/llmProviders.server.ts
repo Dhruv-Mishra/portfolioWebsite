@@ -104,7 +104,7 @@ function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
     label: `local:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
-    // LiquidAI's recommended sampling: low temperature for LFM3 text, greedy for the omni model.
+    // Greedy for the omni model (LiquidAI's advice); Qwen3.5 text scored best on toolbench with thinking off at temperature 0.3.
     sampling: model.supportsImages
       ? {
           temperature: 0,
@@ -112,11 +112,11 @@ function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
           extraBody: { chat_template_kwargs: { enable_thinking: false } },
         }
       : {
-          temperature: 0.1,
+          temperature: 0.3,
+          topP: 0.8,
           maxTokens: 512,
           extraBody: {
-            top_k: 50,
-            repeat_penalty: 1.1,
+            top_k: 20,
             chat_template_kwargs: { enable_thinking: false },
           },
         },

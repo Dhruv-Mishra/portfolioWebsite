@@ -250,7 +250,7 @@ describe('llm gateway with two models on one CPU lane', () => {
   }
 
   beforeAll(async () => {
-    text = await startUpstream('text', 'LFM3-1.7B');
+    text = await startUpstream('text', 'legacy-alias');
     omni = await startUpstream('omni', 'LFM3-Omni-2B');
     url = await startGateway({
       UPSTREAMS: `text|http://127.0.0.1:${text.port}|LFM3-1.7B,legacy-alias;omni|http://127.0.0.1:${omni.port}|LFM3-Omni-2B`,
@@ -305,9 +305,10 @@ describe('llm gateway with two models on one CPU lane', () => {
     expect(maxRunning).toBe(1);
   });
 
-  it('lists models from every reachable upstream', async () => {
+  it('lists configured model ids in order for every reachable upstream', async () => {
     const response = await fetch(`${url}/v1/models`, { headers: { Authorization: `Bearer ${API_KEY}` } });
-    await expect(response.json()).resolves.toEqual({ object: 'list', data: [{ id: 'LFM3-1.7B' }, { id: 'LFM3-Omni-2B' }] });
+    const { data } = await response.json() as { data: Array<{ id: string }> };
+    expect(data.map((entry) => entry.id)).toEqual(['LFM3-1.7B', 'legacy-alias', 'LFM3-Omni-2B']);
     expect((await fetch(`${url}/v1/models`)).status).toBe(401);
   });
 

@@ -31,10 +31,10 @@ export const EXTERNAL_API_TIMEOUT_MS = 5_000;
 
 // ── Filler text tier delays (derived from client timeout) ────────────
 // Show progressively funnier filler messages while waiting for the LLM.
-// Tiers are spaced as fractions of the client timeout so they scale automatically.
+// The first note appears almost at once; later tiers are fractions of the client timeout.
 /** Filler tier delays (ms) — when to swap in each progressively more human filler message. */
 export const FILLER_DELAYS = {
-  tier1: Math.round(LLM_CLIENT_TIMEOUT_MS * 0.07),
+  tier1: 500,
   tier2: Math.round(LLM_CLIENT_TIMEOUT_MS * 0.2),
   tier3: Math.round(LLM_CLIENT_TIMEOUT_MS * 0.37),
   tier4: Math.round(LLM_CLIENT_TIMEOUT_MS * 0.54),

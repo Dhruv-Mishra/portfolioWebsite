@@ -843,11 +843,14 @@ export function useStickyChat(): UseStickyChat {
     abortControllerRef.current = controller;
     // Images are request-scoped and not kept, so only text prompts can be retried.
     const retryPrompt = image ? undefined : trimmed;
+    let streamedText = '';
+    // Text already on screen stays; swapping it for a canned fallback reads as an erase-and-rewrite.
     const showFallbackReply = () => {
+      const content = streamedText || getContextualFallback(trimmed);
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: getContextualFallback(trimmed), isFiller: false, isStreaming: undefined, retryPrompt }
+            ? { ...m, content, isFiller: false, isStreaming: undefined, retryPrompt }
             : m
         )
       );
@@ -946,7 +949,6 @@ export function useStickyChat(): UseStickyChat {
         }
 
         if (streamBody) {
-          let streamedText = '';
           let frame: number | null = null;
           const flushStreamedText = () => {
             frame = null;

@@ -13,7 +13,7 @@
 //     saving tokens on cold-start turns.
 import 'server-only';
 
-import type { ActionExecution } from '@/lib/actions';
+import { VALID_THEME_ACTIONS, type ActionExecution } from '@/lib/actions';
 import {
   IDENTITY_BLOCK,
   NEVER_INVENT_BLOCK,
@@ -27,7 +27,7 @@ import { REPLY_LENGTH_HINT, classifyReplyLength, isPureGreeting } from '@/lib/re
 
 const UI_ACTION_BLOCK = `Interaction:
 - UI actions handled outside you. Never mention tools, function calls, JSON, or action syntax.
-- Theme actions available: dark, light, toggle, disco (engages disco mode), disco-off (exits it).
+- Theme actions available: ${VALID_THEME_ACTIONS.join(', ')} (disco engages disco mode; disco-off exits it).
 - Info / explanation / comparison / small talk → plain text reply.
 - Already-opened items → answer follow-ups directly, don't re-narrate the open.
 - Casual ack or topic change after a UI action → stay conversational.

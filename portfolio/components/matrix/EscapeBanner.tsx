@@ -24,6 +24,7 @@ import { memo } from 'react';
 import Link from 'next/link';
 import { m } from 'framer-motion';
 import { Terminal } from 'lucide-react';
+import { FONT_STACKS, MATRIX_COLORS } from '@/lib/designTokens';
 
 interface EscapeBannerProps {
   /** Timestamp the user first escaped (from the sticker store). Drives
@@ -137,21 +138,21 @@ const EscapeMedal = memo(function EscapeMedal({ size }: { size: number }) {
       <defs>
         <radialGradient id="esc-medal-bg" cx="50%" cy="40%" r="60%">
           <stop offset="0%" stopColor="#052e23" />
-          <stop offset="70%" stopColor="#020d08" />
+          <stop offset="70%" stopColor={MATRIX_COLORS.void} />
           <stop offset="100%" stopColor="#000" />
         </radialGradient>
         <linearGradient id="esc-medal-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#6ee7b7" />
-          <stop offset="50%" stopColor="#10b981" />
+          <stop offset="0%" stopColor={MATRIX_COLORS.lead} />
+          <stop offset="50%" stopColor={MATRIX_COLORS.glyph} />
           <stop offset="100%" stopColor="#34d399" />
         </linearGradient>
       </defs>
       {/* Outer pulse ring */}
       <circle cx="44" cy="44" r="41" fill="none" stroke="url(#esc-medal-ring)" strokeWidth="2" />
       {/* Inner roundel */}
-      <circle cx="44" cy="44" r="34" fill="url(#esc-medal-bg)" stroke="#10b981" strokeWidth="1.2" />
+      <circle cx="44" cy="44" r="34" fill="url(#esc-medal-bg)" stroke={MATRIX_COLORS.glyph} strokeWidth="1.2" />
       {/* Glyph rain streaks */}
-      <g fontFamily="'Fira Code', monospace" fontSize="8" fill="#6ee7b7" opacity="0.85">
+      <g fontFamily={FONT_STACKS.mono} fontSize="8" fill={MATRIX_COLORS.lead} opacity="0.85">
         <text x="22" y="28">0</text>
         <text x="30" y="34">1</text>
         <text x="38" y="26">ｱ</text>
@@ -169,15 +170,15 @@ const EscapeMedal = memo(function EscapeMedal({ size }: { size: number }) {
         <text x="56" y="60">0</text>
       </g>
       {/* Center keycap — a small "ESC" label */}
-      <rect x="32" y="52" width="24" height="14" rx="3" fill="#020d08" stroke="#10b981" strokeWidth="1.3" />
+      <rect x="32" y="52" width="24" height="14" rx="3" fill={MATRIX_COLORS.void} stroke={MATRIX_COLORS.glyph} strokeWidth="1.3" />
       <text
         x="44"
         y="62"
         textAnchor="middle"
-        fontFamily="'Fira Code', monospace"
+        fontFamily={FONT_STACKS.mono}
         fontSize="7"
         fontWeight="bold"
-        fill="#6ee7b7"
+        fill={MATRIX_COLORS.lead}
         letterSpacing="1.5"
       >
         ESC

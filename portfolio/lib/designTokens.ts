@@ -1,32 +1,40 @@
 /**
- * Design Tokens — Centralized design system for Dhruv's Sketchbook.
+ * Design tokens: the single source for look-and-feel values used from TypeScript.
  *
- * All hardcoded measurements, sizes, timings, and layout values are centralized here.
- * Values are organized by category and support three size scales: small, medium, large.
- * Theme colors remain in globals.css (CSS custom properties with .dark class).
+ * Where values live:
+ *   - Theme-dependent values (light/dark/disco colors, responsive sizes) are CSS custom
+ *     properties in app/globals.css, because selectors and media queries switch them at runtime.
+ *   - Tailwind utilities come from the `@theme` block in globals.css (e.g. `bg-note-yellow`).
+ *   - Everything JS needs (Framer Motion configs, canvas/SVG colors, z-index layers, timings)
+ *     lives here. Hex values shared with `@theme` are checked by lib/__tests__/designTokens.test.ts.
  *
- * Usage:
- *   - CSS custom properties are applied via data-size attribute on <html>
- *   - Components import token constants for JS values (animation configs, etc.)
- *   - Style switching is handled by StyleProvider context
+ * Before adding a literal color, duration, or z-index to a component, reuse or add a token here.
  */
 
-// ============================================================================
-// SIZE SCALE TOKENS (CSS Custom Properties)
-// ============================================================================
+/** Sticky-note paper palette shared by nav tabs, feedback categories, stickers, and home notes. */
+export const PAPER_PALETTE = {
+  yellow: '#fff9c4',
+  coral: '#ffccbc',
+  coralDark: '#3e2723',
+  pink: '#ff9b9b',
+  rose: '#f8bbd0',
+  amber: '#ffe082',
+  green: '#c5e1a5',
+  blue: '#b3e5fc',
+  lavender: '#e9d5ff',
+} as const;
 
-/** Size scale options */
-export type SizeScale = 'small' | 'medium' | 'large';
+/** Matrix / escape-the-matrix palette (canvas rain, medals, toasts). */
+export const MATRIX_COLORS = {
+  glyph: '#10b981',
+  lead: '#6ee7b7',
+  void: '#020d08',
+} as const;
 
-/** All available style preset keys */
-export type StylePreset = `${'light' | 'dark'}-${SizeScale}`;
-
-// SIZE_TOKENS removed — CSS custom properties are now defined in globals.css.
-
-
-// ============================================================================
-// JS-ONLY TOKENS (values used only in JavaScript, not CSS)
-// ============================================================================
+/** Font stacks for canvas and SVG, where the next/font CSS variables cannot be used. */
+export const FONT_STACKS = {
+  mono: '"Fira Code", Menlo, monospace',
+} as const;
 
 /** Animation timing tokens — used in Framer Motion and setTimeout calls */
 export const ANIMATION_TOKENS = {
@@ -188,19 +196,19 @@ export const TERMINAL_COLORS = {
 
 /** Navigation tab color profiles */
 export const NAV_TAB_COLORS = {
-  pink: { bg: '#ff9b9b', text: 'text-red-900', border: 'border-red-300' },
-  yellow: { bg: '#fff9c4', text: 'text-yellow-900', border: 'border-yellow-300' },
-  green: { bg: '#c5e1a5', text: 'text-green-900', border: 'border-green-300' },
-  blue: { bg: '#b3e5fc', text: 'text-blue-900', border: 'border-blue-300' },
-  coral: { bg: '#ffccbc', text: 'text-orange-900', border: 'border-orange-300' },
+  pink: { bg: PAPER_PALETTE.pink, text: 'text-red-900', border: 'border-red-300' },
+  yellow: { bg: PAPER_PALETTE.yellow, text: 'text-yellow-900', border: 'border-yellow-300' },
+  green: { bg: PAPER_PALETTE.green, text: 'text-green-900', border: 'border-green-300' },
+  blue: { bg: PAPER_PALETTE.blue, text: 'text-blue-900', border: 'border-blue-300' },
+  coral: { bg: PAPER_PALETTE.coral, text: 'text-orange-900', border: 'border-orange-300' },
 } as const;
 
 /** Feedback category color profiles */
 export const FEEDBACK_COLORS = {
-  bug: { bg: '#ff9b9b', text: 'text-red-900', border: 'border-red-300' },
-  idea: { bg: '#ffe082', text: 'text-amber-900', border: 'border-amber-400' },
-  kudos: { bg: '#f8bbd0', text: 'text-pink-900', border: 'border-pink-300' },
-  other: { bg: '#c5e1a5', text: 'text-green-900', border: 'border-green-300' },
+  bug: { bg: PAPER_PALETTE.pink, text: 'text-red-900', border: 'border-red-300' },
+  idea: { bg: PAPER_PALETTE.amber, text: 'text-amber-900', border: 'border-amber-400' },
+  kudos: { bg: PAPER_PALETTE.rose, text: 'text-pink-900', border: 'border-pink-300' },
+  other: { bg: PAPER_PALETTE.green, text: 'text-green-900', border: 'border-green-300' },
 } as const;
 
 /** Social sidebar hover colors */
@@ -372,12 +380,12 @@ export const GUESTBOOK_ANIMATION = {
 
 /** Sticker color families — background + ink pairs for the 6 palettes */
 export const STICKER_FAMILIES = {
-  sunshine: { bg: '#fff9c4', ink: '#5d4037' },
-  denim: { bg: '#b3e5fc', ink: '#0c4a6e' },
-  mint: { bg: '#c5e1a5', ink: '#14532d' },
-  coral: { bg: '#ffccbc', ink: '#7c2d12' },
-  rose: { bg: '#f8bbd0', ink: '#831843' },
-  lavender: { bg: '#e9d5ff', ink: '#581c87' },
+  sunshine: { bg: PAPER_PALETTE.yellow, ink: '#5d4037' },
+  denim: { bg: PAPER_PALETTE.blue, ink: '#0c4a6e' },
+  mint: { bg: PAPER_PALETTE.green, ink: '#14532d' },
+  coral: { bg: PAPER_PALETTE.coral, ink: '#7c2d12' },
+  rose: { bg: PAPER_PALETTE.rose, ink: '#831843' },
+  lavender: { bg: PAPER_PALETTE.lavender, ink: '#581c87' },
 } as const;
 
 export type StickerFamily = keyof typeof STICKER_FAMILIES;

@@ -65,7 +65,7 @@ export default function About() {
 
                     {/* Paper Content (Clipped) */}
                     <div
-                        className="bg-[#fff9c4] p-4 sm:p-6 md:p-12 w-full min-w-0 max-w-full h-full relative"
+                        className="bg-note-yellow p-4 sm:p-6 md:p-12 w-full min-w-0 max-w-full h-full relative"
                         style={{
                             clipPath: 'polygon(0% 0%, 100% 0%, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0% 100%)'
                         }}
@@ -107,7 +107,7 @@ export default function About() {
 
                             <div className="mt-3 grid gap-2 sm:grid-cols-3">
                                 {CAREER_SNAPSHOT.map((item) => (
-                                    <div key={item.label} className="rounded-[7px] border border-dashed border-gray-700/20 bg-[#fff9c4]/60 px-2.5 py-2 text-gray-800">
+                                    <div key={item.label} className="rounded-[7px] border border-dashed border-gray-700/20 bg-note-yellow/60 px-2.5 py-2 text-gray-800">
                                         <p className="font-hand text-sm font-bold leading-snug md:text-base">{item.label}</p>
                                         <p className="mt-0.5 text-xs leading-snug text-gray-700 md:text-sm">{item.value}</p>
                                     </div>

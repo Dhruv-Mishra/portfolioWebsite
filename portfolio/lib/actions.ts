@@ -24,9 +24,14 @@ export interface GuestbookSubmitAction {
   name?: string;
 }
 
+export { VALID_NAVIGATION_PATHS };
+export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
+
+export type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
+
 export interface ActionExecution {
   navigateTo?: string;
-  themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off';
+  themeAction?: ThemeAction;
   openUrls?: string[];
   feedbackAction?: boolean;
   projectSlug?: ProjectSlug;
@@ -37,23 +42,9 @@ export interface ActionExecution {
 }
 
 /** Action metadata for suggestion chips and prompt documentation. */
-export interface ActionDef {
+export interface ActionDef extends ActionExecution {
   label: string;
-  navigateTo?: string;
-  themeAction?: 'dark' | 'light' | 'toggle' | 'disco' | 'disco-off';
-  openUrls?: string[];
-  feedbackAction?: boolean;
-  projectSlug?: ProjectSlug;
-  voiceSessionAction?: boolean;
-  fieldFill?: FieldFillAction;
-  preferenceAction?: PreferenceAction;
-  guestbookSubmit?: GuestbookSubmitAction;
 }
-
-export { VALID_NAVIGATION_PATHS };
-export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
-
-type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
 
 const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);

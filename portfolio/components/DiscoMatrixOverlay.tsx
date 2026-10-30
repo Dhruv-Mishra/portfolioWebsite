@@ -62,7 +62,7 @@ import {
 import { soundManager } from '@/lib/soundManager';
 import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
 import { completeMatrixNotesEscape } from '@/app/matrix-notes/actions';
-import { Z_INDEX } from '@/lib/designTokens';
+import { FONT_STACKS, MATRIX_COLORS, Z_INDEX } from '@/lib/designTokens';
 
 const GLYPHS =
   'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ01Dhruv';
@@ -89,10 +89,8 @@ const ESCAPE_BUTTON_DELAY_MS = 20_000;
  *  ESCAPE click. Kept short enough that iOS low-power-mode won't strangle
  *  it into a slideshow, long enough to feel like an event. */
 const ESCAPE_TRANSITION_MS = 1400;
-/** Color for every glyph — classic matrix emerald. */
-const GLYPH_COLOR = '#10b981';
-/** Leading-edge glow — the character at the bottom of each stream is brighter. */
-const LEAD_COLOR = '#6ee7b7';
+const GLYPH_COLOR = MATRIX_COLORS.glyph;
+const LEAD_COLOR = MATRIX_COLORS.lead;
 /** Per-frame fade — lower = longer trails. */
 const TRAIL_FADE_ALPHA = 0.08;
 
@@ -265,7 +263,7 @@ const MatrixCanvas = memo(function MatrixCanvas() {
       ctx.fillStyle = `rgba(0, 0, 0, ${TRAIL_FADE_ALPHA})`;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.font = `${layout.fontSize}px "Fira Code", "Menlo", monospace`;
+      ctx.font = `${layout.fontSize}px ${FONT_STACKS.mono}`;
       ctx.textBaseline = 'top';
 
       for (let i = 0; i < drops.length; i++) {
@@ -405,7 +403,7 @@ const WakeUpButton = memo(function WakeUpButton({ visible, onWakeUp }: WakeUpBut
         data-matrix-control="wake"
         tabIndex={visible ? 0 : -1}
         style={{
-          fontFamily: '"Fira Code", "Menlo", monospace',
+          fontFamily: FONT_STACKS.mono,
           fontSize: '1rem',
           letterSpacing: '0.3em',
           color: '#67e8f9',
@@ -513,7 +511,7 @@ const EscapeButton = memo(function EscapeButton({
         aria-disabled={!enabled}
         tabIndex={visible ? 0 : -1}
         style={{
-          fontFamily: '"Fira Code", "Menlo", monospace',
+          fontFamily: FONT_STACKS.mono,
           fontSize: '0.85rem',
           letterSpacing: '0.3em',
           color: activeColors.color,
@@ -902,7 +900,7 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
         >
           <div
             style={{
-              fontFamily: '"Fira Code", "Menlo", monospace',
+              fontFamily: FONT_STACKS.mono,
               fontSize: '0.85rem',
               lineHeight: 1.4,
               color: '#a7f3d0',

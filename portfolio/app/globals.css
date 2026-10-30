@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* next-themes toggles .dark on <html>; without this, dark: follows the OS setting instead of the site toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-paper: var(--c-paper);
   --color-ink: var(--c-ink);

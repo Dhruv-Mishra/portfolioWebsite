@@ -27,7 +27,8 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 ### Changed
 
 - Local chat answers are shorter and more direct: tighter persona rules, a per-turn length hint, intent-based `max_tokens` caps for local models, and sentence-boundary trimming for truncated replies.
-- framer-motion 14, TypeScript 6, Vitest 5, Vite 8, openai 7, lucide-react 1 (GitHub/LinkedIn icons are now local SVGs).
+- framer-motion 14, TypeScript 6, Vitest 5, Vite 8, and openai 7. lucide-react stays on 0.562 because 1.x added about 3.5 KB gzipped to every page's initial JS.
+- Tailwind `dark:` utilities now follow the site theme toggle instead of the OS color-scheme setting.
 - Look-and-feel values centralized in `lib/designTokens.ts` and `@theme` utilities; persisted preferences share `LocalPreference`; API routes share `readJsonObjectOrError`.
 - CI and deploy checks share one setup action; staging model audits run once after rollout instead of on every host, and the duplicate per-host TTS synthesis is gone.
 - `@zvec/zvec-grep` (380 MB dev dependency), its scripts, and its MCP entry removed.

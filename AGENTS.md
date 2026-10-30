@@ -21,13 +21,12 @@ Scope: the whole repository.
 
 ## Tooling
 
-- Use zvec-grep hybrid search when wording or location is unknown or the question spans relationships across files. Read returned source before deciding or editing; use `npm run search:query -- "<query>"` if its MCP tool is unavailable.
-- Use VS Code search or native `rg` for exact symbols, strings, paths, regexes, and exhaustive matches. Without the zvec-grep daemon, run `npm run search:update` after major source or documentation changes; fall back to native search if the index is unavailable.
+- Use VS Code semantic search when wording or location is unknown; use VS Code search or native `rg` for exact symbols, strings, paths, regexes, and exhaustive matches.
 - Prefer VS Code search, read, edit, and diagnostic tools over terminal equivalents. Run terminal commands directly with narrow native flags while preserving errors, warnings, paths, commands, and validation evidence.
 - Keep shared guidance here and folder-specific guidance in the nearest `AGENTS.md`; do not repeat project context in agent definitions.
 - Use Headroom only for large repetitive structured payloads when it shows material savings. Retrieve the original before decisions involving failures, security, exact values, or code changes.
 - Keep Headroom proxy routing, output shaping, effort routing, failure learning, and automatic instruction writes disabled for VS Code Copilot Chat.
-- See [docs/agent-setup.md](docs/agent-setup.md) for model, context, zvec-grep, Headroom, and MCP setup.
+- See [docs/agent-setup.md](docs/agent-setup.md) for model, context, Headroom, and MCP setup.
 
 ## Commands
 

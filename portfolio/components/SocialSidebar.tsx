@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon, ChevronDown, ChevronUp } from "lucide-react";
+import { Github, Linkedin } from "@/components/ui/BrandIcons";
 import { useTheme } from "next-themes";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';

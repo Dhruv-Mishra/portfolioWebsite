@@ -322,21 +322,20 @@ function resolveTheme(input: string): ActionResolution | null {
     return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Engaging disco mode ~' };
   }
 
-  if (/\btoggle\b/i.test(input) && /\btheme\b/i.test(input)) {
+  const switchedOff = /\b(?:(?:turn|switch|shut)\s+off|disable|exit|leave|stop|no\s+more)\s+(?:the\s+)?(dark|light)\s+(?:mode|theme)\b/i.exec(input)
+    ?? /\b(dark|light)\s+(?:mode|theme)\s+off\b/i.exec(input);
+  const target = switchedOff
+    ? (switchedOff[1].toLowerCase() === 'dark' ? 'light' : 'dark')
+    : /\b(?:switch|change|set|turn|make|flip|put|go|move)\b(?:\s+\S+){0,4}?\s+(dark|light)(?:\s+(?:mode|theme|please|now|again|instead))?$/i.exec(input)?.[1].toLowerCase()
+      ?? /\b(dark|light)\s+(?:mode|theme)\b/i.exec(input)?.[1].toLowerCase();
+  if (target === 'dark' || target === 'light') {
+    const action: ActionExecution = { themeAction: target };
+    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? `Switching to ${target} mode ~` };
+  }
+
+  if (/\b(?:switch|change|flip|swap|toggle)\b(?:\s+\S+){0,2}?\s+(?:themes?|colou?rs|colou?r\s+scheme)\b/i.test(input)) {
     const action: ActionExecution = { themeAction: 'toggle' };
     return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Toggling the theme ~' };
-  }
-
-  const isDarkRequest = /\bdark\s+(?:mode|theme)\b/i.test(input) || /\bgo(?:ing)?\s+dark\b/i.test(input);
-  if (isDarkRequest) {
-    const action: ActionExecution = { themeAction: 'dark' };
-    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Switching to dark mode ~' };
-  }
-
-  const isLightRequest = /\blight\s+(?:mode|theme)\b/i.test(input) || /\bgo(?:ing)?\s+light\b/i.test(input);
-  if (isLightRequest) {
-    const action: ActionExecution = { themeAction: 'light' };
-    return { kind: 'action', action, reply: getActionFallbackReply(action) ?? 'Switching to light mode ~' };
   }
 
   return null;
@@ -577,4 +576,16 @@ export function resolveChatIntent(input: string): ChatIntentResolution | null {
   }
 
   return resolveSingleChatIntent(normalized);
+}
+
+const AFFIRMATION_PATTERN = /^(?:(?:yes|yeah|yep|yup|ya|sure|ok|okay|please|go ahead|do it|lets do it|lets go|absolutely|of course|why not|sounds good|go for it)\s*)+$/;
+
+/** A bare "yes" accepts the action offered in the last sentence of the previous reply. */
+export function resolveAcceptedOffer(input: string, previousReply: string): ChatIntentResolution | null {
+  if (!AFFIRMATION_PATTERN.test(normalizeInput(input).replace(/,/g, ' ').trim())) {
+    return null;
+  }
+
+  const offer = normalizeInput(previousReply.trim().split(/(?<=[.!?~])\s+/).at(-1) ?? '');
+  return offer && !includesNegation(offer) ? resolveSingleChatIntent(offer) : null;
 }

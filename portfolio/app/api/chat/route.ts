@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import { NextRequest } from 'next/server';
 import type { ActionExecution } from '@/lib/actions';
-import { resolveChatIntent } from '@/lib/chatActionRouter';
+import { resolveAcceptedOffer, resolveChatIntent } from '@/lib/chatActionRouter';
 import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
 import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
 import { finalizeAssistantReplyText, sanitizeAssistantReplyText } from '@/lib/chatSanitization';
@@ -69,7 +69,7 @@ const BUSY_FALLBACK_REPLY = "A lot of people are chatting with me right now, so 
 // Small models otherwise read first-person facts in the user turn as the visitor talking about themselves.
 const TURN_CONTEXT_HEADER = 'Your own notes for this reply (not written by the visitor; never mention them):';
 const TURN_MESSAGE_HEADER = "Visitor's message:";
-const LOCAL_MODEL_HISTORY_BUDGET = { maxMessages: 5, maxChars: 1_600 };
+const LOCAL_MODEL_HISTORY_BUDGET = { maxMessages: 9, maxChars: 1_600 };
 
 const chatRateLimiter = createServerRateLimiter({ ...RATE_LIMIT_CONFIG.chat, maxTrackedIPs: 500, cleanupInterval: 50 });
 const MAX_CHAT_BODY_BYTES = 300_000;
@@ -107,6 +107,15 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
   }
 
   return sanitized;
+}
+
+function compactOlderReplies(messages: SanitizedChatMessage[]): SanitizedChatMessage[] {
+  const lastReplyIndex = messages.findLastIndex((message) => message.role === 'assistant');
+  return messages.map((message, index) => (
+    message.role === 'assistant' && index < lastReplyIndex
+      ? { ...message, content: /^[\s\S]*?[.!?~](?=\s|$)/.exec(message.content)?.[0] ?? message.content }
+      : message
+  ));
 }
 
 function toProviderMessages(
@@ -311,9 +320,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Select a signed, bounded recent history after assistant verification.
-    // The CPU-hosted local model pays for every history token in prompt time, so it keeps two turns.
+    // The CPU-hosted local model pays for every history token in prompt time, so older replies
+    // shrink to one sentence and the visitor's own recent turns (and instructions) stay in view.
     const sanitized = selectRecentChatHistory(
-      validMessages,
+      isLocalModel ? compactOlderReplies(validMessages) : validMessages,
       isLocalModel ? LOCAL_MODEL_HISTORY_BUDGET : undefined,
     );
 
@@ -322,7 +332,9 @@ export async function POST(request: NextRequest) {
     }
 
     const latestUserMessage = [...sanitized].reverse().find(message => message.role === 'user')?.content ?? '';
-    const intent = resolveChatIntent(latestUserMessage);
+    const previousMessage = sanitized.at(-2);
+    const intent = resolveChatIntent(latestUserMessage)
+      ?? (previousMessage?.role === 'assistant' ? resolveAcceptedOffer(latestUserMessage, previousMessage.content) : null);
 
     if (intent?.kind === 'action') {
       const reply = finalizeAssistantReplyText(intent.reply);

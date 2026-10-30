@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveChatIntent, type ChatIntentResolution } from '@/lib/chatActionRouter';
+import { resolveAcceptedOffer, resolveChatIntent, type ChatIntentResolution } from '@/lib/chatActionRouter';
 
 type Expected =
   | { kind: 'null' }
@@ -114,6 +114,19 @@ describe('resolveChatIntent — theme intents', () => {
     check('no more disco', { kind: 'action', themeAction: 'disco-off' });
   });
 
+  it('matches bare targets, theme switches, and turning a mode off', () => {
+    check('make it dark', { kind: 'action', themeAction: 'dark' });
+    check('can you switch to dark?', { kind: 'action', themeAction: 'dark' });
+    check('switch to light', { kind: 'action', themeAction: 'light' });
+    check('can you change the theme to dark', { kind: 'action', themeAction: 'dark' });
+    check('switch the theme', { kind: 'action', themeAction: 'toggle' });
+    check('change theme', { kind: 'action', themeAction: 'toggle' });
+    check('turn off dark mode', { kind: 'action', themeAction: 'light' });
+    check('dark mode off', { kind: 'action', themeAction: 'light' });
+    check('disable light mode', { kind: 'action', themeAction: 'dark' });
+    check('switch to voice mode', { kind: 'action', voiceSessionAction: true });
+  });
+
   it('does NOT trigger on casual mentions of dark/light', () => {
     check('it is dark outside', { kind: 'null' });
     check('I love dark chocolate', { kind: 'null' });
@@ -121,6 +134,7 @@ describe('resolveChatIntent — theme intents', () => {
     check('make it a dark comedy', { kind: 'null' });
     check('turn on the kitchen lights', { kind: 'null' });
     check('a bright light appeared', { kind: 'null' });
+    check('go light on the details', { kind: 'null' });
     check('tell me about disco mode', { kind: 'null' });
   });
 });
@@ -288,5 +302,20 @@ describe('resolveChatIntent — typo tolerance', () => {
   it('matches project names with small typos', () => {
     check('show me cropi', { kind: 'action', projectSlug: 'cropio' });
     check('open atomvalt', { kind: 'action', projectSlug: 'atomvault' });
+  });
+});
+
+describe('resolveAcceptedOffer', () => {
+  it('runs the action offered in the last sentence of the previous reply', () => {
+    expect(resolveAcceptedOffer('yes please', 'Cropio crops portraits with YOLO. Want me to pull up Cropio?'))
+      .toMatchObject({ kind: 'action', action: { projectSlug: 'cropio' } });
+    expect(resolveAcceptedOffer('Sure, go ahead!', 'Want me to switch you to dark mode?'))
+      .toMatchObject({ kind: 'action', action: { themeAction: 'dark' } });
+  });
+
+  it('ignores replies that are not a bare yes, or offers that are not actions', () => {
+    expect(resolveAcceptedOffer('yes but tell me more first', 'Want me to pull up Cropio?')).toBeNull();
+    expect(resolveAcceptedOffer('yes', 'Want me to pull up Cropio? Or ask me anything.')).toBeNull();
+    expect(resolveAcceptedOffer('yes', 'How about you?')).toBeNull();
   });
 });

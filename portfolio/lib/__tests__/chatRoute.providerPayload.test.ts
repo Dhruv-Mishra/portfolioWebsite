@@ -534,7 +534,7 @@ describe('chat route provider payload mapping', () => {
 
     expect(getLocalAgentStatusMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.5-4b-local');
-    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true });
+    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, retrievalTurns: 1 });
     const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
     expect(payload.messages).toEqual([
       { role: 'system', content: 'stable system prompt' },
@@ -730,6 +730,20 @@ describe('chat route streaming', () => {
     const done = events.at(-1) as { type: string; reply: string; action: null; signature: string; modelId: string };
     expect(done).toMatchObject({ type: 'done', reply: 'Hi there, I build things.', modelId: 'qwen-3.8-27b' });
     expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: done.action, signature: done.signature })).not.toBeNull();
+  });
+
+  it('drops text before a lone closing think tag from streamed and final replies', async () => {
+    groqCreateMock.mockImplementationOnce((async () => (async function* () {
+      for (const content of ['Draft that repeats itself', '</think>', 'Twelve']) {
+        yield { choices: [{ delta: { content } }] };
+      }
+    })()) as unknown as GroqCreate);
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+    const done = events.at(-1) as { reply: string };
+
+    expect(events.filter((event) => event.type === 'delta').map((event) => event.text).join('')).not.toContain('</think>');
+    expect(done).toMatchObject({ type: 'done', reply: 'Twelve.' });
   });
 
   it('preserves streamed content when the provider reaches its token limit', async () => {

@@ -1,6 +1,6 @@
 ---
 id: site-pages
-tags: [pages, navigation, home, about, experience timeline, career timeline, projects, resume, chat, guestbook, stickers, nav, routes, sitemap]
+tags: [pages, navigation, experience timeline, career timeline, chat, guestbook, stickers, nav, routes, sitemap]
 priority: 7
 category: site
 ---

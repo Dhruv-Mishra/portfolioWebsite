@@ -1,6 +1,6 @@
 ---
 id: site-chat-system
-tags: [chat, ai chat, sticky note chat, chat page, notes, ai-me, talk, conversation]
+tags: [chat, ai chat, sticky note chat, chat page, notes, ai-me, conversation]
 priority: 5
 category: site
 ---

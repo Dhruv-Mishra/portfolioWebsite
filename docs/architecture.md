@@ -144,7 +144,7 @@ flowchart TD
   Context --> Retrieval[Retrieve grounded facts]
   Retrieval --> Bundle[Committed facts.embeddings.json]
   Retrieval --> Embed{Compatible query embedding available?}
-  Embed -->|yes| Rank[Cosine-rank non-anchor facts]
+  Embed -->|yes| Rank[Cosine-rank tag-matched non-anchor facts]
   Embed -->|no| Priority[Priority-order fallback facts]
   Rank --> Prompt[Bounded prompt]
   Priority --> Prompt

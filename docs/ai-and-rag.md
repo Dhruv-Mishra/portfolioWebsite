@@ -54,8 +54,10 @@ The `publish-model-health.yml` workflow runs every 10 minutes and probes only th
 
 1. Markdown files in `portfolio/content/facts/` are converted to an embeddings bundle by `npm run build:embeddings`.
 2. The committed `portfolio/lib/facts.embeddings.json` bundle is loaded at runtime.
-3. The query is embedded with the same model, then non-anchor facts are ranked by cosine similarity.
+3. Non-anchor facts qualify only when the query contains one of their curated `tags` (a trailing `s` also matches). The query is embedded with the same model, then qualifying facts are ranked by cosine similarity. A question that matches no tag gets anchors only, so unrelated facts are never injected.
 4. Anchor facts are always included first. If query embedding is unavailable, retrieval degrades to priority-ordered facts instead of failing the chat request.
+
+The query joins the last three user turns so follow-ups keep their topic. The self-hosted local models use only the latest turn, because a small model recites whatever notes it is handed. Keep tags specific: filler words such as `about`, `help`, or `talk` match unrelated questions. Tag edits need `EMBEDDINGS_MODE=local npm run build:embeddings` to refresh the bundle.
 
 `EMBEDDINGS_MODE=local` uses deterministic hashed n-gram embeddings for local development and CI. `SKIP_EMBEDDINGS_BUILD=1` reuses the committed bundle during a build. With external embeddings, configure `EMBEDDINGS_API_KEY` and optionally `EMBEDDINGS_BASE_URL` and `EMBEDDINGS_MODEL`; `LLM_API_KEY` and `LLM_BASE_URL` are compatible fallbacks for embeddings, not chat-model fallbacks.
 

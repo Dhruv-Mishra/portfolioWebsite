@@ -1,6 +1,6 @@
 ---
 id: personal-travel
-tags: [travel, india, europe, eu, singapore, vietnam, usa, las vegas, los angeles, new york, seattle, trips, places]
+tags: [travel, traveled, travelled, visited, been to, countries, india, europe, eu, singapore, vietnam, usa, las vegas, los angeles, new york, seattle, trips, places]
 priority: 3
 category: personal
 ---

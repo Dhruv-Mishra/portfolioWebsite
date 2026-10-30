@@ -1,6 +1,6 @@
 ---
 id: project-ivc-vital-checkup
-tags: [ivc, instant vital checkup, vital checkup, opencv, computer vision, mediapipe, health, healthtech, kiosk, contactless, bmi, pulse, height, weight, real-time, python]
+tags: [ivc, instant vital checkup, vital checkup, opencv, computer vision, mediapipe, healthtech, kiosk, contactless, bmi, pulse, real-time, python]
 priority: 6
 category: projects
 slug: ivc-vital-checkup

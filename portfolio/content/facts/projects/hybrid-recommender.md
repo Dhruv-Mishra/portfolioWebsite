@@ -1,6 +1,6 @@
 ---
 id: project-hybrid-recommender
-tags: [hybrid recommender, movie recommender, movie recommendation, movie night, family, age-appropriateness, collaborative filtering, content-based filtering, scikit-learn, ml system design, group recommendations, python]
+tags: [hybrid recommender, movie recommender, movie recommendation, movie night, age-appropriateness, collaborative filtering, content-based filtering, scikit-learn, ml system design, group recommendations, python]
 priority: 5
 category: projects
 slug: hybrid-recommender

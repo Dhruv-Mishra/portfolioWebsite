@@ -146,14 +146,29 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(jarvis.map((fact) => fact.id)).toContain('project-jarvis-voice-agent');
   });
 
-  it('skips forced anchors for cropio when includeAnchors is false', async () => {
+  it('skips forced anchors for cropio and adds only tag-matched facts when includeAnchors is false', async () => {
     const facts = await retrieveRelevantFacts('tell me about cropio', { limit: 3, includeAnchors: false });
-    const ids = facts.map((fact) => fact.id);
+    expect(facts.map((fact) => fact.id)).toEqual(['project-cropio']);
 
-    expect(ids).toContain('project-cropio');
-    expect(ids[0]).toBe('project-cropio');
-    expect(facts.filter((fact) => fact.anchor)).toHaveLength(0);
-    expect(facts).toHaveLength(3);
+    const withStack = await retrieveRelevantFacts('tell me about cropio and your python projects', { limit: 3, includeAnchors: false });
+    expect(withStack[0].id).toBe('project-cropio');
+    expect(withStack).toHaveLength(3);
+    expect(withStack.slice(1).every((fact) => fact.tags.includes('python'))).toBe(true);
+  });
+
+  it('adds no ranked facts when the question shares no tag with any fact', async () => {
+    for (const query of ['What is 7 + 5?', 'Why are you in noida?', 'how about you?']) {
+      const facts = await retrieveRelevantFacts(query, { limit: 6 });
+      expect(facts.every((fact) => fact.anchor), query).toBe(true);
+    }
+  });
+
+  it('matches curated tags across simple phrasing variants', async () => {
+    const travel = await retrieveRelevantFacts('where have you traveled?', { limit: 2, includeAnchors: false });
+    const games = await retrieveRelevantFacts('what games do you play', { limit: 2, includeAnchors: false });
+
+    expect(travel.map((fact) => fact.id)).toEqual(['personal-travel']);
+    expect(games.map((fact) => fact.id).sort()).toEqual(['personal-games', 'project-port-solace']);
   });
 
   it('surfaces terminal-related facts when asked about terminal commands', async () => {

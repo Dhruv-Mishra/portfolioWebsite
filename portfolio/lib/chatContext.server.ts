@@ -222,10 +222,10 @@ function latestUserMessage(messages: readonly MessageShape[]): string {
   return [...messages].reverse().find((message) => message.role === 'user')?.content.trim() ?? '';
 }
 
-function recentUserQuery(messages: readonly MessageShape[]): string {
+function recentUserQuery(messages: readonly MessageShape[], turns: number): string {
   const recentUserMessages = messages
     .filter((message) => message.role === 'user')
-    .slice(-3)
+    .slice(-turns)
     .map((message) => message.content);
   return recentUserMessages.join(' ').trim();
 }
@@ -243,6 +243,8 @@ export interface BuildPromptOptions {
    * so per-turn content must stay out of the system message for prefix caching to work.
    */
   anchorsInStable?: boolean;
+  /** User turns joined into the retrieval query. Defaults to 3 so follow-ups keep their topic. */
+  retrievalTurns?: number;
 }
 
 /**
@@ -278,7 +280,7 @@ export async function buildDhruvSystemPromptParts(
   options: BuildPromptOptions = {},
 ): Promise<SystemPromptParts> {
   const latestMessage = latestUserMessage(messages);
-  const retrievalQuery = recentUserQuery(messages);
+  const retrievalQuery = recentUserQuery(messages, options.retrievalTurns ?? 3);
   const recentActionsBlock = buildRecentActionContext(messages);
 
   const conditionalSections: string[] = [];

@@ -86,6 +86,22 @@ const TERMINAL_FACT_ID = 'site-terminal';
 const TERMINAL_OVERVIEW_QUERY_PATTERN = /\b(terminal|cli)\b|\b(what|which|list|show|available|supported)\b(?:\W+\w+){0,3}\W+commands?\b/i;
 const MATRIX_PUZZLE_QUERY_PATTERN = /\b(matrix|puzzle|escape|stuck|hint)\b/i;
 
+function toTagMatchText(text: string): string {
+  return ` ${text.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()} `;
+}
+
+/**
+ * The hashed-ngram embedding has no usable relevance floor (filler words dominate),
+ * so a ranked fact must share a curated tag with the query.
+ */
+function filterByTagMatch<T extends Fact>(facts: readonly T[], query: string): T[] {
+  const text = toTagMatchText(query);
+  return facts.filter((fact) => fact.tags.some((tag) => {
+    const normalizedTag = toTagMatchText(tag).trim();
+    return normalizedTag !== '' && (text.includes(` ${normalizedTag} `) || text.includes(` ${normalizedTag}s `));
+  }));
+}
+
 // ── Math helpers ────────────────────────────────────────────────────
 
 /**
@@ -289,7 +305,8 @@ async function fillFactsAfterForced(
   const remaining = Math.max(0, limit - 1);
   if (remaining === 0) return [forced];
   const { rankable } = partitionFacts(LOADED.facts);
-  const pool = rankable.filter((fact) => fact.id !== forced.id);
+  const pool = filterByTagMatch(rankable.filter((fact) => fact.id !== forced.id), query);
+  if (pool.length === 0) return [forced];
   const queryEmbedding = await embedQuery(query, options);
   const ranked = queryEmbedding
     ? topKByEmbedding(pool, queryEmbedding, remaining)
@@ -347,14 +364,15 @@ export async function retrieveRelevantFacts(
 
   const prepended = includeAnchors ? anchorSlice : [];
   const remaining = Math.max(0, limit - prepended.length);
-  if (remaining === 0) {
+  const candidates = filterByTagMatch(rankable, query);
+  if (remaining === 0 || candidates.length === 0) {
     return prepended.slice(0, limit);
   }
 
   const queryEmbedding = await embedQuery(query, options);
   const ranked = queryEmbedding
-    ? topKByEmbedding(rankable, queryEmbedding, remaining)
-    : topKByPriority(rankable, remaining);
+    ? topKByEmbedding(candidates, queryEmbedding, remaining)
+    : topKByPriority(candidates, remaining);
 
   const seen = new Set<string>();
   const out: Fact[] = [];

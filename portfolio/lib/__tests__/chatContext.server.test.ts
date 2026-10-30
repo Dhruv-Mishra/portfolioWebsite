@@ -185,6 +185,21 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     }
   });
 
+  it('can keep an earlier topic out of the retrieved facts', async () => {
+    const conversation = [
+      { role: 'user', content: 'where have you traveled?' },
+      { role: 'assistant', content: 'A few places.' },
+      { role: 'user', content: 'What is 7 + 5?' },
+    ];
+
+    const followUp = await buildDhruvSystemPromptParts(conversation);
+    const latestOnly = await buildDhruvSystemPromptParts(conversation, { anchorsInStable: true, retrievalTurns: 1 });
+
+    expect(followUp.conditional).toContain('Las Vegas');
+    expect(latestOnly.conditional).not.toContain('Las Vegas');
+    expect(latestOnly.stable).not.toContain('Las Vegas');
+  });
+
   it('simple "hi" produces a materially shorter prompt than an action+terminal+off-topic query', async () => {
     const simple = await build([{ role: 'user', content: 'hi' }]);
     const heavy = await build([

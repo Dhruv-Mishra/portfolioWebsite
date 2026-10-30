@@ -1,5 +1,3 @@
-export const TTS_LLM_RULES = `Speech-safe text: write plain, natural prose with short sentences. Avoid raw URLs, markdown tables, code fences, emoji, symbol-heavy shorthand, and decorative punctuation. Expand technical names when useful: Next.js as Next J S, Node.js as Node J S, C++ as C plus plus.`;
-
 export const TTS_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bDhruv\s+Mishra\b/gi, 'Dhroove. Misshra.'],
   [/\bDhruv\b/gi, 'Dhroove'],

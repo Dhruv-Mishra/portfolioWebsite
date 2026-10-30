@@ -39,6 +39,7 @@ import { getLocalAgentStatus } from '@/lib/localAgentStatus.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { isClientChatMessage } from '@/lib/chatMessageSchema';
+import { REPLY_TOKEN_CAP, classifyReplyLength, trimToLastSentence } from '@/lib/replyLength';
 
 export const runtime = 'nodejs';
 
@@ -393,8 +394,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);
+    // Small local models fill whatever budget they get, so cap output by the shape of the question.
+    const localReplyTokenCap = isLocalModel ? REPLY_TOKEN_CAP[classifyReplyLength(latestUserMessage)] : undefined;
     const providers = getOrderedProviders(primary, fallbacks)
-      .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder));
+      .filter((provider) => !image || (provider.supportsImages && provider.imageInputOrder))
+      .map((provider) => localReplyTokenCap === undefined ? provider : {
+        ...provider,
+        sampling: { ...provider.sampling, maxTokens: Math.min(provider.sampling.maxTokens ?? localReplyTokenCap, localReplyTokenCap) },
+      });
 
     if (providers.length === 0) {
       console.error('No LLM providers are configured; returning local fallback reply.');
@@ -558,7 +565,7 @@ async function callProvider(
   const stream = provider.kind === 'nvidia' || onDelta !== undefined;
 
   try {
-    let rawContent: string;
+    let completion: CompletionText;
 
     if (provider.kind === 'groq') {
       const groq = new Groq({ apiKey: provider.apiKey, maxRetries: 0 });
@@ -571,10 +578,9 @@ async function callProvider(
         ...provider.sampling.extraBody,
       };
       if (stream) {
-        rawContent = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+        completion = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
       } else {
-        const completion = await groq.chat.completions.create({ ...params, stream: false }, { signal });
-        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
+        completion = toCompletionText((await groq.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]);
       }
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
@@ -590,15 +596,14 @@ async function callProvider(
         ...provider.sampling.extraBody,
       };
       if (stream) {
-        rawContent = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
+        completion = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
       } else {
-        const completion = await client.chat.completions.create({ ...params, stream: false }, { signal });
-        rawContent = getDeltaText(completion.choices?.[0]?.message?.content);
+        completion = toCompletionText((await client.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]);
       }
     }
 
-    const rawReply = stripThinkTags(rawContent);
-    const reply = finalizeAssistantReplyText(rawReply);
+    const rawReply = stripThinkTags(completion.text);
+    const reply = finalizeAssistantReplyText(completion.truncated ? trimToLastSentence(rawReply) : rawReply);
 
     if (!reply) {
       throw new Error('Provider returned an empty or invalid reply');
@@ -643,16 +648,29 @@ function getProviderFailureCode(
   return 'provider-error';
 }
 
+interface CompletionText {
+  text: string;
+  /** The provider stopped at its output-token limit. */
+  truncated: boolean;
+}
+
+function toCompletionText(choice: { message?: { content?: unknown }; finish_reason?: string | null } | undefined): CompletionText {
+  return { text: getDeltaText(choice?.message?.content), truncated: choice?.finish_reason === 'length' };
+}
+
 async function readCompletionStream(
-  chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown } }> }>,
+  chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown }; finish_reason?: string | null }> }>,
   signal: AbortSignal,
   onDelta?: (text: string) => void,
-): Promise<string> {
+): Promise<CompletionText> {
   let raw = '';
   let shown = '';
+  let truncated = false;
   for await (const chunk of chunks) {
     if (signal.aborted) throw new OpenAI.APIUserAbortError();
-    raw += getDeltaText(chunk.choices?.[0]?.delta?.content);
+    const choice = chunk.choices?.[0];
+    raw += getDeltaText(choice?.delta?.content);
+    if (choice?.finish_reason === 'length') truncated = true;
     if (!onDelta) continue;
     // Only forward text that extends what was already shown; the final `done` event corrects the rest.
     const preview = getStreamingPreview(raw);
@@ -662,7 +680,7 @@ async function readCompletionStream(
     }
   }
   if (signal.aborted) throw new OpenAI.APIUserAbortError();
-  return raw;
+  return { text: raw, truncated };
 }
 
 function getStreamingPreview(raw: string): string {

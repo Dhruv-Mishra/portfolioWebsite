@@ -544,6 +544,35 @@ describe('chat route provider payload mapping', () => {
     ]);
   });
 
+  it('caps local output by question shape and trims a length-truncated reply to its last sentence', async () => {
+    getChatProvidersMock.mockReturnValue({
+      primary: {
+        kind: 'openai' as const,
+        label: 'Local agent',
+        apiKey: 'local-key',
+        baseURL: 'https://llm.example/v1',
+        model: 'LFM3-1.7B',
+        modelId: 'qwen-3.5-4b-local' as const,
+        supportsImages: false,
+        sampling: { temperature: 0.1, maxTokens: 512 },
+      },
+      fallbacks: [],
+    });
+    const localCreateMock = vi.fn(async () => ({
+      choices: [{ message: { content: 'Hey there! Ask me about my projects and I can also tell you about' }, finish_reason: 'length' }],
+    }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+
+    const response = await POST(createChatRequest(undefined, {
+      model: 'qwen-3.5-4b-local',
+      messages: [{ role: 'user', content: 'hey!' }],
+    }));
+    const body = await response.json() as { reply: string };
+
+    expect((localCreateMock.mock.calls[0] as unknown[])[0]).toMatchObject({ max_tokens: 80 });
+    expect(body.reply).toBe('Hey there!');
+  });
+
   it('finalizes and signs static fallback replies when no provider is configured', async () => {
     getChatProvidersMock.mockReturnValue({ primary: null, fallbacks: [] });
 

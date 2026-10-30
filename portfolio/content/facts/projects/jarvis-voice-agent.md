@@ -1,6 +1,6 @@
 ---
 id: project-jarvis-voice-agent
-tags: [jarvis, voice agent, audio agent, dispatch agent, freight, logistics, freightops, negotiation, quotes, carriers, loads, audio controlled agentic website, gemini live, voice ai, tool calling, mcp, rag, customer support, dispatcher, websockets, audioworklet, voice to voice, llm agent, real time]
+tags: [jarvis, voice agent, audio agent, dispatch agent, freight, logistics, freightops, negotiation, carriers, audio controlled agentic website, gemini live, voice ai, tool calling, mcp, rag, customer support, dispatcher, websockets, audioworklet, voice to voice, llm agent, real time]
 priority: 10
 category: projects
 slug: jarvis-voice-agent

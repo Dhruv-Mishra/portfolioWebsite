@@ -354,11 +354,12 @@ export async function POST(request: NextRequest) {
     // message, and only when non-empty.
     // The CPU-hosted local model reuses its KV/recurrent state only from a checkpoint at a
     // message boundary, so it gets one fixed system message (rules + anchor facts) and the
-    // per-turn context rides on the latest user message instead.
+    // per-turn context rides on the latest user message instead. Its facts come from the latest
+    // turn only, because a small model recites whatever notes it is handed.
     const turnContextInUserMessage = isLocalModel;
     const { stable, conditional } = await buildDhruvSystemPromptParts(
       sanitized,
-      turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true } : { factLimit: 6 },
+      turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true, retrievalTurns: 1 } : { factLimit: 6 },
     );
     const normalizedConversation = normalizeProviderConversation(sanitized);
     if (normalizedConversation.length === 0) {
@@ -651,7 +652,7 @@ async function readCompletionStream(
 
 function getStreamingPreview(raw: string): string {
   // Hide reasoning blocks, including one that is still open.
-  return sanitizeAssistantReplyText(raw.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, ''));
+  return sanitizeAssistantReplyText(stripThinkTags(raw).replace(/<think>[\s\S]*$/i, ''));
 }
 
 function getDeltaText(content: unknown): string {

@@ -1,6 +1,6 @@
 ---
 id: site-guestbook
-tags: [guestbook, sign, wall, leave a note, message, visitor notes, rotate, colored notes]
+tags: [guestbook, wall, leave a note, visitor notes, rotate, colored notes]
 priority: 4
 category: site
 ---

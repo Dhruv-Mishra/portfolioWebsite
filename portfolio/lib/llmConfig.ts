@@ -73,7 +73,10 @@ export function isRawLogEnabled(): boolean {
 /**
  * Strip `<think>...</think>` tags from LLM responses.
  * Some models (DeepSeek, etc.) include thinking blocks that shouldn't be shown to users.
+ * A lone `</think>` means the template opened the block, so everything before it is reasoning.
  */
 export function stripThinkTags(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const withoutBlocks = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const orphanClose = withoutBlocks.toLowerCase().lastIndexOf('</think>');
+  return (orphanClose === -1 ? withoutBlocks : withoutBlocks.slice(orphanClose + '</think>'.length)).trim();
 }

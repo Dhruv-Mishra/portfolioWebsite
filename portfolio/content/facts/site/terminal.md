@@ -1,6 +1,6 @@
 ---
 id: site-terminal
-tags: [terminal, commands, help, about, projects, contact, socials, ls, cat, open, clear, joke, skills, resume, chat, feedback, guestbook, sign, stickers, cheatsheet, sudo, init, whoami, date, github, linkedin, cv, disco, matrix, rainbow, fortune, reset, superuser, sound, sounds, audio, mute, wake up, confirm]
+tags: [terminal, commands, ls, cat, joke, cheatsheet, sudo, init, whoami, disco, matrix, rainbow, fortune, superuser, sound, sounds, audio, mute, wake up]
 priority: 7
 category: site
 ---

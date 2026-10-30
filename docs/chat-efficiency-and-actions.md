@@ -40,6 +40,9 @@ Approved capabilities now include:
 - Open a project modal or feedback note, or start native voice mode.
 - Select light, dark, toggle, disco, or disco-off modes.
 - Chain up to three compatible effects from explicit natural-language clauses.
+- Accept an offer: a bare "yes" (or "sure", "go ahead") runs the action named in the last sentence of the previous signed reply, such as "Want me to pull up Cropio?".
+
+Requests the router misses reach the model, which is told it cannot run actions and must not claim one happened.
 
 Gates:
 

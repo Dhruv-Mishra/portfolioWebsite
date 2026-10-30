@@ -29,7 +29,8 @@ const { buildPromptPartsMock, createProviderClientMock, getChatProvidersMock, ge
   resolveChatIntentMock: vi.fn<() => unknown>(() => null),
 }));
 
-vi.mock('@/lib/chatActionRouter', () => ({
+vi.mock('@/lib/chatActionRouter', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/chatActionRouter')>(),
   resolveChatIntent: resolveChatIntentMock,
 }));
 
@@ -542,6 +543,59 @@ describe('chat route provider payload mapping', () => {
         role: 'user',
         content: "Your own notes for this reply (not written by the visitor; never mention them):\nconditional system prompt\n\nVisitor's message:\nTell me about your work",
       },
+    ]);
+  });
+
+  it('runs the action offered in the previous reply when the visitor says yes', async () => {
+    const offer = 'Cropio crops portraits. Want me to pull up Cropio?';
+    const response = await POST(createChatRequest(undefined, {
+      messages: [
+        { role: 'user', content: 'what is cropio' },
+        { role: 'assistant', content: offer, signature: signAssistantMessage(offer, null) },
+        { role: 'user', content: 'yes please' },
+      ],
+    }));
+
+    await expect(response.json()).resolves.toMatchObject({ action: { projectSlug: 'cropio' } });
+    expect(groqCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps more local turns by shortening older replies to their first sentence', async () => {
+    getChatProvidersMock.mockReturnValue({
+      primary: {
+        kind: 'openai' as const,
+        label: 'Local agent',
+        apiKey: 'local-key',
+        baseURL: 'https://llm.example/v1',
+        model: 'LFM3-1.7B',
+        modelId: 'qwen-3.5-4b-local' as const,
+        supportsImages: false,
+        sampling: { temperature: 0.1, maxTokens: 512 },
+      },
+      fallbacks: [],
+    });
+    const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'Twelve.' } }] }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+    const older = `I'm in Noida. ${'I have also been to many places. '.repeat(20)}`;
+    const latest = 'Got it, short answers from here.';
+
+    await POST(createChatRequest(undefined, {
+      model: 'qwen-3.5-4b-local',
+      messages: [
+        { role: 'user', content: 'From now on, keep it to the point' },
+        { role: 'assistant', content: older, signature: signAssistantMessage(older, null) },
+        { role: 'user', content: 'ok' },
+        { role: 'assistant', content: latest, signature: signAssistantMessage(latest, null) },
+        { role: 'user', content: 'What is 7 + 5?' },
+      ],
+    }));
+
+    const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
+    expect(payload.messages.slice(1, 5)).toEqual([
+      { role: 'user', content: 'From now on, keep it to the point' },
+      { role: 'assistant', content: "I'm in Noida." },
+      { role: 'user', content: 'ok' },
+      { role: 'assistant', content: latest },
     ]);
   });
 

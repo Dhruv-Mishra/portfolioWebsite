@@ -61,17 +61,25 @@ describe('local agent status', () => {
     expect(() => deriveLocalAgentUrls(baseUrl)).toThrow('Invalid local agent base URL');
   });
 
-  it('checks health before authenticated discovery and caches coalesced results', async () => {
+  it('checks health and discovery concurrently and caches coalesced results', async () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
+    let resolveHealth!: (response: Response) => void;
+    const healthResponse = new Promise<Response>((resolve) => {
+      resolveHealth = resolve;
+    });
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockReturnValueOnce(healthResponse)
       .mockResolvedValueOnce(Response.json({ data: [{ id: 'LFM3-1.7B' }, { id: '' }, { id: 'LFM3-Omni-2B' }] }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const [first, second] = await Promise.all([getLocalAgentStatus(), getLocalAgentStatus()]);
+    const requests = [getLocalAgentStatus(), getLocalAgentStatus()];
+    const probesStarted = fetchMock.mock.calls.length;
+    resolveHealth(new Response(null, { status: 204 }));
+    const [first, second] = await Promise.all(requests);
     const third = await getLocalAgentStatus();
 
+    expect(probesStarted).toBe(2);
     expect(first).toEqual({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B', 'LFM3-Omni-2B'] });
     expect(second).toEqual(first);
     expect(third).toEqual(first);
@@ -94,11 +102,13 @@ describe('local agent status', () => {
   it('returns the sanitized fallback when health is down or discovery is malformed', async () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example');
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(null, { status: 503 }));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'LFM3-1.7B' }] }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getLocalAgentStatus()).resolves.toEqual({ healthy: false, modelName: 'Local model', models: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     __resetLocalAgentStatusCacheForTest();
     fetchMock.mockReset()
@@ -109,44 +119,39 @@ describe('local agent status', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('returns fallback when discovery fails while health is still pending', async () => {
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
+    let resolveHealth!: (response: Response) => void;
+    const healthRequest = new Promise<Response>((resolve) => {
+      resolveHealth = resolve;
+    });
+    const fetchMock = vi.fn()
+      .mockReturnValueOnce(healthRequest)
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      await expect(getLocalAgentStatus()).resolves.toEqual({ healthy: false, modelName: 'Local model', models: [] });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      resolveHealth(new Response(null, { status: 204 }));
+    }
+  });
+
   it('rechecks health immediately when force is requested after a cached result', async () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }))
-      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(getLocalAgentStatus()).resolves.toEqual({ healthy: true, modelName: 'gemma-4-e2b-phone', models: ['gemma-4-e2b-phone'] });
     await expect(getLocalAgentStatus({ force: true })).resolves.toEqual({ healthy: false, modelName: 'Local model', models: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('reuses only a recent healthy result when a max healthy age is given', async () => {
-    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.example/v1');
-    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-key');
-    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json({ data: [{ id: 'LFM3-1.7B' }] }))
-      .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(new Response(null, { status: 503 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await getLocalAgentStatus({ force: true });
-    nowSpy.mockReturnValue(1_000_000 + 30_000);
-    await expect(getLocalAgentStatus({ maxHealthyAgeMs: 60_000 })).resolves.toEqual({ healthy: true, modelName: 'LFM3-1.7B', models: ['LFM3-1.7B'] });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    nowSpy.mockReturnValue(1_000_000 + 61_000);
-    await expect(getLocalAgentStatus({ maxHealthyAgeMs: 60_000 })).resolves.toEqual({ healthy: false, modelName: 'Local model', models: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-
-    // An unhealthy result is never reused, however recent.
-    await expect(getLocalAgentStatus({ maxHealthyAgeMs: 60_000 })).resolves.toEqual({ healthy: false, modelName: 'Local model', models: [] });
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    nowSpy.mockRestore();
   });
 
   it('returns only the cacheable public status from the route', async () => {

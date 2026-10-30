@@ -21,7 +21,6 @@ export interface LocalAgentUrls {
 }
 
 interface CachedStatus {
-  checkedAt: number;
   expiresAt: number;
   value: LocalAgentStatus;
 }
@@ -114,19 +113,23 @@ async function checkLocalAgentStatus(): Promise<LocalAgentStatus> {
   }
 
   try {
-    const healthResponse = await fetch(urls.healthUrl, {
+    const healthRequest = fetch(urls.healthUrl, {
       cache: 'no-store',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then((response) => {
+      if (!response.ok) throw new Error('Local agent health check failed');
     });
-    if (!healthResponse.ok) return unavailableStatus();
 
-    const modelsResponse = await fetch(urls.modelsUrl, {
+    const modelsRequest = fetch(urls.modelsUrl, {
       cache: 'no-store',
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }).then((response) => {
+      if (!response.ok) throw new Error('Local agent discovery failed');
+      return response;
     });
-    if (!modelsResponse.ok) return unavailableStatus();
 
+    const [, modelsResponse] = await Promise.all([healthRequest, modelsRequest]);
     const models = getAdvertisedModelNames(await modelsResponse.json());
     return models.length > 0 ? { healthy: true, modelName: models[0], models } : unavailableStatus();
   } catch {
@@ -135,24 +138,16 @@ async function checkLocalAgentStatus(): Promise<LocalAgentStatus> {
 }
 
 export async function getLocalAgentStatus(
-  options?: { force?: boolean; maxHealthyAgeMs?: number },
+  options?: { force?: boolean },
 ): Promise<LocalAgentStatus> {
   const now = Date.now();
-  if (
-    options?.maxHealthyAgeMs !== undefined
-    && cachedStatus?.value.healthy
-    && now - cachedStatus.checkedAt <= options.maxHealthyAgeMs
-  ) {
-    return cachedStatus.value;
-  }
-  if (!options?.force && options?.maxHealthyAgeMs === undefined && cachedStatus && cachedStatus.expiresAt > now) {
+  if (!options?.force && cachedStatus && cachedStatus.expiresAt > now) {
     return cachedStatus.value;
   }
   if (pendingStatus) return pendingStatus;
 
   const statusRequest = checkLocalAgentStatus().then((value) => {
-    const checkedAt = Date.now();
-    cachedStatus = { value, checkedAt, expiresAt: checkedAt + CACHE_TTL_MS };
+    cachedStatus = { value, expiresAt: Date.now() + CACHE_TTL_MS };
     return value;
   });
   pendingStatus = statusRequest;

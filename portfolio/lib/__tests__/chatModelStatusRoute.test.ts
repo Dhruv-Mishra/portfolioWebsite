@@ -55,18 +55,19 @@ describe('chat model status route', () => {
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }))
-      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }));
     vi.stubGlobal('fetch', fetchMock);
     await getLocalAgentStatus();
     fetchMock.mockClear();
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: 'gemma-4-e2b-phone' }] }));
 
     const response = await GET(statusRequest('?fresh=1'));
     const body = await response.json() as { localModelStatus: { healthy: boolean; modelName: string } };
 
     expect(body.localModelStatus).toEqual({ healthy: false, modelName: 'Local model', models: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('exposes only the safe advisory shape and never reader configuration or snapshot internals', async () => {

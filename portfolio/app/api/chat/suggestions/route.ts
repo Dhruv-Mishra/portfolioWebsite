@@ -1,7 +1,7 @@
 // app/api/chat/suggestions/route.ts — Generate contextual follow-up suggestions via LLM
 import OpenAI from 'openai';
 import { NextRequest } from 'next/server';
-import { BoundedJsonError, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { parseSuggestionResponse } from '@/lib/chatSanitization';
 import {
   LLM_SUGGESTIONS_FALLBACK_RESERVE_MS,
@@ -66,18 +66,9 @@ export async function POST(request: NextRequest) {
       return Response.json({ suggestions: [] }, { status: 429, headers: { 'Retry-After': String(retryAfter) } });
     }
 
-    let body: { messages?: unknown };
-    try {
-      body = await readBoundedJson<{ messages?: unknown }>(request, MAX_SUGGESTIONS_BODY_BYTES, routeSignal);
-    } catch (error) {
-      if (error instanceof BoundedJsonError) {
-        return Response.json({ suggestions: [] }, { status: error.status });
-      }
-      throw error;
-    }
-
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return Response.json({ suggestions: [] }, { status: 400 });
+    const body = await readJsonObjectOrError<{ messages?: unknown }>(request, MAX_SUGGESTIONS_BODY_BYTES, routeSignal);
+    if (body instanceof Response) {
+      return Response.json({ suggestions: [] }, { status: body.status });
     }
 
     // Validate messages shape: must be an array of {role: 'user'|'assistant', content}.

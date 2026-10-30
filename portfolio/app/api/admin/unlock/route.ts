@@ -13,7 +13,7 @@
 
 import { NextRequest } from 'next/server';
 import { ADMIN_COOKIE_NAME, issueAdminToken } from '@/lib/adminAuth.server';
-import { BoundedJsonError, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { ADMIN_PASSWORD, ADMIN_USERNAME } from '@/lib/matrixPuzzle';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
@@ -61,17 +61,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  let body: { username?: unknown; password?: unknown };
-  try {
-    body = await readBoundedJson<{ username?: unknown; password?: unknown }>(request, MAX_ADMIN_UNLOCK_BODY_BYTES);
-  } catch (error) {
-    if (error instanceof BoundedJsonError) {
-      return Response.json({ error: 'Invalid body' }, { status: error.status });
-    }
-    throw error;
-  }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return Response.json({ error: 'Invalid body' }, { status: 400 });
+  const body = await readJsonObjectOrError<{ username?: unknown; password?: unknown }>(request, MAX_ADMIN_UNLOCK_BODY_BYTES);
+  if (body instanceof Response) {
+    return Response.json({ error: 'Invalid body' }, { status: body.status });
   }
 
   const username = typeof body.username === 'string' ? body.username : '';

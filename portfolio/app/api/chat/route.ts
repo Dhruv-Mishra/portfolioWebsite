@@ -25,7 +25,7 @@ import {
   type ClientChatMessage,
   type SanitizedChatMessage,
 } from '@/lib/chatTransport';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import {
   LLM_MAIN_RESPONSE_TIMEOUT_MS,
   LLM_PROVIDER_FALLBACK_RESERVE_MS,
@@ -272,18 +272,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { messages?: unknown; model?: unknown; image?: unknown; stream?: unknown };
-    try {
-      body = await readBoundedJson<{ messages?: unknown; model?: unknown; image?: unknown; stream?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
-    } catch (error) {
-      if (error instanceof BoundedJsonError) {
-        return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-      }
-      throw error;
-    }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    const body = await readJsonObjectOrError<{ messages?: unknown; model?: unknown; image?: unknown; stream?: unknown }>(request, MAX_CHAT_BODY_BYTES, routeSignal);
+    if (body instanceof Response) return body;
 
     const selectedModelId = body.model === undefined
       ? DEFAULT_CHAT_MODEL_ID

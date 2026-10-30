@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { parseVoiceSessionRequest } from '@/lib/voiceAgentProtocol';
 import { mintVoiceSession } from '@/lib/voiceSession.server';
@@ -32,15 +32,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: SessionBody;
-  try {
-    body = await readBoundedJson<SessionBody>(request, 2_048);
-  } catch (error) {
-    if (error instanceof BoundedJsonError) {
-      return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-    }
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const body = await readJsonObjectOrError<SessionBody>(request, 2_048);
+  if (body instanceof Response) return body;
 
   const parsed = parseVoiceSessionRequest(body);
 

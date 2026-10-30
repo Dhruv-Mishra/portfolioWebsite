@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { BoundedJsonError, getBoundedJsonErrorMessage, readBoundedJson } from '@/lib/boundedJson.server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { getRelevantFactContext } from '@/lib/factRetrieval.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { VOICE_FACTS_LIMIT } from '@/lib/voiceAgentConfig';
@@ -30,15 +30,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: FactsBody;
-  try {
-    body = await readBoundedJson<FactsBody>(request, 2_048);
-  } catch (error) {
-    if (error instanceof BoundedJsonError) {
-      return Response.json({ error: getBoundedJsonErrorMessage(error) }, { status: error.status });
-    }
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const body = await readJsonObjectOrError<FactsBody>(request, 2_048);
+  if (body instanceof Response) return body;
 
   const query = typeof body.query === 'string' ? body.query.trim() : '';
   if (!query || query.length > 240) {

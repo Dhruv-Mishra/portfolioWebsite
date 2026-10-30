@@ -6,27 +6,47 @@ export type BoundedJsonErrorCode =
   | 'payload-too-large'
   | 'invalid-json';
 
+const ERROR_MESSAGES: Record<BoundedJsonErrorCode, string> = {
+  'missing-content-length': 'Content-Length header required',
+  'invalid-content-length': 'Invalid Content-Length header',
+  'payload-too-large': 'Request body is too large',
+  'invalid-json': 'Invalid JSON body',
+};
+
 export class BoundedJsonError extends Error {
   constructor(
     public readonly code: BoundedJsonErrorCode,
     public readonly status: 400 | 411 | 413,
   ) {
-    super(code);
+    super(ERROR_MESSAGES[code]);
     this.name = 'BoundedJsonError';
+  }
+
+  toResponse(): Response {
+    return Response.json({ error: this.message }, { status: this.status });
   }
 }
 
-export function getBoundedJsonErrorMessage(error: BoundedJsonError): string {
-  switch (error.code) {
-    case 'missing-content-length':
-      return 'Content-Length header required';
-    case 'invalid-content-length':
-      return 'Invalid Content-Length header';
-    case 'payload-too-large':
-      return 'Request body is too large';
-    case 'invalid-json':
-      return 'Invalid JSON body';
+/**
+ * Read a size-bounded JSON object body. Returns the client-error Response to send when the
+ * body is missing, oversized, malformed, or not a plain object; other errors (aborts) rethrow.
+ */
+export async function readJsonObjectOrError<T extends object>(
+  request: Request,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<T | Response> {
+  let body: unknown;
+  try {
+    body = await readBoundedJson<unknown>(request, maxBytes, signal);
+  } catch (error) {
+    if (error instanceof BoundedJsonError) return error.toResponse();
+    throw error;
   }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return new BoundedJsonError('invalid-json', 400).toResponse();
+  }
+  return body as T;
 }
 
 function parseContentLength(request: Request, maxBytes: number): number {

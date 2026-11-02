@@ -164,9 +164,11 @@ const nextConfig: NextConfig = {
       {
         // Static pages: let Cloudflare cache at edge for 1 hour, browsers revalidate.
         // Dynamic and cookie-gated routes must retain Next's private/no-store policy.
+        // no-transform stops Cloudflare injecting its bot-detection and email-decode scripts
+        // (main-thread cost on every load); Analytics.tsx loads the Web Analytics beacon instead.
         source: '/((?!api|admin|guestbook|matrix-notes|_next/static|_next/image|resources|voice).*)',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400, no-transform' },
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },
         ],
       },

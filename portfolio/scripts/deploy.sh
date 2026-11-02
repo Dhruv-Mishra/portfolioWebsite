@@ -1310,6 +1310,27 @@ validate_static_release_layout() {
     log SUCCESS "Release static layout validated: ${release_dir}"
 }
 
+# Hashed /_next/static files are immutable, so copying recent ones forward lets HTML cached at
+# the edge (or open tabs) from the previous build keep loading its chunks. File mtimes are kept,
+# so each asset ages out STATIC_CARRYOVER_DAYS after it first shipped.
+readonly STATIC_CARRYOVER_DAYS=3
+carry_over_recent_static_assets() {
+    local staging_static="$1/.next/static"
+    local active_static
+    active_static="$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)/.next/static"
+    if [[ ! -d "${active_static}" ]] || [[ "${active_static}" -ef "${staging_static}" ]]; then
+        return 0
+    fi
+
+    local rel copied=0
+    while IFS= read -r -d '' rel; do
+        [[ -e "${staging_static}/${rel}" ]] && continue
+        mkdir -p "$(dirname "${staging_static}/${rel}")"
+        cp -p "${active_static}/${rel}" "${staging_static}/${rel}" && copied=$((copied + 1))
+    done < <(find "${active_static}" -type f -mtime "-${STATIC_CARRYOVER_DAYS}" -printf '%P\0')
+    log INFO "Carried over ${copied} recent static assets from the active release"
+}
+
 stage_release() {
     RELEASE_ID="${RELEASE_SHA}"
     log STEP "Staging release ${RELEASE_SHA}..."
@@ -1352,6 +1373,7 @@ stage_release() {
     cp "${DEPLOY_ENV_FILE}" "${staging}/.env.local"
     chmod 600 "${staging}/.env.local"
     validate_static_release_layout "${staging}" || exit 1
+    carry_over_recent_static_assets "${staging}"
 
     # Fix ownership: service user owns the bundle
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "${staging}"
@@ -1437,6 +1459,8 @@ stage_image_release() {
 
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     trap - RETURN
+
+    carry_over_recent_static_assets "${staging}"
 
     cat > "${staging}/.deploy/meta.json" << META
 {

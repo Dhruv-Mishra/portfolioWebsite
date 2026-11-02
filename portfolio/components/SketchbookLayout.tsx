@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
@@ -49,7 +50,7 @@ const GRID_PATTERN_STYLE = {
 export default function SketchbookLayout({ children, doodles }: { children: React.ReactNode; doodles?: React.ReactNode }) {
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [feedbackLoaded, setFeedbackLoaded] = useState(false);
-    const [showMobileSoundToggle, setShowMobileSoundToggle] = useState(false);
+    const showMobileSoundToggle = useIsMobile();
 
     // Listen for 'open-feedback' custom event (from terminal command)
     const openFeedback = useCallback(() => {
@@ -61,14 +62,6 @@ export default function SketchbookLayout({ children, doodles }: { children: Reac
         window.addEventListener('open-feedback', openFeedback);
         return () => window.removeEventListener('open-feedback', openFeedback);
     }, [openFeedback]);
-
-    useEffect(() => {
-        const mediaQuery = window.matchMedia('(max-width: 767px)');
-        const syncVisibility = () => setShowMobileSoundToggle(mediaQuery.matches);
-        syncVisibility();
-        mediaQuery.addEventListener('change', syncVisibility);
-        return () => mediaQuery.removeEventListener('change', syncVisibility);
-    }, []);
 
     return (
         <div className="h-[100dvh] w-full max-w-full bg-paper transition-colors duration-500 relative flex overflow-hidden">

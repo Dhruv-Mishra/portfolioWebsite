@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent } from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { CHORD_ROUTE_MAP, CHORD_WINDOW_MS } from '@/lib/keybindings';
+import { FINE_POINTER_QUERY } from '@/hooks/useMediaQuery';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export function useGlobalHotkeys({
     // Probe pointer capability — `?` is a power-user shortcut and is suppressed
     // on touch-only devices (no hardware keyboard). Chord nav is left enabled
     // because external keyboards still send `g`, even on hybrid devices.
-    const hoverMql = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const hoverMql = window.matchMedia(FINE_POINTER_QUERY);
 
     let chordArmed = false;
     let chordTimer: ReturnType<typeof setTimeout> | null = null;

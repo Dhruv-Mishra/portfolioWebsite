@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   spawnParticle,
   stepParticle,

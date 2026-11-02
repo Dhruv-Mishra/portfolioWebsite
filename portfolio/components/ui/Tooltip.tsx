@@ -33,7 +33,7 @@ import {
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useDesktopOnly } from '@/hooks/useDesktopOnly';
+import { useDesktopOnly } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
 
 interface TooltipProps {

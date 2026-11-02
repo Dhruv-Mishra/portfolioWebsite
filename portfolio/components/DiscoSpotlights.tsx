@@ -37,7 +37,7 @@
  */
 
 import { memo } from 'react';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 
 interface SpotProps {
   /** Unique token used to tune the per-spot keyframe. */

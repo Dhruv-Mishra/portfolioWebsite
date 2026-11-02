@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-
-const FINE_POINTER = '(hover: hover) and (pointer: fine)';
+import { FINE_POINTER_QUERY } from '@/hooks/useMediaQuery';
 
 let rng = 0x9e3779b9;
 
@@ -19,7 +18,7 @@ function nextTilt(): string {
 
 export default function HoverTiltController(): null {
   useEffect(() => {
-    const finePointer = window.matchMedia(FINE_POINTER);
+    const finePointer = window.matchMedia(FINE_POINTER_QUERY);
 
     const onPointerOver = (event: PointerEvent) => {
       if (!finePointer.matches) return;

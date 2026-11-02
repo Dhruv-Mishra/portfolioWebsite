@@ -21,7 +21,7 @@ Scope: the whole repository.
 
 ## Keeping The Codebase Small
 
-- Reuse before adding: check `lib/designTokens.ts`, `lib/localPreference.ts`, `lib/boundedJson.server.ts`, `lib/replyLength.ts`, and existing hooks before writing a new helper, store, or constant.
+- Reuse before adding: check `lib/designTokens.ts`, `lib/localPreference.ts`, `lib/boundedJson.server.ts`, `lib/replyLength.ts`, `hooks/useMediaQuery.ts`, and existing hooks before writing a new helper, store, or constant.
 - A change should usually delete about as much as it adds. Remove code, exports, flags, docs, and tests that a change makes obsolete in the same commit.
 - Extract shared code only on the second real duplicate; prefer a small class or function with one responsibility over options-heavy abstractions.
 - Tests must exercise behavior. Do not add tests that read source, CSS, YAML, or shell files as text; the only allowed exceptions are the design-token parity and action SHA-pinning guards.

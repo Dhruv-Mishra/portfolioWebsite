@@ -35,9 +35,6 @@ env:
   STAGING_LOCAL_AGENT_BASE_URL: https://llm.whoisdhruv.com/v1
   DEPLOY_MODE: image
   DEPLOY_BROWSERSLIST: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
-  NEXT_PUBLIC_GA_ID: ""
-  NEXT_PUBLIC_ENABLE_ANALYTICS: "false"
-  NEXT_PUBLIC_ENABLE_ERROR_TRACKING: "false"
   NEXT_TELEMETRY_DISABLED: "1"
   ONNXRUNTIME_NODE_INSTALL: skip
 
@@ -188,10 +185,7 @@ jobs:
           cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
-            NEXT_PUBLIC_GA_ID=${{ env.NEXT_PUBLIC_GA_ID }}
             NEXT_PUBLIC_SITE_URL=https://${{ env.STAGING_DOMAIN }}
-            NEXT_PUBLIC_ENABLE_ANALYTICS=${{ env.NEXT_PUBLIC_ENABLE_ANALYTICS }}
-            NEXT_PUBLIC_ENABLE_ERROR_TRACKING=${{ env.NEXT_PUBLIC_ENABLE_ERROR_TRACKING }}
             NEXT_BUILD_FLAGS=--webpack
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 

@@ -9,7 +9,6 @@ import {
 import Navigation from "@/components/Navigation";
 import RouteScrollSurface from "@/components/RouteScrollSurface";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-// Analytics deferred via next/script in component
 import { Analytics } from "@/components/Analytics";
 import DeferredEnhancements from "@/components/DeferredEnhancements";
 import EagerEnhancements from "@/components/EagerEnhancements";
@@ -17,16 +16,7 @@ import { PERSONAL_LINKS, SITE } from "@/lib/links";
 import { OG_IMAGE, SITE_DESCRIPTION } from "@/lib/pageMetadata";
 import "./globals.css";
 
-// Both DeferredEnhancements and EagerEnhancements are client components
-// ("use client" at the top). Direct import from this server layout is fine —
-// Next.js 16 disallows `dynamic(ssr:false)` from server components, but direct
-// "use client" imports hydrate normally. Any nested lazy imports happen inside
-// each client component.
-
-// Self-hosted via next/font/local — woff2 files live under app/fonts/ and are
-// served from the same origin (cached at the Cloudflare edge, no third-party
-// DNS / TLS hop). Replaces the prior next/font/google calls; subsetted to
-// latin to match the previous `subsets: ["latin"]` config.
+// Self-hosted latin subsets, served from the same origin.
 const patrickHand = localFont({
   src: "./fonts/patrick-hand-latin-400.woff2",
   weight: "400",
@@ -79,19 +69,6 @@ const STRUCTURED_DATA_LD = JSON.stringify({
 
 const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.motionPreference==='system'?delete e.dataset.motion:o.motionPreference==='reduced'||o.motionPreference==='full'?e.dataset.motion=o.motionPreference:e.dataset.motion='full';}catch{const e=document.documentElement;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';e.dataset.motion='full';}})();`;
 
-/**
- * Viewport config — explicit so iOS Safari (a) respects `width=device-width`
- * (preventing the auto-zoom that `<pre>` + ASCII-frame content used to
- * trigger on narrow screens) and (b) lets the disco + matrix fixed layers
- * paint into the bottom safe-area via `viewport-fit=cover`. `initialScale:
- * 1` keeps the first paint at 1:1 physical/CSS pixels — no surprise zoom.
- * We intentionally do NOT set `maximumScale: 1` or `userScalable: false`
- * because doing so violates accessibility guidelines (users with low vision
- * need to pinch-zoom). The real fix for the wide-content problem was
- * removing the fixed-width ASCII frame in `lib/sudoCommands.tsx` — content
- * now flows to the viewport width, so the browser has no reason to shrink
- * the layout down.
- */
 // Rendered on the server so the decorative SVGs stay out of the client bundle.
 const SKETCHBOOK_DOODLES = (
   <>
@@ -107,6 +84,7 @@ const SKETCHBOOK_DOODLES = (
   </>
 );
 
+// viewport-fit=cover lets fixed disco layers reach the safe area; zoom stays enabled for accessibility.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -178,19 +156,6 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: SITE_PREFS_BOOTSTRAP }} />
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
         <link rel="dns-prefetch" href="https://v2.jokeapi.dev" />
-        {/*
-          Google Analytics: warm the DNS for the gtag.js origin + the beacon
-          endpoint. The Analytics component loads GA via next/script with
-          `strategy="lazyOnload"`, so the actual request fires well after the
-          LCP frame. Browsers resolve dns-prefetch hints whether or not the
-          origin is used, so only emit them when GA is configured.
-        */}
-        {process.env.NEXT_PUBLIC_GA_ID ? (
-          <>
-            <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
-            <link rel="dns-prefetch" href="https://www.google-analytics.com" />
-          </>
-        ) : null}
         <link rel="manifest" href="/manifest.json" />
         {/* theme-color meta tags are emitted by the `viewport` export above. */}
 

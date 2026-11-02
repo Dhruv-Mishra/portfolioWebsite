@@ -3,6 +3,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { LAYOUT_TOKENS, CURSOR_TRAIL, TIMING_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { useTheme } from 'next-themes';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { FINE_POINTER_QUERY } from '@/hooks/useMediaQuery';
 
 interface TrailPoint { x: number; y: number; t: number }
 
@@ -37,7 +38,7 @@ export default function SketchbookCursor() {
         let lastMoveTime = performance.now();
         if (!mounted) return;
 
-        const canUseCustomCursor = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        const canUseCustomCursor = window.matchMedia(FINE_POINTER_QUERY).matches;
         if (!canUseCustomCursor || reducedMotion) return;
 
         document.documentElement.dataset.customCursor = 'ready';

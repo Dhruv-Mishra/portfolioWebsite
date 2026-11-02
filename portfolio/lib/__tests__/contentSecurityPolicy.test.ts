@@ -42,22 +42,18 @@ describe('Whisper deployment content security policy', () => {
     expect(sortedPolicy(developmentPolicy)).toEqual(sortedPolicy(productionPolicy));
   });
 
-  it('keeps Next and every deployed nginx policy semantically aligned', async () => {
+  it('keeps Next and the deployed nginx policy semantically aligned', async () => {
     const headerRules = await nextConfig.headers?.();
     const globalHeaders = headerRules?.find((rule) => rule.source === '/:path*')?.headers ?? [];
     const nextPolicyValue = globalHeaders.find((header) => header.key === 'Content-Security-Policy')?.value;
     expect(nextPolicyValue).toBeDefined();
 
     const nginx = fs.readFileSync(path.join(process.cwd(), 'nginx-cloudflare.conf'), 'utf8');
-    const nginxPolicyValues = [...nginx.matchAll(
-      /add_header Content-Security-Policy "([^"]+)" always;/g,
-    )].map((match) => match[1]);
-
-    expect(nginxPolicyValues.length).toBeGreaterThanOrEqual(2);
-    const expectedPolicy = sortedPolicy(parsePolicy(nextPolicyValue!));
-    for (const policy of nginxPolicyValues) {
-      expect(sortedPolicy(parsePolicy(policy))).toEqual(expectedPolicy);
-    }
+    const [, variable, nginxPolicy] = nginx.match(/map \$host (\$\w+) \{\s*default "([^"]+)";/) ?? [];
+    expect(nginxPolicy).toBeDefined();
+    expect(sortedPolicy(parsePolicy(nginxPolicy))).toEqual(sortedPolicy(parsePolicy(nextPolicyValue!)));
+    expect(nginx).not.toMatch(/add_header Content-Security-Policy "/);
+    expect(nginx).toContain(`add_header Content-Security-Policy ${variable} always;`);
     expect(nginx).toContain('proxy_hide_header Content-Security-Policy;');
   });
 
@@ -69,10 +65,7 @@ describe('Whisper deployment content security policy', () => {
 
     expect(policy.get('connect-src')).toEqual(new Set([
       "'self'",
-      'https://www.google-analytics.com',
       'https://v2.jokeapi.dev',
-      'https://analytics.google.com',
-      'https://region1.google-analytics.com',
       'https://cloudflareinsights.com',
       'https://huggingface.co',
       'https://us.aws.cdn.hf.co',

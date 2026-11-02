@@ -49,7 +49,7 @@ Static pages send `Cache-Control: public, s-maxage=3600, stale-while-revalidate=
 - **Match:** hostname is `whoisdhruv.com` or `staging.whoisdhruv.com`, method is `GET`, the path does not start with `/api`, `/admin`, `/matrix-notes`, `/guestbook`, or `/chat/`, and no `rsc` request header is present (`not any(http.request.headers.names[*] == "rsc")`). RSC payloads stay uncached because their cache key does not include the build.
 - **Action:** Eligible for cache; Edge TTL "Use cache-control header if present"; Browser TTL "Respect origin".
 
-Deploys keep three days of previous `/_next/static` files, so edge-cached HTML from the last build keeps working. The staging and production smoke jobs also purge their hostname when the `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_CACHE_PURGE_TOKEN` (Zone → Cache Purge) secrets exist; add both before enabling the rule. Rollbacks do not purge, so purge the hostname manually after one.
+Deploys and rollbacks copy the active release's `/_next/static` files into the release being activated and keep each build's files for three days after it stops serving, so edge-cached HTML from the previous build keeps working. The staging and production smoke jobs also purge their hostname when the `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_CACHE_PURGE_TOKEN` (Zone → Cache Purge) secrets exist; add both before enabling the rule. Rollbacks do not purge, so purge the hostname manually after one.
 
 `no-transform` intentionally stops Cloudflare JavaScript Detections and Email Address Obfuscation from rewriting static pages. `components/Analytics.tsx` loads the Web Analytics beacon on those pages; dynamic routes keep Cloudflare's automatic snippet.
 

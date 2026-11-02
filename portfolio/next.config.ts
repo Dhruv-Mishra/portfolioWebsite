@@ -153,7 +153,7 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
+            value: 'camera=(), microphone=(self), geolocation=()',
           },
           { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },

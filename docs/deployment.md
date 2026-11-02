@@ -42,6 +42,17 @@ Each image deploy ships `update-cloudflare-origin-policy.sh`, installs it as `/u
 
 For existing VMs, the first hardened image deployment performs that installation and refresh automatically; it then requires active Nginx and UFW. Schedule the root-run updater for at least daily refreshes between deployments. Do not use the production or staging workflow to skip Nginx hardening.
 
+### Edge HTML Caching
+
+Static pages send `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400, no-transform`. Cloudflare only caches HTML when a Cache Rule makes it eligible; without one every page view goes to an origin VM (about 0.5 s TTFB from Europe in the Lighthouse run). To serve pages from the edge, add a zone Cache Rule:
+
+- **Match:** hostname is `whoisdhruv.com` or `staging.whoisdhruv.com`, method is `GET`, the path does not start with `/api`, `/admin`, `/matrix-notes`, `/guestbook`, or `/chat/`, and no `rsc` request header is present (`not any(http.request.headers.names[*] == "rsc")`). RSC payloads stay uncached because their cache key does not include the build.
+- **Action:** Eligible for cache; Edge TTL "Use cache-control header if present"; Browser TTL "Respect origin".
+
+Deploys and rollbacks copy the active release's `/_next/static` files into the release being activated and keep each build's files for three days after it stops serving, so edge-cached HTML from the previous build keeps working. The staging and production smoke jobs also purge their hostname when the `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_CACHE_PURGE_TOKEN` (Zone → Cache Purge) secrets exist; add both before enabling the rule. Rollbacks do not purge, so purge the hostname manually after one.
+
+`no-transform` intentionally stops Cloudflare JavaScript Detections and Email Address Obfuscation from rewriting static pages. `components/Analytics.tsx` loads the Web Analytics beacon on those pages; dynamic routes keep Cloudflare's automatic snippet.
+
 ## Operator Commands
 
 From the repository root:

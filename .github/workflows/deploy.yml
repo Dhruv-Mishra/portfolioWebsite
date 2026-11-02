@@ -1161,8 +1161,26 @@ jobs:
     needs: deploy-production
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    env:
+      CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      CLOUDFLARE_CACHE_PURGE_TOKEN: ${{ secrets.CLOUDFLARE_CACHE_PURGE_TOKEN }}
 
     steps:
+      # Edge-cached HTML references the previous build's chunks; purge so visitors get the new release.
+      - name: Purge Cloudflare cache for production
+        if: env.CLOUDFLARE_ZONE_ID != '' && env.CLOUDFLARE_CACHE_PURGE_TOKEN != ''
+        run: |
+          response="$(curl -sS --max-time 20 -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_CACHE_PURGE_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data '{"hosts":["${{ env.DOMAIN }}"]}' || true)"
+          if printf '%s' "$response" | grep -q '"success":[[:space:]]*true'; then
+            echo "Purged Cloudflare cache for ${{ env.DOMAIN }}"
+          else
+            echo "::warning::Cloudflare cache purge failed: ${response}"
+          fi
+
       - name: Verify public resources at the edge
         run: |
           set -euo pipefail

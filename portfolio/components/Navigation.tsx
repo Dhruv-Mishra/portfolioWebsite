@@ -24,8 +24,8 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
 
-/** Framework-owned pending marker. Must stay a descendant of each NavTab Link. */
-function RoutePendingMarker() {
+/** Framework-owned pending marker. Must be a descendant of the Link whose navigation it reports. */
+export function RoutePendingMarker() {
     const { pending } = useLinkStatus();
     if (!pending) return null;
     return <span hidden data-route-navigation-pending />;

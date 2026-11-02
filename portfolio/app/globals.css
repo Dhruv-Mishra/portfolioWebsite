@@ -408,8 +408,9 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     animation: heroTitleIn 0.2s ease-out forwards;
   }
 
+  /* No start delay: the subtitle is the LCP element, so any delay holds back the main content. */
   .animate-hero-subtitle {
-    animation: heroSubtitleIn 0.5s ease-out 0.3s forwards;
+    animation: heroSubtitleIn 0.4s ease-out forwards;
     opacity: 0;
   }
 

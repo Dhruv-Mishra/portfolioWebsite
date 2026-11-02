@@ -212,7 +212,7 @@ See [TTS](tts.md) for the endpoint contract, role configuration, and smoke check
 
 | Layer | Implemented behavior | Scope and limitation |
 |---|---|---|
-| Cloudflare | Public TLS and CDN caching for cacheable content | No application Worker or shared application queue is configured here |
+| Cloudflare | Public TLS and CDN caching for cacheable content; static pages opt out of HTML rewriting with `no-transform` | HTML is edge-cached only with the Cache Rule in [Deployment](deployment.md#edge-html-caching); no application Worker or shared queue |
 | Nginx | Accepts allowed Cloudflare peers, serves static files, proxy-caches eligible pages, disables API caching, and applies `limit_req` controls | Per-origin reverse-proxy control; not business logic |
 | Next.js route handlers | Origin checks, bounded JSON and media parsing, deadlines, and per-IP in-memory limits | Limit state is per Node process |
 | Chat providers | Request-scoped deadline and abort propagation | No background retry worker or durable provider job |

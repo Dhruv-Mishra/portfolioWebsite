@@ -51,7 +51,7 @@ Static pages send `Cache-Control: public, s-maxage=3600, stale-while-revalidate=
 
 Deploys and rollbacks copy the active release's `/_next/static` files into the release being activated and keep each build's files for three days after it stops serving, so edge-cached HTML from the previous build keeps working. The staging and production smoke jobs also purge their hostname when the `CLOUDFLARE_ZONE_ID` and `CLOUDFLARE_CACHE_PURGE_TOKEN` (Zone → Cache Purge) secrets exist; add both before enabling the rule. Rollbacks do not purge, so purge the hostname manually after one.
 
-`no-transform` intentionally stops Cloudflare JavaScript Detections and Email Address Obfuscation from rewriting static pages. `components/Analytics.tsx` loads the Web Analytics beacon on those pages; dynamic routes keep Cloudflare's automatic snippet.
+`no-transform` intentionally stops Cloudflare JavaScript Detections and Email Address Obfuscation from rewriting static pages. Cloudflare does not auto-inject the Web Analytics beacon on any route, so `components/Analytics.tsx` loads it on every page and reports to the zone's same-origin `/cdn-cgi/rum`; the zone-scoped token is rejected by `cloudflareinsights.com`.
 
 ## Operator Commands
 

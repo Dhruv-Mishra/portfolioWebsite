@@ -66,7 +66,6 @@ describe('Whisper deployment content security policy', () => {
     expect(policy.get('connect-src')).toEqual(new Set([
       "'self'",
       'https://v2.jokeapi.dev',
-      'https://cloudflareinsights.com',
       'https://huggingface.co',
       'https://us.aws.cdn.hf.co',
       'https://cdn.jsdelivr.net',

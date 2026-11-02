@@ -1310,25 +1310,65 @@ validate_static_release_layout() {
     log SUCCESS "Release static layout validated: ${release_dir}"
 }
 
-# Hashed /_next/static files are immutable, so copying recent ones forward lets HTML cached at
-# the edge (or open tabs) from the previous build keep loading its chunks. File mtimes are kept,
-# so each asset ages out STATIC_CARRYOVER_DAYS after it first shipped.
+# Hashed /_next/static files are immutable, so copying the active release's files into the
+# release being activated lets HTML cached at the edge (or open tabs) from that build keep
+# loading its chunks. Files the active release shipped are stamped with the copy time; files it
+# had carried keep their stamp, so each build's assets drop out STATIC_CARRYOVER_DAYS after the
+# build stopped serving. Best effort: failures only warn.
 readonly STATIC_CARRYOVER_DAYS=3
-carry_over_recent_static_assets() {
-    local staging_static="$1/.next/static"
-    local active_static
-    active_static="$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)/.next/static"
-    if [[ ! -d "${active_static}" ]] || [[ "${active_static}" -ef "${staging_static}" ]]; then
+readonly STATIC_OWN_MANIFEST=".deploy/static-own.txt"
+carry_over_static_assets() {
+    local release_dir="$1"
+    local release_static="${release_dir}/.next/static"
+    if [[ ! -f "${release_dir}/${STATIC_OWN_MANIFEST}" ]]; then
+        mkdir -p "${release_dir}/.deploy"
+        find "${release_static}" -type f -printf '%P\n' > "${release_dir}/${STATIC_OWN_MANIFEST}" \
+            || log WARN "Could not record the static asset manifest for ${release_dir}"
+    fi
+
+    local active_dir
+    active_dir="$(readlink -f "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)"
+    local active_static="${active_dir}/.next/static"
+    if [[ -z "${active_dir}" ]] || [[ ! -d "${active_static}" ]] || [[ "${active_static}" -ef "${release_static}" ]]; then
         return 0
     fi
 
-    local rel copied=0
-    while IFS= read -r -d '' rel; do
-        [[ -e "${staging_static}/${rel}" ]] && continue
-        mkdir -p "$(dirname "${staging_static}/${rel}")"
-        cp -p "${active_static}/${rel}" "${staging_static}/${rel}" && copied=$((copied + 1))
-    done < <(find "${active_static}" -type f -mtime "-${STATIC_CARRYOVER_DAYS}" -printf '%P\0')
-    log INFO "Carried over ${copied} recent static assets from the active release"
+    # Releases that predate the manifest only contain their own files.
+    local -A own=()
+    local all_own=1 rel
+    if [[ -f "${active_dir}/${STATIC_OWN_MANIFEST}" ]]; then
+        all_own=0
+        while IFS= read -r rel; do own["${rel}"]=1; done < "${active_dir}/${STATIC_OWN_MANIFEST}"
+    fi
+
+    local listing
+    listing="$(mktemp)"
+    if ! find "${active_static}" -type f -printf '%P\t%T@\0' > "${listing}"; then
+        log WARN "Could not list static assets in ${active_static}; skipping carry-over"
+        rm -f "${listing}"
+        return 0
+    fi
+
+    local cutoff=$(( $(date +%s) - STATIC_CARRYOVER_DAYS * 86400 ))
+    local mtime copied=0 failed=0
+    while IFS=$'\t' read -r -d '' rel mtime; do
+        [[ -e "${release_static}/${rel}" ]] && continue
+        if (( all_own )) || [[ -n "${own[${rel}]+x}" ]]; then
+            mkdir -p "$(dirname "${release_static}/${rel}")" \
+                && cp "${active_static}/${rel}" "${release_static}/${rel}" \
+                && copied=$((copied + 1)) || failed=$((failed + 1))
+        elif (( ${mtime%.*} >= cutoff )); then
+            mkdir -p "$(dirname "${release_static}/${rel}")" \
+                && cp -p "${active_static}/${rel}" "${release_static}/${rel}" \
+                && copied=$((copied + 1)) || failed=$((failed + 1))
+        fi
+    done < "${listing}"
+    rm -f "${listing}"
+
+    log INFO "Carried over ${copied} static assets from the active release"
+    if (( failed > 0 )); then
+        log WARN "Could not carry over ${failed} static assets; HTML cached from the previous build may miss chunks"
+    fi
 }
 
 stage_release() {
@@ -1373,7 +1413,7 @@ stage_release() {
     cp "${DEPLOY_ENV_FILE}" "${staging}/.env.local"
     chmod 600 "${staging}/.env.local"
     validate_static_release_layout "${staging}" || exit 1
-    carry_over_recent_static_assets "${staging}"
+    carry_over_static_assets "${staging}"
 
     # Fix ownership: service user owns the bundle
     chown -R "${SERVICE_USER}:${SERVICE_USER}" "${staging}"
@@ -1420,6 +1460,7 @@ stage_image_release() {
         fi
         if [[ "${staged_image}" == "${DOCKER_IMAGE}" ]]; then
             validate_static_release_layout "${target}" || exit 1
+            carry_over_static_assets "${target}"
             RELEASE_DIR="${target}"
             log WARN "Image release ${release_id} already exists with the same digest — reusing existing static files"
             return 0
@@ -1460,7 +1501,7 @@ stage_image_release() {
     docker rm -f "${extract_container}" >/dev/null 2>&1 || true
     trap - RETURN
 
-    carry_over_recent_static_assets "${staging}"
+    carry_over_static_assets "${staging}"
 
     cat > "${staging}/.deploy/meta.json" << META
 {
@@ -2576,6 +2617,7 @@ rollback_deploy() {
     fi
     kill_orphaned_processes
 
+    carry_over_static_assets "${RELEASE_DIR}"
     activate_systemd_unit
     atomic_symlink_swap
     activate_nginx_config

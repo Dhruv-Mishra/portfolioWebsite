@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
+import { RoutePendingMarker } from "@/components/Navigation";
 import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { HandDrawnArrow } from "@/components/SketchbookDoodles";
 import { Coffee, MessageCircle, PenLine, type LucideIcon } from "lucide-react";
@@ -48,6 +49,7 @@ function NoteCta({ href, ariaLabel, label, icon: Icon, delayMs, className, tone,
           style={{ background: fold, clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }}
         />
       </div>
+      <RoutePendingMarker />
     </Link>
   );
 }
@@ -111,9 +113,9 @@ export default function Home() {
         aria-label="Quick links"
         className="animate-hero-subtitle -mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-hand text-lg text-gray-500 dark:text-gray-400"
       >
-        <Link href="/resume" prefetch={false} className={QUICK_LINK_CLASS}>resume</Link>
+        <Link href="/resume" prefetch={false} className={QUICK_LINK_CLASS}>resume<RoutePendingMarker /></Link>
         <span aria-hidden="true">·</span>
-        <Link href="/projects" prefetch={false} className={QUICK_LINK_CLASS}>projects</Link>
+        <Link href="/projects" prefetch={false} className={QUICK_LINK_CLASS}>projects<RoutePendingMarker /></Link>
         <span aria-hidden="true">·</span>
         <a href={PERSONAL_LINKS.email} className={QUICK_LINK_CLASS}>email me</a>
       </nav>

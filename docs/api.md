@@ -30,6 +30,7 @@ The active public TTS path can be served by a different internal node than the a
 - Nginx applies request limiting to API paths. The application adds in-memory, per-IP limits: chat is 20 per 5 minutes, suggestions 10 per 5 minutes, voice sessions 8 per 5 minutes, voice facts 20 per 5 minutes, TTS 24 per minute, guestbook 3 per 10 minutes, and feedback 3 per hour.
 - Application limits are in-memory sliding windows per Node process. They are not a distributed quota service, so multi-node protection also depends on the reverse proxy and edge configuration.
 - The Nginx template restores visitor IPs only from configured Cloudflare address ranges. Keep that list current when maintaining the proxy.
+- The Content-Security-Policy lives in `portfolio/lib/contentSecurityPolicy.ts` and once in the Nginx template's `map`; `lib/__tests__/contentSecurityPolicy.test.ts` keeps them identical. The only analytics is Cloudflare Web Analytics.
 
 ## Error Handling
 

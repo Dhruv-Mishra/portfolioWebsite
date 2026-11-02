@@ -4,7 +4,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
 import { MicOff, Phone, RotateCcw } from 'lucide-react';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { Z_INDEX } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 import {

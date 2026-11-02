@@ -26,7 +26,7 @@ import {
 import { useFloatingVolumePopover } from '@/hooks/useFloatingVolumePopover';
 import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
-import { useDesktopOnly } from '@/hooks/useDesktopOnly';
+import { useDesktopOnly } from '@/hooks/useMediaQuery';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 

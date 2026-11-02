@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { reportError } from '@/lib/errorReporting';
 
 export default function Error({
   error,
@@ -16,9 +15,7 @@ export default function Error({
   const router = useRouter();
 
   useEffect(() => {
-    // Log the error to an error reporting service
     console.error('Application error:', error);
-    reportError(error, { digest: error.digest, source: 'app/error.tsx' });
   }, [error]);
 
   return (

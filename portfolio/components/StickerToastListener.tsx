@@ -17,7 +17,7 @@ import {
   dismissActiveToast,
 } from '@/hooks/useStickers';
 import { useAdminPrefs } from '@/hooks/useAdminPrefs';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';

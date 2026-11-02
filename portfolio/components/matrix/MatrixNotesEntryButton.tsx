@@ -21,7 +21,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMatrixActive, useMatrixEscaped } from '@/hooks/useStickers';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { FONT_STACKS, Z_INDEX } from '@/lib/designTokens';
 
 export default function MatrixNotesEntryButton(): React.ReactElement | null {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
+import { FINE_POINTER_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
 import { LAYOUT_TOKENS } from "@/lib/designTokens";
 
 const SketchbookCursor = dynamic(() => import("@/components/SketchbookCursor"), { ssr: false });
@@ -15,74 +16,39 @@ const AssetPrefetchController = dynamic(() => import("@/components/AssetPrefetch
 
 const ROUTE_STABILITY_DELAY_MS = 600;
 const INTER_STAGE_YIELD_MS = 150;
+const LAST_STAGE = 3;
+const CURSOR_QUERY = `(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px) and ${FINE_POINTER_QUERY}`;
 
+const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+const idle = () => new Promise<void>((resolve) => {
+    if (window.requestIdleCallback) window.requestIdleCallback(() => resolve());
+    else window.setTimeout(resolve, INTER_STAGE_YIELD_MS);
+});
+
+/** Mounts non-critical UI in idle stages once a route has been stable briefly; restarts on navigation. */
 export default function DeferredEnhancements() {
     const pathname = usePathname();
     const [mountStage, setMountStage] = useState(0);
-    const mountedStageRef = useRef(0);
-    const [isCursorEligible, setIsCursorEligible] = useState(false);
+    const stageRef = useRef(0);
+    const isCursorEligible = useMediaQuery(CURSOR_QUERY);
 
     useEffect(() => {
-        if (mountedStageRef.current >= 3) return;
-        const runtimeWindow = window as Window & {
-            requestIdleCallback?: typeof window.requestIdleCallback;
-            cancelIdleCallback?: typeof window.cancelIdleCallback;
-        };
+        if (stageRef.current >= LAST_STAGE) return;
         let cancelled = false;
-        let stabilityTimer: number | undefined;
-        let yieldTimer: number | undefined;
-        let idleId: number | undefined;
-
-        const scheduleNextStage = () => {
-            const stage = mountedStageRef.current + 1;
-            if (cancelled || stage > 3) return;
-
-            const mountNextStage = () => {
-                idleId = undefined;
-                yieldTimer = undefined;
+        void (async () => {
+            await delay(ROUTE_STABILITY_DELAY_MS);
+            while (!cancelled && stageRef.current < LAST_STAGE) {
+                await idle();
                 if (cancelled) return;
-
-                mountedStageRef.current = stage;
-                setMountStage((current) => Math.max(current, stage));
-
-                if (stage < 3) {
-                    yieldTimer = runtimeWindow.setTimeout(() => {
-                        yieldTimer = undefined;
-                        scheduleNextStage();
-                    }, INTER_STAGE_YIELD_MS);
-                }
-            };
-
-            if (runtimeWindow.requestIdleCallback) {
-                idleId = runtimeWindow.requestIdleCallback(mountNextStage);
-                return;
+                stageRef.current += 1;
+                setMountStage(stageRef.current);
+                await delay(INTER_STAGE_YIELD_MS);
             }
-
-            yieldTimer = runtimeWindow.setTimeout(mountNextStage, INTER_STAGE_YIELD_MS);
-        };
-
-        stabilityTimer = runtimeWindow.setTimeout(() => {
-            stabilityTimer = undefined;
-            scheduleNextStage();
-        }, ROUTE_STABILITY_DELAY_MS);
-
+        })();
         return () => {
             cancelled = true;
-            if (stabilityTimer !== undefined) runtimeWindow.clearTimeout(stabilityTimer);
-            if (yieldTimer !== undefined) runtimeWindow.clearTimeout(yieldTimer);
-            if (idleId !== undefined) runtimeWindow.cancelIdleCallback?.(idleId);
         };
     }, [pathname]);
-
-    useEffect(() => {
-        const mediaQuery = window.matchMedia(`(min-width: ${LAYOUT_TOKENS.mobileBreakpoint}px) and (hover: hover) and (pointer: fine)`);
-        const syncCursorEligibility = () => setIsCursorEligible(mediaQuery.matches);
-
-        syncCursorEligibility();
-        mediaQuery.addEventListener("change", syncCursorEligibility);
-
-        return () => mediaQuery.removeEventListener("change", syncCursorEligibility);
-    }, []);
 
     if (mountStage === 0) {
         return null;

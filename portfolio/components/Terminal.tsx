@@ -4,9 +4,8 @@ import React, { useState, useEffect, useRef, useSyncExternalStore } from "react"
 import { m } from "framer-motion";
 import { Terminal as TerminalIcon } from "lucide-react";
 import { useTerminal } from "@/context/TerminalContext";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useAppHaptics } from "@/lib/haptics";
-import { trackTerminalCommand } from "@/lib/analytics";
 import { soundManager } from "@/lib/soundManager";
 import { unlockSticker } from "@/hooks/useStickers";
 import { appendUserAction, isPublicTerminalCommand } from "@/lib/userActionJournal";
@@ -210,7 +209,6 @@ export default function Terminal() {
         const [cmd, ...args] = trimmedInput.split(/\s+/);
         const lowerCmd = cmd.toLowerCase();
 
-        trackTerminalCommand(lowerCmd);
         soundManager.play('terminal-click');
         unlockSticker('first-word');
 

@@ -63,6 +63,7 @@ import { soundManager } from '@/lib/soundManager';
 import { MATRIX_PUZZLE_KEYS, writeSessionFlag } from '@/lib/matrixPuzzle';
 import { completeMatrixNotesEscape } from '@/app/matrix-notes/actions';
 import { FONT_STACKS, MATRIX_COLORS, Z_INDEX } from '@/lib/designTokens';
+import { MOBILE_QUERY } from '@/hooks/useMediaQuery';
 
 const GLYPHS =
   'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロ01Dhruv';
@@ -97,7 +98,7 @@ const TRAIL_FADE_ALPHA = 0.08;
 /** Narrow mobile check — a media query is enough (we don't need full device detect). */
 function isNarrowViewport(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia('(max-width: 767px)').matches;
+  return window.matchMedia(MOBILE_QUERY).matches;
 }
 
 /** Effective DPR for the current viewport, capped to keep per-frame fill tight. */

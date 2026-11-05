@@ -1,6 +1,6 @@
 ---
 id: resume-education
-tags: [iiit, iiitd, indraprastha, college, university, study, studied, education, degree, cgpa, gpa, honors, csam, computer science, applied mathematics, machine learning, deep learning, llm, bapi chatterjee, dhruv kumar, dcll, course recommendation]
+tags: [iiit, iiitd, indraprastha, college, university, study, studied, education, degree, cgpa, gpa, honors, csam, computer science, applied mathematics, machine learning, deep learning, llm, bapi chatterjee, dhruv kumar, dcll, course recommendation, school, major, majored, bachelor, btech, b tech, graduate, graduated, alma mater, grades, academics]
 priority: 8
 category: resume
 ---

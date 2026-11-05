@@ -143,18 +143,18 @@ flowchart TD
   Intent -->|no| Context[Build system context]
   Context --> Retrieval[Retrieve grounded facts]
   Retrieval --> Bundle[Committed facts.embeddings.json]
-  Retrieval --> Embed{Compatible query embedding available?}
-  Embed -->|yes| Rank[Cosine-rank tag-matched non-anchor facts]
-  Embed -->|no| Priority[Priority-order fallback facts]
-  Rank --> Prompt[Bounded prompt]
-  Priority --> Prompt
+  Retrieval --> Lexical[Forced topic fact, then tag and rare-word matches]
+  Lexical --> Prompt[Bounded prompt]
   Prompt --> Provider[Provider for the selected allowlisted model]
-  Provider --> Reply[Sanitize, sign, and return JSON reply]
+  Provider --> Tools{Site tool calls?}
+  Tools -->|yes| ToolAction[Validate calls into one ActionExecution]
+  Tools -->|no| Reply[Sanitize, sign, and return reply]
+  ToolAction --> Reply
   Provider -->|unavailable or failed| LocalFallback[Contextual local static reply]
 ```
 
 - Assistant turns must carry a valid server HMAC before they can be reused as chat history. User turns and validated history are clipped to the route limits.
-- The action layer is deterministic and allowlisted. It can return constrained navigation, project, appearance, feedback, or voice-mode actions; it does not grant arbitrary browser or operating-system access.
+- The action layer is allowlisted. A deterministic router answers clear requests without an LLM call; tool-capable models get seven site tools (navigate, theme, project, link, feedback, preference, voice) for everything else. Tool arguments are parsed with the voice agent's validators and merged into one `ActionExecution`, so the model can return only constrained navigation, project, appearance, link, feedback, preference, or voice-mode actions; it does not grant arbitrary browser or operating-system access.
 - The route creates a bounded request deadline and aborts individual provider attempts when their budget expires. Provider SDK retries are disabled at the client configuration point.
 - The chat client asks for a streamed reply: once a provider is called, the route returns NDJSON `delta` events and a final signed `done` event. Requests without `stream: true`, validation errors, canned intents, and pre-provider fallbacks get one JSON response.
 
@@ -165,14 +165,14 @@ flowchart LR
   Facts[content/facts Markdown] --> Build[build-embeddings script]
   Build --> Bundle[lib/facts.embeddings.json committed bundle]
   Bundle --> Runtime[Runtime retrieval]
-  Query[Latest user context] --> Runtime
+  Query[Latest user message, earlier turns for follow-ups] --> Runtime
   Runtime --> Anchors[Always include anchor facts]
   Runtime --> Ranked[Top relevant non-anchor facts]
   Anchors --> Prompt[Chat system context]
   Ranked --> Prompt
 ```
 
-The retrieval bundle is built from the Markdown fact corpus and committed so runtime deployment does not depend on regenerating embeddings. For a compatible external bundle, the query is embedded with the same model and non-anchor facts are ranked by cosine similarity. Local development and CI can use deterministic hashed n-gram embeddings instead. If query embedding fails, retrieval degrades to priority ordering instead of failing the chat request.
+The retrieval bundle is built from the Markdown fact corpus and committed so runtime deployment does not depend on regenerating embeddings. Topical facts are chosen lexically from the latest message (curated tag phrases plus words specific to one to three facts); the query embedding only breaks ties between equal lexical scores. Local development and CI can use deterministic hashed n-gram embeddings instead. If query embedding fails, ties keep priority order instead of failing the chat request.
 
 ### LLM providers and selection
 

@@ -2,11 +2,12 @@
 import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import { NextRequest } from 'next/server';
-import type { ActionExecution } from '@/lib/actions';
+import { getActionFallbackReply, type ActionExecution } from '@/lib/actions';
 import { resolveAcceptedOffer, resolveChatIntent } from '@/lib/chatActionRouter';
 import { selectRecentChatHistory, signAssistantMessage, verifyAssistantMessage } from '@/lib/chatHistory.server';
-import { buildDhruvSystemPromptParts } from '@/lib/chatContext.server';
+import { buildDhruvSystemPromptParts, hasActionIntent } from '@/lib/chatContext.server';
 import { finalizeAssistantReplyText, sanitizeAssistantReplyText } from '@/lib/chatSanitization';
+import { CHAT_TOOLS, toolCallsToAction, type RawToolCall } from '@/lib/chatTools';
 import { CHAT_CONFIG, getContextualFallback } from '@/lib/chatContext';
 import {
   DEFAULT_CHAT_MODEL_ID,
@@ -46,6 +47,11 @@ interface ProviderCallResult {
   reply: string;
   action: ActionExecution | null;
   modelId: ChatModelId | 'legacy';
+}
+
+interface ProviderPrompt {
+  system: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam[];
+  conversation: SanitizedChatMessage[];
 }
 
 type ProviderFailureCode =
@@ -358,32 +364,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Build system prompt as two parts so the stable identity/style/grounding
-    // prefix is byte-identical across turns. This makes it the longest cacheable
-    // prefix on Groq's automatic prompt caching, reducing TTFT on warm hits.
-    // The conditional block (off-topic / UI / terminal / matrix overrides,
-    // recent UI actions, retrieved facts) is emitted as a separate system
-    // message, and only when non-empty.
-    // The CPU-hosted local model reuses its KV/recurrent state only from a checkpoint at a
-    // message boundary, so it gets one fixed system message (rules + anchor facts) and the
-    // per-turn context rides on the latest user message instead. Its facts come from the latest
-    // turn only, because a small model recites whatever notes it is handed.
-    const turnContextInUserMessage = isLocalModel;
-    const { stable, conditional } = await buildDhruvSystemPromptParts(
-      sanitized,
-      turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true, retrievalTurns: 1 } : { factLimit: 6 },
-    );
     const normalizedConversation = normalizeProviderConversation(sanitized);
     if (normalizedConversation.length === 0) {
       return Response.json({ error: 'At least one user message is required' }, { status: 400 });
     }
-    const providerConversation = turnContextInUserMessage && conditional
-      ? withTurnContext(normalizedConversation, conditional)
-      : normalizedConversation;
-    const promptMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: stable },
-      ...(conditional && !turnContextInUserMessage ? [{ role: 'system' as const, content: conditional }] : []),
-    ];
 
     const { primary, fallbacks } = getChatProviders(selectedModelId);
     // Small local models fill whatever budget they get, so cap output by the shape of the question.
@@ -399,6 +383,43 @@ export async function POST(request: NextRequest) {
       console.error('No LLM providers are configured; returning local fallback reply.');
       return createFallbackResponse(latestUserMessage, 'no-providers-configured');
     }
+
+    // Build system prompt as two parts so the stable identity/style/grounding
+    // prefix is byte-identical across turns. This makes it the longest cacheable
+    // prefix on Groq's automatic prompt caching, reducing TTFT on warm hits.
+    // The conditional block (off-topic / UI / terminal / matrix overrides,
+    // recent UI actions, retrieved facts) is emitted as a separate system
+    // message, and only when non-empty.
+    // The CPU-hosted local model reuses its KV/recurrent state only from a checkpoint at a
+    // message boundary, so it gets one fixed system message (rules + anchor facts) and the
+    // per-turn context rides on the latest user message instead.
+    // Providers that take the site tools get a prompt that tells them to use them. The schema costs about
+    // 1k input tokens, so cloud models get it only on turns that could be a request; the local model always
+    // gets it because its cached system prefix must not change between turns.
+    const turnContextInUserMessage = isLocalModel;
+    const mightRequestAction = isLocalModel || hasActionIntent(latestUserMessage);
+    const offersTools = (provider: LLMProvider) => Boolean(provider.supportsTools) && mightRequestAction;
+    const prompts = new Map<boolean, Promise<ProviderPrompt>>();
+    const getPrompt = (siteTools: boolean): Promise<ProviderPrompt> => {
+      let prompt = prompts.get(siteTools);
+      if (!prompt) {
+        prompt = buildDhruvSystemPromptParts(
+          sanitized,
+          turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true, siteTools } : { factLimit: 8, siteTools },
+        ).then(({ stable, conditional }) => ({
+          system: [
+            { role: 'system' as const, content: stable },
+            ...(conditional && !turnContextInUserMessage ? [{ role: 'system' as const, content: conditional }] : []),
+          ],
+          conversation: turnContextInUserMessage && conditional
+            ? withTurnContext(normalizedConversation, conditional)
+            : normalizedConversation,
+        }));
+        prompts.set(siteTools, prompt);
+      }
+      return prompt;
+    };
+    await getPrompt(offersTools(providers[0]));
 
     const generateReply = async (onDelta?: (text: string) => void): Promise<ChatReplyPayload> => {
       let result: ProviderCallResult | null = null;
@@ -416,15 +437,8 @@ export async function POST(request: NextRequest) {
 
       providerLoop: for (let i = 0; i < providers.length; i += 1) {
         const provider = providers[i];
+        let useTools = offersTools(provider);
         const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
-        const apiMessages = [
-          ...promptMessages,
-          ...toProviderMessages(
-            providerConversation,
-            image ?? undefined,
-            provider.imageInputOrder,
-          ),
-        ];
         const providerBudgetDeadline = Date.now() + LLM_PROVIDER_TIMEOUT_MS;
 
         for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -440,7 +454,12 @@ export async function POST(request: NextRequest) {
           if (attemptTimeoutMs <= 0 || (attempt === 1 && attemptTimeoutMs < MIN_INVALID_PROVIDER_RESPONSE_RETRY_MS)) break;
 
           try {
-            result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs, emitDelta);
+            const prompt = await getPrompt(useTools);
+            const apiMessages = [
+              ...prompt.system,
+              ...toProviderMessages(prompt.conversation, image ?? undefined, provider.imageInputOrder),
+            ];
+            result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs, emitDelta, useTools);
             break providerLoop;
           } catch (err) {
             const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
@@ -457,6 +476,11 @@ export async function POST(request: NextRequest) {
               const reply = finalizeAssistantReplyText(streamedText);
               if (reply) result = { reply, action: null, modelId: provider.modelId ?? 'legacy' };
               break providerLoop;
+            }
+            // A provider that rejects the tool schema still gets one plain attempt.
+            if (useTools && isRequestRejection(err)) {
+              useTools = false;
+              continue;
             }
             if (code !== 'invalid-provider-response') break;
           }
@@ -552,16 +576,18 @@ async function callProvider(
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   routeSignal: AbortSignal,
   timeoutMs: number,
-  onDelta?: (text: string) => void,
+  onDelta: ((text: string) => void) | undefined,
+  useTools: boolean,
 ): Promise<ProviderCallResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort('provider-timeout'), timeoutMs);
   const signal = AbortSignal.any([routeSignal, controller.signal]);
   // NVIDIA always streams; the others stream only when the client asked for a streamed reply.
   const stream = provider.kind === 'nvidia' || onDelta !== undefined;
+  const toolParams = useTools ? { tools: CHAT_TOOLS, tool_choice: 'auto' as const } : {};
 
   try {
-    let completion: string;
+    let completion: CompletionOutput;
 
     if (provider.kind === 'groq') {
       const groq = new Groq({ apiKey: provider.apiKey, maxRetries: 0 });
@@ -572,12 +598,11 @@ async function callProvider(
         ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
         ...(provider.sampling.maxCompletionTokens !== undefined ? { max_completion_tokens: provider.sampling.maxCompletionTokens } : {}),
         ...provider.sampling.extraBody,
+        ...(toolParams as { tools?: Groq.Chat.Completions.ChatCompletionTool[]; tool_choice?: 'auto' }),
       };
-      if (stream) {
-        completion = await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
-      } else {
-        completion = getDeltaText((await groq.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message?.content);
-      }
+      completion = stream
+        ? await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta)
+        : readCompletionMessage((await groq.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message);
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
         ? foldSystemMessagesIntoFirstUser(messages)
@@ -590,16 +615,18 @@ async function callProvider(
         ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
         ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
         ...provider.sampling.extraBody,
+        ...toolParams,
       };
-      if (stream) {
-        completion = await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta);
-      } else {
-        completion = getDeltaText((await client.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message?.content);
-      }
+      completion = stream
+        ? await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta)
+        : readCompletionMessage((await client.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message);
     }
 
-    const rawReply = stripThinkTags(completion);
-    const reply = finalizeAssistantReplyText(rawReply);
+    const rawReply = stripThinkTags(completion.text);
+    const action = completion.toolCalls.length > 0 ? toolCallsToAction(completion.toolCalls) : null;
+    // Models often call a tool without any text; the action's own confirmation stands in.
+    const reply = finalizeAssistantReplyText(rawReply)
+      || (action ? finalizeAssistantReplyText(getActionFallbackReply(action) ?? '') : '');
 
     if (!reply) {
       throw new Error('Provider returned an empty or invalid reply');
@@ -610,18 +637,25 @@ async function callProvider(
         provider: provider.label,
         model: provider.model,
         raw: rawReply,
+        toolCalls: completion.toolCalls,
         clean: reply,
       });
     }
 
     return {
       reply,
-      action: null,
+      action,
       modelId: provider.modelId ?? 'legacy',
     };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** A 400/422 means the provider refused the request shape (for example the tool schema), not that it is down. */
+function isRequestRejection(error: unknown): boolean {
+  const status = typeof error === 'object' && error !== null ? (error as { status?: unknown }).status : undefined;
+  return status === 400 || status === 422;
 }
 
 function getProviderFailureCode(
@@ -644,16 +678,47 @@ function getProviderFailureCode(
   return 'provider-error';
 }
 
+interface CompletionOutput {
+  text: string;
+  toolCalls: RawToolCall[];
+}
+
+interface ToolCallPart {
+  index?: number;
+  type?: string;
+  function?: { name?: string | null; arguments?: string | null } | null;
+}
+
+function readCompletionMessage(
+  message: { content?: unknown; tool_calls?: ToolCallPart[] | null } | undefined,
+): CompletionOutput {
+  return {
+    text: getDeltaText(message?.content),
+    toolCalls: (message?.tool_calls ?? []).map((call) => ({
+      name: call.function?.name ?? '',
+      arguments: call.function?.arguments ?? '',
+    })),
+  };
+}
+
 async function readCompletionStream(
-  chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown } }> }>,
+  chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown; tool_calls?: ToolCallPart[] | null } }> }>,
   signal: AbortSignal,
   onDelta?: (text: string) => void,
-): Promise<string> {
+): Promise<CompletionOutput> {
   let raw = '';
   let shown = '';
+  const toolCalls: RawToolCall[] = [];
   for await (const chunk of chunks) {
     if (signal.aborted) throw new OpenAI.APIUserAbortError();
-    raw += getDeltaText(chunk.choices?.[0]?.delta?.content);
+    const delta = chunk.choices?.[0]?.delta;
+    // Tool calls arrive in fragments keyed by index: the name once, the JSON arguments in pieces.
+    for (const part of delta?.tool_calls ?? []) {
+      const call = (toolCalls[part.index ?? 0] ??= { name: '', arguments: '' });
+      call.name += part.function?.name ?? '';
+      call.arguments += part.function?.arguments ?? '';
+    }
+    raw += getDeltaText(delta?.content);
     if (!onDelta) continue;
     // Only forward text that extends what was already shown; the final `done` event corrects the rest.
     const preview = getStreamingPreview(raw);
@@ -663,7 +728,7 @@ async function readCompletionStream(
     }
   }
   if (signal.aborted) throw new OpenAI.APIUserAbortError();
-  return raw;
+  return { text: raw, toolCalls: toolCalls.filter(Boolean) };
 }
 
 function getStreamingPreview(raw: string): string {

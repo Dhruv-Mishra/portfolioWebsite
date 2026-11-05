@@ -34,7 +34,8 @@ vi.mock('@/lib/chatActionRouter', async (importOriginal) => ({
   resolveChatIntent: resolveChatIntentMock,
 }));
 
-vi.mock('@/lib/chatContext.server', () => ({
+vi.mock('@/lib/chatContext.server', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/chatContext.server')>(),
   buildDhruvSystemPromptParts: buildPromptPartsMock,
 }));
 
@@ -214,7 +215,7 @@ describe('chat route provider payload mapping', () => {
           action: expect.objectContaining({ projectSlug: 'cropio' }),
         }),
       ]),
-      { factLimit: 6 },
+      { factLimit: 8, siteTools: false },
     );
 
     expect(groqCreateMock).toHaveBeenCalledTimes(1);
@@ -535,7 +536,7 @@ describe('chat route provider payload mapping', () => {
 
     expect(getLocalAgentStatusMock).not.toHaveBeenCalled();
     expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.5-4b-local');
-    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, retrievalTurns: 1 });
+    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, siteTools: false });
     const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
     expect(payload.messages).toEqual([
       { role: 'system', content: 'stable system prompt' },
@@ -558,6 +559,122 @@ describe('chat route provider payload mapping', () => {
 
     await expect(response.json()).resolves.toMatchObject({ action: { projectSlug: 'cropio' } });
     expect(groqCreateMock).not.toHaveBeenCalled();
+  });
+
+  describe('site tools', () => {
+    const TOOL_PROVIDER = { ...GROQ_PROVIDER, supportsTools: true };
+    const actionRequest = (payload: Record<string, unknown> = {}) => createChatRequest(undefined, {
+      messages: [{ role: 'user', content: 'show me your projects' }],
+      ...payload,
+    });
+
+    function toolCall(name: string, args: Record<string, unknown>) {
+      return { id: `call-${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } };
+    }
+
+    async function readStream(response: Response): Promise<Array<Record<string, unknown>>> {
+      return (await response.text()).trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
+    }
+
+    beforeEach(() => {
+      getChatProvidersMock.mockReturnValue({ primary: TOOL_PROVIDER, fallbacks: [] });
+    });
+
+    it('offers the chat tools and the tool-aware prompt to tool-capable providers', async () => {
+      await POST(actionRequest());
+
+      expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 8, siteTools: true });
+      const payload = groqCreateMock.mock.calls[0]?.[0] as { tools: Array<{ function: { name: string } }>; tool_choice: string };
+      expect(payload.tool_choice).toBe('auto');
+      expect(payload.tools.map((tool) => tool.function.name)).toEqual([
+        'navigate_to',
+        'set_theme',
+        'open_project',
+        'open_link',
+        'open_feedback',
+        'set_preference',
+        'start_voice_session',
+      ]);
+    });
+
+    it('keeps the tool schema off plain questions for cloud models but always sends it to the local model', async () => {
+      await POST(createChatRequest());
+      expect(groqCreateMock.mock.calls[0]?.[0]).not.toHaveProperty('tools');
+      expect(buildPromptPartsMock).toHaveBeenLastCalledWith(expect.any(Array), { factLimit: 8, siteTools: false });
+
+      const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'local reply' } }] }));
+      createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+      getChatProvidersMock.mockReturnValue({
+        primary: { ...TOOL_PROVIDER, kind: 'openai', modelId: 'qwen-3.5-4b-local', supportsImages: false, imageInputOrder: undefined },
+        fallbacks: [],
+      });
+      await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+      expect(localCreateMock.mock.calls[0]?.[0]).toHaveProperty('tools');
+    });
+
+    it('turns a text-free tool call into a signed action with its confirmation', async () => {
+      groqCreateMock.mockResolvedValue({
+        choices: [{ message: { content: null, tool_calls: [toolCall('navigate_to', { path: '/projects' })] } }],
+      } as never);
+
+      const response = await POST(actionRequest());
+      const body = await response.json() as { reply: string; action: ActionExecution; signature: string };
+
+      expect(body.action).toEqual({ navigateTo: '/projects' });
+      expect(body.reply).toBe('Taking you to the projects page ~.');
+      expect(verifyAssistantMessage({ role: 'assistant', content: body.reply, action: body.action, signature: body.signature })).not.toBeNull();
+    });
+
+    it('merges several calls, keeps the model text, and drops calls outside the allowlist', async () => {
+      groqCreateMock.mockResolvedValue({
+        choices: [{
+          message: {
+            content: 'Dark mode on, and here is Cropio.',
+            tool_calls: [
+              toolCall('set_theme', { action: 'dark' }),
+              toolCall('open_project', { slug: 'cropio' }),
+              toolCall('open_link', { key: 'https://evil.example' }),
+              toolCall('run_terminal_command', { command: 'help' }),
+            ],
+          },
+        }],
+      } as never);
+
+      const body = await (await POST(actionRequest())).json() as { reply: string; action: ActionExecution };
+
+      expect(body.action).toEqual({ themeAction: 'dark', projectSlug: 'cropio' });
+      expect(body.reply).toBe('Dark mode on, and here is Cropio.');
+    });
+
+    it('assembles streamed tool-call fragments before the done event', async () => {
+      groqCreateMock.mockResolvedValue((async function* () {
+        yield { choices: [{ delta: { tool_calls: [{ index: 0, id: 'a', type: 'function', function: { name: 'open_link', arguments: '' } }] } }] };
+        yield { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"key":"lin' } }] } }] };
+        yield { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'kedin"}' } }] } }] };
+      })() as never);
+
+      const events = await readStream(await POST(actionRequest({ stream: true })));
+
+      expect(events.at(-1)).toMatchObject({
+        type: 'done',
+        action: { openUrls: ['https://www.linkedin.com/in/dhruv-mishra-id/'] },
+        reply: 'Opening LinkedIn for you ~.',
+      });
+    });
+
+    it('retries once without tools when the provider rejects the tool schema', async () => {
+      groqCreateMock
+        .mockRejectedValueOnce(Object.assign(new Error('tools unsupported'), { status: 400 }))
+        .mockResolvedValueOnce({ choices: [{ message: { content: 'plain reply' } }] });
+
+      const response = await POST(actionRequest());
+
+      expect(groqCreateMock).toHaveBeenCalledTimes(2);
+      expect(groqCreateMock.mock.calls[0]?.[0]).toHaveProperty('tools');
+      expect(groqCreateMock.mock.calls[1]?.[0]).not.toHaveProperty('tools');
+      expect(buildPromptPartsMock).toHaveBeenLastCalledWith(expect.any(Array), { factLimit: 8, siteTools: false });
+      await expect(response.json()).resolves.toMatchObject({ reply: 'plain reply.', action: null });
+    });
   });
 
   it('keeps more local turns by shortening older replies to their first sentence', async () => {

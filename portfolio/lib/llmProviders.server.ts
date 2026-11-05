@@ -27,6 +27,8 @@ export interface LLMProvider {
   supportsImages: boolean;
   imageInputOrder?: ChatImageInputOrder;
   acceptsSystemMessages?: boolean;
+  /** Receives the site action tools (see lib/chatTools.ts). */
+  supportsTools?: boolean;
   sampling: {
     temperature: number;
     topP?: number;
@@ -73,6 +75,7 @@ function getGroqQwenProvider(): LLMProvider | null {
     label: `groq:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     imageInputOrder: model.imageInputOrder,
+    supportsTools: true,
     sampling: {
       temperature: 0.6,
       topP: 0.95,
@@ -104,6 +107,8 @@ function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
     label: `local:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
+    // Qwen3.5 4B scored 87-90% on toolbench tool calls; the 2B omni model is not reliable enough to act on its calls.
+    supportsTools: !model.supportsImages,
     // Greedy for the omni model (LiquidAI's advice); Qwen3.5 text scored best on toolbench with thinking off at temperature 0.3.
     sampling: model.supportsImages
       ? {
@@ -153,6 +158,7 @@ function getNvidiaProvider(
     label: `nvidia:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
+    supportsTools: true,
     sampling: {
       temperature: 0.6,
       maxTokens: maxTokens ?? defaultMaxTokens,

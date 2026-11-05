@@ -11,6 +11,8 @@ const TRAILING_TOOL_ARTIFACT_PATTERNS = [
   /\n*\{[\s\S]*?"(?:name|parameters|arguments|tool_calls?)"[\s\S]*\}\s*$/i,
   /\n*(?:calling\s+tool|tool\s*call|function\s*call)[:\s-]*[\s\S]*$/i,
   /\n*(?:navigate_internal|open_known_link|open_feedback_modal|open_project_modal|switch_theme)\b[\s\S]*$/i,
+  // A tool call the provider failed to parse arrives as raw template text.
+  /\s*<\/?tool_call>[\s\S]*$/i,
   /\n*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\{[\s\S]*\}\s*\)\s*$/i,
 ] as const;
 

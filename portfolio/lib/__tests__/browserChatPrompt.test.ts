@@ -15,9 +15,11 @@ const FACTS: BrowserChatFact[] = [
 ];
 
 describe('browser chat prompt', () => {
-  it('always keeps anchors and ranks tag matches above text matches', () => {
+  it('always keeps anchors, ranks tag matches first, and drops a stray word next to a strong match', () => {
     expect(selectBrowserChatFacts(FACTS, 'tell me about the voxel game').map((fact) => fact.id))
-      .toEqual(['identity', 'port-solace', 'cropio']);
+      .toEqual(['identity', 'port-solace']);
+    expect(selectBrowserChatFacts(FACTS, 'what was that agritech app?').map((fact) => fact.id))
+      .toEqual(['identity', 'cropio']);
   });
 
   it('returns only anchors when nothing matches', () => {

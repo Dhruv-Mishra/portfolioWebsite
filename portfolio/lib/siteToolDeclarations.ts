@@ -188,7 +188,7 @@ const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
   set_preference: {
     name: 'set_preference',
     description:
-      'Flip a boolean settings toggle when the visitor asks to change sound, haptics, stickers, speak-by-default, or voice extras. Does not clear chat, enable experimental features, or activate staging.',
+      'Flip a boolean settings toggle right away when the visitor asks to change sound effects (mute means sound-effects off), haptics, stickers, speak-by-default, or voice extras; no need to open settings first. Does not clear chat, enable experimental features, or activate staging.',
     parameters: {
       type: 'object',
       properties: {

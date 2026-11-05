@@ -95,6 +95,7 @@ describe('getSuggestionsProviders', () => {
         modelId: 'qwen-3.8-27b',
         supportsImages: true,
         imageInputOrder: 'text-first',
+        supportsTools: true,
       }),
       fallbacks: [],
     });
@@ -107,6 +108,7 @@ describe('getSuggestionsProviders', () => {
         modelId: 'minimax-m3.1-flash',
         supportsImages: true,
         imageInputOrder: 'text-first',
+        supportsTools: true,
       },
     });
     expect(minimaxProviders.primary?.sampling.extraBody).toEqual({
@@ -155,6 +157,7 @@ describe('getSuggestionsProviders', () => {
         modelId: 'qwen-3.5-4b-local',
         label: 'local:Qwen3.5-4B',
         supportsImages: false,
+        supportsTools: true,
         sampling: {
           temperature: 0.3,
           topP: 0.8,
@@ -183,6 +186,7 @@ describe('getSuggestionsProviders', () => {
         label: 'local:LFM3-Omni-2B',
         supportsImages: true,
         imageInputOrder: 'image-first',
+        supportsTools: false,
         sampling: {
           temperature: 0,
           maxTokens: 512,

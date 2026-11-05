@@ -4,13 +4,13 @@ Decision date: 2026-07-18
 
 ## Decision
 
-Do not add Headroom to the live website request path yet. Keep the chat provider and model agnostic through the existing OpenAI-compatible message boundary, deterministic server routing, and signed browser actions.
+Do not add Headroom to the live website request path yet. Keep the chat provider and model agnostic through the existing OpenAI-compatible message boundary, deterministic server routing, validated tool calls, and signed browser actions.
 
 Headroom remains a candidate for a measured data-only trial when chat context becomes materially larger. The stable system prompt must never pass through lossy compression.
 
 ## Why Headroom Is Gated Off
 
-- Headroom is strongest on large JSON, logs, tool results, code, and long retrieval payloads. This chat sends short conversation turns and at most six retrieved facts.
+- Headroom is strongest on large JSON, logs, tool results, code, and long retrieval payloads. This chat sends short conversation turns and at most eight retrieved facts.
 - Headroom's published short-conversation median saving is about 4.8%, while a proxy and optional local model add another process, cold-start risk, and request latency.
 - The chat already preserves a stable prompt prefix for provider caching and now bounds history to eight messages and 3,200 characters.
 - Current releases are not aligned across runtimes: the researched Python/GitHub release is `0.32.0`, while npm reports `headroom-ai@0.22.4`. The TypeScript SDK also requires a Headroom proxy rather than embedding the Python compression pipeline in Next.js.
@@ -29,20 +29,20 @@ The request path has three bounded tiers:
 
 1. Deterministic intent routing handles approved website actions without an LLM call.
 2. Deterministic project lookup handles known project explanations without an LLM call.
-3. The configured provider handles conversational replies using plain role/content messages.
+3. The configured provider handles everything else. Tool-capable models (Groq Qwen, the NVIDIA models, and the local Qwen3.5 4B) also receive seven site tools from [chatTools.ts](../portfolio/lib/chatTools.ts): `navigate_to`, `set_theme`, `open_project`, `open_link`, `open_feedback`, `set_preference`, and `start_voice_session`.
 
-The provider never emits executable JSON and receives no provider-specific tool schema. Website actions use one provider-neutral `ActionExecution` contract, are validated and signed on the server, and execute in a fixed client order.
+Tool calls never execute directly. The route collects them from the streamed or plain response, parses each with the voice agent's validators, and merges them into one `ActionExecution` that must pass the same allowlist as router actions; invalid or conflicting calls are dropped. The action is signed with the reply and executes in the browser in a fixed order. A call without text gets the action's canned confirmation.
+
+The schema costs about 1,000 input tokens, so cloud models receive it only when the latest message could be a request (verbs such as open, show, see, switch, mute, or site nouns such as theme, guestbook, resume). The local model always receives it, because its cached system prefix must stay identical between turns. Models without tools (LFM3 Omni) are told they cannot change the site. A provider that rejects the request with 400 or 422 is retried once without tools.
 
 Approved capabilities now include:
 
 - Navigate to home, about, projects, resume, chat, guestbook, stickers, or settings.
 - Open approved profiles, contact links, resume, project repositories, or the Jarvis demo.
 - Open a project modal or feedback note, or start native voice mode.
-- Select light, dark, toggle, disco, or disco-off modes.
-- Chain up to three compatible effects from explicit natural-language clauses.
+- Select light, dark, toggle, disco, or disco-off modes, or flip a boolean site preference such as sound effects.
+- Chain up to three compatible effects from explicit natural-language clauses or several tool calls.
 - Accept an offer: a bare "yes" (or "sure", "go ahead") runs the action named in the last sentence of the previous signed reply, such as "Want me to pull up Cropio?".
-
-Requests the router misses reach the model, which is told it cannot run actions and must not claim one happened.
 
 Gates:
 

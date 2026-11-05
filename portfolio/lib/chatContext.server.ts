@@ -15,9 +15,11 @@ import 'server-only';
 
 import { VALID_THEME_ACTIONS, type ActionExecution } from '@/lib/actions';
 import {
+  GROUNDING_BLOCK,
   IDENTITY_BLOCK,
   NEVER_INVENT_BLOCK,
   OFF_TOPIC_BLOCK,
+  SITE_TOOLS_BLOCK,
   STYLE_BLOCK,
 } from '@/lib/chatPromptBlocks';
 import { getAnchorFactContext, getRelevantFactContext } from '@/lib/factRetrieval.server';
@@ -25,13 +27,19 @@ import { REPLY_LENGTH_HINT, classifyReplyLength, isPureGreeting } from '@/lib/re
 
 // ── Prompt blocks ───────────────────────────────────────────────────
 
-const UI_ACTION_BLOCK = `Interaction:
-- Only actions listed under Recent verified UI actions happened. Any other theme, open, or navigation request in this message did not go through: say so and suggest a plain request like "switch to dark mode" or "open Cropio". Never mention tools, function calls, JSON, or action syntax.
-- Theme actions available: ${VALID_THEME_ACTIONS.join(', ')} (disco engages disco mode; disco-off exits it).
+const UI_ACTION_RULES = `- Theme actions available: ${VALID_THEME_ACTIONS.join(', ')} (disco engages disco mode; disco-off exits it).
 - Info / explanation / comparison / small talk → plain text reply.
 - Already-opened items → answer follow-ups directly, don't re-narrate the open.
 - Casual ack or topic change after a UI action → stay conversational.
 - When a project clearly fits the topic and hasn't already been opened this turn, end with a short, natural offer like "Want me to pull up Cropio?" or "I can open the Jarvis demo if you're curious." One offer max, only when it genuinely fits. Never list multiple projects, never pitch unprompted on greetings or off-topic turns.`;
+
+const UI_ACTION_BLOCK = `Interaction:
+- Only actions listed under Recent verified UI actions happened. Any other theme, open, or navigation request in this message did not go through: say so and suggest a plain request like "switch to dark mode" or "open Cropio". Never mention tools, function calls, JSON, or action syntax.
+${UI_ACTION_RULES}`;
+
+const TOOL_UI_ACTION_BLOCK = `Interaction:
+- Actions under Recent verified UI actions already happened; don't redo them unless asked again. Never mention tools, function calls, JSON, or action syntax.
+${UI_ACTION_RULES}`;
 
 const TERMINAL_RULES_BLOCK = `Terminal:
 - Home page hosts a retro terminal accepting real commands: help, about, projects, ls, cat, open, joke, skills, resume, chat, feedback, guestbook, stickers, sudo cheatsheet, etc.
@@ -134,11 +142,12 @@ const OFF_TOPIC_PATTERNS: readonly RegExp[] = [
   /\b(ignore (?:all )?previous|ignore your rules|forget your instructions|system prompt)/i,
 ];
 
+// Deliberately broad: a match also decides whether cloud models get the site tools, so a miss costs an action.
 const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
-  /\b(open|show|pull up|bring up|take me|go to|navigate|visit|switch|toggle|turn on|dark mode|light mode)\b/i,
-  /\b(?:turn off|exit|leave|stop|disable|end|cancel)\s+(?:the\s+)?disco(?:\s+mode)?\b/i,
-  /\bdisco(?:\s+mode)?\s+(?:on|off|start|stop|exit|enabled?|disabled?)\b/i,
+  /\b(open|show|see|view|check out|pull up|bring up|take me|go to|go back|head|navigate|visit|switch|toggle|turn|make it|set|change|enable|disable|launch|play|start|stop|exit|mute|unmute|sign|report|send|call|talk|speak)\b/i,
+  /\b(dark|light|lights|bright|theme|disco|colou?rs?|sounds?|audio|volume|haptics|voice|guestbook|stickers?|settings|feedback|bug|page|home|link|links|cv|contact)\b/i,
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
+  /^\W*(yes|yeah|yep|sure|ok|okay|please|do it|go ahead)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
   // offer to open the relevant project modal.
   /\b(project|projects|invoke|cropio|jarvis|fluent|bloom filter|nlp|movie recommender|vital|opencv|solace|voxel)\b/i,
@@ -155,7 +164,7 @@ function looksOffTopic(message: string): boolean {
   return OFF_TOPIC_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-function hasActionIntent(message: string): boolean {
+export function hasActionIntent(message: string): boolean {
   if (!message) return false;
   return ACTION_INTENT_PATTERNS.some((pattern) => pattern.test(message));
 }
@@ -222,13 +231,18 @@ function latestUserMessage(messages: readonly MessageShape[]): string {
   return [...messages].reverse().find((message) => message.role === 'user')?.content.trim() ?? '';
 }
 
-function recentUserQuery(messages: readonly MessageShape[], turns: number): string {
-  const recentUserMessages = messages
+/** The two user turns before the latest one. */
+function earlierUserTurns(messages: readonly MessageShape[]): string {
+  return messages
     .filter((message) => message.role === 'user')
-    .slice(-turns)
-    .map((message) => message.content);
-  return recentUserMessages.join(' ').trim();
+    .slice(-3, -1)
+    .map((message) => message.content)
+    .join(' ')
+    .trim();
 }
+
+// Words that point back at an earlier topic ("how long did it take?", "tell me more").
+const FOLLOW_UP_PATTERN = /\b(it|its|that|this|those|these|they|them|their|there|more|else|again|why|one|ones|same|other)\b/i;
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -243,8 +257,8 @@ export interface BuildPromptOptions {
    * so per-turn content must stay out of the system message for prefix caching to work.
    */
   anchorsInStable?: boolean;
-  /** User turns joined into the retrieval query. Defaults to 3 so follow-ups keep their topic. */
-  retrievalTurns?: number;
+  /** The provider receives the site action tools, so the prompt tells it to use them. */
+  siteTools?: boolean;
 }
 
 /**
@@ -270,6 +284,9 @@ export interface SystemPromptParts {
  */
 export const STABLE_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK].join('\n\n');
 
+/** {@link STABLE_SYSTEM_PROMPT} for providers that receive the site action tools. */
+export const STABLE_TOOL_SYSTEM_PROMPT: string = [IDENTITY_BLOCK, STYLE_BLOCK, GROUNDING_BLOCK, SITE_TOOLS_BLOCK].join('\n\n');
+
 /**
  * Assemble the system prompt as two parts (stable prefix + conditional
  * suffix). Prefer this over {@link buildDhruvSystemPrompt} when calling an
@@ -280,7 +297,6 @@ export async function buildDhruvSystemPromptParts(
   options: BuildPromptOptions = {},
 ): Promise<SystemPromptParts> {
   const latestMessage = latestUserMessage(messages);
-  const retrievalQuery = recentUserQuery(messages, options.retrievalTurns ?? 3);
   const recentActionsBlock = buildRecentActionContext(messages);
 
   const conditionalSections: string[] = [];
@@ -290,7 +306,7 @@ export async function buildDhruvSystemPromptParts(
   }
 
   if (recentActionsBlock || hasActionIntent(latestMessage)) {
-    conditionalSections.push(UI_ACTION_BLOCK);
+    conditionalSections.push(options.siteTools ? TOOL_UI_ACTION_BLOCK : UI_ACTION_BLOCK);
   }
 
   if (mentionsTerminal(latestMessage)) {
@@ -322,11 +338,14 @@ export async function buildDhruvSystemPromptParts(
   // rank first (e.g. the Microsoft Shell role).
   const skipFacts = options.factsOverride === undefined && isPureGreeting(latestMessage);
   const anchors = options.anchorsInStable ? getAnchorFactContext() : null;
-  const retrievalOptions = anchors
-    ? { limit: Math.max(1, (options.factLimit ?? 6) - anchors.count), includeAnchors: false }
-    : { limit: options.factLimit };
+  const retrievalOptions = {
+    ...(anchors
+      ? { limit: Math.max(1, (options.factLimit ?? 6) - anchors.count), includeAnchors: false }
+      : { limit: options.factLimit }),
+    followUpContext: FOLLOW_UP_PATTERN.test(latestMessage) ? earlierUserTurns(messages) : undefined,
+  };
   const facts = options.factsOverride
-    ?? (skipFacts ? '' : await getRelevantFactContext(retrievalQuery, retrievalOptions));
+    ?? (skipFacts ? '' : await getRelevantFactContext(latestMessage, retrievalOptions));
   if (facts) {
     conditionalSections.push(`${anchors ? 'More relevant facts' : 'Relevant facts'}:\n${facts}`);
   }
@@ -334,8 +353,9 @@ export async function buildDhruvSystemPromptParts(
   // Last, so it sits closest to the visitor's message where small models weigh it most.
   conditionalSections.push(REPLY_LENGTH_HINT[classifyReplyLength(latestMessage)]);
 
+  const stable = options.siteTools ? STABLE_TOOL_SYSTEM_PROMPT : STABLE_SYSTEM_PROMPT;
   return {
-    stable: anchors?.text ? `${STABLE_SYSTEM_PROMPT}\n\nRelevant facts:\n${anchors.text}` : STABLE_SYSTEM_PROMPT,
+    stable: anchors?.text ? `${stable}\n\nRelevant facts:\n${anchors.text}` : stable,
     conditional: conditionalSections.join('\n\n'),
   };
 }
@@ -361,6 +381,7 @@ export const PROMPT_BLOCKS_FOR_TESTING = {
   NEVER_INVENT_BLOCK,
   OFF_TOPIC_BLOCK,
   UI_ACTION_BLOCK,
+  TOOL_UI_ACTION_BLOCK,
   TERMINAL_RULES_BLOCK,
 } as const;
 

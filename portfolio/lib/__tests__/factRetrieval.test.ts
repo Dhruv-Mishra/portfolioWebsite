@@ -6,8 +6,6 @@ import { describe, it, expect } from 'vitest';
 import {
   cosineSimilarity,
   partitionFacts,
-  topKByEmbedding,
-  topKByPriority,
   retrieveRelevantFacts,
   getRelevantFactContext,
   getFactBySlug,
@@ -65,55 +63,6 @@ describe('partitionFacts', () => {
   });
 });
 
-describe('topKByEmbedding', () => {
-  const facts: EmbeddedFact[] = [
-    mkFact({ id: 'A', priority: 1, embedding: [1, 0] }),
-    mkFact({ id: 'B', priority: 5, embedding: [0.9, 0.44] }),
-    mkFact({ id: 'C', priority: 3, embedding: [0, 1] }),
-  ];
-
-  it('ranks by cosine similarity', () => {
-    const out = topKByEmbedding(facts, [1, 0], 2);
-    expect(out.map((f) => f.id)).toEqual(['A', 'B']);
-  });
-
-  it('uses priority as tie-breaker on equal similarity', () => {
-    const tied = [
-      mkFact({ id: 'X', priority: 1, embedding: [1, 0] }),
-      mkFact({ id: 'Y', priority: 5, embedding: [1, 0] }),
-    ];
-    const out = topKByEmbedding(tied, [1, 0], 2);
-    expect(out[0].id).toBe('Y');
-  });
-
-  it('respects limit', () => {
-    expect(topKByEmbedding(facts, [1, 0], 0)).toHaveLength(0);
-    expect(topKByEmbedding(facts, [1, 0], 1)).toHaveLength(1);
-    expect(topKByEmbedding(facts, [1, 0], 99)).toHaveLength(3);
-  });
-
-  it('returns an empty array for an empty corpus', () => {
-    expect(topKByEmbedding([], [1, 0], 5)).toEqual([]);
-  });
-});
-
-describe('topKByPriority', () => {
-  const facts: EmbeddedFact[] = [
-    mkFact({ id: 'A', priority: 1 }),
-    mkFact({ id: 'B', priority: 5 }),
-    mkFact({ id: 'C', priority: 3 }),
-  ];
-
-  it('returns highest-priority facts first', () => {
-    const out = topKByPriority(facts, 2);
-    expect(out.map((f) => f.id)).toEqual(['B', 'C']);
-  });
-
-  it('respects limit 0', () => {
-    expect(topKByPriority(facts, 0)).toEqual([]);
-  });
-});
-
 describe('retrieveRelevantFacts — integration against committed bundle', () => {
   it('always includes anchor facts first', async () => {
     const facts = await retrieveRelevantFacts('hi', { limit: 8 });
@@ -146,14 +95,66 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(jarvis.map((fact) => fact.id)).toContain('project-jarvis-voice-agent');
   });
 
-  it('skips forced anchors for cropio and adds only tag-matched facts when includeAnchors is false', async () => {
+  it('skips anchors for cropio and adds only strong tag matches when includeAnchors is false', async () => {
     const facts = await retrieveRelevantFacts('tell me about cropio', { limit: 3, includeAnchors: false });
     expect(facts.map((fact) => fact.id)).toEqual(['project-cropio']);
 
     const withStack = await retrieveRelevantFacts('tell me about cropio and your python projects', { limit: 3, includeAnchors: false });
     expect(withStack[0].id).toBe('project-cropio');
     expect(withStack).toHaveLength(3);
-    expect(withStack.slice(1).every((fact) => fact.tags.includes('python'))).toBe(true);
+    expect(withStack.slice(1).every((fact) => fact.tags.includes('python') || fact.tags.includes('projects'))).toBe(true);
+  });
+
+  it('answers from the latest turn even when an earlier turn named another topic', async () => {
+    const afterPc = await retrieveRelevantFacts('what do you do at microsoft?', {
+      limit: 8,
+      followUpContext: 'what are your pc specs?',
+    });
+    const afterProject = await retrieveRelevantFacts('what did you major in?', {
+      limit: 2,
+      includeAnchors: false,
+      followUpContext: 'show me cropio',
+    });
+
+    expect(afterPc.map((fact) => fact.id)).toContain('resume-microsoft-current');
+    expect(afterPc.map((fact) => fact.id)).not.toContain('personal-pc-build');
+    expect(afterProject[0].id).toBe('resume-education');
+    expect(afterProject.map((fact) => fact.id)).not.toContain('project-cropio');
+  });
+
+  it('keeps the earlier topic for a follow-up that names none', async () => {
+    const facts = await retrieveRelevantFacts('how long did it take?', {
+      limit: 2,
+      includeAnchors: false,
+      followUpContext: 'tell me about port solace',
+    });
+
+    expect(facts.map((fact) => fact.id)).toEqual(['project-port-solace']);
+  });
+
+  it('covers everyday phrasings for projects, school, work history, and hobbies', async () => {
+    const topIds = async (query: string) => (await retrieveRelevantFacts(query, { limit: 4, includeAnchors: false }))
+      .map((fact) => fact.id);
+
+    expect(await topIds('what projects have you built?')).toContain('projects-overview');
+    expect(await topIds('where did you go to school?')).toContain('resume-education');
+    expect(await topIds('did you study computer science?')).toEqual(['resume-education']);
+    expect(await topIds('which companies have you worked at?')).toEqual(expect.arrayContaining([
+      'resume-microsoft-current',
+      'resume-microsoft-intern',
+      'resume-growindigo',
+    ]));
+    expect(await topIds('what do you like to do outside of work?')).toContain('personal-hobbies');
+    expect(await topIds('have you worked with kubernetes?')).toEqual([]);
+  });
+
+  it('keeps the Matrix puzzle fact out of sticker and terminal questions', async () => {
+    const stickers = await retrieveRelevantFacts('how do I unlock stickers?', { limit: 8 });
+    const puzzle = await retrieveRelevantFacts('how do I escape the matrix?', { limit: 8 });
+
+    expect(stickers.map((fact) => fact.id)).toContain('site-stickers');
+    expect(stickers.map((fact) => fact.id)).not.toContain('site-matrix-puzzle');
+    expect(puzzle.map((fact) => fact.id)).toContain('site-matrix-puzzle');
   });
 
   it('adds no ranked facts when the question shares no tag with any fact', async () => {

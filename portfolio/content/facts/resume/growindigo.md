@@ -1,6 +1,6 @@
 ---
 id: resume-growindigo
-tags: [growindigo, machine learning engineer, ml engineer, crop prediction, crop classification, xgboost, random forest, google earth engine, machine learning, python]
+tags: [growindigo, machine learning engineer, ml engineer, crop prediction, crop classification, xgboost, random forest, google earth engine, machine learning, python, companies, worked at, work experience, work history, previous job, career, employer]
 priority: 6
 category: resume
 ---

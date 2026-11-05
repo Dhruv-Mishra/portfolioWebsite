@@ -2,14 +2,10 @@
 //
 // Responsibilities:
 //   1. Load the build-time embeddings bundle (lib/facts.embeddings.json).
-//   2. Embed the user query against the same model at request time.
-//   3. Rank non-anchor facts by cosine similarity; always include anchors.
-//   4. Gracefully degrade to priority-ordered anchors if the embedding call fails.
-//
-// Performance goal: < 50ms p50 added to the chat request on top of whatever
-// the embeddings API takes (typically 60-150ms for small inputs). The actual
-// cosine-similarity pass is O(N * D), ~50 facts * 1536 dims * a float mul
-// per iteration — microseconds on modern hardware.
+//   2. Pick topical facts for the latest message: a forced topic fact (named
+//      project, PC specs, terminal), then lexical tag and rare-word matches.
+//   3. Break equal lexical scores with query-embedding cosine similarity.
+//   4. Always include anchors; degrade to lexical order if embedding fails.
 //
 // Bundle format assumptions are pinned in lib/factTypes.ts. If the file is
 // missing or malformed we log once and return anchors only — never throw.
@@ -18,6 +14,7 @@ import 'server-only';
 import OpenAI from 'openai';
 
 import embeddingsBundle from '@/lib/facts.embeddings.json';
+import { rankFactsByQuery } from '@/lib/factRanking';
 import type { EmbeddedFact, EmbeddingsBundle, Fact } from '@/lib/factTypes';
 import { l2Normalize, LOCAL_EMBEDDING_MODEL_ID, localEmbed } from '@/lib/localEmbedding';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
@@ -77,30 +74,17 @@ export interface RetrievalOptions {
   model?: string;
   /** Prepend the four core anchors on the general path. Defaults to true. */
   includeAnchors?: boolean;
+  /** Earlier visitor turns, searched only when the query itself names no topic ("tell me more"). */
+  followUpContext?: string;
 }
 
 const DEFAULT_LIMIT = 8;
 const PC_BUILD_FACT_ID = 'personal-pc-build';
-const PC_SPECS_QUERY_PATTERN = /\b(pc|computer|desktop|rig|specs?|gpu|cpu|ram|memory|hardware|overclock|overclocking|3080|13600kf|ddr5)\b/i;
+const PC_SPECS_QUERY_PATTERN = /\b(pc|desktop|rig|specs?|gpu|cpu|ram|hardware|overclock|overclocking|3080|13600kf|ddr5)\b|\bcomputer\b(?!\s+(?:science|vision|engineering))/i;
 const TERMINAL_FACT_ID = 'site-terminal';
 const TERMINAL_OVERVIEW_QUERY_PATTERN = /\b(terminal|cli)\b|\b(what|which|list|show|available|supported)\b(?:\W+\w+){0,3}\W+commands?\b/i;
+const MATRIX_PUZZLE_FACT_ID = 'site-matrix-puzzle';
 const MATRIX_PUZZLE_QUERY_PATTERN = /\b(matrix|puzzle|escape|stuck|hint)\b/i;
-
-function toTagMatchText(text: string): string {
-  return ` ${text.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()} `;
-}
-
-/**
- * The hashed-ngram embedding has no usable relevance floor (filler words dominate),
- * so a ranked fact must share a curated tag with the query.
- */
-function filterByTagMatch<T extends Fact>(facts: readonly T[], query: string): T[] {
-  const text = toTagMatchText(query);
-  return facts.filter((fact) => fact.tags.some((tag) => {
-    const normalizedTag = toTagMatchText(tag).trim();
-    return normalizedTag !== '' && (text.includes(` ${normalizedTag} `) || text.includes(` ${normalizedTag}s `));
-  }));
-}
 
 // ── Math helpers ────────────────────────────────────────────────────
 
@@ -165,42 +149,6 @@ export function partitionFacts(facts: readonly EmbeddedFact[]): {
     }
   }
   return { anchors, rankable };
-}
-
-/**
- * Rank facts against a query embedding. Returns the top-K (stable ordering:
- * cosine similarity descending, then priority descending, then id asc).
- */
-export function topKByEmbedding(
-  facts: readonly EmbeddedFact[],
-  queryEmbedding: readonly number[],
-  limit: number,
-): EmbeddedFact[] {
-  if (limit <= 0 || facts.length === 0) return [];
-  const scored = facts.map((fact) => ({
-    fact,
-    score: cosineSimilarity(fact.embedding, queryEmbedding),
-  }));
-  scored.sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-    if (right.fact.priority !== left.fact.priority) return right.fact.priority - left.fact.priority;
-    return left.fact.id.localeCompare(right.fact.id);
-  });
-  return scored.slice(0, limit).map((entry) => entry.fact);
-}
-
-/** Fallback ordering: highest-priority non-anchor facts when embeddings fail. */
-export function topKByPriority(
-  facts: readonly EmbeddedFact[],
-  limit: number,
-): EmbeddedFact[] {
-  if (limit <= 0) return [];
-  return [...facts]
-    .sort((left, right) => {
-      if (right.priority !== left.priority) return right.priority - left.priority;
-      return left.id.localeCompare(right.id);
-    })
-    .slice(0, limit);
 }
 
 /** Call the embeddings API; returns null on any failure so callers can degrade. */
@@ -296,40 +244,9 @@ const embedQueryCache = (() => {
   };
 })();
 
-async function fillFactsAfterForced(
-  forced: Fact,
-  query: string,
-  options: RetrievalOptions,
-  limit: number,
-): Promise<Fact[]> {
-  const remaining = Math.max(0, limit - 1);
-  if (remaining === 0) return [forced];
-  const { rankable } = partitionFacts(LOADED.facts);
-  const pool = filterByTagMatch(rankable.filter((fact) => fact.id !== forced.id), query);
-  if (pool.length === 0) return [forced];
-  const queryEmbedding = await embedQuery(query, options);
-  const ranked = queryEmbedding
-    ? topKByEmbedding(pool, queryEmbedding, remaining)
-    : topKByPriority(pool, remaining);
-  return [forced, ...ranked].slice(0, limit);
-}
-
-/**
- * Main entry point — retrieve facts relevant to the user's last few messages.
- * Anchors are prepended in priority order unless `includeAnchors` is false,
- * then the top-K non-anchor facts fill the remaining slots.
- */
-export async function retrieveRelevantFacts(
-  query: string,
-  options: RetrievalOptions = {},
-): Promise<Fact[]> {
-  const limit = options.limit ?? DEFAULT_LIMIT;
-  const includeAnchors = options.includeAnchors !== false;
-  if (LOADED.facts.length === 0) return [];
-
+function findForcedFact(query: string): Fact | null {
   if (PC_SPECS_QUERY_PATTERN.test(query)) {
-    const pcFact = LOADED.facts.find((fact) => fact.id === PC_BUILD_FACT_ID);
-    if (pcFact) return [pcFact];
+    return LOADED.facts.find((fact) => fact.id === PC_BUILD_FACT_ID) ?? null;
   }
 
   const projectMatches = PROJECT_ACTIONS.filter((project) =>
@@ -337,52 +254,78 @@ export async function retrieveRelevantFacts(
       || new RegExp(`\\b${project.slug.replace(/-/g, '[-\\s]?')}\\b`, 'i').test(query),
   );
   if (projectMatches.length === 1) {
-    const projectFact = getFactBySlug(projectMatches[0].slug);
-    if (projectFact) {
-      if (includeAnchors) {
-        const { anchors } = partitionFacts(LOADED.facts);
-        const extras = anchors.filter((fact) => fact.id !== projectFact.id);
-        return [projectFact, ...extras].slice(0, limit);
-      }
-      return fillFactsAfterForced(projectFact, query, options, limit);
-    }
+    return getFactBySlug(projectMatches[0].slug);
   }
-
-  const { anchors, rankable } = partitionFacts(LOADED.facts);
-  const anchorSlice = [...anchors].sort((left, right) => {
-    if (right.priority !== left.priority) return right.priority - left.priority;
-    return left.id.localeCompare(right.id);
-  });
 
   if (TERMINAL_OVERVIEW_QUERY_PATTERN.test(query) && !MATRIX_PUZZLE_QUERY_PATTERN.test(query)) {
-    const terminalFact = LOADED.facts.find((fact) => fact.id === TERMINAL_FACT_ID);
-    if (terminalFact) {
-      if (includeAnchors) return [...anchorSlice, terminalFact].slice(0, limit);
-      return fillFactsAfterForced(terminalFact, query, options, limit);
+    return LOADED.facts.find((fact) => fact.id === TERMINAL_FACT_ID) ?? null;
+  }
+
+  return null;
+}
+
+// A tag phrase or two specific words; a single rare word is too weak to beat a named topic or keep a follow-up's topic.
+const STRONG_MATCH_SCORE = 2;
+
+/** Non-anchor facts the query is about, best first, and whether any of them is a strong match. */
+async function findTopicalFacts(
+  query: string,
+  options: RetrievalOptions,
+  limit: number,
+): Promise<{ facts: Fact[]; strong: boolean }> {
+  const forced = findForcedFact(query);
+  // The puzzle fact shares generic tags (terminal, stickers, sudo); it only helps once the visitor asks about the puzzle.
+  const puzzleAllowed = MATRIX_PUZZLE_QUERY_PATTERN.test(query);
+  const scored = rankFactsByQuery(LOADED.facts, query).filter(({ fact, score }) => (
+    !fact.anchor
+    && fact.id !== forced?.id
+    && (puzzleAllowed || fact.id !== MATRIX_PUZZLE_FACT_ID)
+    && (!forced || score >= STRONG_MATCH_SCORE)
+  ));
+  const slots = limit - (forced ? 1 : 0);
+
+  // Equal lexical scores are common, so the query embedding decides which of them make the cut.
+  if (slots > 0 && scored.length > slots) {
+    const queryEmbedding = await embedQuery(query, options);
+    if (queryEmbedding) {
+      const similarity = new Map(scored.map(({ fact }) => [fact.id, cosineSimilarity(fact.embedding, queryEmbedding)]));
+      scored.sort((left, right) => (
+        right.score - left.score || similarity.get(right.fact.id)! - similarity.get(left.fact.id)!
+      ));
     }
   }
 
-  const prepended = includeAnchors ? anchorSlice : [];
-  const remaining = Math.max(0, limit - prepended.length);
-  const candidates = filterByTagMatch(rankable, query);
-  if (remaining === 0 || candidates.length === 0) {
-    return prepended.slice(0, limit);
+  return {
+    facts: [...(forced ? [forced] : []), ...scored.map(({ fact }) => fact)].slice(0, limit),
+    strong: forced !== null || scored.some(({ score }) => score >= STRONG_MATCH_SCORE),
+  };
+}
+
+/**
+ * Main entry point — retrieve facts relevant to the visitor's latest message.
+ * Topical facts (the forced topic fact, then lexical matches) come first and keep
+ * at least one slot; anchors fill the rest unless `includeAnchors` is false. Earlier
+ * turns join the query only when the latest message has no strong topic of its own.
+ */
+export async function retrieveRelevantFacts(
+  query: string,
+  options: RetrievalOptions = {},
+): Promise<Fact[]> {
+  const limit = options.limit ?? DEFAULT_LIMIT;
+  if (LOADED.facts.length === 0 || limit <= 0) return [];
+
+  const anchors = options.includeAnchors === false
+    ? []
+    : partitionFacts(LOADED.facts).anchors.sort((left, right) => (
+      right.priority - left.priority || left.id.localeCompare(right.id)
+    ));
+  const topicalLimit = Math.max(1, limit - anchors.length);
+  let topical = await findTopicalFacts(query, options, topicalLimit);
+  if (!topical.strong && options.followUpContext?.trim()) {
+    topical = await findTopicalFacts(`${options.followUpContext} ${query}`, options, topicalLimit);
   }
 
-  const queryEmbedding = await embedQuery(query, options);
-  const ranked = queryEmbedding
-    ? topKByEmbedding(candidates, queryEmbedding, remaining)
-    : topKByPriority(candidates, remaining);
-
-  const seen = new Set<string>();
-  const out: Fact[] = [];
-  for (const fact of [...prepended, ...ranked]) {
-    if (seen.has(fact.id)) continue;
-    seen.add(fact.id);
-    out.push(fact);
-    if (out.length >= limit) break;
-  }
-  return out;
+  return [...new Map([...topical.facts, ...anchors].map((fact) => [fact.id, fact])).values()].slice(0, limit);
 }
 
 /** Convenience wrapper: retrieve + format as a bulleted context block. */

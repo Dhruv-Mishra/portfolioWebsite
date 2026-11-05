@@ -9,10 +9,11 @@ import {
   PROMPT_BLOCKS_FOR_TESTING,
   SIGNAL_HELPERS_FOR_TESTING,
   STABLE_SYSTEM_PROMPT,
+  STABLE_TOOL_SYSTEM_PROMPT,
 } from '@/lib/chatContext.server';
 import type { ActionExecution } from '@/lib/actions';
 
-const { IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, UI_ACTION_BLOCK, TERMINAL_RULES_BLOCK } = PROMPT_BLOCKS_FOR_TESTING;
+const { IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, UI_ACTION_BLOCK, TOOL_UI_ACTION_BLOCK, TERMINAL_RULES_BLOCK } = PROMPT_BLOCKS_FOR_TESTING;
 const { looksOffTopic, hasActionIntent, mentionsTerminal } = SIGNAL_HELPERS_FOR_TESTING;
 
 const STUB_FACTS = '- test fact A\n- test fact B';
@@ -44,7 +45,12 @@ describe('signal detection', () => {
     expect(hasActionIntent('turn off disco mode')).toBe(true);
     expect(hasActionIntent('disco mode off')).toBe(true);
     expect(hasActionIntent('show me your resume')).toBe(true);
+    expect(hasActionIntent('lights off please, too bright')).toBe(true);
+    expect(hasActionIntent('can I see cropio')).toBe(true);
+    expect(hasActionIntent('I want to sign the guestbook')).toBe(true);
+    expect(hasActionIntent('mute the sounds')).toBe(true);
     expect(hasActionIntent('what do you do at microsoft')).toBe(false);
+    expect(hasActionIntent('which companies have you worked at?')).toBe(false);
   });
 
   it('mentionsTerminal catches terminal/command/ls/cat/etc', () => {
@@ -185,19 +191,35 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     }
   });
 
-  it('can keep an earlier topic out of the retrieved facts', async () => {
-    const conversation = [
+  it('retrieves from the latest turn and uses earlier turns only for follow-ups that refer back', async () => {
+    const after = (content: string) => [
       { role: 'user', content: 'where have you traveled?' },
       { role: 'assistant', content: 'A few places.' },
-      { role: 'user', content: 'What is 7 + 5?' },
+      { role: 'user', content },
     ];
 
-    const followUp = await buildDhruvSystemPromptParts(conversation);
-    const latestOnly = await buildDhruvSystemPromptParts(conversation, { anchorsInStable: true, retrievalTurns: 1 });
+    const followUp = await buildDhruvSystemPromptParts(after('why those places?'));
+    const unrelated = await buildDhruvSystemPromptParts(after('What is 7 + 5?'));
+    const newTopic = await buildDhruvSystemPromptParts(after('what did you major in?'), { anchorsInStable: true });
 
     expect(followUp.conditional).toContain('Las Vegas');
-    expect(latestOnly.conditional).not.toContain('Las Vegas');
-    expect(latestOnly.stable).not.toContain('Las Vegas');
+    expect(unrelated.conditional).not.toContain('Las Vegas');
+    expect(newTopic.conditional).not.toContain('Las Vegas');
+    expect(newTopic.conditional).toContain('Computer Science and Applied Mathematics');
+  });
+
+  it('tells tool-capable providers to act through tools instead of disclaiming actions', async () => {
+    const messages = [{ role: 'user', content: 'show me your projects' }];
+    const withTools = await buildDhruvSystemPromptParts(messages, { factsOverride: STUB_FACTS, siteTools: true });
+    const withoutTools = await buildDhruvSystemPromptParts(messages, { factsOverride: STUB_FACTS });
+
+    expect(withTools.stable).toBe(STABLE_TOOL_SYSTEM_PROMPT);
+    expect(withTools.stable).toContain('call the matching tool');
+    expect(withTools.stable).not.toContain('You cannot change, open, or edit anything');
+    expect(withTools.conditional).toContain(TOOL_UI_ACTION_BLOCK);
+    expect(withTools.conditional).not.toContain('did not go through');
+    expect(withoutTools.stable).toBe(STABLE_SYSTEM_PROMPT);
+    expect(withoutTools.conditional).toContain(UI_ACTION_BLOCK);
   });
 
   it('simple "hi" produces a materially shorter prompt than an action+terminal+off-topic query', async () => {

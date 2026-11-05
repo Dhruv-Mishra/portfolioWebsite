@@ -1,6 +1,6 @@
 ---
 id: personal-hobbies
-tags: [hobbies, hobby, fun, weekends, gym, strength training, chess, gaming, travel, pc, overclocking, longevity, interests, free time]
+tags: [hobbies, hobby, fun, weekends, weekend, gym, strength training, chess, gaming, travel, pc, overclocking, longevity, interests, free time, spare time, outside of work, outside work, passions]
 priority: 6
 category: personal
 ---

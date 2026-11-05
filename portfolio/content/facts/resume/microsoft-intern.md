@@ -1,6 +1,6 @@
 ---
 id: resume-microsoft-intern
-tags: [microsoft intern, internship, microsoft loop, connection management, typescript, jira, trello, github integration, azure devops, power platform, connector, rest apis, test coverage]
+tags: [microsoft intern, internship, microsoft loop, connection management, typescript, jira, trello, github integration, azure devops, power platform, connector, rest apis, test coverage, companies, worked at, work experience, work history, previous job, career, employer]
 priority: 6
 category: resume
 ---

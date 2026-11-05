@@ -1,6 +1,6 @@
 ---
 id: resume-microsoft-current
-tags: [microsoft, ai agents, llm agents, incident triage, on-call, mcp, tool calling, kusto, azure, service fabric, redis, cosmos db, vm scale sets, autoscaling, cost savings, office for the web, pdf encryption, sandboxing, rms, ipc, office android, wxp, excel, compose shimmer, baseline profiles, fluent ui android, security compliance, hackathon, shell assistant, wxp actionease, ai champ]
+tags: [microsoft, ai agents, llm agents, incident triage, on-call, mcp, tool calling, kusto, azure, service fabric, redis, cosmos db, vm scale sets, autoscaling, cost savings, office for the web, pdf encryption, sandboxing, rms, ipc, office android, wxp, excel, compose shimmer, baseline profiles, fluent ui android, security compliance, hackathon, shell assistant, wxp actionease, ai champ, companies, worked at, work experience, work history, career, employer, current role, day job, role]
 priority: 10
 category: resume
 ---

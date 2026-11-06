@@ -142,6 +142,7 @@ Open [http://localhost:3000](http://localhost:3000). The committed embedding bun
 | `npm run start` | Run the production server locally |
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | Run the TypeScript compiler without emitting files |
+| `npm run typecheck:native` | Run the sub-second native `tsrs` checker |
 | `npm test` | Run the Vitest suite |
 
 Configuration, container setup, Pocket TTS requirements, and deployment contracts are documented in [portfolio/README.md](portfolio/README.md).

@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Refreshes the digest-pinned Node base image (security releases, cached-layer invalidation is intentional).
+  - package-ecosystem: docker
+    directory: /portfolio
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

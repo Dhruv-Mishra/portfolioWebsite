@@ -248,7 +248,7 @@ flowchart LR
 ```
 
 - CI validates the package lock, runs lint, strict TypeScript checks, and Vitest before publishing the Docker image for `linux/amd64` and `linux/arm64`.
-- Docker builds the Next standalone application and includes the Python Pocket TTS runtime. Deployment uses an immutable image digest on Linux VMs behind Cloudflare and Nginx.
+- Docker builds the Next standalone application and includes the Python Pocket TTS runtime. Deployment uses an immutable image digest on Linux VMs behind Cloudflare and Nginx; production promotes the digest staging verified for the same commit instead of rebuilding.
 - The release flow moves from `dev/lkg` to `deployed/staging`, then to `deployed/production` only after the configured production approval. Production deployment has its own environment gate.
 - Host validation checks identity, Docker, Nginx, runtime configuration, architecture, and TTS role. The local TTS role deploys first; remote roles follow. Health checks and TTS synthesis checks gate activation, and retained releases support rollback. A runner-only Cloudflare bot challenge is warning-only after VM-local checks pass; any other public-edge non-200 response remains fatal.
 - Every origin in a rollout must serve the same `NEXT_BUILD_ID`; otherwise HTML from one origin could reference static assets absent from another.

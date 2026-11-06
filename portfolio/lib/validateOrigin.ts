@@ -40,9 +40,7 @@ const ALLOWED_ORIGINS: ReadonlySet<string> = new Set(
   [
     PRODUCTION_ORIGIN,
     ...(process.env.NODE_ENV === 'development' ? DEV_ORIGINS : []),
-    ...[process.env.NEXT_PUBLIC_SITE_URL, process.env.SITE_URL]
-      .map(origin => toOrigin(origin ?? null))
-      .filter((origin): origin is string => origin !== null),
+    toOrigin(process.env.SITE_URL ?? null),
     ...EXTRA_CONFIGURED_ORIGINS,
   ]
     .map(origin => toOrigin(origin ?? null))

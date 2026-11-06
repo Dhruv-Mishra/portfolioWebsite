@@ -112,6 +112,10 @@ const nextConfig: NextConfig = {
     // and responsive-srcset resizing, both of which are handled upstream by Cloudflare.
     unoptimized: true,
   },
+  // Only deploy image builds set this; their deploy jobs require the same-SHA `npm run typecheck`.
+  typescript: {
+    ignoreBuildErrors: process.env.NEXT_EXTERNAL_TYPECHECK === "1",
+  },
   // Optimize bundle
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? {
@@ -121,15 +125,10 @@ const nextConfig: NextConfig = {
   // Enable experimental features for better performance
   experimental: {
     // `optimizePackageImports` rewrites `import { X } from 'pkg'` into a deep
-    // path import so unused exports never land in the bundle. We include every
-    // client-side dependency that exposes a barrel entry AND is imported by
-    // more than one route — this includes `web-haptics` and `web-haptics/react`
-    // (used on every page via `useAppHaptics`), alongside the already-covered
-    // animation/icon libs. `next/dynamic` is a framework-level hot path and
-    // benefits too.
+    // path import so unused exports never land in the bundle. Next already
+    // includes lucide-react by default; list the other client barrels here.
     optimizePackageImports: [
       'framer-motion',
-      'lucide-react',
       'next-themes',
       'clsx',
       'tailwind-merge',
@@ -137,10 +136,8 @@ const nextConfig: NextConfig = {
       'web-haptics/react',
     ],
   },
-  // Allow LAN devices (e.g. mobile on same WiFi) to access dev server
-  allowedDevOrigins: ['http://192.168.1.38:3000'],
-  // Production optimizations
-  reactStrictMode: true,
+  // Allow LAN devices (e.g. mobile on same WiFi) to access dev server; entries are hostnames.
+  allowedDevOrigins: ['192.168.1.38'],
   poweredByHeader: false,
   // Security & cache headers
   async headers() {

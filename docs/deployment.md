@@ -18,11 +18,13 @@ dev/lkg -> deployed/staging -> deployed/production
 The staging and production workflows:
 
 1. Require the expected branch and validate required runtime signing configuration, the local-agent credential, and the environment-specific voice-agent credential.
-2. Run `npm ci`, lint, TypeScript checks, and Vitest from `portfolio/`.
-3. Build and push one GHCR Docker image for `linux/amd64` and `linux/arm64`.
+2. Run `npm ci`, lint, TypeScript checks (including `next typegen` route types), and Vitest from `portfolio/`. Deploy jobs need this job, so image builds skip Next's duplicate in-build type check (`NEXT_EXTERNAL_TYPECHECK=1`).
+3. Staging builds and pushes one GHCR Docker image for `linux/amd64` and `linux/arm64`; after its rollout and smoke checks pass it tags that digest `verified-<sha>`. Production reuses the `verified-<sha>` digest for the same commit after checking its revision label, and builds only when no verified image exists.
 4. Deploy the immutable image digest to Linux VMs behind Cloudflare and Nginx.
 
-The image contains Node 22 standalone output, static assets, Python, and the CPU Pocket TTS runtime. The production container serves port 3000; staging is configured as the separate `portfolio-staging` service on port 3010.
+The image contains Node 22 standalone output, static assets, Python, and the CPU Pocket TTS runtime. It is environment-neutral: server code reads the site origin from runtime `SITE_URL`, which staging must set to its own origin. The production container serves port 3000; staging is configured as the separate `portfolio-staging` service on port 3010.
+
+The Node base image is pinned by digest so the slow apt and PyTorch layers stay cached between builds. Dependabot (`.github/dependabot.yml`) proposes weekly digest refreshes; merge them promptly for Node security releases.
 
 ## Advisory Model Health
 
@@ -60,7 +62,8 @@ From the repository root:
 | Command | Use |
 |---|---|
 | `npm run lint` | Run ESLint for the app |
-| `npm run typecheck` | Run strict TypeScript checking |
+| `npm run typecheck` | Run strict TypeScript checking (after `next typegen`) |
+| `npm run typecheck:native` | Run the pinned native `tsrs` checker (sub-second; parity trial, not yet authoritative) |
 | `npm run build` | Run the package build through the root wrapper |
 | `cd portfolio; npm test` | Run the canonical Vitest suite |
 | `cd portfolio; npm run tts:smoke` | Exercise local Pocket TTS |
@@ -70,6 +73,8 @@ For a local deploy-image check, use the documented `docker build` and `docker ru
 ## Supply-Chain Note
 
 Third-party GitHub Actions are pinned to approved full commit SHAs. Updating an action pin is a deployment-security change and must be reviewed with the workflow change.
+
+Every SSH/SCP step passes `SERVER_SSH_FINGERPRINT_<n>` (environment secret per host, shared by staging and production) as the host-key fingerprint. Read it on the VM console, not over the network: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | cut -d' ' -f2` (`SHA256:...`). A mismatch fails before any remote command runs; until the secret exists, preflight warns and host keys are not verified. Use a staging deploy to confirm the negotiated key type before relying on it in production. The SSH/SCP actions still download their client binaries without checksum verification; replacing them with the runner's OpenSSH client is the remaining fix.
 
 ## Documentation Map
 

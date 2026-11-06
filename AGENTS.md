@@ -42,7 +42,7 @@ Scope: the whole repository.
 - `npm run dev` starts the app from the root.
 - `npm run build` builds the app from the root and preserves pre/postbuild lifecycle scripts.
 - `npm run lint` runs ESLint from the root.
-- `npm run typecheck` runs TypeScript checks from the root.
+- `npm run typecheck` runs TypeScript checks from the root; `npm run typecheck:native` runs the sub-second `tsrs` checker for fast feedback (TypeScript 6 stays authoritative).
 - From `portfolio/`, use `npm test`; for targeted tests, use `npx vitest run <file> -t "<name>"`.
 
 ## Deployment Facts

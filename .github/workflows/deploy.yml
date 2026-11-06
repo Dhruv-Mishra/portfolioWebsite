@@ -261,7 +261,6 @@ jobs:
           # NEXT_EXTERNAL_TYPECHECK is safe because approve-production needs the same-SHA checks job.
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
-            NEXT_BUILD_FLAGS=--webpack
             NEXT_EXTERNAL_TYPECHECK=1
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 

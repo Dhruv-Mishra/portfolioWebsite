@@ -17,10 +17,10 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install --global "npm@${NPM_VERSION}" \
     && npm ci --no-audit --no-fund
 
+# Built once on $BUILDPLATFORM for both arches: Next output differs per build (Server Action IDs).
 FROM deps AS builder
 
 ARG NEXT_BUILD_ID=local-build
-ARG NEXT_BUILD_FLAGS=""
 ARG BROWSERSLIST_QUERY=""
 # Deploy workflows set 1 only when their deploy jobs also require the same-SHA checks job.
 ARG NEXT_EXTERNAL_TYPECHECK=0
@@ -33,11 +33,7 @@ COPY . .
 RUN if [ -n "${BROWSERSLIST_QUERY}" ]; then \
             export BROWSERSLIST="${BROWSERSLIST_QUERY}"; \
         fi; \
-        if [ -n "${NEXT_BUILD_FLAGS}" ]; then \
-            npm run build -- ${NEXT_BUILD_FLAGS}; \
-        else \
-            npm run build; \
-        fi
+        npm run build
 
 RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && cp -r .next/standalone/. /app/standalone/ \

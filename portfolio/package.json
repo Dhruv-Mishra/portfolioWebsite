@@ -15,7 +15,8 @@
     "postbuild": "node scripts/sanitize-standalone.mjs",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit --pretty false",
+    "typecheck": "next typegen && tsc --noEmit --pretty false",
+    "typecheck:native": "next typegen && tsrs --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest",
     "tts:smoke": "tsx scripts/smoke-local-tts.ts",
@@ -48,12 +49,16 @@
     "eslint-config-next": "16.4.3",
     "react-test-renderer": "^19.3.1",
     "tailwindcss": "^4.3.3",
+    "tsrs": "0.20.1-ts7.1.0-beta",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
   "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    },
     "postcss": "^8.5.23",
     "zod": "^4.6.6",
     "webpack-bundle-analyzer": {

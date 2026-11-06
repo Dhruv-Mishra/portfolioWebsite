@@ -48,6 +48,19 @@ jobs:
       - uses: ./.github/actions/setup-portfolio
       - run: npm run typecheck
 
+  # Linux parity trial for the native checker; the TypeScript 6 job above stays authoritative.
+  typecheck-native:
+    name: Typecheck (native)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: portfolio
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-portfolio
+      - run: npm run typecheck:native
+
   test:
     name: Test
     runs-on: ubuntu-latest

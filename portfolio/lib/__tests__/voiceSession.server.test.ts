@@ -30,7 +30,6 @@ describe('voice session mint request contract', () => {
     vi.stubEnv('VOICE_AGENT_API_KEY', 'test-voice-key');
     vi.stubEnv('STAGING_VOICE_AGENT_API_KEY', '');
     vi.stubEnv('PRODUCTION_VOICE_AGENT_API_KEY', '');
-    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
     vi.stubEnv('SITE_URL', '');
     vi.stubEnv('MODEL_HEALTH_ENVIRONMENT', '');
   });

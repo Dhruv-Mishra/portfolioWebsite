@@ -1254,15 +1254,9 @@ validate_staging_env_contract() {
     log STEP "Validating staging runtime env contract..."
 
     local expected_url="https://${STAGING_DOMAIN}"
-    local next_public_site_url
     local site_url
-    next_public_site_url="$(env_file_value NEXT_PUBLIC_SITE_URL)"
     site_url="$(env_file_value SITE_URL)"
 
-    if [[ "${next_public_site_url}" != "${expected_url}" ]]; then
-        log ERROR "NEXT_PUBLIC_SITE_URL must be ${expected_url} for staging (got ${next_public_site_url:-unset})"
-        exit 1
-    fi
     if [[ "${site_url}" != "${expected_url}" ]]; then
         log ERROR "SITE_URL must be ${expected_url} for staging (got ${site_url:-unset})"
         exit 1

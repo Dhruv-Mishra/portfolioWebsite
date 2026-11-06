@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS deps
+# Digest-pinned so cached apt/PyTorch layers survive upstream tag moves; Dependabot refreshes it.
+FROM --platform=$BUILDPLATFORM node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS deps
 
 WORKDIR /app
 
@@ -19,12 +20,13 @@ RUN --mount=type=cache,target=/root/.npm \
 FROM deps AS builder
 
 ARG NEXT_BUILD_ID=local-build
-ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_BUILD_FLAGS=""
 ARG BROWSERSLIST_QUERY=""
+# Deploy workflows set 1 only when their deploy jobs also require the same-SHA checks job.
+ARG NEXT_EXTERNAL_TYPECHECK=0
 
 ENV NEXT_BUILD_ID=${NEXT_BUILD_ID} \
-    NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL} \
+    NEXT_EXTERNAL_TYPECHECK=${NEXT_EXTERNAL_TYPECHECK} \
     NODE_OPTIONS=--max-old-space-size=4096
 
 COPY . .
@@ -58,7 +60,7 @@ RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && RELEASE_VERSION="$(node -p "require('./package.json').version")" \
     && printf '{"buildId":"%s","version":"%s"}\n' "${NEXT_BUILD_ID}" "${RELEASE_VERSION}" > /app/standalone/.deploy/meta.json
 
-FROM node:22-bookworm-slim AS runner
+FROM node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS runner
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
@@ -91,7 +93,7 @@ WORKDIR /app
 COPY requirements-tts.txt /tmp/requirements-tts.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m venv /opt/tts-venv \
-    && /opt/tts-venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/tts-venv/bin/pip install --upgrade pip==26.2.2 \
     && /opt/tts-venv/bin/pip install -r /tmp/requirements-tts.txt \
     && /opt/tts-venv/bin/python -c "import pocket_tts, soundfile, torch" \
     && rm -f /tmp/requirements-tts.txt

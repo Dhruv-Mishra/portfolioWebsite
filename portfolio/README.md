@@ -18,6 +18,7 @@ Open http://localhost:3000.
 | `npm run start` | Run the production server locally |
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | Run strict TypeScript checks |
+| `npm run typecheck:native` | Run the sub-second native `tsrs` checker (trial; `typecheck` stays authoritative) |
 | `npm test` | Run the Vitest suite |
 | `npm run tts:smoke` | Verify local Pocket TTS synthesis |
 

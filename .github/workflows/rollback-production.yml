@@ -66,18 +66,21 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_1
           - name: production-2
             tts_mode: remote
             host_secret: SERVER_HOST_2
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_2
           - name: production-3
             tts_mode: remote
             host_secret: SERVER_HOST_3
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
             port_secret: SERVER_PORT_3
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_3
 
     environment:
       name: ${{ matrix.server.name }}
@@ -97,6 +100,9 @@ jobs:
           if [ -n "$ROLLBACK_TO_SHA" ] && ! [[ "$ROLLBACK_TO_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
             echo "::error::rollback_to_sha must be blank or a 7-40 character hexadecimal SHA."
             exit 1
+          fi
+          if [ -z "${{ secrets[matrix.server.fingerprint_secret] }}" ]; then
+            echo "::warning::Secret ${{ matrix.server.fingerprint_secret }} not configured for ${{ matrix.server.name }}; SSH host keys are not verified"
           fi
 
       - name: Checkout deploy kit
@@ -119,6 +125,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           source: portfolio-rollback-kit-${{ github.run_id }}.tar.gz
           target: /tmp/
           timeout: 60s
@@ -137,6 +144,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 15m
           envs: SITE,REQUESTED_SHA,GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_HF_TOKEN
           script: |
@@ -243,6 +251,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 6m
           script: |
             set -euo pipefail

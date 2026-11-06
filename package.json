@@ -7,6 +7,7 @@
     "start": "npm --prefix portfolio run start",
     "lint": "npm --prefix portfolio run lint",
     "typecheck": "npm --prefix portfolio run typecheck",
+    "typecheck:native": "npm --prefix portfolio run typecheck:native",
     "test": "npm --prefix portfolio test"
   }
 }

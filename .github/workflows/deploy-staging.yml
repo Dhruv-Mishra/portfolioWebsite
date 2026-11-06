@@ -185,8 +185,8 @@ jobs:
           cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
-            NEXT_PUBLIC_SITE_URL=https://${{ env.STAGING_DOMAIN }}
             NEXT_BUILD_FLAGS=--webpack
+            NEXT_EXTERNAL_TYPECHECK=1
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 
       - name: Verify published Docker image platforms
@@ -230,6 +230,7 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_1
           - name: staging-2
             tts_mode: remote
             environment: production-2
@@ -237,6 +238,7 @@ jobs:
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_2
           - name: staging-3
             tts_mode: remote
             environment: production-3
@@ -244,6 +246,7 @@ jobs:
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
             port_secret: SERVER_PORT_3
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_3
 
     environment:
       name: ${{ matrix.server.environment }}
@@ -268,6 +271,9 @@ jobs:
             echo "::error::Secret ${{ matrix.server.port_secret }} not configured for ${{ matrix.server.name }}"
             missing=1
           fi
+          if [ -z "${{ secrets[matrix.server.fingerprint_secret] }}" ]; then
+            echo "::warning::Secret ${{ matrix.server.fingerprint_secret }} not configured for ${{ matrix.server.name }}; SSH host keys are not verified"
+          fi
           if [ "$missing" = "1" ]; then
             exit 1
           fi
@@ -286,6 +292,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 3m
           script: |
             set -euo pipefail
@@ -340,10 +347,8 @@ jobs:
             [[ "$tts_token" =~ ^[A-Za-z0-9_-]{32,128}$ ]] || fail "TTS_BACKEND_TOKEN is missing or malformed"
 
             sudo test -f "$ENV_FILE" || fail "missing staging env file: $ENV_FILE"
-            next_public_site_url="$(read_env NEXT_PUBLIC_SITE_URL)"
             site_url="$(read_env SITE_URL)"
             nvidia_api_key="$(read_env NVIDIA_API_KEY)"
-            [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got ${next_public_site_url:-unset}"
             [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got ${site_url:-unset}"
             [ -n "$nvidia_api_key" ] || fail "NVIDIA_API_KEY must be configured for selectable NVIDIA chat models"
             command -v docker >/dev/null 2>&1 || fail "docker is not installed"
@@ -407,6 +412,7 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_1
             ghcr_secret: GHCR_READ_TOKEN
 
     environment:
@@ -438,6 +444,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           source: portfolio-${{ github.sha }}.tar.gz
           target: /var/tmp/
           timeout: 60s
@@ -467,6 +474,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           source: portfolio-deploy-kit-${{ matrix.server.name }}-${{ github.sha }}.tar.gz
           target: /var/tmp/
           timeout: 60s
@@ -489,6 +497,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 20m
           envs: GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_VOICE_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
@@ -744,6 +753,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 20m
           script: |
             set -euo pipefail
@@ -902,6 +912,7 @@ jobs:
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_2
             ghcr_secret: GHCR_READ_TOKEN
           - name: staging-3
             tts_mode: remote
@@ -910,6 +921,7 @@ jobs:
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
             port_secret: SERVER_PORT_3
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_3
             ghcr_secret: GHCR_READ_TOKEN
 
     environment:
@@ -1086,6 +1098,34 @@ jobs:
           fi
 
           echo "Staging Cloudflare URL responded: https://${{ env.STAGING_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+
+  # deploy.yml promotes this exact digest for the same commit instead of rebuilding it.
+  record-verified-image:
+    name: Record verified staging image
+    needs: [build, smoke-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag verified staging image
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          verified_ref="${IMAGE}:verified-${GITHUB_SHA}"
+          docker buildx imagetools create --tag "$verified_ref" "$IMAGE_REF"
+          echo "Verified staging image: \`${verified_ref}\` -> \`${IMAGE_REF}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # Warning-only model probes run once against the edge after rollout, off the deploy critical path.
   audit-staging-models:

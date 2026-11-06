@@ -8,8 +8,8 @@ permissions:
 # Architecture: build-once-deploy-many
 #
 #   build job (ubuntu-latest, once)
-#     └── npm ci → lint → typecheck → test → build/push one multi-platform
-#         ghcr.io image tagged by the release SHA and package version
+#     └── reuse the staging-verified digest for this SHA (verified-<sha> tag),
+#         or build/push one multi-platform ghcr.io image when none exists
 #
 #   approve-production job (manual GitHub Environment gate, needs: build)
 #     └── waits for human approval before production mutation
@@ -159,8 +159,8 @@ jobs:
     timeout-minutes: 45
     outputs:
       image: ${{ steps.image-meta.outputs.image }}
-      image_digest: ${{ steps.docker-build.outputs.digest }}
-      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}
+      image_digest: ${{ steps.promoted.outputs.digest || steps.docker-build.outputs.digest }}
+      image_ref: ${{ steps.image-meta.outputs.image }}@${{ steps.promoted.outputs.digest || steps.docker-build.outputs.digest }}
       release_version: ${{ steps.release-meta.outputs.version }}
 
     steps:
@@ -185,14 +185,6 @@ jobs:
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
 
-      - name: Set up QEMU
-        if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-
-      - name: Set up Docker Buildx
-        if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
       - name: Login to GHCR
         if: env.DEPLOY_MODE == 'image'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
@@ -201,8 +193,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      # Staging tags the digest it deployed and smoke-tested; reuse it rather than rebuilding the same commit.
+      - name: Resolve verified staging image
         if: env.DEPLOY_MODE == 'image'
+        id: promoted
+        run: |
+          set -euo pipefail
+          verified_ref="${IMAGE}:verified-${GITHUB_SHA}"
+          inspect_error="$(mktemp)"
+          for attempt in 1 2 3; do
+            if manifest="$(docker buildx imagetools inspect "$verified_ref" --format '{{json .Manifest}}' 2>"$inspect_error")"; then
+              break
+            fi
+            # Only confirmed absence may fall back to a fresh build; other registry errors must not.
+            if grep -qiE 'not found|manifest unknown' "$inspect_error"; then
+              echo "No verified staging image for ${GITHUB_SHA}; building a fresh production image."
+              exit 0
+            fi
+            if [ "$attempt" = "3" ]; then
+              echo "::error::Could not resolve ${verified_ref}: $(cat "$inspect_error")"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          digest="$(jq -r '.digest // empty' <<< "$manifest")"
+          if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::${verified_ref} resolved to an invalid digest: ${digest:-empty}"
+            exit 1
+          fi
+          config="$(docker buildx imagetools inspect "${IMAGE}@${digest}" --format '{{json .Image}}')"
+          for platform in linux/amd64 linux/arm64; do
+            revision="$(jq -r --arg platform "$platform" '.[$platform].config.Labels["org.opencontainers.image.revision"] // empty' <<< "$config")"
+            if [ "$revision" != "$GITHUB_SHA" ]; then
+              echo "::error::${verified_ref} ${platform} revision is ${revision:-missing}, expected ${GITHUB_SHA}"
+              exit 1
+            fi
+          done
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Promoting verified staging image ${IMAGE}@${digest}"
+
+      - name: Set up QEMU
+        if: env.DEPLOY_MODE == 'image' && steps.promoted.outputs.digest == ''
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Docker Buildx
+        if: env.DEPLOY_MODE == 'image' && steps.promoted.outputs.digest == ''
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and push Docker image
+        if: env.DEPLOY_MODE == 'image' && steps.promoted.outputs.digest == ''
         id: docker-build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -219,27 +258,33 @@ jobs:
           # Registry cache in GHCR, shared with staging; see deploy-staging.yml.
           cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache
           cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
+          # NEXT_EXTERNAL_TYPECHECK is safe because approve-production needs the same-SHA checks job.
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
-            NEXT_PUBLIC_SITE_URL=https://${{ env.DOMAIN }}
             NEXT_BUILD_FLAGS=--webpack
+            NEXT_EXTERNAL_TYPECHECK=1
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 
-      - name: Verify published Docker image platforms
+      - name: Verify Docker image platforms
         if: env.DEPLOY_MODE == 'image'
+        env:
+          IMAGE_DIGEST: ${{ steps.promoted.outputs.digest || steps.docker-build.outputs.digest }}
         run: |
           set -euo pipefail
-          image_ref="${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }}"
+          image_ref="${IMAGE}@${IMAGE_DIGEST}"
           platforms="$(docker buildx imagetools inspect "${image_ref}" | awk '/^[[:space:]]*Platform: / { print $2 }')"
           printf '%s\n' "${platforms}"
           for platform in linux/amd64 linux/arm64; do
             if ! grep -Fxq "${platform}" <<< "${platforms}"; then
-              echo "::error::Published image ${image_ref} is missing required platform ${platform}"
+              echo "::error::Image ${image_ref} is missing required platform ${platform}"
               exit 1
             fi
           done
 
       - name: Build summary
+        env:
+          IMAGE_DIGEST: ${{ steps.promoted.outputs.digest || steps.docker-build.outputs.digest }}
+          IMAGE_SOURCE: ${{ steps.promoted.outputs.digest != '' && 'verified staging image' || 'fresh build' }}
         run: |
           echo "## 📦 Build complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -247,7 +292,8 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Version | \`${{ steps.release-meta.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | ${{ steps.image-meta.outputs.image }}@${{ steps.docker-build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | ${IMAGE}@${IMAGE_DIGEST} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Source | ${IMAGE_SOURCE} |" >> $GITHUB_STEP_SUMMARY
           echo "| Node | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -292,18 +338,21 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_1
           - name: production-2
             tts_mode: remote
             host_secret: SERVER_HOST_2
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_2
           - name: production-3
             tts_mode: remote
             host_secret: SERVER_HOST_3
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
             port_secret: SERVER_PORT_3
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_3
 
     environment:
       name: ${{ matrix.server.name }}
@@ -328,6 +377,9 @@ jobs:
             echo "::error::Secret ${{ matrix.server.port_secret }} not configured for ${{ matrix.server.name }}"
             missing=1
           fi
+          if [ -z "${{ secrets[matrix.server.fingerprint_secret] }}" ]; then
+            echo "::warning::Secret ${{ matrix.server.fingerprint_secret }} not configured for ${{ matrix.server.name }}; SSH host keys are not verified"
+          fi
           if [ "$missing" = "1" ]; then
             exit 1
           fi
@@ -341,6 +393,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 3m
           envs: DEPLOY_SITE
           script: |
@@ -423,12 +476,8 @@ jobs:
               fail "missing production env file: $env_file (or legacy $legacy_env_file)"
             fi
 
-            next_public_site_url="$(read_env "$runtime_env" NEXT_PUBLIC_SITE_URL)"
             site_url="$(read_env "$runtime_env" SITE_URL)"
             nvidia_api_key="$(read_env "$runtime_env" NVIDIA_API_KEY)"
-            if [ -n "$next_public_site_url" ]; then
-              [ "$next_public_site_url" = "https://${DOMAIN}" ] || fail "NEXT_PUBLIC_SITE_URL must be https://${DOMAIN}, got $next_public_site_url"
-            fi
             if [ -n "$site_url" ]; then
               [ "$site_url" = "https://${DOMAIN}" ] || fail "SITE_URL must be https://${DOMAIN}, got $site_url"
             fi
@@ -529,6 +578,7 @@ jobs:
             user_secret: SERVER_USERNAME_1
             key_secret: SERVER_SSH_KEY_1
             port_secret: SERVER_PORT_1
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_1
 
     environment:
       name: ${{ matrix.server.name }}
@@ -562,6 +612,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           source: portfolio-${{ github.sha }}.tar.gz
           target: /var/tmp/
           timeout: 60s
@@ -591,6 +642,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           source: portfolio-deploy-kit-${{ matrix.server.name }}-${{ github.sha }}.tar.gz
           target: /var/tmp/
           timeout: 60s
@@ -615,6 +667,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 20m
           envs: DEPLOY_SITE,DEPLOY_SKIP_NGINX,GHCR_OWNER,GHCR_READ_TOKEN,RUNTIME_CHAT_HISTORY_SIGNING_SECRET,RUNTIME_MATRIX_NOTES_ACCESS_SECRET,RUNTIME_LOCAL_AGENT_API_KEY,RUNTIME_VOICE_AGENT_API_KEY,RUNTIME_LOCAL_AGENT_BASE_URL,RUNTIME_HF_TOKEN
           script: |
@@ -911,6 +964,7 @@ jobs:
           username: ${{ secrets[matrix.server.user_secret] }}
           key: ${{ secrets[matrix.server.key_secret] }}
           port: ${{ secrets[matrix.server.port_secret] }}
+          fingerprint: ${{ secrets[matrix.server.fingerprint_secret] }}
           command_timeout: 6m
           envs: DEPLOY_SITE
           script: |
@@ -1137,12 +1191,14 @@ jobs:
             user_secret: SERVER_USERNAME_2
             key_secret: SERVER_SSH_KEY_2
             port_secret: SERVER_PORT_2
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_2
           - name: production-3
             tts_mode: remote
             host_secret: SERVER_HOST_3
             user_secret: SERVER_USERNAME_3
             key_secret: SERVER_SSH_KEY_3
             port_secret: SERVER_PORT_3
+            fingerprint_secret: SERVER_SSH_FINGERPRINT_3
 
     environment:
       name: ${{ matrix.server.name }}

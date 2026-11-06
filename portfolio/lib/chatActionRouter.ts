@@ -1,5 +1,5 @@
 import { getActionFallbackReply, resolveExactActionLabel as resolveExactActionExecution, type ActionExecution, VALID_NAVIGATION_PATHS } from '@/lib/actions';
-import { getProjectFactText } from '@/lib/dhruvFacts.server';
+import { getFactBySlug } from '@/lib/factRetrieval.server';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
@@ -250,7 +250,7 @@ function resolveProjectInfo(input: string, projectSlug: ProjectSlug): ProjectInf
     return null;
   }
 
-  const reply = getProjectFactText(projectSlug);
+  const reply = getFactBySlug(projectSlug)?.text;
   if (!reply) {
     return null;
   }

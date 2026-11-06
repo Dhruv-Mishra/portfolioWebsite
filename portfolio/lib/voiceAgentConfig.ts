@@ -18,7 +18,7 @@ export function resolveVoiceAgentApiKey(): string | null {
   const staged = process.env.STAGING_VOICE_AGENT_API_KEY?.trim();
   const production = process.env.PRODUCTION_VOICE_AGENT_API_KEY?.trim();
   const unified = process.env.VOICE_AGENT_API_KEY?.trim();
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? '').toLowerCase();
+  const siteUrl = (process.env.SITE_URL ?? '').toLowerCase();
   const isStaging = siteUrl.includes('staging.') || process.env.MODEL_HEALTH_ENVIRONMENT === 'staging';
 
   if (isStaging) return staged || unified || production || null;

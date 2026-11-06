@@ -1,0 +1,129 @@
+name: Turbopack multi-arch eval
+
+# Throwaway evaluation branch only; never merged.
+on:
+  push:
+    branches: [eval/turbopack-multiarch]
+
+permissions:
+  contents: read
+
+env:
+  BROWSERSLIST_QUERY: last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
+  CACHE_REF: ghcr.io/dhruv-mishra/portfoliowebsite:buildcache
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build multi-arch images (one invocation per bundler)
+        run: |
+          set -euo pipefail
+          for bundler in turbopack webpack; do
+            flags=""
+            if [ "$bundler" = webpack ]; then flags="--webpack"; fi
+            start=$(date +%s)
+            docker buildx build portfolio --file portfolio/Dockerfile \
+              --platform linux/amd64,linux/arm64 --provenance=false --progress=plain \
+              --build-arg NEXT_BUILD_ID="$GITHUB_SHA" --build-arg NEXT_EXTERNAL_TYPECHECK=1 \
+              --build-arg NEXT_BUILD_FLAGS="$flags" --build-arg BROWSERSLIST_QUERY="$BROWSERSLIST_QUERY" \
+              --cache-from type=registry,ref="$CACHE_REF" \
+              --output type=oci,dest=/tmp/oci-$bundler,tar=false 2> /tmp/build-$bundler.log
+            echo "$bundler multi-arch build wall seconds: $(( $(date +%s) - start ))"
+          done
+
+      - name: Next build timings and execution count
+        run: |
+          set -euo pipefail
+          for bundler in turbopack webpack; do
+            log=/tmp/build-$bundler.log
+            echo "== $bundler"
+            grep -E 'Next\.js 16|Compiled successfully|Collecting build traces' "$log" | sed 's/^/  /'
+            vids="$(grep -oE '^#[0-9]+ \[[^]]*builder 2/3\] RUN' "$log" | awk '{print $1}' | sort -u)"
+            echo "  next build vertices: $(echo $vids | wc -w) ($(grep -c 'Compiled successfully' "$log") compile banners)"
+            for v in $vids; do grep -E "^$v (DONE|CACHED)" "$log" | sed 's/^/  /'; done
+          done
+
+      - name: App layer parity across platforms
+        run: |
+          set -euo pipefail
+          for bundler in turbopack webpack; do
+            echo "== $bundler"
+            node .github/turbopack-eval/oci-layers.mjs /tmp/oci-$bundler
+          done
+
+      - name: Load per-platform images
+        run: |
+          set -euo pipefail
+          load() {
+            docker buildx build portfolio --file portfolio/Dockerfile \
+              --platform "linux/$2" --provenance=false --progress=plain \
+              --build-arg NEXT_BUILD_ID="$GITHUB_SHA" --build-arg NEXT_EXTERNAL_TYPECHECK=1 \
+              --build-arg NEXT_BUILD_FLAGS="$3" --build-arg BROWSERSLIST_QUERY="$BROWSERSLIST_QUERY" \
+              --cache-from type=registry,ref="$CACHE_REF" \
+              --load -t "eval-$1:$2" 2> "/tmp/load-$1-$2.log"
+            echo "eval-$1:$2 rebuilt next: $(grep -c 'Compiled successfully' "/tmp/load-$1-$2.log" || true) times"
+          }
+          load turbopack amd64 ""
+          load turbopack arm64 ""
+          load webpack amd64 "--webpack"
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep eval-
+
+      - name: Run containers
+        run: |
+          set -euo pipefail
+          start() {
+            local name=$1 image=$2 port=$3 platform=$4
+            local t0=$(date +%s%N)
+            docker run -d --name "$name" --platform "$platform" -p "$port:3000" -e SITE_URL="http://127.0.0.1:$port" "$image" > /dev/null
+            for i in $(seq 1 120); do
+              if curl -fsS -o /dev/null "http://127.0.0.1:$port/"; then
+                echo "$name first 200 after $(( ($(date +%s%N) - t0) / 1000000 )) ms"
+                return 0
+              fi
+              sleep 0.5
+            done
+            docker logs "$name"
+            return 1
+          }
+          start t-amd64 eval-turbopack:amd64 3001 linux/amd64
+          start t-arm64 eval-turbopack:arm64 3002 linux/arm64
+          start w-amd64 eval-webpack:amd64 3003 linux/amd64
+
+      - name: Identical /app trees in both Turbopack platform images
+        run: |
+          set -euo pipefail
+          for c in t-amd64 t-arm64; do
+            docker exec "$c" sh -c 'cd /app && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum' > "/tmp/tree-$c.txt"
+            echo "$c: $(wc -l < "/tmp/tree-$c.txt") files, tree hash $(sha256sum < "/tmp/tree-$c.txt" | cut -c1-16)"
+          done
+          diff /tmp/tree-t-amd64.txt /tmp/tree-t-arm64.txt && echo "PASS: identical /app trees"
+
+      - name: Cross-origin static graph (HTML from one arch, assets from the other)
+        run: |
+          set -euo pipefail
+          node .github/turbopack-eval/cross.mjs http://127.0.0.1:3001 http://127.0.0.1:3002
+          node .github/turbopack-eval/cross.mjs http://127.0.0.1:3002 http://127.0.0.1:3001
+          node .github/turbopack-eval/cross.mjs http://127.0.0.1:3003 http://127.0.0.1:3003
+
+      - name: Server memory after warm traffic (amd64)
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            for port in 3001 3003; do
+              for r in / /about /projects /chat /resume /stickers /settings /guestbook /about.md /llms.txt /api/chat/model-status /api/voice/health; do
+                curl -s -o /dev/null "http://127.0.0.1:$port$r"
+              done
+            done
+          done
+          docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' t-amd64 w-amd64
+          for c in t-amd64 t-arm64 w-amd64; do
+            echo "$c errors: $(docker logs "$c" 2>&1 | grep -ciE 'error|unhandled' || true)"
+          done

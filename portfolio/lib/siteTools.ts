@@ -96,6 +96,9 @@ export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 
 export const CHAT_MESSAGE_MAX_LENGTH = 500;
 
+export const SITE_CONTEXT_SECTIONS = ['page', 'preferences', 'interaction', 'media', 'chat', 'history'] as const;
+export type SiteContextSection = (typeof SITE_CONTEXT_SECTIONS)[number];
+
 /** Bare, non-destructive terminal commands safe for voice dispatch. No args. */
 export const VOICE_SAFE_TERMINAL_COMMANDS = [
   'help',
@@ -194,7 +197,7 @@ export type SiteToolArgsMap = {
   submit_guestbook: { message: string; name?: string };
   submit_feedback: { message: string; contact?: string; category?: FeedbackCategory };
   lookup_site_facts: { query: string };
-  get_recent_user_context: Record<string, never>;
+  get_recent_user_context: { include?: SiteContextSection[] };
   start_voice_session: Record<string, never>;
   end_voice_session: { reason?: 'user' | 'health' | 'error' };
   next_disco_track: Record<string, never>;

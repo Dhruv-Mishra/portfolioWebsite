@@ -296,7 +296,7 @@ describe('userActionJournal', () => {
     const result = await executeSiteTool({
       id: 'recent-ctx-test',
       name: 'get_recent_user_context',
-      args: {},
+      args: { include: ['page', 'history'] },
     }, runtime as never, { commit: false });
 
     expect(result.ok).toBe(true);
@@ -304,11 +304,6 @@ describe('userActionJournal', () => {
     // Current context MUST be present and not empty
     expect(result.data?.pageContext).toEqual({
       route: '/projects',
-      topic: 'projects',
-      theme: 'dark',
-      disco: false,
-      muted: false,
-      volume: 100,
       openProject: 'cropio',
     });
     // Recent actions must be present

@@ -26,6 +26,21 @@ describe('browser chat prompt', () => {
     expect(selectBrowserChatFacts(FACTS, 'hello there').map((fact) => fact.id)).toEqual(['identity']);
   });
 
+  it.each([
+    ['what is Cropio?', true, false],
+    ['why did you build Cropio?', true, false],
+    ['how does it work?', false, true],
+    ['hello!', false, false],
+  ])('retrieves for the latest turn with a bounded referential fallback: %s', (content, cropio, solace) => {
+    const [system] = buildBrowserChatMessages(FACTS, [
+      { role: 'user', content: 'tell me about Port Solace' },
+      { role: 'assistant', content: 'It is a voxel game.' },
+      { role: 'user', content },
+    ]);
+    expect(system.content.includes('Cropio is an agritech app')).toBe(cropio);
+    expect(system.content.includes('Port Solace is a voxel game')).toBe(solace);
+  });
+
   it('builds a persona system prompt with facts and bounded history', () => {
     const history = Array.from({ length: 10 }, (_, index) => ({
       role: index % 2 === 0 ? 'user' as const : 'assistant' as const,

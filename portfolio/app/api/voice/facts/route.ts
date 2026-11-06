@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const facts = await getRelevantFactContext(query, { limit: VOICE_FACTS_LIMIT, includeAnchors: false });
   return Response.json({
     ok: true,
-    spokenText: facts || 'I have the sketchbook open — let me grab the project note.',
+    spokenText: facts ? '' : 'No matching facts found.',
     data: { facts },
   });
 }

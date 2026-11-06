@@ -20,6 +20,8 @@ import {
   PAGE_SCROLL_AMOUNT_DEFAULT,
   PAGE_SCROLL_AMOUNT_MAX,
   PAGE_SCROLL_AMOUNT_MIN,
+  SITE_CONTEXT_SECTIONS,
+  type SiteContextSection,
   type SiteToolArgsMap,
   type SiteToolCall,
   type SiteToolName,
@@ -69,7 +71,8 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
   name: Name,
   raw: unknown,
 ): SiteToolArgsMap[Name] | null {
-  const record = asRecord(raw) ?? {};
+  const record = raw === undefined ? {} : asRecord(raw);
+  if (!record) return null;
 
   switch (name) {
     case 'navigate_to': {
@@ -101,10 +104,16 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
     case 'open_shortcuts':
     case 'open_chat':
     case 'close_project':
-    case 'get_recent_user_context':
     case 'start_voice_session':
     case 'next_disco_track':
       return {} as SiteToolArgsMap[Name];
+    case 'get_recent_user_context': {
+      if (Object.keys(record).some(key => key !== 'include')) return null;
+      if (record.include === undefined) return {} as SiteToolArgsMap[Name];
+      if (!Array.isArray(record.include) || record.include.length === 0 || record.include.length > 3) return null;
+      if (!record.include.every(section => SITE_CONTEXT_SECTIONS.includes(section))) return null;
+      return { include: [...new Set(record.include)] as SiteContextSection[] } as SiteToolArgsMap[Name];
+    }
     case 'browse_history': {
       const direction = readString(record, 'direction');
       if (!direction || !isBrowseHistoryDirection(direction)) return null;

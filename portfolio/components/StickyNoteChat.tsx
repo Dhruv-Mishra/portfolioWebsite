@@ -901,7 +901,7 @@ const StickyNote = memo(function StickyNote({
       {/* Message content — rendered inline so the note grows naturally with typewritten text */}
       <div className={cn("relative", canSpeak && "pr-8")}>
         <div ref={textHeightRef} className="transition-[height] duration-200 ease-out motion-reduce:transition-none">
-        <div ref={textRef} className={cn(
+        <div ref={textRef} data-site-chat-user={isUser ? '' : undefined} className={cn(
           "whitespace-pre-wrap break-words leading-relaxed",
           // Filler text: same color, just faded + italic to distinguish from final response
           !isUser && isDisplayingFiller && "italic opacity-50",

@@ -50,6 +50,37 @@ describe('site tool catalog', () => {
     expect(VOICE_LIVE_TOOL_DECLARATIONS.map(tool => tool.name)).toContain('next_disco_track');
   });
 
+  it('keeps the serialized voice catalog within its measured context budget', () => {
+    expect(Buffer.byteLength(JSON.stringify(VOICE_LIVE_TOOL_DECLARATIONS))).toBeLessThan(8_100);
+    expect(VOICE_LIVE_TOOL_DECLARATIONS.every(tool => tool.behavior === 'BLOCKING')).toBe(true);
+  });
+
+  it.each(SITE_TOOL_DECLARATIONS)('keeps $name schema choices executable', (tool) => {
+    const properties = tool.parameters.properties as Record<string, {
+      type: string; enum?: unknown[]; minimum?: number; items?: { enum: string[] };
+    }>;
+    const sample = (property: (typeof properties)[string]): unknown => {
+      if (property.enum) return property.enum[0];
+      if (property.type === 'boolean') return true;
+      if (property.type === 'integer' || property.type === 'number') return property.minimum ?? 1;
+      if (property.type === 'array') return [property.items?.enum[0]];
+      return 'Hello from the tool evaluation';
+    };
+    const required = Object.fromEntries((tool.parameters.required ?? []).map(key => [key, sample(properties[key])]));
+    expect(parseSiteToolCall({ name: tool.name, args: required })).not.toBeNull();
+    for (const [key, property] of Object.entries(properties)) {
+      for (const value of property.enum ?? [sample(property)]) {
+        expect(parseSiteToolCall({ name: tool.name, args: { ...required, [key]: value } })).not.toBeNull();
+      }
+      if (property.enum) {
+        expect(parseSiteToolCall({ name: tool.name, args: { ...required, [key]: 'not-allowed' } })).toBeNull();
+      }
+    }
+    for (const args of [null, [], 'invalid', 3, true]) {
+      expect(parseSiteToolCall({ name: tool.name, args })).toBeNull();
+    }
+  });
+
   it('limits open tools, fillable fields, and chat metadata to current surfaces', () => {
     expect(SITE_TOOL_NAMES.filter(name => name.startsWith('open_'))).toEqual([
       'open_project', 'open_link', 'open_feedback', 'open_shortcuts', 'open_chat',

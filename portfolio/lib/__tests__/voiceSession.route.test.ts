@@ -83,6 +83,27 @@ describe('/api/voice/session', () => {
   });
 });
 
+describe('/api/voice/facts context efficiency', () => {
+  it('returns retrieved facts exactly once, with no duplicate spoken script', async () => {
+    const facts = 'Cropio makes portrait headshots. '.repeat(30);
+    getRelevantFactContextMock.mockResolvedValueOnce(facts);
+    const response = await factsPOST(sessionRequest({ query: 'Cropio' }));
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual({ ok: true, spokenText: '', data: { facts } });
+    expect(JSON.stringify(payload).length).toBeLessThan(facts.length + 100);
+    expect(getRelevantFactContextMock).toHaveBeenLastCalledWith('Cropio', { limit: 6, includeAnchors: false });
+  });
+
+  it('reports an empty retrieval without inventing a pending follow-up', async () => {
+    getRelevantFactContextMock.mockResolvedValueOnce('');
+    const response = await factsPOST(sessionRequest({ query: 'unknown project' }));
+    await expect(response.json()).resolves.toEqual({
+      ok: true, spokenText: 'No matching facts found.', data: { facts: '' },
+    });
+  });
+});
+
 describe.each([
   ['facts', factsPOST],
   ['session', POST],

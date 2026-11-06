@@ -254,7 +254,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
             backdropClassName="bg-black/60"
         >
             {project && (
-                <div className="relative pt-5">
+                <div className="relative pt-5" data-site-context="project-preview" data-site-project={project.slug}>
                     {/* Tape decoration — lives in the top padding, outside the clip path */}
                     <div
                         data-tape-strip

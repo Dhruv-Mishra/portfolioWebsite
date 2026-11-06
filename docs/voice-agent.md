@@ -18,8 +18,8 @@ The app is `0.30.0` and later.
 | Transport | Client-to-model WebSocket with one-use ephemeral tokens minted by `POST /api/voice/session`. `setupComplete` gates readiness. Post-ready failures remint and resume up to two times with the latest valid provider handle and no second greeting; exhausted recovery offers Try again or hangup. PCM does not transit the origin. |
 | Model | `gemini-3.8-live` (stable). No `thinkingConfig`; voice tool declarations set `behavior: BLOCKING` because 3.8 defaults to non-blocking calls and the serial action queue expects blocking turns. |
 | Default voice | `Puck`. |
-| Context | Tiny initial page snapshot plus on-demand `lookup_site_facts` and read-only `get_recent_user_context`. The recent-context tool samples lazy live context (allowlisted browser route, project, theme, preferences) plus recent semantic events from the bounded action journal; it never exposes raw URLs, DOM, or form values. |
-| Tools | Voice uses the canonical `siteTools` contract. Text chat keeps deterministic signed actions and reuses the same browser executor and events where needed; text providers receive no tool catalog. `hint` is the one puzzle-safe voice terminal command. |
+| Context | Tiny initial snapshot, on-demand facts, and selective live state. No continuous DOM, cursor, or draft stream. Fact text appears once in `data.facts`. |
+| Tools | Voice uses the canonical `siteTools` contract with explicit action schemas. Tool-capable text models receive seven approved chat actions; signed actions reuse the browser executor. `hint` is the one puzzle-safe voice terminal command. |
 | Audio | Gemini Live uses PCM16 little-endian at 16 kHz in and 24 kHz out. Playback uses a bounded prebuffered queue, explicit decoding, short gain ramps, and stale-audio resynchronization. Capture remains full-duplex and requests browser echo cancellation and noise suppression. |
 | Compression | The settings toggle is **low-network mode**: larger capture frames, no live transcripts, no ambient music. |
 | Context window | Live `contextWindowCompression` is always enabled. |
@@ -123,8 +123,25 @@ sequenceDiagram
 
 - UI, settings, and tools import `@/lib/voiceAgentProtocol` and `@/lib/siteTools`.
 - Only `@/lib/geminiLiveAdapter.ts` and server token minting know Gemini.
-- Text chat does not use provider tool calling; signed actions reuse shared browser execution primitives where needed.
+- Tool-capable text models use the smaller chat catalog; signed actions reuse shared browser execution primitives.
 - A future OpenAI Realtime / other adapter implements `VoiceCaller`.
+
+## On-Demand State
+
+`get_recent_user_context({include: [...]})` samples only requested sections, up to three per call. Omitted `include` returns page orientation only. Navigation results also return only route/open project; `null` explicitly clears a closed project. State is sampled at call time, not cached in the prompt.
+
+| Section | Result |
+|---|---|
+| `page` | Allowlisted route and open project, without query strings or redundant topic. |
+| `preferences` | Applied theme, disco, mute, master and category volumes. |
+| `interaction` | Selected public text and semantic hover/focus labels. Touch-only devices have no hover target. |
+| `media` | Matching project preview's playing/paused/buffering/ended/error state, mute and volume; `null` if unavailable. |
+| `chat` | Visible composer draft and last three mounted user-message texts, never assistant responses or attachments. |
+| `history` | Last three allowlisted semantic actions from the existing bounded journal. |
+
+Text snippets cap at 240 characters (80 for target labels); `...` marks truncation and `omittedMessages` counts older visible messages. Unavailable sections/values are `null`, not invented state. Drafts and selections are read on demand only, without new storage or event logs. Passwords, contact fields, terminal input values, private/hidden selections, admin routes, raw DOM and URLs are excluded. Selected and typed text is untrusted data, never action authorization.
+
+Serialized UTF-8 measurements: voice tools 9,530 to 7,996 bytes; voice rules 1,838 to 1,643 bytes; rules plus tools 15.2% smaller; default `/chat` state data 123 to 52 bytes. These are byte measurements, not token estimates or a model-quality claim. Runtime tests guard prompt/catalog budgets and schema/executor compatibility. See [the harness evals](ai-and-rag.md#local-model-benchmark) for model scoring.
 
 ## Tools
 
@@ -156,6 +173,7 @@ Canonical site tool names:
 - `get_recent_user_context`
 - `start_voice_session`
 - `end_voice_session`
+- `next_disco_track`
 
 Live voice tools omit `start_voice_session`. Chat/text can still offer it.
 

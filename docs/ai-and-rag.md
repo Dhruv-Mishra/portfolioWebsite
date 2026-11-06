@@ -41,14 +41,35 @@ Small local models fill whatever output budget they get, so length is controlled
 
 ## Local Model Benchmark
 
-`portfolio/scripts/local-llm/toolbench.ts` scores an OpenAI-compatible endpoint on 53 tool-calling cases and 18 grounded-chat cases, then reports prefill, decode, hidden-thinking tokens, and time to the first visible token. Tool cases use the real 24-tool site catalog (`siteToolDeclarations.ts`) with direct, indirect, buried-in-long-text, multi-turn ("switch it back"), multi-call, and must-not-call requests, including a prompt injection in pasted text. Chat cases use the production local prompt layout and check grounded facts, hallucination traps, policy, and style. From `portfolio/`:
+`portfolio/scripts/local-llm/toolbench.ts` scores an OpenAI-compatible endpoint on 53 action cases, 32 chat-quality cases, and 27 multi-turn harness cases. The action suite uses the real 24-tool subset with direct, indirect, buried, multi-call and must-not-call requests. Chat cases use production prompt builders: `--layout local` keeps anchors/system stable and turn notes in the user message, `cloud` uses conditional system context and action-gated tools, and `browser` uses the on-device fact/history builder with no tools. Local/cloud chat replay uses the real seven-tool chat catalog, not the broader voice subset. Chat checks cover grounding, unknowns, topic changes, referential follow-ups, complete multi-part answers, untrusted facts, verified actions, discovery boundaries and concise plain prose; unintended calls fail even with a correct answer.
+
+The harness suite replays the production voice prompt/catalog with selective state fixtures and simulated actions, checking fresh-state grounding, relevant fetches, combined reads, conditional actions, injection resistance and confirmations. These are provider-prompt replays, not full route/signature/retry tests, native WebGPU generation, or native audio/transcription/Gemini Live transport coverage. From `portfolio/`:
 
 ```bash
 npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --base http://127.0.0.1:8080/v1 --label NAME [--think off|on|low|high] [--budget N] [--repeat N]
 npx tsx scripts/local-llm/toolbench.ts --compare tmp/toolbench/*.json
+npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --measure
+npx tsx scripts/local-llm/toolbench.ts --base http://127.0.0.1:8080/v1 --label harness --suite harness --repeat 3
+npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --base http://127.0.0.1:8080/v1 --suite chat --layout local --repeat 3 --label prompts-after
 ```
 
-October 2026 results (quality on a GPU with 2 repeats at each model's sampling; speed and time to first visible token on the VM):
+Use `LOCAL_AGENT_API_KEY` for authenticated endpoints and `--model` for the provider's model ID; `401`/`403` abort rather than being scored as model failures. Reports persist layout, per-case system/turn/tool/input bytes, actual serialized request bytes, provider token/cache usage, calls and answers alongside scores and timing. `--measure` runs offline across all three chat layouts; bytes are not tokenizer estimates. Invalid production calls, unnecessary fetches/actions, acting before a read result and loops beyond four model turns fail. Deterministic tests exercise graders, layout assembly, report comparisons and CLI failures against a scripted endpoint. They validate the eval machinery, not model quality.
+
+For A/B iterations, run the same case set, corpus, model, layout and sampling before/after, preferably with three repeats; compare reports and inspect failures alongside input bytes, cache usage and latency. Do not compare percentages across different case sets. Live quality scoring for these changes remains unverified because this checkout has no model credentials.
+
+November prompt compression, measured by executing the checked-in and updated assemblers with facts omitted to isolate instructions:
+
+| Payload | Before bytes | After bytes | Reduction |
+|---|---:|---:|---:|
+| Stable chat, no tools | 1,243 | 974 | 22% |
+| Stable chat, tools | 1,858 | 1,311 | 29% |
+| Project-turn guidance | 890 | 384 | 57% |
+| First puzzle-help guidance | 2,013 | 581 | 71% |
+| Voice rules | 1,838 | 1,643 | 11% |
+
+The stable cache boundary, per-turn length hints, action honesty and secret/submission safeguards remain. Browser retrieval now uses the latest topic first with the same bounded referential fallback as server retrieval. These are size and contract results, not evidence of improved live answers.
+
+October 2026 historical results, predating the current prompts/case set (quality on a GPU with 2 repeats at each model's sampling; speed and time to first visible token on the VM):
 
 | Model and mode | Tools | Chat | First visible token on VM |
 |---|---:|---:|---:|

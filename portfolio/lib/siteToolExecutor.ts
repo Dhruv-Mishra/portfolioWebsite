@@ -14,9 +14,9 @@ import {
   expectedPageContextAfterNavigate,
   expectedPageContextAfterOpenProject,
   readAuthoritativePathname,
+  readVoiceCurrentContext,
   withVoicePageContext,
 } from '@/lib/voiceCurrentContext';
-import { formatUserActionJournal } from '@/lib/userActionJournal';
 import {
   browseHistory,
   buildProjectHref,
@@ -162,7 +162,7 @@ async function lookupFacts(query: string): Promise<SiteToolResult> {
     }
     try {
       const payload = await response.json() as { spokenText?: string; data?: Record<string, unknown> };
-      return ok(payload.spokenText || 'Let me fetch that from the sketchbook.', payload.data);
+      return ok(payload.spokenText ?? '', payload.data);
     } catch {
       return fail('I could not read those facts just now.', 'facts-invalid');
     }
@@ -232,7 +232,6 @@ export async function executeSiteTool(
     }
     case 'open_project': {
       const slug = parsed.args.slug;
-      const nextAction = 'I can play, pause, mute, or unmute the preview if it has a video.';
       const pageContext = expectedPageContextAfterOpenProject(
         slug,
         buildVoiceCurrentPageContext({ runtime }),
@@ -243,7 +242,7 @@ export async function executeSiteTool(
           return withVoicePageContext(
             await resolveHostedResult(
               hosted,
-              ok('Queued that project to open.', { slug, accepted: true, nextAction }),
+              ok('Queued that project to open.', { slug, accepted: true }),
             ),
             pageContext,
           );
@@ -254,7 +253,6 @@ export async function executeSiteTool(
         ok('Opening that project.', {
           slug,
           accepted: true,
-          nextAction,
         }),
         pageContext,
       );
@@ -427,12 +425,7 @@ export async function executeSiteTool(
     case 'lookup_site_facts':
       return lookupFacts(parsed.args.query);
     case 'get_recent_user_context': {
-      const pageContext = buildVoiceCurrentPageContext({ runtime });
-      if (!pageContext) {
-        return fail('I could not read this page just now.', 'page-context-unavailable');
-      }
-      const recentActions = formatUserActionJournal();
-      return ok('Here is the recent user context.', { pageContext, recentActions });
+      return ok('', readVoiceCurrentContext(parsed.args.include, { runtime }));
     }
     case 'start_voice_session':
       if (commit) requestVoiceMode({ source: 'tool' });

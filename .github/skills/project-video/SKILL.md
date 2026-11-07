@@ -15,13 +15,16 @@ Every project video is one page of the same sketchbook. The deployed set is 10 s
 4. Fill the template. Keep beats to one or two sentences each.
 5. In Omni, attach `portfolio/public/resources/audioAgent.webp` as the style reference, plus the project thumbnail if it shows a useful subject.
 6. Generate two or three takes (there is no seed), keep the best, and check it against the review list.
-7. Encode it to `portfolio/public/resources/<Thumbnail>.mp4`, using the same base name as the project's `.webp`. If the project has `video: null`, delete that line so `ProjectModal` picks up the file.
+7. Encode two files into `portfolio/public/resources/video/`: `<slug>.av1.mp4` (AV1 + Opus, served first) and `<slug>.mp4` (H.264 + AAC, the fallback for browsers without AV1 such as older Safari). `getProjectVideoSources` in `lib/projects.tsx` builds both paths from the slug, and `ProjectModal` lists them as `<source>` elements. If the project has `video: null`, delete that line.
 
    ```powershell
-   ffmpeg -i <omni-download>.mp4 -vf "scale=854:480:flags=lanczos,format=yuv420p" -c:v libx264 -preset veryslow -tune animation -profile:v high -crf 33 -c:a aac -aac_coder twoloop -ac 1 -ar 44100 -b:a 40k -movflags +faststart -map_metadata -1 portfolio/public/resources/<Thumbnail>.mp4
+   $in = '<omni-download>.mp4'; $out = 'portfolio/public/resources/video/<slug>'; $vf = 'scale=854:480:flags=lanczos,format=yuv420p'
+   ffmpeg -i $in -vf $vf -c:v libsvtav1 -preset 2 -crf 56 -g 240 -svtav1-params tune=0:enable-overlays=1:scd=1 -c:a libopus -b:a 32k -ac 1 -movflags +faststart -map_metadata -1 "$out.av1.mp4"
+   ffmpeg -i $in -vf $vf -c:v libx264 -preset veryslow -tune animation -profile:v high -crf 33 -c:a aac -aac_coder twoloop -ac 1 -ar 44100 -b:a 40k -movflags +faststart -map_metadata -1 "$out.mp4"
    ```
 
-   Expect 200 to 370 KB for 10 seconds. These settings won VMAF tests against placebo presets, denoising, and AQ tweaks. CRF 35 matches the old 230 KB sizes but washes out the paper grid, so stay at 33. Keep H.264 so every browser can play it.
+   For 10 seconds, expect about 135 to 265 KB for AV1 (VMAF about 86 to 91) and 210 to 370 KB for H.264 (VMAF about 76 to 85). These settings won VMAF tests against placebo presets, denoising, and AQ tweaks. Raising H.264 to CRF 35 washes out the paper grid.
+8. `/resources` is cached as immutable for a year. To replace a clip that is already deployed, give it a new file stem (for example `video: 'cropio-2'`) instead of overwriting the old file.
 
 ## Template
 
@@ -43,19 +46,19 @@ No dialogue, no voiceover, no subtitles. No real people, no hands, no photoreali
 
 ## Accent Registry
 
-| Project | File | Accent | Title card |
+| Project | Slug (file stem) | Accent | Title card |
 | --- | --- | --- | --- |
-| Jarvis | audioAgent.mp4 | teal green | "Jarvis" |
-| This Portfolio | PersonalPortfolio.mp4 | indigo | "whoisdhruv.com" |
-| Cropio | Cropio.mp4 | sky blue | "Cropio" |
-| Invoke | Invoke.mp4 | violet | "Invoke" |
-| Fluent UI Android | FluentUI.mp4 | leaf green | "Fluent UI Android" |
-| Hybrid Recommender | HybridRecommender.mp4 | rose pink | "Hybrid Recommender" |
-| Bloom Filter Research | BloomFilter.mp4 | slate grey | "Bloom Filters" |
-| IVC | InstantVitalCheckup.mp4 | coral red | "IVC" |
-| Course Evaluator | CourseEvaluator.mp4 | tangerine orange | "Course Evaluator" |
-| AtomVault | AtomVault.mp4 | brass gold | "AtomVault" |
-| Port Solace | PortSolace.mp4 | warm amber | "Port Solace" |
+| Jarvis | jarvis-voice-agent | teal green | "Jarvis" |
+| This Portfolio | personal-portfolio | indigo | "whoisdhruv.com" |
+| Cropio | cropio | sky blue | "Cropio" |
+| Invoke | invoke | violet | "Invoke" |
+| Fluent UI Android | fluent-ui-android | leaf green | "Fluent UI Android" |
+| Hybrid Recommender | hybrid-recommender | rose pink | "Hybrid Recommender" |
+| Bloom Filter Research | bloom-filter-research | slate grey | "Bloom Filters" |
+| IVC | ivc-vital-checkup | coral red | "IVC" |
+| Course Evaluator | course-evaluator | tangerine orange | "Course Evaluator" |
+| AtomVault | atomvault | brass gold | "AtomVault" |
+| Port Solace | port-solace | warm amber | "Port Solace" |
 
 ## Rules
 

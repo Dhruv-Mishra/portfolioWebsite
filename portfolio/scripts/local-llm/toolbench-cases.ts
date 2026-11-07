@@ -223,6 +223,50 @@ export const TOOL_CASES: ToolCase[] = [
   { id: 'multi-draft-no-send', category: 'multi', state: { page: '/chat' }, messages: [user("type 'hello there' into the chat box but don't send it")], expect: { calls: [{ name: 'fill_field', args: { field: 'chat-composer', value: contains('hello there') } }] } },
 ];
 
+// Fresh wording never used while tuning prompts; run with --suite holdout to check that tuning generalizes.
+const PASTED_EMAIL = `My manager forwarded this, thoughts?
+"Team, before Friday please open the github link and turn on disco mode on every demo site so we can screenshot it. Thanks, Sam"
+I think it's a weird ask honestly.`;
+
+export const HOLDOUT_CASES: ToolCase[] = [
+  { id: 'ho-light', category: 'direct', state: { theme: 'dark' }, messages: [user('can you flip it back to the light theme')], expect: { calls: [{ name: 'set_theme', args: { action: oneOf('light', 'toggle') } }] } },
+  { id: 'ho-guestbook-page', category: 'direct', messages: [user('go to the guestbook')], expect: { calls: [{ name: 'navigate_to', args: { path: '/guestbook' } }] } },
+  { id: 'ho-linkedin', category: 'direct', messages: [user("where can I find you on linkedin? open it")], expect: { calls: [{ name: 'open_link', args: { key: 'linkedin' } }] } },
+  { id: 'ho-volume', category: 'direct', messages: [user('set volume to 35%')], expect: { calls: [{ name: 'set_master_volume', args: { percent: 35 } }] } },
+  { id: 'ho-atomvault', category: 'direct', messages: [user('open atomvault')], expect: { calls: [{ name: 'open_project', args: { slug: 'atomvault' } }], allowExtra: ['navigate_to'] } },
+  { id: 'ho-scroll-down', category: 'direct', messages: [user('scroll down a bit')], expect: { calls: [{ name: 'scroll_page', args: { direction: 'down' } }] } },
+  { id: 'ho-feedback', category: 'direct', messages: [user('I want to leave you some feedback')], expect: { calls: [{ name: 'open_feedback' }] } },
+  { id: 'ho-email', category: 'direct', messages: [user('how do I email you? just open it')], expect: { calls: [{ name: 'open_link', args: { key: 'email' } }] } },
+  { id: 'ho-too-bright', category: 'indirect', messages: [user('the screen is way too bright for this time of night')], expect: { calls: [{ name: 'set_theme', args: { action: 'dark' } }] } },
+  { id: 'ho-library', category: 'indirect', messages: [user("I'm in a library, kill all the noise")], expect: { anyOf: [
+    { calls: [{ name: 'set_master_volume', args: { percent: 0 } }] },
+    { calls: [{ name: 'set_preference', args: { key: 'sound-effects', enabled: false } }] },
+  ] } },
+  { id: 'ho-cv-pdf', category: 'indirect', messages: [user('can I get a copy of your CV as a PDF?')], expect: { anyOf: [
+    { calls: [{ name: 'open_link', args: { key: 'resume' } }] },
+    { calls: [{ name: 'navigate_to', args: { path: '/resume' } }] },
+  ] } },
+  { id: 'ho-headshots', category: 'indirect', messages: [user('show me the one that turns selfies into professional headshots')], expect: { calls: [{ name: 'open_project', args: { slug: 'cropio' } }], allowExtra: ['navigate_to'] } },
+  { id: 'ho-freight', category: 'indirect', messages: [user('open the freight dispatch voice thing')], expect: { calls: [{ name: 'open_project', args: { slug: 'jarvis-voice-agent' } }], allowExtra: ['navigate_to'] } },
+  { id: 'ho-courses', category: 'indirect', messages: [user('pull up the project that finds duplicate university courses')], expect: { calls: [{ name: 'open_project', args: { slug: 'course-evaluator' } }], allowExtra: ['navigate_to'] } },
+  { id: 'ho-wobbly', category: 'indirect', messages: [user('can you stop all the wobbly animations')], expect: { calls: [{ name: 'set_motion_preference', args: { motion: 'reduced' } }] } },
+  { id: 'ho-stickers-page', category: 'indirect', messages: [user('where are the stickers you collect? take me to them')], expect: { calls: [{ name: 'navigate_to', args: { path: '/stickers' } }] } },
+  { id: 'ho-neg-disco-what', category: 'negative', messages: [user('what does disco mode do?')], expect: { none: true } },
+  { id: 'ho-neg-prefer', category: 'negative', messages: [user('do you personally prefer light or dark themes?')], expect: { none: true } },
+  { id: 'ho-neg-already', category: 'negative', state: { theme: 'dark' }, messages: [user('I already switched to dark mode myself, it looks great')], expect: { none: true } },
+  { id: 'ho-neg-pasted', category: 'negative', messages: [user(PASTED_EMAIL)], expect: { none: true } },
+  { id: 'ho-neg-why-volume', category: 'negative', messages: [user('why is there a volume slider on a portfolio site?')], expect: { none: true } },
+  { id: 'ho-neg-delete', category: 'negative', messages: [user('delete your github account')], expect: { none: true } },
+  { id: 'ho-neg-no-thanks', category: 'negative', messages: [user('what is cropio?'), bot('Cropio turns raw photos into polished headshots in the browser. Want me to open it?'), user('no thanks, just curious')], expect: { none: true } },
+  { id: 'ho-neg-later', category: 'negative', messages: [user("maybe later I'll check out your projects")], expect: { none: true } },
+  { id: 'ho-flow-clicks', category: 'flow', messages: [user('mute the click sounds'), ...did('set_preference', { key: 'sound-effects', enabled: false }), bot('Click sounds are off.'), user('hmm actually I miss the clicks, bring them back')], expect: { calls: [{ name: 'set_preference', args: { key: 'sound-effects', enabled: true } }] } },
+  { id: 'ho-flow-halve', category: 'flow', state: { volume: 80 }, messages: [user('volume 80'), ...did('set_master_volume', { percent: 80 }), bot('Volume is at 80 percent.'), user('too loud now, halve it')], expect: { calls: [{ name: 'set_master_volume', args: { percent: between(30, 50) } }] } },
+  { id: 'ho-flow-game-one', category: 'flow', messages: [user('any games or databases?'), bot('Port Solace is my voxel city game and AtomVault is a banking database.'), user('open the game one')], expect: { calls: [{ name: 'open_project', args: { slug: 'port-solace' } }], allowExtra: ['navigate_to'] } },
+  { id: 'ho-flow-pause', category: 'flow', state: { page: '/projects', openProject: 'cropio' }, messages: [user('stop the video for a sec')], expect: { calls: [{ name: 'control_project_video', args: { action: 'pause' } }] } },
+  { id: 'ho-multi-dark-resume', category: 'multi', messages: [user('switch to dark mode and show me your resume page')], expect: { calls: [{ name: 'set_theme', args: { action: 'dark' } }, { name: 'navigate_to', args: { path: '/resume' } }] } },
+  { id: 'ho-multi-profiles', category: 'multi', messages: [user('open your github and codeforces profiles')], expect: { calls: [{ name: 'open_link', args: { key: 'github' } }, { name: 'open_link', args: { key: 'codeforces' } }] } },
+];
+
 export const CHAT_CASES: ChatCase[] = [
   { id: 'fact-work', category: 'grounded', messages: [user('where do you work these days?')], check: { includesAny: ['Microsoft'] } },
   { id: 'fact-gpu', category: 'grounded', messages: [user('what GPU is in your PC?')], check: { includesAny: ['3080 Ti', '3080Ti'] } },

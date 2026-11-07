@@ -52,6 +52,8 @@ interface ProviderCallResult {
 interface ProviderPrompt {
   system: OpenAI.Chat.Completions.ChatCompletionSystemMessageParam[];
   conversation: SanitizedChatMessage[];
+  /** Per-turn context sent as a system message after the visitor's latest message. */
+  trailingSystem?: string;
 }
 
 type ProviderFailureCode =
@@ -390,14 +392,15 @@ export async function POST(request: NextRequest) {
     // The conditional block (off-topic / UI / terminal / matrix overrides,
     // recent UI actions, retrieved facts) is emitted as a separate system
     // message, and only when non-empty.
-    // The CPU-hosted local model reuses its KV/recurrent state only from a checkpoint at a
-    // message boundary, so it gets one fixed system message (rules + anchor facts) and the
-    // per-turn context rides on the latest user message instead.
-    // Providers that take the site tools get a prompt that tells them to use them. The schema costs about
-    // 1k input tokens, so cloud models get it only on turns that could be a request; the local model always
-    // gets it because its cached system prefix must not change between turns.
-    const turnContextInUserMessage = isLocalModel;
-    const mightRequestAction = isLocalModel || hasActionIntent(latestUserMessage);
+    // The CPU-hosted local models resume only from a checkpoint llama.cpp takes at the latest user message,
+    // so their system message stays fixed (rules + anchor facts) and the per-turn context comes after it:
+    // inside the latest user message, or for LFM3 as a trailing system message it won't mistake for the visitor.
+    // Tool-capable providers get the tool prompt and schema (~1k tokens) only on turns that could be a request;
+    // llama.cpp's prompt cache keeps LFM3's tool and plain prefixes warm side by side. Qwen3.5 keeps the
+    // always-on schema it was benchmarked with.
+    const fixedSystemPrompt = isLocalModel;
+    const lfm3Layout = Boolean(providers[0].lfm3Layout);
+    const mightRequestAction = (isLocalModel && !lfm3Layout) || hasActionIntent(latestUserMessage);
     const offersTools = (provider: LLMProvider) => Boolean(provider.supportsTools) && mightRequestAction;
     const prompts = new Map<boolean, Promise<ProviderPrompt>>();
     const getPrompt = (siteTools: boolean): Promise<ProviderPrompt> => {
@@ -405,15 +408,18 @@ export async function POST(request: NextRequest) {
       if (!prompt) {
         prompt = buildDhruvSystemPromptParts(
           sanitized,
-          turnContextInUserMessage ? { factLimit: 6, anchorsInStable: true, siteTools } : { factLimit: 8, siteTools },
+          fixedSystemPrompt
+            ? { factLimit: 6, anchorsInStable: true, siteTools, localRules: lfm3Layout }
+            : { factLimit: 8, siteTools },
         ).then(({ stable, conditional }) => ({
           system: [
             { role: 'system' as const, content: stable },
-            ...(conditional && !turnContextInUserMessage ? [{ role: 'system' as const, content: conditional }] : []),
+            ...(conditional && !fixedSystemPrompt ? [{ role: 'system' as const, content: conditional }] : []),
           ],
-          conversation: turnContextInUserMessage && conditional
+          conversation: fixedSystemPrompt && conditional && !lfm3Layout
             ? withTurnContext(normalizedConversation, conditional)
             : normalizedConversation,
+          ...(lfm3Layout && conditional ? { trailingSystem: conditional } : {}),
         }));
         prompts.set(siteTools, prompt);
       }
@@ -458,6 +464,7 @@ export async function POST(request: NextRequest) {
             const apiMessages = [
               ...prompt.system,
               ...toProviderMessages(prompt.conversation, image ?? undefined, provider.imageInputOrder),
+              ...(prompt.trailingSystem ? [{ role: 'system' as const, content: prompt.trailingSystem }] : []),
             ];
             result = await callProvider(provider, apiMessages, routeSignal, attemptTimeoutMs, emitDelta, useTools);
             break providerLoop;
@@ -608,13 +615,17 @@ async function callProvider(
         ? foldSystemMessagesIntoFirstUser(messages)
         : collapseLeadingSystemMessages(messages);
       const client = createProviderClient(provider);
+      const reasoning = provider.sampling.reasoning?.[useTools ? 'tools' : 'plain'];
+      // The hidden trace and its forced closing cue count against max_tokens too.
+      const reasoningTokens = reasoning ? reasoning.tokens + 16 : 0;
       const params = {
         model: provider.model,
         messages: collapsedMessages,
         temperature: provider.sampling.temperature,
         ...(provider.sampling.topP !== undefined ? { top_p: provider.sampling.topP } : {}),
-        ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens } : {}),
+        ...(provider.sampling.maxTokens !== undefined ? { max_tokens: provider.sampling.maxTokens + reasoningTokens } : {}),
         ...provider.sampling.extraBody,
+        ...(reasoning ? { reasoning_budget_tokens: reasoning.tokens, reasoning_budget_message: reasoning.message } : {}),
         ...toolParams,
       };
       completion = stream

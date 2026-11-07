@@ -17,7 +17,7 @@ function createCrossOriginRequest(pathname: string, modelId?: string) {
 
 describe('public chat route aliases', () => {
   it('rejects cross-origin requests through both aliases', async () => {
-    await expect(publicChatPost(createCrossOriginRequest(CHAT_RESPONSE_ENDPOINT, 'qwen-3.5-4b-local'))).resolves.toMatchObject({ status: 403 });
+    await expect(publicChatPost(createCrossOriginRequest(CHAT_RESPONSE_ENDPOINT, 'lfm3-1.7b-local'))).resolves.toMatchObject({ status: 403 });
     await expect(publicSuggestionsPost(createCrossOriginRequest(CHAT_SUGGESTIONS_ENDPOINT))).resolves.toMatchObject({ status: 403 });
   });
 });

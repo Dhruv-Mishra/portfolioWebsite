@@ -1,6 +1,6 @@
 [Unit]
 Description=Local omni LLM (llama.cpp, text + image + audio input) API server
-# Shares the CPU with llm-server.service; llm-gateway admits one generation at a time across both.
+# Shares the CPU with the text servers; llm-gateway admits one generation at a time across all of them.
 After=network-online.target
 Wants=network-online.target
 

@@ -17,6 +17,8 @@ import type { ActionExecution } from '@/lib/actions';
 import {
   GROUNDING_BLOCK,
   IDENTITY_BLOCK,
+  LOCAL_REPLY_RULES,
+  LOCAL_TOOL_RULES,
   NEVER_INVENT_BLOCK,
   OFF_TOPIC_BLOCK,
   SITE_TOOLS_BLOCK,
@@ -106,6 +108,7 @@ const OFF_TOPIC_PATTERNS: readonly RegExp[] = [
 const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(open|show|see|view|check out|pull up|bring up|take me|go to|go back|head|navigate|visit|switch|toggle|turn|make it|set|change|enable|disable|launch|play|start|stop|exit|mute|unmute|sign|report|send|call|talk|speak)\b/i,
   /\b(dark|light|lights|bright|theme|disco|colou?rs?|sounds?|audio|volume|haptics|voice|guestbook|stickers?|settings|feedback|bug|page|home|link|links|cv|contact)\b/i,
+  /\b(loud|quiet|noise|noisy|clicks?|paper|grain|texture|animations?|motion)\b/i,
   /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
   /^\W*(yes|yeah|yep|sure|ok|okay|please|do it|go ahead)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
@@ -190,6 +193,8 @@ export interface BuildPromptOptions {
   anchorsInStable?: boolean;
   /** The provider receives the site action tools, so the prompt tells it to use them. */
   siteTools?: boolean;
+  /** Append the extra rules the self-hosted text model needs, last so they sit nearest the conversation. */
+  localRules?: boolean;
 }
 
 /**
@@ -285,8 +290,9 @@ export async function buildDhruvSystemPromptParts(
   conditionalSections.push(REPLY_LENGTH_HINT[classifyReplyLength(latestMessage)]);
 
   const stable = options.siteTools ? STABLE_TOOL_SYSTEM_PROMPT : STABLE_SYSTEM_PROMPT;
+  const localRules = options.localRules ? [...(options.siteTools ? [LOCAL_TOOL_RULES] : []), LOCAL_REPLY_RULES] : [];
   return {
-    stable: anchors?.text ? `${stable}\n\nRelevant facts:\n${anchors.text}` : stable,
+    stable: [stable, ...(anchors?.text ? [`Relevant facts:\n${anchors.text}`] : []), ...localRules].join('\n\n'),
     conditional: conditionalSections.join('\n\n'),
   };
 }

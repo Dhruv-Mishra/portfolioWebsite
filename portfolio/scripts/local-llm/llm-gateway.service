@@ -1,6 +1,6 @@
 [Unit]
-Description=Local LLM admission queue (in front of llm-server and llm-omni)
-After=network-online.target llm-server.service llm-omni.service
+Description=Local LLM admission queue (in front of the llama.cpp servers)
+After=network-online.target llm-server@qwen.service llm-server@lfm3.service llm-omni.service
 Wants=network-online.target
 
 [Service]

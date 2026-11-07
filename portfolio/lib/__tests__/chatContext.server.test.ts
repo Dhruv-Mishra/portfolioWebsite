@@ -11,6 +11,7 @@ import {
   STABLE_SYSTEM_PROMPT,
   STABLE_TOOL_SYSTEM_PROMPT,
 } from '@/lib/chatContext.server';
+import { LOCAL_REPLY_RULES, LOCAL_TOOL_RULES } from '@/lib/chatPromptBlocks';
 import type { ActionExecution } from '@/lib/actions';
 
 const { IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, UI_ACTION_BLOCK, TOOL_UI_ACTION_BLOCK, TERMINAL_RULES_BLOCK } = PROMPT_BLOCKS_FOR_TESTING;
@@ -49,6 +50,8 @@ describe('signal detection', () => {
     expect(hasActionIntent('can I see cropio')).toBe(true);
     expect(hasActionIntent('I want to sign the guestbook')).toBe(true);
     expect(hasActionIntent('mute the sounds')).toBe(true);
+    expect(hasActionIntent("this is way too loud, my roommate is asleep")).toBe(true);
+    expect(hasActionIntent('the paper texture behind everything is distracting')).toBe(true);
     expect(hasActionIntent('what do you do at microsoft')).toBe(false);
     expect(hasActionIntent('which companies have you worked at?')).toBe(false);
   });
@@ -233,6 +236,16 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     expect(withTools.conditional).not.toContain('did not go through');
     expect(withoutTools.stable).toBe(STABLE_SYSTEM_PROMPT);
     expect(withoutTools.conditional).toContain(UI_ACTION_BLOCK);
+  });
+
+  it('ends the local model prompt with its rules, adding the tool rules only when tools are offered', async () => {
+    const messages = [{ role: 'user', content: 'show me your projects' }];
+    const withTools = await buildDhruvSystemPromptParts(messages, { factsOverride: STUB_FACTS, siteTools: true, localRules: true });
+    const withoutTools = await buildDhruvSystemPromptParts(messages, { factsOverride: STUB_FACTS, localRules: true });
+
+    expect(withTools.stable).toBe(`${STABLE_TOOL_SYSTEM_PROMPT}\n\n${LOCAL_TOOL_RULES}\n\n${LOCAL_REPLY_RULES}`);
+    expect(withoutTools.stable).toBe(`${STABLE_SYSTEM_PROMPT}\n\n${LOCAL_REPLY_RULES}`);
+    expect(withTools.conditional).not.toContain(LOCAL_TOOL_RULES);
   });
 
   it('simple "hi" produces a materially shorter prompt than an action+terminal+off-topic query', async () => {

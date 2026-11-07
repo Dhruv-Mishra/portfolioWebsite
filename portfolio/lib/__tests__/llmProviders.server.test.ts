@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CHAT_MODELS } from '@/lib/chatModels';
-import { getChatModelRuntimeCatalog, getChatProviders, getSuggestionsProviders } from '@/lib/llmProviders.server';
+import { LFM3_REASONING, getChatModelRuntimeCatalog, getChatProviders, getSuggestionsProviders } from '@/lib/llmProviders.server';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -42,6 +42,7 @@ describe('getSuggestionsProviders', () => {
         { id: 'deepseek-v4.1-flash', provider: 'nvidia', available: true },
         { id: 'nemotron-3.5-super-vl-120b-a12b', provider: 'nvidia', available: true },
         { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
+        { id: 'lfm3-1.7b-local', provider: 'local', available: true },
         { id: 'lfm3-omni-local', provider: 'local', available: true },
       ],
       deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3.1-flash', 'qwen-3.5-4b-local'],
@@ -142,33 +143,53 @@ describe('getSuggestionsProviders', () => {
     ['https://llm.whoisdhruv.com/v1/', 'https://llm.whoisdhruv.com/v1'],
     ['https://llm.whoisdhruv.com/llm?discard=true#fragment', 'https://llm.whoisdhruv.com/llm/v1'],
     ['https://llm.whoisdhruv.com/llm/v1', 'https://llm.whoisdhruv.com/llm/v1'],
-  ])('uses the local Qwen3.5 agent with canonical base URL %s', (configuredBaseUrl, baseURL) => {
+  ])('uses the local LFM3 agent with canonical base URL %s', (configuredBaseUrl, baseURL) => {
     vi.stubEnv('GROQ_API_KEY', 'groq-key');
     vi.stubEnv('NVIDIA_API_KEY', 'nvidia-key');
     vi.stubEnv('LOCAL_AGENT_BASE_URL', configuredBaseUrl);
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
 
-    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({
+    expect(getChatProviders('lfm3-1.7b-local')).toEqual({
       primary: {
         kind: 'openai',
         apiKey: 'local-agent-key',
         baseURL,
-        model: 'Qwen3.5-4B',
-        modelId: 'qwen-3.5-4b-local',
-        label: 'local:Qwen3.5-4B',
+        model: 'LFM3-1.7B',
+        modelId: 'lfm3-1.7b-local',
+        label: 'local:LFM3-1.7B',
         supportsImages: false,
         supportsTools: true,
+        lfm3Layout: true,
         sampling: {
-          temperature: 0.3,
-          topP: 0.8,
+          temperature: 0,
           maxTokens: 512,
-          extraBody: {
-            top_k: 20,
-            chat_template_kwargs: { enable_thinking: false },
-          },
+          reasoning: LFM3_REASONING,
+          extraBody: { chat_template_kwargs: { enable_thinking: true } },
         },
       },
       fallbacks: [],
+    });
+  });
+
+  it('keeps the Qwen3.5 local agent on its non-thinking sampling', () => {
+    vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com');
+    vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
+
+    expect(getChatProviders('qwen-3.5-4b-local').primary).toEqual({
+      kind: 'openai',
+      apiKey: 'local-agent-key',
+      baseURL: 'https://llm.whoisdhruv.com/v1',
+      model: 'Qwen3.5-4B',
+      modelId: 'qwen-3.5-4b-local',
+      label: 'local:Qwen3.5-4B',
+      supportsImages: false,
+      supportsTools: true,
+      sampling: {
+        temperature: 0.3,
+        topP: 0.8,
+        maxTokens: 512,
+        extraBody: { top_k: 20, chat_template_kwargs: { enable_thinking: false } },
+      },
     });
   });
 
@@ -206,8 +227,8 @@ describe('getSuggestionsProviders', () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', configuredBaseUrl);
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
 
-    expect(() => getChatProviders('qwen-3.5-4b-local')).not.toThrow();
-    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
+    expect(() => getChatProviders('lfm3-1.7b-local')).not.toThrow();
+    expect(getChatProviders('lfm3-1.7b-local')).toEqual({ primary: null, fallbacks: [] });
   });
 
   it('uses the static local reply when either local agent variable is unavailable', () => {
@@ -216,11 +237,11 @@ describe('getSuggestionsProviders', () => {
     vi.stubEnv('LOCAL_AGENT_BASE_URL', 'https://llm.whoisdhruv.com/v1');
     vi.stubEnv('LOCAL_AGENT_API_KEY', '');
 
-    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
+    expect(getChatProviders('lfm3-1.7b-local')).toEqual({ primary: null, fallbacks: [] });
 
     vi.stubEnv('LOCAL_AGENT_API_KEY', 'local-agent-key');
     vi.stubEnv('LOCAL_AGENT_BASE_URL', '');
 
-    expect(getChatProviders('qwen-3.5-4b-local')).toEqual({ primary: null, fallbacks: [] });
+    expect(getChatProviders('lfm3-1.7b-local')).toEqual({ primary: null, fallbacks: [] });
   });
 });

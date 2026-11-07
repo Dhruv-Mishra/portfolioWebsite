@@ -39,6 +39,7 @@ describe('chat model status route', () => {
         { id: 'deepseek-v4.1-flash', provider: 'nvidia', available: true },
         { id: 'nemotron-3.5-super-vl-120b-a12b', provider: 'nvidia', available: true },
         { id: 'qwen-3.5-4b-local', provider: 'local', available: true },
+        { id: 'lfm3-1.7b-local', provider: 'local', available: true },
         { id: 'lfm3-omni-local', provider: 'local', available: true },
       ],
       deploymentCanaryModelIds: ['qwen-3.8-27b', 'minimax-m3.1-flash', 'qwen-3.5-4b-local'],

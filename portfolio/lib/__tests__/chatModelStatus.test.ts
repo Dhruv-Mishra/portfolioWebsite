@@ -28,9 +28,11 @@ describe('chat model status', () => {
   it('marks each local model healthy only while the gateway serves it', () => {
     const textOnly = { healthy: true, modelName: 'Qwen3.5-4B', models: ['Qwen3.5-4B', 'LFM3-1.7B'] };
     expect(isLocalChatModelHealthy(getChatModel('qwen-3.5-4b-local'), textOnly)).toBe(true);
+    expect(isLocalChatModelHealthy(getChatModel('lfm3-1.7b-local'), textOnly)).toBe(true);
+    expect(isLocalChatModelHealthy(getChatModel('lfm3-1.7b-local'), { ...textOnly, models: ['Qwen3.5-4B'] })).toBe(false);
     expect(isLocalChatModelHealthy(getChatModel('lfm3-omni-local'), textOnly)).toBe(false);
     expect(isLocalChatModelHealthy(getChatModel('lfm3-omni-local'), { ...textOnly, models: ['lfm3-omni-2b'] })).toBe(true);
-    expect(isLocalChatModelHealthy(getChatModel('qwen-3.5-4b-local'), { ...textOnly, healthy: false })).toBe(false);
+    expect(isLocalChatModelHealthy(getChatModel('lfm3-1.7b-local'), { ...textOnly, healthy: false })).toBe(false);
     expect(isLocalChatModelHealthy(getChatModel('qwen-3.8-27b'), textOnly)).toBe(false);
   });
 
@@ -42,7 +44,7 @@ describe('chat model status', () => {
   });
 
   it('uses catalog labels for display names', () => {
-    expect(getChatModelDisplayName(getChatModel('qwen-3.5-4b-local'))).toBe('Qwen3.5 4B');
+    expect(getChatModelDisplayName(getChatModel('lfm3-1.7b-local'))).toBe('LFM3 1.7B');
     expect(getChatModelDisplayName(getChatModel('qwen-3.8-27b'))).toBe('Qwen 3.8 27B');
     expect(getChatModelDisplayName(undefined)).toBe('');
   });

@@ -15,6 +15,7 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Added
 
+- AtomicChat's LFM3 1.7B Uncensored as a third local chat model, next to Qwen3.5 4B and LFM3 Omni 2B. Its Q6_K weights are served as Q8_0 from a clang llama.cpp build, which reads prompts 57% faster with no measurable quality loss, and it generates about 19 tokens/s against Qwen's 11. It always thinks briefly (up to 128 tokens when it has the site tools, 32 otherwise), takes per-turn notes as a system message after the visitor's message, and gets the site tools only when a message could be a request. On `toolbench` it scores about 79% on actions, 68% on chat and 90% on fresh-wording actions, against 84%, 84% and 95% for Qwen. Plain replies start after about 3.7 seconds and turns with tools after 8 to 10.
 - Invoke (voice-controlled coding agents) project card, fact, chat routing, and repo link.
 - Home hero names Dhruv Mishra and his role and links resume, projects, and email before the terminal.
 - Per-page Open Graph image and Twitter card on every route; About `ProfilePage` JSON-LD.
@@ -27,6 +28,7 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 ### Changed
 
 - Self-hosted text chat now runs Qwen3.5 4B (a Q4_0 mix with Q8_0 embeddings, tuned for the Arm VM) instead of LFM3 1.7B. On the new `toolbench` tool-calling and grounded-chat benchmark it scores about 89% on tool calls and 94% on chat, against 36% and 78%; first words arrive after about 4 seconds instead of 1.6.
+- The VM's text servers run from one `llm-server@` systemd template, one instance per model.
 - The first waiting note in chat appears after half a second instead of seven.
 - The local LLM gateway lists each upstream's configured model ids in order, so old aliases stay healthy after a model swap.
 - Local chat answers are shorter and more direct: tighter persona rules, a per-turn length hint, and intent-based `max_tokens` caps for local models. Provider text is preserved when a token limit is reached.
@@ -58,6 +60,7 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Fixed
 
+- Chat questions such as "how did you implement dark mode?" or "do you have a dark mode?" no longer switch the theme.
 - A streamed chat reply is no longer erased and replaced with a canned fallback when the provider fails mid-stream; the text already shown becomes the reply.
 - Portfolio project modal video: the file was misspelled `PersonalPorfolio.mp4`, so the derived `PersonalPortfolio.mp4` path 404'd.
 - Removed dead code and unreferenced public files (`MatrixNotesGate`, an unused adapter export, unused CSS, `og-default.png`, a duplicate favicon, a stale public README).

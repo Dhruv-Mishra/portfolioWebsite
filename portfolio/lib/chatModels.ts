@@ -79,6 +79,16 @@ export const CHAT_MODELS = [
     capabilities: ['fast'],
   },
   {
+    id: 'lfm3-1.7b-local',
+    provider: 'local',
+    group: 'Local agent',
+    upstreamModel: 'LFM3-1.7B',
+    label: 'LFM3 1.7B',
+    quality: 'Local agent',
+    supportsImages: false,
+    capabilities: ['fast'],
+  },
+  {
     id: 'lfm3-omni-local',
     provider: 'local',
     group: 'Local agent',

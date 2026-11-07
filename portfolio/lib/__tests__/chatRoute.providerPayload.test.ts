@@ -497,7 +497,7 @@ describe('chat route provider payload mapping', () => {
       apiKey: 'local-key',
       baseURL: 'https://llm.example/v1',
       model: 'LFM3-1.7B',
-      modelId: 'qwen-3.5-4b-local' as const,
+      modelId: 'lfm3-1.7b-local' as const,
       supportsImages: false,
       sampling: { temperature: 0.1, maxTokens: 512 },
     };
@@ -507,7 +507,7 @@ describe('chat route provider payload mapping', () => {
     });
     createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
 
-    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+    const response = await POST(createChatRequest(undefined, { model: 'lfm3-1.7b-local' }));
     const body = await response.json() as { reply: string; degraded: boolean };
 
     expect(localCreateMock).toHaveBeenCalledTimes(1);
@@ -517,28 +517,56 @@ describe('chat route provider payload mapping', () => {
     expect(body.reply).toContain('in a queue');
   });
 
-  it('sends local chat without health preflight and keeps one fixed system message', async () => {
+  it('sends local chat without health preflight, a fixed system message, and turn context after the visitor', async () => {
     const localProvider = {
       kind: 'openai' as const,
       label: 'Local agent',
       apiKey: 'local-key',
       baseURL: 'https://llm.example/v1',
       model: 'LFM3-1.7B',
-      modelId: 'qwen-3.5-4b-local' as const,
+      modelId: 'lfm3-1.7b-local' as const,
       supportsImages: false,
-      sampling: { temperature: 0.1, maxTokens: 512 },
+      lfm3Layout: true,
+      sampling: { temperature: 0, maxTokens: 512 },
     };
     getChatProvidersMock.mockReturnValue({ primary: localProvider, fallbacks: [] });
     const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'local reply' } }] }));
     createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
 
-    const response = await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+    const response = await POST(createChatRequest(undefined, { model: 'lfm3-1.7b-local' }));
 
     expect(getLocalAgentStatusMock).not.toHaveBeenCalled();
-    expect(response.headers.get('X-Chat-Fallback')).toBe('qwen-3.5-4b-local');
-    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, siteTools: false });
+    expect(response.headers.get('X-Chat-Fallback')).toBe('lfm3-1.7b-local');
+    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, siteTools: false, localRules: true });
     const payload = localCreateMock.mock.calls[0]?.[0] as { messages: Array<{ role: string; content: string }> };
     expect(payload.messages).toEqual([
+      { role: 'system', content: 'stable system prompt' },
+      { role: 'user', content: 'Tell me about your work' },
+      { role: 'system', content: 'conditional system prompt' },
+    ]);
+  });
+
+  it('keeps Qwen3.5 turn context inside the latest user message', async () => {
+    const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'local reply' } }] }));
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
+    getChatProvidersMock.mockReturnValue({
+      primary: {
+        kind: 'openai' as const,
+        label: 'Local agent',
+        apiKey: 'local-key',
+        baseURL: 'https://llm.example/v1',
+        model: 'Qwen3.5-4B',
+        modelId: 'qwen-3.5-4b-local' as const,
+        supportsImages: false,
+        sampling: { temperature: 0.3, maxTokens: 512 },
+      },
+      fallbacks: [],
+    });
+
+    await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
+
+    expect(buildPromptPartsMock).toHaveBeenCalledWith(expect.any(Array), { factLimit: 6, anchorsInStable: true, siteTools: false, localRules: false });
+    expect((localCreateMock.mock.calls[0]?.[0] as { messages: unknown[] }).messages).toEqual([
       { role: 'system', content: 'stable system prompt' },
       {
         role: 'user',
@@ -597,19 +625,23 @@ describe('chat route provider payload mapping', () => {
       ]);
     });
 
-    it('keeps the tool schema off plain questions for cloud models but always sends it to the local model', async () => {
+    it('sends the tool schema to cloud models and LFM3 only on turns that could be a request, and always to Qwen3.5', async () => {
       await POST(createChatRequest());
       expect(groqCreateMock.mock.calls[0]?.[0]).not.toHaveProperty('tools');
       expect(buildPromptPartsMock).toHaveBeenLastCalledWith(expect.any(Array), { factLimit: 8, siteTools: false });
 
       const localCreateMock = vi.fn<GroqCreate>(async () => ({ choices: [{ message: { content: 'local reply' } }] }));
       createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
-      getChatProvidersMock.mockReturnValue({
-        primary: { ...TOOL_PROVIDER, kind: 'openai', modelId: 'qwen-3.5-4b-local', supportsImages: false, imageInputOrder: undefined },
-        fallbacks: [],
-      });
+      const localProvider = { ...TOOL_PROVIDER, kind: 'openai', supportsImages: false, imageInputOrder: undefined };
+      getChatProvidersMock.mockReturnValue({ primary: { ...localProvider, modelId: 'lfm3-1.7b-local', lfm3Layout: true }, fallbacks: [] });
+      await POST(createChatRequest(undefined, { model: 'lfm3-1.7b-local' }));
+      expect(localCreateMock.mock.calls[0]?.[0]).not.toHaveProperty('tools');
+      await POST(actionRequest({ model: 'lfm3-1.7b-local' }));
+      expect(localCreateMock.mock.calls[1]?.[0]).toHaveProperty('tools');
+
+      getChatProvidersMock.mockReturnValue({ primary: { ...localProvider, modelId: 'qwen-3.5-4b-local' }, fallbacks: [] });
       await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
-      expect(localCreateMock.mock.calls[0]?.[0]).toHaveProperty('tools');
+      expect(localCreateMock.mock.calls[2]?.[0]).toHaveProperty('tools');
     });
 
     it('turns a text-free tool call into a signed action with its confirmation', async () => {
@@ -685,7 +717,7 @@ describe('chat route provider payload mapping', () => {
         apiKey: 'local-key',
         baseURL: 'https://llm.example/v1',
         model: 'LFM3-1.7B',
-        modelId: 'qwen-3.5-4b-local' as const,
+        modelId: 'lfm3-1.7b-local' as const,
         supportsImages: false,
         sampling: { temperature: 0.1, maxTokens: 512 },
       },
@@ -697,7 +729,7 @@ describe('chat route provider payload mapping', () => {
     const latest = 'Got it, short answers from here.';
 
     await POST(createChatRequest(undefined, {
-      model: 'qwen-3.5-4b-local',
+      model: 'lfm3-1.7b-local',
       messages: [
         { role: 'user', content: 'From now on, keep it to the point' },
         { role: 'assistant', content: older, signature: signAssistantMessage(older, null) },
@@ -716,7 +748,7 @@ describe('chat route provider payload mapping', () => {
     ]);
   });
 
-  it('caps local output by question shape without discarding provider text', async () => {
+  it('caps local output by question shape plus the reasoning budget without discarding provider text', async () => {
     getChatProvidersMock.mockReturnValue({
       primary: {
         kind: 'openai' as const,
@@ -724,9 +756,13 @@ describe('chat route provider payload mapping', () => {
         apiKey: 'local-key',
         baseURL: 'https://llm.example/v1',
         model: 'LFM3-1.7B',
-        modelId: 'qwen-3.5-4b-local' as const,
+        modelId: 'lfm3-1.7b-local' as const,
         supportsImages: false,
-        sampling: { temperature: 0.1, maxTokens: 512 },
+        sampling: {
+          temperature: 0,
+          maxTokens: 512,
+          reasoning: { tools: { tokens: 96, message: 'decide' }, plain: { tokens: 32, message: 'answer' } },
+        },
       },
       fallbacks: [],
     });
@@ -736,12 +772,16 @@ describe('chat route provider payload mapping', () => {
     createProviderClientMock.mockReturnValue({ chat: { completions: { create: localCreateMock } } });
 
     const response = await POST(createChatRequest(undefined, {
-      model: 'qwen-3.5-4b-local',
+      model: 'lfm3-1.7b-local',
       messages: [{ role: 'user', content: 'hey!' }],
     }));
     const body = await response.json() as { reply: string };
 
-    expect((localCreateMock.mock.calls[0] as unknown[])[0]).toMatchObject({ max_tokens: 80 });
+    expect((localCreateMock.mock.calls[0] as unknown[])[0]).toMatchObject({
+      max_tokens: 80 + 32 + 16,
+      reasoning_budget_tokens: 32,
+      reasoning_budget_message: 'answer',
+    });
     expect(body.reply).toBe('Hey there! Ask me about my projects and I can also tell you about.');
   });
 
@@ -828,7 +868,7 @@ describe('chat route provider payload mapping', () => {
 
   it('rejects images for a text-only model', async () => {
     const response = await POST(createChatRequest(undefined, {
-      model: 'qwen-3.5-4b-local',
+      model: 'lfm3-1.7b-local',
       image: { dataUrl: 'data:image/png;base64,aGVsbG8=' },
     }));
 

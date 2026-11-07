@@ -1,7 +1,9 @@
 [Unit]
-Description=Local LLM (llama.cpp) API server
-# Qwen3.5 is hybrid (Gated DeltaNet + full attention), so llama.cpp resumes only from saved checkpoints;
-# the chat route keeps the system message fixed so the checkpoint at its end is reused on every turn.
+Description=Local LLM (llama.cpp) text server %i
+# One instance per /etc/llm/llm-server-<name>.env (model, aliases, port, model-specific flags in LLM_ARGS).
+# Qwen3.5 and LFM3 are hybrid models, so llama.cpp resumes only from checkpoints, which it takes at the latest
+# user message. The chat route keeps the system message fixed so that checkpoint covers the whole system prefix,
+# and --cache-ram keeps the with-tools and plain prefixes cached side by side.
 After=network-online.target
 Wants=network-online.target
 
@@ -10,39 +12,37 @@ Type=simple
 User=llm
 Group=llm
 WorkingDirectory=/opt/llm
-EnvironmentFile=/etc/llm/llm-server.env
+EnvironmentFile=/etc/llm/llm-server-%i.env
 Environment=LD_LIBRARY_PATH=/opt/llm/bin
 Environment=MALLOC_ARENA_MAX=2
 Environment=OMP_PROC_BIND=close
 Environment=OMP_PLACES=cores
+# One slot gives the lowest mean latency: prompt processing is CPU-bound, so extra slots only split the cores.
 ExecStart=/opt/llm/bin/llama-server \
     --model ${LLM_MODEL} \
     --alias ${LLM_ALIASES} \
     --host 127.0.0.1 \
-    --port 8080 \
+    --port ${LLM_PORT} \
     --api-key-file /etc/llm/api-key \
-    --parallel ${LLM_SLOTS} \
-    --ctx-size ${LLM_CTX} \
+    --parallel 1 \
+    --ctx-size 8192 \
     --threads 4 \
     --threads-batch 4 \
     --batch-size 2048 \
-    --ubatch-size ${LLM_UBATCH} \
+    --ubatch-size 512 \
     --flash-attn on \
-    --cache-type-k ${LLM_KV_TYPE} \
-    --cache-type-v ${LLM_KV_TYPE} \
+    --cache-type-k f16 \
+    --cache-type-v f16 \
     --load-mode mmap+mlock \
     --cache-ram 2048 \
     --cont-batching \
     --jinja \
-    --reasoning off \
-    --temp 0.3 \
-    --top-p 0.8 \
-    --top-k 20 \
     --n-predict 512 \
     --metrics \
     --no-slots \
     --no-webui \
-    --timeout 600
+    --timeout 600 \
+    $LLM_ARGS
 Restart=always
 RestartSec=3s
 TimeoutStartSec=5min

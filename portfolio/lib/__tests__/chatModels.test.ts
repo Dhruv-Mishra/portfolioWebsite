@@ -22,22 +22,23 @@ describe('chat model catalog', () => {
       supportsImages: true,
       isRecommended: true,
     });
-    expect(CHAT_MODELS).toHaveLength(7);
+    expect(CHAT_MODELS).toHaveLength(8);
     expect(CHAT_MODELS.map((model) => model.upstreamModel)).toEqual([
       'qwen/qwen3.8-27b',
       'minimaxai/minimax-m3.1-flash',
       'deepseek-ai/deepseek-v4.1-flash',
       'nvidia/nemotron-3.5-super-vl-120b-a12b',
       'Qwen3.5-4B',
+      'LFM3-1.7B',
       'LFM3-Omni-2B',
       'daveycodez/LFM3-1.7B-Web',
     ]);
-    expect(getChatModel('qwen-3.5-4b-local')).toEqual({
-      id: 'qwen-3.5-4b-local',
+    expect(getChatModel('lfm3-1.7b-local')).toEqual({
+      id: 'lfm3-1.7b-local',
       provider: 'local',
       group: 'Local agent',
-      upstreamModel: 'Qwen3.5-4B',
-      label: 'Qwen3.5 4B',
+      upstreamModel: 'LFM3-1.7B',
+      label: 'LFM3 1.7B',
       quality: 'Local agent',
       supportsImages: false,
       capabilities: ['fast'],
@@ -56,9 +57,10 @@ describe('chat model catalog', () => {
     });
   });
 
-  it('identifies both local agent models', () => {
+  it('identifies the local agent models', () => {
     expect(CHAT_MODELS.filter((model) => isLocalChatModelId(model.id)).map((model) => model.id)).toEqual([
       'qwen-3.5-4b-local',
+      'lfm3-1.7b-local',
       'lfm3-omni-local',
     ]);
     expect(isLocalChatModelId('qwen-3.8-27b')).toBe(false);
@@ -68,6 +70,7 @@ describe('chat model catalog', () => {
     expect(isChatModelId('llama-3.1-8b-instant')).toBe(false);
     expect(isChatModelId('diffusiongemma-26b')).toBe(false);
     expect(isChatModelId('qwen-3.8-27b')).toBe(true);
+    expect(isChatModelId('lfm3-1.7b-local')).toBe(true);
     expect(isChatModelId('qwen-3.5-4b-local')).toBe(true);
   });
 
@@ -91,6 +94,7 @@ describe('chat model catalog', () => {
       'deepseek-v4.1-flash': ['fast', 'image'],
       'nemotron-3.5-super-vl-120b-a12b': ['reasoning', 'image', 'slow'],
       'qwen-3.5-4b-local': ['fast'],
+      'lfm3-1.7b-local': ['fast'],
       'lfm3-omni-local': ['image', 'slow'],
       'on-device': ['slow'],
     });
@@ -113,6 +117,7 @@ describe('chat model catalog', () => {
       'deepseek-v4.1-flash': 'text-first',
       'nemotron-3.5-super-vl-120b-a12b': 'text-first',
       'qwen-3.5-4b-local': null,
+      'lfm3-1.7b-local': null,
       'lfm3-omni-local': 'image-first',
       'on-device': null,
     });

@@ -29,11 +29,11 @@ The request path has three bounded tiers:
 
 1. Deterministic intent routing handles approved website actions without an LLM call.
 2. Deterministic project lookup handles known project explanations without an LLM call.
-3. The configured provider handles everything else. Tool-capable models (Groq Qwen, the NVIDIA models, and the local Qwen3.5 4B) also receive seven site tools from [chatTools.ts](../portfolio/lib/chatTools.ts): `navigate_to`, `set_theme`, `open_project`, `open_link`, `open_feedback`, `set_preference`, and `start_voice_session`.
+3. The configured provider handles everything else. Tool-capable models (Groq Qwen, the NVIDIA models, and the local Qwen3.5 4B and LFM3 1.7B) also receive seven site tools from [chatTools.ts](../portfolio/lib/chatTools.ts): `navigate_to`, `set_theme`, `open_project`, `open_link`, `open_feedback`, `set_preference`, and `start_voice_session`.
 
 Tool calls never execute directly. The route collects them from the streamed or plain response, parses each with the voice agent's validators, and merges them into one `ActionExecution` that must pass the same allowlist as router actions; invalid or conflicting calls are dropped. The action is signed with the reply and executes in the browser in a fixed order. A call without text gets the action's canned confirmation.
 
-The schema costs about 1,000 input tokens, so cloud models receive it only when the latest message could be a request (verbs such as open, show, see, switch, mute, or site nouns such as theme, guestbook, resume). The local model always receives it, because its cached system prefix must stay identical between turns. Models without tools (LFM3 Omni) are told they cannot change the site. A provider that rejects the request with 400 or 422 is retried once without tools.
+The schema costs about 1,000 input tokens, so cloud models and the local LFM3 receive it only when the latest message could be a request (verbs such as open, show, see, switch, mute, or site nouns such as theme, guestbook, resume); LFM3's server keeps both the plain and the tools prefix in its prompt cache, so switching between them does not re-read either. The local Qwen3.5 always receives it, as it was benchmarked. Models without tools (LFM3 Omni) are told they cannot change the site. A provider that rejects the request with 400 or 422 is retried once without tools.
 
 Approved capabilities now include:
 

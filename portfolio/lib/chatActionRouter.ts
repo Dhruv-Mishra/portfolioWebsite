@@ -23,6 +23,8 @@ const EXPLANATION_PATTERNS = [
   /\bwhat does\b/i,
   /\bhow does\b/i,
   /\bhow do(?:es)?\b/i,
+  /\bhow did\b/i,
+  /\bdo you have\b/i,
   /\bwhy\b/i,
   /\bcompare\b/i,
   /\bexplain\b/i,
@@ -409,7 +411,7 @@ function resolveSingleChatIntent(normalized: string): ChatIntentResolution | nul
     return navigation;
   }
 
-  const theme = resolveTheme(normalized);
+  const theme = isExplanationRequest(normalized) ? null : resolveTheme(normalized);
   if (theme) {
     return theme;
   }

@@ -29,13 +29,26 @@ export interface LLMProvider {
   acceptsSystemMessages?: boolean;
   /** Receives the site action tools (see lib/chatTools.ts). */
   supportsTools?: boolean;
+  /**
+   * Self-hosted LFM3 text layout: local rules in the cached system prompt, and per-turn context in a system
+   * message after the visitor's message so llama.cpp's checkpoint at that message covers the whole prefix.
+   */
+  lfm3Layout?: boolean;
   sampling: {
     temperature: number;
     topP?: number;
     maxTokens?: number;
     maxCompletionTokens?: number;
+    /** llama.cpp reasoning budget per request kind; the route adds it to the visible-reply cap. */
+    reasoning?: Readonly<Record<'tools' | 'plain', ReasoningBudget>>;
     extraBody?: Record<string, unknown>;
   };
+}
+
+export interface ReasoningBudget {
+  tokens: number;
+  /** Forced, one token per decode step, to close the trace: keep it short. */
+  message: string;
 }
 
 export interface ChatProviders {
@@ -60,6 +73,35 @@ const MAIN_STOP = ['\n\n\n', '\nUser:', '\nAssistant:'];
 const MAIN_CHAT_MAX_TOKENS = 512;
 const REASONING_CHAT_MAX_TOKENS = 2048;
 const SUGGESTIONS_MAX_TOKENS = 512;
+
+// LFM3 is trained to reason before it acts; with thinking off it writes a draft, `</think>`, then the answer.
+// On toolbench a capped trace closed by a short cue scored close to unbudgeted thinking, and turns without
+// tools lost nothing with 32 tokens.
+export const LFM3_REASONING = {
+  tools: { tokens: 128, message: '\nDecide: act only on a direct request.\n' },
+  plain: { tokens: 32, message: '\nAnswer now.\n' },
+} as const satisfies Record<'tools' | 'plain', ReasoningBudget>;
+
+// Qwen3.5 4B scored best on toolbench with thinking off at temperature 0.3; the LFM3 models are greedy, as LiquidAI advises.
+const LOCAL_SAMPLING: Record<LocalChatModelId, LLMProvider['sampling']> = {
+  'qwen-3.5-4b-local': {
+    temperature: 0.3,
+    topP: 0.8,
+    maxTokens: 512,
+    extraBody: { top_k: 20, chat_template_kwargs: { enable_thinking: false } },
+  },
+  'lfm3-1.7b-local': {
+    temperature: 0,
+    maxTokens: 512,
+    reasoning: LFM3_REASONING,
+    extraBody: { chat_template_kwargs: { enable_thinking: true } },
+  },
+  'lfm3-omni-local': {
+    temperature: 0,
+    maxTokens: 512,
+    extraBody: { chat_template_kwargs: { enable_thinking: false } },
+  },
+};
 
 function getGroqQwenProvider(): LLMProvider | null {
   const apiKey = process.env.GROQ_API_KEY;
@@ -107,24 +149,10 @@ function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
     label: `local:${model.upstreamModel}`,
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
-    // Qwen3.5 4B scored 87-90% on toolbench tool calls; the 2B omni model is not reliable enough to act on its calls.
+    // The omni model is not reliable enough to act on its calls.
     supportsTools: !model.supportsImages,
-    // Greedy for the omni model (LiquidAI's advice); Qwen3.5 text scored best on toolbench with thinking off at temperature 0.3.
-    sampling: model.supportsImages
-      ? {
-          temperature: 0,
-          maxTokens: 512,
-          extraBody: { chat_template_kwargs: { enable_thinking: false } },
-        }
-      : {
-          temperature: 0.3,
-          topP: 0.8,
-          maxTokens: 512,
-          extraBody: {
-            top_k: 20,
-            chat_template_kwargs: { enable_thinking: false },
-          },
-        },
+    ...(model.id === 'lfm3-1.7b-local' ? { lfm3Layout: true } : {}),
+    sampling: LOCAL_SAMPLING[model.id],
   };
 }
 

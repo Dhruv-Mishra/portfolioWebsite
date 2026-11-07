@@ -128,6 +128,8 @@ describe('resolveChatIntent — theme intents', () => {
   });
 
   it('does NOT trigger on casual mentions of dark/light', () => {
+    check('how did you implement dark mode?', { kind: 'null' });
+    check('do you have a dark mode?', { kind: 'null' });
     check('it is dark outside', { kind: 'null' });
     check('I love dark chocolate', { kind: 'null' });
     check('the lights are off', { kind: 'null' });

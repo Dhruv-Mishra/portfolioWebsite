@@ -1,11 +1,13 @@
 // Tool-calling and grounded-chat benchmark for OpenAI-compatible llama.cpp endpoints.
-// Run:     npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --base http://127.0.0.1:8090/v1 --label NAME
+// Run:     npx tsx --conditions=react-server scripts/local-llm/toolbench.ts --base http://127.0.0.1:8090/v1 --label NAME [--profile lfm3]
 // Compare: npx tsx scripts/local-llm/toolbench.ts --compare tmp/toolbench/a.json tmp/toolbench/b.json
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { CHAT_CASES, HARNESS_CASES, TOOL_CASES, type ChatCase, type HarnessCase, type Msg, type PageState, type ToolCase } from './toolbench-cases';
+import { CHAT_CASES, HARNESS_CASES, HOLDOUT_CASES, TOOL_CASES, type ChatCase, type HarnessCase, type Msg, type PageState, type ToolCase } from './toolbench-cases';
 import { describeCalls, gradeChat, gradeTools, type ToolCall } from './toolbench-grading';
+import { LOCAL_REPLY_RULES, LOCAL_TOOL_RULES } from '@/lib/chatPromptBlocks';
+import { LFM3_REASONING } from '@/lib/llmProviders.server';
 import { parseSiteToolCall } from '@/lib/siteToolValidation';
 import { VOICE_LIVE_TOOL_DECLARATIONS } from '@/lib/siteToolDeclarations';
 import { buildVoiceSystemInstruction } from '@/lib/voiceAgentPrompt';
@@ -21,6 +23,9 @@ const { values: opts, positionals } = parseArgs({
     label: { type: 'string' },
     suite: { type: 'string', default: 'tools,chat,harness' },
     layout: { type: 'string', default: 'local' },
+    // lfm3: the production settings for the self-hosted LFM3 text model (rules, turn context after the visitor's
+    // message, capped thinking, tools only on intent); overrides --think and --budget.
+    profile: { type: 'string', default: 'none' },
     measure: { type: 'boolean', default: false },
     // off | on (template default effort) | low | high
     think: { type: 'string', default: 'off' },
@@ -67,22 +72,28 @@ function sampling(): Record<string, number> {
   return out;
 }
 
+const LFM3 = opts.profile === 'lfm3';
+const THINKING = LFM3 || opts.think !== 'off';
 const BUDGET = Number(opts.budget);
-const THINKING = opts.think !== 'off';
+// Without a profile both request kinds share --budget; production gives turns without tools a smaller one.
+const REASONING = LFM3 ? LFM3_REASONING : { tools: { tokens: BUDGET, message: opts['budget-msg']! }, plain: { tokens: BUDGET, message: opts['budget-msg']! } };
+const LOCAL_RULES = LFM3 ? `\n\n${LOCAL_TOOL_RULES}\n\n${LOCAL_REPLY_RULES}` : '';
 const NO_TIMING: Timing = { promptN: 0, promptMs: 0, cacheN: 0, genN: 0, genMs: 0, wallMs: 0, thinkN: 0, ttfvMs: 0, inputBytes: 0, requests: 0 };
 
-function thinkingBody(): Record<string, unknown> {
+function thinkingBody(withTools: boolean): Record<string, unknown> {
   if (!THINKING) return { chat_template_kwargs: { enable_thinking: false } };
+  const { tokens, message } = REASONING[withTools ? 'tools' : 'plain'];
   return {
-    chat_template_kwargs: { enable_thinking: true, ...(opts.think === 'on' ? {} : { reasoning_effort: opts.think }) },
-    ...(BUDGET >= 0 ? { reasoning_budget_tokens: BUDGET, reasoning_budget_message: opts['budget-msg'] } : {}),
+    chat_template_kwargs: { enable_thinking: true, ...(LFM3 || opts.think === 'on' ? {} : { reasoning_effort: opts.think }) },
+    ...(tokens >= 0 ? { reasoning_budget_tokens: tokens, reasoning_budget_message: message } : {}),
   };
 }
 
-/** Output-token headroom for hidden reasoning on top of the visible reply cap. */
-function thinkingHeadroom(): number {
+/** Output-token headroom for hidden reasoning on top of the visible reply cap, as the route adds it. */
+function thinkingHeadroom(withTools = true): number {
   if (!THINKING) return 0;
-  return BUDGET >= 0 ? BUDGET + 16 : 2048;
+  const { tokens } = REASONING[withTools ? 'tools' : 'plain'];
+  return tokens >= 0 ? tokens + 16 : 2048;
 }
 
 async function countTokens(text: string): Promise<number> {
@@ -107,7 +118,7 @@ class ModelAccessError extends Error {}
 
 async function complete(body: Record<string, unknown>): Promise<{ json: Completion; timing: Timing }> {
   const started = performance.now();
-  const requestBody = JSON.stringify({ model: opts.model, stream: false, ...sampling(), ...thinkingBody(), ...body });
+  const requestBody = JSON.stringify({ model: opts.model, stream: false, ...sampling(), ...thinkingBody(Array.isArray(body.tools) && body.tools.length > 0), ...body });
   const response = await fetch(`${opts.base}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(opts.key ? { Authorization: `Bearer ${opts.key}` } : {}) },
@@ -147,6 +158,7 @@ async function complete(body: Record<string, unknown>): Promise<{ json: Completi
 function withTurnContext(messages: Msg[], context: string): Msg[] {
   const last = messages.at(-1);
   if (!last || last.role !== 'user') return messages;
+  if (LFM3) return [...messages, { role: 'system', content: context }];
   return [...messages.slice(0, -1), { role: 'user', content: `${TURN_CONTEXT_HEADER}\n${context}\n\n${TURN_MESSAGE_HEADER}\n${last.content}` }];
 }
 
@@ -191,7 +203,7 @@ async function runToolSuite(cases: ToolCase[]): Promise<SuiteResult> {
   const { IDENTITY_BLOCK, SITE_TOOLS_BLOCK } = await import('@/lib/chatPromptBlocks');
   const { PROJECT_INDEX } = await import('@/lib/chatTools');
   const tools = SITE_TOOL_DECLARATIONS.filter(tool => !EXCLUDED_TOOLS.has(tool.name)).map(tool => ({ type: 'function', function: tool }));
-  const system = [IDENTITY_BLOCK, SITE_TOOLS_BLOCK, `Projects (slug: what it is):\n${PROJECT_INDEX}`].join('\n\n');
+  const system = [IDENTITY_BLOCK, SITE_TOOLS_BLOCK, `Projects (slug: what it is):\n${PROJECT_INDEX}`].join('\n\n') + LOCAL_RULES;
   const maxTokens = 256 + thinkingHeadroom();
   await complete({ messages: [{ role: 'system', content: system }, { role: 'user', content: 'hi' }], tools, max_tokens: 1 });
   const results: CaseResult[] = [];
@@ -236,12 +248,13 @@ async function prepareChatCase(testCase: ChatCase, layout: ChatLayout) {
   } else {
     const { buildDhruvSystemPromptParts, hasActionIntent } = await import('@/lib/chatContext.server');
     const { CHAT_TOOLS } = await import('@/lib/chatTools');
-    const siteTools = layout === 'local' || hasActionIntent(latest);
+    const siteTools = (layout === 'local' && !LFM3) || hasActionIntent(latest);
     tools = siteTools ? CHAT_TOOLS : [];
     const parts = await buildDhruvSystemPromptParts(shaped, {
       factLimit: layout === 'local' ? 6 : 8,
       anchorsInStable: layout === 'local' && facts === undefined,
       siteTools,
+      localRules: layout === 'local' && LFM3,
       ...(facts === undefined ? {} : { factsOverride: allFacts ? '' : facts }),
     });
     system = allFacts ? `${parts.stable}\n\nRelevant facts:\n${facts}` : parts.stable;
@@ -253,7 +266,7 @@ async function prepareChatCase(testCase: ChatCase, layout: ChatLayout) {
   }
   const input = { messages, ...(tools.length ? { tools, tool_choice: 'auto' } : {}) };
   return {
-    body: { ...input, max_tokens: REPLY_TOKEN_CAP[length] + thinkingHeadroom() },
+    body: { ...input, max_tokens: REPLY_TOKEN_CAP[length] + thinkingHeadroom(tools.length > 0) },
     length,
     prompt: {
       systemBytes: Buffer.byteLength(system), turnBytes: Buffer.byteLength(conditional),
@@ -289,7 +302,7 @@ async function runChatSuite(cases: ChatCase[]): Promise<SuiteResult> {
 
 async function runHarnessSuite(cases: HarnessCase[]): Promise<SuiteResult> {
   const tools = VOICE_LIVE_TOOL_DECLARATIONS.map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.parameters } }));
-  const system = buildVoiceSystemInstruction(stateBlock(undefined));
+  const system = buildVoiceSystemInstruction(stateBlock(undefined)) + LOCAL_RULES;
   const results: CaseResult[] = [];
   let stateBytes = 0;
   let reads = 0;
@@ -406,7 +419,7 @@ async function compare(files: string[]): Promise<void> {
     r.suites.chat = summarize(r.suites.chat.cases);
   }
   const categories = [...new Set(results.flatMap(r => Object.values(r.suites).flatMap(s => Object.keys(s.byCategory))))];
-  const header = ['label', 'layout', 'tools', 'chat', 'harness', 'tool bytes', 'input bytes/call', 'chat input p50', 'state bytes/read', ...categories, 'prefill t/s', 'decode t/s', 'think p50', 'TTFT p50 s', 'TTFV p50 s', 'TTFV p90 s', 'wall p50 s'];
+  const header = ['label', 'layout', 'tools', 'chat', 'harness', 'holdout', 'tool bytes', 'input bytes/call', 'chat input p50', 'state bytes/read', ...categories, 'prefill t/s', 'decode t/s', 'think p50', 'TTFT p50 s', 'TTFV p50 s', 'TTFV p90 s', 'wall p50 s'];
   console.log(`| ${header.join(' | ')} |\n|${header.map(() => '---').join('|')}|`);
   for (const r of results) {
     const p = perf(r);
@@ -417,7 +430,7 @@ async function compare(files: string[]): Promise<void> {
     const context = r.suites.harness?.context;
     const stateBytes = context?.reads ? Math.round(context.responseBytes / context.reads) : '-';
     const chatBytes = r.suites.chat?.cases.flatMap(test => test.prompt ? [test.prompt.inputBytes] : []) ?? [];
-    console.log(`| ${[r.label, r.chatLayout ?? 'legacy', pct(r.suites.tools), pct(r.suites.chat), pct(r.suites.harness), r.harnessSize?.toolBytes ?? '-', p.inputBytes || '-', chatBytes.length ? percentile(chatBytes, 0.5) : '-', stateBytes, ...cats, p.prefill.toFixed(0), p.decode.toFixed(1), p.thinkP50, p.ttftP50.toFixed(2), p.ttfvP50.toFixed(2), p.ttfvP90.toFixed(2), p.wallP50.toFixed(2)].join(' | ')} |`);
+    console.log(`| ${[r.label, r.chatLayout ?? 'legacy', pct(r.suites.tools), pct(r.suites.chat), pct(r.suites.harness), pct(r.suites.holdout), r.harnessSize?.toolBytes ?? '-', p.inputBytes || '-', chatBytes.length ? percentile(chatBytes, 0.5) : '-', stateBytes, ...cats, p.prefill.toFixed(0), p.decode.toFixed(1), p.thinkP50, p.ttftP50.toFixed(2), p.ttfvP50.toFixed(2), p.ttfvP90.toFixed(2), p.wallP50.toFixed(2)].join(' | ')} |`);
   }
 }
 
@@ -447,18 +460,19 @@ async function main(): Promise<void> {
     return selected;
   };
   const props: { model_path?: string } = await fetch(opts.base.replace(/\/v1\/?$/, '') + '/props').then(r => (r.ok ? r.json() : {})).catch(() => ({}));
-  const result: BenchResult = { label: opts.label, base: opts.base, think: opts.think!, budget: BUDGET, facts: opts.facts!, sampling: sampling(), serverModel: props.model_path ?? '', finishedAt: '', suites: {}, harnessSize, chatLayout: opts.layout as ChatLayout };
+  const result: BenchResult = { label: opts.label, base: opts.base, think: LFM3 ? 'lfm3' : opts.think!, budget: REASONING.tools.tokens, facts: opts.facts!, sampling: sampling(), serverModel: props.model_path ?? '', finishedAt: '', suites: {}, harnessSize, chatLayout: opts.layout as ChatLayout };
   const suites = opts.suite!.split(',');
-  if (suites.some(suite => !['tools', 'chat', 'harness'].includes(suite))) throw new Error('Unknown --suite');
+  if (suites.some(suite => !['tools', 'chat', 'harness', 'holdout'].includes(suite))) throw new Error('Unknown --suite');
   if (suites.includes('tools')) result.suites.tools = await runToolSuite(pick(TOOL_CASES));
   if (suites.includes('chat')) result.suites.chat = await runChatSuite(pick(CHAT_CASES));
   if (suites.includes('harness')) result.suites.harness = await runHarnessSuite(pick(HARNESS_CASES));
+  if (suites.includes('holdout')) result.suites.holdout = await runToolSuite(pick(HOLDOUT_CASES));
   result.finishedAt = new Date().toISOString();
   mkdirSync(opts.out!, { recursive: true });
   const file = path.join(opts.out!, `${opts.label}.json`);
   writeFileSync(file, JSON.stringify(result, null, 2));
   const p = perf(result);
-  console.log(`\n${opts.label}: tools ${pct(result.suites.tools)}, chat ${pct(result.suites.chat)}, harness ${pct(result.suites.harness)}, prefill ${p.prefill.toFixed(0)} t/s, decode ${p.decode.toFixed(1)} t/s, think p50 ${p.thinkP50}, TTFV p50 ${p.ttfvP50.toFixed(2)}s p90 ${p.ttfvP90.toFixed(2)}s, wall p50 ${p.wallP50.toFixed(2)}s, total ${p.totalS.toFixed(0)}s -> ${file}`);
+  console.log(`\n${opts.label}: tools ${pct(result.suites.tools)}, chat ${pct(result.suites.chat)}, harness ${pct(result.suites.harness)}, holdout ${pct(result.suites.holdout)}, prefill ${p.prefill.toFixed(0)} t/s, decode ${p.decode.toFixed(1)} t/s, think p50 ${p.thinkP50}, TTFV p50 ${p.ttfvP50.toFixed(2)}s p90 ${p.ttfvP90.toFixed(2)}s, wall p50 ${p.wallP50.toFixed(2)}s, total ${p.totalS.toFixed(0)}s -> ${file}`);
   if (Object.values(result.suites).some(suite => suite.pass < suite.total)) process.exitCode = 1;
 }
 

@@ -1079,7 +1079,7 @@ jobs:
 
             for resource_spec in \
               "/resources/aboutPhoto.webp:image/webp" \
-              "/resources/audioAgent.mp4:video/mp4" \
+              "/resources/video/jarvis-voice-agent.mp4:video/mp4" \
               "/resources/resume.pdf:application/pdf"; do
               resource_path="${resource_spec%%:*}"
               expected_mime="${resource_spec#*:}"
@@ -1236,7 +1236,7 @@ jobs:
 
           for resource_spec in \
             "/resources/aboutPhoto.webp:image/webp" \
-            "/resources/audioAgent.mp4:video/mp4" \
+            "/resources/video/jarvis-voice-agent.mp4:video/mp4" \
             "/resources/resume.pdf:application/pdf"; do
             resource_path="${resource_spec%%:*}"
             expected_mime="${resource_spec#*:}"

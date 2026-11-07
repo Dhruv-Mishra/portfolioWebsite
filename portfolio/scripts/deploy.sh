@@ -1293,7 +1293,7 @@ validate_static_release_layout() {
 
     for required_file in \
         public/resources/aboutPhoto.webp \
-        public/resources/audioAgent.mp4 \
+        public/resources/video/jarvis-voice-agent.mp4 \
         public/resources/resume.pdf; do
         if [[ ! -s "${release_dir}/${required_file}" ]]; then
             log ERROR "Release static layout is invalid: missing or empty ${required_file} (${release_dir})"
@@ -2958,7 +2958,7 @@ health_check() {
     if [[ "${MODE}" != "legacy" ]]; then
         for resource_check in \
             "/resources/aboutPhoto.webp|image/webp" \
-            "/resources/audioAgent.mp4|video/mp4" \
+            "/resources/video/jarvis-voice-agent.mp4|video/mp4" \
             "/resources/resume.pdf|application/pdf"; do
             resource_path="${resource_check%%|*}"
             expected_type="${resource_check##*|}"

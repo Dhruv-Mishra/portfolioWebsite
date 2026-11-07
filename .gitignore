@@ -1,5 +1,6 @@
 /ResumeBuilder
 .TEMP/
+/temp_videos/
 .playwright-mcp/
 .serena/
 

@@ -15,6 +15,7 @@ export interface ProjectRecord {
   imageClassName?: string;
   stack: string[];
   blurDataURL: string;
+  /** File stem under /resources/video; defaults to the slug, null for no preview. Rename on replacement: /resources is cached immutably. */
   video?: string | null;
   role: string;
   year: string;
@@ -50,7 +51,6 @@ export const PROJECTS: ProjectRecord[] = [
     colorClass: 'bg-note-green',
     image: '/resources/audioAgent.webp',
     blurDataURL: BLUR.jarvis,
-    video: '/resources/audioAgent.mp4',
     icon: Mic,
     label: 'Voice Agent',
     stack: ['Voice AI', 'MCP', 'RAG', 'Tool Calling', 'WebSockets', 'Node.js', 'AudioWorklet'],
@@ -101,7 +101,6 @@ export const PROJECTS: ProjectRecord[] = [
     colorClass: 'bg-note-green',
     image: '/resources/Cropio.webp',
     blurDataURL: BLUR.cropio,
-    video: '/resources/Cropio.mp4',
     icon: Scissors,
     label: 'AI Cropper',
     stack: ['Next.js', 'TypeScript', 'FastAPI', 'YOLO11 Pose', 'IndexedDB', 'NVIDIA APIs'],
@@ -127,7 +126,6 @@ export const PROJECTS: ProjectRecord[] = [
     colorClass: 'bg-note-purple',
     image: '/resources/Invoke.webp',
     blurDataURL: BLUR.invoke,
-    video: null,
     icon: Bot,
     label: 'Coding Agents',
     stack: ['Electron', 'Node.js', 'Python', 'llama.cpp', 'MCP', 'Copilot CLI'],
@@ -301,7 +299,6 @@ export const PROJECTS: ProjectRecord[] = [
     colorClass: 'bg-note-yellow',
     image: '/resources/PortSolace.webp',
     blurDataURL: BLUR.portSolace,
-    video: null,
     icon: Gamepad2,
     label: 'Voxel Game',
     stack: ['JavaScript', 'three.js', 'WebGL', 'WebRTC', 'Web Workers', 'Cloudflare Workers', 'Web Audio'],
@@ -322,4 +319,14 @@ export const PROJECTS_BY_SLUG: Record<ProjectSlug, ProjectRecord> = Object.fromE
 
 export function getProjectBySlug(slug: ProjectSlug): ProjectRecord {
   return PROJECTS_BY_SLUG[slug];
+}
+
+/** AV1 first; browsers without an AV1 decoder (older Safari) fall back to H.264. */
+export function getProjectVideoSources(project: ProjectRecord) {
+  if (project.video === null) return null;
+  const stem = `/resources/video/${project.video ?? project.slug}`;
+  return [
+    { src: `${stem}.av1.mp4`, type: 'video/mp4; codecs="av01.0.04M.08, opus"' },
+    { src: `${stem}.mp4`, type: 'video/mp4' },
+  ] as const;
 }

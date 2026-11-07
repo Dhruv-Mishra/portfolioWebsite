@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
 import type { ProjectRecord } from '@/lib/projects';
+import { getProjectVideoSources } from '@/lib/projects';
 import {
   CONTROL_PROJECT_VIDEO_EVENT,
   attachSiteActionResult,
@@ -71,12 +72,9 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         node.volume = soundsMuted ? 0 : masterVolume;
     }, [masterVolume, soundsMuted]);
 
-    const hasVideo = project ? project.video !== null : false;
-    const videoSrc = !project
-        ? ''
-        : project.video === undefined
-            ? project.image.replace(/\.webp$/, '.mp4')
-            : (project.video ?? '');
+    const videoSources = project ? getProjectVideoSources(project) : null;
+    const hasVideo = videoSources !== null;
+    const videoSrc = videoSources?.[0].src ?? '';
 
     // Toggle mute/unmute — syncs state to the video element directly
     const toggleMute = useCallback(() => {
@@ -287,18 +285,21 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                             <PaperClip className="absolute -top-4 left-1 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm -rotate-12" />
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
-                                {hasVideo ? (
+                                {videoSources ? (
                                     <>
                                         <video
+                                            key={videoSrc}
                                             ref={setVideoRef}
-                                            src={videoSrc}
-                                            poster={project.image}
                                             muted={isMuted}
                                             loop
                                             playsInline
                                             preload="metadata"
                                             className="w-full h-full object-cover"
-                                        />
+                                        >
+                                            {videoSources.map((source) => (
+                                                <source key={source.src} src={source.src} type={source.type} />
+                                            ))}
+                                        </video>
                                         {showPlayButton ? (
                                             <button
                                                 onClick={playVideo}

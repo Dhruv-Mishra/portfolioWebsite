@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
+import MediaCarousel, { type MediaCarouselHandle, type MediaSlide } from '@/components/MediaCarousel';
 import type { ProjectRecord } from '@/lib/projects';
 import { getProjectVideoSources } from '@/lib/projects';
 import {
@@ -58,6 +59,7 @@ const FOLD_COLOR_MODAL_STYLE = {
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const carouselRef = useRef<MediaCarouselHandle>(null);
     const isMutedRef = useRef(false);
     const playGenerationRef = useRef(0);
     const { closePanel, externalLink, selection, tap } = useAppHaptics();
@@ -118,6 +120,7 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
     }, [applyVideoMasterVolume, tap]);
 
     const reportPlayResult = useCallback(async (): Promise<SiteToolResult> => {
+        carouselRef.current?.goTo(0);
         const played = await playVideo();
         if (!played) {
             return {
@@ -243,6 +246,82 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
         applyVideoMasterVolume(videoRef.current);
     }, [applyVideoMasterVolume]);
 
+    // The video is always slide 0: play it while it is in view, pause it once swiped away.
+    const handleSlideChange = useCallback((index: number) => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (index === 0) {
+            attemptAutoplay(video, isMutedRef.current);
+            return;
+        }
+        playGenerationRef.current += 1;
+        video.pause();
+        setShowPlayButton(false);
+    }, [attemptAutoplay]);
+
+    const mediaSlides: MediaSlide[] = [];
+    if (project && videoSources) {
+        mediaSlides.push({
+            key: 'video',
+            label: 'preview video',
+            content: (
+                <>
+                    <video
+                        key={videoSrc}
+                        ref={setVideoRef}
+                        muted={isMuted}
+                        loop
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-cover"
+                    >
+                        {videoSources.map((source) => (
+                            <source key={source.src} src={source.src} type={source.type} />
+                        ))}
+                    </video>
+                    {showPlayButton ? (
+                        <button
+                            onClick={playVideo}
+                            aria-label={`Play ${project.name} preview video`}
+                            data-clickable
+                            className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 text-white transition-colors hover:bg-black/35"
+                        >
+                            <span className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 shadow-lg">
+                                <Play size={18} fill="currentColor" />
+                                Play preview
+                            </span>
+                        </button>
+                    ) : null}
+                    <button
+                        onClick={toggleMute}
+                        aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                        data-clickable
+                        className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
+                    >
+                        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
+                </>
+            ),
+        });
+    }
+    if (project) {
+        mediaSlides.push({
+            key: 'image',
+            label: 'project image',
+            content: (
+                <Image
+                    src={project.image}
+                    alt={`${project.name} project preview`}
+                    fill
+                    sizes="(max-width: 768px) 90vw, 720px"
+                    placeholder="blur"
+                    blurDataURL={project.blurDataURL}
+                    className="object-cover"
+                />
+            ),
+        });
+    }
+
     return (
         <Modal
             isOpen={project !== null}
@@ -285,54 +364,13 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
                             <PaperClip className="absolute -top-4 left-1 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm -rotate-12" />
 
                             <div className="relative w-full h-full overflow-hidden bg-gray-100">
-                                {videoSources ? (
-                                    <>
-                                        <video
-                                            key={videoSrc}
-                                            ref={setVideoRef}
-                                            muted={isMuted}
-                                            loop
-                                            playsInline
-                                            preload="metadata"
-                                            className="w-full h-full object-cover"
-                                        >
-                                            {videoSources.map((source) => (
-                                                <source key={source.src} src={source.src} type={source.type} />
-                                            ))}
-                                        </video>
-                                        {showPlayButton ? (
-                                            <button
-                                                onClick={playVideo}
-                                                aria-label={`Play ${project.name} preview video`}
-                                                data-clickable
-                                                className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 text-white transition-colors hover:bg-black/35"
-                                            >
-                                                <span className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 shadow-lg">
-                                                    <Play size={18} fill="currentColor" />
-                                                    Play preview
-                                                </span>
-                                            </button>
-                                        ) : null}
-                                        <button
-                                            onClick={toggleMute}
-                                            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-                                            data-clickable
-                                            className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
-                                        >
-                                            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <Image
-                                        src={project.image}
-                                        alt={`${project.name} project preview`}
-                                        fill
-                                        sizes="(max-width: 768px) 90vw, 720px"
-                                        placeholder="blur"
-                                        blurDataURL={project.blurDataURL}
-                                        className="object-cover"
-                                    />
-                                )}
+                                <MediaCarousel
+                                    key={project.slug}
+                                    ref={carouselRef}
+                                    slides={mediaSlides}
+                                    label={`${project.name} media`}
+                                    onActiveChange={handleSlideChange}
+                                />
                             </div>
                         </div>
 

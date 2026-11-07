@@ -185,7 +185,6 @@ jobs:
           cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
-            NEXT_BUILD_FLAGS=--webpack
             NEXT_EXTERNAL_TYPECHECK=1
             BROWSERSLIST_QUERY=${{ env.DEPLOY_BROWSERSLIST }}
 

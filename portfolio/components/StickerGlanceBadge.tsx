@@ -8,14 +8,29 @@
  * Mounted by EagerEnhancements (site-wide, except /stickers which we skip
  * inline to avoid a self-referential pulse).
  */
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStickerProgress } from '@/hooks/useStickers';
 import { useAppHaptics } from '@/lib/haptics';
-import { StickerStackGlyph } from '@/lib/stickers';
-import { Z_INDEX } from '@/lib/designTokens';
+import { STICKER_FAMILIES, Z_INDEX } from '@/lib/designTokens';
 import { Tooltip } from '@/components/ui/Tooltip';
+
+const StickerStackGlyph = memo(function StickerStackGlyph({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="10" r="6.5" fill={STICKER_FAMILIES.denim.bg} stroke={STICKER_FAMILIES.denim.ink} strokeWidth="1.5" />
+      <circle cx="15" cy="13" r="6.5" fill={STICKER_FAMILIES.sunshine.bg} stroke={STICKER_FAMILIES.sunshine.ink} strokeWidth="1.5" />
+      <circle cx="12" cy="17" r="5.5" fill={STICKER_FAMILIES.rose.bg} stroke={STICKER_FAMILIES.rose.ink} strokeWidth="1.5" />
+    </svg>
+  );
+});
 
 export default function StickerGlanceBadge(): React.ReactElement | null {
   const pathname = usePathname();
@@ -45,9 +60,9 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
     <Link
       href="/stickers"
       onClick={navigate}
-      aria-label={`Sticker drawer — ${unlocked} of ${total} pinned`}
+      aria-label={`${unlocked}/${total} stickers pinned — open sticker drawer`}
       title={`${unlocked}/${total} pinned`}
-      className={`fixed bottom-40 md:bottom-auto md:top-4 left-[calc(var(--c-binding-w)+0.75rem)] md:left-[calc(var(--c-binding-w-md)+1rem)] -rotate-2 bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50 rounded shadow-md pl-2 pr-3 py-1.5 ${desktopOnly ? 'hidden md:flex' : 'flex'} items-center gap-1.5 font-hand text-sm font-bold text-[var(--c-ink)] transition-transform duration-200 hover:scale-105 hover:-rotate-1 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40`}
+      className={`fixed bottom-[var(--c-mobile-dock-bottom)] md:bottom-auto md:top-4 left-[calc(var(--c-binding-w)+0.75rem)] md:left-[calc(var(--c-binding-w-md)+1rem)] -rotate-2 bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50 rounded shadow-md min-h-11 pl-2.5 pr-3 py-1.5 ${desktopOnly ? 'hidden md:flex' : 'flex'} items-center gap-1.5 font-hand text-sm font-bold text-[var(--c-ink)] transition-transform duration-200 hover:scale-105 hover:-rotate-1 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40`}
       style={{ zIndex: Z_INDEX.sidebar }}
       data-disco-bounce="3"
     >

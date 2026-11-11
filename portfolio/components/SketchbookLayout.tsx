@@ -42,8 +42,8 @@ const BINDING_STITCH_STYLE = {
 /** Hoisted grid pattern background style — avoids re-allocation per render */
 const GRID_PATTERN_STYLE = {
     backgroundSize: GRID_PATTERN.backgroundSize,
-    backgroundImage: `linear-gradient(to right, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
-                      linear-gradient(to bottom, ${GRID_PATTERN.lineColor} ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
+    backgroundImage: `linear-gradient(to right, var(--c-grid) ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth}),
+                      linear-gradient(to bottom, var(--c-grid) ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
     contain: 'strict',
 } as const;
 

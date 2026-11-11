@@ -34,6 +34,29 @@ beforeEach(() => {
 });
 
 describe('site preference migration and facade', () => {
+  it.each([null, '{', '{}', '{"pageFlipEnabled":"true"}'])(
+    'keeps page flips off without an explicit valid opt-in: %s',
+    async (raw) => {
+      if (raw !== null) storage.setItem(STORAGE_KEY, raw);
+      const site = await import('@/hooks/useSitePrefs');
+
+      expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(false);
+    },
+  );
+
+  it('persists page flip opt-in and opt-out across reloads', async () => {
+    let site = await import('@/hooks/useSitePrefs');
+    expect(site.setSitePref('pageFlipEnabled', true)).toBe(true);
+    vi.resetModules();
+    site = await import('@/hooks/useSitePrefs');
+    expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(true);
+
+    expect(site.setSitePref('pageFlipEnabled', false)).toBe(true);
+    vi.resetModules();
+    site = await import('@/hooks/useSitePrefs');
+    expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(false);
+  });
+
   it.each([
     ['absent storage', null],
     ['malformed storage', '{'],
@@ -212,5 +235,32 @@ describe('site preference migration and facade', () => {
       motionPreference: 'full',
     });
     expect(dataset.motion).toBe('full');
+  });
+
+  it('validates, cycles, and applies physical paper stock preferences cleanly', async () => {
+    const dataset: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { documentElement: { dataset } },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    expect(site.getSitePrefsSnapshot().paperStock).toBe('cream');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset).not.toHaveProperty('paperStock');
+
+    expect(site.setSitePref('paperStock', 'blueprint')).toBe(true);
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset.paperStock).toBe('blueprint');
+
+    expect(site.cyclePaperStock()).toBe('kraft');
+    expect(site.cyclePaperStock()).toBe('sage');
+    expect(site.cyclePaperStock()).toBe('cream');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset).not.toHaveProperty('paperStock');
+
+    expect((site.setSitePref as (key: string, value: unknown) => boolean)('paperStock', 'neon')).toBe(false);
+    expect(site.getSitePrefsSnapshot().paperStock).toBe('cream');
   });
 });

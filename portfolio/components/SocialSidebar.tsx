@@ -227,7 +227,7 @@ function MobileSocialBar({ children }: React.PropsWithChildren) {
                 <div
                     id="mobile-social-drawer-content"
                     data-social-sidebar
-                    className="grid grid-cols-[repeat(4,44px)] gap-1"
+                    className={isDrawerExpanded ? "grid grid-cols-[repeat(4,44px)] gap-1" : "hidden"}
                     role="complementary"
                     aria-label="Social media links"
                 >

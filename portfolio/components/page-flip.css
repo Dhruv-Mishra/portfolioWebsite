@@ -1,0 +1,104 @@
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(sketchbook-nav) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(sketchbook-nav) {
+  display: none;
+}
+
+::view-transition-new(sketchbook-nav) {
+  animation: none;
+}
+
+@keyframes sketchbook-leaf-out-forward {
+  from {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-6deg) translateX(-28px);
+  }
+}
+
+@keyframes sketchbook-leaf-in-forward {
+  from {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(5deg) translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+}
+
+@keyframes sketchbook-leaf-out-back {
+  from {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(5deg) translateX(28px);
+  }
+}
+
+@keyframes sketchbook-leaf-in-back {
+  from {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-6deg) translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+}
+
+::view-transition-old(.sketchbook-turn-forward) {
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both sketchbook-leaf-out-forward;
+}
+
+::view-transition-new(.sketchbook-turn-forward) {
+  animation: 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both sketchbook-leaf-in-forward;
+}
+
+::view-transition-old(.sketchbook-turn-back) {
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both sketchbook-leaf-out-back;
+}
+
+::view-transition-new(.sketchbook-turn-back) {
+  animation: 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both sketchbook-leaf-in-back;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"])::view-transition-old(*),
+  html:not([data-motion="full"])::view-transition-new(*),
+  html:not([data-motion="full"])::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+html[data-motion="reduced"]::view-transition-old(*),
+html[data-motion="reduced"]::view-transition-new(*),
+html[data-motion="reduced"]::view-transition-group(*) {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}

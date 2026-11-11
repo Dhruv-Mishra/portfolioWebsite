@@ -63,7 +63,12 @@ function EscapeBannerImpl({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      <div className="escape-banner__card relative overflow-hidden rounded-lg border-2 px-5 md:px-8 py-5 md:py-7">
+      <div
+        data-hover-tilt
+        data-tilt-3d="foil"
+        className="escape-banner__card relative overflow-hidden rounded-lg border-2 px-5 md:px-8 py-5 md:py-7"
+      >
+        <span aria-hidden="true" data-tilt-sheen="foil" />
         {/* Flex: icon/medal left, text right (stacks on narrow) */}
         <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           {/* Medal — a minimalist "green pill" roundel with a matrix-glyph

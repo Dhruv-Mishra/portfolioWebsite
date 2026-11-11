@@ -15,6 +15,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Added
 
+- Physical sketchbook paper stocks (`Field Cream`, `Blueprint`, `Kraft Studio`, and `Sage Pad`) in Settings and the desktop context menu, each with light and dark custom-property palettes that yield cleanly to disco mode.
+- Delegated 3D paper-perspective hover tilt (`rotateX` / `rotateY`) and cursor-tracked specular sheen across project notes, the home terminal, the About polaroid, unlocked stickers, and holographic achievement banners.
+- Optional directional React 19 `<ViewTransition>` page-leaf turns across the main sketchbook tabs. The Settings motion toggle is off by default; the animation and its stylesheet load only after opt-in and respect reduced-motion preferences.
 - AtomicChat's LFM3 1.7B Uncensored as a third local chat model, next to Qwen3.5 4B and LFM3 Omni 2B. Its Q6_K weights are served as Q8_0 from a clang llama.cpp build, which reads prompts 57% faster with no measurable quality loss, and it generates about 19 tokens/s against Qwen's 11. It always thinks briefly (up to 128 tokens when it has the site tools, 32 otherwise), takes per-turn notes as a system message after the visitor's message, and gets the site tools only when a message could be a request. On `toolbench` it scores about 79% on actions, 68% on chat and 90% on fresh-wording actions, against 84%, 84% and 95% for Qwen. Plain replies start after about 3.7 seconds and turns with tools after 8 to 10.
 - Invoke (voice-controlled coding agents) project card, fact, chat routing, and repo link.
 - Home hero names Dhruv Mishra and his role and links resume, projects, and email before the terminal.
@@ -27,6 +30,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Changed
 
+- Split Voice Stage (`voice-stage.css`) and Disco (`disco.css`) rules out of `app/globals.css` into lazy component stylesheets, replaced per-component `useWebHaptics` instances with one lazy touch-gated `WebHaptics` singleton, deferred `lib/projects.tsx` on `/projects` until a project modal opens, and gated idle toast/achievement chunks on unlocked state (7 fewer initial requests on `/`, ~2.4 KB less gzipped render-blocking CSS).
+- Experience timeline details on `/about` expand and collapse through CSS grid-row transitions instead of abrupt conditional mounts, and the `Sketch outlines` appearance preference now applies across dashed surfaces sitewide.
+- Tightened home hero vertical spacing so the title, voice note, terminal, and side-by-side chat/guestbook sticky notes fit above the fold on 1440x900 desktop viewports.
 - Self-hosted text chat now runs Qwen3.5 4B (a Q4_0 mix with Q8_0 embeddings, tuned for the Arm VM) instead of LFM3 1.7B. On the new `toolbench` tool-calling and grounded-chat benchmark it scores about 89% on tool calls and 94% on chat, against 36% and 78%; first words arrive after about 4 seconds instead of 1.6.
 - The VM's text servers run from one `llm-server@` systemd template, one instance per model.
 - The first waiting note in chat appears after half a second instead of seven.
@@ -60,6 +66,9 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Fixed
 
+- Restored dark-mode contrast on the home `Hello World!` title, the `404` and `error` sticky-note pages, project card dog-ear corner folds, and `/about` timeline category chips.
+- Removed mobile floating voice and volume button overlap over the home terminal and `/resume` PDF controls, and hid the collapsed mobile social drawer from the accessibility tree until expanded.
+- Aligned accessible names with visible button/link labels on `HomeVoiceNote`, home `NoteCta` links, `StickerGlanceBadge`, and timeline triggers (WCAG 2.5.3; Lighthouse Accessibility/Best Practices/SEO/Agentic Browsing 100 across 52/52 checks), and removed duplicate nested `<main>` landmarks on `/admin` and `/matrix-notes`.
 - Chat questions such as "how did you implement dark mode?" or "do you have a dark mode?" no longer switch the theme.
 - A streamed chat reply is no longer erased and replaced with a canned fallback when the provider fails mid-stream; the text already shown becomes the reply.
 - Portfolio project modal video: the file was misspelled `PersonalPorfolio.mp4`, so the derived `PersonalPortfolio.mp4` path 404'd.

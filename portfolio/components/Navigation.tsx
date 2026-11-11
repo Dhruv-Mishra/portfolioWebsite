@@ -23,6 +23,9 @@ const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
 
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;
+const NAV_STYLE = { zIndex: Z_INDEX.nav, viewTransitionName: 'sketchbook-nav' } as const;
+const FORWARD_TRANSITION: string[] = ['page-forward'];
+const BACK_TRANSITION: string[] = ['page-back'];
 
 /** Framework-owned pending marker. Must be a descendant of the Link whose navigation it reports. */
 export function RoutePendingMarker() {
@@ -35,6 +38,7 @@ export default function Navigation() {
     const pathname = usePathname();
     const { navigate } = useAppHaptics();
     const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+    const activeIndex = LINKS.findIndex((link) => link.href === pathname);
 
     const onHoverStart = useCallback((name: string) => setHoveredTab(name), []);
     const onHoverEnd = useCallback(() => setHoveredTab(null), []);
@@ -43,20 +47,30 @@ export default function Navigation() {
         <nav
             className="fixed top-0 left-0 w-full md:w-auto md:left-auto md:right-12 flex flex-nowrap justify-center md:justify-end gap-1 sm:gap-2 md:gap-4 perspective-[500px]"
             aria-label="Main navigation"
-            style={{ zIndex: Z_INDEX.nav }}
+            style={NAV_STYLE}
         >
-            {LINKS.map((item, i) => (
-                <NavTab
-                    key={item.name}
-                    item={item}
-                    index={i}
-                    active={pathname === item.href}
-                    hovered={hoveredTab === item.name}
-                    onHoverStart={onHoverStart}
-                    onHoverEnd={onHoverEnd}
-                    onPress={navigate}
-                />
-            ))}
+            {LINKS.map((item, i) => {
+                const transitionTypes = activeIndex === i
+                    ? undefined
+                    : activeIndex === -1
+                        ? (i === 0 ? BACK_TRANSITION : FORWARD_TRANSITION)
+                        : i > activeIndex
+                            ? FORWARD_TRANSITION
+                            : BACK_TRANSITION;
+                return (
+                    <NavTab
+                        key={item.name}
+                        item={item}
+                        index={i}
+                        active={pathname === item.href}
+                        hovered={hoveredTab === item.name}
+                        transitionTypes={transitionTypes}
+                        onHoverStart={onHoverStart}
+                        onHoverEnd={onHoverEnd}
+                        onPress={navigate}
+                    />
+                );
+            })}
         </nav>
     );
 }
@@ -67,6 +81,7 @@ const NavTab = React.memo(function NavTab({
     index,
     active,
     hovered,
+    transitionTypes,
     onHoverStart,
     onHoverEnd,
     onPress,
@@ -75,6 +90,7 @@ const NavTab = React.memo(function NavTab({
     index: number;
     active: boolean;
     hovered: boolean;
+    transitionTypes?: string[];
     onHoverStart: (name: string) => void;
     onHoverEnd: () => void;
     onPress: () => void;
@@ -86,6 +102,7 @@ const NavTab = React.memo(function NavTab({
     return (
         <Link
             href={item.href}
+            transitionTypes={transitionTypes}
             onClick={onPress}
             // Focus-visible ring lives on the anchor (the natural focus target)
             // rather than the inner clip-pathed div, so the ring is never cut

@@ -8,11 +8,13 @@ import {
   Copy,
   ExternalLink,
   Home,
+  Palette,
   RotateCw,
   Settings,
 } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
-import { Z_INDEX } from '@/lib/designTokens';
+import { cyclePaperStock, useSitePrefs } from '@/hooks/useSitePrefs';
+import { PAPER_STOCK_SWATCHES, Z_INDEX } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 
 interface MenuPosition {
@@ -75,6 +77,7 @@ function getKeyboardMenuPosition(target: EventTarget | null): MenuPosition {
 export default function DesktopContextMenu() {
   const pathname = usePathname();
   const router = useRouter();
+  const { paperStock } = useSitePrefs();
   const menuRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const keyboardInvokerRef = useRef<HTMLElement | null>(null);
@@ -136,6 +139,12 @@ export default function DesktopContextMenu() {
       icon: Home,
       run: () => router.push('/'),
       separatorBefore: true,
+    },
+    {
+      id: 'paper-stock',
+      label: `Paper: ${PAPER_STOCK_SWATCHES[paperStock].label}`,
+      icon: Palette,
+      run: () => { cyclePaperStock(); },
     },
     {
       id: 'settings',

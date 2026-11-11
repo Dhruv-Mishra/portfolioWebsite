@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('web-haptics/react', () => ({
-  useWebHaptics: vi.fn(),
+vi.mock('web-haptics', () => ({
+  WebHaptics: class {
+    static isSupported = false;
+    trigger = vi.fn();
+    cancel = vi.fn();
+  },
 }));
 
 vi.mock('@/hooks/useSitePrefs', () => ({

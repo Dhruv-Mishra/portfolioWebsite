@@ -119,6 +119,7 @@ export default function About() {
                             {/* Pinned Photo — stacks first on mobile, then floats into the sheet on desktop */}
                             <div
                                 data-hover-tilt
+                                data-tilt-3d="paper"
                                 data-disco-motion="wiggle"
                                 className="relative z-20 mx-auto mb-5 mt-1 w-fit rotate-1 [--disco-wiggle-rest:1deg] md:float-right md:mx-0 md:mb-2 md:ml-6 md:mt-2 md:rotate-3 md:[--disco-wiggle-rest:3deg]"
                                 style={ABOUT_PHOTO_MOTION_STYLE}

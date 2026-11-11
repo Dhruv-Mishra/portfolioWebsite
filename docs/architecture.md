@@ -42,7 +42,8 @@ The important distinction is that the system has ingress policies and per-proces
 ### Rendering and interaction model
 
 - The app uses Next.js 16 App Router with React 19 and strict TypeScript. Server components are the default; client components own browser state, effects, gestures, sound, and other interactive behavior.
-- The visual shell is intentionally more product-like than a document site: it includes the sketchbook navigation, terminal, project cards and modals, settings, feedback, guestbook, and a mobile chat composition.
+- The visual shell is intentionally more product-like than a document site: it includes the sketchbook navigation, terminal, project cards and modals, settings, feedback, guestbook, and a mobile chat composition. Theme and appearance state combine `next-themes` light/dark switching with CSS custom-property paper stocks (`cream`, `blueprint`, `kraft`, `sage`), directional React 19 `<ViewTransition>` page-leaf transitions, and one delegated pointer controller for planar and 3D paper/foil tilt.
+- Non-initial visual surfaces keep their CSS and data out of the critical bundle: Voice Stage (`voice-stage.css`), Disco (`disco.css`), and `ProjectModal` (`lib/projects.tsx`) load on demand, haptics share one lazy touch-gated engine, and achievement/matrix listeners mount only when unlocked or enabled.
 - `next.config.ts` produces standalone output, disables runtime image optimization, sets browser-facing security and cache headers, and pins a consistent build ID for multi-origin releases.
 - Static resources and selected Next assets can bypass Node at Nginx. Public pages receive CDN-oriented cache headers; API routes are not treated as cacheable page content.
 

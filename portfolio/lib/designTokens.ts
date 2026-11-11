@@ -24,6 +24,52 @@ export const PAPER_PALETTE = {
   lavender: '#e9d5ff',
 } as const;
 
+/** Selectable physical sketchbook paper stocks (used by Settings swatches and context menu). */
+export const PAPER_STOCK_ORDER = ['cream', 'blueprint', 'kraft', 'sage'] as const;
+export type PaperStockId = (typeof PAPER_STOCK_ORDER)[number];
+
+export const PAPER_STOCK_SWATCHES: Record<PaperStockId, {
+  label: string;
+  caption: string;
+  lightBg: string;
+  lightGrid: string;
+  darkBg: string;
+  darkGrid: string;
+}> = {
+  cream: {
+    label: 'Field Cream',
+    caption: 'Archival ivory',
+    lightBg: '#fdfbf7',
+    lightGrid: 'rgba(156, 163, 175, 0.35)',
+    darkBg: '#1a1a1a',
+    darkGrid: 'rgba(255, 255, 255, 0.14)',
+  },
+  blueprint: {
+    label: 'Blueprint',
+    caption: 'Cyanotype vellum',
+    lightBg: '#edf5ff',
+    lightGrid: 'rgba(37, 99, 235, 0.32)',
+    darkBg: '#0b192c',
+    darkGrid: 'rgba(125, 211, 252, 0.25)',
+  },
+  kraft: {
+    label: 'Kraft Studio',
+    caption: 'Warm tan stock',
+    lightBg: '#f4ead8',
+    lightGrid: 'rgba(140, 107, 67, 0.32)',
+    darkBg: '#1e1813',
+    darkGrid: 'rgba(243, 231, 213, 0.16)',
+  },
+  sage: {
+    label: 'Sage Pad',
+    caption: 'Engineering grid',
+    lightBg: '#eef5ec',
+    lightGrid: 'rgba(21, 128, 61, 0.28)',
+    darkBg: '#101b15',
+    darkGrid: 'rgba(110, 231, 183, 0.2)',
+  },
+} as const;
+
 /** Matrix / escape-the-matrix palette (canvas rain, medals, toasts). */
 export const MATRIX_COLORS = {
   glyph: '#10b981',

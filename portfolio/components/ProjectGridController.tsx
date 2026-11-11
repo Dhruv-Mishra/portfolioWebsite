@@ -3,7 +3,6 @@ import { Suspense, useCallback, useEffect, useEffectEvent, useState, type MouseE
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
-import { PROJECTS_BY_SLUG } from '@/lib/projects';
 import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 import { unlockSticker } from '@/hooks/useStickers';
 import { appendUserAction } from '@/lib/userActionJournal';
@@ -15,7 +14,9 @@ import {
   type OpenProjectEventDetail,
 } from '@/lib/siteActionEvents';
 
-const ProjectModal = dynamic(() => import('@/components/ProjectModal'), { ssr: false });
+// Reuse ChatProjectModal so `lib/projects.tsx` (JSX descriptions + 11 Lucide icons)
+// stays out of the initial `/projects` client bundle until a modal actually opens.
+const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
 // Isolated behind its own Suspense so useSearchParams cannot bail the server-rendered grid out to CSR.
 function ProjectQuerySync({ onQuerySlug }: { onQuerySlug: (slug: string | null) => void }) {
@@ -37,7 +38,7 @@ export default function ProjectGridController({ className, children }: { classNa
   const [querySlug, setQuerySlug] = useState<string | null>(null);
 
   const openProjectBySlug = useCallback((slug: string) => {
-    if (!isProjectSlug(slug) || !PROJECTS_BY_SLUG[slug]) return false;
+    if (!isProjectSlug(slug)) return false;
     openPanel();
     setHasOpenedProject(true);
     setSelectedSlug(slug);
@@ -107,8 +108,8 @@ export default function ProjectGridController({ className, children }: { classNa
         <ProjectQuerySync onQuerySlug={handleQuerySlug} />
       </Suspense>
       {hasOpenedProject ? (
-        <ProjectModal
-          project={selectedSlug === null ? null : PROJECTS_BY_SLUG[selectedSlug]}
+        <ChatProjectModal
+          projectSlug={selectedSlug}
           onClose={handleCloseModal}
         />
       ) : null}

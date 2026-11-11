@@ -90,7 +90,7 @@ export default function MatrixNotesWall(): React.ReactElement {
   }, []);
 
   return (
-    <main
+    <div
       className="relative min-h-full pt-2 pb-8 px-4 md:px-8"
       style={{
         // Pure black base + subtle matrix glyph-grid via layered gradients.
@@ -165,7 +165,7 @@ export default function MatrixNotesWall(): React.ReactElement {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

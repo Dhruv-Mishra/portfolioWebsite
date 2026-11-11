@@ -1,20 +1,23 @@
 "use client";
 
-import { type ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { LoadingSpinner } from '@/components/Loading';
+import { useSitePrefs } from '@/hooks/useSitePrefs';
 import { cn } from '@/lib/utils';
 
 const ROUTE_SCROLL_CLASSES =
   'min-h-0 min-w-0 max-w-full overflow-y-auto overflow-x-clip px-3 sm:px-5 md:px-12 pt-[var(--c-page-header-h)] pb-[var(--c-page-footer-h)] ruler-scrollbar';
 
+const PageFlipTransition = lazy(() => import('@/components/PageFlipTransition'));
+
 export default function RouteScrollSurface({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { pageFlipEnabled } = useSitePrefs();
   const isChatRoute = pathname.startsWith('/chat');
 
-  return (
+  const surface = (
     <div
-      key={pathname}
       className={cn(
         'relative z-10 h-full min-h-0',
         isChatRoute
@@ -36,5 +39,13 @@ export default function RouteScrollSurface({ children }: { children: ReactNode }
         <LoadingSpinner />
       </div>
     </div>
+  );
+
+  if (!pageFlipEnabled) return surface;
+
+  return (
+    <Suspense fallback={surface}>
+      <PageFlipTransition pathname={pathname}>{surface}</PageFlipTransition>
+    </Suspense>
   );
 }

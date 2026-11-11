@@ -12,7 +12,7 @@ export default function ResumePage() {
             <ResumeOpenPdfButton href={RESUME_PDF_URL} />
             <HomeVoiceNote
                 label="Ask me about it"
-                ariaLabel="Ask about this resume by voice"
+                srHint="ask about this resume by voice"
                 context={{ source: 'resume', topic: 'resume' }}
                 className="mb-4"
             />

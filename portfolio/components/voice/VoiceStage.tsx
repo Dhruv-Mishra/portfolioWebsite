@@ -1,5 +1,6 @@
 "use client";
 
+import './voice-stage.css';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { m } from 'framer-motion';
 import { MicOff, Phone, RotateCcw } from 'lucide-react';

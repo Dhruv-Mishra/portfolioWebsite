@@ -1328,11 +1328,11 @@ html[data-motion="reduced"] .voice-orb-still {
    Only promote to its own compositor layer on hover so we don't burn 12 GPU
    layers while idle. Idle float already animates transform which implicitly
    composites during its run; this keeps the steady-state layer count low. */
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .sticker-card--unlocked:hover {
-    transform: rotate(0deg) scale(1.04);
-    animation-play-state: paused, paused;
-    transition: transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: none;
+    transform: perspective(700px) translateY(-4px) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg)) rotate(0deg) scale(1.045);
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
   }
 
@@ -3450,9 +3450,10 @@ html:not([data-pref-tape="on"]) [data-tape-strip] {
   display: none;
 }
 
-/* Sketch outlines — when disabled, sticker cards (the one place a dashed
-   "sketch" outline is prominent) switch to solid borders. */
-html:not([data-pref-sketch="on"]) .sticker-card {
+/* Sketch outlines — when disabled, dashed sketchbook outlines across cards,
+   settings sections, badges, and buttons settle into clean solid drafting rules. */
+html:not([data-pref-sketch="on"]) .sticker-card,
+html:not([data-pref-sketch="on"]) .border-dashed {
   border-style: solid;
 }
 
@@ -3460,18 +3461,188 @@ html:not([data-pref-sketch="on"]) .sticker-card {
   --hover-tilt: 0deg;
   --hover-tilt-scale: 1;
   --hover-tilt-lift: -3px;
+  --tilt-rx: 0deg;
+  --tilt-ry: 0deg;
+  --tilt-gx: 50%;
+  --tilt-gy: 50%;
+}
+
+[data-tilt-sheen] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+  opacity: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.08) 34%,
+    transparent 68%
+  );
+  transition: opacity 220ms ease-out;
+}
+
+.dark [data-tilt-sheen] {
+  background: radial-gradient(
+    circle at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.03) 36%,
+    transparent 68%
+  );
+}
+
+[data-tilt-sheen="foil"] {
+  mix-blend-mode: overlay;
+  background: radial-gradient(
+    circle at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(253, 224, 71, 0.22) 24%,
+    rgba(167, 243, 208, 0.18) 44%,
+    rgba(196, 181, 253, 0.16) 60%,
+    transparent 78%
+  );
+}
+
+.dark [data-tilt-sheen="foil"] {
+  mix-blend-mode: screen;
+  background: radial-gradient(
+    circle at var(--tilt-gx, 50%) var(--tilt-gy, 50%),
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(253, 224, 71, 0.14) 26%,
+    rgba(110, 231, 183, 0.14) 46%,
+    rgba(196, 181, 253, 0.12) 62%,
+    transparent 78%
+  );
 }
 
 @media (hover: hover) and (pointer: fine) {
   [data-hover-tilt] {
-    transition-property: transform;
-    transition-duration: 200ms;
-    transition-timing-function: ease-out;
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   [data-hover-tilt]:hover {
     transform: translateY(var(--hover-tilt-lift, -3px)) rotate(var(--hover-tilt, 0deg)) scale(var(--hover-tilt-scale, 1));
   }
+
+  [data-hover-tilt][data-tilt-3d]:hover {
+    transform: perspective(1100px) translateY(var(--hover-tilt-lift, -3px)) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg)) rotate(var(--hover-tilt, 0deg)) scale(var(--hover-tilt-scale, 1));
+  }
+
+  [data-tilt-3d][data-tilt-active="1"] {
+    transition: transform 70ms linear;
+  }
+
+  [data-tilt-3d][data-tilt-active="1"] > [data-tilt-sheen],
+  [data-tilt-3d][data-tilt-active="1"] > div > [data-tilt-sheen] {
+    opacity: 1;
+  }
+}
+
+/* ─── Sketchbook Page-Leaf View Transitions (React 19 <ViewTransition>) ─── */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(sketchbook-nav) {
+  animation: none;
+  z-index: 100;
+}
+
+::view-transition-old(sketchbook-nav) {
+  display: none;
+}
+
+::view-transition-new(sketchbook-nav) {
+  animation: none;
+}
+
+@keyframes sketchbook-leaf-out-forward {
+  from {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-6deg) translateX(-28px);
+  }
+}
+
+@keyframes sketchbook-leaf-in-forward {
+  from {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(5deg) translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+}
+
+@keyframes sketchbook-leaf-out-back {
+  from {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(5deg) translateX(28px);
+  }
+}
+
+@keyframes sketchbook-leaf-in-back {
+  from {
+    opacity: 0;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(-6deg) translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform-origin: left center;
+    transform: perspective(1800px) rotateY(0deg) translateX(0);
+  }
+}
+
+::view-transition-old(.sketchbook-turn-forward) {
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both sketchbook-leaf-out-forward;
+}
+
+::view-transition-new(.sketchbook-turn-forward) {
+  animation: 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both sketchbook-leaf-in-forward;
+}
+
+::view-transition-old(.sketchbook-turn-back) {
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both sketchbook-leaf-out-back;
+}
+
+::view-transition-new(.sketchbook-turn-back) {
+  animation: 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both sketchbook-leaf-in-back;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion="full"])::view-transition-old(*),
+  html:not([data-motion="full"])::view-transition-new(*),
+  html:not([data-motion="full"])::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+html[data-motion="reduced"]::view-transition-old(*),
+html[data-motion="reduced"]::view-transition-new(*),
+html[data-motion="reduced"]::view-transition-group(*) {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
 }
 
 /* Shared reduced-motion contract

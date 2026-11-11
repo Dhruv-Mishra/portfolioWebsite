@@ -237,8 +237,9 @@ function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
   const isSuperuser = sticker.id === 'superuser';
   return (
     <article
+      data-tilt-3d={unlocked ? 'foil' : undefined}
       className={cn(
-        'group relative border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand',
+        'group relative border-2 border-dashed border-[var(--c-grid)]/30 rounded-sm shadow-md p-4 pt-6 flex flex-col items-center text-center font-hand overflow-visible',
         'sticker-card',
         unlocked ? 'sticker-card--unlocked' : 'sticker-card--locked',
         isSuperuser && unlocked && 'sticker-card--superuser',
@@ -247,6 +248,7 @@ function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
       style={cardStyle}
       aria-label={unlocked ? sticker.label : 'Locked sticker — keep exploring'}
     >
+      {unlocked ? <span aria-hidden="true" data-tilt-sheen="foil" className="rounded-sm" /> : null}
       <TapeStrip size="sm" />
 
       {/* Locked badge — subtle "??" at top-right */}

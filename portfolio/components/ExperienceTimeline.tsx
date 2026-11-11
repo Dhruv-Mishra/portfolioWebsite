@@ -296,7 +296,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
         <div aria-hidden="true" className="absolute bottom-6 left-[23px] top-4 w-[2px] rounded-full bg-[var(--c-ink)]/15 md:left-1/2 md:-translate-x-1/2" />
         <div
           aria-hidden="true"
-          className="absolute bottom-6 left-[22px] top-4 w-1 origin-top rounded-full bg-[var(--c-ink)]/35 md:left-1/2 md:-translate-x-1/2"
+          className="absolute bottom-6 left-[22px] top-4 w-1 origin-top rounded-full bg-[var(--c-ink)]/35 transition-transform duration-300 ease-out motion-reduce:transition-none md:left-1/2 md:-translate-x-1/2"
           style={{ transform: `scaleY(${progressScale})` }}
         />
 
@@ -358,7 +358,7 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                       onClick={() => selectEntry(entry.id)}
                       onKeyDown={(event) => handleEntryKeyDown(event, entry.id)}
                       aria-expanded={isActive}
-                      aria-controls={isActive ? detailsId : undefined}
+                      aria-controls={detailsId}
                       className="group/timeline-trigger relative z-10 block w-full rounded-[6px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35"
                     >
                       <span className="flex flex-col gap-2">
@@ -449,37 +449,47 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                       </span>
                     </button>
 
-                    {isActive ? (
-                      <div id={detailsId} className="relative z-10 mt-3 border-t border-[var(--c-ink)]/10 pt-3">
-                        <p className="text-base leading-relaxed text-[var(--c-ink)]/82 md:text-lg">
-                          {entry.summary}
-                        </p>
+                    <div
+                      id={detailsId}
+                      aria-hidden={!isActive || undefined}
+                      inert={!isActive || undefined}
+                      className={cn(
+                        'relative z-10 grid transition-[grid-template-rows,opacity,margin-top] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+                        isActive ? 'mt-3 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0',
+                      )}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="border-t border-[var(--c-ink)]/10 pt-3">
+                          <p className="text-base leading-relaxed text-[var(--c-ink)]/82 md:text-lg">
+                            {entry.summary}
+                          </p>
 
-                        <p className="mt-2 rounded-[7px] border border-dashed border-[var(--c-ink)]/20 bg-[var(--c-paper)]/55 px-3 py-2 text-sm font-semibold leading-relaxed text-[var(--c-ink)]/85 md:text-base">
-                          {entry.impact}
-                        </p>
+                          <p className="mt-2 rounded-[7px] border border-dashed border-[var(--c-ink)]/20 bg-[var(--c-paper)]/55 px-3 py-2 text-sm font-semibold leading-relaxed text-[var(--c-ink)]/85 md:text-base">
+                            {entry.impact}
+                          </p>
 
-                        <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--c-ink)]/75 md:text-base">
-                          {entry.highlights.map((highlight) => (
-                            <li key={highlight} className="flex gap-2">
-                              <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--c-ink)]/45" />
-                              <span>{highlight}</span>
-                            </li>
-                          ))}
-                        </ul>
+                          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--c-ink)]/75 md:text-base">
+                            {entry.highlights.map((highlight) => (
+                              <li key={highlight} className="flex gap-2">
+                                <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-[var(--c-ink)]/45" />
+                                <span>{highlight}</span>
+                              </li>
+                            ))}
+                          </ul>
 
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {entry.tools.map((tool) => (
-                            <span
-                              key={tool}
-                              className="rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/55 px-2 py-1 text-xs text-[var(--c-ink)]/70"
-                            >
-                              {tool}
-                            </span>
-                          ))}
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {entry.tools.map((tool) => (
+                              <span
+                                key={tool}
+                                className="rounded-[6px] border border-[var(--c-ink)]/15 bg-[var(--c-paper)]/55 px-2 py-1 text-xs text-[var(--c-ink)]/70"
+                              >
+                                {tool}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    ) : null}
+                    </div>
                   </article>
                 </div>
               </li>

@@ -110,6 +110,7 @@ export default function Projects() {
                         <div
                             data-clickable
                             data-hover-tilt
+                            data-tilt-3d="paper"
                             data-disco-motion="wiggle"
                             data-project-slug={proj.slug}
                             className={CARD_INTERACTION_CLASS}
@@ -137,6 +138,7 @@ export default function Projects() {
                                 className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
                                 style={CARD_CLIP_STYLE}
                             >
+                                <span aria-hidden="true" data-tilt-sheen />
 
 
                                 {/* Polaroid Style Photo */}

@@ -144,8 +144,14 @@ export default function Home() {
       {/* The Terminal */}
       <div
         data-disco-home-terminal
+        data-hover-tilt
+        data-tilt-3d="paper"
         data-disco-motion="breath"
-        style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
+        style={{
+          '--disco-motion-delay': '180ms',
+          '--hover-tilt-lift': '-2px',
+          '--hover-tilt-scale': '1.005',
+        } as CSSProperties}
         className="w-full max-w-2xl mt-3 md:mt-4 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative"
       >
         <HomeTerminalIsland />

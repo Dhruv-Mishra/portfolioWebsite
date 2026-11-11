@@ -147,7 +147,12 @@ function SuperuserCardImpl({
   const earnedLabel = earnedAt ? formatEarnedAt(earnedAt) : '';
 
   return (
-    <div className="superuser-banner__card relative overflow-hidden rounded-lg border-2 shadow-xl px-5 md:px-8 py-5 md:py-7">
+    <div
+      data-hover-tilt
+      data-tilt-3d="foil"
+      className="superuser-banner__card relative overflow-hidden rounded-lg border-2 shadow-xl px-5 md:px-8 py-5 md:py-7"
+    >
+      <span aria-hidden="true" data-tilt-sheen="foil" />
       {/* Confetti layer — positioned absolutely so it overflows the card */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none z-20" aria-hidden="true">

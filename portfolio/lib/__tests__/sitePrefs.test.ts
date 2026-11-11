@@ -213,4 +213,31 @@ describe('site preference migration and facade', () => {
     });
     expect(dataset.motion).toBe('full');
   });
+
+  it('validates, cycles, and applies physical paper stock preferences cleanly', async () => {
+    const dataset: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { documentElement: { dataset } },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    expect(site.getSitePrefsSnapshot().paperStock).toBe('cream');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset).not.toHaveProperty('paperStock');
+
+    expect(site.setSitePref('paperStock', 'blueprint')).toBe(true);
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset.paperStock).toBe('blueprint');
+
+    expect(site.cyclePaperStock()).toBe('kraft');
+    expect(site.cyclePaperStock()).toBe('sage');
+    expect(site.cyclePaperStock()).toBe('cream');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset).not.toHaveProperty('paperStock');
+
+    expect((site.setSitePref as (key: string, value: unknown) => boolean)('paperStock', 'neon')).toBe(false);
+    expect(site.getSitePrefsSnapshot().paperStock).toBe('cream');
+  });
 });

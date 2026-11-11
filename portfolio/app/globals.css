@@ -160,6 +160,115 @@
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
 
+  /* ── Physical Sketchbook Paper Stocks (yield automatically to disco mode) ── */
+  html[data-paper-stock="blueprint"]:not(.dark):not([data-disco="on"]) {
+    --c-paper: #edf5ff;
+    --c-ink: #0f2942;
+    --c-grid: #60a5fa;
+    --c-binding-bg: #dbeafe;
+    --c-binding-border: #93c5fd;
+    --c-binding-stitch: #3b82f6;
+    --c-heading: #081c30;
+    --c-highlight: #1d4ed8;
+    --note-paper: #f8fbff;
+    --note-fold-underside: #cfe4ff;
+    --note-user: #e0f2fe;
+    --note-user-ink: #0c4a6e;
+    --note-ai: #dbeafe;
+    --note-ai-ink: #1e3a8a;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232563eb' fill-opacity='0.14' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  html.dark[data-paper-stock="blueprint"]:not([data-disco="on"]) {
+    --c-paper: #0b192c;
+    --c-ink: #e0f2fe;
+    --c-grid: #1e4976;
+    --c-binding-bg: #081220;
+    --c-binding-border: #1e3a5f;
+    --c-binding-stitch: #38bdf8;
+    --c-heading: #f8fafc;
+    --c-highlight: #7dd3fc;
+    --note-paper: #11243d;
+    --note-fold-underside: #1d395e;
+    --note-user: #132a46;
+    --note-user-ink: #bae6fd;
+    --note-ai: #0f233d;
+    --note-ai-ink: #93c5fd;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%237dd3fc' fill-opacity='0.09' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  html[data-paper-stock="kraft"]:not(.dark):not([data-disco="on"]) {
+    --c-paper: #f4ead8;
+    --c-ink: #2c1e12;
+    --c-grid: #b09779;
+    --c-binding-bg: #e6d5b8;
+    --c-binding-border: #c8b08c;
+    --c-binding-stitch: #8c6b43;
+    --c-heading: #1c1108;
+    --c-highlight: #9a3412;
+    --note-paper: #fcf5e8;
+    --note-fold-underside: #e3d0af;
+    --note-user: #fef3c7;
+    --note-user-ink: #5c3410;
+    --note-ai: #ede0cc;
+    --note-ai-ink: #3f2814;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2378552b' fill-opacity='0.13' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  html.dark[data-paper-stock="kraft"]:not([data-disco="on"]) {
+    --c-paper: #1e1813;
+    --c-ink: #f3e7d5;
+    --c-grid: #4a3b2e;
+    --c-binding-bg: #16110d;
+    --c-binding-border: #3b2e23;
+    --c-binding-stitch: #a67c52;
+    --c-heading: #fff8ed;
+    --c-highlight: #fbbf24;
+    --note-paper: #282019;
+    --note-fold-underside: #3d3126;
+    --note-user: #30251b;
+    --note-user-ink: #fde68a;
+    --note-ai: #241d17;
+    --note-ai-ink: #fed7aa;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23f3e7d5' fill-opacity='0.06' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  html[data-paper-stock="sage"]:not(.dark):not([data-disco="on"]) {
+    --c-paper: #eef5ec;
+    --c-ink: #162a1e;
+    --c-grid: #6ea885;
+    --c-binding-bg: #dce9d8;
+    --c-binding-border: #b4cfb0;
+    --c-binding-stitch: #4d7c60;
+    --c-heading: #0b1c12;
+    --c-highlight: #047857;
+    --note-paper: #f7fbf5;
+    --note-fold-underside: #cfe3ca;
+    --note-user: #ecfdf5;
+    --note-user-ink: #064e3b;
+    --note-ai: #e0f2fe;
+    --note-ai-ink: #0c4a6e;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2315803d' fill-opacity='0.13' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  html.dark[data-paper-stock="sage"]:not([data-disco="on"]) {
+    --c-paper: #101b15;
+    --c-ink: #dcfce7;
+    --c-grid: #244232;
+    --c-binding-bg: #0b130e;
+    --c-binding-border: #1f382b;
+    --c-binding-stitch: #34d399;
+    --c-heading: #f0fdf4;
+    --c-highlight: #6ee7b7;
+    --note-paper: #17271f;
+    --note-fold-underside: #253f32;
+    --note-user: #1b2f24;
+    --note-user-ink: #a7f3d0;
+    --note-ai: #14252c;
+    --note-ai-ink: #7dd3fc;
+    --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2386efac' fill-opacity='0.07' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
   /* ── Size Scale: Small ── */
   [data-size="small"] {
     --t-hero: 3rem;

@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback } from 'react';
+import { PAPER_STOCK_ORDER } from '@/lib/designTokens';
 import {
   getAdminPrefsSnapshot,
+  isPaperStock,
   setAdminPref,
   useAdminPrefs,
   type AdminPrefs,
   type MotionPreference,
+  type PaperStock,
 } from '@/hooks/useAdminPrefs';
 
+export type { PaperStock };
+
 export interface SitePrefs {
+  paperStock: PaperStock;
   paperGrain: boolean;
   tapeEffects: boolean;
   sketchOutlines: boolean;
@@ -24,6 +30,7 @@ export type SitePrefKey = keyof SitePrefs;
 
 function toSitePrefs(prefs: AdminPrefs): SitePrefs {
   return {
+    paperStock: prefs.paperStock,
     paperGrain: prefs.paperGrain,
     tapeEffects: prefs.tapeEffects,
     sketchOutlines: prefs.sketchOutlines,
@@ -43,6 +50,9 @@ export function setSitePref(
   key: SitePrefKey,
   value: SitePrefs[SitePrefKey],
 ): boolean {
+  if (key === 'paperStock') {
+    return isPaperStock(value) ? setAdminPref('paperStock', value) : false;
+  }
   if (key === 'motionPreference') {
     if (value === 'system' || value === 'reduced' || value === 'full') {
       return setAdminPref('motionPreference', value);
@@ -66,6 +76,14 @@ export function setSitePref(
     case 'hapticsEnabled':
       return setAdminPref('hapticsEnabled', value);
   }
+}
+
+export function cyclePaperStock(): PaperStock {
+  const current = getAdminPrefsSnapshot().paperStock;
+  const idx = PAPER_STOCK_ORDER.indexOf(current);
+  const next = PAPER_STOCK_ORDER[(idx + 1) % PAPER_STOCK_ORDER.length];
+  setAdminPref('paperStock', next);
+  return next;
 }
 
 export function getSitePrefsSnapshot(): SitePrefs {

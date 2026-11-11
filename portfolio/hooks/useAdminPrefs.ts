@@ -29,14 +29,22 @@
  */
 
 import { useCallback, useSyncExternalStore } from 'react';
+import { PAPER_STOCK_ORDER, type PaperStockId } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'dhruv-admin-prefs';
 const STORAGE_VERSION = 5 as const;
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
+export type PaperStock = PaperStockId;
+
+export function isPaperStock(value: unknown): value is PaperStock {
+  return typeof value === 'string' && (PAPER_STOCK_ORDER as readonly string[]).includes(value);
+}
 
 export interface AdminPrefs {
   version: typeof STORAGE_VERSION;
+  /** Physical sketchbook paper stock palette. Default: 'cream'. */
+  paperStock: PaperStock;
   /** Paper grain texture on main surfaces. Default: on. */
   paperGrain: boolean;
   /** Decorative tape strips on stickers + notes. Default: on. */
@@ -63,6 +71,7 @@ export interface AdminPrefs {
 function defaultPrefs(): AdminPrefs {
   return {
     version: STORAGE_VERSION,
+    paperStock: 'cream',
     paperGrain: true,
     tapeEffects: true,
     sketchOutlines: true,
@@ -95,6 +104,7 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
 
     return {
       version: STORAGE_VERSION,
+      paperStock: isPaperStock(parsed.paperStock) ? parsed.paperStock : 'cream',
       paperGrain: booleanField(parsed, 'paperGrain', true),
       tapeEffects: booleanField(parsed, 'tapeEffects', true),
       sketchOutlines: booleanField(parsed, 'sketchOutlines', true),
@@ -234,6 +244,11 @@ export function useAdminPrefsApi(): UseAdminPrefsApi {
 export function applyPrefsToDocument(prefs: AdminPrefs): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  if (prefs.paperStock && prefs.paperStock !== 'cream') {
+    root.dataset.paperStock = prefs.paperStock;
+  } else {
+    delete root.dataset.paperStock;
+  }
   if (prefs.paperGrain) root.dataset.prefPaper = 'on';
   else delete root.dataset.prefPaper;
   if (prefs.tapeEffects) root.dataset.prefTape = 'on';

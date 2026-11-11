@@ -68,6 +68,11 @@ import {
   useChatModelPref,
 } from '@/lib/chatModelPref';
 import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
+import {
+  PAPER_STOCK_ORDER,
+  PAPER_STOCK_SWATCHES,
+  type PaperStockId,
+} from '@/lib/designTokens';
 
 const subscribeToHydration = () => () => { };
 const getClientHydrationSnapshot = () => true;
@@ -339,6 +344,66 @@ function OnDeviceModelStatus({
   );
 }
 
+function PaperStockPicker({
+  value,
+  isDark,
+  onChange,
+}: {
+  value: PaperStockId;
+  isDark: boolean;
+  onChange: (next: PaperStockId) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label="Paper stock" className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {PAPER_STOCK_ORDER.map((stockId) => {
+        const swatch = PAPER_STOCK_SWATCHES[stockId];
+        const selected = value === stockId;
+        const swatchBg = isDark ? swatch.darkBg : swatch.lightBg;
+        const swatchGrid = isDark ? swatch.darkGrid : swatch.lightGrid;
+        return (
+          <label
+            key={stockId}
+            className={cn(
+              'group relative flex min-h-11 cursor-pointer flex-col items-start gap-2 rounded-md border-2 p-2.5 font-hand transition-[border-color,background-color,transform] duration-150',
+              selected
+                ? 'border-[var(--c-heading)] bg-[var(--c-ink)]/8 shadow-sm -rotate-1'
+                : 'border-dashed border-[var(--c-ink)]/25 bg-[var(--c-paper)]/55 hover:border-[var(--c-ink)]/45',
+            )}
+          >
+            <input
+              type="radio"
+              name="paper-stock"
+              value={stockId}
+              checked={selected}
+              onClick={() => onChange(stockId)}
+              onChange={() => undefined}
+              className="peer sr-only"
+            />
+            <span className="absolute inset-0.5 rounded-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-amber-500" />
+            <span
+              aria-hidden="true"
+              className="h-7 w-full rounded-sm border border-[var(--c-ink)]/20 shadow-inner"
+              style={{
+                backgroundColor: swatchBg,
+                backgroundImage: `linear-gradient(to right, ${swatchGrid} 1px, transparent 1px), linear-gradient(to bottom, ${swatchGrid} 1px, transparent 1px)`,
+                backgroundSize: '10px 10px',
+              }}
+            />
+            <span className="min-w-0 leading-tight">
+              <span className="block text-sm font-bold text-[var(--c-heading)] md:text-base">
+                {swatch.label}
+              </span>
+              <span className="block text-xs text-[var(--c-ink)]/60">
+                {swatch.caption}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SettingsPanel() {
   const [experimentalDialogOpen, setExperimentalDialogOpen] = useState(false);
   const [pendingModelId, setPendingModelId] = useState<ChatModelId | null>(null);
@@ -352,7 +417,7 @@ export default function SettingsPanel() {
     getClientHydrationSnapshot,
     getServerHydrationSnapshot,
   );
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const discoActive = useDiscoActive();
   const soundsMuted = useSoundsMuted();
   const masterVolume = useMasterVolume();
@@ -377,8 +442,7 @@ export default function SettingsPanel() {
   const modelTargetActive = mounted
     && new URLSearchParams(window.location.search).get('focus') === 'ai-model';
 
-  const setBooleanPref = (key: SitePrefKey, checked: boolean) => {
-    if (key === 'motionPreference') return;
+  const setBooleanPref = (key: Exclude<SitePrefKey, 'motionPreference' | 'paperStock'>, checked: boolean) => {
     setPref(key, checked);
   };
 
@@ -645,6 +709,16 @@ export default function SettingsPanel() {
         </SettingsGroup>
 
         <SettingsGroup title="Appearance" icon={Brush}>
+          <div className="space-y-2 pb-2">
+            <p className="font-hand text-base text-[var(--c-heading)] md:text-lg">
+              Paper stock
+            </p>
+            <PaperStockPicker
+              value={prefs.paperStock}
+              isDark={mounted && resolvedTheme === 'dark'}
+              onChange={(nextStock) => setPref('paperStock', nextStock)}
+            />
+          </div>
           <SettingToggle
             label="Paper grain"
             checked={prefs.paperGrain}

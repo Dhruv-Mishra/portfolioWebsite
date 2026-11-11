@@ -133,7 +133,6 @@ const nextConfig: NextConfig = {
       'clsx',
       'tailwind-merge',
       'web-haptics',
-      'web-haptics/react',
     ],
   },
   // Allow LAN devices (e.g. mobile on same WiFi) to access dev server; entries are hostnames.

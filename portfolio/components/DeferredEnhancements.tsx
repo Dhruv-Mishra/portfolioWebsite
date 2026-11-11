@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { FINE_POINTER_QUERY, useMediaQuery } from "@/hooks/useMediaQuery";
+import { useSitePrefs } from "@/hooks/useSitePrefs";
+import { useMatrixActive, useMatrixEscaped, useSuperuserUnlocked } from "@/hooks/useStickers";
 import { LAYOUT_TOKENS } from "@/lib/designTokens";
 
 const SketchbookCursor = dynamic(() => import("@/components/SketchbookCursor"), { ssr: false });
@@ -31,6 +33,10 @@ export default function DeferredEnhancements() {
     const [mountStage, setMountStage] = useState(0);
     const stageRef = useRef(0);
     const isCursorEligible = useMediaQuery(CURSOR_QUERY);
+    const { stickerToastsEnabled } = useSitePrefs();
+    const hasSuperuser = useSuperuserUnlocked();
+    const hasEscaped = useMatrixEscaped();
+    const matrixActive = useMatrixActive();
 
     useEffect(() => {
         if (stageRef.current >= LAST_STAGE) return;
@@ -57,16 +63,16 @@ export default function DeferredEnhancements() {
     return (
         <>
             {isCursorEligible ? <SketchbookCursor /> : null}
-            <StickerToastListener />
-            <EscapeToastListener />
+            {stickerToastsEnabled ? <StickerToastListener /> : null}
+            {hasEscaped || matrixActive ? <EscapeToastListener /> : null}
             {mountStage >= 2 ? (
                 <>
                     <StickerGlanceBadge />
-                    <SuperuserToastController />
-                    <MatrixNotesEntryButton />
+                    {hasSuperuser ? <SuperuserToastController /> : null}
+                    {hasEscaped ? <MatrixNotesEntryButton /> : null}
                 </>
             ) : null}
-            {mountStage >= 3 ? <AssetPrefetchController /> : null}
+            {mountStage >= 3 && hasSuperuser ? <AssetPrefetchController /> : null}
         </>
     );
 }

@@ -48,17 +48,18 @@ export default function DiscoFlagController(): React.ReactElement | null {
   const [MediaLayer, setMediaLayer] = useState<MediaLayerModule['default'] | null>(null);
   const [MatrixOverlay, setMatrixOverlay] = useState<MatrixOverlayModule['default'] | null>(null);
 
-  // 1) Sync store flag → <html data-disco>. This is the only always-on work.
+  // 1) Sync store flag → <html data-disco> once DiscoMediaLayer (and its
+  //    co-bundled disco.css) is ready so there is never an unstyled flash.
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    if (discoActive) {
+    if (discoActive && MediaLayer) {
       root.dataset.disco = 'on';
       setTheme('dark');
-    } else {
+    } else if (!discoActive) {
       delete root.dataset.disco;
     }
-  }, [discoActive, setTheme]);
+  }, [discoActive, MediaLayer, setTheme]);
 
   // 2) Gate the heavy disco import — only fetch the chunk once `discoActive`
   //    is true for the first time. Stays resolved for the rest of the session

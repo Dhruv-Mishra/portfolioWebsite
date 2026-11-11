@@ -1,5 +1,6 @@
 "use client";
 
+import './disco.css';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { SkipForward } from 'lucide-react';

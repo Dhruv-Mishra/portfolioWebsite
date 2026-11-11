@@ -158,8 +158,8 @@ export default function Projects() {
                                                     alt={`${proj.name} project screenshot`}
                                                     fill
                                                     sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                    loading={i === 0 ? "eager" : "lazy"}
                                                     priority={i === 0}
+                                                    decoding={i === 0 ? "sync" : "async"}
                                                     placeholder="blur"
                                                     blurDataURL={proj.blurDataURL}
                                                     className={`object-cover ${proj.imageClassName || ''}`}

@@ -5,7 +5,7 @@ import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PaperClip } from '@/components/DoodleIcons';
 import ProjectGridController from '@/components/ProjectGridController';
 import { PROJECTS } from '@/lib/projects';
-import { PROJECT_TOKENS, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { PROJECT_TOKENS } from '@/lib/designTokens';
 
 // Pre-computed per-card style values — deterministic (index-based), hoisted to module scope
 const ROTATIONS = PROJECT_TOKENS.rotations;
@@ -65,8 +65,8 @@ const CARD_CLIP_STYLE = {
 } as const;
 
 /** Fold corner styles hoisted — shared across all cards, avoids per-card allocation */
-const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: GRADIENT_TOKENS.foldCorner } as const;
-const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, opacity: 0.85, clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
+const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: 'var(--note-fold-shadow)' } as const;
+const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, backgroundColor: 'var(--note-fold-underside)', clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
 
 /** Pre-computed per-card styles — deterministic (index-based), avoids ~28 object allocations per render */
 const CLIP_ROTATIONS = [-8, -15, -5, -18, -10, -13, -7];
@@ -128,7 +128,7 @@ export default function Projects() {
                                 style={FOLD_GRADIENT_STYLE}
                             />
                             <div
-                                className={`absolute bottom-0 right-0 pointer-events-none z-10 ${proj.colorClass}`}
+                                className="absolute bottom-0 right-0 pointer-events-none z-10"
                                 style={FOLD_COLOR_STYLE}
                             />
 

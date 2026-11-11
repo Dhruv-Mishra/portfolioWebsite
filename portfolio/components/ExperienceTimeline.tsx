@@ -55,35 +55,35 @@ const CATEGORY_META: Record<ExperienceTimelineCategory, CategoryMeta> = {
   work: {
     label: 'Work',
     icon: BriefcaseBusiness,
-    chipClassName: 'border-emerald-700/30 bg-emerald-100/70 text-emerald-900',
+    chipClassName: 'border-emerald-700/30 bg-emerald-100/70 text-emerald-900 dark:border-emerald-400/35 dark:bg-emerald-950/60 dark:text-emerald-200',
     dotClassName: 'bg-emerald-500 ring-emerald-800/20',
     shadowClassName: 'shadow-[3px_3px_0_rgba(16,185,129,0.18)]',
   },
   internship: {
     label: 'Internship',
     icon: Sparkles,
-    chipClassName: 'border-sky-700/30 bg-sky-100/75 text-sky-900',
+    chipClassName: 'border-sky-700/30 bg-sky-100/75 text-sky-900 dark:border-sky-400/35 dark:bg-sky-950/60 dark:text-sky-200',
     dotClassName: 'bg-sky-500 ring-sky-800/20',
     shadowClassName: 'shadow-[3px_3px_0_rgba(14,165,233,0.18)]',
   },
   research: {
     label: 'Research',
     icon: Sparkles,
-    chipClassName: 'border-violet-700/30 bg-violet-100/75 text-violet-900',
+    chipClassName: 'border-violet-700/30 bg-violet-100/75 text-violet-900 dark:border-violet-400/35 dark:bg-violet-950/60 dark:text-violet-200',
     dotClassName: 'bg-violet-500 ring-violet-800/20',
     shadowClassName: 'shadow-[3px_3px_0_rgba(139,92,246,0.18)]',
   },
   education: {
     label: 'Education',
     icon: GraduationCap,
-    chipClassName: 'border-indigo-700/30 bg-indigo-100/75 text-indigo-900',
+    chipClassName: 'border-indigo-700/30 bg-indigo-100/75 text-indigo-900 dark:border-indigo-400/35 dark:bg-indigo-950/60 dark:text-indigo-200',
     dotClassName: 'bg-indigo-500 ring-indigo-800/20',
     shadowClassName: 'shadow-[3px_3px_0_rgba(99,102,241,0.18)]',
   },
   achievement: {
     label: 'Awards',
     icon: Trophy,
-    chipClassName: 'border-amber-700/30 bg-amber-100/75 text-amber-900',
+    chipClassName: 'border-amber-700/30 bg-amber-100/75 text-amber-900 dark:border-amber-400/35 dark:bg-amber-950/60 dark:text-amber-200',
     dotClassName: 'bg-amber-500 ring-amber-800/20',
     shadowClassName: 'shadow-[3px_3px_0_rgba(245,158,11,0.2)]',
   },
@@ -359,7 +359,6 @@ export default function ExperienceTimeline({ entries }: ExperienceTimelineProps)
                       onKeyDown={(event) => handleEntryKeyDown(event, entry.id)}
                       aria-expanded={isActive}
                       aria-controls={isActive ? detailsId : undefined}
-                      aria-label={isActive ? `Collapse ${entry.title}` : `Expand ${entry.title}`}
                       className="group/timeline-trigger relative z-10 block w-full rounded-[6px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/35"
                     >
                       <span className="flex flex-col gap-2">

@@ -56,12 +56,18 @@ function MobileSoundToggleFabImpl(): React.ReactElement | null {
   // /settings so the model picker uses a content gutter instead.
   if (pathname.startsWith('/chat') || pathname === '/guestbook' || pathname.startsWith('/guestbook/')) return null;
 
+  const isHomeRoute = pathname === '/';
+
   return (
     <div
       ref={rootRef}
       data-mobile-sound-toggle
       className="md:hidden fixed"
-      style={{ ...FAB_POSITION_STYLE, zIndex: Z_INDEX.nav }}
+      style={{
+        ...FAB_POSITION_STYLE,
+        bottom: isHomeRoute ? 'var(--c-mobile-dock-bottom)' : FAB_POSITION_STYLE.bottom,
+        zIndex: Z_INDEX.nav,
+      }}
     >
       {sliderOpen ? (
         <div

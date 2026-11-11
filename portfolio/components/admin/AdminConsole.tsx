@@ -114,9 +114,8 @@ export default function AdminConsole(): React.ReactElement {
   }, [router]);
 
   return (
-    <main
-      className="min-h-[100dvh] flex items-center justify-center px-4 py-10 bg-black text-emerald-100"
-      role="main"
+    <div
+      className="min-h-full flex items-center justify-center px-4 py-10 bg-black text-emerald-100"
     >
       <div className="w-full max-w-xl">
         <header className="mb-6 text-center">
@@ -182,7 +181,7 @@ export default function AdminConsole(): React.ReactElement {
           <em>looks</em> — not who Dhruv is.
         </p>
       </div>
-    </main>
+    </div>
   );
 }
 

@@ -96,6 +96,8 @@
 
     /* Uniform sticky-note paper (single light-mode color) */
     --note-paper: #fff9c4;
+    --note-fold-underside: #ede298;
+    --note-fold-shadow: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.08) 50%);
     /* Legacy token aliases kept so any third-party extension or persisted style
        referencing the old palette still renders. All resolve to --note-paper. */
     --note-yellow: var(--note-paper);
@@ -138,6 +140,8 @@
 
     /* Uniform sticky-note paper (single dark-mode color) */
     --note-paper: #222222;
+    --note-fold-underside: #35322f;
+    --note-fold-shadow: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.08) 50%);
     --note-yellow: var(--note-paper);
     --note-blue: var(--note-paper);
     --note-green: var(--note-paper);

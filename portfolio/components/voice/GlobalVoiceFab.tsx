@@ -45,6 +45,9 @@ function GlobalVoiceFabImpl({ variant = 'desktop' }: GlobalVoiceFabProps): React
     return variant === 'desktop' ? <div className="h-11 w-11" /> : null;
   }
   if (voiceModeActive) return null;
+  // Home and Resume already render an inline sticky-note voice CTA (`HomeVoiceNote`);
+  // suppress the duplicate mobile floating button so it never overlaps the terminal or PDF.
+  if (variant === 'mobile' && (pathname === '/' || pathname === '/resume')) return null;
 
   const topic = topicFromPath(pathname);
   const startVoice = () => requestVoiceMode({ source: 'nav', topic });

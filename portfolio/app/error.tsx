@@ -4,6 +4,19 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PROJECT_TOKENS } from '@/lib/designTokens';
+
+const FOLD_SIZE = PROJECT_TOKENS.foldSize;
+const CARD_CLIP_STYLE = {
+  clipPath: `polygon(0% 0%, 100% 0%, 100% calc(100% - ${FOLD_SIZE}px), calc(100% - ${FOLD_SIZE}px) 100%, 0% 100%)`,
+} as const;
+const FOLD_SHADOW_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: 'var(--note-fold-shadow)' } as const;
+const FOLD_FLAP_STYLE = {
+  width: FOLD_SIZE,
+  height: FOLD_SIZE,
+  backgroundColor: 'var(--note-fold-underside)',
+  clipPath: 'polygon(0 0, 0 100%, 100% 0)',
+} as const;
 
 export default function Error({
   error,
@@ -19,29 +32,35 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-paper">
-      <div className="animate-page-sheet max-w-2xl w-full bg-note-yellow p-8 md:p-12 rounded-lg shadow-2xl transform relative rotate-1">
+    <div className="min-h-full flex items-center justify-center p-4">
+      <div className="animate-page-sheet max-w-2xl w-full relative rotate-1 drop-shadow-xl">
         {/* Tape decoration */}
-        <div data-tape-strip className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6" style={TAPE_STYLE_DECOR} />
-        
-        <div className="text-center relative z-10">
-          <div className="inline-block mb-6">
-            <AlertTriangle size={100} className="text-amber-600 mx-auto" strokeWidth={2} />
+        <div data-tape-strip className="absolute -top-4 left-1/3 w-32 h-10 shadow-sm transform -rotate-6 z-20" style={TAPE_STYLE_DECOR} />
+
+        {/* Dog-ear fold outside clipped sheet */}
+        <div aria-hidden="true" className="absolute bottom-0 right-0 pointer-events-none z-10" style={FOLD_SHADOW_STYLE} />
+        <div aria-hidden="true" className="absolute bottom-0 right-0 pointer-events-none z-10" style={FOLD_FLAP_STYLE} />
+
+        <div
+          className="bg-note-yellow border border-[var(--c-ink)]/15 p-8 md:p-12 text-center relative z-0"
+          style={CARD_CLIP_STYLE}
+        >
+          <div className="inline-block mb-5">
+            <AlertTriangle size={88} className="text-amber-600 dark:text-amber-400 mx-auto" strokeWidth={2} aria-hidden="true" />
           </div>
-          
-          <h1 className="text-5xl md:text-7xl font-hand font-bold text-gray-900 mb-4">
-            Uh oh!
+
+          <h1 className="text-5xl md:text-7xl font-hand font-bold text-[var(--c-heading)] mb-3">
+            Page Hit a Snag
           </h1>
-          
-          <h2 className="text-2xl md:text-3xl font-hand font-bold text-gray-800 mb-6">
-            Something went wrong
+
+          <h2 className="text-2xl md:text-3xl font-hand font-bold text-[var(--c-ink)] mb-5">
+            This view failed to render
           </h2>
-          
-          <p className="text-lg md:text-xl font-hand text-gray-700 mb-8 leading-relaxed">
-            Don&apos;t worry, it&apos;s not your fault! The system encountered an unexpected error. 
-            This has been logged and I&apos;ll look into it.
+
+          <p className="text-lg md:text-xl font-hand text-[var(--c-ink)]/80 mb-8 leading-relaxed max-w-lg mx-auto">
+            Reloading the view usually clears transient state. If it keeps happening, return home while the error log is reviewed.
           </p>
-          
+
           {process.env.NODE_ENV === 'development' && (
             <div className="mb-8 p-4 bg-gray-900 rounded-lg text-left overflow-auto max-h-40">
               <pre className="text-xs text-gray-100 font-code">
@@ -49,34 +68,31 @@ export default function Error({
               </pre>
             </div>
           )}
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
               type="button"
               onClick={reset}
-              className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-700 transition-colors"
+              className="flex min-h-11 items-center gap-2 px-8 py-3.5 bg-indigo-600 text-white rounded-full font-hand font-bold text-xl shadow-md hover:bg-indigo-700 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             >
-              <RefreshCw size={24} />
-              Try Again
+              <RefreshCw size={22} aria-hidden="true" />
+              Reload View
             </button>
-            
+
             <button
               type="button"
               onClick={() => router.push('/')}
-              className="flex items-center gap-2 px-8 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full font-hand font-bold text-xl shadow-lg hover:bg-indigo-50 transition-colors"
+              className="flex min-h-11 items-center gap-2 px-8 py-3.5 bg-[var(--c-paper)] border-2 border-indigo-500 text-indigo-700 dark:text-indigo-300 rounded-full font-hand font-bold text-xl shadow-md hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
             >
-              Go Home
+              Back to Home
             </button>
           </div>
-          
-          <div className="mt-8 text-gray-600 font-hand text-md">
-            <p>Error ID: {error.digest || 'N/A'}</p>
-          </div>
-        </div>
-        
-        {/* Corner fold */}
-        <div className="absolute bottom-0 right-0 w-16 h-16 overflow-hidden">
-          <div className="absolute bottom-0 right-0 w-16 h-16 bg-gray-200 transform origin-bottom-right rotate-45 translate-x-8 translate-y-8" />
+
+          {error.digest ? (
+            <p className="mt-8 text-[var(--c-ink)]/55 font-code text-xs">
+              Error digest: {error.digest}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

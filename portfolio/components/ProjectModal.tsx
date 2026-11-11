@@ -46,12 +46,12 @@ const FOLD_CARD_STYLE = { clipPath: FOLD_CLIP_PATH } as const;
 const FOLD_GRADIENT_MODAL_STYLE = {
     width: FOLD_SIZE,
     height: FOLD_SIZE,
-    background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
+    background: 'var(--note-fold-shadow)',
 } as const;
 const FOLD_COLOR_MODAL_STYLE = {
     width: FOLD_SIZE,
     height: FOLD_SIZE,
-    opacity: 0.85,
+    backgroundColor: 'var(--note-fold-underside)',
     clipPath: 'polygon(0 0, 0 100%, 100% 0)',
 } as const;
 
@@ -453,11 +453,13 @@ export default function ProjectModal({ project, onClose }: ProjectModalProps) {
 
                     {/* Fold corner decoration */}
                     <div
+                        aria-hidden="true"
                         className="absolute bottom-0 right-0 pointer-events-none z-10"
                         style={FOLD_GRADIENT_MODAL_STYLE}
                     />
                     <div
-                        className={`absolute bottom-0 right-0 pointer-events-none z-10 ${project.colorClass}`}
+                        aria-hidden="true"
+                        className="absolute bottom-0 right-0 pointer-events-none z-10"
                         style={FOLD_COLOR_MODAL_STYLE}
                     />
                     </div>

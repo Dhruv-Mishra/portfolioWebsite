@@ -23,6 +23,7 @@ export interface SitePrefs {
   stickersEnabled: boolean;
   stickerToastsEnabled: boolean;
   hapticsEnabled: boolean;
+  pageFlipEnabled: boolean;
   motionPreference: MotionPreference;
 }
 
@@ -38,6 +39,7 @@ function toSitePrefs(prefs: AdminPrefs): SitePrefs {
     stickersEnabled: prefs.stickersEnabled,
     stickerToastsEnabled: prefs.stickerToastsEnabled,
     hapticsEnabled: prefs.hapticsEnabled,
+    pageFlipEnabled: prefs.pageFlipEnabled,
     motionPreference: prefs.motionPreference,
   };
 }
@@ -75,6 +77,8 @@ export function setSitePref(
       return setAdminPref('stickerToastsEnabled', value);
     case 'hapticsEnabled':
       return setAdminPref('hapticsEnabled', value);
+    case 'pageFlipEnabled':
+      return setAdminPref('pageFlipEnabled', value);
   }
 }
 

@@ -64,6 +64,7 @@ export interface AdminPrefs {
   stickerToastsEnabled: boolean;
   /** Whether supported touch/pen interactions may emit haptics. */
   hapticsEnabled: boolean;
+  pageFlipEnabled: boolean;
   /** `system` follows the OS; `reduced` always reduces; `full` overrides the OS. Default: full. */
   motionPreference: MotionPreference;
 }
@@ -80,6 +81,7 @@ function defaultPrefs(): AdminPrefs {
     stickersEnabled: true,
     stickerToastsEnabled: false,
     hapticsEnabled: true,
+    pageFlipEnabled: false,
     motionPreference: 'full',
   };
 }
@@ -113,6 +115,7 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
       stickersEnabled: booleanField(parsed, 'stickersEnabled', true),
       stickerToastsEnabled: booleanField(parsed, 'stickerToastsEnabled', false),
       hapticsEnabled: booleanField(parsed, 'hapticsEnabled', true),
+      pageFlipEnabled: booleanField(parsed, 'pageFlipEnabled', false),
       motionPreference:
         parsed.motionPreference === 'system'
           || parsed.motionPreference === 'reduced'

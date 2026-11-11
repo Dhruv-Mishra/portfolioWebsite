@@ -640,6 +640,11 @@ export default function SettingsPanel() {
         </SettingsGroup>
 
         <SettingsGroup title="Motion" icon={Activity}>
+          <SettingToggle
+            label="Page flip animation"
+            checked={prefs.pageFlipEnabled}
+            onChange={(checked) => setBooleanPref('pageFlipEnabled', checked)}
+          />
           <SegmentedChoice
             name="motion"
             value={prefs.motionPreference}

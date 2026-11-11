@@ -34,6 +34,29 @@ beforeEach(() => {
 });
 
 describe('site preference migration and facade', () => {
+  it.each([null, '{', '{}', '{"pageFlipEnabled":"true"}'])(
+    'keeps page flips off without an explicit valid opt-in: %s',
+    async (raw) => {
+      if (raw !== null) storage.setItem(STORAGE_KEY, raw);
+      const site = await import('@/hooks/useSitePrefs');
+
+      expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(false);
+    },
+  );
+
+  it('persists page flip opt-in and opt-out across reloads', async () => {
+    let site = await import('@/hooks/useSitePrefs');
+    expect(site.setSitePref('pageFlipEnabled', true)).toBe(true);
+    vi.resetModules();
+    site = await import('@/hooks/useSitePrefs');
+    expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(true);
+
+    expect(site.setSitePref('pageFlipEnabled', false)).toBe(true);
+    vi.resetModules();
+    site = await import('@/hooks/useSitePrefs');
+    expect(site.getSitePrefsSnapshot().pageFlipEnabled).toBe(false);
+  });
+
   it.each([
     ['absent storage', null],
     ['malformed storage', '{'],

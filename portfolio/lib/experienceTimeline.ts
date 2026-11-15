@@ -7,6 +7,8 @@ export interface ExperienceTimelineEntry {
   title: string;
   organization: string;
   location: string;
+  /** Square mark under /public; entries without one get a doodle. */
+  logo?: string;
   impact: string;
   highlights: readonly string[];
   tools: readonly string[];
@@ -20,6 +22,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Software Engineer, Microsoft',
     organization: 'Microsoft',
     location: 'Noida, India',
+    logo: '/resources/logos/microsoft.svg',
     impact: 'Triage agents cut manual on-call triage 40%. Saved $240K a year on Azure.',
     highlights: [
       'Built and shipped LLM incident-triage agents for on-call engineers. MCP servers give the agent Kusto, service-health, and config tools, with fallback logic and human escalation. Manual low/mid-severity triage dropped 40%, measured by replaying resolved incidents.',
@@ -37,6 +40,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'ML Engineer, growIndigo',
     organization: 'growIndigo',
     location: 'Delhi, India',
+    logo: '/resources/logos/growindigo.webp',
     impact: 'Took crop-classification accuracy from 80% to 93%.',
     highlights: [
       'Replaced a manual Google Earth Engine crop-classification workflow with a Python pipeline built on XGBoost and Random Forest.',
@@ -50,6 +54,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'SWE Intern, Microsoft Loop',
     organization: 'Microsoft Loop',
     location: 'Noida, India',
+    logo: '/resources/logos/microsoft-loop.svg',
     impact: 'Built the backend later shared by all Loop third-party integrations.',
     highlights: [
       'Built a TypeScript connection-management backend that syncs Jira, Trello, and GitHub connection state for Microsoft Loop.',
@@ -64,6 +69,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'Undergrad Researcher, IIIT Delhi',
     organization: 'Distributed Computing Lab, IIIT Delhi',
     location: 'Delhi, India',
+    logo: '/resources/logos/iiitd.webp',
     impact: 'Lock-free counting Bloom filter with 3x the baseline throughput.',
     highlights: [
       'Used relaxed synchronization to trade a little strictness for much higher throughput.',
@@ -77,7 +83,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     dateLabel: '2022 – now',
     title: 'Competitive programming',
     organization: 'Codeforces, CodeChef, Google, Microsoft',
-    location: 'Online + Microsoft',
+    location: 'Online + on-site',
     impact: 'Codeforces Expert, CodeChef 5-star, Most Voted at Microsoft Hackathon 2026.',
     highlights: [
       'Codeforces Expert with peak rating 1703 and CodeChef 5-star with peak rating 2003.',
@@ -94,6 +100,7 @@ export const experienceTimelineEntries: readonly ExperienceTimelineEntry[] = [
     title: 'B.Tech, IIIT Delhi',
     organization: 'IIIT Delhi',
     location: 'Delhi, India',
+    logo: '/resources/logos/iiitd.webp',
     impact: 'Honors in CS and Applied Math, CGPA 8.96.',
     highlights: [
       'Built a Course Recommendation System, a Python NLP similarity-scoring recommender, under Prof. Dhruv Kumar.',

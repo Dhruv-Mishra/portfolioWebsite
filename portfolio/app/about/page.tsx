@@ -5,7 +5,6 @@ import ExperienceTimeline from '@/components/ExperienceTimeline';
 import AboutVoiceLink from '@/components/about/AboutVoiceLink';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { experienceTimelineEntries } from '@/lib/experienceTimeline';
 import { PERSONAL_LINKS, SITE } from '@/lib/links';
 import { RESUME_PDF_URL } from '@/lib/siteVersion';
 import '@/components/about/about.css';
@@ -66,7 +65,7 @@ export default function About() {
         </address>
         <p className="about-voice font-body">Questions about my work? <AboutVoiceLink /></p>
       </section>
-      <ExperienceTimeline entries={experienceTimelineEntries} />
+      <ExperienceTimeline />
     </div>
   );
 }

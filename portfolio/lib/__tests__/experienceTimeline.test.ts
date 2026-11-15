@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +29,14 @@ describe('experience timeline content', () => {
     expect(microsoft.highlights.join(' ')).toContain('99.99%');
     expect(microsoft.tools).toContain('Jetpack Compose');
   });
+
+  it('gives every company entry a logo that ships in public/', () => {
+    for (const entry of experienceTimelineEntries) {
+      if (entry.category === 'achievement') continue;
+      expect(entry.logo, entry.id).toMatch(/^\/resources\/logos\/[\w-]+\.(svg|webp)$/);
+      expect(fs.existsSync(path.join(process.cwd(), 'public', entry.logo!)), entry.logo).toBe(true);
+    }
+  });
 });
 
 const feedback = vi.hoisted(() => ({ selection: vi.fn(), toggle: vi.fn() }));
@@ -46,40 +56,54 @@ afterEach(async () => {
 
 async function renderTimeline() {
   await act(async () => {
-    renderer = TestRenderer.create(React.createElement(ExperienceTimeline, { entries: experienceTimelineEntries }));
+    renderer = TestRenderer.create(React.createElement(ExperienceTimeline));
   });
-  return renderer!;
+  const root = renderer!.root;
+  const triggers = () => root.findAll((node) => node.type === 'button' && node.props['aria-controls'] !== undefined);
+  const sheet = (trigger: TestRenderer.ReactTestInstance) => root.find((node) => node.props.id === trigger.props['aria-controls'] && node.type === 'div');
+  const item = (trigger: TestRenderer.ReactTestInstance) => trigger.parent!;
+  return { triggers, sheet, item };
 }
 
 describe('experience timeline interaction', () => {
-  it('starts closed and keeps exactly one pin, with toggle feedback', async () => {
-    const view = await renderTimeline();
-    const buttons = () => view.root.findAllByType('button');
-    expect(buttons().every(({ props }) => props['aria-expanded'] === false)).toBe(true);
-    await act(async () => buttons()[0].props.onClick());
-    expect(buttons()[0].props['aria-expanded']).toBe(true);
-    expect(view.root.findAllByProps({ className: 'tl-detail-content font-body' })[0].props.inert).toBe(false);
-    await act(async () => buttons()[1].props.onClick());
-    expect(buttons().filter(({ props }) => props['aria-expanded'])).toHaveLength(1);
-    expect(buttons()[0].props['aria-expanded']).toBe(false);
-    expect(buttons()[1].props['aria-expanded']).toBe(true);
-    await act(async () => buttons()[1].props.onClick());
-    expect(buttons().some(({ props }) => props['aria-expanded'])).toBe(false);
+  it('names each tile by its title and points it at an inert, collapsed sheet', async () => {
+    const { triggers, sheet } = await renderTimeline();
+    expect(triggers()).toHaveLength(experienceTimelineEntries.length);
+    for (const [index, trigger] of triggers().entries()) {
+      const label = renderer!.root.find((node) => node.props.id === trigger.props['aria-labelledby']);
+      expect(label.children).toEqual([experienceTimelineEntries[index].title]);
+      expect(trigger.props['aria-expanded']).toBe(false);
+      expect(sheet(trigger).props.inert).toBe(true);
+    }
+  });
+
+  it('keeps exactly one pin, opens its sheet, and gives toggle feedback', async () => {
+    const { triggers, sheet, item } = await renderTimeline();
+    await act(async () => triggers()[0].props.onClick());
+    expect(triggers()[0].props['aria-expanded']).toBe(true);
+    expect(sheet(triggers()[0]).props.inert).toBe(false);
+    expect(item(triggers()[0]).props['data-pinned']).toBe(true);
+    await act(async () => triggers()[1].props.onClick());
+    expect(triggers().map(({ props }) => props['aria-expanded'])).toEqual([false, true, false, false, false, false]);
+    expect(sheet(triggers()[0]).props.inert).toBe(true);
+    expect(item(triggers()[0]).props['data-pinned']).toBeUndefined();
+    await act(async () => triggers()[1].props.onClick());
+    expect(triggers().some(({ props }) => props['aria-expanded'])).toBe(false);
     expect(feedback.selection).toHaveBeenCalledTimes(2);
     expect(feedback.toggle).toHaveBeenCalledOnce();
   });
 
-  it('unpins on Escape inside a pinned tile without swallowing other keys', async () => {
-    const view = await renderTimeline();
-    const first = () => view.root.findAllByType('button')[0];
-    await act(async () => first().props.onClick());
-    const tile = () => view.root.findAllByType('article')[0];
+  it('unpins on Escape from a pinned tile without swallowing other keys', async () => {
+    const { triggers } = await renderTimeline();
     const stopPropagation = vi.fn();
-    await act(async () => tile().props.onKeyDown({ key: 'Tab', stopPropagation }));
-    expect(first().props['aria-expanded']).toBe(true);
+    await act(async () => triggers()[2].props.onKeyDown({ key: 'Escape', stopPropagation }));
     expect(stopPropagation).not.toHaveBeenCalled();
-    await act(async () => tile().props.onKeyDown({ key: 'Escape', stopPropagation }));
-    expect(first().props['aria-expanded']).toBe(false);
+    await act(async () => triggers()[2].props.onClick());
+    await act(async () => triggers()[2].props.onKeyDown({ key: 'Tab', stopPropagation }));
+    expect(triggers()[2].props['aria-expanded']).toBe(true);
+    expect(stopPropagation).not.toHaveBeenCalled();
+    await act(async () => triggers()[2].props.onKeyDown({ key: 'Escape', stopPropagation }));
+    expect(triggers()[2].props['aria-expanded']).toBe(false);
     expect(stopPropagation).toHaveBeenCalledOnce();
   });
 

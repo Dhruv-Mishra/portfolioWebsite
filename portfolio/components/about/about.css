@@ -123,6 +123,8 @@
 }
 
 @media (min-width: 1024px) and (max-width: 1279px) {
+  /* The timeline is a straight line here, so the note takes an even share instead of a cramped float. */
+  .about-spread { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; }
   .about-note { top: .5rem; padding: 1.75rem; }
   .about-photo { width: 7rem; }
 }

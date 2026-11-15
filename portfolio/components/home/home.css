@@ -3,7 +3,7 @@
   stroke: var(--c-marker);
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: hero-swash-draw 600ms var(--ease-paper) 150ms forwards;
+  animation: hero-swash-draw var(--dur-enter) var(--ease-paper) var(--dur-quick) forwards;
 }
 
 @keyframes hero-swash-draw {

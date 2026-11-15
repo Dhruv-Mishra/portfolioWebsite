@@ -59,12 +59,6 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
   }, [count]);
 
   useEffect(() => {
-    if (leaving === null) return;
-    const timer = window.setTimeout(() => setLeaving(null), 600);
-    return () => window.clearTimeout(timer);
-  }, [leaving]);
-
-  useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     const onVisibility = () => hold('hidden', document.visibilityState === 'hidden');
@@ -163,6 +157,9 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
               ref={state === 'active' ? (node) => { activeRef.current = node; } : undefined}
               data-state={state}
               inert={state !== 'active' || undefined}
+              onTransitionEnd={state === 'leaving' ? (event) => {
+                if (event.target === event.currentTarget && event.propertyName === 'opacity') setLeaving(null);
+              } : undefined}
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${count}: ${slide.name}`}
               className="featured-slide relative grid gap-4 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:items-center"

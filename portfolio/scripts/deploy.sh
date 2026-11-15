@@ -1686,6 +1686,8 @@ prepare_docker_systemd_unit() {
 
     STAGED_SYSTEMD_UNIT="$(mktemp "/tmp/${SERVICE_NAME}.service.XXXXXX")"
 
+    # Host networking: nginx reaches Node on loopback directly instead of through
+    # docker-proxy and the bridge; HOSTNAME keeps Node bound to loopback only.
     cat > "${STAGED_SYSTEMD_UNIT}" << UNIT
 [Unit]
 Description=Next.js Docker container — ${DOMAIN}
@@ -1702,10 +1704,10 @@ ExecStart=${docker_bin} run --name ${DOCKER_CONTAINER_NAME} --rm --pull=never \
   --env-file ${DEPLOY_ENV_FILE} \
   --env NODE_ENV=production \
   --env PORT=${NEXTJS_PORT} \
-  --env HOSTNAME=0.0.0.0 \
+  --env HOSTNAME=127.0.0.1 \
   --env NODE_OPTIONS=--max-old-space-size=${NODE_HEAP_MB} \
     ${docker_tts_runtime_args} \
-  --publish 127.0.0.1:${NEXTJS_PORT}:${NEXTJS_PORT}/tcp \
+  --network host \
   --memory ${MEMORY_MAX_MB}m \
   --memory-reservation ${MEMORY_HIGH_MB}m \
   --cpus ${docker_cpus} \

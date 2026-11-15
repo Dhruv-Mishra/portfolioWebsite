@@ -1,0 +1,114 @@
+name: Validate native runtime build (temporary)
+
+# Temporary branch-only validation for perf/native-arm-host-network; publishes nothing.
+on:
+  push:
+    branches:
+      - perf/native-arm-host-network
+    paths:
+      - .github/workflows/validate-native-build.yml
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    name: Runtime stage native (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          sparse-checkout: |
+            portfolio/.dockerignore
+            portfolio/Dockerfile
+            portfolio/requirements-tts.txt
+          sparse-checkout-cone-mode: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: portfolio
+          file: portfolio/Dockerfile
+          target: runtime
+          platforms: linux/${{ matrix.arch }}
+          push: false
+
+  app-multiarch:
+    name: App build multi-arch without QEMU
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Show registered binfmt handlers
+        run: ls /proc/sys/fs/binfmt_misc/ || true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: portfolio
+          file: portfolio/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          # Stand-in multi-arch runtime: proves the stage override and that no step emulates arm64.
+          build-contexts: |
+            runtime=docker-image://node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
+          build-args: |
+            NEXT_BUILD_ID=validate
+            NEXT_EXTERNAL_TYPECHECK=1
+            BROWSERSLIST_QUERY=last 2 Chrome versions, last 2 Firefox versions, last 2 Safari versions, last 2 Edge versions
+
+  host-network-smoke:
+    name: Host-network container smoke (amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: portfolio
+          file: portfolio/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: portfolio:validate
+          build-args: |
+            NEXT_BUILD_ID=validate
+            NEXT_EXTERNAL_TYPECHECK=1
+      - name: Run with deploy.sh flags and probe
+        run: |
+          set -euo pipefail
+          printf 'SITE_URL=http://127.0.0.1:3999\n' > /tmp/validate.env
+          docker run -d --name portfolio-validate --pull=never \
+            --env-file /tmp/validate.env \
+            --env NODE_ENV=production --env PORT=3999 --env HOSTNAME=127.0.0.1 \
+            --env NODE_OPTIONS=--max-old-space-size=350 --env TTS_NODE_MODE=remote \
+            --network host --memory 1536m --memory-reservation 1200m --cpus 0.90 \
+            portfolio:validate
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null --max-time 2 http://127.0.0.1:3999/; then break; fi
+            sleep 1
+          done
+          echo "--- listener"
+          sudo ss -tlnp 'sport = :3999'
+          sudo ss -tlnp 'sport = :3999' | grep -q '127.0.0.1:3999' || { echo "::error::not bound to loopback"; exit 1; }
+          sudo ss -tlnp 'sport = :3999' | grep -q docker-proxy && { echo "::error::docker-proxy still in path"; exit 1; }
+          host_ip="$(hostname -I | awk '{print $1}')"
+          if curl -s -o /dev/null --max-time 2 "http://${host_ip}:3999/"; then echo "::error::reachable on ${host_ip}"; exit 1; fi
+          echo "--- HTTP"
+          curl -s -o /dev/null -w 'GET / -> %{http_code} in %{time_total}s\n' http://127.0.0.1:3999/
+          curl -s -o /dev/null -w 'GET /robots.txt -> %{http_code}\n' http://127.0.0.1:3999/robots.txt
+          echo "--- cgroup match for preflight"
+          pid="$(sudo ss -tlnp 'sport = :3999' | grep -oP 'pid=\K[0-9]+' | head -n1)"
+          id="$(docker inspect --format '{{.Id}}' portfolio-validate)"
+          sudo cat "/proc/${pid}/cgroup"; grep -q "$id" "/proc/${pid}/cgroup" && echo "listener PID ${pid} is in container cgroup"
+          echo "--- image contents"
+          docker exec portfolio-validate sh -c 'stat -c "%u:%g %a %n" /app /app/server.js /app/.next /var/cache/portfolio/pocket-tts; id; /opt/tts-venv/bin/python -c "import torch, pocket_tts; print(torch.__version__)"'
+          docker logs portfolio-validate 2>&1 | tail -n 20
+          docker image ls portfolio:validate

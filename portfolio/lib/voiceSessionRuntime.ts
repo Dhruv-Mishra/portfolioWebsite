@@ -21,7 +21,7 @@ import {
   type VoicePlaybackOptions,
 } from '@/lib/voiceAudio';
 import { disposePrimedVoiceAudio } from '@/lib/voiceAudioActivation';
-import { duckVoiceAmbient, playVoiceAction, playVoiceHangup, stopVoiceSounds } from '@/lib/voiceSounds';
+import { duckVoiceAmbient, playVoiceAction, playVoiceHangup, startVoiceAmbient, stopVoiceSounds } from '@/lib/voiceSounds';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
 import type {
@@ -1178,6 +1178,7 @@ export function startVoiceSession(): Promise<void> {
     generation: snapshot.generation + 1,
     recovery: 'none',
   });
+  startVoiceAmbient();
   return bootSession();
 }
 
@@ -1211,6 +1212,7 @@ export function retryVoiceSession(): Promise<void> {
     generation: snapshot.generation + 1,
     recovery: 'none',
   });
+  startVoiceAmbient();
   return bootSession();
 }
 

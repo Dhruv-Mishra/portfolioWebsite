@@ -25,41 +25,69 @@ const PHASE_LABEL: Record<VoiceAgentPhase, string> = {
   error: "Can't connect",
 };
 
+const RING_RATE: Partial<Record<VoiceAgentPhase, number>> = ORB.ringRate;
+
+/** Three hand-drawn rings, each its own element so its rotation stays on the compositor. */
+const RINGS = [
+  'M50 12 C72 11 89 28 88 50 C87 73 70 88 49 88 C27 89 12 72 12 50 C13 29 29 13 53 13',
+  'M86 47 C87 70 69 87 47 86 C26 85 13 68 14 47 C15 27 32 13 52 14 C71 15 85 30 85 52',
+  'M30 19 C46 10 70 13 82 30 C93 47 88 71 70 82 C52 93 28 88 17 70 C8 54 13 33 33 18',
+];
+
 export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabel = true }: VoiceOrbProps) {
   const levelRef = useRef<HTMLDivElement>(null);
-  const glowRef = useRef<HTMLSpanElement>(null);
+  const flareRef = useRef<HTMLSpanElement>(null);
+  const ringsRef = useRef<HTMLDivElement>(null);
 
+  // Agent audio swells the orb through transform/opacity only, and the loop runs only while audible.
   useEffect(() => {
     const level = levelRef.current;
-    const glow = glowRef.current;
-    if (!level || !glow || reducedMotion || (phase !== 'speaking' && phase !== 'acting')) return;
-
-    let target = getVoicePlaybackLevel();
+    const flare = flareRef.current;
+    if (!level || !flare || reducedMotion) return;
+    let target = 0;
     let smoothed = 0;
-    let lastWritten = -1;
-    let lastTime = performance.now();
-    const unsubscribe = subscribeVoicePlaybackLevel(value => { target = value; });
+    let written = 0;
+    let frame = 0;
+    let last = 0;
+    const write = (value: number) => {
+      level.style.transform = value ? `scale(${1 + value * ORB.levelScale})` : '';
+      flare.style.opacity = value ? String(value * ORB.flareOpacity) : '';
+      written = value;
+    };
     const tick = (now: number) => {
-      const dt = now - lastTime;
-      lastTime = now;
-      const value = Number.isFinite(target) ? Math.max(0, Math.min(1, target)) : 0;
-      const tau = value > smoothed ? ORB.attackMs : ORB.releaseMs;
-      smoothed += (value - smoothed) * (1 - Math.exp(-dt / tau));
-      if (Math.abs(smoothed - lastWritten) > ORB.epsilon) {
-        level.style.transform = `scale(${1 + smoothed * ORB.coreScale})`;
-        glow.style.opacity = String(ORB.glowMin + smoothed * ORB.glowRange);
-        lastWritten = smoothed;
+      const dt = Math.min(Math.max(now - last, 0), ORB.maxStepMs);
+      last = now;
+      const tau = target > smoothed ? ORB.attackMs : ORB.releaseMs;
+      smoothed += (target - smoothed) * (1 - Math.exp(-dt / tau));
+      if (target === 0 && smoothed < ORB.epsilon) {
+        frame = 0;
+        smoothed = 0;
+        write(0);
+        return;
       }
+      if (Math.abs(smoothed - written) > ORB.epsilon) write(smoothed);
       frame = requestAnimationFrame(tick);
     };
-    let frame = requestAnimationFrame(tick);
-
+    const onLevel = (value: number) => {
+      target = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+      if (frame || target === 0) return;
+      last = performance.now();
+      frame = requestAnimationFrame(tick);
+    };
+    onLevel(getVoicePlaybackLevel());
+    const unsubscribe = subscribeVoicePlaybackLevel(onLevel);
     return () => {
       unsubscribe();
       cancelAnimationFrame(frame);
-      level.style.removeProperty('transform');
-      glow.style.removeProperty('opacity');
+      write(0);
     };
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    const rate = RING_RATE[phase] ?? 1;
+    for (const animation of ringsRef.current?.getAnimations?.({ subtree: true }) ?? []) {
+      animation.updatePlaybackRate(rate);
+    }
   }, [phase, reducedMotion]);
 
   return (
@@ -72,16 +100,18 @@ export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabe
       )}
       aria-hidden
     >
-      <span ref={glowRef} className="orb-glow" />
-      <span className="orb-ripple" />
-      <span className="orb-ripple" />
+      <span className="orb-glow" />
+      <span ref={flareRef} className="orb-glow orb-flare" />
+      <span className="orb-ripples"><span /><span /></span>
       <div ref={levelRef} className="orb-level">
-        <svg className="orb-ink" viewBox="0 0 100 100" aria-hidden="true">
-          <g className="r1"><path d="M50 12 C72 11 89 28 88 50 C87 73 70 88 49 88 C27 89 12 72 12 50 C13 29 29 13 53 13" /></g>
-          <g className="r2"><path d="M86 47 C87 70 69 87 47 86 C26 85 13 68 14 47 C15 27 32 13 52 14 C71 15 85 30 85 52" /></g>
-          <g className="r3"><path d="M30 19 C46 10 70 13 82 30 C93 47 88 71 70 82 C52 93 28 88 17 70 C8 54 13 33 33 18" /></g>
-        </svg>
-        <span className="orb-core" />
+        <div className="orb-body">
+          <div ref={ringsRef} className="orb-rings">
+            {RINGS.map(path => (
+              <svg key={path} viewBox="0 0 100 100" aria-hidden="true"><path d={path} /></svg>
+            ))}
+          </div>
+          <span className="orb-core" />
+        </div>
       </div>
       {showLabel ? (
         <span className={cn(

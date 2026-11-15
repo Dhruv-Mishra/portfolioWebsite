@@ -4,6 +4,7 @@ const voiceSounds = vi.hoisted(() => ({
   duckVoiceAmbient: vi.fn(),
   playVoiceAction: vi.fn(),
   playVoiceHangup: vi.fn(),
+  startVoiceAmbient: vi.fn(),
   stopVoiceSounds: vi.fn(),
 }));
 
@@ -370,11 +371,14 @@ describe('voice session runtime singleton', () => {
     expect(runtime.captureStop).toHaveBeenCalled();
     expect(runtime.fakePlayback.close).toHaveBeenCalled();
     expect(runtime.fakeCaller.close).toHaveBeenCalledWith('error');
+    expect(voiceSounds.stopVoiceSounds).toHaveBeenCalled();
+    expect(voiceSounds.startVoiceAmbient).toHaveBeenCalledTimes(1);
 
     await retryVoiceSession();
     expect(runtime.createCaller).toHaveBeenCalledTimes(2);
     expect(runtime.fetchSession).toHaveBeenCalledTimes(2);
     expect(runtime.fakeCaller.getConnectCount()).toBe(2);
+    expect(voiceSounds.startVoiceAmbient).toHaveBeenCalledTimes(2);
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();

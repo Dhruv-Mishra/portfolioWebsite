@@ -8,12 +8,11 @@ vi.mock('@/lib/voiceAudioActivation', () => ({
   primeVoiceEnterAudio: vi.fn(),
 }));
 vi.mock('@/lib/voiceSounds', () => ({
-  playVoiceConnect: vi.fn((cb?: () => void) => cb?.()),
-  primeVoiceSounds: vi.fn(),
-  startVoiceAmbient: vi.fn(),
+  playVoiceConnect: vi.fn(),
 }));
 
 import { unlockSticker } from '@/hooks/useStickers';
+import { playVoiceConnect } from '@/lib/voiceSounds';
 import {
   consumeVoiceInvocationContext,
   consumeVoiceModeRequest,
@@ -35,6 +34,7 @@ describe('voiceModeStore central invocation', () => {
 
     expect(unlockSticker).toHaveBeenCalledTimes(1);
     expect(unlockSticker).toHaveBeenCalledWith('phoned-a-friend');
+    expect(playVoiceConnect).toHaveBeenCalledTimes(1);
     expect(peekVoiceModeRequest()).toBe('enter');
   });
 

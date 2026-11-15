@@ -1,152 +1,160 @@
+/* Voice call stage and orb. Only transform and opacity animate; html[data-reduced-motion] makes it static. */
+
+@property --orb-a { syntax: '<color>'; inherits: true; initial-value: rgb(99 102 241); }
+@property --orb-b { syntax: '<color>'; inherits: true; initial-value: rgb(139 92 246); }
+@property --orb-c { syntax: '<color>'; inherits: true; initial-value: rgb(56 189 248); }
+
+[data-voice-stage] {
+  --voice-tint: 420ms;
+  --voice-veil-ink: 0 0 0;
+  --voice-veil-wash: 99 102 241;
+  --voice-dock-right: max(1.25rem, calc(env(safe-area-inset-right, 0px) + 1rem));
+  --voice-dock-bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+/* On phones the call dock takes the site dock's corner (the site dock hides during a call). */
+@media (max-width: 767px) {
+  [data-voice-stage] { --voice-dock-right: var(--c-dock-right); --voice-dock-bottom: var(--c-dock-bottom); }
+}
+
+/* ── Orb ── */
 .voice-orb {
-  --orb-a: 99 102 241;
-  --orb-b: 139 92 246;
-  --orb-c: 56 189 248;
-  --orb-highlight: 255 255 255;
+  --orb-a: rgb(99 102 241);
+  --orb-b: rgb(139 92 246);
+  --orb-c: rgb(56 189 248);
   --orb-stroke: 2.5px;
-  --orb-r1: 18s;
-  --orb-r2: 26s;
-  --orb-r3: 34s;
-  --orb-ripple-period: 1400ms;
   pointer-events: none;
+  transition: --orb-a var(--voice-tint) var(--ease-standard), --orb-b var(--voice-tint) var(--ease-standard), --orb-c var(--voice-tint) var(--ease-standard);
 }
-
 .voice-orb[data-size="dock"] { --orb-stroke: 1.75px; }
-.voice-orb[data-phase="thinking"] { --orb-r1: 6s; --orb-r2: 9s; --orb-r3: 12s; }
-.voice-orb[data-phase="acting"] {
-  --orb-a: 16 185 129;
-  --orb-b: 45 212 191;
-  --orb-r1: 4s;
-  --orb-r2: 6s;
-  --orb-r3: 8s;
-  --orb-ripple-period: 1150ms;
-}
-.voice-orb[data-phase="error"] { --orb-a: 244 63 94; --orb-b: 251 113 133; --orb-c: 253 164 175; }
+.voice-orb[data-phase="acting"] { --orb-a: rgb(16 185 129); --orb-b: rgb(45 212 191); }
+.voice-orb[data-phase="error"] { --orb-a: rgb(244 63 94); --orb-b: rgb(251 113 133); --orb-c: rgb(253 164 175); }
 
-.orb-glow, .orb-level, .orb-ink, .orb-ripple, .orb-core { position: absolute; }
-.orb-glow, .orb-level, .orb-ink { inset: 0; width: 100%; height: 100%; }
+.orb-glow, .orb-ripples, .orb-ripples > span, .orb-level, .orb-body, .orb-rings, .orb-rings > svg, .orb-core { position: absolute; }
+.orb-glow, .orb-ripples, .orb-level, .orb-body, .orb-rings, .orb-rings > svg { inset: 0; }
 .orb-glow {
   border-radius: 50%;
-  background: radial-gradient(circle, rgb(var(--orb-a) / .45), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--orb-a) 45%, transparent), transparent 70%);
   opacity: .35;
+  transition: opacity var(--voice-tint) var(--ease-standard);
 }
-.orb-ink { overflow: visible; fill: none; }
-.orb-ink g {
-  transform-box: fill-box;
-  transform-origin: center;
+/* Driven per frame from the agent's audio level (VoiceOrb). */
+.orb-flare { opacity: 0; transform: scale(1.12); transition: none; will-change: opacity; }
+.orb-level { will-change: transform; }
+.orb-body { animation: voice-orb-breathe 3.2s ease-in-out infinite; }
+.orb-rings > svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--orb-a);
   opacity: .85;
-  will-change: transform;
-  animation: voice-ring-turn var(--orb-r1) linear infinite;
+  animation: voice-ring-turn 18s linear infinite;
 }
-.orb-ink path { stroke-width: var(--orb-stroke); stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.orb-ink .r1 { stroke: rgb(var(--orb-a)); }
-.orb-ink .r2 { stroke: rgb(var(--orb-b)); animation-duration: var(--orb-r2); animation-direction: reverse; }
-.orb-ink .r3 { stroke: rgb(var(--orb-c)); animation-duration: var(--orb-r3); }
+.orb-rings > svg:nth-child(2) { stroke: var(--orb-b); animation-duration: 26s; animation-direction: reverse; }
+.orb-rings > svg:nth-child(3) { stroke: var(--orb-c); animation-duration: 34s; }
+.orb-rings path { stroke-width: var(--orb-stroke); stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .orb-core {
   inset: 24%;
   border-radius: 48% 52% 51% 49% / 51% 47% 53% 49%;
-  background: radial-gradient(circle at 38% 34%, rgb(var(--orb-highlight)) 0 8%, rgb(var(--orb-a)) 42%, rgb(var(--orb-b)) 100%);
+  background: radial-gradient(circle at 38% 34%, rgb(255 255 255) 0 8%, var(--orb-a) 42%, var(--orb-b) 100%);
 }
-.orb-ripple { inset: 12%; border: 2px solid rgb(var(--orb-a)); border-radius: 50%; opacity: 0; }
-.voice-orb:is([data-phase="idle"], [data-phase="listening"]) .orb-level { animation: voice-orb-breathe 2.8s ease-in-out infinite; }
-.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .orb-level { will-change: transform; }
-.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .orb-glow { will-change: opacity; }
-.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .r2 { animation-direction: normal; }
-.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .orb-ripple {
-  animation: voice-orb-ripple var(--orb-ripple-period) cubic-bezier(.2,.6,.35,1) infinite;
+/* Ripples keep their place when paused, so speech starting or stopping fades them instead of popping. */
+.orb-ripples { opacity: 0; transition: opacity var(--voice-tint) var(--ease-standard); }
+.orb-ripples > span {
+  inset: 12%;
+  border: 2px solid var(--orb-a);
+  border-radius: 50%;
+  opacity: 0;
+  animation: voice-orb-ripple 1.3s cubic-bezier(.2, .6, .35, 1) infinite paused;
 }
-.voice-orb .orb-ripple + .orb-ripple { animation-delay: calc(var(--orb-ripple-period) / 2); }
-.voice-orb:is([data-phase="error"], [data-phase="exiting"]) .orb-ink g { animation: none; will-change: auto; }
+.orb-ripples > span + span { animation-delay: -.65s; }
+.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .orb-ripples { opacity: 1; }
+.voice-orb:is([data-phase="speaking"], [data-phase="acting"]) .orb-ripples > span { animation-play-state: running; }
+.voice-orb:is([data-phase="error"], [data-phase="exiting"]) :is(.orb-body, .orb-rings > svg) { animation-play-state: paused; }
 .voice-orb[data-phase="error"] .orb-glow { opacity: .3; }
 .voice-orb-label { font-size: var(--t-hand-sm); }
 
+/* ── Live edge halo: calm and acting layers cross-fade; each breathes at its own pace. ── */
 .voice-edge-halo {
-  --voice-edge-calm: 126 64 184;
-  --voice-edge-act: 22 163 74;
-  --voice-edge-width: 1.5rem;
-  --voice-edge-period: 4.8s;
-  pointer-events: none;
+  --edge-calm: 126 64 184;
+  --edge-act: 22 163 74;
+  --edge-width: 1.5rem;
   overflow: hidden;
   contain: paint;
+  animation: voice-fade-in var(--voice-veil-out) var(--ease-standard) both;
 }
-.dark .voice-edge-halo { --voice-edge-calm: 202 148 255; --voice-edge-act: 74 222 128; }
-.voice-edge-halo[data-phase="speaking"] { --voice-edge-period: 3.2s; }
-.voice-edge-halo[data-phase="acting"] { --voice-edge-period: 1.15s; }
-.voice-edge-halo [data-edge] {
+.dark .voice-edge-halo { --edge-calm: 202 148 255; --edge-act: 74 222 128; }
+.voice-edge-halo > span { --edge-dir: 90deg; position: absolute; inset-block: 0; left: 0; width: var(--edge-width); transform-origin: left center; }
+.voice-edge-halo > span + span { --edge-dir: 270deg; left: auto; right: 0; transform-origin: right center; }
+.voice-edge-halo > span > span {
   position: absolute;
-  inset-block: 0;
-  width: var(--voice-edge-width);
-  will-change: opacity, transform;
-  animation: voice-edge-breathe var(--voice-edge-period) ease-in-out infinite;
+  inset: 0;
+  transform-origin: inherit;
+  background: linear-gradient(var(--edge-dir), rgb(var(--edge) / .55), rgb(var(--edge) / .16) 45%, transparent);
+  animation: voice-edge-breathe 4.4s ease-in-out infinite;
+  transition: opacity var(--voice-tint) var(--ease-standard);
 }
-.voice-edge-halo [data-edge="left"] { left: 0; transform-origin: left center; }
-.voice-edge-halo [data-edge="right"] { right: 0; transform-origin: right center; animation-delay: calc(var(--voice-edge-period) / -2); }
-.voice-edge-halo [data-edge] span { position: absolute; inset: 0; transition: opacity 300ms var(--ease-standard); }
-.voice-edge-halo .calm { background: linear-gradient(90deg, rgb(var(--voice-edge-calm) / .7), rgb(var(--voice-edge-calm) / .22) 45%, transparent); }
-.voice-edge-halo .act { background: linear-gradient(90deg, rgb(var(--voice-edge-act) / .7), rgb(var(--voice-edge-act) / .22) 45%, transparent); opacity: 0; }
-.voice-edge-halo [data-edge="right"] span { transform: scaleX(-1); }
+.voice-edge-halo > span + span > span { animation-delay: -2.2s; }
+.voice-edge-halo .calm { --edge: var(--edge-calm); }
+.voice-edge-halo .act { --edge: var(--edge-act); opacity: 0; animation-duration: 1.2s; }
 .voice-edge-halo[data-phase="acting"] .calm { opacity: 0; }
 .voice-edge-halo[data-phase="acting"] .act { opacity: 1; }
+@media (min-width: 768px) { .voice-edge-halo { --edge-width: 2.5rem; } }
 
-[data-voice-stage] {
-  --voice-veil-ink: 0 0 0;
-  --voice-veil-wash: 99 102 241;
-  --voice-hero-delay: 80ms;
-  --voice-caption-delay: 200ms;
-  --voice-caption-enter: 280ms;
-  --voice-dock-delay: 320ms;
-}
+/* ── Intro veil and chrome: transitions run from wherever they are, so early hang-ups never jump. ── */
 .voice-stage-veil {
   background: radial-gradient(circle at 50% 38%, rgb(var(--voice-veil-wash) / .12), transparent 48%), rgb(var(--voice-veil-ink));
   opacity: 0;
-  transition: opacity var(--voice-veil-dock) var(--ease-standard);
+  transition: opacity var(--voice-veil-out) var(--ease-standard);
 }
-.voice-stage-veil[data-veil="intro"] { opacity: 1; animation: voice-veil-in var(--voice-veil-intro) cubic-bezier(.2,0,0,1); }
-.voice-stage-chrome[data-veil="intro"] { animation: voice-veil-in var(--voice-veil-intro) var(--ease-paper); }
-.voice-stage-chrome[data-veil="intro"] .voice-hero-orb { animation: voice-hero-in var(--voice-orb-morph) var(--ease-paper) var(--voice-hero-delay) both; }
-.voice-stage-chrome[data-veil="intro"] .voice-stage-caption { animation: voice-caption-in var(--voice-caption-enter) var(--ease-paper) var(--voice-caption-delay) both; }
-.voice-stage-veil[data-veil="exiting"][data-veil-from="intro"],
-.voice-stage-chrome[data-veil="exiting"] { animation: voice-fade-out var(--voice-intro-exit) var(--ease-standard) forwards; }
-.voice-dock-controls { animation: voice-veil-in var(--dur-quick) var(--ease-paper) var(--voice-dock-delay) both; }
+.voice-stage-chrome {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--voice-chrome-out) var(--ease-standard), visibility 0s linear var(--voice-chrome-out);
+}
+[data-veil="intro"] > :is(.voice-stage-veil, .voice-stage-chrome) {
+  opacity: 1;
+  visibility: visible;
+  transition: none;
+  animation: voice-fade-in var(--voice-veil-in) var(--ease-paper);
+}
+[data-veil="intro"] > .voice-stage-veil { pointer-events: auto; }
+[data-veil="exiting"] > .voice-stage-veil { transition-duration: var(--voice-chrome-out); }
+[data-veil="intro"] .voice-hero-orb { animation: voice-hero-in var(--voice-morph) var(--ease-paper) 80ms both; }
+[data-veil="intro"] .voice-stage-caption { animation: voice-caption-in var(--voice-caption-fade) var(--ease-paper) 200ms both; }
+
+/* ── Live dock and captions ── */
+.voice-live-dock { right: var(--voice-dock-right); bottom: var(--voice-dock-bottom); }
+.voice-live-captions { right: var(--voice-dock-right); bottom: calc(var(--voice-dock-bottom) + 5.5rem); }
+.voice-dock-controls { animation: voice-fade-in var(--dur-quick) var(--ease-paper) 320ms both; }
 .voice-dock-transcript {
   background: color-mix(in srgb, var(--c-paper) 92%, transparent);
   border: 1px solid var(--c-ink-faint);
   box-shadow: var(--shadow-sticker);
   padding: .65rem .8rem;
   border-radius: .75rem;
-  animation: voice-caption-in var(--voice-caption-enter) var(--ease-paper);
-  transition: opacity var(--voice-caption-enter) var(--ease-standard);
+  animation: voice-caption-in var(--voice-caption-fade) var(--ease-paper);
+  transition: opacity var(--voice-caption-fade) var(--ease-standard);
 }
 .voice-dock-transcript[data-subtitle-phase="exiting"] { opacity: 0; }
-[data-voice-stage][data-veil="exiting"][data-veil-from="live"] .voice-live-dock,
-[data-voice-stage][data-veil="exiting"][data-veil-from="live"] .voice-edge-halo {
-  animation: voice-dock-out var(--voice-dock-exit) var(--ease-paper) forwards;
-}
-[data-voice-stage][data-veil="exiting"] .voice-dock-controls { animation: none; }
-[data-voice-stage][data-veil="exiting"] .voice-live-captions { animation: voice-farewell-out var(--voice-exit-duration) var(--ease-standard) forwards; }
-[data-voice-stage][data-veil="exiting"] .voice-dock-transcript { animation: none; }
+[data-veil="exiting"] .voice-live-dock { animation: voice-dock-out var(--voice-dock-out) var(--ease-paper) forwards; }
+[data-veil="exiting"] .voice-edge-halo { animation: voice-fade-out var(--voice-dock-out) var(--ease-standard) forwards; }
+[data-veil="exiting"] .voice-live-captions { animation: voice-farewell-out var(--voice-farewell) var(--ease-standard) forwards; }
 
 @keyframes voice-ring-turn { to { transform: rotate(360deg); } }
 @keyframes voice-orb-breathe { 50% { transform: scale(1.035); } }
 @keyframes voice-orb-ripple { from { transform: scale(1); opacity: .55; } to { transform: scale(1.55); opacity: 0; } }
-@keyframes voice-edge-breathe { 0%, 100% { opacity: .45; transform: scaleX(.85); } 50% { opacity: .8; transform: scaleX(1.05); } }
-@keyframes voice-veil-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes voice-hero-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
-@keyframes voice-caption-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes voice-fade-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes voice-dock-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.92); } }
+@keyframes voice-edge-breathe { 0%, 100% { transform: scaleX(.7); } 50% { transform: scaleX(1.05); } }
+@keyframes voice-fade-in { from { opacity: 0; } }
+@keyframes voice-fade-out { to { opacity: 0; } }
+@keyframes voice-hero-in { from { opacity: 0; transform: scale(.9); } }
+@keyframes voice-caption-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes voice-dock-out { to { opacity: 0; transform: scale(.92); } }
 @keyframes voice-farewell-out { 0%, 62% { opacity: 1; } 100% { opacity: 0; } }
 
-@media (min-width: 768px) { .voice-edge-halo { --voice-edge-width: 2.5rem; } }
-
-html[data-reduced-motion] [data-voice-stage] *,
-html[data-reduced-motion] .voice-orb * {
+html[data-reduced-motion] [data-voice-stage] * {
   animation: none !important;
   transition: none !important;
-  will-change: auto !important;
 }
-html[data-reduced-motion] .voice-stage-veil[data-veil="exiting"],
-html[data-reduced-motion] .voice-stage-chrome[data-veil="exiting"],
-html[data-reduced-motion] [data-veil="exiting"] .voice-live-dock,
-html[data-reduced-motion] [data-veil="exiting"] .voice-edge-halo { opacity: 0; }
+html[data-reduced-motion] [data-veil="exiting"] :is(.voice-live-dock, .voice-edge-halo) { opacity: 0; }
 html[data-reduced-motion] .voice-dock-transcript[data-subtitle-phase="exiting"] { opacity: 1; }

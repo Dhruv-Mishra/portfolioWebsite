@@ -46,6 +46,13 @@ jobs:
             echo "::error::portfolio/Dockerfile has no 'FROM ... AS runtime' stage"
             exit 1
           fi
+          # The tag only covers this stage's text and requirements-tts.txt; any other input would let a stale runtime be reused.
+          extra_inputs="$(grep -nE '^[[:space:]]*(COPY|ADD|ARG)[[:space:]]|type=bind' <<< "$stage" | grep -vF 'COPY requirements-tts.txt /tmp/requirements-tts.txt' || true)"
+          if [ -n "$extra_inputs" ]; then
+            echo "::error::The Dockerfile runtime stage reads inputs the runtime-image hash does not cover; add them to this hash:"
+            printf '%s\n' "$extra_inputs"
+            exit 1
+          fi
           hash="$({ printf '%s\n' "$stage"; tr -d '\r' < portfolio/requirements-tts.txt; } | sha256sum | cut -c1-16)"
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "tag=runtime-${hash}" >> "$GITHUB_OUTPUT"

@@ -114,9 +114,15 @@ jobs:
         working-directory: portfolio
         run: npm test
 
+  # Native per-arch build of the slow runtime layers; reused until the runtime stage changes.
+  runtime-image:
+    name: Runtime image
+    needs: guard-staging-ref
+    uses: ./.github/workflows/runtime-image.yml
+
   build:
     name: Build staging image
-    needs: guard-staging-ref
+    needs: runtime-image
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -147,10 +153,6 @@ jobs:
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
 
-      - name: Set up QEMU
-        if: env.DEPLOY_MODE == 'image'
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-
       - name: Set up Docker Buildx
         if: env.DEPLOY_MODE == 'image'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -172,17 +174,15 @@ jobs:
           file: portfolio/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          # Prebuilt native runtime replaces the Dockerfile stage, so no step runs under emulation.
+          build-contexts: |
+            runtime=docker-image://${{ needs.runtime-image.outputs.image_ref }}
           tags: |
             ${{ steps.image-meta.outputs.image }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
-          # Registry cache in GHCR: final-image layers are already pushed, so exporting is cheap,
-          # and staging/production share the slow apt + PyTorch layers instead of evicting each
-          # other from the 10 GB Actions cache.
-          cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}
             NEXT_EXTERNAL_TYPECHECK=1

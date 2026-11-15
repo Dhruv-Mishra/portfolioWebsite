@@ -14,9 +14,8 @@ export const metadata = pageMetadata({
   path: '/projects',
 });
 
-/** Two desktop rows are visible at 1440x900; only the first row gets high fetch priority. */
-const EAGER_IMAGES = 6;
-const PRIORITY_IMAGES = 3;
+/** Next preloads eager images in <head>, where they compete with render-blocking CSS, so only the first photo is eager. */
+const EAGER_IMAGES = 1;
 // Inherited by every note's tape so the long polygon ships once instead of per note.
 const WALL_STYLE = { '--tape-clip': TAPE_CLIP_PATH } as CSSProperties;
 
@@ -60,10 +59,10 @@ export default function Projects() {
                         fill
                         sizes="(max-width: 595px) 120px, (max-width: 1279px) 38vw, 340px"
                         loading={eager ? 'eager' : 'lazy'}
-                        fetchPriority={index < PRIORITY_IMAGES ? 'high' : 'auto'}
+                        fetchPriority={eager ? 'high' : 'auto'}
                         // Each blur placeholder inlines ~1KB; lazy notes load before they scroll in, over a tinted frame.
-                        placeholder={index < PRIORITY_IMAGES ? 'blur' : 'empty'}
-                        blurDataURL={index < PRIORITY_IMAGES ? project.blurDataURL : undefined}
+                        placeholder={eager ? 'blur' : 'empty'}
+                        blurDataURL={eager ? project.blurDataURL : undefined}
                         className="object-cover"
                       />
                       <span aria-hidden="true" className="project-note-play" />

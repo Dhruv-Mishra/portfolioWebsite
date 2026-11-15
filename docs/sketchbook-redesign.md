@@ -36,20 +36,25 @@ A readability and mobile pass over the whole site, compared with production `v0.
 
 ## Performance
 
-Lab run on one machine: production builds of `c58d6af` and this branch, cold cache, median of 5 runs. Mobile emulates a 4× slower CPU, 1.6 Mbps and 150 ms RTT. Bytes are encoded transfer sizes from the local server, so absolute sizes run higher than through Cloudflare compression.
+Lab run on one machine: production builds of `c58d6af` and this branch, both behind the same gzip proxy (Nginx and Cloudflare compress in production), cold cache. Mobile emulates a 4× slower CPU, 1.6 Mbps and 150 ms RTT; medians of 5 runs (9 for home and projects on mobile).
 
-| Mobile | LCP | TBT | HTML | Route prefetch (RSC) | Total |
-|---|---|---|---|---|---|
-| Home | 2524 → **2108 ms** | 166 → 165 ms | 79.7 → 84.4 KB | 200.7 → **81.6 KB** | 1560 → **1469 KB** |
-| Projects | 3744 → **2404 ms** | 240 → **112 ms** | 268.9 → **89.2 KB** | 192.7 → **81.6 KB** | 1701 → **1545 KB** |
-| About | 3288 → **2216 ms** | 285 → **188 ms** | 148.9 → **75.7 KB** | 192.7 → **81.6 KB** | 1568 → **1392 KB** |
+| Mobile | LCP | TBT | HTML (gzip) | Route prefetch (RSC) |
+|---|---|---|---|---|
+| Home | 828 → 856 ms | 148 → 156 ms | 18.6 → 19.4 KB | 52.2 → **30.2 KB** |
+| Projects | 1024 → **916 ms** | 211 → **100 ms** | 33.2 → **17.4 KB** | 47.8 → **30.1 KB** |
+| About | 1100 → **1000 ms** | 252 → **183 ms** | 28.4 → **18.8 KB** | 47.8 → **30.2 KB** |
 
-| Desktop (unthrottled, median of 3) | LCP | TBT |
+| Desktop (unthrottled) | LCP | TBT |
 |---|---|---|
-| Home | 116 → 124 ms | 1 → 0 ms |
-| Projects | 148 → **128 ms** | 14 → **0 ms** |
-| About | 200 → **132 ms** | 63 → **13 ms** |
+| Home | 136 → 140 ms | 0 → 10 ms |
+| Projects | 180 → **152 ms** | 30 → **0 ms** |
+| About | 232 → **148 ms** | 66 → **18 ms** |
 
-CLS stays at 0 on every page. Two increases are deliberate:
-- Home fonts are 24 KB larger, because the terminal now loads Fira Code.
-- Home images are larger because the featured slideshow shows real previews.
+CLS stays at 0 on every page, and home is flat within noise. Projects and About get much cheaper to render: TBT is down 27–53%. A voice call no longer downloads 284 KB of MP3s and a GIF.
+
+Bytes that grew on purpose:
+- **Fonts:** the home page loads Fira Code (+23 KB) because the terminal now uses it.
+- **Home images:** the featured slideshow shows real previews (+78 KB, lazy).
+- **Projects images:** the photos load after first paint (+158 KB on phones).
+
+Only the first project photo is eager. Next preloads eager images in `<head>`, where they compete with render-blocking CSS on slow phones.

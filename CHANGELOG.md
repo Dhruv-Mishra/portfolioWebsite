@@ -42,6 +42,7 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 - Tailwind `dark:` utilities now follow the site theme toggle instead of the OS color-scheme setting.
 - Look-and-feel values centralized in `lib/designTokens.ts` and `@theme` utilities; persisted preferences share `LocalPreference`; API routes share `readJsonObjectOrError`.
 - CI and deploy checks share one setup action; staging model audits run once after rollout instead of on every host, and the duplicate per-host TTS synthesis is gone.
+- Deploy image builds no longer emulate arm64 with QEMU: the slow OS, Python, and PyTorch layers come from a runtime image built on native amd64 and arm64 runners and reused until the Dockerfile `runtime` stage or `requirements-tts.txt` changes, and the app is added with `COPY --link`. A runtime change built in about 8 minutes before (arm64 `pip install` alone took 300 s under emulation against 64 s natively).
 - `@zvec/zvec-grep` (380 MB dev dependency), its scripts, and its MCP entry removed.
 - 32 source-text contract test files and redundant cases removed (1053 -> 828 behavioral tests), along with dead code and one-off scripts.
 - Resume PDF, resume facts, experience timeline, About copy, project cards, chat replies, and terminal output updated to the October 2026 resume; generic marketing phrasing removed.

@@ -19,12 +19,12 @@ The staging and production workflows:
 
 1. Require the expected branch and validate required runtime signing configuration, the local-agent credential, and the environment-specific voice-agent credential.
 2. Run `npm ci`, lint, TypeScript checks (including `next typegen` route types), and Vitest from `portfolio/`. Deploy jobs need this job, so image builds skip Next's duplicate in-build type check (`NEXT_EXTERNAL_TYPECHECK=1`).
-3. Staging builds and pushes one GHCR Docker image for `linux/amd64` and `linux/arm64`. The Next.js build (Turbopack, as in CI) runs once on the build platform, so both architectures share one app layer and `/_next/static` graph; Next builds are not reproducible, so never build per architecture. After its rollout and smoke checks pass, staging tags that digest `verified-<sha>`. Production reuses the `verified-<sha>` digest for the same commit after checking its revision label, and builds only when no verified image exists.
+3. Staging builds and pushes one GHCR Docker image for `linux/amd64` and `linux/arm64`. The Next.js build (Turbopack, as in CI) runs once on the build platform, so both architectures share one app layer and `/_next/static` graph; Next builds are not reproducible, so never build per architecture. The slow OS, Python, and PyTorch layers come from a runtime image that `runtime-image.yml` builds on native amd64 and arm64 runners. Its `runtime-<hash>` tag covers the Dockerfile `runtime` stage and `requirements-tts.txt`, so deploys reuse it until either changes. The app build swaps that image in for the `runtime` stage and only adds the app with `COPY --link`, so nothing runs under QEMU. After its rollout and smoke checks pass, staging tags that digest `verified-<sha>`. Production reuses the `verified-<sha>` digest for the same commit after checking its revision label, and builds only when no verified image exists.
 4. Deploy the immutable image digest to Linux VMs behind Cloudflare and Nginx.
 
 The image contains Node 22 standalone output, static assets, Python, and the CPU Pocket TTS runtime. It is environment-neutral: server code reads the site origin from runtime `SITE_URL`, which staging must set to its own origin. The production container serves port 3000; staging is configured as the separate `portfolio-staging` service on port 3010.
 
-The Node base image is pinned by digest so the slow apt and PyTorch layers stay cached between builds. Dependabot (`.github/dependabot.yml`) proposes weekly digest refreshes; merge them promptly for Node security releases.
+The Node base image is pinned by digest. A Dependabot digest refresh changes the runtime hash, so the next deploy rebuilds the runtime image natively (about two minutes) and every VM pulls its layers once. Dependabot (`.github/dependabot.yml`) proposes weekly digest refreshes; merge them promptly for Node security releases.
 
 ## Advisory Model Health
 

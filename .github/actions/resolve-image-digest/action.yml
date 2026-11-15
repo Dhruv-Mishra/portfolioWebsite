@@ -1,0 +1,45 @@
+name: Resolve image digest
+description: Resolve a registry tag to its manifest digest; empty only when the tag is confirmed absent.
+
+inputs:
+  ref:
+    description: Image reference with tag, for example ghcr.io/owner/repo:tag.
+    required: true
+
+outputs:
+  digest:
+    description: sha256 digest of the tag, or empty when the tag does not exist.
+    value: ${{ steps.resolve.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve digest
+      id: resolve
+      shell: bash
+      env:
+        REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        inspect_error="$(mktemp)"
+        for attempt in 1 2 3; do
+          if manifest="$(docker buildx imagetools inspect "$REF" --format '{{json .Manifest}}' 2>"$inspect_error")"; then
+            break
+          fi
+          # Only confirmed absence may fall back to a build; other registry errors must not.
+          if grep -qiE 'not found|manifest unknown' "$inspect_error"; then
+            echo "${REF} does not exist."
+            exit 0
+          fi
+          if [ "$attempt" = "3" ]; then
+            echo "::error::Could not resolve ${REF}: $(cat "$inspect_error")"
+            exit 1
+          fi
+          sleep $((attempt * 5))
+        done
+        digest="$(jq -r '.digest // empty' <<< "$manifest")"
+        if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          echo "::error::${REF} resolved to an invalid digest: ${digest:-empty}"
+          exit 1
+        fi
+        echo "digest=${digest}" >> "$GITHUB_OUTPUT"

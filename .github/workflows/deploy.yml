@@ -7,6 +7,10 @@ permissions:
 # ─────────────────────────────────────────────────────────────────────────────
 # Architecture: build-once-deploy-many
 #
+#   runtime-image job (reusable runtime-image.yml)
+#     └── reuse or natively build (amd64 + arm64 runners) the slow OS/Python/
+#         PyTorch runtime layers, keyed by the Dockerfile runtime stage hash
+#
 #   build job (ubuntu-latest, once)
 #     └── reuse the staging-verified digest for this SHA (verified-<sha> tag),
 #         or build/push one multi-platform ghcr.io image when none exists
@@ -21,7 +25,8 @@ permissions:
 #   - The Next.js standalone bundle is still pure JavaScript at runtime, but
 #     the container now includes Python/Pocket TTS for local TTS.
 #   - Buildx publishes linux/amd64 and linux/arm64 variants so fresh VMs can
-#     pull the same immutable digest regardless of CPU architecture.
+#     pull the same immutable digest regardless of CPU architecture. Next is
+#     built once on amd64 and copied onto the prebuilt runtime, so no QEMU.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -150,11 +155,20 @@ jobs:
         run: npm test
 
   # ───────────────────────────────────────────────────────────────────────────
+  # RUNTIME — native per-arch build of the slow runtime layers, reused until
+  #           the Dockerfile runtime stage or requirements-tts.txt changes
+  # ───────────────────────────────────────────────────────────────────────────
+  runtime-image:
+    name: Runtime image
+    needs: guard-production-ref
+    uses: ./.github/workflows/runtime-image.yml
+
+  # ───────────────────────────────────────────────────────────────────────────
   # BUILD — runs once on ubuntu-latest, produces a single immutable image
   # ───────────────────────────────────────────────────────────────────────────
   build:
     name: Build production image
-    needs: guard-production-ref
+    needs: runtime-image
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -196,45 +210,28 @@ jobs:
       # Staging tags the digest it deployed and smoke-tested; reuse it rather than rebuilding the same commit.
       - name: Resolve verified staging image
         if: env.DEPLOY_MODE == 'image'
+        id: verified
+        uses: ./.github/actions/resolve-image-digest
+        with:
+          ref: ${{ env.IMAGE }}:verified-${{ github.sha }}
+
+      - name: Check verified image revision
+        if: steps.verified.outputs.digest != ''
         id: promoted
+        env:
+          DIGEST: ${{ steps.verified.outputs.digest }}
         run: |
           set -euo pipefail
-          verified_ref="${IMAGE}:verified-${GITHUB_SHA}"
-          inspect_error="$(mktemp)"
-          for attempt in 1 2 3; do
-            if manifest="$(docker buildx imagetools inspect "$verified_ref" --format '{{json .Manifest}}' 2>"$inspect_error")"; then
-              break
-            fi
-            # Only confirmed absence may fall back to a fresh build; other registry errors must not.
-            if grep -qiE 'not found|manifest unknown' "$inspect_error"; then
-              echo "No verified staging image for ${GITHUB_SHA}; building a fresh production image."
-              exit 0
-            fi
-            if [ "$attempt" = "3" ]; then
-              echo "::error::Could not resolve ${verified_ref}: $(cat "$inspect_error")"
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
-          digest="$(jq -r '.digest // empty' <<< "$manifest")"
-          if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::${verified_ref} resolved to an invalid digest: ${digest:-empty}"
-            exit 1
-          fi
-          config="$(docker buildx imagetools inspect "${IMAGE}@${digest}" --format '{{json .Image}}')"
+          config="$(docker buildx imagetools inspect "${IMAGE}@${DIGEST}" --format '{{json .Image}}')"
           for platform in linux/amd64 linux/arm64; do
             revision="$(jq -r --arg platform "$platform" '.[$platform].config.Labels["org.opencontainers.image.revision"] // empty' <<< "$config")"
             if [ "$revision" != "$GITHUB_SHA" ]; then
-              echo "::error::${verified_ref} ${platform} revision is ${revision:-missing}, expected ${GITHUB_SHA}"
+              echo "::error::verified-${GITHUB_SHA} ${platform} revision is ${revision:-missing}, expected ${GITHUB_SHA}"
               exit 1
             fi
           done
-          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
-          echo "Promoting verified staging image ${IMAGE}@${digest}"
-
-      - name: Set up QEMU
-        if: env.DEPLOY_MODE == 'image' && steps.promoted.outputs.digest == ''
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Promoting verified staging image ${IMAGE}@${DIGEST}"
 
       - name: Set up Docker Buildx
         if: env.DEPLOY_MODE == 'image' && steps.promoted.outputs.digest == ''
@@ -249,15 +246,15 @@ jobs:
           file: portfolio/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          # Prebuilt native runtime replaces the Dockerfile stage, so no step runs under emulation.
+          build-contexts: |
+            runtime=docker-image://${{ needs.runtime-image.outputs.image_ref }}
           tags: |
             ${{ steps.image-meta.outputs.image }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
-          # Registry cache in GHCR, shared with staging; see deploy-staging.yml.
-          cache-from: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.image-meta.outputs.image }}:buildcache,mode=min,image-manifest=true,oci-mediatypes=true
           # NEXT_EXTERNAL_TYPECHECK is safe because approve-production needs the same-SHA checks job.
           build-args: |
             NEXT_BUILD_ID=${{ github.sha }}

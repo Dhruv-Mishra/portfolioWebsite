@@ -56,13 +56,12 @@ RUN mkdir -p /app/standalone/.next /app/standalone/.deploy \
     && RELEASE_VERSION="$(node -p "require('./package.json').version")" \
     && printf '{"buildId":"%s","version":"%s"}\n' "${NEXT_BUILD_ID}" "${RELEASE_VERSION}" > /app/standalone/.deploy/meta.json
 
-FROM node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS runner
+# Slow per-arch OS, Python, and PyTorch layers. Deploy workflows prebuild this stage on native
+# amd64/arm64 runners (.github/workflows/runtime-image.yml), keyed by a hash of this stage's text
+# and requirements-tts.txt, and swap it in with --build-context runtime=...; keep it self-contained.
+FROM node:22.23.4-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS runtime
 
-ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0 \
-    LOCAL_TTS_PYTHON=/opt/tts-venv/bin/python \
+ENV LOCAL_TTS_PYTHON=/opt/tts-venv/bin/python \
     LOCAL_TTS_CACHE_DIR=/var/cache/portfolio/pocket-tts \
     LOCAL_TTS_REFERENCE_PATH=/app/public/sounds/voice/TTSReference.mp3 \
     LOCAL_TTS_VOICE_STATE_PATH=/var/cache/portfolio/pocket-tts/custom-dhruv.safetensors \
@@ -94,10 +93,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && /opt/tts-venv/bin/python -c "import pocket_tts, soundfile, torch" \
     && rm -f /tmp/requirements-tts.txt
 
-COPY --from=builder --chown=node:node /app/standalone ./
-
 RUN mkdir -p /var/cache/portfolio/pocket-tts \
     && chown -R node:node /var/cache/portfolio
+
+FROM runtime AS runner
+# Metadata and COPY only: the multi-arch app build never emulates the target CPU.
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+# --link adds the app as an independent layer, so pushing skips pulling the runtime layers.
+# Numeric owner because --link cannot read /etc/passwd; 1000 is the image's node user.
+COPY --link --from=builder --chown=1000:1000 /app/standalone ./
 
 USER node
 EXPOSE 3000

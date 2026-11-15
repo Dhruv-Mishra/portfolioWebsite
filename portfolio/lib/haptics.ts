@@ -1,6 +1,6 @@
 "use client";
 
-import { WebHaptics, type HapticInput } from "web-haptics";
+import type { HapticInput, WebHaptics } from "web-haptics";
 import { getSitePrefsSnapshot } from "@/hooks/useSitePrefs";
 
 // showSwitch: true keeps the <label>/<input switch> pair actually rendered
@@ -20,7 +20,25 @@ let lastInteractionMode: InteractionMode = "unknown";
 let lastInteractionTime = 0;
 let listenersAttached = false;
 let sharedEngine: WebHaptics | null = null;
+let engineRequested = false;
 const lastTriggerTimes: Record<string, number> = {};
+
+// Only touch and pen input can fire haptics, so mouse/keyboard-only visitors never
+// download web-haptics. Touch-capable devices preload it at idle because iOS only
+// emits Taptic feedback when the switch toggles synchronously inside the tap.
+function loadEngine(): void {
+    if (engineRequested) {
+        return;
+    }
+    engineRequested = true;
+    import("web-haptics")
+        .then(({ WebHaptics }) => {
+            sharedEngine = new WebHaptics(HAPTICS_OPTIONS);
+        })
+        .catch(() => {
+            engineRequested = false;
+        });
+}
 
 function installInteractionTracking() {
     if (listenersAttached || typeof window === "undefined") {
@@ -30,6 +48,9 @@ function installInteractionTracking() {
     const setMode = (mode: InteractionMode) => {
         lastInteractionMode = mode;
         lastInteractionTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+        if (mode === "touch" || mode === "pen") {
+            loadEngine();
+        }
     };
 
     window.addEventListener("pointerdown", (event) => {
@@ -46,6 +67,14 @@ function installInteractionTracking() {
     window.addEventListener("keydown", () => {
         setMode("keyboard");
     }, { passive: true, capture: true });
+
+    if (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) {
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(loadEngine, { timeout: 5000 });
+        } else {
+            window.setTimeout(loadEngine, 2000);
+        }
+    }
 
     listenersAttached = true;
 }
@@ -88,11 +117,6 @@ function canUseRuntimeHaptics(): boolean {
     });
 }
 
-function getSharedEngine(): WebHaptics {
-    sharedEngine ??= new WebHaptics(HAPTICS_OPTIONS);
-    return sharedEngine;
-}
-
 // NOTE: we deliberately do NOT gate on `WebHaptics.isSupported`. `isSupported` only
 // reports the Vibration API (Android); on iOS it returns false, but web-haptics
 // internally falls through to a <label><input switch></label> click which triggers
@@ -102,7 +126,7 @@ function fire(
     minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
     channel = typeof input === "string" ? input : "custom",
 ): void {
-    if (!canUseRuntimeHaptics()) {
+    if (!canUseRuntimeHaptics() || !sharedEngine) {
         return;
     }
 
@@ -113,7 +137,7 @@ function fire(
     }
 
     lastTriggerTimes[channel] = now;
-    void getSharedEngine().trigger(input);
+    void sharedEngine.trigger(input);
 }
 
 function cancel(): void {
@@ -128,9 +152,6 @@ const APP_HAPTICS = {
     externalLink: () => fire("light", 45, "externalLink"),
     fire,
     heavyTap: () => fire("heavy", 65, "heavyTap"),
-    get isSupported(): boolean {
-        return WebHaptics.isSupported;
-    },
     lightTap: () => fire("light", 35, "lightTap"),
     navigate: () => fire("selection", 45, "navigate"),
     openPanel: () => fire("medium", 55, "openPanel"),

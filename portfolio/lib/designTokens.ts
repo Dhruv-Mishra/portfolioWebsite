@@ -361,7 +361,6 @@ export const GRADIENT_TOKENS = {
 /** Grid pattern background config */
 export const GRID_PATTERN = {
   backgroundSize: '100px 100px',
-  lineColor: '#9ca3af',
   lineWidth: '1px',
 } as const;
 

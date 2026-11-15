@@ -25,6 +25,7 @@
     --c-paper: #fdfbf7;
     --c-ink: #2d2a2e;
     --c-grid: #9ca3af;
+    --c-grid-line: #9ca3af;
     --c-binding-bg: #f0ece4;
     --c-binding-border: #d1c9b8;
     --c-binding-stitch: #b8a892;
@@ -268,6 +269,11 @@
     --note-ai-ink: #7dd3fc;
     --paper-pattern: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%2386efac' fill-opacity='0.07' fill-rule='evenodd'%3E%3Cpath d='M0 0h40v1H0zM0 0v40h1V0z'/%3E%3C/g%3E%3C/svg%3E");
   }
+
+  /* The faint page grid keeps one line color per stock in both themes; dark --c-grid values are too dim at grid opacity. */
+  html[data-paper-stock="blueprint"]:not([data-disco="on"]) { --c-grid-line: #60a5fa; }
+  html[data-paper-stock="kraft"]:not([data-disco="on"]) { --c-grid-line: #b09779; }
+  html[data-paper-stock="sage"]:not([data-disco="on"]) { --c-grid-line: #6ea885; }
 
   /* ── Size Scale: Small ── */
   [data-size="small"] {

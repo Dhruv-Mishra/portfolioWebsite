@@ -66,6 +66,8 @@ LCP. Last measured production LCP was about 393 ms with CLS 0 (August 2026).
 
 ### Fixed
 
+- Navigating between pages starts the new page at the top again; the scroll container had stopped remounting per route when page flips were off.
+- Dark-mode background grid lines are visible again; each paper stock keeps one grid-line color in both themes.
 - Restored dark-mode contrast on the home `Hello World!` title, the `404` and `error` sticky-note pages, project card dog-ear corner folds, and `/about` timeline category chips.
 - Removed mobile floating voice and volume button overlap over the home terminal and `/resume` PDF controls, and hid the collapsed mobile social drawer from the accessibility tree until expanded.
 - Aligned accessible names with visible button/link labels on `HomeVoiceNote`, home `NoteCta` links, `StickerGlanceBadge`, and timeline triggers (WCAG 2.5.3; Lighthouse Accessibility/Best Practices/SEO/Agentic Browsing 100 across 52/52 checks), and removed duplicate nested `<main>` landmarks on `/admin` and `/matrix-notes`.

@@ -17,7 +17,9 @@ export default function RouteScrollSurface({ children }: { children: ReactNode }
   const isChatRoute = pathname.startsWith('/chat');
 
   const surface = (
+    // Keyed by route so each page mounts a fresh scroll container at the top.
     <div
+      key={pathname}
       className={cn(
         'relative z-10 h-full min-h-0',
         isChatRoute

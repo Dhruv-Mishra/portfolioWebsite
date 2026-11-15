@@ -1,0 +1,78 @@
+/* Home: marker swash under the hero title, drawn once. */
+.hero-swash path {
+  stroke: var(--c-marker);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hero-swash-draw var(--dur-enter) var(--ease-paper) var(--dur-quick) forwards;
+}
+
+@keyframes hero-swash-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+html[data-reduced-motion] .hero-swash path {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
+/* Featured projects: every slide shares one grid cell so swaps never move layout. */
+.featured-track {
+  display: grid;
+  touch-action: pan-y;
+}
+
+.featured-slide {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--carousel-slide) var(--ease-paper),
+    transform var(--carousel-slide) var(--ease-paper),
+    visibility 0s linear var(--carousel-slide);
+}
+
+.featured-slide[data-state="active"] {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.featured-slide[data-state="next"],
+.featured-slide[data-state="idle"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(calc(var(--featured-dir, 1) * 1.5rem)) rotate(calc(var(--featured-dir, 1) * 2deg));
+}
+
+.featured-slide[data-state="leaving"] {
+  opacity: 0;
+  visibility: visible;
+  pointer-events: none;
+  transform: translateX(calc(var(--featured-dir, 1) * -1.5rem)) rotate(calc(var(--featured-dir, 1) * -2deg));
+}
+
+.featured-slide[data-dragging] {
+  transition: none;
+}
+
+/* The pencil line is the clock: its animationend advances the slide, and pausing it pauses the carousel. */
+.featured-progress {
+  transform-origin: left;
+  animation: featured-progress var(--carousel-dwell) linear forwards;
+}
+
+.featured-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@keyframes featured-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}

@@ -15,6 +15,7 @@ import {
   Sparkles,
   Sticker,
   TriangleAlert,
+  Type,
   Volume2,
 } from 'lucide-react';
 import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
@@ -92,6 +93,12 @@ const MOTION_OPTIONS = [
   { value: 'full', label: 'Always animate' },
 ] as const;
 
+// Each label previews its own face.
+const READING_FONT_OPTIONS = [
+  { value: 'hand', label: 'Handwritten', className: 'font-hand' },
+  { value: 'clean', label: 'Clean', className: 'font-clean' },
+] as const;
+
 const VOICE_OPTIONS: ReadonlyArray<{ value: VoiceBackendPref; label: string }> = [
   { value: 'native', label: 'Native' },
   { value: 'whisper', label: 'Whisper' },
@@ -131,7 +138,7 @@ function SettingsGroup({ title, icon: Icon, children, className, id }: SettingsG
 interface SegmentedChoiceProps<T extends string> {
   name: string;
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; className?: string }>;
   onChange: (value: T) => void;
 }
 
@@ -163,7 +170,7 @@ function SegmentedChoice<T extends string>({
             className="peer sr-only"
           />
           <span className="absolute inset-1 rounded-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-amber-500" />
-          <span className="relative">{option.label}</span>
+          <span className={cn('relative', option.className)}>{option.label}</span>
         </label>
       ))}
     </div>
@@ -442,7 +449,7 @@ export default function SettingsPanel() {
   const modelTargetActive = mounted
     && new URLSearchParams(window.location.search).get('focus') === 'ai-model';
 
-  const setBooleanPref = (key: Exclude<SitePrefKey, 'motionPreference' | 'paperStock'>, checked: boolean) => {
+  const setBooleanPref = (key: Exclude<SitePrefKey, 'motionPreference' | 'paperStock' | 'readingFont'>, checked: boolean) => {
     setPref(key, checked);
   };
 
@@ -549,6 +556,18 @@ export default function SettingsPanel() {
               setTheme,
             })}
           />
+        </SettingsGroup>
+
+        <SettingsGroup title="Reading font" icon={Type}>
+          <SegmentedChoice
+            name="reading-font"
+            value={prefs.readingFont}
+            options={READING_FONT_OPTIONS}
+            onChange={(readingFont) => setPref('readingFont', readingFont)}
+          />
+          <p className="font-hand text-sm text-[var(--c-ink)]/55">
+            For paragraphs. Headings and notes stay handwritten.
+          </p>
         </SettingsGroup>
 
         <SettingsGroup

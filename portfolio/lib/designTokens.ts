@@ -70,6 +70,39 @@ export const PAPER_STOCK_SWATCHES: Record<PaperStockId, {
   },
 } as const;
 
+/** Push-pin colours on the projects sheet. Mirrors --color-pin-* in app/globals.css (parity-tested). */
+export const PIN_COLORS = {
+  red: '#e5534b',
+  amber: '#f2b544',
+  blue: '#4a8fe7',
+} as const;
+
+/** Shared motion vocabulary. CSS mirrors: --ease-paper/-paper-in/-standard and --dur-* in app/globals.css. */
+export const MOTION = {
+  ease: {
+    paper: [0.22, 1, 0.36, 1],
+    paperIn: [0.4, 0, 1, 1],
+    standard: [0.4, 0, 0.2, 1],
+  },
+  durMs: { micro: 120, quick: 200, panel: 320, enter: 480 },
+} as const;
+
+/** Home featured-projects slideshow. Dwell/slide durations live in CSS (--carousel-dwell, --carousel-slide). */
+export const FEATURED_CAROUSEL = {
+  swipeMinPx: 48,
+  swipeMinVelocity: 0.35,
+  dragStartPx: 8,
+  dragRotatePerPx: 0.02,
+  visibleRatio: 0.5,
+} as const;
+
+/** Mobile dock: hides while reading down the page, returns on scroll-up or near the end. */
+export const DOCK_TOKENS = {
+  hideAfterPx: 160,
+  scrollDeltaPx: 8,
+  bottomRevealPx: 24,
+} as const;
+
 /** Matrix / escape-the-matrix palette (canvas rain, medals, toasts). */
 export const MATRIX_COLORS = {
   glyph: '#10b981',
@@ -112,42 +145,14 @@ export const ANIMATION_TOKENS = {
   },
 } as const;
 
-/** Interaction animation presets */
+/** Framer presets for paper surfaces (shared Modal card, shortcuts overlay). Exits are short ease-in tweens so closing never lingers. */
+const PAPER_EXIT = { duration: MOTION.durMs.quick / 1000, ease: MOTION.ease.paperIn } as const;
+
 export const INTERACTION_TOKENS = {
-  hover: {
-    scale: { scale: 1.05, rotate: -1 },
-    scaleUp: { scale: 1.1, rotate: -5 },
-    scaleSubtle: { scale: 1.02, rotate: 0 },
-    lift: { scale: 1.05, rotate: -2 },
-    liftRotate: { scale: 1.05, rotate: 2 },
-    button: { scale: 1.08 },
-    buttonRotate: { scale: 1.05, rotate: -1 },
-    card: { scale: 1.02, rotate: 0 },
-  },
-  tap: {
-    press: { scale: 0.95 },
-    pressDeep: { scale: 0.9 },
-    pressLight: { scale: 0.92 },
-  },
   entrance: {
-    fadeUp: { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } },
-    fadeScale: { initial: { opacity: 0, scale: 0.9 }, animate: { opacity: 1, scale: 1 } },
-    fadeSlide: { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 } },
     fadeScaleRotate: {
       initial: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
       animate: { opacity: 1, scale: 1, y: 0, rotate: -1 },
-    },
-    scaleRotate: {
-      initial: { scale: 0.95, opacity: 0, rotate: 1 },
-      animate: { scale: 1, opacity: 1, rotate: -1 },
-    },
-    popIn: {
-      initial: { opacity: 0, scale: 0.8, y: 20 },
-      animate: { opacity: 1, scale: 1, y: 0 },
-    },
-    slideRight: {
-      initial: { x: 50, opacity: 0 },
-      animate: { x: 0, opacity: 1 },
     },
     /** Shortcuts Overlay entrance — notebook page pinning down */
     paperPin: {
@@ -156,12 +161,9 @@ export const INTERACTION_TOKENS = {
     },
   },
   exit: {
-    fadeDown: { opacity: 0, y: -4 },
-    fadeScale: { opacity: 0, scale: 0.9 },
-    fadeScaleRotate: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
-    popOut: { opacity: 0, scale: 0.8, y: 20 },
+    fadeScaleRotate: { opacity: 0, scale: 0.96, y: 12, rotate: 1, transition: PAPER_EXIT },
     /** Shortcuts Overlay exit — page unpin */
-    paperUnpin: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
+    paperUnpin: { opacity: 0, scale: 0.96, y: -12, rotate: 1, transition: PAPER_EXIT },
   },
 } as const;
 
@@ -228,14 +230,17 @@ export const TERMINAL_COLORS = {
   headerBg: '#383436',
   prompt: 'text-emerald-400',
   directory: 'text-blue-300',
+  punctuation: 'text-gray-400',
   command: 'text-gray-100',
   output: 'text-gray-300/90',
   error: 'text-red-400',
   caret: 'caret-emerald-400',
+  cursor: 'bg-emerald-400',
   placeholder: 'placeholder-gray-600',
   border: 'border-gray-700/50',
   headerBorder: 'border-gray-600/30',
-  headerLabel: 'text-gray-400/60',
+  headerLabel: 'text-gray-400',
+  art: 'bg-linear-to-b from-emerald-300 via-sky-300 to-violet-300',
   text: 'text-gray-200',
   scrollbarColor: 'rgba(156,163,175,0.6)',
 } as const;
@@ -245,7 +250,6 @@ export const NAV_TAB_COLORS = {
   pink: { bg: PAPER_PALETTE.pink, text: 'text-red-900', border: 'border-red-300' },
   yellow: { bg: PAPER_PALETTE.yellow, text: 'text-yellow-900', border: 'border-yellow-300' },
   green: { bg: PAPER_PALETTE.green, text: 'text-green-900', border: 'border-green-300' },
-  blue: { bg: PAPER_PALETTE.blue, text: 'text-blue-900', border: 'border-blue-300' },
   coral: { bg: PAPER_PALETTE.coral, text: 'text-orange-900', border: 'border-orange-300' },
 } as const;
 
@@ -264,7 +268,6 @@ export const SOCIAL_COLORS = {
   codeforces: 'hover:text-yellow-600',
   cpHistory: 'hover:text-amber-500',
   email: 'hover:text-red-600',
-  phone: 'hover:text-green-600',
 } as const;
 
 /** Cursor trail rendering config */
@@ -337,11 +340,6 @@ export const Z_INDEX = {
 
 /** Shadow tokens */
 export const SHADOW_TOKENS = {
-  card: '5px 5px 15px rgba(0,0,0,0.1)',
-  cardHeavy: '5px 5px 15px rgba(0,0,0,0.2)',
-  terminal: 'inset 0 0 40px rgba(0,0,0,0.5)',
-  resume: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
-  socialButton: '1px 2px 4px rgba(0,0,0,0.15)',
   spiralHole: 'inset 0 1px 2px rgba(0,0,0,0.1)',
 } as const;
 
@@ -355,7 +353,8 @@ export const SKETCH_RADIUS = {
 export const GRADIENT_TOKENS = {
   foldCorner: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
   foldCornerAlt: 'linear-gradient(225deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-  foldUnderside: '#f0e6a0',
+  /** Small dog-ear on taped sticky notes. */
+  noteFold: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.14) 50%)',
 } as const;
 
 /** Grid pattern background config */
@@ -364,11 +363,17 @@ export const GRID_PATTERN = {
   lineWidth: '1px',
 } as const;
 
-/** Project card layout tokens */
+/**
+ * Projects wall, cycled by tile index. Uneven list lengths keep neighbouring notes from repeating.
+ * rotations/photoRotations are degrees (phones scale them by --c-project-compact); tapePositions are % from the left.
+ * foldSize is the corner fold in px shared with the error and not-found notes.
+ */
 export const PROJECT_TOKENS = {
-  rotations: [2, -3, 1.5, -2, 4, -1],
-  photoRotations: [-3, 2, -2, 3, -1, 2],
-  tapePositions: [40, 60, 30, 70, 50, 45],
+  rotations: [-2, 1.5, -1, 2.25, -1.5, 1],
+  photoRotations: [-2.5, 2, -1.5, 3, -1],
+  tapePositions: [40, 62, 34, 55, 68, 46, 30],
+  /** Vertical nudge in px on the multi-column wall so rows do not line up like a table. */
+  drops: [0, 14, 4, 18, 8, 0, 12, 2],
   foldSize: 30,
 } as const;
 
@@ -442,11 +447,77 @@ export const STICKER_TOKENS = {
   rotation: { min: -4, max: 4 },
 } as const;
 
-/** Sticker timing tokens — toast queue + resume read threshold */
+/** Sticker toast queue timing */
 export const STICKER_TIMING = {
   toastDuration: 3000,
   toastGap: 500,
   toastMaxInQueue: 4,
-  resumeReadThresholdMs: 10000,
+} as const;
+
+/**
+ * Voice-call sound design (lib/voiceSounds.ts), synthesized with Web Audio. Gains are linear
+ * amplitudes at full voiceAgent volume; `*Tau` values are exponential time constants in seconds.
+ */
+export const VOICE_SOUND_TOKENS = {
+  /** Cues start this far ahead of the audio clock so every envelope begins from silence on time. */
+  leadSec: 0.01,
+  volumeTau: 0.02,
+  /** Suspend the audio thread this long after the last tail has died away. */
+  idleSuspendMs: 1500,
+  /** Small synthetic room on the cues (not the bed), so they bloom instead of sounding like test tones. */
+  room: { seconds: 1.4, decayTau: 0.28, damping: 0.35, send: 0.3 },
+  chime: {
+    /** Rising fifth D5 to A5 on connect; the same fifth falling on hang-up (Hz). */
+    connect: [587.33, 880],
+    hangup: [880, 587.33],
+    noteGapSec: 0.13,
+    attackSec: 0.012,
+    peak: 0.07,
+    /** [frequency ratio, relative gain, decay tau]: a warm fundamental with short mallet partials. */
+    partials: [[1, 1, 0.4], [2, 0.2, 0.12], [4, 0.05, 0.04]],
+    /** A new chime fades out one that is still ringing instead of stacking on it. */
+    stealSec: 0.05,
+  },
+  action: { fromHz: 1320, toHz: 990, glideSec: 0.04, attackSec: 0.004, tau: 0.045, peak: 0.04, minIntervalMs: 400 },
+  ambient: {
+    level: 0.075,
+    highpassHz: 90,
+    lowpassHz: 450,
+    loopSec: 3,
+    /** Speed of a second reader of the same loop; an irrational ratio never lines up, so nothing audibly repeats. */
+    driftRate: 0.7937,
+    breathHz: 0.06,
+    breathDepth: 0.3,
+    delaySec: 0.35,
+    fadeInTau: 0.5,
+    fadeOutSec: 0.8,
+    /** Level multiplier while the agent speaks; the release waits out short gaps between sentences. */
+    duckRatio: 0.3,
+    duckAttackTau: 0.05,
+    duckReleaseTau: 0.3,
+    duckHoldMs: 400,
+  },
+} as const;
+
+export const VOICE_ORB_TOKENS = {
+  attackMs: 60,
+  releaseMs: 220,
+  /** Longest frame step the level smoother integrates, so a backgrounded tab cannot jump on return. */
+  maxStepMs: 64,
+  epsilon: 0.002,
+  levelScale: 0.14,
+  flareOpacity: 0.6,
+  /** Ring spin multipliers; changed via playbackRate so rings speed up without jumping. */
+  ringRate: { thinking: 3, acting: 4 },
+} as const;
+
+export const VOICE_VEIL_TOKENS = {
+  introMs: 360,
+  dockMs: 480,
+  morphMs: 520,
+  morphEasing: 'cubic-bezier(0.22,1,0.36,1)',
+  introExitMs: 320,
+  dockExitMs: 460,
+  teardownMarginMs: 160,
 } as const;
 

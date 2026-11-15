@@ -15,7 +15,7 @@ import { STICKER_TOKENS, type StickerFamily } from '@/lib/designTokens';
 export const STICKER_ROSTER = [
   { id: 'first-word', label: 'The First Word', description: 'Typed your first terminal command.', hint: 'the terminal is lonely — give it any command.', family: 'sunshine' },
   { id: 'theme-flipper', label: 'Lights On, Lights Off', description: 'Flipped between day and night.', hint: 'toggle the theme — look for a sun or moon.', family: 'lavender' },
-  { id: 'note-sender', label: 'Pen Pal', description: 'Sent a note via feedback.', hint: 'send some real feedback — the floating icon.', family: 'mint' },
+  { id: 'note-sender', label: 'Pen Pal', description: 'Sent a note via feedback.', hint: 'send some real feedback — the speech bubble in the menu.', family: 'mint' },
   { id: 'page-turner', label: 'The Whole Tour', description: 'Visited every page on the site.', hint: 'visit every page on the site — all of them.', family: 'denim' },
   { id: 'full-chat', label: 'Serious Chat', description: 'Had a real chat on the chat page.', hint: 'open the full chat page.', family: 'mint' },
   { id: 'signed-guestbook', label: 'Left a Mark', description: 'Pinned a note to the guestbook.', hint: 'sign the guestbook — leave a note on the wall.', family: 'mint' },
@@ -23,7 +23,7 @@ export const STICKER_ROSTER = [
   { id: 'chat-conductor', label: 'Chat Conductor', description: 'Let chat-me steer the ship.', hint: 'ask the chat to actually *do* something.', family: 'mint' },
   { id: 'repo-hunter', label: 'Repo Hunter', description: 'Followed a project back to its source.', hint: 'source code lives a click away from each card.', family: 'denim' },
   { id: 'social-butterfly', label: 'Social Butterfly', description: 'Tapped one of the social links.', hint: 'the links along the edge go somewhere ~', family: 'rose' },
-  { id: 'phoned-a-friend', label: 'Phoned a Friend', description: 'Called the website voice agent.', hint: 'talk with Dhruv by voice — give the voice agent a ring.', family: 'mint' },
+  { id: 'phoned-a-friend', label: 'Phoned a Friend', description: 'Called the website voice agent.', hint: 'talk to AI Dhruv by voice — give the voice agent a ring.', family: 'mint' },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;

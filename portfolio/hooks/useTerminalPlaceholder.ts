@@ -1,25 +1,19 @@
 "use client";
 
 /**
- * useTerminalPlaceholder — cycles a typewritten placeholder string through
- * terminal-themed command hints. Returns a ref for a `<span>` overlay that
- * renders the animated text; hide the span when the input is non-empty.
- *
- * Mirrors `usePlaceholderTypewriter` in StickyNoteChat, but with phrases
- * tuned for the terminal command surface (help / projects / skills / etc.).
- *
- * Cycling runs whenever `isActive` is true (typically `!input` — i.e. the
- * field is empty). As soon as the user types, `isActive` becomes false, the
- * overlay unmounts, and the real caret takes over without a visual jump.
+ * useTerminalPlaceholder — types and erases terminal command hints into a `<span>` while the input is empty.
+ * Marks the span's parent with `data-typing` so the block cursor stays solid while characters stream and
+ * blinks during pauses. Under reduced motion it shows one static hint.
  */
 
 import { useEffect, useRef } from 'react';
 import { TIMING_TOKENS } from '@/lib/designTokens';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 
 const PHRASES = [
-  'type "help" to start…',
+  'try "help"…',
   'try "projects"…',
-  'try "skills"…',
+  'try "neofetch"…',
   'try "joke"…',
   '"about" me?',
   'type a command…',
@@ -28,66 +22,51 @@ const PHRASES = [
 export function useTerminalPlaceholder(isActive: boolean) {
   const ref = useRef<HTMLSpanElement>(null);
   const idxRef = useRef(0);
+  const reducedMotion = useEffectiveReducedMotion();
 
   useEffect(() => {
-    if (!isActive) {
-      if (ref.current) ref.current.textContent = PHRASES[0];
+    const el = ref.current;
+    if (!el) return;
+    if (!isActive || reducedMotion) {
+      el.textContent = PHRASES[0];
       return;
     }
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    const setDOM = (s: string) => {
-      if (ref.current) ref.current.textContent = s;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const setTyping = (typing: boolean) => {
+      if (el.parentElement) el.parentElement.dataset.typing = String(typing);
     };
 
+    // One recursive timer walks type → pause → erase → pause for each phrase.
+    const step = (text: string, length: number, erasing: boolean) => {
+      el.textContent = text.slice(0, length);
+      if (!erasing && length < text.length) {
+        timer = setTimeout(() => step(text, length + 1, false), TIMING_TOKENS.placeholderTypeSpeed);
+      } else if (!erasing) {
+        setTyping(false);
+        timer = setTimeout(() => {
+          setTyping(true);
+          step(text, length - 1, true);
+        }, TIMING_TOKENS.pauseExtra);
+      } else if (length > 0) {
+        timer = setTimeout(() => step(text, length - 1, true), TIMING_TOKENS.placeholderEraseSpeed);
+      } else {
+        setTyping(false);
+        idxRef.current += 1;
+        timer = setTimeout(cycle, TIMING_TOKENS.pauseShort);
+      }
+    };
     const cycle = () => {
-      if (cancelled) return;
-      const text = PHRASES[idxRef.current % PHRASES.length];
-      let i = 0;
-
-      // Type phase
-      interval = setInterval(() => {
-        if (cancelled) {
-          if (interval) clearInterval(interval);
-          return;
-        }
-        i++;
-        setDOM(text.slice(0, i));
-        if (i >= text.length) {
-          if (interval) clearInterval(interval);
-          // Pause, then erase
-          timer = setTimeout(() => {
-            if (cancelled) return;
-            let len = text.length;
-            interval = setInterval(() => {
-              if (cancelled) {
-                if (interval) clearInterval(interval);
-                return;
-              }
-              len--;
-              setDOM(text.slice(0, len));
-              if (len <= 0) {
-                if (interval) clearInterval(interval);
-                idxRef.current++;
-                timer = setTimeout(cycle, TIMING_TOKENS.pauseShort);
-              }
-            }, TIMING_TOKENS.placeholderEraseSpeed);
-          }, TIMING_TOKENS.pauseExtra);
-        }
-      }, TIMING_TOKENS.placeholderTypeSpeed);
+      setTyping(true);
+      step(PHRASES[idxRef.current % PHRASES.length], 1, false);
     };
 
     timer = setTimeout(cycle, TIMING_TOKENS.initialDelay);
-
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      if (interval) clearInterval(interval);
+      clearTimeout(timer);
+      setTyping(false);
     };
-  }, [isActive]);
+  }, [isActive, reducedMotion]);
 
   return ref;
 }

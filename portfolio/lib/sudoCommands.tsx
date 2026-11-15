@@ -526,7 +526,7 @@ function renderIncorrectPasswordNode(): React.ReactNode {
 /**
  * Prompt the user for the decryption password. ONE ATTEMPT ONLY — on a
  * wrong password the prompt closes and the user is returned to the normal
- * `➜ ~` terminal input, where they can re-run `sudo cat adminTerminal.txt`
+ * `guest@dhruv:~$` terminal input, where they can re-run `sudo cat adminTerminal.txt`
  * if they want another try.
  *
  * Correct value → decrypt bar → decrypted file contents.

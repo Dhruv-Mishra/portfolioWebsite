@@ -24,7 +24,7 @@ export function GuestbookEmptyState() {
 
       {/* Tilted placeholder sticky — muted yellow at 40% opacity */}
       <article
-        className="relative bg-[var(--note-yellow)] p-5 pb-7 md:p-6 md:pb-8 shadow-md border border-yellow-300/30 dark:border-yellow-400/20 font-hand text-[var(--c-ink)] rotate-[-3deg] opacity-40 w-full max-w-xs"
+        className="relative bg-note-paper p-5 pb-7 md:p-6 md:pb-8 shadow-md border border-yellow-300/30 dark:border-yellow-400/20 font-hand text-[var(--c-ink)] rotate-[-3deg] opacity-40 w-full max-w-xs"
         aria-hidden="true"
       >
         <TapeStrip size="sm" />

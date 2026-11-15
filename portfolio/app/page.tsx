@@ -1,218 +1,103 @@
 import type { CSSProperties } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { MessageCircle, PenLine, type LucideIcon } from "lucide-react";
+import FeaturedProjects from "@/components/home/FeaturedProjects";
+import { NoteFace, type NoteTone } from "@/components/home/NoteFace";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { RoutePendingMarker } from "@/components/Navigation";
 import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
-import { HandDrawnArrow } from "@/components/SketchbookDoodles";
-import { Coffee, MessageCircle, PenLine, type LucideIcon } from "lucide-react";
-import { SITE_VERSION_LABEL } from "@/lib/siteVersion";
+import { ABOUT_PHOTO } from "@/lib/assets";
 import { PERSONAL_LINKS } from "@/lib/links";
-import { PAPER_PALETTE } from "@/lib/designTokens";
+import "@/components/home/home.css";
 
-const QUICK_LINK_CLASS = "inline-flex min-h-11 items-center px-1.5 text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors hover:text-indigo-900 hover:decoration-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200";
-const TAPE_CLASS = "absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-5 -rotate-1 z-10 bg-[linear-gradient(135deg,rgba(200,200,180,0.72),rgba(220,220,200,0.56))] border border-[rgba(180,180,160,0.2)] md:bg-[linear-gradient(135deg,rgba(200,200,180,0.5),rgba(220,220,200,0.35))] md:backdrop-blur-[1px]";
+const TEXT_LINK_CLASS = "inline-flex min-h-11 items-center font-hand text-xl text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors duration-[var(--dur-micro)] hover:text-indigo-900 hover:decoration-indigo-500 focus-ring dark:text-indigo-300 dark:decoration-indigo-500/60 dark:hover:text-indigo-200";
+const TERMINAL_TILT_STYLE = { '--hover-tilt-lift': '-2px', '--hover-tilt-scale': '1.005' } as CSSProperties;
 
-interface NoteCtaProps {
-  href: string;
-  srHint: string;
-  label: string;
-  trailingGlyph?: string;
-  icon: LucideIcon;
-  delayMs: number;
-  tiltClassName?: string;
-  className?: string;
-  /** Static Tailwind classes per part, kept literal so Tailwind can scan them. */
-  tone: { body: string; rule: string; icon: string; text: string; arrow: string };
-  fold: string;
-}
-
-function NoteCta({
-  href,
-  srHint,
-  label,
-  trailingGlyph,
-  icon: Icon,
-  delayMs,
-  tiltClassName = 'rotate-2',
-  className = '',
-  tone,
-  fold,
-}: NoteCtaProps) {
+function NoteLink({ href, label, icon, tone, tilt }: { href: string; label: string; icon: LucideIcon; tone: NoteTone; tilt: string }) {
   return (
-    <Link
-      href={href}
-      prefetch={false}
-      data-hover-tilt
-      data-disco-motion="wiggle"
-      style={{ '--disco-motion-delay': `${delayMs}ms` } as CSSProperties}
-      className={`group relative inline-block animate-hero-subtitle ${className}`}
-    >
-      <div className={`relative px-5 py-3 shadow-sm md:shadow-md ${tiltClassName} md:group-hover:rotate-0 transition-transform duration-300 border ${tone.body}`}>
-        <div data-tape-strip className={TAPE_CLASS} />
-        <div className={`absolute inset-x-4 top-[52%] h-px pointer-events-none ${tone.rule}`} />
-        <div className={`absolute inset-x-4 top-[76%] h-px pointer-events-none ${tone.rule}`} />
-        <div className="flex items-center gap-2.5">
-          <Icon size={20} aria-hidden="true" className={`transition-colors shrink-0 ${tone.icon}`} strokeWidth={1.8} />
-          <span className={`font-hand text-base md:text-lg transition-colors ${tone.text}`}>
-            {label}
-            {trailingGlyph ? <span aria-hidden="true"> {trailingGlyph}</span> : null}
-          </span>
-          <span className="sr-only"> — {srHint}</span>
-          <span aria-hidden="true" className={`md:group-hover:translate-x-1 transition-transform duration-200 ${tone.arrow}`}>→</span>
-        </div>
-        {/* Dog-ear fold */}
-        <div
-          aria-hidden="true"
-          className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none"
-          style={{ background: fold, clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }}
-        />
-      </div>
+    <Link href={href} prefetch={false} data-hover-tilt data-disco-motion="wiggle" className="group relative inline-block focus-ring">
+      <NoteFace icon={icon} label={label} tone={tone} className={tilt} />
       <RoutePendingMarker />
     </Link>
   );
 }
 
 export default function Home() {
-
   return (
-    <div
-      className="flex flex-col gap-4 md:gap-5 min-h-full relative items-center py-2"
-      style={{ justifyContent: 'safe center' } as CSSProperties}
-    >
-      {/* Decor Elements */}
-
-
-      <div className="relative">
-        {/* Coffee Cup - Positioned relative to text */}
-        <div
-          data-disco-motion="bob"
-          style={{ '--disco-motion-delay': '60ms' } as CSSProperties}
-          className="absolute -top-7 -right-7 md:-top-11 md:-right-10 opacity-90 rotate-12 pointer-events-none z-10"
-          aria-hidden="true"
-        >
-          <Coffee className="text-amber-800/45 dark:text-amber-200/45 w-11 h-11 md:w-20 md:h-20" />
-        </div>
-
-        {/* Hero title - CSS animation instead of framer-motion for faster LCP */}
-        <h1
-          data-disco-motion="wiggle"
-          className="animate-hero-title text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] leading-none font-hand font-extrabold tracking-tighter text-indigo-950 dark:text-indigo-100 p-3 md:p-4 max-[360px]:text-5xl"
-        >
-          Hello World!
-        </h1>
-
-        {/* Version Sticker - CSS animation */}
-        <div className="animate-hero-badge absolute -bottom-2.5 right-2 md:right-0 md:-right-8">
-          <span
-            data-disco-motion="bob"
-            style={{ '--disco-motion-delay': '180ms' } as CSSProperties}
-            className="inline-block bg-yellow-100/75 text-yellow-900/80 dark:bg-amber-950/65 dark:text-amber-200/80 border border-yellow-300/40 dark:border-amber-700/40 px-2 py-0.5 font-code text-[11px] tracking-tight shadow-sm"
+    <div className="mx-auto grid w-full max-w-[70rem] grid-cols-1 gap-y-12 pb-8 pt-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-x-16 lg:gap-y-16 lg:pt-8">
+      <section aria-label="Introduction" className="order-1 flex flex-col items-start gap-6 lg:order-none lg:col-start-1 lg:row-start-1 lg:self-center">
+        <div className="relative isolate">
+          <h1
+            data-disco-motion="wiggle"
+            className="animate-hero-title font-hand ink-heavy text-[length:var(--t-hero)] leading-[var(--lh-display)] tracking-tight text-indigo-950 md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)] dark:text-indigo-100"
           >
-            {SITE_VERSION_LABEL}
-          </span>
+            Hello World!
+          </h1>
+          <svg aria-hidden="true" viewBox="0 0 300 24" preserveAspectRatio="none" className="hero-swash absolute -bottom-1 left-1 -z-10 h-[0.3em] w-[72%] -rotate-3 text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)]">
+            <path d="M6 16 C 70 8, 150 6, 294 11" pathLength={1} fill="none" strokeWidth="12" strokeLinecap="round" />
+          </svg>
         </div>
-      </div>
 
-      {/* Subtitle - CSS animation */}
-      <p
-        data-disco-motion="shimmy"
-        style={{ '--disco-motion-delay': '90ms' } as CSSProperties}
-        className="animate-hero-subtitle text-xl md:text-2xl text-gray-600 dark:text-gray-300 text-center max-w-lg font-hand leading-relaxed md:leading-loose -rotate-1 mt-1"
-      >
-        I&apos;m <a href="https://www.linkedin.com/in/dhruv-mishra-id/" target="_blank" rel="noopener noreferrer" aria-label="Dhruv Mishra — LinkedIn profile" className="font-bold text-indigo-700 dark:text-indigo-300 decoration-indigo-300 dark:decoration-indigo-500/70 underline underline-offset-4 hover:decoration-indigo-500 hover:text-indigo-900 dark:hover:text-indigo-200 hover:scale-105 hover:-rotate-2 inline-block transition-[color,transform,text-decoration-color] duration-200">Dhruv Mishra</a>,
-        a software engineer at Microsoft. I build <strong
-          style={{ color: 'var(--c-highlight)' }}
-          className="transition-none font-black"
-        >
-          AI agents
-        </strong> and the Azure backend services they run on.
-      </p>
+        <p className="max-w-[var(--measure-lead)] font-body text-[length:var(--t-lead)] leading-[var(--lh-lead)] text-[var(--c-ink)] md:text-[length:var(--t-lead-md)]">
+          I&apos;m Dhruv Mishra, a software engineer at Microsoft. I build AI agents and the Azure backend services they run on.
+        </p>
 
-      <nav
-        aria-label="Quick links"
-        className="animate-hero-subtitle -mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 font-hand text-lg text-gray-500 dark:text-gray-400"
-      >
-        <Link href="/resume" prefetch={false} className={QUICK_LINK_CLASS}>resume<RoutePendingMarker /></Link>
-        <span aria-hidden="true">·</span>
-        <Link href="/projects" prefetch={false} className={QUICK_LINK_CLASS}>projects<RoutePendingMarker /></Link>
-        <span aria-hidden="true">·</span>
-        <a href={PERSONAL_LINKS.email} className={QUICK_LINK_CLASS}>email me</a>
-      </nav>
+        <div className="flex flex-col items-start gap-2">
+          <HomeVoiceNote context={{ source: 'home', topic: 'home' }} />
+          <p className="font-hand text-[length:var(--t-hand-sm)] text-[var(--c-ink-muted)]">A voice agent that knows my work. Uses your mic.</p>
+        </div>
 
-      <HomeVoiceNote context={{ source: 'home', topic: 'home' }} className="mt-1" />
+        <nav aria-label="Quick links" className="-mt-2 flex flex-wrap gap-x-7">
+          <Link href="/projects" prefetch={false} className={TEXT_LINK_CLASS}>See my projects<RoutePendingMarker /></Link>
+          <a href={PERSONAL_LINKS.email} className={TEXT_LINK_CLASS}>Email me</a>
+        </nav>
+      </section>
 
-      {/* The Terminal */}
-      <div
-        data-disco-home-terminal
-        data-hover-tilt
-        data-tilt-3d="paper"
-        data-disco-motion="breath"
-        style={{
-          '--disco-motion-delay': '180ms',
-          '--hover-tilt-lift': '-2px',
-          '--hover-tilt-scale': '1.005',
-        } as CSSProperties}
-        className="w-full max-w-2xl mt-3 md:mt-4 transform md:rotate-1 md:hover:rotate-0 transition-transform duration-300 z-20 relative"
-      >
-        <HomeTerminalIsland />
-
-        {/* Interaction Hint (Desktop Only) */}
+      <div className="order-3 lg:order-none lg:col-start-2 lg:row-start-1 lg:self-center">
         <div
-          data-disco-motion="wiggle"
-          style={{ '--disco-motion-delay': '360ms' } as CSSProperties}
-          className="hidden xl:block absolute -left-56 2xl:-left-68 top-20 w-52 2xl:w-60 -rotate-6 opacity-90 pointer-events-none"
-          aria-hidden="true"
+          data-disco-home-terminal
+          data-hover-tilt
+          data-tilt-3d="paper"
+          data-disco-motion="breath"
+          style={TERMINAL_TILT_STYLE}
+          className="relative z-20 transition-transform duration-300 md:rotate-1 md:hover:rotate-0"
         >
-          <div className="font-hand text-3xl 2xl:text-4xl text-[var(--d-blue)] mb-2 text-center font-bold tracking-wide">
-            Psst... type something!
-          </div>
-          <HandDrawnArrow className="w-32 2xl:w-40 h-20 2xl:h-24 text-[var(--d-blue)] transform rotate-12 ml-auto -mt-4 mr-4" />
+          <HomeTerminalIsland />
+        </div>
+        <div className="relative z-30 -mt-2 flex flex-wrap justify-center gap-x-4 gap-y-3 md:justify-end md:gap-x-5 md:pr-6">
+          <NoteLink href="/chat" label="Pass me a note" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
+          <NoteLink href="/guestbook" label="Sign my sketchbook" icon={PenLine} tone="coral" tilt="rotate-2" />
         </div>
       </div>
 
-      <div
-        data-disco-motion="bob"
-        style={{ '--disco-motion-delay': '300ms' } as CSSProperties}
-        className="mt-2 text-sm font-code text-gray-500 dark:text-gray-400"
-      >
-        Try typing <kbd className="rounded border border-indigo-200/80 bg-indigo-50/90 px-1.5 py-0.5 font-code text-xs font-semibold text-indigo-700 dark:border-indigo-400/30 dark:bg-indigo-950/60 dark:text-indigo-300">projects</kbd> to view my work...
-      </div>
+      <FeaturedProjects className="order-2 lg:order-none lg:col-start-2 lg:row-start-2" />
 
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-4 sm:gap-7">
-        <NoteCta
-          href="/chat"
-          srHint="chat with AI Dhruv"
-          label="Pass me a note"
-          icon={MessageCircle}
-          delayMs={420}
-          tiltClassName="-rotate-2"
-          tone={{
-            body: "bg-paper-yellow dark:bg-[#fef9c3]/90 border-yellow-300/50 dark:border-yellow-400/35",
-            rule: "bg-blue-300/20",
-            icon: "text-indigo-500/75 md:group-hover:text-indigo-600",
-            text: "text-gray-700 dark:text-gray-800 md:group-hover:text-indigo-700",
-            arrow: "text-indigo-400",
-          }}
-          fold={`linear-gradient(135deg, ${PAPER_PALETTE.yellow} 45%, #e5e1a8 50%, #d4d09a 100%)`}
-        />
-        <NoteCta
-          href="/guestbook"
-          srHint="open guestbook"
-          label="Sign my sketchbook"
-          trailingGlyph="✎"
-          icon={PenLine}
-          delayMs={560}
-          tiltClassName="rotate-2"
-          tone={{
-            body: "bg-paper-coral dark:bg-paper-coral-dark border-orange-300/50 dark:border-orange-400/30",
-            rule: "bg-rose-300/25",
-            icon: "text-rose-500/75 dark:text-rose-300/80 md:group-hover:text-rose-600 dark:md:group-hover:text-rose-200",
-            text: "text-gray-700 dark:text-gray-100 md:group-hover:text-rose-700 dark:md:group-hover:text-rose-200",
-            arrow: "text-rose-400 dark:text-rose-300",
-          }}
-          fold={`linear-gradient(135deg, ${PAPER_PALETTE.coral} 45%, #e6a895 50%, #cc8a77 100%)`}
-        />
-      </div>
+      <section aria-labelledby="about-mini-heading" className="order-4 lg:order-none lg:col-start-1 lg:row-start-2">
+        <h2 id="about-mini-heading" className="mb-4 font-hand ink-heavy text-[length:var(--t-h2)] leading-[var(--lh-snug)] text-[var(--c-heading)] md:text-[length:var(--t-h2-md)]">
+          About me
+        </h2>
+        <div className="flex items-start gap-5">
+          <div data-hover-tilt className="-rotate-3 shrink-0 bg-[var(--c-polaroid)] p-1.5 pb-5 shadow-polaroid">
+            <Image
+              src={ABOUT_PHOTO.src}
+              alt={ABOUT_PHOTO.alt}
+              width={128}
+              height={128}
+              loading="lazy"
+              placeholder="blur"
+              blurDataURL={ABOUT_PHOTO.blurDataURL}
+              className="size-24 object-cover sepia-[.2] md:size-32"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-[length:var(--t-body-md)] leading-[var(--lh-body)] text-[var(--c-ink)]">
+              Software engineer at Microsoft since 2024, IIIT Delhi Honors grad and Codeforces Expert. Off the clock: lifting, chess and overclocking.
+            </p>
+            <Link href="/about" prefetch={false} className={TEXT_LINK_CLASS}>More about me<RoutePendingMarker /></Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

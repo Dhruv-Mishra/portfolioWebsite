@@ -47,7 +47,7 @@ export const CHORD_ROUTE_MAP: Readonly<Record<string, string>> = {
   h: '/',
   p: '/projects',
   a: '/about',
-  r: '/resume',
+  r: '/about',
   c: '/chat',
   b: '/guestbook',
   s: '/stickers',

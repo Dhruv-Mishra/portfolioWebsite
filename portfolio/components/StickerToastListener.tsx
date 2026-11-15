@@ -144,7 +144,7 @@ const ToastCard = memo(function ToastCard({ id, onTap, onMouseEnter, onMouseLeav
         href="/stickers"
         onClick={onTap}
         className="flex items-start gap-3 px-4 pt-5 pb-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--c-ink)]/40"
-        aria-label={`You unlocked: ${sticker.label}. Tap to open the sticker drawer.`}
+        aria-label={`You unlocked: ${sticker.label}. Tap to open the sticker album.`}
       >
         <StickerSvg id={sticker.id} size={STICKER_TOKENS.size.toast} />
         <div className="flex-1 min-w-0">

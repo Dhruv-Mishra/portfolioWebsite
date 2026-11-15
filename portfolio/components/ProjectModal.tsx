@@ -1,15 +1,15 @@
 "use client";
-import { X, ExternalLink, Play, User, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { Play, Volume2, VolumeX, X } from 'lucide-react';
+import { useCallback, useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import Image from 'next/image';
-import { useAppHaptics } from '@/lib/haptics';
-import { cn } from '@/lib/utils';
-import { Modal } from '@/components/ui/Modal';
-import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { PaperClip } from '@/components/DoodleIcons';
 import MediaCarousel, { type MediaCarouselHandle, type MediaSlide } from '@/components/MediaCarousel';
-import type { ProjectRecord } from '@/lib/projects';
-import { getProjectVideoSources } from '@/lib/projects';
+import { Modal } from '@/components/ui/Modal';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { unlockSticker, useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { Z_INDEX } from '@/lib/designTokens';
+import { useAppHaptics } from '@/lib/haptics';
+import { getProjectVideoSources, type ProjectRecord } from '@/lib/projects';
 import {
   CONTROL_PROJECT_VIDEO_EVENT,
   attachSiteActionResult,
@@ -17,454 +17,270 @@ import {
   type ControlProjectVideoEventDetail,
 } from '@/lib/siteActionEvents';
 import type { SiteToolResult } from '@/lib/siteTools';
-import { unlockSticker, useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
+import '@/components/projects/projects.css';
 
 interface ProjectModalProps {
-    /** Pass null when no project is selected — the modal will be hidden */
-    project: ProjectRecord | null;
-    onClose: () => void;
+  /** null hides the dialog. */
+  project: ProjectRecord | null;
+  onClose: () => void;
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
-const FOLD_SIZE = 30;
-const VIDEO_PLAY_RETRY_MS = 1000;
-const VIDEO_PLAY_RETRY_STEP_MS = 50;
-
-const FOLD_CLIP_PATH = `polygon(
-    0% 0%,
-    100% 0%,
-    100% calc(100% - ${FOLD_SIZE}px),
-    calc(100% - ${FOLD_SIZE}px) 100%,
-    0% 100%
-)` as const;
-
-/** Hoisted — avoids object re-allocation per render */
-const FOLD_CARD_STYLE = { clipPath: FOLD_CLIP_PATH } as const;
-
-/** Hoisted fold corner styles — avoids per-render allocation */
-const FOLD_GRADIENT_MODAL_STYLE = {
-    width: FOLD_SIZE,
-    height: FOLD_SIZE,
-    background: 'var(--note-fold-shadow)',
-} as const;
-const FOLD_COLOR_MODAL_STYLE = {
-    width: FOLD_SIZE,
-    height: FOLD_SIZE,
-    backgroundColor: 'var(--note-fold-underside)',
-    clipPath: 'polygon(0 0, 0 100%, 100% 0)',
-} as const;
-
-// ── Component ──────────────────────────────────────────────────────────────────
+const VIDEO_UNAVAILABLE = 'project-video-unavailable';
+const NEW_TAB = <span className="sr-only"> (opens in a new tab)</span>;
 
 export default function ProjectModal({ project, onClose }: ProjectModalProps) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const carouselRef = useRef<MediaCarouselHandle>(null);
-    const isMutedRef = useRef(false);
-    const playGenerationRef = useRef(0);
-    const { closePanel, externalLink, selection, tap } = useAppHaptics();
-    const masterVolume = useMasterVolume();
-    const soundsMuted = useSoundsMuted();
-    const [isMuted, setIsMuted] = useState(false);
-    const [showPlayButton, setShowPlayButton] = useState(false);
-    const [hasMountedVideo, setHasMountedVideo] = useState(false);
+  const titleId = useId();
+  return (
+    <Modal
+      isOpen={project !== null}
+      onClose={onClose}
+      className="project-modal font-hand"
+      ariaLabelledBy={titleId}
+      backdropClassName="bg-black/60"
+    >
+      {/* Keyed so switching projects (voice can) resets the video and carousel state. */}
+      {project ? <ProjectSheet key={project.slug} project={project} titleId={titleId} onClose={onClose} /> : null}
+    </Modal>
+  );
+}
 
-    const applyVideoMasterVolume = useCallback((node: HTMLVideoElement | null) => {
-        if (!node) return;
-        node.volume = soundsMuted ? 0 : masterVolume;
-    }, [masterVolume, soundsMuted]);
+function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; titleId: string; onClose: () => void }) {
+  const highlightsId = useId();
+  const { externalLink, selection, tap } = useAppHaptics();
+  const reducedMotion = useEffectiveReducedMotion();
+  const masterVolume = useMasterVolume();
+  const soundsMuted = useSoundsMuted();
+  const volume = soundsMuted ? 0 : masterVolume;
+  const videoSources = getProjectVideoSources(project);
+  const hasVideo = videoSources !== null;
 
-    const videoSources = project ? getProjectVideoSources(project) : null;
-    const hasVideo = videoSources !== null;
-    const videoSrc = videoSources?.[0].src ?? '';
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const carouselRef = useRef<MediaCarouselHandle>(null);
+  const mutedRef = useRef(true);
+  const volumeRef = useRef(volume);
+  // Bumped by every play/pause request so a late play() promise cannot override a newer one.
+  const playGeneration = useRef(0);
+  const [muted, setMutedState] = useState(true);
+  // Reduced motion never autoplays: the poster waits behind a play button.
+  const [showPlay, setShowPlay] = useState(reducedMotion);
 
-    // Toggle mute/unmute — syncs state to the video element directly
-    const toggleMute = useCallback(() => {
-        selection();
-        setIsMuted(prev => {
-            const next = !prev;
-            isMutedRef.current = next;
-            if (videoRef.current) videoRef.current.muted = next;
-            return next;
-        });
-    }, [selection]);
-
-    const playVideo = useCallback(async () => {
-        const playGeneration = ++playGenerationRef.current;
-        const deadline = Date.now() + VIDEO_PLAY_RETRY_MS;
-        let video = videoRef.current;
-        while (!video) {
-            if (playGeneration !== playGenerationRef.current) return false;
-            if (Date.now() >= deadline) return false;
-            await new Promise<void>((resolve) => {
-                window.setTimeout(resolve, VIDEO_PLAY_RETRY_STEP_MS);
-            });
-            video = videoRef.current;
-        }
-
-        if (playGeneration !== playGenerationRef.current) return false;
-        tap();
-        video.muted = isMutedRef.current;
-        applyVideoMasterVolume(video);
-
-        try {
-            await video.play();
-            if (playGeneration !== playGenerationRef.current || videoRef.current !== video) return false;
-            setShowPlayButton(false);
-            return true;
-        } catch {
-            if (playGeneration !== playGenerationRef.current || videoRef.current !== video) return false;
-            setShowPlayButton(true);
-            return false;
-        }
-    }, [applyVideoMasterVolume, tap]);
-
-    const reportPlayResult = useCallback(async (): Promise<SiteToolResult> => {
-        carouselRef.current?.goTo(0);
-        const played = await playVideo();
-        if (!played) {
-            return {
-                ok: false,
-                spokenText: 'I could not play that preview.',
-                errorCode: 'project-video-unavailable',
-            };
-        }
-        return {
-            ok: true,
-            spokenText: 'Playing the preview.',
-            data: { action: 'play', nextAction: 'Want me to mute or pause it?' },
-        };
-    }, [playVideo]);
-
-    const pauseVideo = useCallback(() => {
-        const video = videoRef.current;
-        if (!video) return false;
-        video.pause();
-        setShowPlayButton(true);
-        return true;
-    }, []);
-
-    const setMuted = useCallback((muted: boolean) => {
-        const video = videoRef.current;
-        if (!video) return false;
-        selection();
-        isMutedRef.current = muted;
-        video.muted = muted;
-        setIsMuted(muted);
-        return true;
-    }, [selection]);
-
-    useEffect(() => {
-        if (!project || !hasVideo || !hasMountedVideo) return;
-        const unregister = registerSiteActionHost('project-video');
-        const handler = (raw: Event) => {
-            const event = raw as CustomEvent<ControlProjectVideoEventDetail>;
-            if (event.defaultPrevented) return;
-            const action = event.detail?.action;
-            if (!action) return;
-
-            let result: SiteToolResult;
-            if (action === 'play') {
-                // Claim now; the thenable settles only after video.play() resolves.
-                attachSiteActionResult(event, reportPlayResult());
-                return;
-            }
-            if (action === 'pause') {
-                attachSiteActionResult(event, Promise.resolve(pauseVideo()
-                    ? { ok: true, spokenText: 'Paused the preview.', data: { action, nextAction: 'Want me to play it again?' } }
-                    : { ok: false, spokenText: 'I could not pause that preview.', errorCode: 'project-video-unavailable' }));
-                return;
-            } else if (action === 'mute') {
-                result = setMuted(true)
-                    ? { ok: true, spokenText: 'Muted the preview.', data: { action } }
-                    : { ok: false, spokenText: 'I could not mute that preview.', errorCode: 'project-video-unavailable' };
-            } else {
-                result = setMuted(false)
-                    ? { ok: true, spokenText: 'Unmuted the preview.', data: { action } }
-                    : { ok: false, spokenText: 'I could not unmute that preview.', errorCode: 'project-video-unavailable' };
-            }
-            attachSiteActionResult(event, result);
-        };
-        window.addEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
-        return () => {
-            unregister();
-            window.removeEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
-        };
-    }, [hasMountedVideo, hasVideo, pauseVideo, project, reportPlayResult, setMuted]);
-
-    const attemptAutoplay = useCallback((node: HTMLVideoElement, muted: boolean) => {
-        const playGeneration = ++playGenerationRef.current;
-        node.muted = muted;
-        applyVideoMasterVolume(node);
-        void node.play()
-            .then(() => {
-                if (playGeneration !== playGenerationRef.current || videoRef.current !== node) return;
-                setShowPlayButton(false);
-            })
-            .catch(() => {
-                if (playGeneration !== playGenerationRef.current || videoRef.current !== node) return;
-                // Browser may block autoplay — show a manual play affordance.
-                setShowPlayButton(true);
-            });
-    }, [applyVideoMasterVolume]);
-
-    // Callback ref — fires when the <video> DOM node mounts inside the portal.
-    const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
-        const previousVideo = videoRef.current;
-        if (previousVideo !== node) playGenerationRef.current += 1;
-        if (previousVideo && previousVideo !== node) {
-            previousVideo.pause();
-        }
-
-        videoRef.current = node;
-        setHasMountedVideo(node !== null);
-        if (node) {
-            setShowPlayButton(false);
-            attemptAutoplay(node, isMutedRef.current);
-        }
-    }, [attemptAutoplay]);
-
-    useEffect(() => {
-        return () => {
-            playGenerationRef.current += 1;
-        };
-    }, []);
-
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!project || !hasVideo || !video) return;
-        video.pause();
-        video.currentTime = 0;
-        isMutedRef.current = false;
-        video.muted = false;
-        setIsMuted(false);
-        setShowPlayButton(false);
-        attemptAutoplay(video, false);
-    }, [attemptAutoplay, hasVideo, project, videoSrc]);
-
-    useEffect(() => {
-        applyVideoMasterVolume(videoRef.current);
-    }, [applyVideoMasterVolume]);
-
-    // The video is always slide 0: play it while it is in view, pause it once swiped away.
-    const handleSlideChange = useCallback((index: number) => {
-        const video = videoRef.current;
-        if (!video) return;
-        if (index === 0) {
-            attemptAutoplay(video, isMutedRef.current);
-            return;
-        }
-        playGenerationRef.current += 1;
-        video.pause();
-        setShowPlayButton(false);
-    }, [attemptAutoplay]);
-
-    const mediaSlides: MediaSlide[] = [];
-    if (project && videoSources) {
-        mediaSlides.push({
-            key: 'video',
-            label: 'preview video',
-            content: (
-                <>
-                    <video
-                        key={videoSrc}
-                        ref={setVideoRef}
-                        muted={isMuted}
-                        loop
-                        playsInline
-                        preload="metadata"
-                        className="w-full h-full object-cover"
-                    >
-                        {videoSources.map((source) => (
-                            <source key={source.src} src={source.src} type={source.type} />
-                        ))}
-                    </video>
-                    {showPlayButton ? (
-                        <button
-                            onClick={playVideo}
-                            aria-label={`Play ${project.name} preview video`}
-                            data-clickable
-                            className="absolute inset-0 z-10 flex items-center justify-center bg-black/25 text-white transition-colors hover:bg-black/35"
-                        >
-                            <span className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 shadow-lg">
-                                <Play size={18} fill="currentColor" />
-                                Play preview
-                            </span>
-                        </button>
-                    ) : null}
-                    <button
-                        onClick={toggleMute}
-                        aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-                        data-clickable
-                        className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors shadow-md"
-                    >
-                        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                    </button>
-                </>
-            ),
-        });
+  const play = useCallback(async (): Promise<boolean> => {
+    const video = videoRef.current;
+    if (!video) return false;
+    const generation = ++playGeneration.current;
+    video.muted = mutedRef.current;
+    video.volume = volumeRef.current;
+    try {
+      await video.play();
+    } catch {
+      // Autoplay can be blocked; fall back to a manual play affordance.
+      if (generation === playGeneration.current) setShowPlay(true);
+      return false;
     }
-    if (project) {
-        mediaSlides.push({
-            key: 'image',
-            label: 'project image',
-            content: (
-                <Image
-                    src={project.image}
-                    alt={`${project.name} project preview`}
-                    fill
-                    sizes="(max-width: 768px) 90vw, 720px"
-                    placeholder="blur"
-                    blurDataURL={project.blurDataURL}
-                    className="object-cover"
-                />
-            ),
-        });
+    if (generation !== playGeneration.current) return false;
+    setShowPlay(false);
+    return true;
+  }, []);
+
+  const pause = useCallback((showButton: boolean) => {
+    const video = videoRef.current;
+    if (!video) return false;
+    playGeneration.current += 1;
+    video.pause();
+    if (showButton) setShowPlay(true);
+    return true;
+  }, []);
+
+  const setMuted = useCallback((next: boolean) => {
+    const video = videoRef.current;
+    if (!video) return false;
+    selection();
+    mutedRef.current = next;
+    video.muted = next;
+    setMutedState(next);
+    return true;
+  }, [selection]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
+
+  // Switching projects in an open dialog unmounts the focused control; keep focus inside the dialog.
+  useEffect(() => {
+    if (document.activeElement === document.body) closeRef.current?.focus();
+  }, []);
+
+  const autoplay = useEffectEvent(() => {
+    if (!reducedMotion) void play();
+  });
+
+  // The video is slide 0: it plays on open and whenever it is swiped back into view.
+  useEffect(() => {
+    autoplay();
+    const video = videoRef.current;
+    return () => {
+      playGeneration.current += 1;
+      video?.pause();
+    };
+  }, []);
+
+  const handleSlideChange = useCallback((index: number) => {
+    if (index === 0) {
+      if (!reducedMotion) void play();
+      return;
     }
+    pause(false);
+  }, [pause, play, reducedMotion]);
 
-    return (
-        <Modal
-            isOpen={project !== null}
-            onClose={onClose}
-            className="mx-auto my-3 w-[calc(100%-1.5rem)] max-w-3xl font-hand md:my-12"
-            ariaLabel={project ? `${project.name} project details` : undefined}
-            backdropClassName="bg-black/60"
-        >
-            {project && (
-                <div className="relative pt-5" data-site-context="project-preview" data-site-project={project.slug}>
-                    {/* Tape decoration — lives in the top padding, outside the clip path */}
-                    <div
-                        data-tape-strip
-                        className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-10 shadow-sm z-20"
-                        style={TAPE_STYLE_DECOR}
-                    />
+  const onVideoControl = useEffectEvent((event: Event) => {
+    if (event.defaultPrevented) return;
+    const action = (event as CustomEvent<ControlProjectVideoEventDetail>).detail?.action;
+    if (!action) return;
+    if (action === 'play') {
+      carouselRef.current?.goTo(0);
+      // Claimed now; the result settles once video.play() does.
+      attachSiteActionResult(event, play().then((played): SiteToolResult => (played
+        ? { ok: true, spokenText: 'Playing the preview.', data: { action, nextAction: 'Want me to mute or pause it?' } }
+        : { ok: false, spokenText: 'I could not play that preview.', errorCode: VIDEO_UNAVAILABLE })));
+      return;
+    }
+    if (action === 'pause') {
+      attachSiteActionResult(event, pause(true)
+        ? { ok: true, spokenText: 'Paused the preview.', data: { action, nextAction: 'Want me to play it again?' } }
+        : { ok: false, spokenText: 'I could not pause that preview.', errorCode: VIDEO_UNAVAILABLE });
+      return;
+    }
+    const mute = action === 'mute';
+    attachSiteActionResult(event, setMuted(mute)
+      ? { ok: true, spokenText: mute ? 'Muted the preview.' : 'Unmuted the preview.', data: { action } }
+      : { ok: false, spokenText: `I could not ${action} that preview.`, errorCode: VIDEO_UNAVAILABLE });
+  });
 
-                    {/* Clipped card with background color + fold corner */}
-                    <div
-                        className={cn("relative shadow-lg", project.colorClass)}
-                        style={FOLD_CARD_STYLE}
-                    >
-                        {/* Close Button */}
-                        <button
-                            onClick={() => {
-                                closePanel();
-                                onClose();
-                            }}
-                            className="absolute top-4 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white/60 text-rose-600/80 shadow-md hover:scale-110 hover:rotate-6 hover:bg-rose-50/90 hover:text-rose-700 dark:bg-black/40 dark:text-rose-400/85 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 transition-[color,background-color,transform] duration-200"
-                            aria-label="Close project note"
-                            data-clickable
-                        >
-                            <X size={20} strokeWidth={2.4} />
-                        </button>
+  useEffect(() => {
+    if (!hasVideo) return;
+    const unregister = registerSiteActionHost('project-video');
+    const handler = (event: Event) => onVideoControl(event);
+    window.addEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
+    return () => {
+      unregister();
+      window.removeEventListener(CONTROL_PROJECT_VIDEO_EVENT, handler);
+    };
+  }, [hasVideo]);
 
-                    <div className="p-6 md:p-8 pt-8">
-                        {/* ── Project Preview ─────────────────────────────────────── */}
-                        <div className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-md border border-gray-200 dark:border-gray-300 mb-6 relative">
-                            {/* Paper clip on left corner */}
-                            <PaperClip className="absolute -top-4 left-1 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm -rotate-12" />
+  const slides: MediaSlide[] = [];
+  if (videoSources) {
+    slides.push({
+      key: 'video',
+      label: 'preview video',
+      content: (
+        <>
+          <video
+            ref={videoRef}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster={project.image}
+            className="h-full w-full object-cover"
+          >
+            {videoSources.map((source) => <source key={source.src} src={source.src} type={source.type} />)}
+          </video>
+          {showPlay ? (
+            <button
+              type="button"
+              onClick={() => { tap(); void play(); }}
+              aria-label={`Play ${project.name} preview video`}
+              data-clickable
+              className="project-video-play focus-ring"
+              style={{ zIndex: Z_INDEX.content }}
+            >
+              <span>
+                <Play size={18} fill="currentColor" aria-hidden="true" />
+                Play preview
+              </span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setMuted(!mutedRef.current)}
+            aria-label={muted ? 'Unmute video' : 'Mute video'}
+            data-clickable
+            className="project-video-mute project-media-control focus-ring"
+            style={{ zIndex: Z_INDEX.crease }}
+          >
+            {muted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          </button>
+        </>
+      ),
+    });
+  }
+  slides.push({
+    key: 'image',
+    label: 'still image',
+    content: (
+      <Image
+        src={project.image}
+        alt={`${project.name} preview`}
+        fill
+        sizes="(max-width: 767px) 94vw, 41rem"
+        placeholder="blur"
+        blurDataURL={project.blurDataURL}
+        className="object-cover"
+      />
+    ),
+  });
 
-                            <div className="relative w-full h-full overflow-hidden bg-gray-100">
-                                <MediaCarousel
-                                    key={project.slug}
-                                    ref={carouselRef}
-                                    slides={mediaSlides}
-                                    label={`${project.name} media`}
-                                    onActiveChange={handleSlideChange}
-                                />
-                            </div>
-                        </div>
-
-                        {/* ── Project Header ─────────────────────────────────────── */}
-                        <div className="flex items-start justify-between mb-3 gap-3 relative z-10">
-                            <h2 className="text-3xl md:text-5xl font-bold leading-tight text-[var(--c-ink)]">
-                                {project.name}
-                            </h2>
-                            <div className="flex items-center gap-1.5 text-sm font-bold opacity-70 bg-white/40 dark:bg-black/20 px-3 py-1.5 rounded-sm shrink-0">
-                                <project.icon className="w-5 h-5" /> {project.label}
-                            </div>
-                        </div>
-
-                        {/* ── Meta badge (project type) ─────────────── */}
-                        <div className="flex flex-wrap gap-3 mb-5 relative z-10">
-                            <div className="inline-flex items-center gap-1.5 text-sm font-bold opacity-75 bg-white/40 dark:bg-black/20 px-2.5 py-1 rounded-sm">
-                                <User size={14} className="opacity-60" /> {project.role}
-                            </div>
-                        </div>
-
-                        {/* Language Tag */}
-                        <div className="mb-5 relative z-10">
-                            <span className="text-base font-bold opacity-80 decoration-wavy underline decoration-gray-400/50">
-                                {project.lang}
-                            </span>
-                        </div>
-
-                        {/* Description */}
-                        <div className="text-lg md:text-xl leading-relaxed mb-6 font-medium opacity-90 relative z-10">
-                            {project.desc}
-                        </div>
-
-                        {/* ── Key Highlights ─────────────────────────────────────── */}
-                        {project.highlights.length > 0 && (
-                            <div className="mb-6 relative z-10">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Sparkles size={16} className="text-amber-500" />
-                                    <h3 className="text-lg font-bold text-[var(--c-ink)] decoration-wavy underline decoration-amber-400/50">
-                                        Key Highlights
-                                    </h3>
-                                </div>
-                                <ul className="space-y-2 pl-1">
-                                    {project.highlights.map((highlight, idx) => (
-                                        <li key={idx} className="flex items-start gap-2 text-base leading-relaxed font-medium opacity-85">
-                                            <span className="mt-1.5 w-2 h-2 rounded-full bg-[var(--c-ink)]/30 shrink-0" />
-                                            {highlight}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {/* Tech Stack */}
-                        <div className="mb-6 flex flex-wrap gap-1.5 relative z-10">
-                            {project.stack.map((tech) => (
-                                <span
-                                    key={tech}
-                                    className="px-2.5 py-1 text-xs font-code font-medium text-[var(--c-ink)]/70 border border-[var(--c-ink)]/15 rounded-full"
-                                >
-                                    {tech}
-                                </span>
-                            ))}
-                        </div>
-
-                        {/* External Link */}
-                        <div className="pb-2 relative z-10">
-                            <a
-                                href={project.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={() => { externalLink(); unlockSticker('repo-hunter'); }}
-                                aria-label={`View source for ${project.name}`}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[var(--c-ink)] rounded-full hover:bg-[var(--c-ink)] hover:text-[var(--c-paper)] transition-colors shadow-sm font-bold bg-white/30 dark:bg-black/20"
-                                data-clickable
-                            >
-                                Check it out! <ExternalLink size={18} />
-                            </a>
-                        </div>
-                    </div>
-
-                    {/* Fold corner decoration */}
-                    <div
-                        aria-hidden="true"
-                        className="absolute bottom-0 right-0 pointer-events-none z-10"
-                        style={FOLD_GRADIENT_MODAL_STYLE}
-                    />
-                    <div
-                        aria-hidden="true"
-                        className="absolute bottom-0 right-0 pointer-events-none z-10"
-                        style={FOLD_COLOR_MODAL_STYLE}
-                    />
-                    </div>
-                </div>
-            )}
-        </Modal>
-    );
+  return (
+    <>
+      <span aria-hidden="true" data-tape-strip className="project-sheet-tape" style={TAPE_STYLE_DECOR} />
+      <article className="project-sheet" data-site-context="project-preview" data-site-project={project.slug}>
+        <div className="project-sheet-close-bar">
+          <button ref={closeRef} type="button" onClick={onClose} className="project-sheet-close focus-ring" aria-label="Close project" data-clickable>
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="project-sheet-media">
+          <div className="project-sheet-media-frame">
+            <MediaCarousel ref={carouselRef} slides={slides} label={`${project.name} media`} onActiveChange={handleSlideChange} />
+          </div>
+        </div>
+        <h2 id={titleId} className="project-sheet-title ink-heavy">{project.name}</h2>
+        <p className="project-sheet-meta font-body">
+          {project.role}, {project.year}{project.duration === 'Ongoing' ? ' to now' : `, ${project.duration}`}
+        </p>
+        <p className="project-sheet-details font-body">{project.details}</p>
+        {project.highlights.length > 0 ? (
+          <section aria-labelledby={highlightsId}>
+            <h3 id={highlightsId} className="project-sheet-subtitle">Highlights</h3>
+            <ul className="project-sheet-highlights font-body">
+              {project.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}
+            </ul>
+          </section>
+        ) : null}
+        <ul className="project-sheet-stack font-code" aria-label="Tech stack">
+          {project.stack.map((tech) => <li key={tech}>{tech}</li>)}
+        </ul>
+        <div className="project-sheet-actions">
+          {project.demo ? (
+            <a href={project.demo} target="_blank" rel="noopener noreferrer" onClick={externalLink} className="project-sheet-demo focus-ring" data-clickable>
+              <span aria-hidden="true" data-tape-strip style={TAPE_STYLE_DECOR} />
+              Try the live demo{NEW_TAB}
+            </a>
+          ) : null}
+          <a
+            href={project.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => { externalLink(); unlockSticker('repo-hunter'); }}
+            className="project-sheet-source focus-ring"
+            data-clickable
+          >
+            {project.linkLabel ?? 'Source code'}{NEW_TAB}
+          </a>
+        </div>
+      </article>
+    </>
+  );
 }

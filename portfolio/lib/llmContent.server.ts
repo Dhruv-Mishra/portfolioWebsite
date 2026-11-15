@@ -42,12 +42,11 @@ function joinFactBodies(facts: readonly Fact[]): string {
 function buildExperienceTimelineMarkdown(): string {
   return experienceTimelineEntries.map((entry) => {
     const lines: string[] = [
-      `### ${entry.title} — ${entry.organization}`,
+      `### ${entry.title}`,
       ``,
       `- Category: ${entry.category}`,
       `- Dates: ${entry.dateLabel}`,
       `- Location: ${entry.location}`,
-      `- Summary: ${entry.summary}`,
       `- Impact: ${entry.impact}`,
       `- Tools: ${entry.tools.join(', ')}`,
       ``,
@@ -201,7 +200,7 @@ export function buildResumeMarkdown(): string {
   return [
     `# ${SITE.name} — Resume`,
     ``,
-    `Source: ${SITE.url}/resume`,
+    `Source: ${SITE.url}/about`,
     `Resume PDF: ${SITE.url}${PERSONAL_LINKS.resume}`,
     ``,
     joinFactBodies(resume),

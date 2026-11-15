@@ -52,7 +52,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
           leave your mark on the wall ~
         </p>
 
-        {/* Meta row — note count + sticker drawer link */}
+        {/* Meta row — note count + sticker album link */}
         {!isEmpty && (
           <p className="font-hand text-xs opacity-40 mt-2">
             {noteCount} {noteCount === 1 ? 'note' : 'notes'} pinned
@@ -61,7 +61,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
               href="/stickers"
               className="underline decoration-dotted underline-offset-4 hover:opacity-100 transition-opacity"
             >
-              ✎ try the sticker drawer →
+              ✎ try the sticker album →
             </Link>
           </p>
         )}
@@ -92,7 +92,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
               {currentPage > 1 && (
                 <Link
                   href={currentPage === 2 ? '/guestbook' : `/guestbook?page=${currentPage - 1}`}
-                  className="group relative bg-[var(--note-yellow)] border border-yellow-300/40 dark:border-yellow-400/20 px-4 py-2 shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] min-h-[44px] inline-flex items-center gap-1 rotate-[-1.5deg] hover:rotate-0 hover:shadow-md transition-[transform,box-shadow,opacity] opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
+                  className="group relative bg-note-paper border border-yellow-300/40 dark:border-yellow-400/20 px-4 py-2 shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] min-h-[44px] inline-flex items-center gap-1 rotate-[-1.5deg] hover:rotate-0 hover:shadow-md transition-[transform,box-shadow,opacity] opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
                 >
                   <span aria-hidden="true">←</span> newer notes
                 </Link>
@@ -100,7 +100,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
               {hasMore && (
                 <Link
                   href={`/guestbook?page=${currentPage + 1}`}
-                  className="group relative bg-[var(--note-orange)] border border-orange-300/40 dark:border-orange-400/20 px-4 py-2 shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] min-h-[44px] inline-flex items-center gap-1 rotate-[1.5deg] hover:rotate-0 hover:shadow-md transition-[transform,box-shadow,opacity] opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
+                  className="group relative bg-note-paper border border-orange-300/40 dark:border-orange-400/20 px-4 py-2 shadow-sm font-hand text-sm md:text-base text-[var(--c-ink)] min-h-[44px] inline-flex items-center gap-1 rotate-[1.5deg] hover:rotate-0 hover:shadow-md transition-[transform,box-shadow,opacity] opacity-80 hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
                 >
                   see older notes <span aria-hidden="true">→</span>
                 </Link>

@@ -1,7 +1,7 @@
 "use client";
-import { Suspense, useCallback, useEffect, useEffectEvent, useState, type MouseEvent, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 import { unlockSticker } from '@/hooks/useStickers';
@@ -10,109 +10,131 @@ import {
   CLOSE_PROJECT_EVENT,
   OPEN_PROJECT_EVENT,
   attachSiteActionResult,
+  buildProjectHref,
   readProjectSlugFromSearch,
   type OpenProjectEventDetail,
 } from '@/lib/siteActionEvents';
 
-// Reuse ChatProjectModal so `lib/projects.tsx` (JSX descriptions + 11 Lucide icons)
-// stays out of the initial `/projects` client bundle until a modal actually opens.
-const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
+// Project details stay out of the initial client bundle; hovering or focusing a note warms the chunk.
+const loadModal = () => import('@/components/ChatProjectModal');
+const ChatProjectModal = dynamic(loadModal, { ssr: false });
 
-// Isolated behind its own Suspense so useSearchParams cannot bail the server-rendered grid out to CSR.
-function ProjectQuerySync({ onQuerySlug }: { onQuerySlug: (slug: string | null) => void }) {
-  const querySlug = readProjectSlugFromSearch(useSearchParams().toString());
-  const reportQuerySlug = useEffectEvent((slug: string | null) => onQuerySlug(slug));
+const NOTE_SELECTOR = 'a[data-project-slug]';
 
-  useEffect(() => {
-    reportQuerySlug(querySlug);
-  }, [querySlug]);
-
-  return null;
+function focusNote(slug: ProjectSlug) {
+  document.querySelector<HTMLElement>(`${NOTE_SELECTOR}[data-project-slug="${slug}"]`)?.focus({ preventScroll: true });
 }
 
-export default function ProjectGridController({ className, children }: { className: string; children: ReactNode }) {
-  const router = useRouter();
+/**
+ * `?project=` is the single source of truth for the open note. Notes are plain links (deep-linkable, new-tab
+ * friendly); a plain click pushes the query through the History API, which Next syncs into useSearchParams
+ * without a server round trip.
+ */
+function ProjectRoute() {
+  const raw = readProjectSlugFromSearch(useSearchParams().toString());
+  const slug = raw && isProjectSlug(raw) ? raw : null;
   const { closePanel, openPanel } = useAppHaptics();
-  const [selectedSlug, setSelectedSlug] = useState<ProjectSlug | null>(null);
-  const [hasOpenedProject, setHasOpenedProject] = useState(false);
-  const [querySlug, setQuerySlug] = useState<string | null>(null);
+  const [hasOpened, setHasOpened] = useState(false);
+  // Set while the open note sits on a history entry this page pushed, so closing pops it instead of stacking.
+  const pushedRef = useRef(false);
 
-  const openProjectBySlug = useCallback((slug: string) => {
-    if (!isProjectSlug(slug)) return false;
-    openPanel();
-    setHasOpenedProject(true);
-    setSelectedSlug(slug);
-    unlockSticker('project-explorer');
-    appendUserAction({ kind: 'project.open', slug });
-    return true;
-  }, [openPanel]);
+  if (slug && !hasOpened) setHasOpened(true);
 
-  const handleQuerySlug = useCallback((slug: string | null) => {
-    setQuerySlug(slug);
-    if (slug) openProjectBySlug(slug);
-  }, [openProjectBySlug]);
-
-  const handleGridClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!(event.target instanceof Element)) return;
-    const slug = event.target.closest<HTMLElement>('[data-project-slug]')?.dataset.projectSlug;
-    if (!slug) return;
-    if (event.target.closest('[data-project-source]')) {
-      unlockSticker('repo-hunter');
-      return;
-    }
-    if (event.target.closest('a')) return;
-    openProjectBySlug(slug);
-  }, [openProjectBySlug]);
-
-  const handleCloseModal = useCallback(() => {
+  const close = useCallback(() => {
     closePanel();
-    setSelectedSlug(null);
-    if (querySlug) {
-      router.replace('/projects');
+    if (pushedRef.current) {
+      pushedRef.current = false;
+      window.history.back();
+    } else {
+      window.history.replaceState(null, '', '/projects');
     }
-  }, [closePanel, querySlug, router]);
+  }, [closePanel]);
+
+  const show = useEffectEvent((next: ProjectSlug, fromClick: boolean) => {
+    // Gives the dialog an opener to return focus to: Safari does not focus clicked links, and voice opens have none.
+    if (fromClick || (!slug && document.activeElement === document.body)) focusNote(next);
+    if (slug) {
+      window.history.replaceState(null, '', buildProjectHref(next));
+    } else {
+      window.history.pushState(null, '', buildProjectHref(next));
+      pushedRef.current = true;
+    }
+  });
+
+  const onOpened = useEffectEvent((opened: ProjectSlug) => {
+    openPanel();
+    unlockSticker('project-explorer');
+    appendUserAction({ kind: 'project.open', slug: opened });
+  });
+
+  // Layout effects run before the dialog's own effects, so it records the note (not <body>) as the place to return focus.
+  useLayoutEffect(() => {
+    if (slug && document.activeElement === document.body) focusNote(slug);
+  }, [slug]);
 
   useEffect(() => {
-    const handler = (raw: Event) => {
-      const event = raw as CustomEvent<OpenProjectEventDetail>;
-      const slug = event.detail?.slug;
-      if (!slug || !openProjectBySlug(slug)) return;
-      attachSiteActionResult(event, {
-        ok: true,
-        spokenText: 'Queued that project to open.',
-        data: { slug, accepted: true, nextAction: 'I can play, pause, mute, or unmute the preview if it has a video.' },
-      });
-    };
-    window.addEventListener(OPEN_PROJECT_EVENT, handler);
-    return () => window.removeEventListener(OPEN_PROJECT_EVENT, handler);
-  }, [openProjectBySlug]);
+    if (slug) onOpened(slug);
+    else pushedRef.current = false;
+  }, [slug]);
+
+  const onClick = useEffectEvent((event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const next = (event.target as Element | null)?.closest<HTMLElement>(NOTE_SELECTOR)?.dataset.projectSlug;
+    if (!next || !isProjectSlug(next)) return;
+    event.preventDefault();
+    show(next, true);
+  });
+
+  const onVoiceOpen = useEffectEvent((event: Event) => {
+    const next = (event as CustomEvent<OpenProjectEventDetail>).detail?.slug;
+    if (!next || !isProjectSlug(next)) return;
+    show(next, false);
+    attachSiteActionResult(event, {
+      ok: true,
+      spokenText: 'Queued that project to open.',
+      data: { slug: next, accepted: true, nextAction: 'I can play, pause, mute, or unmute the preview if it has a video.' },
+    });
+  });
+
+  const onVoiceClose = useEffectEvent((event: Event) => {
+    // Left unclaimed when nothing is open, so the voice agent says so instead of pretending to close.
+    if (!slug) return;
+    close();
+    attachSiteActionResult(event, { ok: true, spokenText: 'Closing that project.' });
+  });
 
   useEffect(() => {
-    const handler = (raw: Event) => {
-      handleCloseModal();
-      attachSiteActionResult(raw, {
-        ok: true,
-        spokenText: 'Closing that project.',
-      });
+    const warm = (event: Event) => {
+      if (!(event.target instanceof Element) || !event.target.closest(NOTE_SELECTOR)) return;
+      void loadModal();
+      document.removeEventListener('pointerover', warm);
+      document.removeEventListener('focusin', warm);
     };
-    window.addEventListener(CLOSE_PROJECT_EVENT, handler);
-    return () => window.removeEventListener(CLOSE_PROJECT_EVENT, handler);
-  }, [handleCloseModal]);
+    const handleClick = (event: MouseEvent) => onClick(event);
+    const handleOpen = (event: Event) => onVoiceOpen(event);
+    const handleClose = (event: Event) => onVoiceClose(event);
+    document.addEventListener('pointerover', warm, { passive: true });
+    document.addEventListener('focusin', warm);
+    document.addEventListener('click', handleClick);
+    window.addEventListener(OPEN_PROJECT_EVENT, handleOpen);
+    window.addEventListener(CLOSE_PROJECT_EVENT, handleClose);
+    return () => {
+      document.removeEventListener('pointerover', warm);
+      document.removeEventListener('focusin', warm);
+      document.removeEventListener('click', handleClick);
+      window.removeEventListener(OPEN_PROJECT_EVENT, handleOpen);
+      window.removeEventListener(CLOSE_PROJECT_EVENT, handleClose);
+    };
+  }, []);
 
+  return hasOpened ? <ChatProjectModal projectSlug={slug} onClose={close} /> : null;
+}
+
+export default function ProjectGridController() {
+  // useSearchParams gets its own boundary so the server-rendered wall never bails out to client rendering.
   return (
-    <>
-      <div className={className} onClick={handleGridClick}>
-        {children}
-      </div>
-      <Suspense fallback={null}>
-        <ProjectQuerySync onQuerySlug={handleQuerySlug} />
-      </Suspense>
-      {hasOpenedProject ? (
-        <ChatProjectModal
-          projectSlug={selectedSlug}
-          onClose={handleCloseModal}
-        />
-      ) : null}
-    </>
+    <Suspense fallback={null}>
+      <ProjectRoute />
+    </Suspense>
   );
 }

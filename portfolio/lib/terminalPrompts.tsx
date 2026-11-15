@@ -8,7 +8,7 @@
  * username/password for `sudo admin`), it pushes a prompt descriptor
  * onto this module-level queue. The Terminal component subscribes to the
  * queue and, while a prompt is active:
- *   - shows the prompt's label in place of the normal ➜ ~ bash chrome
+ *   - shows the prompt's label in place of the normal guest@dhruv:~$ bash chrome
  *   - masks characters with `*` if the prompt requested it
  *   - on Enter, calls the prompt's `onSubmit` with the raw (unmasked)
  *     text, which decides:
@@ -41,7 +41,7 @@ export type PromptSubmitAction =
       /** Optional side effect. */
       action?: () => void;
       /**
-       * When true, the transcript will NOT render the `➜ ~ <echo>` header line
+       * When true, the transcript will NOT render the `guest@dhruv:~$ <echo>` header line
        * for this submission — only the `output` block is appended. Used for
        * sensitive prompts (decrypt/admin password, admin username) where
        * persisting ANY echo in the transcript (bullets or plaintext) feels

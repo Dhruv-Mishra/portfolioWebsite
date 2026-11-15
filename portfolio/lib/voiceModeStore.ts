@@ -7,7 +7,7 @@ import {
   type VoiceInvocationContext,
 } from '@/lib/voiceInvocation';
 import { disposePrimedVoiceAudio, primeVoiceEnterAudio } from '@/lib/voiceAudioActivation';
-import { playVoiceToggle, primeVoiceSounds, startVoiceAmbient } from '@/lib/voiceSounds';
+import { playVoiceConnect } from '@/lib/voiceSounds';
 import { unlockSticker } from '@/hooks/useStickers';
 
 export type VoiceModeRequest = 'enter' | 'exit';
@@ -30,8 +30,7 @@ function emit(): void {
 
 export function requestVoiceMode(context?: VoiceInvocationContext | unknown): void {
   primeVoiceEnterAudio();
-  primeVoiceSounds();
-  playVoiceToggle(startVoiceAmbient);
+  playVoiceConnect();
   unlockSticker('phoned-a-friend');
   requested = 'enter';
   pendingContext = parseVoiceInvocationContext(context) ?? null;

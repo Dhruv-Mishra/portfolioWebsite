@@ -175,7 +175,7 @@ async function run() {
   results.activationCheck = { activated, attrs };
 
   // --- Bug 1: hero subtitle computed style + screenshot ---
-  const heroSubtitleStyle = await computedStyleSnapshot(page, 'p.animate-hero-subtitle', [
+  const heroSubtitleStyle = await computedStyleSnapshot(page, 'section[aria-label="Introduction"] p', [
     'color',
     'opacity',
     'animation-name',
@@ -269,7 +269,7 @@ async function run() {
   const mattrs = await discoAttributes(mpage);
   results.mobileActivationCheck = mattrs;
 
-  const mheroStyle = await computedStyleSnapshot(mpage, 'p.animate-hero-subtitle', [
+  const mheroStyle = await computedStyleSnapshot(mpage, 'section[aria-label="Introduction"] p', [
     'color',
     'opacity',
     'animation-name',

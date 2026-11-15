@@ -27,18 +27,10 @@
  *     subscribes to the narrow `useSuperuserUnlocked` selector and calls
  *     `scheduleSuperuserPrefetch` exactly once per session after the
  *     flag flips true.
- *   - `scheduleVoiceAssetPrefetch` is for voice enter / explicit warm, not
- *     idle first paint. The controller and `bootSession` call it on enter.
  */
 
 /** Was prefetch already scheduled in this session? Guards repeat calls. */
 let scheduled = false;
-let voiceScheduled = false;
-
-const VOICE_VISUAL_URLS = [
-  '/voice/ai-ripple.gif',
-  '/voice/ai-ripple-still.webp',
-] as const;
 
 /**
  * Network Information API surface. Not universally available (Safari lacks
@@ -143,40 +135,18 @@ export function scheduleSuperuserPrefetch(): void {
   }, 1500);
 }
 
-/**
- * Warm the voice HUD GIF and still frame on voice enter or another explicit
- * warm path — not idle first paint. The latch makes repeat calls a no-op.
- */
-export function scheduleVoiceAssetPrefetch(): void {
-  if (typeof window === 'undefined') return;
-  if (voiceScheduled) return;
-  if (!shouldPrefetch()) return;
-  voiceScheduled = true;
-
-  scheduleIdle(() => {
-    if (typeof Image === 'undefined') return;
-    for (const src of VOICE_VISUAL_URLS) {
-      const image = new Image();
-      image.src = src;
-    }
-  }, 1800);
-}
-
 /** @internal — reset the scheduled latch for tests. */
 export function __resetAssetPrefetchForTest(): void {
   scheduled = false;
-  voiceScheduled = false;
 }
 
 /** @internal — inspect current prefetch state for tests. */
 export function __getPrefetchDebug(): {
   readonly scheduled: boolean;
-  readonly voiceScheduled: boolean;
   readonly shouldPrefetch: boolean;
 } {
   return Object.freeze({
     scheduled,
-    voiceScheduled,
     shouldPrefetch: shouldPrefetch(),
   });
 }

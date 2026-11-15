@@ -1,7 +1,8 @@
 import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSION, TERMINAL_USER } from "@/lib/constants";
+import { createNeofetchOutput } from "@/lib/terminalInitialOutput";
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
@@ -80,7 +81,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             // Page 3 — fun / stickers / puzzle
             [
                 { cmd: 'joke', desc: 'Tell a joke' },
-                { cmd: 'stickers', desc: 'Open the sticker drawer' },
+                { cmd: 'neofetch', desc: 'Print the system card' },
+                { cmd: 'stickers', desc: 'Open the sticker album' },
                 { cmd: 'cheatsheet', desc: 'Browse all stickers' },
                 { cmd: 'disco', desc: 'Engages disco mode (`disco yes` to confirm, `disco off` to exit)' },
                 { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
@@ -270,7 +272,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const sub = (args[0] ?? '').toLowerCase();
         if (!sub) {
             return {
-                output: "Opening sticker drawer...",
+                output: "Opening sticker album...",
                 action: () => { setTimeout(() => router.push('/stickers'), NAVIGATION_DELAY_MS); }
             };
         }
@@ -308,11 +310,11 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     resume: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
     }),
     cv: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
     }),
     chat: () => ({
         output: "Navigating to chat...",
@@ -439,7 +441,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const file = args[0];
         if (!file) return { output: "Usage: open [filename]" };
         const openable: Record<string, { output: string; route: string }> = {
-            "resume.pdf": { output: "Opening resume...", route: "/resume" },
+            "resume.pdf": { output: "Opening resume...", route: "/about" },
             "projects.json": { output: "Opening projects...", route: "/projects" },
             "jarvis.md": { output: "Opening projects...", route: "/projects" },
             "cropio.md": { output: "Opening projects...", route: "/projects" },
@@ -448,7 +450,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         if (entry) return { output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
-    whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
+    whoami: () => ({ output: TERMINAL_USER }),
+    neofetch: () => ({ output: createNeofetchOutput() }),
     date: () => ({ output: new Date().toString() }),
     // Cheatsheet is privileged. The bare command only reveals that privileges
     // are required — the user has to figure out how to escalate on their own.

@@ -8,7 +8,7 @@ category: site
 The Escape the Matrix puzzle is a multi-stage hidden challenge woven across Dhruv's site, primarily driven through the home page terminal. The full stage enum lives in `lib/matrixPuzzle.ts` and currently spans nine stages from first contact through final escape.
 
 High-level stage progression (no spoilers on specific values):
-1. The visitor starts by collecting stickers. Every interactive surface on the site earns one, and the sticker drawer at `/stickers` tracks progress.
+1. The visitor starts by collecting stickers. Every interactive surface on the site earns one, and the sticker album at `/stickers` tracks progress.
 2. Once every visible sticker is earned, the `sudo` prefix unlocks in the home terminal. Before that point, any `sudo <cmd>` invocation is politely denied.
 3. With sudo unlocked, the visitor explores hidden files via `sudo ls` and `sudo cat <file>`. One of those files contains the credentials needed for the next stage.
 4. The contents of that hidden file are used to log into `sudo admin`, which gates the experimental commands toggle.

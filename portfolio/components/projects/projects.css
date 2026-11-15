@@ -1,0 +1,334 @@
+/* Projects wall: sticky notes taped straight onto the page grid. Phones get compact horizontal notes;
+   wider containers pin full notes in two, then three columns. */
+.project-wall { container-type: inline-size; }
+
+.project-notes {
+  display: grid;
+  gap: 1.25rem;
+  max-width: var(--c-project-wall-max-w);
+  margin: 0 auto;
+  padding: .875rem .25rem var(--c-dock-clear);
+  list-style: none;
+}
+
+.project-notes > li {
+  position: relative;
+  min-width: 0;
+  rotate: calc(var(--note-tilt) * var(--c-project-compact));
+}
+
+/* Paper curl: shadows under both bottom corners that spread as the note lifts. */
+.project-notes > li::before,
+.project-notes > li::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  bottom: .625rem;
+  left: .5rem;
+  width: 45%;
+  height: 40%;
+  box-shadow: 0 .5rem .5rem var(--c-note-curl);
+  rotate: -3deg;
+  transition: box-shadow var(--dur-quick) var(--ease-paper), translate var(--dur-quick) var(--ease-paper);
+}
+.project-notes > li::after { left: auto; right: .5rem; rotate: 3deg; }
+
+.project-note {
+  --fold: calc(var(--c-corner-fold) * var(--c-project-compact));
+  --hover-tilt-lift: var(--c-project-hover-lift);
+  --hover-tilt-scale: var(--c-project-hover-scale);
+  position: relative;
+  display: block;
+  height: 100%;
+  color: var(--c-ink);
+  text-decoration: none;
+  box-shadow: var(--shadow-note);
+}
+.project-note:active { scale: .98; }
+
+/* Corner fold: the clipped corner shows a shadow on the wall, the flap shows the paper's underside. */
+.project-note-paper,
+.project-sheet {
+  position: relative;
+  background: var(--note-paper);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--fold)), calc(100% - var(--fold)) 100%, 0 100%);
+}
+.project-note::after,
+.project-note-paper::after,
+.project-sheet::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--fold);
+  height: var(--fold);
+  pointer-events: none;
+}
+.project-note::after { background: var(--note-fold-shadow); }
+.project-note-paper::after,
+.project-sheet::after {
+  background: var(--note-fold-underside);
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+
+.project-note-paper {
+  display: grid;
+  grid-template-columns: clamp(6rem, 31cqi, var(--c-project-thumb-w)) minmax(0, 1fr);
+  align-items: center;
+  gap: .75rem;
+  height: 100%;
+  padding: .875rem .875rem .875rem .625rem;
+}
+
+.project-note-tape,
+.project-sheet-tape {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  translate: -50% 0;
+}
+.project-note-tape {
+  top: -.5rem;
+  left: var(--tape-x);
+  width: calc(var(--c-project-tape-w) * .7);
+  height: calc(var(--c-project-tape-h) * .7);
+  background-color: var(--tape-color);
+  clip-path: var(--tape-clip);
+  rotate: calc(var(--photo-tilt) * -1);
+}
+
+/* Photo prints held on with a paper clip. */
+.project-note-photo,
+.project-sheet-media {
+  position: relative;
+  display: block;
+  padding: 4px 4px 6px;
+  background: var(--c-polaroid);
+  box-shadow: var(--shadow-sticker);
+}
+.project-note-photo {
+  rotate: calc(var(--photo-tilt) * var(--c-project-compact));
+  transition: rotate var(--dur-quick) var(--ease-paper);
+}
+.project-note-photo::before,
+.project-sheet-media::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -.5rem;
+  left: .375rem;
+  width: .75rem;
+  height: 1.375rem;
+  background: var(--c-ink-faint);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 36' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 1C4 1 2 4 2 8L2 28C2 32 5 35 10 35C15 35 18 32 18 28L18 10C18 7 16 5 13 5C10 5 8 7 8 10L8 26'/%3E%3C/svg%3E") center / contain no-repeat;
+  rotate: -12deg;
+}
+.project-note-image,
+.project-sheet-media-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--c-polaroid-ink) 10%, var(--c-polaroid));
+}
+.project-note-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--c-polaroid-ink) 14%, transparent);
+  opacity: 0;
+  transition: opacity var(--dur-quick) var(--ease-paper);
+}
+
+/* Quiet open affordance: every project opens to a preview video. */
+.project-note-play {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: auto;
+  border-radius: 50%;
+  color: var(--c-polaroid-ink);
+  background: color-mix(in srgb, var(--c-polaroid) 82%, transparent);
+  box-shadow: var(--shadow-sticker);
+  opacity: .85;
+  transition: opacity var(--dur-quick) var(--ease-paper), scale var(--dur-quick) var(--ease-paper);
+}
+.project-note-play::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 34%;
+  height: 40%;
+  margin: auto;
+  translate: 12% 0;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.project-note-text { min-width: 0; }
+.project-note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; }
+.project-note-name {
+  color: var(--c-heading);
+  font-size: var(--t-h3);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.project-note-demo {
+  padding: 0 .25rem;
+  color: var(--c-ink-muted);
+  background: color-mix(in srgb, var(--c-ink) 8%, transparent);
+  font-size: var(--t-small);
+  line-height: var(--lh-lead);
+  white-space: nowrap;
+  rotate: -2deg;
+}
+.project-note-summary {
+  margin-top: .125rem;
+  font-size: var(--t-small);
+  line-height: var(--lh-lead);
+  text-wrap: balance;
+}
+
+@container (min-width: 34rem) {
+  .project-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3rem 2.5rem; padding-top: 1.75rem; }
+  .project-notes > li { rotate: var(--note-tilt); translate: 0 var(--note-drop); }
+  .project-notes > li::before,
+  .project-notes > li::after { bottom: 1rem; box-shadow: 0 .875rem .75rem var(--c-note-curl); }
+  .project-note { --fold: var(--c-corner-fold); }
+  .project-note-paper { display: block; padding: 1.75rem 1.25rem 1.5rem; }
+  .project-note-tape { top: -.875rem; width: var(--c-project-tape-w); height: var(--c-project-tape-h); }
+  .project-note-photo { width: 94%; margin: 0 auto 1.25rem; padding: 6px 6px 9px; rotate: var(--photo-tilt); }
+  .project-note-photo::before { top: -.75rem; width: 1rem; height: 1.875rem; }
+  .project-note-play { width: 2.75rem; height: 2.75rem; opacity: .75; scale: .9; }
+  .project-note-head { rotate: -1deg; }
+  .project-note-demo { padding: 0 .375rem; font-size: var(--t-hand-sm); }
+  .project-note-name { font-size: var(--t-h3-md); }
+  .project-note-summary { margin-top: .375rem; font-size: var(--t-body); }
+}
+
+@container (min-width: 56rem) {
+  .project-notes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3.5rem 3rem; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .project-notes > li:hover::before,
+  .project-notes > li:hover::after { box-shadow: 0 1.375rem 1.125rem var(--c-note-curl); translate: 0 .25rem; }
+  .project-note:hover .project-note-photo { rotate: calc(var(--photo-tilt) * var(--c-project-compact)); }
+  .project-note:hover .project-note-image::after { opacity: 1; }
+}
+.project-note:is(:hover, :focus-visible) .project-note-play { opacity: 1; scale: 1.08; }
+html[data-reduced-motion] .project-note:active { scale: none; }
+
+/* Expanded note (dialog). Modal springs its card into a rotation; a reading sheet stays square and slides up. */
+.project-modal {
+  width: min(46rem, calc(100% - 1rem));
+  margin: 1.75rem auto 1.5rem;
+  color: var(--c-ink);
+  transform: none !important;
+  animation: project-sheet-in var(--dur-panel) var(--ease-paper) both;
+}
+@keyframes project-sheet-in { from { translate: 0 1.5rem; } }
+
+.project-sheet-tape { top: -.875rem; left: 50%; width: var(--c-project-tape-w); height: var(--c-project-tape-h); rotate: -2deg; }
+.project-sheet {
+  --fold: var(--c-corner-fold);
+  --project-media-control: color-mix(in srgb, var(--c-polaroid-ink) 85%, transparent);
+  padding: 1.75rem 1.25rem 2.5rem;
+}
+.project-sheet-close-bar {
+  position: sticky;
+  z-index: 4;
+  top: .5rem;
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  margin: -1.25rem -.75rem 0 0;
+}
+.project-sheet-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--c-ink);
+  background: color-mix(in srgb, var(--note-paper) 88%, transparent);
+  box-shadow: var(--shadow-sticker);
+  transition: rotate var(--dur-quick) var(--ease-paper);
+}
+.project-sheet-close:hover { rotate: 90deg; }
+
+.project-sheet-media { margin: 2rem 0 1.5rem; padding: 6px 6px 10px; rotate: -.75deg; }
+.project-sheet-media::before { top: -.875rem; left: .5rem; width: 1.125rem; height: 2.125rem; }
+.project-sheet-title { color: var(--c-heading); font-size: var(--t-h2); line-height: var(--lh-snug); }
+.project-sheet-meta { margin: .25rem 0 1rem; color: var(--c-ink-muted); font-size: var(--t-small); line-height: var(--lh-body); }
+.project-sheet-details,
+.project-sheet-highlights { max-width: var(--measure); font-size: var(--t-body); line-height: var(--lh-body); }
+.project-sheet-subtitle { margin: 1.5rem 0 .5rem; font-size: var(--t-h3); line-height: var(--lh-snug); }
+.project-sheet-highlights { padding: 0; list-style: none; }
+.project-sheet-highlights li { position: relative; padding-left: 1.125rem; }
+.project-sheet-highlights li + li { margin-top: .5rem; }
+.project-sheet-highlights li::before {
+  content: '';
+  position: absolute;
+  top: .7em;
+  left: .125rem;
+  width: .375rem;
+  height: .375rem;
+  border-radius: 50%;
+  background: var(--c-ink-faint);
+}
+.project-sheet-stack { display: flex; flex-wrap: wrap; gap: .375rem; margin: 1.5rem 0; padding: 0; list-style: none; }
+.project-sheet-stack li { padding: .25rem .625rem; font-size: var(--t-chip); border: 1px solid var(--c-ink-faint); border-radius: 999px; }
+.project-sheet-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; }
+.project-sheet-demo {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: .5rem 1.25rem;
+  color: var(--c-polaroid-ink);
+  background: var(--c-polaroid);
+  box-shadow: var(--shadow-sticker);
+  font-size: var(--t-lead);
+  text-decoration: none;
+  rotate: -1.5deg;
+}
+.project-sheet-demo > span { position: absolute; top: -.375rem; left: 50%; width: 3rem; height: .75rem; translate: -50% 0; rotate: 2deg; }
+.project-sheet-source {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-size: var(--t-lead);
+  text-decoration: underline wavy var(--c-ink-faint);
+  text-underline-offset: .25rem;
+}
+.project-sheet-source:hover { text-decoration-color: currentColor; }
+
+/* Media carousel controls inside the expanded note. */
+.project-media-control { display: flex; align-items: center; justify-content: center; color: var(--c-polaroid); background: var(--project-media-control); border-radius: 50%; }
+.project-video-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.project-video-play span { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .5rem 1rem; border-radius: 999px; color: var(--c-polaroid); background: var(--project-media-control); }
+.project-video-mute { position: absolute; right: .5rem; bottom: .5rem; width: 44px; height: 44px; }
+.project-media-arrows { position: absolute; top: 50%; display: none; width: 44px; height: 44px; translate: 0 -50%; }
+.project-media-arrows:disabled { visibility: hidden; }
+.project-media-dots { position: absolute; bottom: 0; left: 50%; display: flex; translate: -50% 0; }
+.project-media-dot { display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; }
+.project-media-dot span { width: 8px; height: 8px; border-radius: 50%; background: var(--project-media-control); border: 1px solid var(--c-polaroid); }
+.project-media-dot[aria-current] span { width: 20px; border-radius: 4px; background: var(--c-polaroid); border-color: var(--c-polaroid-ink); }
+
+@media (min-width: 640px) {
+  .project-media-arrows { display: flex; }
+}
+@media (min-width: 768px) {
+  .project-modal { margin: 3.5rem auto; }
+  .project-sheet { padding: 2.25rem 2.5rem 3rem; }
+  .project-sheet-close-bar { margin-right: -1.75rem; }
+  .project-sheet-title { font-size: var(--t-h2-md); }
+  .project-sheet-meta { font-size: var(--t-body); }
+  .project-sheet-details,
+  .project-sheet-highlights { font-size: var(--t-body-md); }
+  .project-sheet-subtitle { font-size: var(--t-h3-md); }
+}

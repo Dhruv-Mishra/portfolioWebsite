@@ -21,7 +21,7 @@ import {
   type VoicePlaybackOptions,
 } from '@/lib/voiceAudio';
 import { disposePrimedVoiceAudio } from '@/lib/voiceAudioActivation';
-import { playVoiceAction, playVoiceToggle, stopVoiceSounds } from '@/lib/voiceSounds';
+import { duckVoiceAmbient, playVoiceAction, playVoiceHangup, startVoiceAmbient, stopVoiceSounds } from '@/lib/voiceSounds';
 import { getVoiceAgentPrefsSnapshot } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall, SiteToolResult } from '@/lib/siteTools';
 import type {
@@ -93,7 +93,7 @@ export const VOICE_SUBTITLE_FADE_MS = 280;
 export const VOICE_SUBTITLE_REDUCED_FADE_MS = 0;
 export const VOICE_IDLE_CHECKIN_MS = 45_000;
 export const VOICE_IDLE_HANGUP_MS = 90_000;
-export const VOICE_EXIT_VEIL_MS = 2_200;
+export const VOICE_EXIT_VEIL_MS = 1_400;
 export const VOICE_EXIT_VEIL_REDUCED_MS = 400;
 export const VOICE_PROJECT_VIDEO_WAIT_MS = 2_500;
 
@@ -947,9 +947,11 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       }
       if (next === 'listening' && nextPlayback.isBusy()) {
         patch({ phase: snapshot.phase === 'acting' ? 'acting' : 'speaking' });
+        duckVoiceAmbient(true);
         return;
       }
       patch({ phase: next });
+      duckVoiceAmbient(next === 'speaking');
     }),
     nextCaller.on('userTranscript', text => {
       if (isStale(generation)) return;
@@ -1011,6 +1013,7 @@ function attachCaller(nextCaller: VoiceCaller, nextPlayback: VoicePlayback, gene
       if (isStale(generation)) return;
       if (snapshot.phase === 'speaking' || snapshot.phase === 'acting') {
         patch({ phase: 'listening' });
+        duckVoiceAmbient(false);
       }
       tryMarkIntroComplete();
       scheduleSubtitleClear(generation);
@@ -1175,6 +1178,7 @@ export function startVoiceSession(): Promise<void> {
     generation: snapshot.generation + 1,
     recovery: 'none',
   });
+  startVoiceAmbient();
   return bootSession();
 }
 
@@ -1208,6 +1212,7 @@ export function retryVoiceSession(): Promise<void> {
     generation: snapshot.generation + 1,
     recovery: 'none',
   });
+  startVoiceAmbient();
   return bootSession();
 }
 
@@ -1223,7 +1228,7 @@ export function stopVoiceSession(reason: VoiceExitReason = 'user', options: { fo
     return;
   }
   if (stopping) return;
-  playVoiceToggle();
+  playVoiceHangup();
   if (options.force === true) {
     finishStop(reason);
     return;

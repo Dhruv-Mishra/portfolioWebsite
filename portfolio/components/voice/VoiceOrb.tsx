@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef } from 'react';
+import { VOICE_ORB_TOKENS as ORB } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 import type { VoiceAgentPhase } from '@/lib/voiceAgentProtocol';
 import { getVoicePlaybackLevel, subscribeVoicePlaybackLevel } from '@/lib/voiceAudio';
@@ -13,128 +14,110 @@ interface VoiceOrbProps {
 }
 
 const PHASE_LABEL: Record<VoiceAgentPhase, string> = {
-  idle: 'Idle',
-  entering: 'Switching',
+  idle: 'Listening',
+  entering: 'Connecting',
   connecting: 'Connecting',
   listening: 'Listening',
   thinking: 'Thinking',
   speaking: 'Speaking',
-  acting: 'Acting',
-  exiting: 'Leaving',
-  error: 'Unavailable',
+  acting: 'Doing that now',
+  exiting: 'Call ended',
+  error: "Can't connect",
 };
 
-function formatVoiceLevel(level: number): string {
-  return (Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000).toFixed(3);
-}
+const RING_RATE: Partial<Record<VoiceAgentPhase, number>> = ORB.ringRate;
+
+/** Three hand-drawn rings, each its own element so its rotation stays on the compositor. */
+const RINGS = [
+  'M50 12 C72 11 89 28 88 50 C87 73 70 88 49 88 C27 89 12 72 12 50 C13 29 29 13 53 13',
+  'M86 47 C87 70 69 87 47 86 C26 85 13 68 14 47 C15 27 32 13 52 14 C71 15 85 30 85 52',
+  'M30 19 C46 10 70 13 82 30 C93 47 88 71 70 82 C52 93 28 88 17 70 C8 54 13 33 33 18',
+];
 
 export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabel = true }: VoiceOrbProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  const levelRef = useRef<HTMLDivElement>(null);
+  const flareRef = useRef<HTMLSpanElement>(null);
+  const ringsRef = useRef<HTMLDivElement>(null);
 
+  // Agent audio swells the orb through transform/opacity only, and the loop runs only while audible.
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const setRipple = (value: number) => {
-      root.style.setProperty('--voice-ripple', value.toFixed(3));
-    };
-
-    if (reducedMotion) {
-      root.style.setProperty('--voice-level', formatVoiceLevel(0));
-      setRipple(1);
-      root.removeAttribute('data-voice-orb-speaking');
-      return;
-    }
-
+    const level = levelRef.current;
+    const flare = flareRef.current;
+    if (!level || !flare || reducedMotion) return;
+    let target = 0;
+    let smoothed = 0;
+    let written = 0;
     let frame = 0;
-    let pending = getVoicePlaybackLevel();
-    let rippleTimer = 0;
-
-    const pickRipple = () => 0.97 + Math.random() * 0.25;
-    const stopRipple = () => {
-      if (rippleTimer) {
-        window.clearTimeout(rippleTimer);
-        rippleTimer = 0;
-      }
-      setRipple(1);
+    let last = 0;
+    const write = (value: number) => {
+      level.style.transform = value ? `scale(${1 + value * ORB.levelScale})` : '';
+      flare.style.opacity = value ? String(value * ORB.flareOpacity) : '';
+      written = value;
     };
-    const scheduleRipple = () => {
-      setRipple(pickRipple());
-      rippleTimer = window.setTimeout(scheduleRipple, 160 + Math.random() * 120);
-    };
-
-    const apply = (level: number) => {
-      root.style.setProperty('--voice-level', formatVoiceLevel(level));
-      const speakingNow = phase === 'speaking';
-      const rippleNow = speakingNow || phase === 'acting';
-      root.toggleAttribute('data-voice-orb-speaking', speakingNow);
-      if (rippleNow) {
-        if (!rippleTimer) scheduleRipple();
+    const tick = (now: number) => {
+      const dt = Math.min(Math.max(now - last, 0), ORB.maxStepMs);
+      last = now;
+      const tau = target > smoothed ? ORB.attackMs : ORB.releaseMs;
+      smoothed += (target - smoothed) * (1 - Math.exp(-dt / tau));
+      if (target === 0 && smoothed < ORB.epsilon) {
+        frame = 0;
+        smoothed = 0;
+        write(0);
         return;
       }
-      stopRipple();
+      if (Math.abs(smoothed - written) > ORB.epsilon) write(smoothed);
+      frame = requestAnimationFrame(tick);
     };
-
-    apply(pending);
-
-    const unsubscribe = subscribeVoicePlaybackLevel(level => {
-      pending = level;
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        apply(pending);
-      });
-    });
-
+    const onLevel = (value: number) => {
+      target = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+      if (frame || target === 0) return;
+      last = performance.now();
+      frame = requestAnimationFrame(tick);
+    };
+    onLevel(getVoicePlaybackLevel());
+    const unsubscribe = subscribeVoicePlaybackLevel(onLevel);
     return () => {
       unsubscribe();
-      if (frame) cancelAnimationFrame(frame);
-      stopRipple();
+      cancelAnimationFrame(frame);
+      write(0);
     };
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    const rate = RING_RATE[phase] ?? 1;
+    for (const animation of ringsRef.current?.getAnimations?.({ subtree: true }) ?? []) {
+      animation.updatePlaybackRate(rate);
+    }
   }, [phase, reducedMotion]);
 
   return (
     <div
-      ref={rootRef}
-      data-voice-orb-size={size}
+      data-phase={phase}
+      data-size={size}
       className={cn(
         'voice-orb relative grid place-items-center',
-        `is-${phase}`,
-        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-20 md:w-20',
+        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-18 md:w-18',
       )}
-      style={{ '--voice-level': formatVoiceLevel(0) } as CSSProperties}
       aria-hidden
     >
-      <span className={cn('voice-orb-halo', `is-${phase}`)} aria-hidden />
-      <span className={cn('voice-orb-wash', `is-${phase}`)} aria-hidden />
-      <div className={cn('voice-orb-media', `is-${phase}`)}>
-        {reducedMotion ? (
-          /* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */
-          <img
-            src="/voice/ai-ripple-still.webp"
-            alt=""
-            draggable={false}
-            decoding="async"
-            className={cn('voice-orb-still', `is-${phase}`)}
-          />
-        ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */
-          <img
-            src="/voice/ai-ripple.gif"
-            alt=""
-            draggable={false}
-            decoding="async"
-            className={cn('voice-orb-gif', `is-${phase}`)}
-          />
-        )}
+      <span className="orb-glow" />
+      <span ref={flareRef} className="orb-glow orb-flare" />
+      <span className="orb-ripples"><span /><span /></span>
+      <div ref={levelRef} className="orb-level">
+        <div className="orb-body">
+          <div ref={ringsRef} className="orb-rings">
+            {RINGS.map(path => (
+              <svg key={path} viewBox="0 0 100 100" aria-hidden="true"><path d={path} /></svg>
+            ))}
+          </div>
+          <span className="orb-core" />
+        </div>
       </div>
-      <span className={cn('voice-orb-sheen', `is-${phase}`)} aria-hidden />
       {showLabel ? (
         <span className={cn(
-          'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',
-          size === 'hero' ? '-bottom-8 text-sm' : '-bottom-5 text-[0.65rem] tracking-[0.18em]',
-        )}
-        >
+          'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand text-white/70',
+          size === 'hero' ? '-bottom-8' : '-bottom-6',
+        )}>
           {PHASE_LABEL[phase]}
         </span>
       ) : null}

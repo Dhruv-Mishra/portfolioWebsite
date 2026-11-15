@@ -1,20 +1,17 @@
 'use client';
 
 /**
- * SoundToggleButton — global mute pill for the sitewide sound system.
- *
- * Placement: docks next to the ThemeToggle in the Navigation header. Visually
- * matches the theme toggle — rough hand-drawn circle, sketchbook ink.
+ * SoundToggleButton — global mute for the sitewide sound system, in the desktop rail.
  *
  * Behaviour:
  *   - Subscribes to `useSoundsMuted()` / `useMasterVolume()` for a narrow re-render.
  *   - Click → `setSoundsMutedImperative(!muted)`; mute never overwrites volume.
- *   - Hover / keyboard focus opens a vertical master-volume slider. Pointer can
- *     cross the visual gap without closing; dragging stays usable.
+ *   - Hover / keyboard focus opens a vertical master-volume slider to the left of
+ *     the rail. Pointer can cross the visual gap without closing; dragging stays usable.
  *   - Collapses on leave, focus-out, outside click, or Escape. Absolute
  *     popover — no layout shift.
  *   - Accessible: `aria-pressed` reflects mute, `aria-expanded`/`aria-controls`
- *     describe the slider. Tooltip is suppressed while the popover is open.
+ *     describe the slider.
  */
 
 import { memo, useCallback, useId, useRef } from 'react';
@@ -27,7 +24,6 @@ import { useFloatingVolumePopover } from '@/hooks/useFloatingVolumePopover';
 import { commitUserMasterVolume, soundManager } from '@/lib/soundManager';
 import { useAppHaptics } from '@/lib/haptics';
 import { useDesktopOnly } from '@/hooks/useMediaQuery';
-import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 
 function SoundToggleButton(): React.ReactElement {
@@ -74,7 +70,6 @@ function SoundToggleButton(): React.ReactElement {
       className="relative inline-flex h-11 w-11 items-center justify-center"
       {...rootProps}
     >
-      <Tooltip label={muteLabel} className={sliderOpen ? 'hidden' : undefined}>
         <button
           type="button"
           onClick={handleClick}
@@ -82,7 +77,7 @@ function SoundToggleButton(): React.ReactElement {
           aria-expanded={sliderOpen}
           aria-controls={sliderId}
           aria-label={buttonLabel}
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/50"
+          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group focus-ring"
           data-sound-toggle
         >
           <div key={muted ? 'muted' : 'unmuted'} className="animate-theme-icon">
@@ -128,21 +123,20 @@ function SoundToggleButton(): React.ReactElement {
             style={{ borderRadius: '50% 40% 60% 50% / 50% 60% 40% 50%' }}
           />
         </button>
-      </Tooltip>
       {sliderOpen ? (
         <div
           id={sliderId}
           role="group"
           aria-label="Master volume"
           className={cn(
-            'absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2',
+            'absolute right-full top-1/2 z-10 mr-2 -translate-y-1/2',
             'flex flex-col items-center gap-1 rounded-md px-2 py-2',
             'border border-[var(--c-ink)]/25 bg-[var(--c-paper)]/95',
             'shadow-[1px_2px_4px_rgba(0,0,0,0.16)]',
           )}
         >
-          <span className="absolute top-full left-1/2 h-2 w-11 -translate-x-1/2" aria-hidden="true" />
-          <span className="font-hand text-[11px] font-bold text-[var(--c-ink)]/75">
+          <span className="absolute left-full top-1/2 h-11 w-2 -translate-y-1/2" aria-hidden="true" />
+          <span className="font-hand text-sm text-[var(--c-ink-muted)]">
             {percent}%
           </span>
           <input

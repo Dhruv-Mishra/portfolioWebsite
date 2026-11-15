@@ -10,12 +10,16 @@
  */
 
 import { useEffect } from 'react';
-import { applyPrefsToDocument, useAdminPrefs } from '@/hooks/useAdminPrefs';
+import { applyPrefsToDocument, REDUCED_MOTION_QUERY, useAdminPrefs } from '@/hooks/useAdminPrefs';
 
 export default function AdminPrefsController(): null {
   const prefs = useAdminPrefs();
   useEffect(() => {
     applyPrefsToDocument(prefs);
+    const media = window.matchMedia(REDUCED_MOTION_QUERY);
+    const sync = () => applyPrefsToDocument(prefs);
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
   }, [prefs]);
   return null;
 }

@@ -8,7 +8,7 @@
  * ────────
  * Every one of the three prompts MUST return `suppressEcho: true` on
  * submission (correct, wrong, and empty-input paths). The Terminal
- * component uses this flag to completely omit the `➜ ~ <echo>` header
+ * component uses this flag to completely omit the `guest@dhruv:~$ <echo>` header
  * line from the transcript — bullets, plaintext usernames, all hidden.
  * The `echo` string is still provided for back-compat with older tests
  * that assert on its shape, but the renderer does not display it.

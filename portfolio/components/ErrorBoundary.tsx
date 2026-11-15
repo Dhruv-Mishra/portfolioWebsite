@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-paper">
           <div
-            className="max-w-md w-full bg-note-yellow p-8 rounded-lg shadow-xl transform -rotate-1 animate-[fadeIn_0.4s_ease-out]"
+            className="max-w-md w-full bg-note-paper p-8 rounded-lg shadow-xl -rotate-1 animate-page-sheet"
           >
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>

@@ -1,0 +1,309 @@
+/* Experience timeline. Line mode by default; the S-curve takes over once the column fits two tiles and the
+   curve band between them. Hover peeks overlay later rows; pinning moves the sheet into flow. */
+.tl-section {
+  container: timeline / inline-size;
+  min-width: 0;
+  color: var(--c-ink);
+}
+.tl-heading {
+  margin-bottom: 1.25rem;
+  color: var(--c-heading);
+  font-size: var(--t-h2);
+  line-height: var(--lh-snug);
+}
+
+.tl {
+  --tl-pad: .625rem;
+  --tl-tuck: .5rem;
+  --tl-node-gap: .625rem;
+  --tl-node-y: calc(var(--tl-pad) + var(--c-timeline-logo) / 2);
+  --tl-x: calc(var(--c-timeline-node) / 2 + .125rem);
+  --tl-indent: calc(var(--tl-x) + var(--c-timeline-node) / 2 + var(--tl-node-gap));
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: var(--c-timeline-gap);
+  padding: .75rem 0 1rem;
+  list-style: none;
+}
+.tl-item {
+  --tl-dot: var(--c-timeline-work);
+  --tl-tilt: calc(var(--c-timeline-tilt) * -1);
+  --disco-wiggle-rest: var(--tl-tilt);
+  --disco-wiggle-amplitude: 2.5deg;
+  --disco-motion-duration: 1400ms;
+  position: relative;
+  z-index: 0;
+}
+/* Each row is its own layer; the one being read rises above its neighbours so its sheet can overlap them. */
+.tl-item:is(:has(> .tl-tab:hover), :focus-within, [data-pinned]) { z-index: 1; }
+.tl-item:nth-child(even) { --tl-tilt: var(--c-timeline-tilt); }
+.tl-item:nth-child(3n + 1) { --disco-motion-delay: -270ms; }
+.tl-item:nth-child(3n + 2) { --disco-motion-delay: -690ms; }
+.tl-item:nth-child(3n) { --disco-motion-delay: -1080ms; }
+.tl-item[data-category="internship"] { --tl-dot: var(--c-timeline-internship); }
+.tl-item[data-category="research"] { --tl-dot: var(--c-timeline-research); }
+.tl-item[data-category="education"] { --tl-dot: var(--c-timeline-education); }
+.tl-item[data-category="achievement"] { --tl-dot: var(--c-timeline-contest); }
+
+/* Runs from this node to the next one; a 1px-wide box flattens the S into a straight line. */
+.tl-seg {
+  position: absolute;
+  top: var(--tl-node-y);
+  left: calc(var(--tl-x) - .5px);
+  width: 1px;
+  height: calc(100% + var(--c-timeline-gap));
+  overflow: visible;
+  pointer-events: none;
+}
+.tl-seg path {
+  fill: none;
+  stroke: var(--c-timeline-line);
+  stroke-width: var(--c-timeline-stroke);
+  stroke-linecap: round;
+}
+
+.tl-node {
+  position: absolute;
+  top: calc(var(--tl-node-y) - var(--c-timeline-node) / 2);
+  left: calc(var(--tl-x) - var(--c-timeline-node) / 2);
+  width: var(--c-timeline-node);
+  height: var(--c-timeline-node);
+  border-radius: 50%;
+  background: var(--tl-dot);
+  box-shadow: 0 0 0 3px var(--c-paper);
+  transition: scale var(--dur-quick) var(--ease-paper), box-shadow var(--dur-quick) var(--ease-paper);
+}
+.tl-node::after {
+  content: '';
+  position: absolute;
+  top: calc(50% - .5px);
+  left: 100%;
+  width: var(--tl-node-gap);
+  height: 1px;
+  background: var(--c-timeline-line);
+}
+
+.tl-tab {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--c-timeline-logo) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "logo when chevron"
+    "logo title title"
+    "impact impact impact";
+  align-items: center;
+  column-gap: .625rem;
+  width: calc(100% - var(--tl-indent));
+  margin-left: var(--tl-indent);
+  padding: var(--tl-pad) .875rem calc(var(--tl-tuck) + .375rem);
+  border: 1px solid var(--c-ink-faint);
+  border-radius: 6px;
+  background: var(--note-paper);
+  box-shadow: var(--shadow-sticker);
+  color: var(--c-ink);
+  text-align: left;
+  rotate: var(--tl-tilt);
+  cursor: pointer;
+  transition:
+    rotate var(--dur-quick) var(--ease-paper),
+    border-color var(--dur-quick) var(--ease-paper),
+    box-shadow var(--dur-quick) var(--ease-paper);
+}
+.tl-tape {
+  position: absolute;
+  top: -.625rem;
+  left: 50%;
+  padding: 0 .5rem;
+  background: var(--tape-color);
+  box-shadow: var(--shadow-sticker);
+  color: var(--c-ink);
+  font-size: var(--t-chip);
+  line-height: 1.25rem;
+  translate: -50% 0;
+  rotate: 2deg;
+}
+.tl-logo {
+  grid-area: logo;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: var(--c-timeline-logo);
+  height: var(--c-timeline-logo);
+  border: 1px solid var(--c-ink-faint);
+  border-radius: 4px;
+  background: var(--c-polaroid);
+  color: var(--c-polaroid-ink);
+}
+.tl-logo > * { width: calc(100% - 4px); height: calc(100% - 4px); }
+.tl-when {
+  grid-area: when;
+  color: var(--c-ink-muted);
+  font-size: var(--t-chip);
+  line-height: var(--lh-snug);
+}
+.tl-chevron {
+  grid-area: chevron;
+  width: 1rem;
+  height: 1rem;
+  color: var(--c-ink-muted);
+  transition: rotate var(--dur-panel) var(--ease-paper);
+}
+.tl-title {
+  grid-area: title;
+  margin-top: .125rem;
+  font-size: var(--t-lead-md);
+  line-height: var(--lh-snug);
+}
+.tl-impact {
+  grid-area: impact;
+  margin-top: .375rem;
+  font-size: var(--t-small);
+  line-height: var(--lh-lead);
+}
+
+.tl-fold {
+  position: relative;
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-left: var(--tl-indent);
+  /* Collapsed sheets overflow their 0fr track; clipping keeps them out of the page's scroll height. The clip lifts
+     at once for a peek or pin and returns only after the sheet has folded away. */
+  overflow-y: clip;
+  transition:
+    grid-template-rows var(--dur-quick) var(--ease-paper-in),
+    overflow-y 0s linear var(--dur-quick) allow-discrete;
+}
+.tl-item[data-pinned] > .tl-fold { overflow-y: visible; transition-delay: 0s; }
+/* The track wrapper has no box of its own, so 0fr really is 0 and the sheet overflows it for a peek. */
+.tl-fold-track { min-height: 0; }
+/* An index card tucked under the tile. The clip unfolds it and its content fades and settles. Pinned and peek
+   clips differ (their shadows do), so pinning during the hover-intent delay restarts the clip immediately. */
+.tl-sheet {
+  margin-top: calc(var(--tl-tuck) * -1);
+  padding: calc(var(--tl-tuck) + .75rem) .875rem 1rem;
+  border: 1px solid var(--c-ink-faint);
+  border-radius: 6px;
+  background: var(--note-paper);
+  box-shadow: var(--shadow-peek);
+  font-size: var(--t-small);
+  line-height: var(--lh-lead);
+  rotate: calc(var(--tl-tilt) * -1);
+  clip-path: inset(0 -2rem 100% -2rem);
+  pointer-events: none;
+  transition:
+    clip-path var(--dur-quick) var(--ease-paper-in),
+    box-shadow var(--dur-quick) var(--ease-paper-in),
+    border-color var(--dur-quick) var(--ease-paper-in),
+    rotate var(--dur-quick) var(--ease-paper-in);
+}
+.tl-sheet > * {
+  opacity: 0;
+  translate: 0 -.375rem;
+  transition: opacity var(--dur-quick) var(--ease-paper-in), translate var(--dur-quick) var(--ease-paper-in);
+}
+.tl-where { color: var(--c-ink-muted); }
+.tl-highlights { display: grid; gap: .5rem; margin-top: .625rem; list-style: none; }
+.tl-highlights li { position: relative; padding-left: .875rem; }
+.tl-highlights li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc(.5lh - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tl-dot);
+}
+.tl-tools { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .875rem; font-size: var(--t-chip); list-style: none; }
+.tl-tools li { padding: .125rem .375rem; border: 1px solid var(--c-ink-faint); border-radius: 3px; }
+
+/* Pinned: the sheet joins the flow and the tile straightens. */
+.tl-item[data-pinned] > .tl-node { scale: 1.2; box-shadow: 0 0 0 3px var(--c-paper), 0 0 0 4.5px var(--tl-dot); }
+.tl-item[data-pinned] > .tl-tab { rotate: 0deg; border-color: var(--c-ink); }
+.tl-item[data-pinned] .tl-chevron { rotate: 180deg; }
+.tl-item[data-pinned] > .tl-fold { grid-template-rows: 1fr; }
+.tl-item[data-pinned] .tl-sheet {
+  border-color: var(--c-ink);
+  box-shadow: var(--shadow-sticker);
+  rotate: 0deg;
+  clip-path: inset(0 -1rem -1rem -1rem);
+  pointer-events: auto;
+}
+.tl-item[data-pinned] :is(.tl-fold, .tl-sheet, .tl-sheet > *) {
+  transition-duration: var(--dur-panel);
+  transition-timing-function: var(--ease-paper);
+}
+
+/* Hover peek for fine pointers: an overlay that never takes the pointer, so it cannot trap or flicker. */
+@media (hover: hover) and (pointer: fine) {
+  .tl-item:not([data-pinned]) > .tl-tab:hover { border-color: var(--c-ink-muted); box-shadow: var(--shadow-peek); }
+  .tl-item > .tl-tab:hover + .tl-fold { overflow-y: visible; transition-delay: 0s; }
+  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold .tl-sheet {
+    clip-path: inset(0 -2rem -2rem -2rem);
+    transition-delay: var(--c-timeline-hover-intent);
+  }
+  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold :is(.tl-sheet, .tl-sheet > *) {
+    transition-duration: var(--dur-panel);
+    transition-timing-function: var(--ease-paper);
+  }
+  .tl-item > .tl-tab:hover + .tl-fold .tl-sheet > * { opacity: 1; translate: 0 0; }
+}
+.tl-item[data-pinned] .tl-sheet > * { opacity: 1; translate: 0 0; }
+@container timeline (min-width: 34rem) {
+  .tl {
+    --tl-band: calc(var(--c-timeline-tile-w) + var(--tl-node-gap) + var(--c-timeline-node) / 2);
+  }
+  /* Alternate rows interleave; the row after a pinned one drops clear of its sheet. */
+  .tl-item {
+    --tl-x: var(--tl-band);
+    --tl-step: calc(var(--c-timeline-gap) - var(--c-timeline-overlap));
+    transition: margin-top var(--dur-quick) var(--ease-paper-in);
+  }
+  .tl-item + .tl-item { margin-top: calc(var(--c-timeline-overlap) * -1); }
+  .tl-item[data-pinned] { --tl-step: var(--c-timeline-gap); }
+  .tl-item[data-pinned] + .tl-item {
+    margin-top: 0;
+    transition-duration: var(--dur-panel);
+    transition-timing-function: var(--ease-paper);
+  }
+  .tl-item:nth-child(even) { --tl-x: calc(100% - var(--tl-band)); }
+  .tl-seg {
+    left: var(--tl-band);
+    width: calc(100% - var(--tl-band) * 2);
+    height: calc(100% + var(--tl-step));
+    transition: height var(--dur-quick) var(--ease-paper-in);
+  }
+  .tl-item[data-pinned] > .tl-seg { transition-duration: var(--dur-panel); transition-timing-function: var(--ease-paper); }
+  .tl-item:nth-child(even) > .tl-seg { scale: -1 1; }
+  .tl-item:nth-child(odd) > .tl-node::after { right: 100%; left: auto; }
+  .tl-tab { width: var(--c-timeline-tile-w); margin-left: 0; }
+  .tl-item:nth-child(even) > .tl-tab { margin-left: auto; }
+  /* The sheet spans its own tile and the curve band, stopping short of the opposite node. */
+  .tl-fold { margin-left: 0; margin-right: calc(var(--tl-band) + var(--c-timeline-node) / 2); }
+  .tl-item:nth-child(even) > .tl-fold { margin-left: calc(var(--tl-band) + var(--c-timeline-node) / 2); margin-right: 0; }
+  .tl-title { font-size: var(--t-lead); }
+}
+
+@media (min-width: 768px) {
+  .tl-heading { font-size: var(--t-h2-md); }
+}
+
+/* Scroll-linked entrance keyed to the tab, whose box never changes size when a sheet opens. */
+@supports (timeline-scope: none) and (animation-timeline: view()) {
+  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-item { timeline-scope: --tl-tab; }
+  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-tab { view-timeline: --tl-tab block; }
+  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-item > :is(.tl-tab, .tl-node) {
+    animation: tl-appear linear both;
+    animation-timeline: --tl-tab;
+    animation-range: entry 0% entry 70%;
+  }
+  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-seg {
+    animation: tl-draw linear both;
+    animation-timeline: --tl-tab;
+    animation-range: entry 25% entry 100%;
+  }
+}
+@keyframes tl-appear { from { opacity: 0; translate: 0 .75rem; } }
+@keyframes tl-draw { from { clip-path: inset(-1rem -1rem 100% -1rem); } to { clip-path: inset(-1rem); } }

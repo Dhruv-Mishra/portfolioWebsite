@@ -15,11 +15,10 @@ const LINKS: NavItem[] = [
     { name: 'Home', href: '/' },
     { name: 'Projects', href: '/projects' },
     { name: 'About', href: '/about' },
-    { name: 'Resume', href: '/resume' },
     { name: 'Chat', href: '/chat' },
 ];
 
-const COLOR_ORDER = ['pink', 'yellow', 'green', 'blue', 'coral'] as const;
+const COLOR_ORDER = ['pink', 'yellow', 'green', 'coral'] as const;
 
 // Hoisted static styles — avoids allocation per render
 const TAB_CLIP_STYLE = { clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' } as const;

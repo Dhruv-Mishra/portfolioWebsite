@@ -3,6 +3,10 @@ import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
 /** Compatibility alias for terminal surfaces. */
 export const APP_VERSION = SITE_VERSION_LABEL;
 
+/** The terminal prompt reads `guest@dhruv:~$`; `whoami` and neofetch reuse it. */
+export const TERMINAL_USER = 'guest';
+export const TERMINAL_HOST = 'dhruv';
+
 /**
  * Realistic torn-edge tape strip clipPath polygon.
  * Used across ~10 components — extracted here to avoid duplication

@@ -14,7 +14,7 @@ import { usePathname } from 'next/navigation';
 import { addVisitedRouteImperative, unlockSticker } from '@/hooks/useStickers';
 import { appendUserAction, sanitizeRoute } from '@/lib/userActionJournal';
 
-const CORE_ROUTES: readonly string[] = ['/', '/projects', '/about', '/resume', '/chat'];
+const CORE_ROUTES: readonly string[] = ['/', '/projects', '/about', '/chat'];
 
 function hasVisitedAllCore(visited: readonly string[]): boolean {
   if (visited.length < CORE_ROUTES.length) return false;

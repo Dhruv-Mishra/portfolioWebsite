@@ -138,6 +138,10 @@ const nextConfig: NextConfig = {
   // Allow LAN devices (e.g. mobile on same WiFi) to access dev server; entries are hostnames.
   allowedDevOrigins: ['192.168.1.38'],
   poweredByHeader: false,
+  // The resume lives in the About page; keep old links, voice/chat navigations, and bookmarks working.
+  async redirects() {
+    return [{ source: '/resume', destination: '/about', permanent: true }];
+  },
   // Security & cache headers
   async headers() {
     return [

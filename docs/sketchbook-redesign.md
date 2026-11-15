@@ -47,7 +47,7 @@ Lab run on one machine: production builds of `c58d6af` and this branch, both beh
 | Desktop (unthrottled) | LCP | TBT |
 |---|---|---|
 | Home | 136 → 140 ms | 0 → 10 ms |
-| Projects | 180 → **152 ms** | 30 → **0 ms** |
+| Projects | 216 → **112 ms** | 43 → **0 ms** |
 | About | 232 → **148 ms** | 66 → **18 ms** |
 
 CLS stays at 0 on every page, and home is flat within noise. Projects and About get much cheaper to render: TBT is down 27–53%. A voice call no longer downloads 284 KB of MP3s and a GIF.

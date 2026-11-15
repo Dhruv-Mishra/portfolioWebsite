@@ -10,9 +10,10 @@ import {
   type AdminPrefs,
   type MotionPreference,
   type PaperStock,
+  type ReadingFont,
 } from '@/hooks/useAdminPrefs';
 
-export type { PaperStock };
+export type { PaperStock, ReadingFont };
 
 export interface SitePrefs {
   paperStock: PaperStock;
@@ -25,6 +26,7 @@ export interface SitePrefs {
   hapticsEnabled: boolean;
   pageFlipEnabled: boolean;
   motionPreference: MotionPreference;
+  readingFont: ReadingFont;
 }
 
 export type SitePrefKey = keyof SitePrefs;
@@ -41,6 +43,7 @@ function toSitePrefs(prefs: AdminPrefs): SitePrefs {
     hapticsEnabled: prefs.hapticsEnabled,
     pageFlipEnabled: prefs.pageFlipEnabled,
     motionPreference: prefs.motionPreference,
+    readingFont: prefs.readingFont,
   };
 }
 
@@ -60,6 +63,9 @@ export function setSitePref(
       return setAdminPref('motionPreference', value);
     }
     return false;
+  }
+  if (key === 'readingFont') {
+    return value === 'hand' || value === 'clean' ? setAdminPref('readingFont', value) : false;
   }
   if (typeof value !== 'boolean') return false;
   switch (key) {

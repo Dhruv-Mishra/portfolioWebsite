@@ -11,9 +11,9 @@ import { TIMING_TOKENS } from '@/lib/designTokens';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 
 const PHRASES = [
-  'type "help" to start…',
+  'try "help"…',
   'try "projects"…',
-  'try "skills"…',
+  'try "neofetch"…',
   'try "joke"…',
   '"about" me?',
   'type a command…',

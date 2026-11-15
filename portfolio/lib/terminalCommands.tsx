@@ -1,7 +1,8 @@
 import React from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { rateLimiter, RATE_LIMITS } from "@/lib/rateLimit";
-import { APP_VERSION } from "@/lib/constants";
+import { APP_VERSION, TERMINAL_USER } from "@/lib/constants";
+import { createNeofetchOutput } from "@/lib/terminalInitialOutput";
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
@@ -80,6 +81,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             // Page 3 — fun / stickers / puzzle
             [
                 { cmd: 'joke', desc: 'Tell a joke' },
+                { cmd: 'neofetch', desc: 'Print the system card' },
                 { cmd: 'stickers', desc: 'Open the sticker album' },
                 { cmd: 'cheatsheet', desc: 'Browse all stickers' },
                 { cmd: 'disco', desc: 'Engages disco mode (`disco yes` to confirm, `disco off` to exit)' },
@@ -448,7 +450,8 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         if (entry) return { output: entry.output, action: () => { setTimeout(() => router.push(entry.route), NAVIGATION_DELAY_MS); } };
         return { output: `Cannot open ${file}. Try 'cat' to read it.` };
     },
-    whoami: () => ({ output: "visitor@dhruvs.portfolio" }),
+    whoami: () => ({ output: TERMINAL_USER }),
+    neofetch: () => ({ output: createNeofetchOutput() }),
     date: () => ({ output: new Date().toString() }),
     // Cheatsheet is privileged. The bare command only reveals that privileges
     // are required — the user has to figure out how to escalate on their own.

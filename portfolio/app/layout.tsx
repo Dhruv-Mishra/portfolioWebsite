@@ -33,12 +33,13 @@ const firaCode = localFont({
   adjustFontFallback: false,
 });
 
-// Reading face for paragraphs; Patrick Hand stays the voice of headings and notes.
+// Optional clean reading face (Settings > Reading font); only downloaded once a page renders text in it.
 const atkinson = localFont({
   src: "./fonts/atkinson-hyperlegible-next-latin-400.woff2",
   weight: "400",
   style: "normal",
   variable: "--font-atkinson",
+  preload: false,
   display: "swap",
 });
 
@@ -75,7 +76,7 @@ const STRUCTURED_DATA_LD = JSON.stringify({
   ]
 });
 
-const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const s=o.paperStock;(s==='blueprint'||s==='kraft'||s==='sage')?e.dataset.paperStock=s:delete e.dataset.paperStock;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.motionPreference==='system'?delete e.dataset.motion:o.motionPreference==='reduced'||o.motionPreference==='full'?e.dataset.motion=o.motionPreference:e.dataset.motion='full';const m=e.dataset.motion;m==='reduced'||(m!=='full'&&matchMedia('(prefers-reduced-motion: reduce)').matches)?e.dataset.reducedMotion='':delete e.dataset.reducedMotion;}catch{const e=document.documentElement;delete e.dataset.paperStock;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';e.dataset.motion='full';}})();`;
+const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const s=o.paperStock;(s==='blueprint'||s==='kraft'||s==='sage')?e.dataset.paperStock=s:delete e.dataset.paperStock;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.readingFont==='clean'?e.dataset.readingFont='clean':delete e.dataset.readingFont;o.motionPreference==='system'?delete e.dataset.motion:o.motionPreference==='reduced'||o.motionPreference==='full'?e.dataset.motion=o.motionPreference:e.dataset.motion='full';const m=e.dataset.motion;m==='reduced'||(m!=='full'&&matchMedia('(prefers-reduced-motion: reduce)').matches)?e.dataset.reducedMotion='':delete e.dataset.reducedMotion;}catch{const e=document.documentElement;delete e.dataset.paperStock;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';e.dataset.motion='full';}})();`;
 
 // Rendered on the server so the decorative SVGs stay out of the client bundle.
 const SKETCHBOOK_DOODLES = (

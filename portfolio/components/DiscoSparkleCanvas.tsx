@@ -110,7 +110,12 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-    window.addEventListener('resize', resize);
+    // Reallocating the backing store per resize event janks window drags; the frame loop applies it at most once per frame.
+    let resizePending = false;
+    const onResize = (): void => {
+      resizePending = true;
+    };
+    window.addEventListener('resize', onResize);
 
     const targetCount = particleCountForViewport(width, height, isMobile);
 
@@ -133,6 +138,10 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
       }
       const dt = Math.min(0.05, (ts - lastTs) / 1000);
       lastTs = ts;
+      if (resizePending) {
+        resizePending = false;
+        resize();
+      }
 
       ctx.clearRect(0, 0, width, height);
       for (let i = 0; i < particles.length; i++) {
@@ -166,7 +175,7 @@ export default function DiscoSparkleCanvas(): React.ReactElement | null {
     return () => {
       running = false;
       cancelAnimationFrame(rafId);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [isMobile]);

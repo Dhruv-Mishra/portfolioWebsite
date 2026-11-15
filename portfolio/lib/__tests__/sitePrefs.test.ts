@@ -265,4 +265,26 @@ describe('site preference migration and facade', () => {
     expect((site.setSitePref as (key: string, value: unknown) => boolean)('paperStock', 'neon')).toBe(false);
     expect(site.getSitePrefsSnapshot().paperStock).toBe('cream');
   });
+
+  it('defaults to the handwritten reading font and applies only a valid clean opt-in', async () => {
+    const dataset: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { documentElement: { dataset } },
+    });
+    storage.setItem(STORAGE_KEY, JSON.stringify({ readingFont: 'serif' }));
+    const site = await import('@/hooks/useSitePrefs');
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    expect(site.getSitePrefsSnapshot().readingFont).toBe('hand');
+    expect((site.setSitePref as (key: string, value: unknown) => boolean)('readingFont', 'serif')).toBe(false);
+
+    expect(site.setSitePref('readingFont', 'clean')).toBe(true);
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset.readingFont).toBe('clean');
+
+    site.setSitePref('readingFont', 'hand');
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+    expect(dataset).not.toHaveProperty('readingFont');
+  });
 });

@@ -20,6 +20,7 @@ export const TERMINAL_COMMAND_NAMES = [
     'cat',
     'open',
     'whoami',
+    'neofetch',
     'date',
     'cheatsheet',
     'sudo',

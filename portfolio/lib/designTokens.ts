@@ -261,6 +261,7 @@ export const TERMINAL_COLORS = {
   headerBg: '#383436',
   prompt: 'text-emerald-400',
   directory: 'text-blue-300',
+  punctuation: 'text-gray-400',
   command: 'text-gray-100',
   output: 'text-gray-300/90',
   error: 'text-red-400',
@@ -270,6 +271,7 @@ export const TERMINAL_COLORS = {
   border: 'border-gray-700/50',
   headerBorder: 'border-gray-600/30',
   headerLabel: 'text-gray-400',
+  art: 'bg-linear-to-b from-emerald-300 via-sky-300 to-violet-300',
   text: 'text-gray-200',
   scrollbarColor: 'rgba(156,163,175,0.6)',
 } as const;
@@ -369,12 +371,6 @@ export const Z_INDEX = {
 
 /** Shadow tokens */
 export const SHADOW_TOKENS = {
-  card: '5px 5px 15px rgba(0,0,0,0.1)',
-  cardHeavy: '5px 5px 15px rgba(0,0,0,0.2)',
-  terminal: 'inset 0 0 40px rgba(0,0,0,0.5)',
-  terminalMobile: 'inset 0 0 18px rgba(0,0,0,0.32)',
-  resume: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
-  socialButton: '1px 2px 4px rgba(0,0,0,0.15)',
   spiralHole: 'inset 0 1px 2px rgba(0,0,0,0.1)',
 } as const;
 

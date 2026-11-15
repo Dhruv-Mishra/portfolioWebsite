@@ -9,7 +9,7 @@ export interface TerminalLine {
     command: string;
     output: React.ReactNode;
     /**
-     * When true, the rendered transcript omits the `➜ ~ <command>` header
+     * When true, the rendered transcript omits the `guest@dhruv:~$ <command>` header
      * line and shows only `output` (un-indented, no left border). Used by
      * inline-prompt submissions (decrypt/admin password, admin username)
      * to keep sensitive input completely out of the transcript while still
@@ -24,7 +24,7 @@ export interface TerminalLine {
  * render in the transcript WITHOUT leaking into the ↑/↓ command-history ring.
  * The main terminal input keeps the default behavior (history captures it).
  *
- * `hideCommandHeader` suppresses the rendered `➜ ~ <echo>` header line for
+ * `hideCommandHeader` suppresses the rendered `guest@dhruv:~$ <echo>` header line for
  * this entry — the output block alone appears in the transcript. Paired with
  * `skipHistory: true` for the three sensitive prompts (decrypt password,
  * admin username, admin password).
@@ -185,7 +185,7 @@ export function TerminalProvider({ children }: { children: ReactNode }) {
 
     // System-injected terminal lines from elsewhere in the app (e.g. matrix
     // overlay early-exit nudge). The detail carries either a string or any
-    // ReactNode — rendered with hideCommandHeader so no fake `➜ ~` prompt
+    // ReactNode — rendered with hideCommandHeader so no fake `guest@dhruv:~$` prompt
     // appears, and no command is captured into the ↑/↓ history ring.
     useEffect(() => {
         if (typeof window === 'undefined') return;

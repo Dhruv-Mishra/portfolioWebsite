@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
 import { useDiscoActive } from '@/hooks/useStickers';
-import { scheduleVoiceAssetPrefetch } from '@/lib/assetPrefetch';
 import { useVoiceModeRequest } from '@/lib/voiceModeStore';
 
 type VoiceSessionRuntime = typeof import('@/lib/voiceSessionRuntime');
@@ -96,11 +95,6 @@ export default function VoiceModeController() {
       discoActive,
     });
   }, [discoActive, pathname, resolvedTheme, router, runtime, setTheme]);
-
-  useEffect(() => {
-    if (!(snapshot.active || request === 'enter')) return;
-    scheduleVoiceAssetPrefetch();
-  }, [request, snapshot.active]);
 
   useEffect(() => {
     if (!runtime) return;

@@ -107,7 +107,7 @@ function EscapeToastListenerImpl(): React.ReactElement | null {
               href="/stickers"
               onClick={onTap}
               className="flex items-start gap-3 px-4 pt-5 pb-3 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
-              aria-label="Achievement unlocked: Escape the Matrix. Open the sticker drawer."
+              aria-label="Achievement unlocked: Escape the Matrix. Open the sticker album."
             >
               <EscapeSigil size={48} />
               <div className="flex-1 min-w-0">
@@ -118,7 +118,7 @@ function EscapeToastListenerImpl(): React.ReactElement | null {
                   Escaped the Matrix
                 </p>
                 <p className="text-[11px] leading-tight opacity-70 mt-1">
-                  Tap to open the sticker drawer →
+                  Tap to open the sticker album →
                 </p>
               </div>
             </Link>

@@ -277,7 +277,7 @@ export default function GuestbookForm() {
             ? { duration: GUESTBOOK_ANIMATION.flyToWall.duration, ease: ANIMATION_TOKENS.easing.bounce }
             : FORM_REFRESH_TRANSITION}
           className={cn(
-            'relative bg-[var(--note-yellow)] -rotate-1 shadow-md',
+            'relative bg-note-paper -rotate-1 shadow-md',
             'p-5 pt-7 md:p-6 md:pt-9 pb-9 md:pb-10',
             'border border-yellow-300/40 dark:border-yellow-400/20',
             'font-hand text-[var(--c-ink)]',
@@ -481,7 +481,7 @@ export default function GuestbookForm() {
             className={cn(
               'fixed top-4 right-4 md:top-6 md:right-6',
               'max-w-[220px] p-3 pt-4',
-              'bg-[var(--note-orange)]',
+              'bg-note-paper',
               'font-hand text-sm text-[var(--c-ink)] shadow-md',
               'border border-orange-300/30',
             )}

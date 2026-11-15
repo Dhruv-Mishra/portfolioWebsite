@@ -2,10 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
-import {
-  BugDoodle, CloudDoodle, LightbulbDoodle, LightningDoodle, PaperPlaneDoodle,
-  PencilDoodle, SaturnDoodle, SmileyDoodle, StarDoodle,
-} from "@/components/SketchbookDoodles";
+import { BugDoodle, CloudDoodle, PaperPlaneDoodle, PencilDoodle, SaturnDoodle } from "@/components/SketchbookDoodles";
 import Navigation from "@/components/Navigation";
 import RouteScrollSurface from "@/components/RouteScrollSurface";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -21,7 +18,7 @@ const patrickHand = localFont({
   src: "./fonts/patrick-hand-latin-400.woff2",
   weight: "400",
   style: "normal",
-  variable: "--font-hand",
+  variable: "--font-patrick-hand",
   display: "swap", // Prevent FOIT for faster text rendering
 });
 
@@ -29,9 +26,20 @@ const firaCode = localFont({
   src: "./fonts/fira-code-latin-400.woff2",
   weight: "400",
   style: "normal",
-  variable: "--font-code",
+  variable: "--font-fira-code",
   preload: false,
-  display: "optional", // Fira Code is secondary (monospace only) — don't block render
+  display: "swap",
+  // The default Arial-metric fallback is proportional; fall through to the monospace stack in @theme instead.
+  adjustFontFallback: false,
+});
+
+// Reading face for paragraphs; Patrick Hand stays the voice of headings and notes.
+const atkinson = localFont({
+  src: "./fonts/atkinson-hyperlegible-next-latin-400.woff2",
+  weight: "400",
+  style: "normal",
+  variable: "--font-atkinson",
+  display: "swap",
 });
 
 const STRUCTURED_DATA_LD = JSON.stringify({
@@ -67,18 +75,14 @@ const STRUCTURED_DATA_LD = JSON.stringify({
   ]
 });
 
-const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const s=o.paperStock;(s==='blueprint'||s==='kraft'||s==='sage')?e.dataset.paperStock=s:delete e.dataset.paperStock;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.motionPreference==='system'?delete e.dataset.motion:o.motionPreference==='reduced'||o.motionPreference==='full'?e.dataset.motion=o.motionPreference:e.dataset.motion='full';}catch{const e=document.documentElement;delete e.dataset.paperStock;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';e.dataset.motion='full';}})();`;
+const SITE_PREFS_BOOTSTRAP = `(()=>{try{const r=localStorage.getItem('dhruv-admin-prefs');const p=r?JSON.parse(r):{};const o=p&&typeof p==='object'&&!Array.isArray(p)?p:{};const e=document.documentElement;const s=o.paperStock;(s==='blueprint'||s==='kraft'||s==='sage')?e.dataset.paperStock=s:delete e.dataset.paperStock;const b=(k,d)=>typeof o[k]==='boolean'?o[k]:d;b('paperGrain',true)?e.dataset.prefPaper='on':delete e.dataset.prefPaper;b('tapeEffects',true)?e.dataset.prefTape='on':delete e.dataset.prefTape;b('sketchOutlines',true)?e.dataset.prefSketch='on':delete e.dataset.prefSketch;o.motionPreference==='system'?delete e.dataset.motion:o.motionPreference==='reduced'||o.motionPreference==='full'?e.dataset.motion=o.motionPreference:e.dataset.motion='full';const m=e.dataset.motion;m==='reduced'||(m!=='full'&&matchMedia('(prefers-reduced-motion: reduce)').matches)?e.dataset.reducedMotion='':delete e.dataset.reducedMotion;}catch{const e=document.documentElement;delete e.dataset.paperStock;e.dataset.prefPaper='on';e.dataset.prefTape='on';e.dataset.prefSketch='on';e.dataset.motion='full';}})();`;
 
 // Rendered on the server so the decorative SVGs stay out of the client bundle.
 const SKETCHBOOK_DOODLES = (
   <>
-    <LightbulbDoodle />
     <CloudDoodle />
     <PencilDoodle />
-    <StarDoodle />
     <BugDoodle />
-    <SmileyDoodle />
-    <LightningDoodle />
     <PaperPlaneDoodle />
     <SaturnDoodle />
   </>
@@ -151,7 +155,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${patrickHand.variable} ${firaCode.variable} ${atkinson.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: SITE_PREFS_BOOTSTRAP }} />
         {/* JokeAPI: dns-prefetch only (non-critical, used on-demand by terminal) */}
@@ -165,9 +169,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA_LD }}
         />
       </head>
-      <body
-        className={`${patrickHand.variable} ${firaCode.variable} antialiased`}
-      >
+      <body className="antialiased">
         <Analytics />
         <ErrorBoundary>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

@@ -2,21 +2,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { PAPER_PALETTE } from '@/lib/designTokens';
+import { PAPER_PALETTE, PIN_COLORS } from '@/lib/designTokens';
 
-// Tailwind utilities (bg-paper-*) and TS consumers (SVG, inline gradients) must render the same paper.
+// Tailwind utilities (bg-paper-*, bg-pin-*) and TS consumers (SVG, inline gradients) must render the same colors.
 describe('design token parity', () => {
-  it('keeps @theme paper colors equal to PAPER_PALETTE', () => {
-    const css = fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
-    const theme = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
-    const paperColors = Object.fromEntries(
-      [...theme.matchAll(/--color-paper-([\w-]+):\s*(#[0-9a-f]{6})/gi)].map(([, name, hex]) => [name, hex.toLowerCase()]),
-    );
+  const css = fs.readFileSync(path.join(process.cwd(), 'app', 'globals.css'), 'utf8');
+  const theme = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? '';
+  const themeColors = (prefix: string) => Object.fromEntries(
+    [...theme.matchAll(new RegExp(`--color-${prefix}-([\\w-]+):\\s*(#[0-9a-f]{6})`, 'gi'))].map(([, name, hex]) => [name, hex.toLowerCase()]),
+  );
 
-    expect(paperColors).toEqual({
+  it('keeps @theme paper colors equal to PAPER_PALETTE', () => {
+    expect(themeColors('paper')).toEqual({
       yellow: PAPER_PALETTE.yellow,
       coral: PAPER_PALETTE.coral,
       'coral-dark': PAPER_PALETTE.coralDark,
     });
+  });
+
+  it('keeps @theme pin colors equal to PIN_COLORS', () => {
+    expect(themeColors('pin')).toEqual(PIN_COLORS);
   });
 });

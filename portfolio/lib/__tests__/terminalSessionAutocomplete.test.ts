@@ -15,6 +15,7 @@ describe('terminal session persistence', () => {
     const session = __readTerminalSessionForTest();
     expect(session.outputLines).toHaveLength(1);
     expect(session.outputLines[0].command).toBe('init');
+    expect(session.outputLines[0].hideCommandHeader).toBe(true);
     expect(session.commandHistory).toEqual([]);
   });
 

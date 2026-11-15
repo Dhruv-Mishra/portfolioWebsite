@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const voiceSounds = vi.hoisted(() => ({
+  duckVoiceAmbient: vi.fn(),
   playVoiceAction: vi.fn(),
-  playVoiceToggle: vi.fn(),
+  playVoiceHangup: vi.fn(),
   stopVoiceSounds: vi.fn(),
 }));
 
@@ -430,23 +431,26 @@ describe('voice session runtime singleton', () => {
     runtime.resetVoiceSessionRuntimeForTests();
   });
 
-  it('shows the exit veil on user hangup while playback is idle', async () => {
+  it.each([false, true])('preserves the exit origin until teardown (introComplete=%s)', async (introComplete) => {
     vi.useFakeTimers();
     const runtime = await boot();
-    goLive(runtime);
+    if (introComplete) goLive(runtime);
 
     runtime.requestVoiceHangup();
     expect(runtime.getVoiceSessionSnapshot()).toMatchObject({
       active: true,
       hud: 'exiting',
+      introComplete,
     });
     expect(runtime.captureStop).toHaveBeenCalled();
     expect(runtime.fakePlayback.close).toHaveBeenCalled();
     expect(runtime.fakeCaller.close).toHaveBeenCalledWith('user');
-    expect(voiceSounds.playVoiceToggle).toHaveBeenCalledTimes(1);
+    expect(voiceSounds.playVoiceHangup).toHaveBeenCalledTimes(1);
     expect(VOICE_EXIT_VEIL_VARIATIONS).toContain(runtime.getVoiceSessionSnapshot().exitLine);
 
-    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS);
+    await vi.advanceTimersByTimeAsync(VOICE_EXIT_VEIL_MS - 1);
+    expect(runtime.getVoiceSessionSnapshot().active).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
     expect(runtime.getVoiceSessionSnapshot().active).toBe(false);
 
     runtime.resetVoiceSessionRuntimeForTests();

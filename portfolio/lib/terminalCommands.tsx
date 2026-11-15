@@ -80,7 +80,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
             // Page 3 — fun / stickers / puzzle
             [
                 { cmd: 'joke', desc: 'Tell a joke' },
-                { cmd: 'stickers', desc: 'Open the sticker drawer' },
+                { cmd: 'stickers', desc: 'Open the sticker album' },
                 { cmd: 'cheatsheet', desc: 'Browse all stickers' },
                 { cmd: 'disco', desc: 'Engages disco mode (`disco yes` to confirm, `disco off` to exit)' },
                 { cmd: 'matrix hint', desc: 'Nudge for the current puzzle stage' },
@@ -270,7 +270,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const sub = (args[0] ?? '').toLowerCase();
         if (!sub) {
             return {
-                output: "Opening sticker drawer...",
+                output: "Opening sticker album...",
                 action: () => { setTimeout(() => router.push('/stickers'), NAVIGATION_DELAY_MS); }
             };
         }
@@ -308,11 +308,11 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
     },
     resume: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
     }),
     cv: () => ({
         output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/resume'), NAVIGATION_DELAY_MS); }
+        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
     }),
     chat: () => ({
         output: "Navigating to chat...",
@@ -439,7 +439,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const file = args[0];
         if (!file) return { output: "Usage: open [filename]" };
         const openable: Record<string, { output: string; route: string }> = {
-            "resume.pdf": { output: "Opening resume...", route: "/resume" },
+            "resume.pdf": { output: "Opening resume...", route: "/about" },
             "projects.json": { output: "Opening projects...", route: "/projects" },
             "jarvis.md": { output: "Opening projects...", route: "/projects" },
             "cropio.md": { output: "Opening projects...", route: "/projects" },

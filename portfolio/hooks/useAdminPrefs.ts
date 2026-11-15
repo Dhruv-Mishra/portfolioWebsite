@@ -263,7 +263,15 @@ export function applyPrefsToDocument(prefs: AdminPrefs): void {
   } else {
     delete root.dataset.motion;
   }
+  // One resolved flag so CSS needs a single selector instead of a media query plus attribute pair.
+  const deviceReduced = typeof window.matchMedia === 'function'
+    && window.matchMedia(REDUCED_MOTION_QUERY).matches;
+  const reduced = prefs.motionPreference === 'reduced' || (prefs.motionPreference !== 'full' && deviceReduced);
+  if (reduced) root.dataset.reducedMotion = '';
+  else delete root.dataset.reducedMotion;
 }
+
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
  * Synchronous read for non-React call sites (e.g. the terminal's sudo

@@ -4,6 +4,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* next/font sets --font-patrick-hand / --font-fira-code on <html>; these make font-hand, font-code, and font-mono real utilities. */
+  --font-hand: var(--font-patrick-hand), "Patrick Hand", cursive;
+  --font-body: var(--font-atkinson), "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: var(--font-fira-code), ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-mono: var(--font-code);
+
+  /* Push pins on the projects sheet. Mirrors PIN_COLORS in lib/designTokens.ts (parity-tested). */
+  --color-pin-red: #e5534b;
+  --color-pin-amber: #f2b544;
+  --color-pin-blue: #4a8fe7;
+
+  --shadow-polaroid: 0 1px 1px rgba(0, 0, 0, 0.08), 0 6px 14px -6px rgba(0, 0, 0, 0.28);
+  --shadow-sheet: 0 1px 2px rgba(0, 0, 0, 0.06), 0 14px 34px -14px rgba(0, 0, 0, 0.22);
+  --shadow-peek: 0 10px 24px -10px rgba(0, 0, 0, 0.3);
+
+  /* Paper landing, paper leaving, and symmetric changes. Mirrors MOTION.ease in lib/designTokens.ts. */
+  --ease-paper: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-paper-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
   --color-paper: var(--c-paper);
   --color-ink: var(--c-ink);
   --color-grid: var(--c-grid);
@@ -32,26 +52,62 @@
     --c-heading: #000000;
     --c-highlight: #000000;
 
+    /* Derived ink and surfaces; stocks and dark mode override the fixed ones below. */
+    --c-ink-muted: color-mix(in srgb, var(--c-ink) 72%, var(--c-paper));
+    --c-ink-faint: color-mix(in srgb, var(--c-ink) 40%, var(--c-paper));
+    --c-focus: #4f46e5;
+    --c-marker: rgba(250, 204, 21, 0.55);
+    --c-sheet: #fffefa;
+    --c-sheet-rule: color-mix(in srgb, var(--c-grid-line) 30%, transparent);
+    --c-sheet-margin: rgba(220, 38, 38, 0.35);
+    --c-polaroid: #fffdf8;
+    --c-polaroid-ink: #2d2a2e;
+    --c-timeline-line: color-mix(in srgb, var(--c-ink) 30%, transparent);
+    --c-note-blue: #dbeafe;
+    --c-note-blue-fold: #93c5fd;
+    --ink-stroke: 0.03em;
+
+    /* Motion: durations collapse to ~0 under html[data-reduced-motion]. */
+    --dur-micro: 120ms;
+    --dur-quick: 200ms;
+    --dur-panel: 320ms;
+    --dur-enter: 480ms;
+    --carousel-dwell: 6500ms;
+    --carousel-slide: 420ms;
+    --peek-delay: 120ms;
+    --hero-title-rotate: -3deg;
+
     /* ── Size Scale Tokens (medium = default) ── */
     /* Typography */
-    --t-hero: 3.75rem;
-    --t-hero-md: 6rem;
-    --t-hero-lg: 8rem;
-    --t-h1: 2.25rem;
-    --t-h1-md: 3rem;
-    --t-h2: 1.5rem;
-    --t-h2-md: 1.875rem;
-    --t-body: 0.875rem;
-    --t-body-md: 1rem;
-    --t-small: 0.75rem;
-    --t-label: 0.625rem;
+    --t-hero: 3.5rem;
+    --t-hero-md: 5.5rem;
+    --t-hero-lg: 7rem;
+    --t-h1: 2.5rem;
+    --t-h1-md: 3.25rem;
+    --t-h2: 1.75rem;
+    --t-h2-md: 2.25rem;
+    --t-h3: 1.375rem;
+    --t-h3-md: 1.625rem;
+    --t-lead: 1.125rem;
+    --t-lead-md: 1.25rem;
+    --t-hand-sm: 1rem;
+    --t-chip: 0.75rem;
+    --t-body: 1rem;
+    --t-body-md: 1.0625rem;
+    --t-small: 0.875rem;
     --t-nav: 0.875rem;
     --t-nav-md: 1.25rem;
+    --lh-display: 0.95;
+    --lh-snug: 1.15;
+    --lh-lead: 1.5;
+    --lh-body: 1.6;
+    --measure: 65ch;
+    --measure-lead: 36ch;
     /* Component Sizes */
-    --c-terminal-h: 50dvh;
-    --c-terminal-h-md: 400px;
-    --c-terminal-min-h: 300px;
+    --c-terminal-h: clamp(15rem, 36dvh, 18rem);
+    --c-terminal-h-md: 20rem;
     --c-terminal-max-w: 48rem;
+    --terminal-cursor-blink: 1.06s;
     --c-nav-tab-py: 0.75rem;
     --c-nav-tab-py-md: 1rem;
     --c-nav-tab-px: 1rem;
@@ -67,8 +123,6 @@
     --c-chat-h: 70dvh;
     --c-chat-h-md: 480px;
     --c-chat-max-w: 380px;
-    --c-fab-size: 3rem;
-    --c-fab-size-md: 3.5rem;
     --c-corner-fold: 30px;
     --c-corner-fold-md: 60px;
     --c-feedback-w: 500px;
@@ -77,13 +131,15 @@
     --c-pill-w: 5px;
     --c-modal-top: 8vh;
     --c-modal-top-md: 12vh;
-    --c-mobile-dock-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
-    --c-mobile-dock-clearance: calc(env(safe-area-inset-bottom, 0px) + 7.5rem);
-    --c-mobile-floating-bottom: calc(env(safe-area-inset-bottom, 0px) + 10.75rem);
-    --c-mobile-floating-volume-bottom: calc(env(safe-area-inset-bottom, 0px) + 16.25rem);
-    --c-mobile-floating-voice-bottom: calc(env(safe-area-inset-bottom, 0px) + 12.25rem);
+    /* Mobile dock (bottom-right) and desktop rail (right edge). --c-dock-clear is the dock's top edge plus air. */
+    --c-dock-right: max(0.75rem, env(safe-area-inset-right, 0px));
+    --c-dock-bottom: max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem));
+    --c-dock-h: 3.25rem;
+    --c-dock-clear: calc(var(--c-dock-bottom) + var(--c-dock-h) + 0.75rem);
+    --c-rail-right: 1.5rem;
+    --c-rail-gutter: 6rem;
     --c-page-header-h: calc(var(--c-nav-tab-pt) + var(--c-nav-tab-py) + 1.5rem);
-    --c-page-footer-h: var(--c-mobile-dock-clearance);
+    --c-page-footer-h: calc(var(--c-dock-clear) + 0.5rem);
 
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
@@ -99,14 +155,6 @@
     --note-paper: #fff9c4;
     --note-fold-underside: #ede298;
     --note-fold-shadow: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.08) 50%);
-    /* Legacy token aliases kept so any third-party extension or persisted style
-       referencing the old palette still renders. All resolve to --note-paper. */
-    --note-yellow: var(--note-paper);
-    --note-blue: var(--note-paper);
-    --note-green: var(--note-paper);
-    --note-purple: var(--note-paper);
-    --note-orange: var(--note-paper);
-    --note-gray: var(--note-paper);
 
     /* Chat Note Colors (Light Mode) */
     --note-user: var(--note-paper);
@@ -129,6 +177,13 @@
     --c-heading: #ffffff;
     --c-highlight: #ffffff;
     --d-stroke-width: 2.5px;
+    --c-focus: #a5b4fc;
+    --c-marker: rgba(202, 138, 4, 0.55);
+    --c-sheet: #232220;
+    --c-sheet-margin: rgba(248, 113, 113, 0.3);
+    --c-polaroid: #e8e2d6;
+    --c-note-blue: #1e3a5f;
+    --c-note-blue-fold: #1e40af;
 
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
     --d-amber: rgba(254, 249, 195, 0.4);
@@ -143,12 +198,6 @@
     --note-paper: #222222;
     --note-fold-underside: #35322f;
     --note-fold-shadow: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.08) 50%);
-    --note-yellow: var(--note-paper);
-    --note-blue: var(--note-paper);
-    --note-green: var(--note-paper);
-    --note-purple: var(--note-paper);
-    --note-orange: var(--note-paper);
-    --note-gray: var(--note-paper);
 
     /* Chat Note Colors (Dark Mode) */
     --note-user: #2a2520;
@@ -163,6 +212,7 @@
 
   /* ── Physical Sketchbook Paper Stocks (yield automatically to disco mode) ── */
   html[data-paper-stock="blueprint"]:not(.dark):not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
     --c-paper: #edf5ff;
     --c-ink: #0f2942;
     --c-grid: #60a5fa;
@@ -181,6 +231,8 @@
   }
 
   html.dark[data-paper-stock="blueprint"]:not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
+    --c-focus: #7dd3fc;
     --c-paper: #0b192c;
     --c-ink: #e0f2fe;
     --c-grid: #1e4976;
@@ -199,6 +251,7 @@
   }
 
   html[data-paper-stock="kraft"]:not(.dark):not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
     --c-paper: #f4ead8;
     --c-ink: #2c1e12;
     --c-grid: #b09779;
@@ -217,6 +270,7 @@
   }
 
   html.dark[data-paper-stock="kraft"]:not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
     --c-paper: #1e1813;
     --c-ink: #f3e7d5;
     --c-grid: #4a3b2e;
@@ -235,6 +289,7 @@
   }
 
   html[data-paper-stock="sage"]:not(.dark):not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
     --c-paper: #eef5ec;
     --c-ink: #162a1e;
     --c-grid: #6ea885;
@@ -253,6 +308,8 @@
   }
 
   html.dark[data-paper-stock="sage"]:not([data-disco="on"]) {
+    --c-sheet: var(--note-paper);
+    --c-focus: #6ee7b7;
     --c-paper: #101b15;
     --c-ink: #dcfce7;
     --c-grid: #244232;
@@ -279,20 +336,22 @@
   [data-size="small"] {
     --t-hero: 3rem;
     --t-hero-md: 4.5rem;
-    --t-hero-lg: 4.5rem;
-    --t-h1: 1.5rem;
-    --t-h1-md: 1.875rem;
-    --t-h2: 1.25rem;
-    --t-h2-md: 1.5rem;
-    --t-body: 0.8125rem;
-    --t-body-md: 0.875rem;
-    --t-small: 0.6875rem;
-    --t-label: 0.625rem;
+    --t-hero-lg: 5.5rem;
+    --t-h1: 2.2rem;
+    --t-h1-md: 2.85rem;
+    --t-h2: 1.55rem;
+    --t-h2-md: 1.95rem;
+    --t-h3: 1.2rem;
+    --t-h3-md: 1.4rem;
+    --t-lead: 1rem;
+    --t-lead-md: 1.125rem;
+    --t-body: 0.875rem;
+    --t-body-md: 0.9375rem;
+    --t-small: 0.8125rem;
     --t-nav: 0.75rem;
     --t-nav-md: 0.875rem;
-    --c-terminal-h: 40dvh;
-    --c-terminal-h-md: 300px;
-    --c-terminal-min-h: 200px;
+    --c-terminal-h: clamp(13rem, 32dvh, 16rem);
+    --c-terminal-h-md: 17rem;
     --c-terminal-max-w: 36rem;
     --c-nav-tab-py: 0.5rem;
     --c-nav-tab-py-md: 0.625rem;
@@ -307,8 +366,6 @@
     --c-chat-h: 60dvh;
     --c-chat-h-md: 420px;
     --c-chat-max-w: 340px;
-    --c-fab-size: 2.5rem;
-    --c-fab-size-md: 2.75rem;
     --c-corner-fold: 20px;
     --c-corner-fold-md: 40px;
     --c-feedback-w: 420px;
@@ -321,22 +378,24 @@
 
   /* ── Size Scale: Large ── */
   [data-size="large"] {
-    --t-hero: 4.5rem;
-    --t-hero-md: 8rem;
-    --t-hero-lg: 10rem;
-    --t-h1: 3rem;
-    --t-h1-md: 3.75rem;
-    --t-h2: 1.875rem;
-    --t-h2-md: 2.25rem;
-    --t-body: 1rem;
-    --t-body-md: 1.125rem;
-    --t-small: 0.875rem;
-    --t-label: 0.75rem;
+    --t-hero: 4rem;
+    --t-hero-md: 6.5rem;
+    --t-hero-lg: 8rem;
+    --t-h1: 2.8rem;
+    --t-h1-md: 3.65rem;
+    --t-h2: 1.95rem;
+    --t-h2-md: 2.5rem;
+    --t-h3: 1.55rem;
+    --t-h3-md: 1.825rem;
+    --t-lead: 1.25rem;
+    --t-lead-md: 1.375rem;
+    --t-body: 1.125rem;
+    --t-body-md: 1.2rem;
+    --t-small: 1rem;
     --t-nav: 1rem;
     --t-nav-md: 1.5rem;
-    --c-terminal-h: 55dvh;
-    --c-terminal-h-md: 500px;
-    --c-terminal-min-h: 350px;
+    --c-terminal-h: clamp(17rem, 40dvh, 20rem);
+    --c-terminal-h-md: 23rem;
     --c-terminal-max-w: 56rem;
     --c-nav-tab-py: 1rem;
     --c-nav-tab-py-md: 1.25rem;
@@ -351,8 +410,6 @@
     --c-chat-h: 75dvh;
     --c-chat-h-md: 560px;
     --c-chat-max-w: 440px;
-    --c-fab-size: 3.5rem;
-    --c-fab-size-md: 4rem;
     --c-corner-fold: 40px;
     --c-corner-fold-md: 80px;
     --c-feedback-w: 580px;
@@ -390,7 +447,7 @@
     [data-size="small"],
     [data-size="large"] {
       --c-page-header-h: calc(var(--c-nav-tab-pt-md) + var(--c-nav-tab-py-md) + 1.5rem);
-      --c-page-footer-h: 5.5rem;
+      --c-page-footer-h: 3rem;
     }
   }
 
@@ -417,14 +474,6 @@
     overscroll-behavior: contain;
     scrollbar-width: thin;
     padding-block: 0.125rem;
-  }
-
-  [data-social-feedback-short] {
-    display: flex;
-  }
-
-  [data-feedback-tab] {
-    display: none !important;
   }
 }
 
@@ -506,19 +555,42 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   display: none;
 }
 
+/* Terminal block cursor: solid while the typewriter streams, blinking in its pauses. */
+.terminal-cursor {
+  display: inline-block;
+  flex: none;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 1px;
+  animation: terminal-cursor-blink var(--terminal-cursor-blink) step-end infinite;
+}
+
+[data-typing="true"] > .terminal-cursor {
+  animation: none;
+}
+
+@keyframes terminal-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Marker weight for Patrick Hand, which ships only 400: a controlled stroke instead of browser faux bold. */
+@utility ink-heavy {
+  -webkit-text-stroke: var(--ink-stroke) currentColor;
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 3px;
+  }
+}
+
 @layer utilities {
 
-  /* Single sticky-note paper utility. Old per-color aliases kept as synonyms so
-     any existing content (projects.tsx project cards, app/error.tsx, etc.)
-     keeps working through the cleanup without a wide refactor. Every alias
-     resolves to --note-paper. */
-  .bg-note-paper,
-  .bg-note-yellow,
-  .bg-note-blue,
-  .bg-note-green,
-  .bg-note-purple,
-  .bg-note-orange,
-  .bg-note-gray {
+  /* Sticky-note paper; follows theme and paper stock via --note-paper. */
+  .bg-note-paper {
     background-color: var(--note-paper);
   }
 
@@ -527,58 +599,19 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     animation: heroTitleIn 0.2s ease-out forwards;
   }
 
-  /* No start delay: the subtitle is the LCP element, so any delay holds back the main content. */
-  .animate-hero-subtitle {
-    animation: heroSubtitleIn 0.4s ease-out forwards;
-    opacity: 0;
-  }
-
-  .animate-hero-badge {
-    --hero-badge-x: 20px;
-    --hero-badge-rotate: 12deg;
-    animation: heroBadgeIn 0.4s ease-out 0.5s forwards;
-    opacity: 0;
-  }
-
-  .animate-hero-badge-mirror {
-    --hero-badge-x: -20px;
-    --hero-badge-rotate: -12deg;
-  }
-
   @keyframes heroTitleIn {
     from {
       opacity: 0.1;
       /* LCP Trick: Not fully transparent = painted immediately */
-      transform: scale(0.9) rotate(-4deg);
+      transform: scale(0.9) rotate(var(--hero-title-rotate));
     }
 
     to {
       opacity: 1;
-      transform: scale(1) rotate(-4deg);
+      transform: scale(1) rotate(var(--hero-title-rotate));
     }
   }
 
-  @keyframes heroSubtitleIn {
-    from {
-      opacity: 0;
-    }
-
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes heroBadgeIn {
-    from {
-      opacity: 0;
-      transform: translateX(var(--hero-badge-x, 20px)) rotate(var(--hero-badge-rotate, 12deg));
-    }
-
-    to {
-      opacity: 1;
-      transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg));
-    }
-  }
 
   /* Navigation tab slide-in animation - CSS instead of JS for faster LCP */
   /* backwards fill: apply from-keyframe during animation-delay so tabs start hidden */
@@ -634,10 +667,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
     animation-delay: 150ms;
   }
 
-  .animate-nav-tab-5 {
-    animation-delay: 200ms;
-  }
-
   @keyframes navTabIn {
     from {
       transform: translateY(-100px);
@@ -645,18 +674,6 @@ label[for^="web-haptics-"] input[type="checkbox"] {
 
     to {
       transform: translateY(-25px);
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
     }
   }
 
@@ -827,8 +844,8 @@ html[data-voice-mode] .disco-spotlights,
 html[data-voice-mode] [data-disco-media],
 html[data-voice-mode] [data-disco-track-control],
 html[data-voice-mode] [data-sound-toggle],
-html[data-voice-mode] [data-mobile-sound-toggle],
-html[data-voice-mode] [data-feedback-tab] {
+html[data-voice-mode] [data-global-voice-fab],
+html[data-voice-mode] [data-site-dock] {
   display: none !important;
 }
 
@@ -837,12 +854,48 @@ html[data-voice-mode="exiting"] [data-social-sidebar-frame] {
   display: none !important;
 }
 
-html[data-matrix] [data-mobile-sound-toggle],
-html[data-matrix] [data-global-voice-fab="mobile"],
 html[data-matrix] [data-voice-launcher],
-html[data-matrix] [data-feedback-tab],
 html[data-matrix] [data-feedback-trigger] {
   display: none !important;
+}
+
+/* Mobile dock: tucks away while reading down a page; its drawer is a native popover in the top layer. */
+.site-dock {
+  transition:
+    transform var(--dur-quick) var(--ease-paper),
+    opacity var(--dur-quick) var(--ease-paper);
+}
+
+.site-dock[data-tucked="true"] {
+  transform: translateY(calc(100% + 1rem)) rotate(-1.5deg);
+  opacity: 0;
+  pointer-events: none;
+  transition-timing-function: var(--ease-paper-in);
+}
+
+.site-drawer {
+  position: fixed;
+  inset: auto var(--c-dock-right) calc(var(--c-dock-bottom) + var(--c-dock-h) + 0.5rem) auto;
+  margin: 0;
+  opacity: 0;
+  transform: translateY(0.5rem) rotate(1deg);
+  transition:
+    opacity var(--dur-quick) var(--ease-paper),
+    transform var(--dur-quick) var(--ease-paper),
+    overlay var(--dur-quick) allow-discrete,
+    display var(--dur-quick) allow-discrete;
+}
+
+.site-drawer:popover-open {
+  opacity: 1;
+  transform: rotate(-0.5deg);
+}
+
+@starting-style {
+  .site-drawer:popover-open {
+    opacity: 0;
+    transform: translateY(0.5rem) rotate(1deg);
+  }
 }
 
 html[data-matrix] [data-mobile-social-frame] {
@@ -851,13 +904,13 @@ html[data-matrix] [data-mobile-social-frame] {
 
 @media (max-width: 767px) {
   [data-matrix-wake] {
-    bottom: var(--c-mobile-floating-bottom) !important;
+    bottom: var(--c-dock-clear) !important;
   }
 
   [data-matrix-escape] {
     left: 50% !important;
     right: auto !important;
-    bottom: calc(var(--c-mobile-floating-bottom) + 3.75rem) !important;
+    bottom: calc(var(--c-dock-clear) + 3.75rem) !important;
     transform: translateX(-50%) !important;
     width: max-content !important;
     max-width: calc(100vw - 2rem) !important;
@@ -871,7 +924,7 @@ html[data-matrix] [data-mobile-social-frame] {
   }
 
   [data-matrix-hint] {
-    bottom: calc(var(--c-mobile-floating-bottom) + 7.5rem) !important;
+    bottom: calc(var(--c-dock-clear) + 7.5rem) !important;
   }
 }
 
@@ -1877,71 +1930,20 @@ html:not([data-pref-sketch="on"]) .border-dashed {
   }
 }
 
-/* Shared reduced-motion contract
-   Both device and explicit preferences settle decorative entrances at their
-   final visual state. Puzzle/auth timing is intentionally outside this list. */
+/* Shared reduced-motion contract. `data-reduced-motion` is resolved once from the site preference and the OS
+   setting (boot script + AdminPrefsController), so one selector covers both. Decorative entrances settle at
+   their final visual state; puzzle/auth timing is intentionally outside this list. */
+html[data-reduced-motion] {
+  --dur-micro: 0.01ms;
+  --dur-quick: 0.01ms;
+  --dur-panel: 0.01ms;
+  --dur-enter: 0.01ms;
+  --carousel-slide: 0.01ms;
+  --peek-delay: 0ms;
+}
+
 @layer utilities {
-  @media (prefers-reduced-motion: reduce) {
-    html:not([data-motion="full"]) :where(.animate-hero-title,
-      .animate-hero-subtitle,
-      .animate-hero-badge,
-      .animate-nav-tab,
-      .animate-social-link,
-      .animate-page-sheet,
-      .animate-theme-icon,
-      .sketch-tooltip,
-      .animate-wall-note-in,
-      .animate-listening-bar,
-      .sticker-card,
-      .sticker-card--superuser::after,
-      .superuser-banner__glow,
-      .superuser-banner__medal,
-      .superuser-banner__card::after,
-      .escape-banner__glow,
-      .escape-banner__medal,
-      .escape-banner__card::after,
-      [data-sticker-toast],
-      [data-superuser-toast],
-      [data-disco-motion],
-      [data-disco-bounce],
-      [data-hover-tilt]) {
-      animation: none !important;
-      transition-duration: 0.01ms !important;
-    }
-
-    html:not([data-motion="full"]) :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
-      opacity: 1 !important;
-    }
-
-    html:not([data-motion="full"]) .animate-hero-title {
-      transform: scale(1) rotate(-4deg) !important;
-    }
-
-    html:not([data-motion="full"]) .animate-hero-badge {
-      transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important;
-    }
-
-    html:not([data-motion="full"]) .animate-social-link,
-    html:not([data-motion="full"]) .animate-page-sheet {
-      transform: translateY(0) !important;
-    }
-
-    html:not([data-motion="full"]) .animate-wall-note-in {
-      transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important;
-    }
-
-    html:not([data-motion="full"]) .sticker-card {
-      transform: rotate(var(--card-rotate, 0deg)) !important;
-    }
-
-    html:not([data-motion="full"]) [data-hover-tilt] { transform: none !important; }
-
-    html:not([data-motion="full"]) [data-tilt-sheen] { display: none !important; }
-  }
-
-  html[data-motion="reduced"] :where(.animate-hero-title,
-    .animate-hero-subtitle,
-    .animate-hero-badge,
+  html[data-reduced-motion] :where(.animate-hero-title,
     .animate-nav-tab,
     .animate-social-link,
     .animate-page-sheet,
@@ -1949,6 +1951,7 @@ html:not([data-pref-sketch="on"]) .border-dashed {
     .sketch-tooltip,
     .animate-wall-note-in,
     .animate-listening-bar,
+    .terminal-cursor,
     .sticker-card,
     .sticker-card--superuser::after,
     .superuser-banner__glow,
@@ -1966,33 +1969,29 @@ html:not([data-pref-sketch="on"]) .border-dashed {
     transition-duration: 0.01ms !important;
   }
 
-  html[data-motion="reduced"] :where(.animate-hero-title, .animate-hero-subtitle, .animate-hero-badge, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
+  html[data-reduced-motion] :where(.animate-hero-title, .animate-social-link, .animate-page-sheet, .animate-theme-icon, .sketch-tooltip, .animate-wall-note-in, .sticker-card) {
     opacity: 1 !important;
   }
 
-  html[data-motion="reduced"] .animate-hero-title {
-    transform: scale(1) rotate(-4deg) !important;
+  html[data-reduced-motion] .animate-hero-title {
+    transform: rotate(var(--hero-title-rotate)) !important;
   }
 
-  html[data-motion="reduced"] .animate-hero-badge {
-    transform: translateX(0) rotate(var(--hero-badge-rotate, 12deg)) !important;
-  }
-
-  html[data-motion="reduced"] :is(.animate-social-link, .animate-page-sheet) {
+  html[data-reduced-motion] :is(.animate-social-link, .animate-page-sheet) {
     transform: translateY(0) !important;
   }
 
-  html[data-motion="reduced"] .animate-wall-note-in {
+  html[data-reduced-motion] .animate-wall-note-in {
     transform: translateY(0) rotate(var(--note-rotate-end, 0deg)) !important;
   }
 
-  html[data-motion="reduced"] .sticker-card {
+  html[data-reduced-motion] .sticker-card {
     transform: rotate(var(--card-rotate, 0deg)) !important;
   }
 
-  html[data-motion="reduced"] [data-hover-tilt] { transform: none !important; }
+  html[data-reduced-motion] [data-hover-tilt] { transform: none !important; }
 
-  html[data-motion="reduced"] [data-tilt-sheen] { display: none !important; }
+  html[data-reduced-motion] [data-tilt-sheen] { display: none !important; }
 }
 
 /* Master volume range — sketchbook ink track, paper thumb, disco-safe. */

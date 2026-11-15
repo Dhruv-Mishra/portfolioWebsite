@@ -70,6 +70,39 @@ export const PAPER_STOCK_SWATCHES: Record<PaperStockId, {
   },
 } as const;
 
+/** Push-pin colours on the projects sheet. Mirrors --color-pin-* in app/globals.css (parity-tested). */
+export const PIN_COLORS = {
+  red: '#e5534b',
+  amber: '#f2b544',
+  blue: '#4a8fe7',
+} as const;
+
+/** Shared motion vocabulary. CSS mirrors: --ease-paper/-paper-in/-standard and --dur-* in app/globals.css. */
+export const MOTION = {
+  ease: {
+    paper: [0.22, 1, 0.36, 1],
+    paperIn: [0.4, 0, 1, 1],
+    standard: [0.4, 0, 0.2, 1],
+  },
+  durMs: { micro: 120, quick: 200, panel: 320, enter: 480 },
+} as const;
+
+/** Home featured-projects slideshow. Dwell/slide durations live in CSS (--carousel-dwell, --carousel-slide). */
+export const FEATURED_CAROUSEL = {
+  swipeMinPx: 48,
+  swipeMinVelocity: 0.35,
+  dragStartPx: 8,
+  dragRotatePerPx: 0.02,
+  visibleRatio: 0.5,
+} as const;
+
+/** Mobile dock: hides while reading down the page, returns on scroll-up or near the end. */
+export const DOCK_TOKENS = {
+  hideAfterPx: 160,
+  scrollDeltaPx: 8,
+  bottomRevealPx: 24,
+} as const;
+
 /** Matrix / escape-the-matrix palette (canvas rain, medals, toasts). */
 export const MATRIX_COLORS = {
   glyph: '#10b981',
@@ -232,10 +265,11 @@ export const TERMINAL_COLORS = {
   output: 'text-gray-300/90',
   error: 'text-red-400',
   caret: 'caret-emerald-400',
+  cursor: 'bg-emerald-400',
   placeholder: 'placeholder-gray-600',
   border: 'border-gray-700/50',
   headerBorder: 'border-gray-600/30',
-  headerLabel: 'text-gray-400/60',
+  headerLabel: 'text-gray-400',
   text: 'text-gray-200',
   scrollbarColor: 'rgba(156,163,175,0.6)',
 } as const;
@@ -245,7 +279,6 @@ export const NAV_TAB_COLORS = {
   pink: { bg: PAPER_PALETTE.pink, text: 'text-red-900', border: 'border-red-300' },
   yellow: { bg: PAPER_PALETTE.yellow, text: 'text-yellow-900', border: 'border-yellow-300' },
   green: { bg: PAPER_PALETTE.green, text: 'text-green-900', border: 'border-green-300' },
-  blue: { bg: PAPER_PALETTE.blue, text: 'text-blue-900', border: 'border-blue-300' },
   coral: { bg: PAPER_PALETTE.coral, text: 'text-orange-900', border: 'border-orange-300' },
 } as const;
 
@@ -264,7 +297,6 @@ export const SOCIAL_COLORS = {
   codeforces: 'hover:text-yellow-600',
   cpHistory: 'hover:text-amber-500',
   email: 'hover:text-red-600',
-  phone: 'hover:text-green-600',
 } as const;
 
 /** Cursor trail rendering config */
@@ -340,6 +372,7 @@ export const SHADOW_TOKENS = {
   card: '5px 5px 15px rgba(0,0,0,0.1)',
   cardHeavy: '5px 5px 15px rgba(0,0,0,0.2)',
   terminal: 'inset 0 0 40px rgba(0,0,0,0.5)',
+  terminalMobile: 'inset 0 0 18px rgba(0,0,0,0.32)',
   resume: '1px 1px 5px rgba(0,0,0,0.1), 10px 10px 30px rgba(0,0,0,0.15)',
   socialButton: '1px 2px 4px rgba(0,0,0,0.15)',
   spiralHole: 'inset 0 1px 2px rgba(0,0,0,0.1)',
@@ -355,7 +388,8 @@ export const SKETCH_RADIUS = {
 export const GRADIENT_TOKENS = {
   foldCorner: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
   foldCornerAlt: 'linear-gradient(225deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
-  foldUnderside: '#f0e6a0',
+  /** Small dog-ear on taped sticky notes. */
+  noteFold: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.14) 50%)',
 } as const;
 
 /** Grid pattern background config */
@@ -366,9 +400,7 @@ export const GRID_PATTERN = {
 
 /** Project card layout tokens */
 export const PROJECT_TOKENS = {
-  rotations: [2, -3, 1.5, -2, 4, -1],
-  photoRotations: [-3, 2, -2, 3, -1, 2],
-  tapePositions: [40, 60, 30, 70, 50, 45],
+  rotations: [-1.5, 1, -0.5, 1.5, -1, 0.75],
   foldSize: 30,
 } as const;
 
@@ -442,11 +474,71 @@ export const STICKER_TOKENS = {
   rotation: { min: -4, max: 4 },
 } as const;
 
-/** Sticker timing tokens — toast queue + resume read threshold */
+/** Sticker toast queue timing */
 export const STICKER_TIMING = {
   toastDuration: 3000,
   toastGap: 500,
   toastMaxInQueue: 4,
-  resumeReadThresholdMs: 10000,
+} as const;
+
+/**
+ * Voice-call sound design (lib/voiceSounds.ts). Everything is synthesized with Web Audio,
+ * so loops are seamless and every start/stop is an envelope instead of a click.
+ * Gains are relative to the voiceAgent category volume.
+ */
+export const VOICE_SOUND_TOKENS = {
+  ambient: {
+    gain: 0.18,
+    lowpassHz: 300,
+    breathHz: 0.07,
+    breathDepth: 0.25,
+    fadeInSec: 1.4,
+    fadeOutSec: 0.8,
+    /** Ambient level multiplier while the agent is speaking. */
+    duckRatio: 0.3,
+    duckAttackSec: 0.12,
+    duckReleaseSec: 0.6,
+    duckHoldMs: 350,
+  },
+  chime: {
+    /** Rising fourth on connect, falling fourth on hang-up (Hz). */
+    connect: [784, 1047],
+    hangup: [1047, 784],
+    noteGapSec: 0.11,
+    attackSec: 0.006,
+    decaySec: 0.65,
+    peakGain: 0.06,
+    lowpassHz: 6000,
+  },
+  action: {
+    startHz: 1320,
+    endHz: 880,
+    glideSec: 0.05,
+    decaySec: 0.2,
+    peakGain: 0.06,
+    minIntervalMs: 400,
+  },
+  volumeRampSec: 0.04,
+  /** Suspend the context this long after the last sound fades. */
+  idleSuspendMs: 1500,
+} as const;
+
+export const VOICE_ORB_TOKENS = {
+  attackMs: 60,
+  releaseMs: 180,
+  epsilon: 0.002,
+  coreScale: 0.16,
+  glowMin: 0.35,
+  glowRange: 0.5,
+} as const;
+
+export const VOICE_VEIL_TOKENS = {
+  introMs: 360,
+  dockMs: 480,
+  morphMs: 520,
+  morphEasing: 'cubic-bezier(0.22,1,0.36,1)',
+  introExitMs: 320,
+  dockExitMs: 460,
+  teardownMarginMs: 160,
 } as const;
 

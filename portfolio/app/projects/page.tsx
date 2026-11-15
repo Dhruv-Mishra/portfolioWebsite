@@ -1,245 +1,77 @@
 import type { CSSProperties } from 'react';
-import { ExternalLink, Play, Maximize2 } from 'lucide-react';
 import Image from 'next/image';
-import { TAPE_STYLE_DECOR } from '@/lib/constants';
-import { PaperClip } from '@/components/DoodleIcons';
+import Link from 'next/link';
+import { HandDrawnArrow } from '@/components/SketchbookDoodles';
 import ProjectGridController from '@/components/ProjectGridController';
+import { TAPE_STYLE_DECOR } from '@/lib/constants';
+import { PIN_COLORS, PROJECT_TOKENS } from '@/lib/designTokens';
 import { PROJECTS } from '@/lib/projects';
-import { PROJECT_TOKENS } from '@/lib/designTokens';
+import '@/components/projects/projects.css';
 
-// Pre-computed per-card style values — deterministic (index-based), hoisted to module scope
-const ROTATIONS = PROJECT_TOKENS.rotations;
-const PHOTO_ROTATIONS = PROJECT_TOKENS.photoRotations;
-const TAPE_POSITIONS = PROJECT_TOKENS.tapePositions;
-const FOLD_SIZE = PROJECT_TOKENS.foldSize;
-const PROJECT_WIGGLE_PERIOD_MS = 1400;
-const PROJECT_THUMB_WIGGLE_PERIOD_MS = 1700;
-const PROJECT_CARD_HUE_PERIOD_MS = 6000;
-const CARD_INTERACTION_CLASS = 'relative text-[var(--c-ink)] min-h-[auto] md:min-h-[450px] font-hand group/tilt shadow-[2px_4px_10px_rgba(0,0,0,0.08)] md:shadow-[5px_5px_15px_rgba(0,0,0,0.1)] transition-transform duration-200 ease-out motion-reduce:transition-none active:scale-[0.92]';
-
-type DiscoCardStyle = CSSProperties & {
-    '--disco-motion-delay': string;
-    '--disco-motion-duration': string;
-    '--disco-card-delay': string;
-    '--hover-tilt-scale': string;
-};
-
-type DiscoThumbStyle = CSSProperties & {
-    '--disco-motion-delay': string;
-    '--disco-motion-duration': string;
-};
-
-function getIndexedDiscoDelay(index: number, periodMs: number, salt: number): string {
-    let hash = (Math.imul(index + 1, 0x9e3779b1) ^ salt) >>> 0;
-    hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
-    hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
-    const offsetMs = (((hash ^ (hash >>> 16)) >>> 0) % (periodMs - 1)) + 1;
-    return `-${offsetMs}ms`;
-}
-
-function getCardDiscoStyle(index: number): DiscoCardStyle {
-    return {
-        '--disco-motion-delay': getIndexedDiscoDelay(index, PROJECT_WIGGLE_PERIOD_MS, 0x2c1b3c6d),
-        '--disco-motion-duration': `${PROJECT_WIGGLE_PERIOD_MS}ms`,
-        '--disco-card-delay': getIndexedDiscoDelay(index, PROJECT_CARD_HUE_PERIOD_MS, 0x8f1bbcdc),
-        '--hover-tilt-scale': '1.018',
-    };
-}
-
-function getThumbDiscoStyle(index: number): DiscoThumbStyle {
-    return {
-        '--disco-motion-delay': getIndexedDiscoDelay(index, PROJECT_THUMB_WIGGLE_PERIOD_MS, 0xa5f152cb),
-        '--disco-motion-duration': `${PROJECT_THUMB_WIGGLE_PERIOD_MS}ms`,
-    };
-}
-
-/** Hoisted — avoids re-allocation per render for every card */
-const CARD_CLIP_STYLE = {
-    clipPath: `polygon(
-        0% 0%,
-        100% 0%,
-        100% calc(100% - ${FOLD_SIZE}px),
-        calc(100% - ${FOLD_SIZE}px) 100%,
-        0% 100%
-    )`,
-} as const;
-
-/** Fold corner styles hoisted — shared across all cards, avoids per-card allocation */
-const FOLD_GRADIENT_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, background: 'var(--note-fold-shadow)' } as const;
-const FOLD_COLOR_STYLE = { width: FOLD_SIZE, height: FOLD_SIZE, backgroundColor: 'var(--note-fold-underside)', clipPath: 'polygon(0 0, 0 100%, 100% 0)' } as const;
-
-/** Pre-computed per-card styles — deterministic (index-based), avoids ~28 object allocations per render */
-const CLIP_ROTATIONS = [-8, -15, -5, -18, -10, -13, -7];
-const CLIP_OFFSETS = [1, 3, 0, 4, 2, 5, 1];
-const CARD_STYLES = PROJECTS.map((_, i) => {
-    const photoRotate = PHOTO_ROTATIONS[i % 6];
-    const tapX = TAPE_POSITIONS[i % 6];
-    return {
-        outer: { transform: `rotate(${ROTATIONS[i % 6]}deg)` } as const,
-        tape: { left: `${tapX}%`, transform: `translateX(-50%) rotate(${photoRotate * -1}deg)`, ...TAPE_STYLE_DECOR } as const,
-        photo: { transform: `rotate(${photoRotate}deg)`, ...getThumbDiscoStyle(i) },
-        clipClass: `absolute -top-4 z-20 text-gray-400 dark:text-gray-500 drop-shadow-sm` as const,
-        clipStyle: { left: `${CLIP_OFFSETS[i % 7]}px`, transform: `rotate(${CLIP_ROTATIONS[i % 7]}deg)` } as const,
-        disco: getCardDiscoStyle(i),
-    };
-});
+const PINS = Object.values(PIN_COLORS);
 
 export default function Projects() {
-    return (
-        <div className="flex flex-col h-full pt-0">
-            {/* h1 needs its own padding because the outer div is full-bleed and the
-                grid below already pads itself with px-6. Keeping px-6 on the h1
-                only matches the grid's left edge on mobile, with a small ml-6 on
-                desktop for visual rhythm against the binding spine. */}
-            <h1 className="text-[var(--c-heading)] text-4xl md:text-6xl font-hand font-bold mb-8 px-6 md:px-0 md:ml-6 decoration-wavy underline decoration-indigo-400 decoration-2">
-                My Projects
-            </h1>
-
-            <ProjectGridController className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-14 pb-20 px-6 mt-10">
-                {PROJECTS.map((proj, i) => {
-                    const styles = CARD_STYLES[i];
-                    const hasVideo = proj.video !== null;
-
-                    return (
-                        <div
-                            key={proj.name}
-                            className="pt-5"
-                            style={styles.outer}
-                        >
-                        {/* Inner hover/tap layer — transform-only CSS, reduced-motion-safe. */}
-                        <div
-                            data-clickable
-                            data-hover-tilt
-                            data-tilt-3d="paper"
-                            data-disco-motion="wiggle"
-                            data-project-slug={proj.slug}
-                            className={CARD_INTERACTION_CLASS}
-                            style={styles.disco}
-                        >
-                            {/* Realistic Tape (Top Center-ish) */}
-                            <div
-                                data-tape-strip
-                                className="absolute -top-4 w-32 h-10 shadow-sm z-20"
-                                style={styles.tape}
-                            />
-
-                            {/* The Fold Triangle (Outside Clipped Area) */}
-                            <div
-                                className="absolute bottom-0 right-0 pointer-events-none z-10"
-                                style={FOLD_GRADIENT_STYLE}
-                            />
-                            <div
-                                className="absolute bottom-0 right-0 pointer-events-none z-10"
-                                style={FOLD_COLOR_STYLE}
-                            />
-
-                            {/* Inner Clipped Container */}
-                            <div
-                                className={`p-6 pt-10 w-full h-full flex flex-col ${proj.colorClass} relative`}
-                                style={CARD_CLIP_STYLE}
-                            >
-                                <span aria-hidden="true" data-tilt-sheen />
-
-
-                                {/* Polaroid Style Photo */}
-                                <div
-                                    data-disco-motion="wiggle"
-                                    className="w-full aspect-video bg-white dark:bg-gray-200 p-2 shadow-sm border border-gray-200 dark:border-gray-300 mb-6 relative group z-10 mx-auto max-w-[95%]"
-                                    style={styles.photo}
-                                >
-                                    {/* Paper clip on left corner */}
-                                    <PaperClip className={styles.clipClass} style={styles.clipStyle} />
-
-                                    <div className="relative w-full h-full overflow-hidden bg-gray-100">
-                                        {proj.image ? (
-                                            <>
-                                                <Image
-                                                    src={proj.image}
-                                                    alt={`${proj.name} project screenshot`}
-                                                    fill
-                                                    sizes="(max-width: 768px) 85vw, (max-width: 1024px) 40vw, 28vw"
-                                                    priority={i === 0}
-                                                    decoding={i === 0 ? "sync" : "async"}
-                                                    placeholder="blur"
-                                                    blurDataURL={proj.blurDataURL}
-                                                    className={`object-cover ${proj.imageClassName || ''}`}
-                                                />
-                                                {/* Play overlay — signals tap/hover to expand */}
-                                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/0 md:group-hover/tilt:bg-black/15 transition-[background-color] duration-300 motion-reduce:md:group-hover/tilt:bg-black/0">
-                                                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/80 dark:bg-white/70 flex items-center justify-center opacity-50 md:opacity-0 md:group-hover/tilt:opacity-100 scale-90 md:scale-75 md:group-hover/tilt:scale-100 transition-[opacity,transform] duration-300 shadow-md md:shadow-lg motion-reduce:md:opacity-50 motion-reduce:md:scale-90 motion-reduce:md:group-hover/tilt:opacity-50 motion-reduce:md:group-hover/tilt:scale-90">
-                                                        {hasVideo ? (
-                                                            <Play size={18} className="text-gray-800 ml-0.5" fill="currentColor" />
-                                                        ) : (
-                                                            <Maximize2 size={18} className="text-gray-800" />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300">
-                                                <span className="font-hand font-bold text-lg text-gray-400 opacity-50 uppercase tracking-widest">[ {proj.name} ]</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Header */}
-                                <div className="flex items-start justify-between mb-2 pl-6 relative z-10">
-                                    <h3 className="text-3xl font-bold leading-none -rotate-1 text-[var(--c-ink)]">{proj.name}</h3>
-                                    <div className="flex items-center gap-1 text-sm font-bold opacity-70 bg-white/40 dark:bg-black/20 px-2 py-1 rounded-sm transform rotate-2">
-                                        <proj.icon className="w-4 h-4" /> {proj.label}
-                                    </div>
-                                </div>
-
-                                {/* Lang Tag */}
-                                <div className="mb-4 pl-6 relative z-10">
-                                    <span className="text-sm font-bold opacity-80 decoration-wavy underline decoration-gray-400/50">{proj.lang}</span>
-                                </div>
-
-                                {/* Description */}
-                                <div className="text-lg leading-relaxed flex-1 mb-4 font-medium opacity-90 pl-6 relative z-10">
-                                    {proj.desc}
-                                </div>
-
-                                {/* Tech Stack Pills */}
-                                <div className="mb-4 flex flex-wrap gap-1.5 pl-6 relative z-10">
-                                    {proj.stack.map((tech) => (
-                                        <span
-                                            key={tech}
-                                            className="px-2.5 py-1 text-xs font-code font-medium text-[var(--c-ink)]/70 border border-[var(--c-ink)]/15 rounded-full"
-                                        >
-                                            {tech}
-                                        </span>
-                                    ))}
-                                </div>
-
-                                {/* Project actions */}
-                                <div className="pl-6 pb-2 flex items-center justify-between relative z-10">
-                                    <a
-                                        href={proj.link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        data-project-source
-                                        aria-label={`View source for ${proj.name}`}
-                                        className="inline-flex min-h-11 items-center gap-1.5 px-3 text-base font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity decoration-wavy underline decoration-gray-400/50 hover:decoration-gray-500"
-                                    >
-                                        Source <ExternalLink size={16} />
-                                    </a>
-                                    <button
-                                        type="button"
-                                        data-clickable
-                                        aria-label={`View details for ${proj.name}`}
-                                        className="flex min-h-11 items-center gap-1.5 px-3 pr-6 text-sm font-bold text-[var(--c-ink)] opacity-60 hover:opacity-100 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
-                                    >
-                                        <Maximize2 size={14} /> View details
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                    );
-                })}
-            </ProjectGridController>
+  return (
+    <section className="projects-sheet shadow-sheet" aria-labelledby="projects-title">
+      <span aria-hidden="true" data-tape-strip className="projects-sheet-tape" style={TAPE_STYLE_DECOR} />
+      <header className="projects-header">
+        <h1 id="projects-title" className="font-hand ink-heavy">Things I&apos;ve built</h1>
+        <div className="projects-instruction font-hand">
+          <p>Open a polaroid for the full story.</p>
+          <span aria-hidden="true"><HandDrawnArrow className="projects-arrow" /></span>
         </div>
-    );
+      </header>
+      <ProjectGridController>
+        <ul className="projects-grid">
+          {PROJECTS.map((project, index) => (
+            <li
+              key={project.slug}
+              className="project-placement"
+              style={{ '--project-rest': `${PROJECT_TOKENS.rotations[index % PROJECT_TOKENS.rotations.length]}deg` } as CSSProperties}
+            >
+              <Link
+                href={`/projects?project=${project.slug}`}
+                scroll={false}
+                prefetch={false}
+                data-project-slug={project.slug}
+                data-hover-tilt
+                data-tilt-3d="paper"
+                data-disco-motion="wiggle"
+                className="project-card focus-ring"
+              >
+                <span aria-hidden="true" data-tilt-sheen />
+                <svg aria-hidden="true" className="project-pin" viewBox="0 0 18 18" fill="none" style={{ color: PINS[index % PINS.length] }}>
+                  <circle cx="9" cy="9" r="8" fill="currentColor" />
+                  <circle cx="9" cy="9" r="7.5" stroke="var(--c-polaroid-ink)" strokeOpacity=".2" />
+                  <path d="M5 7a4 4 0 0 1 5-2" stroke="var(--c-polaroid)" strokeWidth="1" strokeLinecap="round" />
+                  <circle cx="9" cy="9" r="2" fill="var(--c-polaroid-ink)" fillOpacity=".15" />
+                </svg>
+                <div className="project-photo shadow-polaroid">
+                  <div className="project-image">
+                    <Image
+                      src={project.image}
+                      alt={`${project.name} project screenshot`}
+                      fill
+                      sizes="(max-width: 767px) 112px, (max-width: 1023px) 44vw, 285px"
+                      priority={index === 0}
+                      placeholder="blur"
+                      blurDataURL={project.blurDataURL}
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+                <div className="project-caption">
+                  <div className="project-name-row">
+                    <h2 className="project-name font-hand">{project.name}</h2>
+                    {project.demo ? <span className="project-demo-tag font-hand" style={TAPE_STYLE_DECOR}>Live demo</span> : null}
+                  </div>
+                  <p className="project-summary font-body line-clamp-3">{project.summary}</p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </ProjectGridController>
+    </section>
+  );
 }

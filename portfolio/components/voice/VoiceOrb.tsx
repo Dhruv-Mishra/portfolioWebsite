@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef } from 'react';
+import { VOICE_ORB_TOKENS as ORB } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 import type { VoiceAgentPhase } from '@/lib/voiceAgentProtocol';
 import { getVoicePlaybackLevel, subscribeVoicePlaybackLevel } from '@/lib/voiceAudio';
@@ -13,128 +14,80 @@ interface VoiceOrbProps {
 }
 
 const PHASE_LABEL: Record<VoiceAgentPhase, string> = {
-  idle: 'Idle',
-  entering: 'Switching',
+  idle: 'Listening',
+  entering: 'Connecting',
   connecting: 'Connecting',
   listening: 'Listening',
   thinking: 'Thinking',
   speaking: 'Speaking',
-  acting: 'Acting',
-  exiting: 'Leaving',
-  error: 'Unavailable',
+  acting: 'Doing that now',
+  exiting: 'Call ended',
+  error: "Can't connect",
 };
 
-function formatVoiceLevel(level: number): string {
-  return (Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000).toFixed(3);
-}
-
 export default function VoiceOrb({ phase, reducedMotion, size = 'hero', showLabel = true }: VoiceOrbProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  const levelRef = useRef<HTMLDivElement>(null);
+  const glowRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
+    const level = levelRef.current;
+    const glow = glowRef.current;
+    if (!level || !glow || reducedMotion || (phase !== 'speaking' && phase !== 'acting')) return;
 
-    const setRipple = (value: number) => {
-      root.style.setProperty('--voice-ripple', value.toFixed(3));
-    };
-
-    if (reducedMotion) {
-      root.style.setProperty('--voice-level', formatVoiceLevel(0));
-      setRipple(1);
-      root.removeAttribute('data-voice-orb-speaking');
-      return;
-    }
-
-    let frame = 0;
-    let pending = getVoicePlaybackLevel();
-    let rippleTimer = 0;
-
-    const pickRipple = () => 0.97 + Math.random() * 0.25;
-    const stopRipple = () => {
-      if (rippleTimer) {
-        window.clearTimeout(rippleTimer);
-        rippleTimer = 0;
+    let target = getVoicePlaybackLevel();
+    let smoothed = 0;
+    let lastWritten = -1;
+    let lastTime = performance.now();
+    const unsubscribe = subscribeVoicePlaybackLevel(value => { target = value; });
+    const tick = (now: number) => {
+      const dt = now - lastTime;
+      lastTime = now;
+      const value = Number.isFinite(target) ? Math.max(0, Math.min(1, target)) : 0;
+      const tau = value > smoothed ? ORB.attackMs : ORB.releaseMs;
+      smoothed += (value - smoothed) * (1 - Math.exp(-dt / tau));
+      if (Math.abs(smoothed - lastWritten) > ORB.epsilon) {
+        level.style.transform = `scale(${1 + smoothed * ORB.coreScale})`;
+        glow.style.opacity = String(ORB.glowMin + smoothed * ORB.glowRange);
+        lastWritten = smoothed;
       }
-      setRipple(1);
+      frame = requestAnimationFrame(tick);
     };
-    const scheduleRipple = () => {
-      setRipple(pickRipple());
-      rippleTimer = window.setTimeout(scheduleRipple, 160 + Math.random() * 120);
-    };
-
-    const apply = (level: number) => {
-      root.style.setProperty('--voice-level', formatVoiceLevel(level));
-      const speakingNow = phase === 'speaking';
-      const rippleNow = speakingNow || phase === 'acting';
-      root.toggleAttribute('data-voice-orb-speaking', speakingNow);
-      if (rippleNow) {
-        if (!rippleTimer) scheduleRipple();
-        return;
-      }
-      stopRipple();
-    };
-
-    apply(pending);
-
-    const unsubscribe = subscribeVoicePlaybackLevel(level => {
-      pending = level;
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        apply(pending);
-      });
-    });
+    let frame = requestAnimationFrame(tick);
 
     return () => {
       unsubscribe();
-      if (frame) cancelAnimationFrame(frame);
-      stopRipple();
+      cancelAnimationFrame(frame);
+      level.style.removeProperty('transform');
+      glow.style.removeProperty('opacity');
     };
   }, [phase, reducedMotion]);
 
   return (
     <div
-      ref={rootRef}
-      data-voice-orb-size={size}
+      data-phase={phase}
+      data-size={size}
       className={cn(
         'voice-orb relative grid place-items-center',
-        `is-${phase}`,
-        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-20 md:w-20',
+        size === 'hero' ? 'h-44 w-44 md:h-56 md:w-56' : 'h-16 w-16 md:h-18 md:w-18',
       )}
-      style={{ '--voice-level': formatVoiceLevel(0) } as CSSProperties}
       aria-hidden
     >
-      <span className={cn('voice-orb-halo', `is-${phase}`)} aria-hidden />
-      <span className={cn('voice-orb-wash', `is-${phase}`)} aria-hidden />
-      <div className={cn('voice-orb-media', `is-${phase}`)}>
-        {reducedMotion ? (
-          /* eslint-disable-next-line @next/next/no-img-element -- reduced-motion still must not use Next image optimization. */
-          <img
-            src="/voice/ai-ripple-still.webp"
-            alt=""
-            draggable={false}
-            decoding="async"
-            className={cn('voice-orb-still', `is-${phase}`)}
-          />
-        ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- looping GIF HUD must not use Next image optimization. */
-          <img
-            src="/voice/ai-ripple.gif"
-            alt=""
-            draggable={false}
-            decoding="async"
-            className={cn('voice-orb-gif', `is-${phase}`)}
-          />
-        )}
+      <span ref={glowRef} className="orb-glow" />
+      <span className="orb-ripple" />
+      <span className="orb-ripple" />
+      <div ref={levelRef} className="orb-level">
+        <svg className="orb-ink" viewBox="0 0 100 100" aria-hidden="true">
+          <g className="r1"><path d="M50 12 C72 11 89 28 88 50 C87 73 70 88 49 88 C27 89 12 72 12 50 C13 29 29 13 53 13" /></g>
+          <g className="r2"><path d="M86 47 C87 70 69 87 47 86 C26 85 13 68 14 47 C15 27 32 13 52 14 C71 15 85 30 85 52" /></g>
+          <g className="r3"><path d="M30 19 C46 10 70 13 82 30 C93 47 88 71 70 82 C52 93 28 88 17 70 C8 54 13 33 33 18" /></g>
+        </svg>
+        <span className="orb-core" />
       </div>
-      <span className={cn('voice-orb-sheen', `is-${phase}`)} aria-hidden />
       {showLabel ? (
         <span className={cn(
-          'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand uppercase tracking-[0.28em] text-white/55',
-          size === 'hero' ? '-bottom-8 text-sm' : '-bottom-5 text-[0.65rem] tracking-[0.18em]',
-        )}
-        >
+          'voice-orb-label pointer-events-none absolute inset-x-0 text-center font-hand text-white/70',
+          size === 'hero' ? '-bottom-8' : '-bottom-6',
+        )}>
           {PHASE_LABEL[phase]}
         </span>
       ) : null}

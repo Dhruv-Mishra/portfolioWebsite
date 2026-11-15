@@ -163,6 +163,7 @@ describe('site preference migration and facade', () => {
       prefTape: 'on',
       prefSketch: 'on',
       motion: 'reduced',
+      reducedMotion: '',
     });
     expect(dataset).not.toHaveProperty('prefExperimental');
   });
@@ -235,6 +236,7 @@ describe('site preference migration and facade', () => {
       motionPreference: 'full',
     });
     expect(dataset.motion).toBe('full');
+    expect(dataset).not.toHaveProperty('reducedMotion');
   });
 
   it('validates, cycles, and applies physical paper stock preferences cleanly', async () => {

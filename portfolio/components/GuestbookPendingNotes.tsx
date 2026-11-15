@@ -80,7 +80,7 @@ export default function GuestbookPendingNotes({ approvedEntries }: GuestbookPend
               data-disco-motion="wiggle"
               style={{ '--disco-motion-delay': `${index * 120}ms` } as CSSProperties}
               className={cn(
-                'relative w-full max-w-full bg-[var(--note-orange)] text-[var(--c-ink)]',
+                'relative w-full max-w-full bg-note-paper text-[var(--c-ink)]',
                 'border border-orange-300/40 dark:border-orange-400/25 shadow-md',
                 'font-hand p-5 pt-7 pb-8 rotate-1 overflow-hidden',
               )}

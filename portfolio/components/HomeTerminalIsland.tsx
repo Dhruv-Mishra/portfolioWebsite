@@ -2,10 +2,18 @@
 
 import dynamic from "next/dynamic";
 import { TerminalProvider } from "@/context/TerminalContext";
+import { SKETCH_RADIUS, TERMINAL_COLORS } from "@/lib/designTokens";
 
+const SHELL_STYLE = { borderRadius: SKETCH_RADIUS.terminal, backgroundColor: TERMINAL_COLORS.bg } as const;
+const HEADER_STYLE = { backgroundColor: TERMINAL_COLORS.headerBg } as const;
+
+// Same footprint as the real terminal, so the client-only swap neither flashes nor shifts layout.
 const Terminal = dynamic(() => import("@/components/Terminal"), {
   loading: () => (
-    <div className="h-[var(--c-terminal-h)] min-h-[var(--c-terminal-min-h)] md:h-[var(--c-terminal-h-md)] animate-pulse rounded-lg border-2 border-dashed border-[var(--c-grid)]/40 bg-gray-800/15 dark:bg-gray-900/40" />
+    <div aria-hidden="true" className={`mx-auto w-full max-w-[var(--c-terminal-max-w)] overflow-hidden border-[3px] ${TERMINAL_COLORS.border}`} style={SHELL_STYLE}>
+      <div className={`h-[3.25rem] border-b-2 md:h-[3.5rem] ${TERMINAL_COLORS.headerBorder}`} style={HEADER_STYLE} />
+      <div className="h-[var(--c-terminal-h)] md:h-[var(--c-terminal-h-md)]" />
+    </div>
   ),
   ssr: false,
 });

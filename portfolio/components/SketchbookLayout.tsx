@@ -5,19 +5,10 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import { PAPER_NOISE_SVG } from '@/lib/assets';
 import { GRID_PATTERN, Z_INDEX } from '@/lib/designTokens';
 import SocialSidebar from './SocialSidebar';
-import { ThemeToggle } from './ThemeToggle';
-import SoundToggleButton from './SoundToggleButton';
-import FeedbackTabButton from './FeedbackTabButton';
-import GlobalVoiceFab from './voice/GlobalVoiceFab';
 
 const FeedbackNote = dynamic(() => import('./FeedbackNote'), { ssr: false });
-
-// MobileSoundToggleFab — mobile-only floating FAB for volume controls.
-// Client-only so its `useSoundsMuted` subscription doesn't SSR-mismatch.
-const MobileSoundToggleFab = dynamic(() => import('./MobileSoundToggleFab'), {
-    ssr: false,
-    loading: () => null,
-});
+// Mobile-only chrome; desktop visitors never download it.
+const SiteDock = dynamic(() => import('./SiteDock'), { ssr: false });
 
 /** Hoisted paper noise overlay style — avoids re-allocation per render */
 const PAPER_NOISE_STYLE = {
@@ -50,7 +41,7 @@ const GRID_PATTERN_STYLE = {
 export default function SketchbookLayout({ children, doodles }: { children: React.ReactNode; doodles?: React.ReactNode }) {
     const [feedbackOpen, setFeedbackOpen] = useState(false);
     const [feedbackLoaded, setFeedbackLoaded] = useState(false);
-    const showMobileSoundToggle = useIsMobile();
+    const isMobile = useIsMobile();
 
     // Listen for 'open-feedback' custom event (from terminal command)
     const openFeedback = useCallback(() => {
@@ -84,13 +75,6 @@ export default function SketchbookLayout({ children, doodles }: { children: Reac
 
             {/* Paper Content Area */}
             <div className="min-w-0 flex-1 relative h-full flex flex-col isolation-auto">
-                {/* Theme + Sound Toggles - Bottom Left (Desktop only, mobile uses social bar) */}
-                <div className="hidden md:flex items-center gap-1 absolute bottom-6 left-6" style={{ zIndex: Z_INDEX.nav }}>
-                    <ThemeToggle />
-                    <SoundToggleButton />
-                    <GlobalVoiceFab variant="desktop" />
-                </div>
-
                 {/* Paper Texture Noise Overlay */}
                 <div data-paper-grain className="absolute inset-0 pointer-events-none opacity-[0.015] md:opacity-[0.03]"
                     style={{ ...PAPER_NOISE_STYLE, zIndex: Z_INDEX.texture }}
@@ -127,14 +111,7 @@ export default function SketchbookLayout({ children, doodles }: { children: Reac
                 </main>
 
                 <SocialSidebar onFeedbackClick={openFeedback} />
-
-                {/* Gate before rendering the dynamic component so desktop visitors do
-                    not download or hydrate the mobile-only control. */}
-                {showMobileSoundToggle ? <MobileSoundToggleFab /> : null}
-                {showMobileSoundToggle ? <GlobalVoiceFab variant="mobile" /> : null}
-
-                {/* Feedback icon (floating bottom-right) + modal */}
-                <FeedbackTabButton onClick={openFeedback} />
+                {isMobile ? <SiteDock onFeedbackClick={openFeedback} /> : null}
                 {feedbackLoaded ? <FeedbackNote isOpen={feedbackOpen} onClose={closeFeedback} /> : null}
             </div>
         </div>

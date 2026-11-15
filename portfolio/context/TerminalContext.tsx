@@ -91,11 +91,12 @@ export function computeNextHistory(
     return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
 }
 
-export function createInitialTerminalLine(): TerminalLine {
+function createInitialTerminalLine(): TerminalLine {
     return {
         id: 1,
         command: 'init',
         output: createInitialTerminalOutput(),
+        hideCommandHeader: true,
     };
 }
 

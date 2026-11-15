@@ -42,7 +42,7 @@ export default function Error({
         <div aria-hidden="true" className="absolute bottom-0 right-0 pointer-events-none z-10" style={FOLD_FLAP_STYLE} />
 
         <div
-          className="bg-note-yellow border border-[var(--c-ink)]/15 p-8 md:p-12 text-center relative z-0"
+          className="bg-note-paper border border-[var(--c-ink)]/15 p-8 md:p-12 text-center relative z-0"
           style={CARD_CLIP_STYLE}
         >
           <div className="inline-block mb-5">

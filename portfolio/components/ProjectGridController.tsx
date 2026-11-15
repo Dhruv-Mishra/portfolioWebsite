@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useCallback, useEffect, useEffectEvent, useState, type MouseEvent, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
@@ -14,8 +14,7 @@ import {
   type OpenProjectEventDetail,
 } from '@/lib/siteActionEvents';
 
-// Reuse ChatProjectModal so `lib/projects.tsx` (JSX descriptions + 11 Lucide icons)
-// stays out of the initial `/projects` client bundle until a modal actually opens.
+// Project details stay out of the initial client bundle until a modal opens.
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
 // Isolated behind its own Suspense so useSearchParams cannot bail the server-rendered grid out to CSR.
@@ -30,12 +29,11 @@ function ProjectQuerySync({ onQuerySlug }: { onQuerySlug: (slug: string | null) 
   return null;
 }
 
-export default function ProjectGridController({ className, children }: { className: string; children: ReactNode }) {
+export default function ProjectGridController({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { closePanel, openPanel } = useAppHaptics();
   const [selectedSlug, setSelectedSlug] = useState<ProjectSlug | null>(null);
   const [hasOpenedProject, setHasOpenedProject] = useState(false);
-  const [querySlug, setQuerySlug] = useState<string | null>(null);
 
   const openProjectBySlug = useCallback((slug: string) => {
     if (!isProjectSlug(slug)) return false;
@@ -48,29 +46,15 @@ export default function ProjectGridController({ className, children }: { classNa
   }, [openPanel]);
 
   const handleQuerySlug = useCallback((slug: string | null) => {
-    setQuerySlug(slug);
     if (slug) openProjectBySlug(slug);
-  }, [openProjectBySlug]);
-
-  const handleGridClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (!(event.target instanceof Element)) return;
-    const slug = event.target.closest<HTMLElement>('[data-project-slug]')?.dataset.projectSlug;
-    if (!slug) return;
-    if (event.target.closest('[data-project-source]')) {
-      unlockSticker('repo-hunter');
-      return;
-    }
-    if (event.target.closest('a')) return;
-    openProjectBySlug(slug);
+    else setSelectedSlug(null);
   }, [openProjectBySlug]);
 
   const handleCloseModal = useCallback(() => {
     closePanel();
     setSelectedSlug(null);
-    if (querySlug) {
-      router.replace('/projects');
-    }
-  }, [closePanel, querySlug, router]);
+    router.replace('/projects', { scroll: false });
+  }, [closePanel, router]);
 
   useEffect(() => {
     const handler = (raw: Event) => {
@@ -101,9 +85,7 @@ export default function ProjectGridController({ className, children }: { classNa
 
   return (
     <>
-      <div className={className} onClick={handleGridClick}>
-        {children}
-      </div>
+      {children}
       <Suspense fallback={null}>
         <ProjectQuerySync onQuerySlug={handleQuerySlug} />
       </Suspense>

@@ -8,7 +8,7 @@ vi.mock('@/lib/voiceAudioActivation', () => ({
   primeVoiceEnterAudio: vi.fn(),
 }));
 vi.mock('@/lib/voiceSounds', () => ({
-  playVoiceToggle: vi.fn((cb?: () => void) => cb?.()),
+  playVoiceConnect: vi.fn((cb?: () => void) => cb?.()),
   primeVoiceSounds: vi.fn(),
   startVoiceAmbient: vi.fn(),
 }));

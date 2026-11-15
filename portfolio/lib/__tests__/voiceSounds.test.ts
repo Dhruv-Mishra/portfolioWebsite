@@ -1,356 +1,238 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SITE_VERSION } from '@/lib/siteVersion';
+import { VOICE_SOUND_TOKENS } from '@/lib/designTokens';
 
-const getEffectiveAudioCategoryVolumeSync = vi.fn(() => 1);
-const getDiscoActiveSync = vi.fn(() => false);
-const volumeListeners: Array<(volume: number) => void> = [];
-const discoListeners: Array<(active: boolean) => void> = [];
-const subscribeAudioCategoryVolume = vi.fn((
-  _category: string,
-  listener: (volume: number) => void,
-) => {
-  volumeListeners.push(listener);
-  return () => {
-    const index = volumeListeners.indexOf(listener);
-    if (index >= 0) volumeListeners.splice(index, 1);
-  };
-});
-const subscribeDiscoActive = vi.fn((listener: (active: boolean) => void) => {
-  discoListeners.push(listener);
-  return () => {
-    const index = discoListeners.indexOf(listener);
-    if (index >= 0) discoListeners.splice(index, 1);
-  };
-});
-
-vi.mock('@/hooks/useStickers', () => ({
-  getEffectiveAudioCategoryVolumeSync: () => getEffectiveAudioCategoryVolumeSync(),
-  getDiscoActiveSync: () => getDiscoActiveSync(),
-  subscribeAudioCategoryVolume: (
-    category: string,
-    listener: (volume: number) => void,
-  ) => subscribeAudioCategoryVolume(category, listener),
-  subscribeDiscoActive: (listener: (active: boolean) => void) => subscribeDiscoActive(listener),
+const audioState = vi.hoisted(() => ({
+  volume: 1,
+  disco: false,
+  volumeListeners: [] as Array<(volume: number) => void>,
+  discoListeners: [] as Array<(active: boolean) => void>,
 }));
 
-class FakeAudio {
-  src: string;
+vi.mock('@/hooks/useStickers', () => ({
+  getEffectiveAudioCategoryVolumeSync: () => audioState.volume,
+  getDiscoActiveSync: () => audioState.disco,
+  subscribeAudioCategoryVolume: (_category: string, listener: (volume: number) => void) => {
+    audioState.volumeListeners.push(listener);
+    return () => audioState.volumeListeners.splice(audioState.volumeListeners.indexOf(listener), 1);
+  },
+  subscribeDiscoActive: (listener: (active: boolean) => void) => {
+    audioState.discoListeners.push(listener);
+    return () => audioState.discoListeners.splice(audioState.discoListeners.indexOf(listener), 1);
+  },
+}));
+
+class FakeParam {
+  value: number;
+  target: number;
+  events: Array<{ kind: string; value: number; at: number; constant?: number }> = [];
+  constructor(value: number) {
+    this.value = value;
+    this.target = value;
+  }
+  setValueAtTime(value: number, at: number) { this.target = value; this.events.push({ kind: 'set', value, at }); return this; }
+  setTargetAtTime(value: number, at: number, constant: number) { this.target = value; this.events.push({ kind: 'target', value, at, constant }); return this; }
+  linearRampToValueAtTime(value: number, at: number) { this.target = value; this.events.push({ kind: 'linear', value, at }); return this; }
+  exponentialRampToValueAtTime(value: number, at: number) { this.target = value; this.events.push({ kind: 'exponential', value, at }); return this; }
+  cancelScheduledValues() { return this; }
+}
+class FakeNode {
+  gain = new FakeParam(1);
+  frequency = new FakeParam(0);
+  Q = new FakeParam(0);
+  type = '';
+  buffer: unknown = null;
   loop = false;
-  preload = 'auto';
-  muted = false;
-  volume = 1;
-  currentTime = 0;
-  paused = true;
-  playCalls = 0;
-  pauseCalls = 0;
-  playShouldReject = false;
-  onended: (() => void) | null = null;
-
-  constructor(src: string) {
-    this.src = src;
-  }
-
-  play() {
-    this.playCalls += 1;
-    if (this.playShouldReject) return Promise.reject(new Error('blocked'));
-    this.paused = false;
-    return Promise.resolve();
-  }
-
-  pause() {
-    this.pauseCalls += 1;
-    this.paused = true;
-  }
-
-  finish() {
-    this.paused = true;
-    this.onended?.();
-  }
+  started = false;
+  stopped = false;
+  stopAt = 0;
+  connect<T>(next: T): T { return next; }
+  disconnect() {}
+  start() { this.started = true; }
+  stop(at = 0) { this.stopped = true; this.stopAt = at; }
 }
 
-const created: FakeAudio[] = [];
+const contexts: FakeContext[] = [];
 
-describe('voiceSounds helper', () => {
-  beforeEach(() => {
-    created.length = 0;
-    volumeListeners.length = 0;
-    discoListeners.length = 0;
-    getEffectiveAudioCategoryVolumeSync.mockReturnValue(1);
-    getDiscoActiveSync.mockReturnValue(false);
-    subscribeAudioCategoryVolume.mockClear();
-    subscribeDiscoActive.mockClear();
+class FakeContext {
+  state = 'running';
+  currentTime = 0;
+  sampleRate = 8000;
+  destination = new FakeNode();
+  gains: FakeNode[] = [];
+  oscillators: FakeNode[] = [];
+  sources: FakeNode[] = [];
+  constructor() { contexts.push(this); }
+  createGain() { const node = new FakeNode(); this.gains.push(node); return node; }
+  createOscillator() { const node = new FakeNode(); this.oscillators.push(node); return node; }
+  createBufferSource() { const node = new FakeNode(); this.sources.push(node); return node; }
+  createBiquadFilter() { return new FakeNode(); }
+  createBuffer(_channels: number, length: number) {
+    const data = new Float32Array(length);
+    return { getChannelData: () => data };
+  }
+  resume() { this.state = 'running'; return Promise.resolve(); }
+  suspend() { this.state = 'suspended'; return Promise.resolve(); }
+}
+
+type VoiceSounds = typeof import('@/lib/voiceSounds');
+
+/** The room-tone level is the last gain built when the ambient starts. */
+const ambientLevel = (ctx: FakeContext) => ctx.gains[ctx.gains.length - 1]!;
+
+describe('voiceSounds', () => {
+  let sounds: VoiceSounds;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    contexts.length = 0;
+    audioState.volume = 1;
+    audioState.disco = false;
+    audioState.volumeListeners.length = 0;
+    audioState.discoListeners.length = 0;
+    vi.stubGlobal('window', { AudioContext: FakeContext });
+    sounds = await import('@/lib/voiceSounds');
+  });
+
+  afterEach(() => {
+    sounds.resetVoiceSoundsForTests();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('is a silent no-op without Web Audio', async () => {
     vi.stubGlobal('window', {});
-    vi.stubGlobal('Audio', class AudioStub {
-      constructor(src: string) {
-        const el = new FakeAudio(src);
-        created.push(el);
-        return el;
-      }
-    });
-  });
-
-  afterEach(async () => {
-    const { resetVoiceSoundsForTests } = await import('@/lib/voiceSounds');
-    resetVoiceSoundsForTests();
-    vi.unstubAllGlobals();
-  });
-
-  it('no-ops on SSR and unlocks cached versioned elements with relative voiceAgent gain', async () => {
-    vi.unstubAllGlobals();
-    const {
-      primeVoiceSounds,
-      startVoiceAmbient,
-      playVoiceAction,
-      playVoiceToggle,
-      stopVoiceSounds,
-      resetVoiceSoundsForTests,
-    } = await import('@/lib/voiceSounds');
+    vi.resetModules();
+    const bare = await import('@/lib/voiceSounds');
+    const onDone = vi.fn();
     expect(() => {
-      primeVoiceSounds();
-      startVoiceAmbient();
-      playVoiceAction();
-      playVoiceToggle();
-      stopVoiceSounds();
+      bare.primeVoiceSounds();
+      bare.playVoiceConnect(onDone);
+      bare.startVoiceAmbient();
+      bare.playVoiceAction();
+      bare.playVoiceHangup();
+      bare.stopVoiceSounds();
     }).not.toThrow();
-    resetVoiceSoundsForTests();
-
-    vi.stubGlobal('window', {});
-    vi.stubGlobal('Audio', class AudioStub {
-      constructor(src: string) {
-        const el = new FakeAudio(src);
-        created.push(el);
-        return el;
-      }
-    });
-
-    getEffectiveAudioCategoryVolumeSync.mockReturnValue(0.5);
-    primeVoiceSounds();
-    expect(created).toHaveLength(3);
-    expect(created[0]?.src).toBe(`/sounds/voice/ambient.mp3?v=${SITE_VERSION}`);
-    expect(created[1]?.src).toBe(`/sounds/voice/action.mp3?v=${SITE_VERSION}`);
-    expect(created[2]?.src).toBe(`/sounds/voice/toggle.mp3?v=${SITE_VERSION}`);
-    expect(created[0]?.loop).toBe(true);
-    expect(created[1]?.loop).toBe(false);
-    expect(created[0]?.volume).toBeCloseTo(0.18, 5);
-    expect(created[1]?.volume).toBeCloseTo(0.19, 5);
-    expect(created[2]?.volume).toBeCloseTo(0.19, 5);
-    expect(created[0]?.muted).toBe(true);
-    expect(created[1]?.muted).toBe(true);
-    expect(created[2]?.muted).toBe(false);
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(created[0]?.paused).toBe(true);
-    expect(created[1]?.paused).toBe(true);
-    expect(created[0]?.muted).toBe(false);
-    expect(created[1]?.muted).toBe(false);
-    expect(created[0]?.currentTime).toBe(0);
-    expect(created[1]?.currentTime).toBe(0);
-    expect(subscribeAudioCategoryVolume).not.toHaveBeenCalled();
-
-    primeVoiceSounds();
-    expect(created).toHaveLength(3);
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
-  it('starts ambient only after the lifecycle toggle finishes', async () => {
-    const {
-      playVoiceToggle,
-      primeVoiceSounds,
-      startVoiceAmbient,
-    } = await import('@/lib/voiceSounds');
+  it('fades the room tone in under the tail of the connect chime', () => {
+    sounds.primeVoiceSounds();
+    sounds.playVoiceConnect(sounds.startVoiceAmbient);
+    const ctx = contexts[0]!;
+    expect(ctx.oscillators.filter((osc) => osc.started)).toHaveLength(6);
+    expect(ctx.sources).toHaveLength(0);
 
-    primeVoiceSounds();
-    await Promise.resolve();
-    await Promise.resolve();
-    const ambient = created[0]!;
-    const toggle = created[2]!;
-    ambient.playCalls = 0;
-
-    playVoiceToggle(startVoiceAmbient);
-    expect(toggle.playCalls).toBe(1);
-    expect(ambient.playCalls).toBe(0);
-
-    toggle.finish();
-    expect(ambient.playCalls).toBe(1);
-    expect(ambient.loop).toBe(true);
+    vi.runOnlyPendingTimers();
+    expect(ctx.sources[0]?.loop).toBe(true);
+    expect(ambientLevel(ctx).gain.target).toBeCloseTo(VOICE_SOUND_TOKENS.ambient.gain);
   });
 
-  it('starts ambient once when lifecycle toggle playback is rejected', async () => {
-    const {
-      playVoiceToggle,
-      primeVoiceSounds,
-      startVoiceAmbient,
-    } = await import('@/lib/voiceSounds');
+  it('ducks under agent speech, yields to disco, and stays quiet after the call ends', () => {
+    sounds.startVoiceAmbient();
+    const ctx = contexts[0]!;
+    const level = ambientLevel(ctx);
+    const { gain, duckRatio } = VOICE_SOUND_TOKENS.ambient;
 
-    primeVoiceSounds();
-    await Promise.resolve();
-    await Promise.resolve();
-    const ambient = created[0]!;
-    const toggle = created[2]!;
-    ambient.playCalls = 0;
-    toggle.playShouldReject = true;
+    sounds.duckVoiceAmbient(true);
+    expect(level.gain.target).toBeCloseTo(gain * duckRatio);
+    sounds.duckVoiceAmbient(false);
+    vi.advanceTimersByTime(VOICE_SOUND_TOKENS.ambient.duckHoldMs);
+    expect(level.gain.target).toBeCloseTo(gain);
 
-    playVoiceToggle(startVoiceAmbient);
-    expect(ambient.playCalls).toBe(0);
+    audioState.disco = true;
+    audioState.discoListeners.forEach((listener) => listener(true));
+    expect(level.gain.target).toBe(0);
+    audioState.disco = false;
+    audioState.discoListeners.forEach((listener) => listener(false));
+    expect(level.gain.target).toBeCloseTo(gain);
 
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(ambient.playCalls).toBe(1);
-
-    toggle.finish();
-    expect(ambient.playCalls).toBe(1);
+    sounds.stopVoiceSounds();
+    expect(level.gain.target).toBe(0);
+    expect(audioState.discoListeners).toHaveLength(0);
+    expect(audioState.volumeListeners).toHaveLength(0);
+    vi.runAllTimers();
+    expect(ctx.sources[0]?.stopped).toBe(true);
+    expect(ctx.state).toBe('suspended');
   });
 
-  it('starts only ambient, plays only action, subscribes while active, and swallows play rejection', async () => {
-    const {
-      primeVoiceSounds,
-      startVoiceAmbient,
-      playVoiceAction,
-      stopVoiceSounds,
-    } = await import('@/lib/voiceSounds');
+  it('holds the duck through speech gaps, then releases slowly after uninterrupted quiet', () => {
+    sounds.startVoiceAmbient();
+    const level = ambientLevel(contexts[0]!).gain;
+    const { gain, duckRatio, duckHoldMs, duckAttackSec, duckReleaseSec } = VOICE_SOUND_TOKENS.ambient;
+    sounds.duckVoiceAmbient(true);
+    expect(level.events.at(-1)?.constant).toBeCloseTo(duckAttackSec / 3);
 
-    primeVoiceSounds();
-    await Promise.resolve();
-    await Promise.resolve();
-    const ambient = created[0]!;
-    const action = created[1]!;
-    ambient.playCalls = 0;
-    action.playCalls = 0;
+    sounds.duckVoiceAmbient(false);
+    vi.advanceTimersByTime(duckHoldMs - 1);
+    expect(level.target).toBeCloseTo(gain * duckRatio);
+    sounds.duckVoiceAmbient(true);
+    vi.advanceTimersByTime(duckHoldMs);
+    expect(level.target).toBeCloseTo(gain * duckRatio);
 
-    startVoiceAmbient();
-    expect(ambient.playCalls).toBe(1);
-    expect(action.playCalls).toBe(0);
-    expect(ambient.loop).toBe(true);
-    expect(subscribeAudioCategoryVolume).toHaveBeenCalledTimes(1);
-    expect(subscribeAudioCategoryVolume.mock.calls[0]?.[0]).toBe('voiceAgent');
-
-    action.currentTime = 1.2;
-    playVoiceAction();
-    expect(action.currentTime).toBe(0);
-    expect(action.playCalls).toBe(1);
-    expect(ambient.playCalls).toBe(1);
-    expect(subscribeAudioCategoryVolume).toHaveBeenCalledTimes(1);
-
-    volumeListeners[0]?.(0.25);
-    expect(ambient.volume).toBeCloseTo(0.09, 5);
-    expect(action.volume).toBeCloseTo(0.095, 5);
-
-    action.playShouldReject = true;
-    action.currentTime = 0.4;
-    expect(() => playVoiceAction()).not.toThrow();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    stopVoiceSounds();
-    expect(ambient.paused).toBe(true);
-    expect(action.paused).toBe(true);
-    expect(ambient.currentTime).toBe(0);
-    expect(action.currentTime).toBe(0);
-    expect(volumeListeners).toHaveLength(0);
-
-    startVoiceAmbient();
-    expect(subscribeAudioCategoryVolume).toHaveBeenCalledTimes(2);
-    expect(created).toHaveLength(3);
+    sounds.duckVoiceAmbient(false);
+    vi.advanceTimersByTime(100);
+    sounds.duckVoiceAmbient(false);
+    vi.advanceTimersByTime(duckHoldMs - 101);
+    expect(level.target).toBeCloseTo(gain * duckRatio);
+    vi.advanceTimersByTime(1);
+    expect(level.target).toBeCloseTo(gain);
+    expect(level.events.at(-1)?.constant).toBeCloseTo(duckReleaseSec / 3);
   });
 
-  it('does not replay, pause, reset, or mute live ambient when primed after start', async () => {
-    const { primeVoiceSounds, startVoiceAmbient } = await import('@/lib/voiceSounds');
-    startVoiceAmbient();
-    const ambient = created[0]!;
-    const action = created[1]!;
-    const playCalls = ambient.playCalls;
-    const pauseCalls = ambient.pauseCalls;
-    const currentTime = ambient.currentTime;
-    const muted = ambient.muted;
-    const actionPlayCalls = action.playCalls;
-    const actionPauseCalls = action.pauseCalls;
-
-    primeVoiceSounds();
-    expect(ambient.playCalls).toBe(playCalls);
-    expect(ambient.pauseCalls).toBe(pauseCalls);
-    expect(ambient.currentTime).toBe(currentTime);
-    expect(ambient.muted).toBe(muted);
-    expect(ambient.paused).toBe(false);
-    expect(action.playCalls).toBe(actionPlayCalls);
-    expect(action.pauseCalls).toBe(actionPauseCalls);
+  it('cancels a pending duck release on stop and fades before stopping the ambient source', () => {
+    sounds.startVoiceAmbient();
+    const ctx = contexts[0]!;
+    const level = ambientLevel(ctx).gain;
+    sounds.duckVoiceAmbient(true);
+    sounds.duckVoiceAmbient(false);
+    sounds.stopVoiceSounds();
+    const count = level.events.length;
+    expect(level.events.at(-1)?.constant).toBeCloseTo(VOICE_SOUND_TOKENS.ambient.fadeOutSec / 3);
+    vi.advanceTimersByTime(VOICE_SOUND_TOKENS.ambient.duckHoldMs);
+    expect(level.events).toHaveLength(count);
+    expect(level.target).toBe(0);
+    expect(ctx.sources[0]?.stopped).toBe(false);
+    vi.advanceTimersByTime(VOICE_SOUND_TOKENS.ambient.fadeOutSec * 1000 + 100);
+    expect(ctx.sources[0]?.stopped).toBe(true);
   });
 
-  it('does not let a late prime unlock restore pause live ambient', async () => {
-    const { primeVoiceSounds, startVoiceAmbient } = await import('@/lib/voiceSounds');
-    const unlockDeferred: { resolve: (() => void) | null } = { resolve: null };
-    primeVoiceSounds();
-    const ambient = created[0]!;
-    ambient.play = () => {
-      ambient.playCalls += 1;
-      ambient.paused = false;
-      return new Promise<void>(resolve => {
-        unlockDeferred.resolve = resolve;
-      });
-    };
-
-    primeVoiceSounds();
-    expect(ambient.muted).toBe(true);
-    startVoiceAmbient();
-    expect(ambient.paused).toBe(false);
-    expect(ambient.muted).toBe(false);
-
-    unlockDeferred.resolve?.();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(ambient.paused).toBe(false);
-    expect(ambient.muted).toBe(false);
+  it('rate-limits action ticks without postponing the next allowed tick', () => {
+    sounds.playVoiceAction();
+    const ctx = contexts[0]!;
+    expect(ctx.oscillators).toHaveLength(1);
+    expect(ctx.gains.at(-1)?.gain.events).toContainEqual(expect.objectContaining({ kind: 'linear', value: VOICE_SOUND_TOKENS.action.peakGain }));
+    vi.advanceTimersByTime(VOICE_SOUND_TOKENS.action.minIntervalMs - 1);
+    sounds.playVoiceAction();
+    expect(ctx.oscillators).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    sounds.playVoiceAction();
+    expect(ctx.oscillators).toHaveLength(2);
   });
 
-  it('suppresses ambient while disco is active, resumes only while requested, and does not revive after stop', async () => {
-    const {
-      startVoiceAmbient,
-      playVoiceAction,
-      playVoiceToggle,
-      stopVoiceSounds,
-    } = await import('@/lib/voiceSounds');
+  it.each(['connect', 'hangup', 'action'] as const)('uses click-free attack and decay envelopes for %s', (cue) => {
+    if (cue === 'connect') sounds.playVoiceConnect();
+    if (cue === 'hangup') sounds.playVoiceHangup();
+    if (cue === 'action') sounds.playVoiceAction();
+    const ctx = contexts[0]!;
+    const envelopes = ctx.gains.filter(node => node.gain.events.some(event => event.kind === 'linear'));
+    expect(envelopes.length).toBeGreaterThan(0);
+    for (const { gain } of envelopes) {
+      const [start, attack, decay] = gain.events;
+      expect(start).toMatchObject({ kind: 'set', value: 0 });
+      expect(attack?.kind).toBe('linear');
+      expect(attack!.at - start!.at).toBeGreaterThanOrEqual(0.004 - Number.EPSILON);
+      expect(decay).toMatchObject({ kind: 'exponential', value: 0.0001 });
+      expect(ctx.oscillators.some(osc => Math.abs(osc.stopAt - decay!.at - 0.05) < Number.EPSILON)).toBe(true);
+    }
+  });
+  it('follows the voiceAgent volume while active', () => {
+    audioState.volume = 0.5;
+    sounds.startVoiceAmbient();
+    const out = contexts[0]!.gains[0]!;
+    expect(out.gain.value).toBe(0.5);
 
-    const setDisco = (active: boolean) => {
-      getDiscoActiveSync.mockReturnValue(active);
-      for (const listener of [...discoListeners]) listener(active);
-    };
-
-    setDisco(true);
-    startVoiceAmbient();
-    const ambient = created[0]!;
-    const action = created[1]!;
-    const toggle = created[2]!;
-    expect(ambient.playCalls).toBe(0);
-    expect(ambient.paused).toBe(true);
-    expect(subscribeDiscoActive).toHaveBeenCalledTimes(1);
-
-    setDisco(false);
-    expect(ambient.playCalls).toBe(1);
-    expect(ambient.paused).toBe(false);
-
-    ambient.currentTime = 1.4;
-    setDisco(true);
-    expect(ambient.paused).toBe(true);
-    expect(ambient.currentTime).toBe(1.4);
-
-    playVoiceAction();
-    playVoiceToggle();
-    expect(action.playCalls).toBe(1);
-    expect(toggle.playCalls).toBe(1);
-
-    setDisco(false);
-    expect(ambient.playCalls).toBe(2);
-    expect(ambient.paused).toBe(false);
-    expect(ambient.currentTime).toBe(1.4);
-
-    stopVoiceSounds();
-    expect(ambient.paused).toBe(true);
-    expect(ambient.currentTime).toBe(0);
-    expect(discoListeners).toHaveLength(0);
-
-    const playCallsAfterStop = ambient.playCalls;
-    setDisco(true);
-    setDisco(false);
-    expect(ambient.playCalls).toBe(playCallsAfterStop);
-    expect(ambient.paused).toBe(true);
+    audioState.volumeListeners.forEach((listener) => listener(0.2));
+    expect(out.gain.target).toBe(0.2);
   });
 });

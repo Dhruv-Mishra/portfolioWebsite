@@ -3,6 +3,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { cn } from '@/lib/utils';
+import { Z_INDEX } from '@/lib/designTokens';
+import '@/components/projects/projects.css';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 
 export interface MediaSlide {
@@ -23,7 +25,7 @@ interface MediaCarouselProps {
 }
 
 const ACTIVE_RATIO = 0.6;
-const ARROW_CLASS = 'absolute top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white shadow-md transition-[background-color,opacity] hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:pointer-events-none disabled:opacity-0 sm:flex';
+const ARROW_CLASS = 'project-media-arrows project-media-control focus-ring';
 
 /** Native scroll-snap swiping; a slide's content mounts only once it starts scrolling into view. */
 export default function MediaCarousel({ slides, label, onActiveChange, ref }: MediaCarouselProps) {
@@ -71,7 +73,12 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
                 ref={scrollerRef}
                 tabIndex={count > 1 ? 0 : undefined}
                 aria-label={count > 1 ? `${label}, swipe or use arrow keys` : undefined}
-                className="scrollbar-hidden flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                className="scrollbar-hidden focus-ring flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+                onKeyDown={(event) => {
+                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                    event.preventDefault();
+                    goTo(active + (event.key === 'ArrowRight' ? 1 : -1));
+                }}
             >
                 {slides.map((slide, index) => (
                     <div
@@ -97,6 +104,7 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
                         aria-label="Previous media"
                         data-clickable
                         className={cn(ARROW_CLASS, 'left-3')}
+                        style={{ zIndex: Z_INDEX.crease }}
                     >
                         <ChevronLeft size={20} />
                     </button>
@@ -107,10 +115,11 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
                         aria-label="Next media"
                         data-clickable
                         className={cn(ARROW_CLASS, 'right-3')}
+                        style={{ zIndex: Z_INDEX.crease }}
                     >
                         <ChevronRight size={20} />
                     </button>
-                    <div className="absolute bottom-1 left-1/2 z-20 flex -translate-x-1/2">
+                    <div className="project-media-dots" style={{ zIndex: Z_INDEX.crease }}>
                         {slides.map((slide, index) => (
                             <button
                                 key={slide.key}
@@ -119,14 +128,9 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
                                 aria-label={`Show ${slide.label}`}
                                 aria-current={index === active ? 'true' : undefined}
                                 data-clickable
-                                className="flex h-11 w-7 items-center justify-center"
+                                className="project-media-dot focus-ring"
                             >
-                                <span
-                                    className={cn(
-                                        'block h-2 rounded-full bg-white shadow ring-1 ring-black/30 transition-[width,opacity] duration-200 motion-reduce:transition-none',
-                                        index === active ? 'w-5 opacity-100' : 'w-2 opacity-60',
-                                    )}
-                                />
+                                <span aria-hidden="true" />
                             </button>
                         ))}
                     </div>

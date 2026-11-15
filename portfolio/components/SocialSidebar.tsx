@@ -1,315 +1,119 @@
 "use client";
 
-import * as React from "react";
-import { Github, Linkedin, Mail, Phone, BarChart2, Trophy, MessageSquare, Settings, Sun, Moon, ChevronDown, ChevronUp } from "lucide-react";
-import { useTheme } from "next-themes";
+import { memo, type ReactNode } from "react";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAppHaptics } from '@/lib/haptics';
+import { BarChart2, Github, Linkedin, Mail, MessageSquare, Settings, Trophy, type LucideIcon } from "lucide-react";
+import { ThemeToggle } from '@/components/ThemeToggle';
+import SoundToggleButton from '@/components/SoundToggleButton';
+import GlobalVoiceFab from '@/components/voice/GlobalVoiceFab';
+import { unlockSticker } from '@/hooks/useStickers';
 import { SOCIAL_COLORS, Z_INDEX } from '@/lib/designTokens';
+import { useAppHaptics } from '@/lib/haptics';
 import { PERSONAL_LINKS } from '@/lib/links';
-import { unlockSticker, useDiscoActive } from '@/hooks/useStickers';
-import { runThemeToggle } from '@/lib/themeToggleAction';
-import { Tooltip } from '@/components/ui/Tooltip';
 import { cn } from '@/lib/utils';
 
-const MOBILE_ROUND_BUTTON = "flex shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-gray-500 shadow-sticker transition-[color,transform] duration-200 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-gray-600";
-// Note: soundManager import removed — the mobile theme button now routes
-// audio playback through `runThemeToggle` so the desktop + mobile handlers
-// share exactly one code path. The shared helper owns the cricket/rooster
-// audio call itself.
+export interface SocialEntry {
+    name: string;
+    icon: LucideIcon;
+    url: string;
+    color: string;
+}
 
-const subscribeToHydration = () => () => { };
-const getClientHydrationSnapshot = () => true;
-const getServerHydrationSnapshot = () => false;
-
-const SOCIALS = [
-    {
-        name: "GitHub",
-        icon: Github,
-        url: PERSONAL_LINKS.github,
-        color: SOCIAL_COLORS.github
-    },
-    {
-        name: "LinkedIn",
-        icon: Linkedin,
-        url: PERSONAL_LINKS.linkedin,
-        color: SOCIAL_COLORS.linkedin
-    },
-    {
-        name: "Email",
-        icon: Mail,
-        url: PERSONAL_LINKS.email,
-        color: SOCIAL_COLORS.email
-    },
-    {
-        name: "Phone",
-        icon: Phone,
-        url: PERSONAL_LINKS.phone,
-        color: SOCIAL_COLORS.phone
-    },
-    {
-        name: "Codeforces",
-        icon: BarChart2,
-        url: PERSONAL_LINKS.codeforces,
-        color: SOCIAL_COLORS.codeforces
-    },
-    {
-        name: "CP History",
-        icon: Trophy,
-        url: PERSONAL_LINKS.cpHistory,
-        color: SOCIAL_COLORS.cpHistory
-    }
+export const SOCIALS: readonly SocialEntry[] = [
+    { name: "GitHub", icon: Github, url: PERSONAL_LINKS.github, color: SOCIAL_COLORS.github },
+    { name: "LinkedIn", icon: Linkedin, url: PERSONAL_LINKS.linkedin, color: SOCIAL_COLORS.linkedin },
+    { name: "Email", icon: Mail, url: PERSONAL_LINKS.email, color: SOCIAL_COLORS.email },
+    { name: "Codeforces", icon: BarChart2, url: PERSONAL_LINKS.codeforces, color: SOCIAL_COLORS.codeforces },
 ];
 
-const SocialLink = React.memo(function SocialLink({ social, isMobile, index, onPress }: { social: typeof SOCIALS[0], isMobile?: boolean, index?: number, onPress: () => void }) {
-    const handleClick = () => {
-        onPress();
-        // Social link click → social-butterfly. Idempotent via store dedupe.
-        unlockSticker('social-butterfly');
-    };
-    if (isMobile) {
-        return (
-            <a
-                href={social.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleClick}
-                className={cn(MOBILE_ROUND_BUTTON, 'relative h-11 w-11 font-hand focus-visible:outline-indigo-500', social.color)}
-                title={social.name}
-                aria-label={social.name}
-            >
-                <social.icon size={14} strokeWidth={2.5} />
-            </a>
-        );
-    }
+const RAIL_SOCIALS: readonly SocialEntry[] = [
+    ...SOCIALS,
+    { name: "CP History", icon: Trophy, url: PERSONAL_LINKS.cpHistory, color: SOCIAL_COLORS.cpHistory },
+];
 
+const RAIL_ICON_CLASS = "relative flex size-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-[var(--dur-quick)] hover:scale-110 focus-ring";
+
+export function onSocialPress(onPress: () => void) {
+    onPress();
+    unlockSticker('social-butterfly');
+}
+
+/** A rail item with a handwritten label that slides out to its left on hover or keyboard focus. */
+function RailSlot({ label, children }: { label?: string; children: ReactNode }) {
     return (
-        <a
-            href={social.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleClick}
-            className={`animate-social-link text-gray-400 transition-[color,transform] duration-300 ${social.color} relative group flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500`}
-            title={social.name}
-            aria-label={social.name}
-            style={{ animationDelay: `${0.5 + ((index || 0) * 0.1)}s` }}
-        >
-            <div className="absolute inset-0 bg-gray-200/50 rounded-full scale-0 group-hover:scale-150 transition-transform -z-10" />
-            <social.icon size={24} strokeWidth={2.5} className="md:w-7 md:h-7" />
-            <span className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-sm font-hand font-bold text-gray-600 dark:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded shadow-sm">
-                {social.name}
-            </span>
-        </a>
-    );
-});
-
-const MOBILE_SOCIALS = SOCIALS.filter((social) => social.name !== "CP History");
-
-const SettingsLink = React.memo(function SettingsLink({ isMobile = false, onPress }: { isMobile?: boolean; onPress: () => void }) {
-    const link = (
-        <Link
-            href="/settings"
-            onClick={onPress}
-            className={isMobile
-                ? cn(MOBILE_ROUND_BUTTON, "relative h-11 w-11 hover:text-emerald-600 focus-visible:outline-emerald-500")
-                : "animate-social-link relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-emerald-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"}
-            title="Settings"
-            aria-label="Open settings"
-        >
-            <Settings size={isMobile ? 14 : 24} strokeWidth={2.5} className={isMobile ? undefined : "md:h-7 md:w-7"} />
-        </Link>
-    );
-
-    return isMobile ? link : <Tooltip label="Settings">{link}</Tooltip>;
-});
-
-/**
- * Mobile theme button — mirrors the desktop `ThemeToggle` behaviour so the
- * two buttons stay in lock-step. Subscribes to `discoActive` (Bug 2c) so
- * that while disco is engaged the button paints the disco-ball doodle
- * instead of the sun/moon, and flips its aria-label to "Exit disco mode".
- * The click handler routes through the shared `runThemeToggle` helper (Bug
- * 2b) so we have exactly ONE code path that clears the disco flag — any
- * remnants previously seen on mobile (sparkles / spotlights / body
- * gradient) stuck around because the old handler only flipped the
- * `next-themes` preference without touching `discoActive`.
- *
- * The pre-mount shell matches the 44px control so neighbouring icons do not
- * shuffle on hydrate.
- */
-const MobileThemeButton = React.memo(function MobileThemeButton({ onPress }: { onPress: () => void }) {
-    const { setTheme, resolvedTheme } = useTheme();
-    const discoActive = useDiscoActive();
-    const mounted = React.useSyncExternalStore(
-        subscribeToHydration,
-        getClientHydrationSnapshot,
-        getServerHydrationSnapshot,
-    );
-    if (!mounted) return <div className="h-11 w-11 shrink-0" />;
-    const isDark = resolvedTheme === 'dark';
-    const ariaLabel = discoActive ? 'Exit disco mode' : 'Toggle theme';
-    return (
-        <button
-            type="button"
-            onClick={() => {
-                onPress();
-                runThemeToggle({ discoActive, isDark, setTheme });
-            }}
-            className={cn(MOBILE_ROUND_BUTTON, "relative h-11 w-11 font-hand hover:text-amber-500 focus-visible:outline-indigo-500")}
-            title={ariaLabel}
-            aria-label={ariaLabel}
-            data-disco-bounce="1"
-        >
-            {discoActive ? (
-                /* Disco ball — matches the desktop `ThemeToggle` variant. Scaled
-                    to 14px so it matches the sun / moon footprint at the 14px
-              lucide sizes we ship elsewhere in the mobile pill. */
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-fuchsia-500">
-                    <path d="M12 2v3" />
-                    <circle cx="12" cy="13" r="7" className="fill-fuchsia-200/40 dark:fill-fuchsia-900/40" />
-                    <path d="M5 13h14" opacity="0.55" />
-                    <path d="M12 6v14" opacity="0.55" />
-                    <path d="M7 9c1.5 2 8 2 10 0" opacity="0.45" />
-                    <path d="M7 17c1.5-2 8-2 10 0" opacity="0.45" />
-                    <path d="M9 7.2c0.9 3 5.1 3 6 0" opacity="0.35" />
-                    <path d="M9 18.8c0.9-3 5.1-3 6 0" opacity="0.35" />
-                    <path d="M2.5 7.5l1.5-1" opacity="0.6" />
-                    <path d="M21.5 16.5l-1.5-1" opacity="0.6" />
-                </svg>
-            ) : isDark ? (
-                <Sun size={14} strokeWidth={2.5} />
-            ) : (
-                <Moon size={14} strokeWidth={2.5} />
-            )}
-        </button>
-    );
-});
-
-// Mobile sound toggle lives in `MobileSoundToggleFab`, a dedicated floating
-// FAB rendered by `SketchbookLayout`. The social pill
-// no longer carries a mute button so we don't double-render the control on
-// narrow viewports.
-
-function MobileSocialBar({ children }: React.PropsWithChildren) {
-    const [isDrawerExpanded, setIsDrawerExpanded] = React.useState(false);
-
-    return (
-        <div
-            data-social-sidebar-frame
-            data-social-sidebar-layout="mobile"
-            data-mobile-social-frame
-            className="md:hidden fixed -translate-x-1/2"
-            style={{
-                zIndex: Z_INDEX.sidebar,
-                bottom: 'var(--c-mobile-dock-bottom)',
-                left: 'calc((100% + var(--c-binding-w) + env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / 2)',
-                maxWidth: 'calc(100vw - var(--c-binding-w) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem)',
-            }}
-        >
-            <div
-                id="mobile-social-drawer"
-                data-social-sidebar-frame
-                data-social-sidebar-layout="mobile"
-                className={`relative max-w-full rounded-3xl border-2 border-dashed border-[var(--c-grid)]/50 bg-[var(--c-paper)]/85 shadow-md ${isDrawerExpanded ? 'w-max p-1.5' : 'h-1 w-14 border-transparent bg-transparent p-0 shadow-none'}`}
-            >
-                <button
-                    type="button"
-                    onClick={() => setIsDrawerExpanded((isExpanded) => !isExpanded)}
-                    className={cn(MOBILE_ROUND_BUTTON, 'absolute h-11 w-11 hover:text-indigo-600 focus-visible:outline-indigo-500', isDrawerExpanded ? '-top-12 right-1' : '-top-11 right-1')}
-                    title={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
-                    aria-label={isDrawerExpanded ? 'Collapse social drawer' : 'Expand social drawer'}
-                    aria-expanded={isDrawerExpanded}
-                    aria-controls="mobile-social-drawer-content"
-                >
-                    {isDrawerExpanded ? <ChevronDown size={14} strokeWidth={2.5} /> : <ChevronUp size={14} strokeWidth={2.5} />}
-                </button>
-                <div
-                    id="mobile-social-drawer-content"
-                    data-social-sidebar
-                    className={isDrawerExpanded ? "grid grid-cols-[repeat(4,44px)] gap-1" : "hidden"}
-                    role="complementary"
-                    aria-label="Social media links"
-                >
-                    {isDrawerExpanded && children}
-                </div>
-            </div>
+        <div className="group/rail animate-social-link relative">
+            {children}
+            {label ? (
+                <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded bg-white/85 px-2 py-1 font-hand text-sm text-gray-700 opacity-0 shadow-sm transition-opacity duration-[var(--dur-micro)] group-hover/rail:opacity-100 group-has-[:focus-visible]/rail:opacity-100 dark:bg-gray-800/85 dark:text-gray-200">
+                    {label}
+                </span>
+            ) : null}
         </div>
     );
 }
 
-export default function SocialSidebar({ onFeedbackClick }: { onFeedbackClick?: () => void }) {
-    const { externalLink, openPanel, toggle } = useAppHaptics();
+/** Desktop right rail: socials, then site tools. Mobile uses SiteDock instead. */
+function SocialSidebar({ onFeedbackClick }: { onFeedbackClick: () => void }) {
+    const { externalLink, openPanel } = useAppHaptics();
     const pathname = usePathname();
-    // The dedicated chat route owns the bottom of the viewport (input bar +
-    // suggestion strip) on mobile — hide the floating mobile pill there
-    // to free vertical real estate. Desktop sidebar is harmless (off to
-    // the right edge) so it stays on every route.
-    const hideMobileBar = pathname === '/chat';
-    const isSettingsRoute = pathname === '/settings';
 
     return (
-        <>
-            {/* Desktop: Vertical sidebar on right */}
-            <div
-                data-social-sidebar
-                data-social-sidebar-layout="desktop"
-                className="hidden md:flex fixed right-4 md:right-8 flex-col gap-6"
-                role="complementary"
-                aria-label="Social media links"
-                style={{ zIndex: Z_INDEX.sidebar }}
-            >
-                {SOCIALS.map((social, i) => (
-                    <SocialLink key={social.name} social={social} index={i} onPress={externalLink} />
-                ))}
-                {!isSettingsRoute && <SettingsLink onPress={openPanel} />}
-                {onFeedbackClick && (
-                    <button
-                        type="button"
-                        data-social-feedback-short
-                        onClick={() => {
-                            openPanel();
-                            onFeedbackClick();
-                        }}
-                        className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-400 transition-[color,transform] duration-300 hover:scale-110 hover:text-purple-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
-                        title="Send feedback"
-                        aria-label="Open feedback form"
+        <aside
+            data-social-sidebar
+            data-social-sidebar-frame
+            data-social-sidebar-layout="desktop"
+            className="fixed right-[var(--c-rail-right)] hidden flex-col items-center gap-2 md:flex"
+            aria-label="Social links and site tools"
+            style={{ zIndex: Z_INDEX.sidebar }}
+        >
+            {RAIL_SOCIALS.map((social) => (
+                <RailSlot key={social.name} label={social.name}>
+                    <a
+                        href={social.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => onSocialPress(externalLink)}
+                        className={cn(RAIL_ICON_CLASS, social.color)}
+                        aria-label={social.name}
                     >
-                        <MessageSquare size={24} strokeWidth={2.5} className="md:h-7 md:w-7" />
-                    </button>
-                )}
-            </div>
+                        <social.icon size={24} strokeWidth={2.2} aria-hidden="true" />
+                    </a>
+                </RailSlot>
+            ))}
 
-            {/* Mobile: Floating circular buttons at bottom — offset by half the binding width to center within the content area.
-                max-w caps the pill to 92vw so on very narrow viewports (iPhone SE 320px) the pill fits
-                inside the content column even if an OS-level minimum font size or a11y scale inflates child widths. */}
-            {!hideMobileBar && (
-                <MobileSocialBar>
-                    {MOBILE_SOCIALS.map((social) => (
-                        <SocialLink key={social.name} social={social} isMobile onPress={externalLink} />
-                    ))}
+            <svg aria-hidden="true" viewBox="0 0 24 6" className="my-1 h-1.5 w-6 text-[var(--c-ink-faint)]">
+                <path d="M1 3.5 C 6 1.5, 12 5, 23 2.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
 
-                    {onFeedbackClick && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                openPanel();
-                                onFeedbackClick();
-                            }}
-                            className={cn(MOBILE_ROUND_BUTTON, "relative h-10 w-10 font-hand hover:text-purple-600 focus-visible:outline-purple-500 before:absolute before:-inset-0.5 before:min-h-[44px] before:min-w-[44px]")}
-                            title="Send feedback"
-                            aria-label="Open feedback form"
-                        >
-                            <MessageSquare size={14} strokeWidth={2.5} />
-                        </button>
-                    )}
-
-                    <MobileThemeButton onPress={toggle} />
-
-                    {!isSettingsRoute && <SettingsLink isMobile onPress={openPanel} />}
-                </MobileSocialBar>
-            )}
-        </>
+            <RailSlot label="Talk to AI Dhruv">
+                <GlobalVoiceFab className={cn(RAIL_ICON_CLASS, "text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200")} />
+            </RailSlot>
+            <RailSlot label="Theme"><ThemeToggle /></RailSlot>
+            <RailSlot><SoundToggleButton /></RailSlot>
+            <RailSlot label="Send feedback">
+                <button
+                    type="button"
+                    onClick={() => {
+                        openPanel();
+                        onFeedbackClick();
+                    }}
+                    data-feedback-trigger
+                    className={cn(RAIL_ICON_CLASS, "hover:text-purple-600")}
+                    aria-label="Open feedback form"
+                >
+                    <MessageSquare size={22} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+            </RailSlot>
+            {pathname !== '/settings' ? (
+                <RailSlot label="Settings">
+                    <Link href="/settings" onClick={openPanel} className={cn(RAIL_ICON_CLASS, "hover:text-emerald-600")} aria-label="Open settings">
+                        <Settings size={22} strokeWidth={2.2} aria-hidden="true" />
+                    </Link>
+                </RailSlot>
+            ) : null}
+        </aside>
     );
 }
 
+export default memo(SocialSidebar);

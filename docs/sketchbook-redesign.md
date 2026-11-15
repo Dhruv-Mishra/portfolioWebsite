@@ -58,3 +58,15 @@ Bytes that grew on purpose:
 - **Projects images:** the photos load after first paint (+158 KB on phones).
 
 Only the first project photo is eager. Next preloads eager images in `<head>`, where they compete with render-blocking CSS on slow phones.
+
+### Live: production vs staging
+
+Production `v0.64.0` at whoisdhruv.com vs staging `v0.67.0` at staging.whoisdhruv.com, measured over the internet through Cloudflare with the same profiles (medians of 7 mobile and 5 desktop runs).
+
+| Page | Mobile LCP | Mobile TBT | Desktop LCP | Desktop TBT |
+|---|---|---|---|---|
+| Home | 1388 → 1356 ms | 153 → 163 ms | 792 → 1092 ms* | 0 → 6 ms |
+| Projects | 1596 → **1448 ms** | 232 → **109 ms** | 1072 → **944 ms** | 34 → **0 ms** |
+| About | 1464 → 1504 ms* | 259 → **181 ms** | 1184 → **992 ms** | 45 → **20 ms** |
+
+\* Staging's first byte was 196–250 ms slower on these runs, because the low-traffic origin has colder caches. Measured from first byte, about mobile renders in 811 ms vs 967 ms. Home desktop renders in 399 ms vs 349 ms.

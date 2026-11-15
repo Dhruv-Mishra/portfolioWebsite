@@ -13,9 +13,9 @@ describe('project records', () => {
     expect(FEATURED_PROJECT_SLUGS).toEqual(PROJECTS.slice(0, 6).map(project => project.slug));
   });
 
-  it.each(PROJECTS)('$slug has concise plain-text copy and a worded role', project => {
+  it.each(PROJECTS)('$slug has a two-line tile summary, a longer story, and a worded role', project => {
     expect(project.summary.length).toBeGreaterThan(0);
-    expect(project.summary.length).toBeLessThanOrEqual(90);
+    expect(project.summary.length).toBeLessThanOrEqual(50);
     expect(project.details.length).toBeGreaterThan(project.summary.length);
     expect(project.details.length).toBeLessThanOrEqual(300);
     expect(project.role).not.toContain('+');

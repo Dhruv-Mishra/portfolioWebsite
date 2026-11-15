@@ -3,6 +3,7 @@ import type { ProjectSlug } from '@/lib/projectCatalog';
 export interface ProjectRecord {
   slug: ProjectSlug;
   name: string;
+  /** Two-line pitch for project tiles and the home carousel; `details` is the expanded story. */
   summary: string;
   details: string;
   demo?: string;
@@ -41,7 +42,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'jarvis-voice-agent',
     name: 'Jarvis',
-    summary: 'Call an AI freight dispatcher. It finds loads, assigns carriers and haggles over rates.',
+    summary: 'Phone an AI dispatcher that haggles freight rates.',
     details: 'A voice agent for a demo logistics app. While you talk, it looks up loads, assigns carriers, negotiates freight rates and submits quotes through MCP tools, with RAG over load and carrier data. The call streams over one WebSocket and stays up as you move between pages.',
     demo: 'https://jarvis.whoisdhruv.com',
     link: 'https://github.com/Dhruv-Mishra/AudioControlledAgenticWebsite',
@@ -59,7 +60,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'personal-portfolio',
     name: 'This portfolio',
-    summary: 'The site you\'re on. Talk to its voice agent, interrupt it, and let it open pages for you.',
+    summary: 'This site, with a voice agent you can interrupt.',
     details: 'A hand-drawn sketchbook with a live voice agent you can interrupt mid-sentence. It has 25+ tools to switch pages, open projects, fill forms and run terminal commands. There\'s also a RAG chatbot with 5 LLMs (one self-hosted) and a retro terminal. Built on Next.js 16 and shipped as Docker images.',
     link: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
     image: '/resources/PersonalPortfolio.webp',
@@ -77,7 +78,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'invoke',
     name: 'Invoke',
-    summary: 'Speak a coding task and Copilot CLI agents take it on, each in its own Git worktree.',
+    summary: 'Talk to coding agents that work in parallel.',
     details: 'A Windows voice assistant for coding agents. It answers simple requests itself and hands bigger tasks to GitHub Copilot CLI agents, each in its own Git worktree so several can run at once. Speech-to-text, the LLM and text-to-speech all run locally; speculative decoding made generation 35% faster.',
     link: 'https://github.com/Dhruv-Mishra/Invoke-Voice',
     image: '/resources/Invoke.webp',
@@ -95,7 +96,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'cropio',
     name: 'Cropio',
-    summary: 'Turns a raw photo into clean headshots. Pose detection picks the crops, you fine-tune.',
+    summary: 'Pose detection turns raw photos into headshots.',
     details: 'A privacy-conscious portrait cropper. YOLO11 pose estimation and face-orientation detection suggest several headshot crops; an interactive editor lets you adjust them and export at full resolution in the browser. Saved sessions get AI descriptions and semantic search.',
     demo: 'https://cropio.whoisdhruv.com',
     link: 'https://github.com/Dhruv-Mishra/Cropio-ImageEditor',
@@ -114,7 +115,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'port-solace',
     name: 'Port Solace',
-    summary: 'A voxel open-world game in your browser. Drive, fly and pull a co-op heist with friends.',
+    summary: 'Co-op voxel heists you can play in the browser.',
     details: 'A voxel open-world game in a harbour city where the lights never quite go out. Drive cars, fly planes, ride jet skis and pull a co-op heist with up to four friends over peer-to-peer WebRTC. A custom three.js streaming engine meshes in Web Workers so nothing stutters, on desktop and phones.',
     demo: 'https://port-solace.vercel.app',
     link: 'https://github.com/Dhruv-Mishra/VoxelGame',
@@ -133,7 +134,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'fluent-ui-android',
     name: 'Fluent UI Android',
-    summary: 'Microsoft\'s open-source Compose library for 365 apps. I shipped 10 releases as maintainer.',
+    summary: 'Microsoft\'s Compose UI kit; I shipped 10 releases.',
     details: 'Microsoft\'s open-source Jetpack Compose component library for Microsoft 365 Android apps. As its primary maintainer I shipped 10 releases used by Copilot, Office, Outlook, OneDrive and Teams, and owned the library\'s security compliance.',
     link: 'https://github.com/microsoft/fluentui-android',
     image: '/resources/FluentUI.webp',
@@ -151,7 +152,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'bloom-filter-research',
     name: 'Bloom filter research',
-    summary: 'A lock-free counting Bloom filter in C++ with 3x the baseline throughput under contention.',
+    summary: 'A lock-free Bloom filter with 3x the throughput.',
     details: 'Undergrad research at IIIT Delhi\'s Distributed Computing Lab under Prof. Bapi Chatterjee. My lock-free C++ counting Bloom filter relaxes synchronization to reach 3x the baseline throughput under high contention, with error rates close to the strict version. Published in the IIIT Delhi repository.',
     link: 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',
     linkLabel: 'Read the paper',
@@ -170,7 +171,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'ivc-vital-checkup',
     name: 'IVC Vital Checkup',
-    summary: 'A camera kiosk that measures height, weight, BMI and pulse without touching anyone.',
+    summary: 'A camera kiosk that checks vitals hands-free.',
     details: 'A contactless health-screening kiosk that automates patient triage. One camera and an OpenCV and MediaPipe pipeline measure height, weight, BMI and pulse from a distance in real time, so patients spend less time waiting to be seen.',
     link: 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
     image: '/resources/InstantVitalCheckup.webp',
@@ -187,7 +188,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'hybrid-recommender',
     name: 'Hybrid Recommender',
-    summary: 'Movie picks that work even for brand-new users, by blending three filtering methods.',
+    summary: 'Movie picks that work even for brand-new users.',
     details: 'A context-aware movie recommender that blends collaborative, content-based and demographic filtering. Combining the three tackles the cold-start problem, so new users still get useful picks, and tunes suggestions to each viewer\'s age and context.',
     link: 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
     image: '/resources/HybridRecommender.webp',
@@ -205,7 +206,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'course-evaluator',
     name: 'Course Evaluator',
-    summary: 'Spots university courses that teach the same thing, so nobody takes one twice.',
+    summary: 'Flags courses that teach the same material.',
     details: 'A Python tool that compares course syllabi across university curriculums. Fuzzy matching and text similarity flag modules that cover the same material, with adjustable thresholds, so students don\'t end up taking the same course twice.',
     link: 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
     image: '/resources/CourseEvaluator.webp',
@@ -223,7 +224,7 @@ export const PROJECTS: ProjectRecord[] = [
   {
     slug: 'atomvault',
     name: 'AtomVault',
-    summary: 'A Java and MySQL banking database with rollback-safe transfers and role-based access.',
+    summary: 'A banking database with rollback-safe transfers.',
     details: 'A banking database built for reliable transactions. Every transfer is ACID-compliant with rollback and recovery, and role-based access control separates what admins, tellers and customers can do. Built with Java, JDBC and MySQL.',
     link: 'https://github.com/Dhruv-Mishra/AtomVault',
     image: '/resources/AtomVault.webp',
@@ -239,7 +240,7 @@ export const PROJECTS: ProjectRecord[] = [
   },
 ];
 
-export const PROJECTS_BY_SLUG: Record<ProjectSlug, ProjectRecord> = Object.fromEntries(
+const PROJECTS_BY_SLUG: Record<ProjectSlug, ProjectRecord> = Object.fromEntries(
   PROJECTS.map(project => [project.slug, project]),
 ) as Record<ProjectSlug, ProjectRecord>;
 

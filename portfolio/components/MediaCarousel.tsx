@@ -67,18 +67,22 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
         onActiveChange?.(active);
     }, [active, onActiveChange]);
 
+    // Arrow keys work from any control inside; the scroller itself stays out of the tab order (it holds the buttons).
     return (
-        <div className="relative h-full w-full" role="group" aria-roledescription="carousel" aria-label={label}>
+        <div
+            className="relative h-full w-full"
+            role="group"
+            aria-roledescription="carousel"
+            aria-label={label}
+            onKeyDown={count > 1 ? (event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                event.preventDefault();
+                goTo(active + (event.key === 'ArrowRight' ? 1 : -1));
+            } : undefined}
+        >
             <div
                 ref={scrollerRef}
-                tabIndex={count > 1 ? 0 : undefined}
-                aria-label={count > 1 ? `${label}, swipe or use arrow keys` : undefined}
-                className="scrollbar-hidden focus-ring flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
-                onKeyDown={(event) => {
-                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-                    event.preventDefault();
-                    goTo(active + (event.key === 'ArrowRight' ? 1 : -1));
-                }}
+                className="scrollbar-hidden flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
             >
                 {slides.map((slide, index) => (
                     <div

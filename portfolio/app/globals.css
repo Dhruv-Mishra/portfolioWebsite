@@ -18,7 +18,6 @@
   --color-pin-blue: #4a8fe7;
 
   --shadow-polaroid: 0 1px 1px rgba(0, 0, 0, 0.08), 0 6px 14px -6px rgba(0, 0, 0, 0.28);
-  --shadow-sheet: 0 1px 2px rgba(0, 0, 0, 0.06), 0 14px 34px -14px rgba(0, 0, 0, 0.22);
   --shadow-peek: 0 10px 24px -10px rgba(0, 0, 0, 0.3);
 
   /* Paper landing, paper leaving, and symmetric changes. Mirrors MOTION.ease in lib/designTokens.ts. */
@@ -60,11 +59,34 @@
     --c-focus: #4f46e5;
     --c-marker: rgba(250, 204, 21, 0.55);
     --c-sheet: #fffefa;
-    --c-sheet-rule: color-mix(in srgb, var(--c-grid-line) 30%, transparent);
-    --c-sheet-margin: rgba(220, 38, 38, 0.35);
     --c-polaroid: #fffdf8;
     --c-polaroid-ink: #2d2a2e;
-    --c-timeline-line: color-mix(in srgb, var(--c-ink) 30%, transparent);
+    /* Projects wall: sticky notes on the page grid. --c-project-compact scales tilt and fold on phones. */
+    --c-project-wall-max-w: 74rem;
+    --c-project-thumb-w: 7.5rem;
+    --c-project-tape-w: 6.5rem;
+    --c-project-tape-h: 1.75rem;
+    --c-project-compact: 0.5;
+    --c-project-hover-lift: -5px;
+    --c-project-hover-scale: 1.02;
+    --c-note-curl: rgba(0, 0, 0, 0.2);
+    --shadow-note: 1px 2px 3px rgba(0, 0, 0, 0.07), 3px 6px 14px -6px rgba(0, 0, 0, 0.2);
+    /* About timeline: a straight line in narrow columns, an S-curve once two tiles and the curve band fit.
+       Hover intent is not motion, so it stays active under reduced motion. */
+    --c-timeline-line: color-mix(in srgb, var(--c-ink) 42%, transparent);
+    --c-timeline-stroke: 2px;
+    --c-timeline-node: 0.875rem;
+    --c-timeline-gap: 1.5rem;
+    --c-timeline-overlap: 2.5rem;
+    --c-timeline-tile-w: clamp(12.5rem, 34cqi, 14.5rem);
+    --c-timeline-logo: 1.5rem;
+    --c-timeline-tilt: 0.6deg;
+    --c-timeline-hover-intent: 120ms;
+    --c-timeline-work: #10b981;
+    --c-timeline-internship: #0ea5e9;
+    --c-timeline-research: #8b5cf6;
+    --c-timeline-education: #6366f1;
+    --c-timeline-contest: #f59e0b;
     --c-note-blue: #dbeafe;
     --c-note-blue-fold: #93c5fd;
     --ink-stroke: 0.03em;
@@ -76,7 +98,6 @@
     --dur-enter: 480ms;
     --carousel-dwell: 6500ms;
     --carousel-slide: 420ms;
-    --peek-delay: 120ms;
     --hero-title-rotate: -3deg;
 
     /* ── Size Scale Tokens (medium = default) ── */
@@ -185,8 +206,9 @@
     --c-focus: #a5b4fc;
     --c-marker: rgba(202, 138, 4, 0.55);
     --c-sheet: #232220;
-    --c-sheet-margin: rgba(248, 113, 113, 0.3);
     --c-polaroid: #e8e2d6;
+    --c-note-curl: rgba(0, 0, 0, 0.6);
+    --shadow-note: 1px 2px 3px rgba(0, 0, 0, 0.35), 3px 8px 16px -6px rgba(0, 0, 0, 0.6);
     --c-note-blue: #1e3a5f;
     --c-note-blue-fold: #1e40af;
 
@@ -1856,7 +1878,6 @@ html[data-reduced-motion] {
   --dur-panel: 0.01ms;
   --dur-enter: 0.01ms;
   --carousel-slide: 0.01ms;
-  --peek-delay: 0ms;
 }
 
 @layer utilities {

@@ -145,42 +145,14 @@ export const ANIMATION_TOKENS = {
   },
 } as const;
 
-/** Interaction animation presets */
+/** Framer presets for paper surfaces (shared Modal card, shortcuts overlay). Exits are short ease-in tweens so closing never lingers. */
+const PAPER_EXIT = { duration: MOTION.durMs.quick / 1000, ease: MOTION.ease.paperIn } as const;
+
 export const INTERACTION_TOKENS = {
-  hover: {
-    scale: { scale: 1.05, rotate: -1 },
-    scaleUp: { scale: 1.1, rotate: -5 },
-    scaleSubtle: { scale: 1.02, rotate: 0 },
-    lift: { scale: 1.05, rotate: -2 },
-    liftRotate: { scale: 1.05, rotate: 2 },
-    button: { scale: 1.08 },
-    buttonRotate: { scale: 1.05, rotate: -1 },
-    card: { scale: 1.02, rotate: 0 },
-  },
-  tap: {
-    press: { scale: 0.95 },
-    pressDeep: { scale: 0.9 },
-    pressLight: { scale: 0.92 },
-  },
   entrance: {
-    fadeUp: { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } },
-    fadeScale: { initial: { opacity: 0, scale: 0.9 }, animate: { opacity: 1, scale: 1 } },
-    fadeSlide: { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 } },
     fadeScaleRotate: {
       initial: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
       animate: { opacity: 1, scale: 1, y: 0, rotate: -1 },
-    },
-    scaleRotate: {
-      initial: { scale: 0.95, opacity: 0, rotate: 1 },
-      animate: { scale: 1, opacity: 1, rotate: -1 },
-    },
-    popIn: {
-      initial: { opacity: 0, scale: 0.8, y: 20 },
-      animate: { opacity: 1, scale: 1, y: 0 },
-    },
-    slideRight: {
-      initial: { x: 50, opacity: 0 },
-      animate: { x: 0, opacity: 1 },
     },
     /** Shortcuts Overlay entrance — notebook page pinning down */
     paperPin: {
@@ -189,12 +161,9 @@ export const INTERACTION_TOKENS = {
     },
   },
   exit: {
-    fadeDown: { opacity: 0, y: -4 },
-    fadeScale: { opacity: 0, scale: 0.9 },
-    fadeScaleRotate: { opacity: 0, scale: 0.85, y: 40, rotate: 2 },
-    popOut: { opacity: 0, scale: 0.8, y: 20 },
+    fadeScaleRotate: { opacity: 0, scale: 0.96, y: 12, rotate: 1, transition: PAPER_EXIT },
     /** Shortcuts Overlay exit — page unpin */
-    paperUnpin: { opacity: 0, scale: 0.92, y: -30, rotate: 2 },
+    paperUnpin: { opacity: 0, scale: 0.96, y: -12, rotate: 1, transition: PAPER_EXIT },
   },
 } as const;
 
@@ -394,9 +363,17 @@ export const GRID_PATTERN = {
   lineWidth: '1px',
 } as const;
 
-/** Project card layout tokens */
+/**
+ * Projects wall, cycled by tile index. Uneven list lengths keep neighbouring notes from repeating.
+ * rotations/photoRotations are degrees (phones scale them by --c-project-compact); tapePositions are % from the left.
+ * foldSize is the corner fold in px shared with the error and not-found notes.
+ */
 export const PROJECT_TOKENS = {
-  rotations: [-1.5, 1, -0.5, 1.5, -1, 0.75],
+  rotations: [-2, 1.5, -1, 2.25, -1.5, 1],
+  photoRotations: [-2.5, 2, -1.5, 3, -1],
+  tapePositions: [40, 62, 34, 55, 68, 46, 30],
+  /** Vertical nudge in px on the multi-column wall so rows do not line up like a table. */
+  drops: [0, 14, 4, 18, 8, 0, 12, 2],
   foldSize: 30,
 } as const;
 
@@ -478,54 +455,60 @@ export const STICKER_TIMING = {
 } as const;
 
 /**
- * Voice-call sound design (lib/voiceSounds.ts). Everything is synthesized with Web Audio,
- * so loops are seamless and every start/stop is an envelope instead of a click.
- * Gains are relative to the voiceAgent category volume.
+ * Voice-call sound design (lib/voiceSounds.ts), synthesized with Web Audio. Gains are linear
+ * amplitudes at full voiceAgent volume; `*Tau` values are exponential time constants in seconds.
  */
 export const VOICE_SOUND_TOKENS = {
-  ambient: {
-    gain: 0.18,
-    lowpassHz: 300,
-    breathHz: 0.07,
-    breathDepth: 0.25,
-    fadeInSec: 1.4,
-    fadeOutSec: 0.8,
-    /** Ambient level multiplier while the agent is speaking. */
-    duckRatio: 0.3,
-    duckAttackSec: 0.12,
-    duckReleaseSec: 0.6,
-    duckHoldMs: 350,
-  },
-  chime: {
-    /** Rising fourth on connect, falling fourth on hang-up (Hz). */
-    connect: [784, 1047],
-    hangup: [1047, 784],
-    noteGapSec: 0.11,
-    attackSec: 0.006,
-    decaySec: 0.65,
-    peakGain: 0.06,
-    lowpassHz: 6000,
-  },
-  action: {
-    startHz: 1320,
-    endHz: 880,
-    glideSec: 0.05,
-    decaySec: 0.2,
-    peakGain: 0.06,
-    minIntervalMs: 400,
-  },
-  volumeRampSec: 0.04,
-  /** Suspend the context this long after the last sound fades. */
+  /** Cues start this far ahead of the audio clock so every envelope begins from silence on time. */
+  leadSec: 0.01,
+  volumeTau: 0.02,
+  /** Suspend the audio thread this long after the last tail has died away. */
   idleSuspendMs: 1500,
+  /** Small synthetic room on the cues (not the bed), so they bloom instead of sounding like test tones. */
+  room: { seconds: 1.4, decayTau: 0.28, damping: 0.35, send: 0.3 },
+  chime: {
+    /** Rising fifth D5 to A5 on connect; the same fifth falling on hang-up (Hz). */
+    connect: [587.33, 880],
+    hangup: [880, 587.33],
+    noteGapSec: 0.13,
+    attackSec: 0.012,
+    peak: 0.07,
+    /** [frequency ratio, relative gain, decay tau]: a warm fundamental with short mallet partials. */
+    partials: [[1, 1, 0.4], [2, 0.2, 0.12], [4, 0.05, 0.04]],
+    /** A new chime fades out one that is still ringing instead of stacking on it. */
+    stealSec: 0.05,
+  },
+  action: { fromHz: 1320, toHz: 990, glideSec: 0.04, attackSec: 0.004, tau: 0.045, peak: 0.04, minIntervalMs: 400 },
+  ambient: {
+    level: 0.075,
+    highpassHz: 90,
+    lowpassHz: 450,
+    loopSec: 3,
+    /** Speed of a second reader of the same loop; an irrational ratio never lines up, so nothing audibly repeats. */
+    driftRate: 0.7937,
+    breathHz: 0.06,
+    breathDepth: 0.3,
+    delaySec: 0.35,
+    fadeInTau: 0.5,
+    fadeOutSec: 0.8,
+    /** Level multiplier while the agent speaks; the release waits out short gaps between sentences. */
+    duckRatio: 0.3,
+    duckAttackTau: 0.05,
+    duckReleaseTau: 0.3,
+    duckHoldMs: 400,
+  },
 } as const;
 
 export const VOICE_ORB_TOKENS = {
   attackMs: 60,
-  releaseMs: 180,
+  releaseMs: 220,
+  /** Longest frame step the level smoother integrates, so a backgrounded tab cannot jump on return. */
+  maxStepMs: 64,
   epsilon: 0.002,
-  coreScale: 0.16,
-  glowMin: 0.35,
-  glowRange: 0.5,
+  levelScale: 0.14,
+  flareOpacity: 0.6,
+  /** Ring spin multipliers; changed via playbackRate so rings speed up without jumping. */
+  ringRate: { thinking: 3, acting: 4 },
 } as const;
 
 export const VOICE_VEIL_TOKENS = {

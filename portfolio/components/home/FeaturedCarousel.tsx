@@ -34,6 +34,8 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
   const rootRef = useRef<HTMLDivElement>(null);
   const indexRef = useRef(0);
   const activeRef = useRef<HTMLElement | null>(null);
+  // Set when an arrow key leaves from inside the outgoing slide, which turns inert and would drop focus to <body>.
+  const refocusRef = useRef(false);
   const drag = useRef<{ x: number; y: number; t: number; dx: number; active: boolean } | null>(null);
 
   const playing = !reducedMotion && !userPaused;
@@ -79,9 +81,16 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
     };
   }, [hold]);
 
+  useEffect(() => {
+    if (!refocusRef.current) return;
+    refocusRef.current = false;
+    activeRef.current?.querySelector<HTMLElement>('a')?.focus();
+  }, [index]);
+
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
+    refocusRef.current = event.target instanceof Element && Boolean(event.target.closest('.featured-slide'));
     go(event.key === 'ArrowLeft' ? -1 : 1);
   };
 

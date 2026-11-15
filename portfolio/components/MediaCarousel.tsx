@@ -77,7 +77,12 @@ export default function MediaCarousel({ slides, label, onActiveChange, ref }: Me
             onKeyDown={count > 1 ? (event) => {
                 if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
                 event.preventDefault();
-                goTo(active + (event.key === 'ArrowRight' ? 1 : -1));
+                const target = Math.max(0, Math.min(count - 1, active + (event.key === 'ArrowRight' ? 1 : -1)));
+                // The outgoing slide turns inert, which would drop focus to <body>; park it on the target's dot.
+                if (event.target instanceof Element && event.target.closest('[data-slide-index]')) {
+                    event.currentTarget.querySelectorAll<HTMLButtonElement>('.project-media-dot')[target]?.focus();
+                }
+                goTo(target);
             } : undefined}
         >
             <div

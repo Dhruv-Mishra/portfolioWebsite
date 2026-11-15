@@ -168,8 +168,14 @@
   display: grid;
   grid-template-rows: 0fr;
   margin-left: var(--tl-indent);
-  transition: grid-template-rows var(--dur-quick) var(--ease-paper-in);
+  /* Collapsed sheets overflow their 0fr track; clipping keeps them out of the page's scroll height. The clip lifts
+     at once for a peek or pin and returns only after the sheet has folded away. */
+  overflow-y: clip;
+  transition:
+    grid-template-rows var(--dur-quick) var(--ease-paper-in),
+    overflow-y 0s linear var(--dur-quick) allow-discrete;
 }
+.tl-item[data-pinned] > .tl-fold { overflow-y: visible; transition-delay: 0s; }
 /* The track wrapper has no box of its own, so 0fr really is 0 and the sheet overflows it for a peek. */
 .tl-fold-track { min-height: 0; }
 /* An index card tucked under the tile. The clip unfolds it and its content fades and settles. Pinned and peek
@@ -233,6 +239,7 @@
 /* Hover peek for fine pointers: an overlay that never takes the pointer, so it cannot trap or flicker. */
 @media (hover: hover) and (pointer: fine) {
   .tl-item:not([data-pinned]) > .tl-tab:hover { border-color: var(--c-ink-muted); box-shadow: var(--shadow-peek); }
+  .tl-item > .tl-tab:hover + .tl-fold { overflow-y: visible; transition-delay: 0s; }
   .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold .tl-sheet {
     clip-path: inset(0 -2rem -2rem -2rem);
     transition-delay: var(--c-timeline-hover-intent);

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
@@ -65,8 +65,12 @@ function ProjectRoute() {
     openPanel();
     unlockSticker('project-explorer');
     appendUserAction({ kind: 'project.open', slug: opened });
-    if (document.activeElement === document.body) focusNote(opened);
   });
+
+  // Layout effects run before the dialog's own effects, so it records the note (not <body>) as the place to return focus.
+  useLayoutEffect(() => {
+    if (slug && document.activeElement === document.body) focusNote(slug);
+  }, [slug]);
 
   useEffect(() => {
     if (slug) onOpened(slug);

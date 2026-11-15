@@ -370,7 +370,8 @@ export const GRID_PATTERN = {
  */
 export const PROJECT_TOKENS = {
   rotations: [-2, 1.5, -1, 2.25, -1.5, 1],
-  photoRotations: [-2.5, 2, -1.5, 3, -1],
+  /** Combined with `rotations`, the first note stays the most tilted, so its eager photo has the largest box and remains the desktop LCP. */
+  photoRotations: [-2.5, 2, -1.5, 1.5, -1],
   tapePositions: [40, 62, 34, 55, 68, 46, 30],
   /** Vertical nudge in px on the multi-column wall so rows do not line up like a table. */
   drops: [0, 14, 4, 18, 8, 0, 12, 2],

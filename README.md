@@ -14,6 +14,7 @@ Built by Dhruv Mishra, a software engineer at Microsoft who builds AI agents and
 - [TTS](docs/tts.md)
 - [Voice agent](docs/voice-agent.md)
 - [Deployment](docs/deployment.md)
+- [Sketchbook redesign](docs/sketchbook-redesign.md)
 
 ## Screenshots
 
@@ -23,7 +24,7 @@ Built by Dhruv Mishra, a software engineer at Microsoft who builds AI agents and
 
 | Projects | Chat |
 |---|---|
-| ![Project polaroids pinned to a lined sheet](docs/screenshots/projects-desktop.webp) | ![Chat page](docs/screenshots/chat-desktop.webp) |
+| ![Project sticky notes taped to the page grid](docs/screenshots/projects-desktop.webp) | ![Chat page](docs/screenshots/chat-desktop.webp) |
 
 | Stickers | Settings |
 |---|---|
@@ -35,7 +36,7 @@ Built by Dhruv Mishra, a software engineer at Microsoft who builds AI agents and
 
 ## Experience
 
-- **Sketchbook UI:** light and dark paper-stock themes, 3D paper and foil interactions, terminal navigation, page-leaf transitions, sound, and hidden interactions.
+- **Sketchbook UI:** light and dark paper-stock themes, a handwritten or clean reading font, 3D paper and foil interactions, a neofetch-style terminal, page-leaf transitions, sound, and hidden interactions.
 - **Grounded chat:** a local Markdown corpus and committed embeddings shape server-built context; credentials remain server-side.
 - **Exact model selection:** six allowlisted choices: Groq Qwen 3.8 27B, three NVIDIA models, and two self-hosted LiquidAI models (LFM3 1.7B for text, LFM3 Omni 2B for images). Replies stream into the note as they are generated. Images appear only for vision-capable models, and a provider failure returns a local fallback without changing the selected model.
 - **Voice and workflows:** a live voice agent over Gemini WebSocket, plus browser-native or local Whisper input and Pocket TTS with device-speech fallback in chat, along with guestbook, feedback, stickers, and validated chat actions.

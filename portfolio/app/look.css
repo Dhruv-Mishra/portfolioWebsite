@@ -6,14 +6,14 @@
   --tex-paper: url("/resources/textures/paper-grain.webp");
   --tex-canvas: url("/resources/textures/canvas-weave.webp");
   --tex-slate: url("/resources/textures/slate-grain.webp");
-  --tex-smudge: url("/resources/textures/chalk-smudge.webp");
+  --tex-smudge: url("/resources/textures/chalk-smudge-2.webp");
   --tex-cork: url("/resources/textures/cork.webp");
   --tex-burlap: url("/resources/textures/burlap.webp");
   --tex-cardboard: url("/resources/textures/cardboard.webp");
   --tex-wood: url("/resources/textures/wood.webp");
   --tex-chalk: url("/resources/textures/chalk-grain.webp");
-  --tex-coffee: url("/resources/textures/coffee-ring.webp");
-  --tex-foxing: url("/resources/textures/foxing.webp");
+  --tex-coffee: url("/resources/textures/coffee-ring-2.webp");
+  --tex-foxing: url("/resources/textures/foxing-2.webp");
 
   --c-grid-opacity: 0.1;
   /* Physical notes and sheets keep their paper colour on the dark boards; ink inside them stays dark. */

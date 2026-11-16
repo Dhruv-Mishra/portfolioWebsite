@@ -9,15 +9,15 @@ Gray-50 maps are single-channel images with a mean of 128. Value 128 is neutral 
 | `paper-grain.webp` | 512² seamless gray-50 cold-press paper tooth (std ≈ 10) | ambientCG [Paper001](https://ambientcg.com/view?id=Paper001) | CC0 1.0 | 34312 | `soft-light` |
 | `canvas-weave.webp` | 512² seamless gray-50 linen/canvas weave, about 4 px thread pitch (std ≈ 16) | Poly Haven [rough_linen](https://polyhaven.com/a/rough_linen) | CC0 1.0 | 34500 | `soft-light` / `overlay` |
 | `slate-grain.webp` | 512² seamless gray-50 fine blackboard grain (std ≈ 7) | ambientCG [Plaster003](https://ambientcg.com/view?id=Plaster003) | CC0 1.0 | 27846 | `soft-light` |
-| `chalk-smudge.webp` | 512² (drawn at 1024², shown at 1024px) seamless white RGBA eraser smears, dust haze, and ghost writing (alpha ≤ 40) | Procedural (seed 20) | CC0 1.0 | 20346 | `normal` |
+| `chalk-smudge-2.webp` | 512² (drawn at 1024², shown at 1024px) seamless white RGBA eraser smears, dust haze, and ghost writing (alpha ≤ 40) | Procedural (seed 20) | CC0 1.0 | 20346 | `normal` |
 | `cork.webp` | 512² seamless colour cork board | ambientCG [Cork004](https://ambientcg.com/view?id=Cork004) | CC0 1.0 | 44436 | `normal` |
 | `burlap.webp` | 512² seamless colour jute/hessian weave | Poly Haven [hessian_380](https://polyhaven.com/a/hessian_380) | CC0 1.0 | 39760 | `normal` |
 | `cardboard.webp` | 512² seamless colour kraft-board surface | ambientCG [Paper006](https://ambientcg.com/view?id=Paper006) | CC0 1.0 | 28512 | `normal` |
 | `wood.webp` | 512×256 seamless colour oak with horizontal grain | Poly Haven [oak_veneer_01](https://polyhaven.com/a/oak_veneer_01) | CC0 1.0 | 21314 | `normal` |
 | `canvas-spine.webp`, `wood-spine.webp` | 64×512 and 16×256 crops of the two above for the book spine, which only ever shows a sliver | as above | CC0 1.0 | 6508, 814 | `soft-light` / `normal` |
 | `chalk-grain.webp` | 256² seamless white RGBA chalk coverage (mean alpha ≈ 175) | Procedural (seed 10) | CC0 1.0 | 24674 | `mask-image` |
-| `coffee-ring.webp` | 384² RGBA coffee-cup ring stain (#7a4a1e, alpha ≤ 150) | Procedural (seed 30) | CC0 1.0 | 7478 | `normal` |
-| `foxing.webp` | 512² seamless RGBA age spots and tide-line stains (alpha ≤ 60) | Procedural (seed 40) | CC0 1.0 | 12518 | `normal` |
+| `coffee-ring-2.webp` | 384² RGBA coffee-cup ring stain (#7a4a1e, alpha ≤ 150) | Procedural (seed 30) | CC0 1.0 | 7478 | `normal` |
+| `foxing-2.webp` | 512² seamless RGBA age spots and tide-line stains (alpha ≤ 60) | Procedural (seed 40) | CC0 1.0 | 12518 | `normal` |
 | `torn-{top,bottom,left,right}.svg` | Repeating 240×16 / 16×240 torn-edge masks; black = kept paper | Procedural (seeds 50–53) | CC0 1.0 | 1805–1860 each | `mask-image` (repeat along edge) |
 
 Regenerate the files from `portfolio/` with `python scripts/build-textures.py [--cache DIR] [--only NAMES]`. You can also set `TEXTURE_CACHE` to choose where downloaded sources are stored. The script needs numpy and Pillow with WebP support. The faint RGBA overlays use lossy alpha and the soft chalk smudge is stored at half size; both stay within 3/255 of the full-quality draw once composited. The grain and colour maps are already at WebP's floor for their quality, so AVIF or a lower quality would only add error.

@@ -6,7 +6,7 @@ maps (128 = neutral for soft-light/overlay), colour tiles, procedural RGBA overl
 and the torn-edge SVG masks.
 
 Usage (from portfolio/):
-    python scripts/build-textures.py [--cache DIR] [--out DIR] [--only chalk-smudge,coffee-ring]
+    python scripts/build-textures.py [--cache DIR] [--out DIR] [--only chalk-smudge-2,coffee-ring-2]
     TEXTURE_CACHE=DIR python scripts/build-textures.py
 
 Requires Python 3.11+, numpy and Pillow (with WebP). The cache defaults to a temp dir.
@@ -401,14 +401,14 @@ def main():
         ("paper-grain", lambda: paper(args.cache), 35_000, "quality"),
         ("canvas-weave", lambda: canvas(args.cache), 35_000, "quality"),
         ("slate-grain", lambda: slate(args.cache), 30_000, "quality"),
-        ("chalk-smudge", lambda: white(half(chalk_smudge())), 21_000, "alpha_quality"),
+        ("chalk-smudge-2", lambda: white(half(chalk_smudge())), 21_000, "alpha_quality"),
         ("cork", lambda: cork(args.cache), 45_000, "quality"),
         ("burlap", lambda: burlap(args.cache), 40_000, "quality"),
         ("cardboard", lambda: cardboard(args.cache), 30_000, "quality"),
         ("wood", lambda: wood(args.cache), 25_000, "quality"),
         ("chalk-grain", lambda: white(chalk_grain()), 25_000, "alpha_quality"),
-        ("coffee-ring", lambda: np.dstack([np.full((384, 384, 3), (0x7A, 0x4A, 0x1E), float), coffee_ring()]), 8_000, "alpha_quality"),
-        ("foxing", foxing, 13_000, "alpha_quality"),
+        ("coffee-ring-2", lambda: np.dstack([np.full((384, 384, 3), (0x7A, 0x4A, 0x1E), float), coffee_ring()]), 8_000, "alpha_quality"),
+        ("foxing-2", foxing, 13_000, "alpha_quality"),
     ]
     for name, make, budget, knob in jobs:
         if not only or name in only:

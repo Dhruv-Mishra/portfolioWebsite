@@ -1,5 +1,5 @@
 "use client";
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
@@ -29,8 +29,24 @@ const BACK_TRANSITION: string[] = ['page-back'];
 /** Framework-owned pending marker. Must be a descendant of the Link whose navigation it reports. */
 export function RoutePendingMarker() {
     const { pending } = useLinkStatus();
-    if (!pending) return null;
-    return <span hidden data-route-navigation-pending />;
+    return pending ? <RoutePendingFlag /> : null;
+}
+
+/**
+ * Flags `<html data-route-pending>` while a Link navigation is pending (app/globals.css hides the stale page). A
+ * `:has()` on the page would re-check the whole page on every DOM change in it, such as each typed terminal character.
+ */
+function RoutePendingFlag() {
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        root.dataset.routePending = String(Number(root.dataset.routePending ?? 0) + 1);
+        return () => {
+            const left = Number(root.dataset.routePending) - 1;
+            if (left > 0) root.dataset.routePending = String(left);
+            else delete root.dataset.routePending;
+        };
+    }, []);
+    return null;
 }
 
 export default function Navigation() {

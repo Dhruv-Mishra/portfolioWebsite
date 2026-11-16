@@ -18,7 +18,9 @@ export interface ProjectRecord {
   demo?: string;
   link: string;
   linkLabel?: 'Source code' | 'Read the paper';
+  /** The project's screenshot, shown as the still beside the video in the expanded note. */
   image: string;
+  /** Placeholder for the card thumbnail (`getProjectThumbnail`); printed by scripts/build-project-thumbs.py. */
   blurDataURL: string;
   /** File stem under /resources/video; defaults to the slug, null for no preview. Rename on replacement: /resources is cached immutably. */
   video?: string | null;
@@ -30,17 +32,17 @@ export interface ProjectRecord {
 }
 
 const BLUR = {
-  fluentUI: 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADwAQCdASoIAAgAA4BaJYwCdADds1bF/gAA/peEjhzbvyuojaMVonSEd20TBtXOgAA=',
-  courseEval: 'data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAADQAQCdASoIAAgAA4BaJYwCdAEOuwWOAAD+1xSvMf+TJKMRyfAAAA==',
-  ivc: 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAABwAQCdASoIAAgAA4BaJYwCdAFAAAD+7PiO2VQTrA1BeCn66YLfsH3QBF4rGvLAAAA=',
-  portfolio: 'data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAABwAQCdASoIAAgAA4BaJYwCdAFAAAD+7YdLgWmPNxIIcX0OS9vYAA==',
-  recommender: 'data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoIAAgAA4BaJZQCdAFAAAD+7Ex/2rFueRag3YAA',
-  atomVault: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADwAQCdASoIAAgAA4BaJYwCdAEO/ZqEUAAA/sgWgM5iS5SM8O9bAAAA',
-  bloom: 'data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoIAAgABwBaJYwCdAFAAAD+7GIwcDJji+dtKgAA',
-  cropio: 'data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoIAAgAA4BaJQBOgB5QDXsAAP6w3JgPqIX1RsNkiMiKH6vAAAA=',
-  jarvis: 'data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAABwAQCdASoIAAgAA4BaJYwCdAFAAAD+6MGt8PCbJcRSgfhep/X66H/9aWT9wGazr3lJSAAA',
-  invoke: 'data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAACwAQCdASoIAAgAA4BaJQBOgBtkKPgcAP6YLfHR8LVVMCKXTBrZntLWmsvXXMR274kwhG9AAAA=',
-  portSolace: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoIAAgABUB8JYwAAp25DspYAP6f65uYVmPxtLnADcN5Xi4A',
+  fluentUI: 'data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoIAAUAAsBMJYwCdAD0h/pcAP7th9FRvHGycLFUZGGfsCgAAAA=',
+  courseEval: 'data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADQAQCdASoIAAUAAsBMJYwCdAEfbIkj2AD+7atvlt9Ch2gU+i0jVIMeUgAAAA==',
+  ivc: 'data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACwAQCdASoIAAUAAsBMJQBOgB6DodsAAP7uHPkVy4uxTcx5ngeCbaoss3g5WKKJ+AAAAA==',
+  portfolio: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoIAAUAAsBMJZQCdAD0QV+MYAD+7epj5VKK+Txe+teYEsAA',
+  recommender: 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoIAAUAAsBMJQBOgBt9aioAAP7oTHGHAJF8Yl4ABOEYWoLd7liVETdgYAA=',
+  atomVault: 'data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoIAAUAAsBMJYwCdADdDAUAAP7t36Gl6uR5VEQPBVgXWT9HPWAAAA==',
+  bloom: 'data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoIAAUAAsBMJYwCdAD0l+wNQAD+7YQJP6oVUmMFPZ7SILQDAAA=',
+  cropio: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoIAAUAAsBMJYwCdAD6Ef4sAAD+66Z29CiNosXEBWWmlvQA',
+  jarvis: 'data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADQAQCdASoIAAUAAsBMJYwCdADdQ0vUAAD+6p4+gcuDxylqmssrMkYZ+rwAAA==',
+  invoke: 'data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoIAAUAAsBMJYwCdAD6FDDQQAD+7aurRc71JSHV+T9HPWAA',
+  portSolace: 'data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoIAAUAAsBMJQBOgBiccAAA/scmWSbFPffQfdz8//pLpchdk7xAAA==',
 } as const;
 
 export const FEATURED_PROJECT_SLUGS = [
@@ -288,6 +290,11 @@ const PROJECTS_BY_SLUG: Record<ProjectSlug, ProjectRecord> = Object.fromEntries(
 
 export function getProjectBySlug(slug: ProjectSlug): ProjectRecord {
   return PROJECTS_BY_SLUG[slug];
+}
+
+/** The last frame of the preview video (the finished page with its title), so cards match the clip they open. */
+export function getProjectThumbnail(project: ProjectRecord): string {
+  return project.video === null ? project.image : `/resources/video/${project.video ?? project.slug}.webp`;
 }
 
 /** AV1 first; browsers without an AV1 decoder (older Safari) fall back to H.264. */

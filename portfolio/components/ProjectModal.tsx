@@ -14,7 +14,7 @@ import { Z_INDEX } from '@/lib/designTokens';
 import { release, reset, secure, shownFastener } from '@/lib/fasteners';
 import { boxOf, fly, rotationOf, type Flight } from '@/lib/flight';
 import { useAppHaptics } from '@/lib/haptics';
-import { getProjectVideoSources, type ProjectRecord } from '@/lib/projects';
+import { getProjectThumbnail, getProjectVideoSources, type ProjectRecord } from '@/lib/projects';
 import {
   CONTROL_PROJECT_VIDEO_EVENT,
   attachSiteActionResult,
@@ -300,7 +300,7 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
             loop
             playsInline
             preload="metadata"
-            poster={project.image}
+            poster={getProjectThumbnail(project)}
             className="h-full w-full object-cover"
           >
             {videoSources.map((source) => <source key={source.src} src={source.src} type={source.type} />)}
@@ -343,8 +343,6 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
         alt={`${project.name} preview`}
         fill
         sizes="(max-width: 767px) 94vw, 41rem"
-        placeholder="blur"
-        blurDataURL={project.blurDataURL}
         className="object-cover"
       />
     ),

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import FeaturedCarousel, { type FeaturedSlide } from '@/components/home/FeaturedCarousel';
-import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug } from '@/lib/projects';
+import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug, getProjectThumbnail } from '@/lib/projects';
 
 // Plain serializable slide data: no JSX descriptions or icons cross into the client bundle.
 const SLIDES: readonly FeaturedSlide[] = FEATURED_PROJECT_SLUGS.map((slug) => {
@@ -11,7 +11,7 @@ const SLIDES: readonly FeaturedSlide[] = FEATURED_PROJECT_SLUGS.map((slug) => {
     summary: project.summary,
     stack: project.stack.slice(0, 3).join(', '),
     year: project.year,
-    image: project.image,
+    image: getProjectThumbnail(project),
     blurDataURL: project.blurDataURL,
   };
 });

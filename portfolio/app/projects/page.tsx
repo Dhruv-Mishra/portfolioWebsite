@@ -7,7 +7,7 @@ import { TAPE_CLIP_PATH } from '@/lib/constants';
 import { PROJECT_TOKENS } from '@/lib/designTokens';
 import { pageMetadata } from '@/lib/pageMetadata';
 import type { ProjectSlug } from '@/lib/projectCatalog';
-import { PROJECTS } from '@/lib/projects';
+import { PROJECTS, getProjectThumbnail } from '@/lib/projects';
 import { buildProjectHref } from '@/lib/siteActionEvents';
 import '@/components/projects/projects.css';
 
@@ -77,7 +77,7 @@ export default function Projects() {
                   <div className="project-card-photo">
                     <div className="project-card-image">
                       <Image
-                        src={project.image}
+                        src={getProjectThumbnail(project)}
                         alt={`${project.name} preview`}
                         fill
                         sizes="(max-width: 639px) 86vw, (max-width: 1279px) 44vw, 360px"

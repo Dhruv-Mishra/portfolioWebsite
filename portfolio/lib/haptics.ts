@@ -144,6 +144,12 @@ function cancel(): void {
     sharedEngine?.cancel();
 }
 
+/** Whether the most recent input was the keyboard; before any input it is not. Tracked from page load. */
+export function lastInputWasKeyboard(): boolean {
+    installInteractionTracking();
+    return lastInteractionMode === "keyboard";
+}
+
 const APP_HAPTICS = {
     cancel,
     clear: () => fire("light", 60, "clear"),

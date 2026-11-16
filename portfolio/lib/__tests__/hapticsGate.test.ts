@@ -90,4 +90,28 @@ describe('haptics preference gate', () => {
     haptics.tap();
     expect(webHaptics.trigger).toHaveBeenCalledWith('medium');
   });
+
+  it('keeps focus moved after a tap or click ring-free, and rings it after the keyboard', async () => {
+    const listeners = new Map<string, (event: { pointerType?: string }) => void>();
+    vi.stubGlobal('window', { addEventListener: (type: string, listener: (event: { pointerType?: string }) => void) => listeners.set(type, listener) });
+    vi.stubGlobal('navigator', { maxTouchPoints: 0 });
+    vi.resetModules();
+    const { moveFocus } = await import('@/lib/quietFocus');
+    const target = () => ({ dataset: {} as Record<string, string>, focus: vi.fn(), addEventListener: vi.fn() });
+
+    const beforeInput = target();
+    moveFocus(beforeInput as unknown as HTMLElement);
+    expect(beforeInput.dataset).toHaveProperty('quietFocus');
+
+    listeners.get('keydown')?.({});
+    const afterKey = target();
+    moveFocus(afterKey as unknown as HTMLElement);
+    expect(afterKey.dataset).not.toHaveProperty('quietFocus');
+    expect(afterKey.focus).toHaveBeenCalledWith({ preventScroll: true });
+
+    listeners.get('pointerdown')?.({ pointerType: 'touch' });
+    const afterTap = target();
+    moveFocus(afterTap as unknown as HTMLElement);
+    expect(afterTap.dataset).toHaveProperty('quietFocus');
+  });
 });

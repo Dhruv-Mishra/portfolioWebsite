@@ -5,6 +5,7 @@
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('@/hooks/useStickers', () => ({
+  getSoundsMutedSync: vi.fn(() => false),
   setDiscoActiveImperative: vi.fn(),
   unlockSticker: vi.fn(),
 }));
@@ -15,8 +16,8 @@ vi.mock('@/components/DiscoMediaLayer', () => ({
   default: () => null,
 }));
 
-import { runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
-import { setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
+import { prepareThemeSounds, runDiscoMode, runThemeSelection, runThemeToggle } from '@/lib/themeToggleAction';
+import { getSoundsMutedSync, setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 describe('runThemeToggle', () => {
@@ -71,6 +72,12 @@ describe('runThemeToggle', () => {
     const setTheme = vi.fn();
     runThemeToggle({ discoActive: false, isDark: false, setTheme });
     expect(setTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it('downloads no theme samples while sound is muted', () => {
+    vi.mocked(getSoundsMutedSync).mockReturnValueOnce(true);
+    prepareThemeSounds();
+    expect(soundManager.prepareSound).not.toHaveBeenCalled();
   });
 });
 

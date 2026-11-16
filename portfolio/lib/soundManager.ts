@@ -1437,7 +1437,7 @@ export const soundManager: SoundManager = {
 
   async prepareSound(id: SoundId): Promise<boolean> {
     const spec = SOUND_SPECS[id];
-    if (!spec?.url || muted) return false;
+    if (!spec?.url) return false;
     const s = ensure();
     if (!s) return false;
     return warmupSound(s.ctx, id, spec.url, false);

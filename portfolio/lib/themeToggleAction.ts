@@ -7,7 +7,7 @@
  * DiscoFlagController owns dark-on-active. Disco exit does not touch
  * the underlying light/dark theme.
  */
-import { setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
+import { getSoundsMutedSync, setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 export interface ThemeToggleParams {
@@ -51,10 +51,11 @@ export function runThemeSelection({
 }
 
 /**
- * Fetches the theme-switch samples once someone reaches for a theme control; until then they never download.
- * Idle-scheduled, so opening the first AudioContext never lands inside the tap that opened a menu.
+ * Fetches the theme-switch samples once someone reaches for a theme control; until then, or while sound is muted,
+ * they never download. Idle-scheduled, so opening the first AudioContext never lands inside the tap that opened a menu.
  */
 export function prepareThemeSounds(): void {
+  if (getSoundsMutedSync()) return;
   const warm = () => {
     void soundManager.prepareSound('theme-dark');
     void soundManager.prepareSound('theme-light');

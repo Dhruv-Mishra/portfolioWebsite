@@ -1,5 +1,5 @@
 /* About page pin board: a framed cork (or burlap) board of notes. Opening a note pulls its pin and flies it to the
-   middle of the screen (PinBoard.tsx). Settings > Look and feel > About page "On the page" lays the same notes
+   middle of the screen (PinBoard.tsx). Settings > Customization > About page "On the page" lays the same notes
    straight on the paper with tape instead of pins. */
 
 .pinboard {

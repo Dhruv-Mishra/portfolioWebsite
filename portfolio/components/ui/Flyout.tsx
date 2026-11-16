@@ -20,7 +20,7 @@ const noteIn = (slot: HTMLElement | undefined) => slot?.querySelector<HTMLElemen
  * Opens a note from a wall (the pin board, the photo line) into a reading sheet in the top layer. Its pin, tape or
  * peg lets go, the note flies to the middle of the screen, and closing flies it home and fastens it again. Each slot
  * holds a `[data-flyout-note]`, a `[data-flyout-open]` control and any `[data-fastener]`. The motion follows
- * Settings > Look and feel > Opening a note; reduced motion always fades.
+ * Settings > Customization > Opening a note; reduced motion always fades.
  */
 export function useFlyout() {
   const [openId, setOpenId] = useState<string | null>(null);

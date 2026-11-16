@@ -4,8 +4,8 @@
  * or a flash. The first option of each list is the default.
  */
 export const LOOK_OPTIONS = {
-  /** Light-theme page: real drawing paper, primed painting canvas, or flat graph paper. */
-  surface: ['paper', 'canvas', 'graph'],
+  /** Light-theme page: primed painting canvas, real drawing paper, or flat graph paper. */
+  surface: ['canvas', 'paper', 'graph'],
   /** Dark-theme page: green school chalkboard, black slate chalkboard, or the flat dark sheet. */
   chalkboard: ['green', 'black', 'slate'],
   /** Notes and cards: textured paper, kraft cardboard, or flat sticky notes that follow the theme. */
@@ -16,11 +16,11 @@ export const LOOK_OPTIONS = {
   /** About page: notes pinned on a board, or laid straight on the page. */
   aboutLayout: ['board', 'sheet'],
   pinboard: ['cork', 'burlap'],
-  /** Experience photos: pegged to a twine line, or clipped to a wire mesh. */
-  timeline: ['wire', 'mesh'],
+  /** Experience photos: clipped to a wire mesh, or pegged to a twine line. */
+  timeline: ['mesh', 'wire'],
   /** Opening a note: unpin (or peel, or unclip) and fly, fly straight away, or a plain fade. */
   noteFlight: ['pin', 'zoom', 'fade'],
-  decorations: ['some', 'lots', 'none'],
+  decorations: ['lots', 'some', 'none'],
   aging: ['light', 'worn', 'none'],
 } as const;
 

@@ -6,6 +6,7 @@ import { LOOK_KEYS, isLookKey, isLookValue, type LookPrefs } from '@/lib/lookPre
 import {
   getAdminPrefsSnapshot,
   isPaperStock,
+  resetAdminPrefs,
   setAdminPref,
   useAdminPrefs,
   type AdminPrefs,
@@ -31,6 +32,21 @@ export interface SitePrefs extends LookPrefs {
 }
 
 export type SitePrefKey = keyof SitePrefs;
+
+/** Everything under Settings > Customization: how the sketchbook looks and moves. */
+export const CUSTOMIZATION_KEYS = [
+  ...LOOK_KEYS,
+  'paperStock',
+  'paperGrain',
+  'tapeEffects',
+  'sketchOutlines',
+  'pageFlipEnabled',
+  'motionPreference',
+] as const satisfies readonly SitePrefKey[];
+
+export function resetCustomization(): boolean {
+  return resetAdminPrefs(CUSTOMIZATION_KEYS);
+}
 
 function toSitePrefs(prefs: AdminPrefs): SitePrefs {
   const look = Object.fromEntries(LOOK_KEYS.map((key) => [key, prefs[key]])) as LookPrefs;

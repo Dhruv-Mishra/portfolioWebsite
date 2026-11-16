@@ -103,14 +103,13 @@ const nextConfig: NextConfig = {
   // avoiding double-compression CPU overhead on resource-constrained VMs.
   compress: false,
   images: {
-    // Image optimization disabled — the portfolio has ~8 images, all pre-optimized .webp,
-    // sitting behind Cloudflare which handles edge compression and caching.
-    // Disabling removes sharp (the only native-binary runtime dep), letting a single
-    // arch-agnostic JS build deploy to any Linux VM (x86_64 / arm64 / whatever).
-    // <Image> components still give us lazy loading, blur placeholders (via blurDataURL),
-    // priority hints, and layout-shift prevention — we only lose runtime AVIF conversion
-    // and responsive-srcset resizing, both of which are handled upstream by Cloudflare.
-    unoptimized: true,
+    // No optimizer runs on the VMs (and sharp, the only native-binary runtime dep, stays out of the build). The
+    // loader below picks pre-sized files for the project thumbnails; every other <Image> passes `unoptimized` and is
+    // served as-is. Both widths stay in each srcset, so 1x-1.25x screens fetch the 384px thumbnails.
+    loader: 'custom',
+    loaderFile: './lib/imageLoader.ts',
+    deviceSizes: [384, 640],
+    imageSizes: [],
   },
   // Only deploy image builds set this; their deploy jobs require the same-SHA `npm run typecheck`.
   typescript: {

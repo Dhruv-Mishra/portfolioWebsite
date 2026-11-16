@@ -342,7 +342,7 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
         src={project.image}
         alt={`${project.name} preview`}
         fill
-        sizes="(max-width: 767px) 94vw, 41rem"
+        unoptimized
         className="object-cover"
       />
     ),

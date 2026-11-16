@@ -80,7 +80,7 @@ export default function Projects() {
                         src={getProjectThumbnail(project)}
                         alt={`${project.name} preview`}
                         fill
-                        sizes="(max-width: 639px) 86vw, (max-width: 1279px) 44vw, 360px"
+                        sizes="(max-width: 639px) calc(100vw - 6.5rem), (max-width: 819px) 540px, (max-width: 1279px) 345px, 300px"
                         loading={eager ? 'eager' : 'lazy'}
                         fetchPriority={eager ? 'high' : 'auto'}
                         // Each blur placeholder inlines ~1KB; lazy notes load before they scroll in, over a tinted frame.

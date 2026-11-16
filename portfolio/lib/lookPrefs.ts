@@ -71,7 +71,7 @@ export const LOOK_BOOT_SNIPPET = `const L=${JSON.stringify(Object.fromEntries(LO
 /** The textures each page surface paints at first sight (app/look.css), by theme. */
 export const FIRST_PAINT_TEXTURES = {
   light: { canvas: ['canvas-weave'], paper: ['paper-grain'], graph: [] },
-  dark: { green: ['slate-grain', 'chalk-smudge'], black: ['slate-grain', 'chalk-smudge'], slate: [] },
+  dark: { green: ['slate-grain', 'chalk-smudge-2'], black: ['slate-grain', 'chalk-smudge-2'], slate: [] },
 } as const satisfies { light: Record<LookPrefs['surface'], readonly string[]>; dark: Record<LookPrefs['chalkboard'], readonly string[]> };
 
 /**

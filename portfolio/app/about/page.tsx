@@ -56,7 +56,7 @@ const NOTES: readonly BoardNote[] = [
         alt={ABOUT_PHOTO.alt}
         width={420}
         height={420}
-        sizes="(min-width: 768px) 420px, 60vw"
+        unoptimized
         loading="eager"
         placeholder="blur"
         blurDataURL={ABOUT_PHOTO.blurDataURL}

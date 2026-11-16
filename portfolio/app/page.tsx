@@ -8,7 +8,6 @@ import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { RoutePendingMarker } from "@/components/Navigation";
 import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { ABOUT_PHOTO } from "@/lib/assets";
-import { PERSONAL_LINKS } from "@/lib/links";
 import "@/components/home/home.css";
 
 const TEXT_LINK_CLASS = "inline-flex min-h-11 items-center font-hand text-xl text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors duration-[var(--dur-micro)] hover:text-indigo-900 hover:decoration-indigo-500 focus-ring dark:text-indigo-300 dark:decoration-indigo-500/60 dark:hover:text-indigo-200";
@@ -48,9 +47,9 @@ export default function Home() {
           <p className="font-hand text-[length:var(--t-hand-sm)] text-[var(--c-ink-muted)]">A voice agent that knows my work. Uses your mic.</p>
         </div>
 
-        <nav aria-label="Quick links" className="-mt-2 flex flex-wrap justify-center gap-x-7 lg:justify-start">
-          <Link href="/projects" prefetch={false} className={TEXT_LINK_CLASS}>See my projects<RoutePendingMarker /></Link>
-          <a href={PERSONAL_LINKS.email} className={TEXT_LINK_CLASS}>Email me</a>
+        <nav aria-label="Quick links" className="flex flex-wrap justify-center gap-x-5 gap-y-4 pt-1 lg:justify-start">
+          <NoteLink href="/chat" label="Chat" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
+          <NoteLink href="/guestbook" label="Sign my sketchbook" icon={PenLine} tone="coral" tilt="rotate-2" />
         </nav>
       </section>
 
@@ -64,10 +63,6 @@ export default function Home() {
           className="relative z-20 transition-transform duration-300 md:rotate-1 md:hover:rotate-0"
         >
           <HomeTerminalIsland />
-        </div>
-        <div className="relative z-30 -mt-2 flex flex-wrap justify-center gap-x-5 gap-y-3 md:justify-end md:gap-x-5 md:pr-6">
-          <NoteLink href="/chat" label="Chat" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
-          <NoteLink href="/guestbook" label="Sign my sketchbook" icon={PenLine} tone="coral" tilt="rotate-2" />
         </div>
       </div>
 
@@ -84,6 +79,7 @@ export default function Home() {
               alt={ABOUT_PHOTO.alt}
               width={128}
               height={128}
+              unoptimized
               loading="lazy"
               placeholder="blur"
               blurDataURL={ABOUT_PHOTO.blurDataURL}

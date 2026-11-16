@@ -681,11 +681,11 @@ html {
   display: none;
 }
 
-#main-content:has([data-route-navigation-pending]) [data-route-scroll-content] {
+html[data-route-pending] [data-route-scroll-content] {
   visibility: hidden;
 }
 
-#main-content:has([data-route-navigation-pending]) [data-route-loading-placeholder] {
+html[data-route-pending] [data-route-loading-placeholder] {
   display: flex;
   align-items: center;
   justify-content: center;

@@ -24,7 +24,7 @@ function Picture({ entry, heading }: { entry: ExperienceTimelineEntry; heading: 
     <div className="pol-picture">
       <div className="pol-scene">
         <span className="pol-logo" aria-hidden="true">
-          {entry.logo ? <Image src={entry.logo} alt="" width={40} height={40} /> : <Trophy strokeWidth={1.75} />}
+          {entry.logo ? <Image src={entry.logo} alt="" width={40} height={40} unoptimized /> : <Trophy strokeWidth={1.75} />}
         </span>
         {heading}
       </div>

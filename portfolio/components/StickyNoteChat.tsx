@@ -2,10 +2,9 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, useSyncExternalStore, memo, useMemo, type CSSProperties } from 'react';
+import { useState, useRef, useEffect, useEffectEvent, useCallback, useLayoutEffect, useSyncExternalStore, memo, useMemo, type CSSProperties, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { m, AnimatePresence } from 'framer-motion';
 import { ImagePlus, Loader2, Pause, Play, RotateCcw, Send, Trash2, Volume2, X, Zap } from 'lucide-react';
 import { useStickyChat, ChatMessage } from '@/hooks/useStickyChat';
 import {
@@ -36,7 +35,7 @@ import { ListeningOverlay } from '@/components/ui/ListeningOverlay';
 import { useVoiceBackendPref } from '@/lib/voiceBackendPref';
 import { useVoiceOutputPref } from '@/lib/voiceOutputPref';
 import { useSpeakByDefaultPref } from '@/lib/speakByDefaultPref';
-import { ANIMATION_TOKENS, TIMING_TOKENS, NOTE_ROTATION, NOTE_ENTRANCE, GRADIENT_TOKENS } from '@/lib/designTokens';
+import { MOTION, TIMING_TOKENS, NOTE_ROTATION } from '@/lib/designTokens';
 import {
   ACTION_REGISTRY,
   DISCO_ACTION_LABEL,
@@ -74,6 +73,7 @@ import {
   CHAT_MODEL_SWITCH_CLEAR_EVENT,
   useChatModelPref,
 } from '@/lib/chatModelPref';
+import '@/components/chat/chat.css';
 
 const ChatProjectModal = dynamic(() => import('@/components/ChatProjectModal'), { ssr: false });
 
@@ -328,35 +328,13 @@ function usePlaceholderTypewriter(isActive: boolean) {
   return ref;
 }
 
-const TYPING_DOT_ANIMATE = {
-  y: [0, -7, 0, 0],
-  scale: [1, 1.35, 1, 1],
-  opacity: [0.35, 1, 0.35, 0.35],
-};
-const TYPING_DOT_TRANSITION_BASE = { duration: 1.2, repeat: Infinity, ease: 'easeInOut' as const };
-
 const TypingEllipsis = memo(function TypingEllipsis() {
   return (
-    <span className="inline-flex items-end gap-[3px] ml-1 h-4 align-baseline" aria-label="Typing">
-      {[0, 1, 2].map(i => (
-        <m.span
-          key={`dot-${i}`}
-          className="inline-block w-[5px] h-[5px] rounded-full bg-current"
-          animate={TYPING_DOT_ANIMATE}
-          transition={{ ...TYPING_DOT_TRANSITION_BASE, delay: i * 0.16 }}
-        />
-      ))}
+    <span className="chat-dots" aria-label="Typing">
+      {[0, 1, 2].map(i => <span key={i} style={{ '--i': i } as CSSVars} />)}
     </span>
   );
 });
-
-// Hoisted animation constants — avoids allocation per StickyNote render
-const NOTE_SPRING = { type: 'spring' as const, ...ANIMATION_TOKENS.spring.default, duration: 0.4 };
-
-// Hoisted inline style objects for StickyNote — avoids per-note allocation
-const FOLD_STYLE_USER = { background: GRADIENT_TOKENS.foldCorner } as const;
-const FOLD_STYLE_AI = { background: GRADIENT_TOKENS.foldCornerAlt } as const;
-const MIN_HEIGHT_STYLE = { minHeight: '1.5em' } as const;
 
 // Eases a note's height while its text grows, instead of jumping a full line at each wrap.
 // Writes the height straight to the DOM so streaming text does not cause extra React renders.
@@ -387,30 +365,78 @@ function useSmoothHeight(enabled: boolean) {
   return { outerRef, innerRef };
 }
 
-// ─── Suggested Question Strip ───
-// Static rotation styles hoisted to module scope to avoid re-creating objects per render
-const SUGGESTION_STYLE_ACTION = { transform: 'rotate(-0.5deg)' } as const;
-const SUGGESTION_STYLE_NORMAL = { transform: 'rotate(0.3deg)' } as const;
-// Disco mode chips use a vivid candy-palette gradient that mirrors the disco
-// body background. Always shown in disco colors so the chip telegraphs what it does.
-const SUGGESTION_STYLE_DISCO = {
-  transform: 'rotate(-1deg)',
-  backgroundImage:
-    'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 25%, #c4b5fd 50%, #a5f3fc 75%, #fde68a 100%)',
-  backgroundColor: '#fbcfe8',
-} as const;
-
-type DiscoMotionStyle = CSSProperties & {
-  '--disco-motion-delay'?: string;
-  '--disco-card-delay'?: string;
+/** How close to the bottom (px) still counts as reading the newest note. */
+const STICK_SLACK_PX = 80;
+/** Smaller layout changes, such as a line easing open while a reply is written, are followed without a glide. */
+const GLIDE_MIN_PX = 24;
+const GLIDE: KeyframeAnimationOptions = {
+  duration: MOTION.durMs.enter,
+  easing: `cubic-bezier(${MOTION.ease.paper.join(', ')})`,
+  composite: 'add',
 };
 
-function getSuggestionStyle(isDisco: boolean, isAction: boolean | undefined, index: number): DiscoMotionStyle {
-  const style: DiscoMotionStyle = {
-    ...(isDisco ? SUGGESTION_STYLE_DISCO : (isAction ? SUGGESTION_STYLE_ACTION : SUGGESTION_STYLE_NORMAL)),
-    '--disco-motion-delay': `${index * 110}ms`,
-  };
-  return style;
+/**
+ * The thread's only scroller. While the reader is at the bottom it pins the newest note from a ResizeObserver
+ * callback, which runs after layout and before paint, so growth and scroll land in the same frame. A larger jump
+ * (a new note, the chips) is pinned too, then glided with an additive translate on the thread: the compositor
+ * animates it, and later pins cannot cut it short the way they cut off a smooth scroll.
+ */
+function useStickToBottom(scrollRef: RefObject<HTMLDivElement | null>, threadRef: RefObject<HTMLDivElement | null>) {
+  const stuckRef = useRef(true);
+  const glideRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const thread = threadRef.current;
+    if (!scroller || !thread || typeof ResizeObserver === 'undefined') return;
+
+    let height = thread.offsetHeight;
+    let top = scroller.scrollTop;
+    const bottomFor = (threadHeight: number) => thread.offsetTop + threadHeight - scroller.clientHeight;
+
+    const onScroll = () => {
+      const next = scroller.scrollTop;
+      // Against the height last handled, so growth the observer has not seen yet cannot unstick the reader. Any move
+      // up lets go at once, even while a reply keeps growing; coming back near the bottom takes hold again.
+      const distance = bottomFor(height) - next;
+      stuckRef.current = next < top ? distance < 2 : distance < STICK_SLACK_PX;
+      top = next;
+    };
+    const observer = new ResizeObserver(() => {
+      height = thread.offsetHeight;
+      if (stuckRef.current) {
+        scroller.scrollTop = bottomFor(height);
+        const shift = scroller.scrollTop - top;
+        const glide = glideRef.current
+          && Math.abs(shift) >= GLIDE_MIN_PX
+          && Math.abs(shift) < scroller.clientHeight
+          && !document.documentElement.hasAttribute('data-reduced-motion');
+        if (glide) thread.animate({ translate: [`0 ${shift}px`, '0 0'] }, GLIDE);
+      }
+      top = scroller.scrollTop;
+    });
+
+    // Border box: the room kept for the composer is padding, and a taller composer must pin as well.
+    observer.observe(thread, { box: 'border-box' });
+    observer.observe(scroller);
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      scroller.removeEventListener('scroll', onScroll);
+    };
+  }, [scrollRef, threadRef]);
+
+  // Sending always brings the new note into view, gliding from then on.
+  return useCallback(() => {
+    stuckRef.current = true;
+    glideRef.current = true;
+  }, []);
+}
+
+type CSSVars = CSSProperties & Record<`--${string}`, string | number>;
+
+function getChipStyle(index: number): CSSVars {
+  return { '--i': index, '--disco-motion-delay': `${index * 110}ms` };
 }
 
 function pickFollowupAction(
@@ -428,35 +454,12 @@ function filterUnavailableSuggestions(suggestions: readonly string[], discoActiv
   return suggestions.filter(suggestion => suggestion !== unavailable);
 }
 
-// RateLimitNote animation constants
-const RATE_LIMIT_INITIAL = { opacity: 0, scale: 0.9 } as const;
-const RATE_LIMIT_ANIMATE = { opacity: 1, scale: 1, rotate: 2 } as const;
-
-// Chat heading animation constants
-const HEADING_INITIAL = { opacity: 0, rotate: -3 } as const;
-const HEADING_ANIMATE = { opacity: 1, rotate: -2 } as const;
-
-// Suggestions container animation constants
-const SUGGESTIONS_CONTAINER_INITIAL = { opacity: 0, y: 8 } as const;
-const SUGGESTIONS_CONTAINER_ANIMATE = { opacity: 1, y: 0 } as const;
-const SUGGESTIONS_CONTAINER_EXIT = { opacity: 0, y: -4 } as const;
-const SUGGESTIONS_CONTAINER_TRANSITION = { duration: 0.2 } as const;
-
-// Suggestion item animation constants
-const SUGGESTION_ITEM_INITIAL = { opacity: 0, y: 10 } as const;
-const SUGGESTION_ITEM_ANIMATE = { opacity: 1, y: 0 } as const;
-const SUGGESTION_ITEM_EXIT = { opacity: 0, scale: 0.9 } as const;
-const SUGGESTION_ITEM_SKIP_TRANSITION = { duration: 0 } as const;
-const SUGGESTION_HOVER = { scale: 1.05, rotate: -1, transition: { type: "spring" as const, stiffness: 400, damping: 25 } } as const;
-const SUGGESTION_TAP = { scale: 0.95 } as const;
-
-// Input area animation constants
-const INPUT_NOTE_STYLE = { transform: 'rotate(0.5deg)' } as const;
-const INPUT_NOTE_DISCO_STYLE: DiscoMotionStyle = { ...INPUT_NOTE_STYLE, '--disco-motion-delay': '220ms' };
-const INPUT_TOOLBAR_DISCO_STYLE: DiscoMotionStyle = { '--disco-motion-delay': '120ms' };
-const INPUT_NOTE_ANIMATE = { opacity: 0.92, y: 0 } as const;
-const SEND_BUTTON_HOVER = { scale: 1.15, rotate: 10 } as const;
-const SEND_BUTTON_TAP = { scale: 0.9 } as const;
+const INPUT_NOTE_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '220ms' };
+const INPUT_TOOLBAR_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '120ms' };
+const SHELL_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '260ms' };
+const HEAD_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '80ms' };
+const TITLE_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '160ms' };
+const SUB_DISCO_STYLE: CSSVars = { '--disco-motion-delay': '260ms' };
 
 const CHAT_SWAY_PERIOD_MS = 900;
 const CARD_HUE_PERIOD_MS = 6000;
@@ -483,103 +486,62 @@ function getNegativeDiscoDelay(hash: number, periodMs: number): string {
   return `-${offsetMs}ms`;
 }
 
-function getMessageDiscoStyle(messageId: string): DiscoMotionStyle {
+/** Tilt, tape angle and disco offsets, all stable per message so a note never shifts between renders. */
+function getNoteStyle(messageId: string, isUser: boolean): CSSVars {
   const hash = getStableHash(messageId);
+  const normalized = (hash % 1000) / 1000;
+  const rotation = NOTE_ROTATION.minDeg + normalized * NOTE_ROTATION.rangeDeg;
 
   return {
+    '--tilt': `${isUser ? rotation : -rotation}deg`,
+    '--tape-tilt': `${(mixHash(hash, 0x27d4eb2f) % 70) / 10 - 3.5}deg`,
     '--disco-motion-delay': getNegativeDiscoDelay(mixHash(hash, 0x9e3779b1), CHAT_SWAY_PERIOD_MS),
     '--disco-card-delay': getNegativeDiscoDelay(mixHash(hash, 0x85ebca6b), CARD_HUE_PERIOD_MS),
   };
 }
 
-function getNoteRotation(messageId: string, isUser: boolean): number {
-  const hash = getStableHash(messageId);
-
-  const normalized = (hash % 1000) / 1000;
-  const rotation = NOTE_ROTATION.minDeg + normalized * NOTE_ROTATION.rangeDeg;
-  return isUser ? rotation : -rotation;
-}
-
-const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, compact = false, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; compact?: boolean; index?: number; skipEntrance?: boolean }) {
+const SuggestionStrip = memo(function SuggestionStrip({ text, isAction, onSelect, index = 0, skipEntrance }: { text: string; isAction?: boolean; onSelect: (text: string) => void; index?: number; skipEntrance?: boolean }) {
   const handleClick = useCallback(() => onSelect(text), [onSelect, text]);
   const isDisco = Boolean(isAction && (text === DISCO_ACTION_LABEL || text === DISCO_EXIT_ACTION_LABEL));
-  const suggestionStyle = getSuggestionStyle(isDisco, isAction, index);
+  const kind = isDisco ? 'disco' : isAction ? 'action' : 'suggestion';
   return (
-    <m.button
-      initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
-      animate={SUGGESTION_ITEM_ANIMATE}
-      exit={SUGGESTION_ITEM_EXIT}
-      transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { delay: index * 0.07, duration: 0.2 }}
-      whileHover={SUGGESTION_HOVER}
-      whileTap={SUGGESTION_TAP}
+    <button
+      type="button"
       onClick={handleClick}
+      data-kind={kind}
+      data-enter={skipEntrance ? undefined : ''}
       data-disco-motion={isDisco ? 'wiggle' : 'bob'}
-      className={cn(
-        "min-h-11 px-4 py-2 max-[480px]:px-3 max-[480px]:py-1.5 border-2 rounded shadow-sm font-hand text-sm max-[480px]:text-[13px] md:text-base opacity-90 hover:opacity-100 transition-opacity flex flex-col items-start",
-        compact && "px-3 py-1.5 text-xs max-[480px]:px-2.5 max-[480px]:py-1 max-[480px]:text-[11px] md:text-sm",
-        isDisco
-          ? "border-fuchsia-500/80 text-fuchsia-950 shadow-[0_0_14px_rgba(232,121,249,0.45)] hover:shadow-[0_0_22px_rgba(232,121,249,0.7)]"
-          : cn(
-            "bg-[var(--c-paper)] text-[var(--c-ink)]",
-            isAction ? "border-amber-500/80 dark:border-amber-500/60" : "border-[var(--c-grid)]",
-          ),
-      )}
-      style={suggestionStyle}
+      className={cn('chat-chip focus-ring', kind !== 'disco' && 'paper-texture')}
+      style={getChipStyle(index)}
     >
-      <span className={cn(
-        "flex items-center gap-1 max-[480px]:gap-0.5 text-[10px] max-[480px]:text-[9px] font-bold uppercase tracking-wider mb-0.5",
-        isDisco
-          ? "text-fuchsia-700"
-          : isAction ? "text-amber-600/70 dark:text-amber-400/70" : "text-[var(--c-ink)]/40",
-      )}>
-        {isDisco
-          ? <span aria-hidden="true">🪩</span>
-          : isAction ? <Zap size={10} className="text-amber-500 max-[480px]:h-2 max-[480px]:w-2" /> : <span className="text-[var(--c-ink)]/30">💬</span>}
-        {isDisco ? 'disco' : (isAction ? 'action' : 'suggestion')}
+      <span className="chat-chip-kind">
+        {isDisco ? <span aria-hidden="true">🪩</span> : isAction ? <Zap size={10} aria-hidden="true" /> : null}
+        {kind}
       </span>
       {text}
-    </m.button>
+    </button>
   );
 });
 
-// Hardcoded "Enter the Matrix" chip — only renders when the user has
-// already escaped the puzzle. Distinct matrix-green diagonal-stripe styling
-// so it visually pops next to the regular cream sticky-note chips, while
-// keeping the sketchbook border treatment for cohesion. Click navigates
-// directly to /matrix-notes — no API call.
-const MATRIX_CHIP_STYLE = {
-  transform: 'rotate(-1deg)',
-  backgroundImage:
-    'repeating-linear-gradient(135deg, rgba(0,255,65,0.18) 0px, rgba(0,255,65,0.18) 6px, rgba(6,78,59,0.55) 6px, rgba(6,78,59,0.55) 12px)',
-  backgroundColor: '#022c22',
-} as const;
-
-const MatrixEscapeChip = memo(function MatrixEscapeChip({ compact = false, onSelect, skipEntrance }: { compact?: boolean; onSelect: () => void; skipEntrance?: boolean }) {
+// Shown once the visitor has escaped the matrix puzzle; goes straight to /matrix-notes with no API call.
+const MatrixEscapeChip = memo(function MatrixEscapeChip({ onSelect, skipEntrance }: { onSelect: () => void; skipEntrance?: boolean }) {
   return (
-    <m.button
-      initial={skipEntrance ? false : SUGGESTION_ITEM_INITIAL}
-      animate={SUGGESTION_ITEM_ANIMATE}
-      exit={SUGGESTION_ITEM_EXIT}
-      transition={skipEntrance ? SUGGESTION_ITEM_SKIP_TRANSITION : { duration: 0.25 }}
-      whileHover={SUGGESTION_HOVER}
-      whileTap={SUGGESTION_TAP}
+    <button
       onClick={onSelect}
       type="button"
       aria-label="Enter the matrix — open the matrix-notes wall"
+      data-kind="matrix"
+      data-enter={skipEntrance ? undefined : ''}
       data-disco-motion="wiggle"
-      className={cn(
-        "px-4 py-2 border-2 border-emerald-300/80 rounded shadow-[0_0_14px_rgba(16,185,129,0.45)] font-code text-sm md:text-base text-emerald-100 hover:text-white hover:shadow-[0_0_22px_rgba(16,185,129,0.7)] transition-shadow flex flex-col items-start",
-        compact && "px-3 py-1.5 text-xs md:text-sm",
-      )}
-      style={MATRIX_CHIP_STYLE}
+      className="chat-chip focus-ring"
       data-clickable
     >
-      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.22em] mb-0.5 text-emerald-200/90">
+      <span className="chat-chip-kind">
         <span aria-hidden="true">&gt;_</span>
         matrix
       </span>
       <span className="tracking-wide">Enter the Matrix →</span>
-    </m.button>
+    </button>
   );
 });
 
@@ -663,12 +625,10 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
   isActive,
   onClick,
   status,
-  unframed = false,
 }: {
   isActive: boolean;
   onClick: () => void;
   status: TtsPlaybackStatus;
-  unframed?: boolean;
 }) {
   const busy = isActive && status === 'loading';
   const pressed = isActive && status === 'playing';
@@ -690,17 +650,8 @@ const SpeakResponseButton = memo(function SpeakResponseButton({
         aria-pressed={pressed}
         onClick={onClick}
         title={copy.title}
-        className={cn(
-          'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors md:h-7 md:w-7',
-          'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
-          unframed && 'border-transparent bg-transparent',
-          isActive && status === 'error'
-            ? 'border-rose-500/30 bg-rose-100/40 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300'
-            : pressed
-              ? 'border-[var(--note-ai-ink)]/25 bg-[var(--note-ai-ink)]/10 text-[var(--note-ai-ink)]'
-              : 'border-[var(--note-ai-ink)]/15 bg-[var(--note-ai-ink)]/5 text-[var(--note-ai-ink)]/55 hover:text-[var(--note-ai-ink)] hover:bg-[var(--note-ai-ink)]/10',
-          busy && 'cursor-progress opacity-70',
-        )}
+        data-state={isActive && status === 'error' ? 'error' : undefined}
+        className="chat-tts-btn focus-ring"
       >
         {icon}
       </button>
@@ -726,29 +677,14 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
   status: TtsPlaybackStatus;
 }) {
   return (
-    <div
-      role="group"
-      aria-label="Spoken response controls"
-      className={cn(
-        'flex w-12 flex-col items-center gap-1 rounded-full border border-dashed border-[var(--note-ai-ink)]/20 bg-[var(--note-ai)]/95 p-1 shadow-md backdrop-blur-sm md:w-9',
-      )}
-    >
-      <SpeakResponseButton
-        isActive={speakIsActive}
-        status={status}
-        onClick={onSpeak}
-        unframed
-      />
+    <div role="group" aria-label="Spoken response controls" className="chat-tts">
+      <SpeakResponseButton isActive={speakIsActive} status={status} onClick={onSpeak} />
       <Tooltip label={`Voice speed ${playbackSpeed}x`}>
         <button
           type="button"
           aria-label={`Voice speed ${playbackSpeed}x. Change speed`}
           onClick={onCycleSpeed}
-          className={cn(
-            'inline-flex h-10 w-10 items-center justify-center rounded-full border font-hand text-[10px] font-bold transition-colors md:h-7 md:w-7',
-            'border-[var(--note-ai-ink)]/35 bg-[var(--note-ai-ink)]/15 text-[var(--note-ai-ink)] hover:bg-[var(--note-ai-ink)]/20',
-            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
-          )}
+          className="chat-tts-btn focus-ring"
         >
           {playbackSpeed}x
         </button>
@@ -759,12 +695,7 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
           aria-label="Restart spoken response"
           onClick={onRestart}
           disabled={isLoading}
-          className={cn(
-            'inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--note-ai-ink)]/15 bg-[var(--c-paper)]/45 text-[var(--note-ai-ink)]/65 transition-colors md:h-7 md:w-7',
-            'hover:bg-[var(--note-ai-ink)]/10 hover:text-[var(--note-ai-ink)]',
-            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
-            isLoading && 'cursor-progress opacity-50',
-          )}
+          className="chat-tts-btn focus-ring"
         >
           <RotateCcw size={13} aria-hidden="true" />
         </button>
@@ -776,7 +707,6 @@ const SpeakControlsTray = memo(function SpeakControlsTray({
 // ─── Single Sticky Note ───
 const StickyNote = memo(function StickyNote({
   message,
-  compact = false,
   isLoading = false,
   isTtsActive = false,
   onSpeak,
@@ -791,7 +721,6 @@ const StickyNote = memo(function StickyNote({
   ttsStatus = 'idle',
 }: {
   message: ChatMessage;
-  compact?: boolean;
   isLoading?: boolean;
   isTtsActive?: boolean;
   onSpeak?: (message: ChatMessage) => void;
@@ -806,9 +735,10 @@ const StickyNote = memo(function StickyNote({
   ttsStatus?: TtsPlaybackStatus;
 }) {
   const isUser = message.role === 'user';
+  const from = isUser ? 'user' : 'ai';
   const hasAction = !!(message.navigateTo || message.themeAction || (message.openUrls && message.openUrls.length > 0) || message.feedbackAction || message.projectSlug || message.voiceSessionAction || message.fieldFill || message.preferenceAction || message.guestbookSubmit);
-  const rotation = useMemo(() => getNoteRotation(message.id, isUser), [message.id, isUser]);
-  const discoStyle = useMemo(() => getMessageDiscoStyle(message.id), [message.id]);
+  const noteStyle = useMemo(() => getNoteStyle(message.id, isUser), [message.id, isUser]);
+  const isWelcome = message.id === 'welcome';
 
   // Typewriter effect for AI notes (skip for user msgs and old/restored messages)
   const { displayedText, isFiller: isDisplayingFiller, isTyping } = useTypewriter(
@@ -825,172 +755,104 @@ const StickyNote = memo(function StickyNote({
   const canSpeak = canSpeakAssistantMessage(message) && !isDisplayingFiller && !message.isStreaming;
 
   return (
-    <m.div
-      initial={isUser
-        ? { opacity: 0, y: NOTE_ENTRANCE.userY, rotate: rotation + NOTE_ENTRANCE.userRotateOffset }
-        : { opacity: 0, x: NOTE_ENTRANCE.aiX, rotate: rotation + NOTE_ENTRANCE.aiRotateOffset }
-      }
-      animate={{ opacity: message.isOld ? NOTE_ENTRANCE.oldNoteOpacity : 1, y: 0, x: 0, rotate: rotation }}
-      transition={NOTE_SPRING}
-      /* Disco mode: each chat bubble shimmies side-to-side. The note-paper
-         bg classes already trigger the hue-cycle; the shimmy is scoped by
-         the site-wide selector on .bg-[var(--note-user)] / .bg-[var(--note-ai)].
-         data-disco-motion is redundant here but documents the intent. */
-      data-disco-motion="shimmy"
-      style={discoStyle}
-      className={cn(
-        "relative max-w-[90%] sm:max-w-[85%] md:max-w-[70%] mx-auto p-4 md:p-5 pb-6 md:pb-8 shadow-md font-hand text-base md:text-lg",
-        compact && "max-w-[92%] p-3 pb-5 text-sm leading-snug md:max-w-[82%] md:p-3.5 md:pb-6 md:text-base",
-        isUser
-          ? "bg-[var(--note-user)] text-[var(--note-user-ink)]"
-          : "bg-[var(--note-ai)] text-[var(--note-ai-ink)]",
-        message.isOld && "sepia-[.15] dark:sepia-0",
-      )}
+    <div
+      className="chat-slot"
+      data-from={from}
+      // Restored notes are already on the board; new ones (and the welcome card) are placed on it.
+      data-enter={!message.isOld || isWelcome ? '' : undefined}
+      data-old={message.isOld && !isWelcome ? '' : undefined}
+      style={noteStyle}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'absolute top-4 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--c-paper)] font-code text-xs font-bold shadow-sm',
-          isUser
-            ? '-right-3 bg-amber-500 text-amber-950'
-            : '-left-3 bg-sky-600 text-white',
+      <div className="chat-note note-material" data-from={from}>
+        {isUser ? (
+          <span aria-hidden="true" className="chat-mark">Y</span>
+        ) : (
+          <>
+            <TapeStrip className="chat-tape" />
+            <div className="chat-note-head">
+              <span aria-hidden="true" className="chat-mark">D</span>
+              {canSpeak && onSpeak ? (
+                showTtsControls && onTtsRestart && onTtsSpeedChange ? (
+                  <SpeakControlsTray
+                    isLoading={ttsStatus === 'loading'}
+                    playbackSpeed={ttsPlaybackSpeed}
+                    onCycleSpeed={() => onTtsSpeedChange(message)}
+                    onRestart={() => onTtsRestart(message)}
+                    onSpeak={() => onSpeak(message)}
+                    speakIsActive={isTtsActive}
+                    status={ttsStatus}
+                  />
+                ) : (
+                  <SpeakResponseButton
+                    isActive={isTtsActive}
+                    status={ttsStatus}
+                    onClick={() => onSpeak(message)}
+                  />
+                )
+              ) : null}
+            </div>
+          </>
         )}
-      >
-        {isUser ? 'Y' : 'D'}
-      </span>
-      {/* Tape on all notes */}
-      <TapeStrip />
 
-      {/* Mobile: colored left/right border */}
-      <div className={cn(
-        "absolute top-0 bottom-0 w-1 md:hidden",
-        isUser ? "left-0 bg-yellow-500/50" : "right-0 bg-blue-400/50",
-      )} />
-
-      {/* Folded corner effect */}
-      <div
-        className={cn(
-          "absolute pointer-events-none w-[20px] h-[20px]",
-          isUser ? "bottom-0 right-0" : "bottom-0 left-0",
-        )}
-        style={isUser ? FOLD_STYLE_USER : FOLD_STYLE_AI}
-      />
-
-      {canSpeak && onSpeak ? (
-        <div className="absolute right-2 top-2 z-10">
-          {showTtsControls && onTtsRestart && onTtsSpeedChange ? (
-            <SpeakControlsTray
-              isLoading={ttsStatus === 'loading'}
-              playbackSpeed={ttsPlaybackSpeed}
-              onCycleSpeed={() => onTtsSpeedChange(message)}
-              onRestart={() => onTtsRestart(message)}
-              onSpeak={() => onSpeak(message)}
-              speakIsActive={isTtsActive}
-              status={ttsStatus}
-            />
-          ) : (
-            <SpeakResponseButton
-              isActive={isTtsActive}
-              status={ttsStatus}
-              onClick={() => onSpeak(message)}
-            />
-          )}
-        </div>
-      ) : null}
-
-      {/* Message content — rendered inline so the note grows naturally with typewritten text */}
-      <div className={cn("relative", canSpeak && "pr-8")}>
-        <div ref={textHeightRef} className="transition-[height] duration-200 ease-out motion-reduce:transition-none">
-        <div ref={textRef} data-site-chat-user={isUser ? '' : undefined} className={cn(
-          "whitespace-pre-wrap break-words leading-relaxed",
-          // Filler text: same color, just faded + italic to distinguish from final response
-          !isUser && isDisplayingFiller && "italic opacity-50",
-        )}
-          // Prevent note from collapsing to 0 height during erase→type transition
-          style={MIN_HEIGHT_STYLE}
-        >
-          {isUser ? (
-            message.content
-          ) : (
-            <MatrixAwareAssistantText message={message} displayedText={displayedText} />
-          )}
-        </div>
+        <div ref={textHeightRef} className="chat-note-grow">
+          <div
+            ref={textRef}
+            data-site-chat-user={isUser ? '' : undefined}
+            data-filler={!isUser && isDisplayingFiller ? '' : undefined}
+            className="chat-note-text"
+          >
+            {isUser ? (
+              message.content
+            ) : (
+              <MatrixAwareAssistantText message={message} displayedText={displayedText} />
+            )}
+          </div>
         </div>
         {isUser && message.imagePreviewDataUrl ? (
-          <div className="mt-3 flex max-w-full items-center gap-2 border-t border-dashed border-[var(--note-user-ink)]/25 pt-2">
+          <div className="chat-photo">
             {/* eslint-disable-next-line @next/next/no-img-element -- transient request data URL must not use Next image optimization. */}
-            <img
-              src={message.imagePreviewDataUrl}
-              alt=""
-              className="h-12 w-12 shrink-0 rounded-sm border border-[var(--note-user-ink)]/25 object-cover"
-            />
-            <span className="min-w-0 truncate text-xs text-[var(--note-user-ink)]/75">
+            <img src={message.imagePreviewDataUrl} alt="" />
+            <span className="min-w-0 truncate">
               Image attached{message.imageName ? `: ${message.imageName}` : ''}
             </span>
           </div>
         ) : null}
         {!isUser && isTtsActive && ttsStatus === 'error' && ttsPlaybackError ? (
-          <p className="mt-2 font-sans text-xs leading-snug text-rose-700 dark:text-rose-300" role="status">
+          <p className="chat-note-error" role="status">
             {ttsPlaybackError}
           </p>
         ) : null}
         {!isUser && onRetry && !isDisplayingFiller && displayedText === message.content ? (
-          <button
-            type="button"
-            onClick={() => onRetry(message)}
-            className={cn(
-              'mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-sm border-2 border-dashed border-[var(--note-ai-ink)]/30 px-3 font-hand text-sm font-bold text-[var(--note-ai-ink)] transition-colors md:min-h-8',
-              'hover:bg-[var(--note-ai-ink)]/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--note-ai-ink)]/60',
-            )}
-          >
+          <button type="button" onClick={() => onRetry(message)} className="chat-retry focus-ring">
             <RotateCcw size={13} aria-hidden="true" />
             Try again
           </button>
         ) : null}
+
+        {/* Fallback links when popup was blocked */}
+        {message.openUrls && message.openUrlsFailed ? (
+          <div className="chat-links">
+            {message.openUrls.map((url, i) => (
+              <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="chat-link">
+                Open link{message.openUrls!.length > 1 ? ` ${i + 1}` : ''} here ~
+              </a>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="chat-note-foot">
+          <span className="chat-sign">— {isUser ? 'You' : 'Dhruv'}</span>
+          {/* Shown from the moment the note appears until the reply has been generated. */}
+          {showPencil ? <TypingEllipsis /> : null}
+          {!showPencil && hasAction && !isUser ? (
+            <span className="chat-badge">
+              <Zap size={10} aria-hidden="true" />
+              action
+            </span>
+          ) : null}
+        </div>
       </div>
-
-      {/* Typing ellipsis — shows from note spawn until generation/typewriting finishes */}
-      {showPencil && (
-        <div className="absolute bottom-2 right-4" style={{ color: 'var(--note-ai-ink)' }}>
-          <TypingEllipsis />
-        </div>
-      )}
-
-      {/* Signature */}
-      <div className={cn(
-        "absolute bottom-1.5 font-hand text-xs opacity-40 italic",
-        isUser ? "right-3" : "left-3",
-      )}>
-        — {isUser ? 'You' : 'Dhruv'}
-      </div>
-
-      {/* Action performed badge */}
-      {hasAction && !isUser && (
-        <div className={cn(
-          "absolute bottom-1.5 right-3 flex items-center gap-0.5 font-hand text-[10px] text-amber-950 dark:text-amber-400",
-        )}>
-          <Zap size={10} />
-          <span>action</span>
-        </div>
-      )}
-
-      {/* Fallback links when popup was blocked */}
-      {message.openUrls && message.openUrlsFailed && (
-        <div className="mt-2 flex flex-col gap-1">
-          {message.openUrls.map((url, i) => (
-            <a
-              key={url}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-hand text-xs text-blue-700 dark:text-blue-400 underline underline-offset-2 decoration-dotted hover:decoration-solid"
-            >
-              Open link{message.openUrls!.length > 1 ? ` ${i + 1}` : ''} here ~
-            </a>
-          ))}
-        </div>
-      )}
-    </m.div>
+    </div>
   );
 });
 
@@ -999,27 +861,19 @@ const StickyNote = memo(function StickyNote({
 // ─── Rate Limit Note ───
 const RateLimitNote = memo(function RateLimitNote({ seconds }: { seconds: number }) {
   return (
-    <m.div
-      initial={RATE_LIMIT_INITIAL}
-      animate={RATE_LIMIT_ANIMATE}
-      className="relative max-w-sm mx-auto p-4 bg-paper-coral dark:bg-paper-coral-dark text-orange-900 dark:text-orange-200 shadow-md font-hand text-sm md:text-base"
-    >
+    <div className="chat-alert note-material" data-tone="rate">
       <TapeStrip />
       Whoa, slow down! Even sticky notes need a breather. Try again in {seconds} seconds.
-    </m.div>
+    </div>
   );
 });
 
 const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: string }) {
   return (
-    <m.div
-      initial={RATE_LIMIT_INITIAL}
-      animate={{ opacity: 1, scale: 1, rotate: -1 }}
-      className="relative max-w-sm mx-auto p-4 bg-[#ffd7d1] dark:bg-[#4a1f1a] text-rose-900 dark:text-rose-100 shadow-md font-hand text-sm md:text-base"
-    >
+    <div className="chat-alert note-material" data-tone="error">
       <TapeStrip />
       {message}
-    </m.div>
+    </div>
   );
 });
 
@@ -1027,7 +881,6 @@ const ServiceErrorNote = memo(function ServiceErrorNote({ message }: { message: 
 interface ChatInputAreaProps {
   onSend: (text: string, image?: ChatImageAttachment, focusWasInComposer?: boolean) => Promise<boolean>;
   isLoading: boolean;
-  compact: boolean;
   hasMessages: boolean;
   onClear: () => void;
   composerRef: React.RefObject<HTMLDivElement | null>;
@@ -1068,34 +921,17 @@ const ConfirmContent = memo(function ConfirmContent({
   }, []);
   return (
     <div className="flex flex-col gap-4">
-      <h2
-        id={titleId}
-        className="font-hand text-xl md:text-2xl font-bold text-[var(--c-heading)] leading-tight"
-      >
+      <h2 id={titleId} className="font-hand text-xl font-bold leading-tight text-[var(--c-heading)] md:text-2xl">
         {title}
       </h2>
-      <p className="font-hand text-sm md:text-base text-[var(--c-ink)]/85 leading-relaxed">
+      <p className="font-hand text-sm leading-relaxed md:text-base">
         {body}
       </p>
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-1">
-        <button
-          ref={cancelRef}
-          type="button"
-          onClick={onCancel}
-          className="font-hand font-bold text-sm md:text-base px-4 py-2 rounded border-2 border-dashed border-[var(--c-ink)]/30 text-[var(--c-ink)]/80 hover:bg-[var(--c-ink)]/5 hover:border-[var(--c-ink)]/55 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60"
-        >
+      <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end sm:gap-3">
+        <button ref={cancelRef} type="button" onClick={onCancel} className="chat-btn focus-ring">
           Cancel
         </button>
-        <button
-          type="button"
-          onClick={onConfirm}
-          className={cn(
-            'font-hand font-bold text-sm md:text-base px-4 py-2 rounded border-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-            confirmTone === 'danger'
-              ? 'bg-red-100 border-red-500 text-red-800 hover:bg-red-200 dark:bg-red-950/40 dark:border-red-400 dark:text-red-200 dark:hover:bg-red-900/60 focus-visible:outline-red-500'
-              : 'bg-amber-100 border-amber-600 text-amber-900 hover:bg-amber-200 dark:bg-amber-500/30 dark:border-amber-300 dark:text-amber-100 dark:hover:bg-amber-500/50 focus-visible:outline-amber-500',
-          )}
-        >
+        <button type="button" onClick={onConfirm} data-tone={confirmTone} className="chat-btn focus-ring">
           {confirmLabel}
         </button>
       </div>
@@ -1103,7 +939,7 @@ const ConfirmContent = memo(function ConfirmContent({
   );
 });
 
-const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, hasMessages, onClear, composerRef }: ChatInputAreaProps) {
+const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, hasMessages, onClear, composerRef }: ChatInputAreaProps) {
   const [input, setInput] = useState('');
   const [attachment, setAttachment] = useState<ChatImageAttachment | null>(null);
   const [attachmentStatus, setAttachmentStatus] = useState<string | null>(null);
@@ -1315,102 +1151,62 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
     pendingHistoryCaretRequestRef.current = null;
   }, [historyCaretRequest]);
 
+  const showModel = modelPrefHydrated && model;
+
   return (
-    <div
-      ref={composerRef}
-      data-chat-composer
-      className={cn(
-        "absolute inset-x-0 pointer-events-none",
-        // Lift the input bar off the viewport bottom on both breakpoints so
-        // the user's eye is drawn TO it (rather than it disappearing into
-        // the page chrome). Mobile gets ~8px, desktop a generous ~24px so
-        // the sticky-note feels like a card the visitor can grab.
-        "bottom-2 md:bottom-6",
-        "before:absolute before:inset-x-0 before:bottom-full before:h-16 before:bg-gradient-to-t before:from-[var(--c-bg)] before:to-transparent",
-      )}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-    >
-      <div className={cn(
-        // Slightly more breathing room on mobile (pt-2 / pb-2) so the
-        // toolbar above and the input note don't visually crowd each
-        // other; desktop keeps its existing comfortable gutter.
-        "pointer-events-auto bg-[var(--c-bg)] px-2 md:px-6 pt-2 pb-2 md:pt-3 md:pb-3",
-        compact && "px-2 pt-1 pb-1 max-[480px]:px-1.5 max-[480px]:pt-0.5 max-[480px]:pb-0.5",
-      )}>
-        {/* Utility controls live above the note: current model, image
-          attachment, and chat history remain grouped in one pill. */}
-        {(hasMessages || supportsImages || !compact) && (
-          <div className={cn(
-            "flex items-center justify-end mb-1.5 max-[480px]:mb-1 px-1 max-[480px]:px-0.5",
-            compact && "mb-0.5 px-0 max-[480px]:mb-0.5 max-[480px]:px-0",
-          )}>
-            <div
-              data-disco-motion="shimmy"
-              data-disco-chat-input-bar
-              className={cn(
-                'flex max-w-full flex-wrap items-center justify-end gap-2 max-[480px]:gap-1 rounded-full px-2.5 max-[480px]:px-1.5 py-1.5 max-[480px]:py-0.5 md:gap-4 md:px-3 md:py-1.5',
-                compact && 'gap-0 rounded-full px-0.5 py-0 max-[480px]:gap-0 max-[480px]:px-0.5 max-[480px]:py-0 md:gap-0.5 md:px-1 md:py-0.5',
-                // Translucent paper background — reads on both light and
-                // dark themes via the --c-paper / --c-ink tokens, then
-                // softened with /60 + backdrop-blur so messages bleed
-                // through faintly. Dashed sketch border keeps the
-                // sketchbook aesthetic.
-                'bg-[var(--c-paper)]/60 backdrop-blur-sm',
-                'border border-dashed border-[var(--c-ink)]/20',
-                'shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)]',
-              )}
-              style={INPUT_TOOLBAR_DISCO_STYLE}
-            >
-              {!compact && modelPrefHydrated && model ? (
-                <Link
-                  href="/settings?focus=ai-model"
-                  prefetch={false}
-                  data-chat-model-settings-link
-                  className="inline-flex min-h-11 max-w-32 items-center truncate px-1 font-code text-[10px] text-[var(--c-ink)]/60 underline decoration-dotted underline-offset-4 transition-colors hover:text-[var(--c-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 max-[480px]:max-w-24 max-[480px]:text-[9px]"
-                  title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
-                  aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
+    <div ref={composerRef} data-chat-composer className="chat-composer">
+      <div className="chat-dock">
+        {showModel || supportsImages || hasMessages ? (
+          <div
+            data-disco-motion="shimmy"
+            data-disco-chat-input-bar
+            className="chat-tools"
+            style={INPUT_TOOLBAR_DISCO_STYLE}
+          >
+            {showModel ? (
+              <Link
+                href="/settings?focus=ai-model"
+                prefetch={false}
+                data-chat-model-settings-link
+                className="chat-model focus-ring"
+                title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
+                aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
+              >
+                <span>{modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}</span>
+              </Link>
+            ) : null}
+            {supportsImages ? (
+              <Tooltip label="Attach image">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || isCompressingImage}
+                  className="chat-tool focus-ring"
+                  title="Attach image"
+                  aria-label="Attach image"
                 >
-                  {modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}
-                </Link>
-              ) : null}
-              {supportsImages ? (
-                <Tooltip label="Attach image">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading || isCompressingImage}
-                    className={cn(
-                      "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors hover:bg-amber-200/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:cursor-not-allowed disabled:opacity-45",
-                      compact && "md:h-8 md:w-8",
-                    )}
-                    title="Attach image"
-                    aria-label="Attach image"
-                  >
-                    {isCompressingImage ? <Loader2 size={14} className="max-[480px]:h-3 max-[480px]:w-3 animate-spin" aria-hidden="true" /> : <ImagePlus size={15} className="max-[480px]:h-3 max-[480px]:w-3" aria-hidden="true" />}
-                  </button>
-                </Tooltip>
-              ) : null}
-              {hasMessages && (
-                <Tooltip label="Clear chat history">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmKind('clear')}
-                    className={cn(
-                      "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 transition-colors duration-200 hover:bg-red-100/40 hover:text-red-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60 dark:hover:bg-red-950/30 dark:hover:text-red-400",
-                      compact && "md:h-8 md:w-8",
-                    )}
-                    title="Clear chat history"
-                    aria-label="Clear chat history"
-                  >
-                    <Trash2 size={14} aria-hidden="true" />
-                  </button>
-                </Tooltip>
-              )}
-            </div>
+                  {isCompressingImage ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <ImagePlus size={15} aria-hidden="true" />}
+                </button>
+              </Tooltip>
+            ) : null}
+            {hasMessages ? (
+              <Tooltip label="Clear chat history">
+                <button
+                  type="button"
+                  onClick={() => setConfirmKind('clear')}
+                  data-tone="danger"
+                  className="chat-tool focus-ring"
+                  title="Clear chat history"
+                  aria-label="Clear chat history"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </Tooltip>
+            ) : null}
           </div>
-        )}
+        ) : null}
         {speech.requiresLocalTranscription || speech.error ? (
-          <div className="mb-1 px-2 text-right font-hand text-[11px] leading-tight text-[var(--c-ink)]/65" aria-live="polite">
+          <div className="chat-status" aria-live="polite">
             {speech.requiresLocalTranscription
               ? 'This browser needs Local Transcription for the mic.'
               : speech.error}
@@ -1427,17 +1223,16 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           />
         ) : null}
         {attachment ? (
-          <div className="mx-1 mb-1.5 flex min-h-12 max-w-full items-center gap-2 border-b border-dashed border-[var(--c-ink)]/20 pb-1.5">
+          <div className="chat-attachment">
             {/* eslint-disable-next-line @next/next/no-img-element -- transient request data URL must not use Next image optimization. */}
-            <img src={attachment.dataUrl} alt="" className="h-11 w-11 shrink-0 rounded-sm border border-[var(--c-ink)]/20 object-cover" />
-            <span className="min-w-0 flex-1 truncate font-hand text-sm text-[var(--c-ink)]/75">
-              {attachment.filename} ({Math.ceil(attachment.bytes / 1024)} KB)
-            </span>
+            <img src={attachment.dataUrl} alt="" />
+            <span>{attachment.filename} ({Math.ceil(attachment.bytes / 1024)} KB)</span>
             <Tooltip label="Remove image">
               <button
                 type="button"
                 onClick={() => { setAttachment(null); setAttachmentStatus(null); }}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--c-ink)]/70 hover:bg-red-100/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+                data-tone="danger"
+                className="chat-tool focus-ring"
                 aria-label="Remove attached image"
                 title="Remove image"
               >
@@ -1447,25 +1242,19 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
           </div>
         ) : null}
         {attachmentStatus ? (
-          <p className="mb-1 px-2 font-hand text-[11px] leading-tight text-[var(--c-ink)]/65" aria-live="polite">
+          <p className="chat-status" data-align="start" aria-live="polite">
             {attachmentStatus}
           </p>
         ) : null}
 
-        {/* The input "sticky note" keeps dictation beside the text it controls. */}
-        <m.div
-          initial={false}
-          animate={INPUT_NOTE_ANIMATE}
+        {/* The pad keeps dictation, the draft and the send plane together. */}
+        <div
           data-disco-motion="bob"
           data-disco-chat-input
-          className={cn(
-            "relative bg-[var(--note-user)] rounded shadow-md border border-[var(--c-grid)]/20",
-            // Tighter mobile padding keeps the compact composer dense.
-            compact ? "px-2 py-1.5" : "px-2 py-1.5 md:px-4 md:py-2.5",
-          )}
+          className="chat-pad note-material"
           style={INPUT_NOTE_DISCO_STYLE}
         >
-          <div className="flex items-end gap-2">
+          <div className="chat-pad-row">
             {speech.isSupported ? (
               <MicButton
                 isListening={speech.isListening}
@@ -1475,12 +1264,12 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                 loadProgress={speech.loadProgress}
                 onClick={handleMicToggle}
                 disabled={isLoading}
-                size={compact ? 12 : 14}
+                size={15}
                 title={speech.requiresLocalTranscription ? 'Enable Local Transcription to dictate on this browser' : undefined}
               />
             ) : null}
-            <div className="flex min-w-0 flex-1 items-end gap-2" onClick={() => inputRef.current?.focus()}>
-              <div className="relative flex-1 min-h-[44px]">
+            <div className="flex min-w-0 flex-1 items-end gap-1" onClick={() => inputRef.current?.focus()}>
+              <div className="chat-field">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -1490,32 +1279,12 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                   disabled={isLoading || isCompressingImage || speech.isListening || speech.isTranscribing}
                   aria-label="Chat message"
                   data-voice-field="chat-composer"
-                  className={cn(
-                    // Auto-grow textarea: rows=1 baseline; useLayoutEffect
-                    // measures scrollHeight and applies inline height up to
-                    // ~3-4 lines, then internal overflow-y kicks in.
-                    "w-full min-h-[44px] bg-transparent py-2.5 resize-none font-hand text-[var(--note-user-ink)] focus:outline-none overflow-y-auto",
-                    // Placeholder text uses the SAME font-size as typed text;
-                    // greyer color is applied via the overlay span below
-                    // (the textarea's native placeholder is unused on
-                    // purpose — we render a custom typewriter overlay).
-                    compact ? "text-sm md:text-base leading-snug max-h-[96px]" : "text-base md:text-lg leading-snug max-h-[112px] md:max-h-[140px]",
-                    (speech.isListening || speech.isTranscribing) && "invisible",
-                  )}
+                  // Grows with the draft (layout effect above) up to its CSS max-height, then scrolls.
+                  className={cn('chat-input', (speech.isListening || speech.isTranscribing) && 'invisible')}
                 />
-                {/* Typewriter placeholder overlay — same font-size as the
-                  textarea (mobile: text-base, desktop: text-lg) so swapping
-                  in real typed text doesn't reflow. Color is the only
-                  difference: muted ink rather than full ink. */}
+                {/* Typewriter placeholder at the textarea's own size, so typing never reflows the pad. */}
                 {!input && !speech.isListening && !speech.isTranscribing && (
-                  <span
-                    ref={placeholderRef}
-                    aria-hidden
-                    className={cn(
-                      "absolute left-0 top-2.5 pointer-events-none font-hand text-[var(--note-user-ink)]/40 whitespace-nowrap overflow-hidden leading-snug",
-                      compact ? "text-sm md:text-base" : "text-base md:text-lg",
-                    )}
-                  />
+                  <span ref={placeholderRef} aria-hidden className="chat-placeholder" />
                 )}
                 <ListeningOverlay
                   isListening={speech.isListening}
@@ -1537,32 +1306,23 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
                     setInput('');
                     setTimeout(() => inputRef.current?.focus(), 0);
                   }}
-                  size={compact ? 12 : 14}
+                  size={14}
                 />
               )}
 
-              {/* Paperclip send button stays paired with the textarea as
-                  the primary action for typed or dictated text. */}
-              <m.button
+              <button
                 type="button"
-                whileHover={SEND_BUTTON_HOVER}
-                whileTap={SEND_BUTTON_TAP}
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading || isCompressingImage}
-                className={cn(
-                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-0 transition-colors",
-                  input.trim() && !isLoading && !isCompressingImage
-                    ? "text-amber-700 dark:text-amber-300 hover:bg-amber-200/30"
-                    : "text-gray-400 dark:text-gray-600",
-                )}
+                className="chat-send focus-ring"
                 title="Send note"
                 aria-label="Send message"
               >
-                <Send size={compact ? 14 : 16} className="max-[480px]:h-3 max-[480px]:w-3 md:w-[20px] md:h-[20px]" />
-              </m.button>
+                <Send aria-hidden="true" />
+              </button>
             </div>
           </div>
-        </m.div>
+        </div>
       </div>
 
       {/* ─── Confirmation modal (Clear chat / Enable Local Transcription) ─── */}
@@ -1570,7 +1330,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
         isOpen={confirmKind !== null}
         onClose={() => setConfirmKind(null)}
         ariaLabelledBy="chat-confirm-title"
-        className="w-[min(92vw,420px)] bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/60 rounded-lg shadow-xl p-5 md:p-6 mt-[20vh] md:mt-[18vh]"
+        className="chat-confirm sheet-material"
       >
         {confirmKind === 'clear' && (
           <ConfirmContent
@@ -1608,16 +1368,13 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, compact, 
 // ═════════════════════════════════════════════════
 // ─── Main StickyNoteChat Component ───
 // ═════════════════════════════════════════════════
-export default function StickyNoteChat({ compact = false }: { compact?: boolean }) {
+export default function StickyNoteChat() {
   const { messages, isLoading, error, sendMessage, retryMessage, sendHardcoded, clearMessages, markOpenUrlsFailed, rateLimitRemaining, fetchSuggestions, suggestions: llmSuggestions, isSuggestionsLoading } = useStickyChat();
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { clear, closePanel, error: errorHaptic, externalLink, navigate, openPanel, selection, submit, success, warning } = useAppHaptics();
   const { pref: voiceOutput } = useVoiceOutputPref();
   const { enabled: speakByDefault } = useSpeakByDefaultPref();
-  const { modelId } = useChatModelPref();
-  const selectedModel = getChatModel(modelId);
-  const selectedModelDisplayName = getChatModelDisplayName(selectedModel);
   const {
     activeMessageId: ttsActiveMessageId,
     error: ttsPlaybackError,
@@ -1640,9 +1397,11 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const followupActions = useMemo(() => getFollowupActions(), []);
   const matrixEscaped = useMatrixEscaped();
   const discoActive = useDiscoActive();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const followNewNote = useStickToBottom(messagesScrollRef, threadRef);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handledActionsRef = useRef<Set<string>>(new Set());
@@ -1659,38 +1418,20 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
   const remoteSendLoadingStartedForFocusRef = useRef<number | null>(null);
   const previousLoadingRef = useRef(isLoading);
   const lastErrorRef = useRef<string | null>(null);
-  const [composerHeight, setComposerHeight] = useState(0);
-  const composerHeightRef = useRef(0);
   const [assistantReplyAnnouncement, setAssistantReplyAnnouncement] = useState<{ id: string; text: string } | null>(null);
 
+  // The thread reserves room under its last note for the composer. Written as a CSS variable so a growing draft
+  // does not re-render the conversation.
   useLayoutEffect(() => {
     const composer = composerRef.current;
-    if (!composer) return;
+    const shell = shellRef.current;
+    if (!composer || !shell || typeof ResizeObserver === 'undefined') return;
 
-    const measureComposer = () => {
-      const nextHeight = Math.ceil(composer.getBoundingClientRect().height);
-      if (nextHeight === composerHeightRef.current) return;
-      composerHeightRef.current = nextHeight;
-      setComposerHeight(nextHeight);
-    };
-
+    const measureComposer = () => shell.style.setProperty('--chat-composer-height', `${composer.offsetHeight}px`);
     measureComposer();
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(measureComposer);
-      observer.observe(composer);
-      return () => observer.disconnect();
-    }
-
-    // Older browsers still reserve the measured height and react to DOM changes.
-    const observer = typeof MutationObserver !== 'undefined'
-      ? new MutationObserver(measureComposer)
-      : null;
-    observer?.observe(composer, { attributes: true, childList: true, subtree: true });
-    window.addEventListener('resize', measureComposer);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', measureComposer);
-    };
+    const observer = new ResizeObserver(measureComposer);
+    observer.observe(composer);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -2040,58 +1781,9 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
     errorHaptic();
   }, [error, errorHaptic, rateLimitRemaining, warning]);
 
-  // Auto-scroll to newest note — consolidated single effect handles all scroll triggers:
-  // new message arrives, streaming ends, or suggestions appear. Replaces two separate effects.
-  const prevMessageCountRef = useRef(messages.length);
-  useEffect(() => {
-    const countChanged = messages.length !== prevMessageCountRef.current;
-    prevMessageCountRef.current = messages.length;
-    if ((countChanged || !isLoading) && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length, isLoading, readyForAssistantId]);
-
-  // Auto-scroll DURING typewriter growth — observes the scroll container's
-  // content size and snaps to bottom whenever it grows AND the user was
-  // anchored near the bottom BEFORE the growth. Respects manual scroll-up
-  // for reading history (threshold: 80px from bottom).
-  useEffect(() => {
-    const el = messagesScrollRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-
-    let lastScrollHeight = el.scrollHeight;
-    let rafId: number | null = null;
-
-    const observer = new ResizeObserver(() => {
-      const nextHeight = el.scrollHeight;
-      if (nextHeight === lastScrollHeight) return;
-      // Compute "near bottom" against the height we observed BEFORE this growth,
-      // so the new content doesn't flip us out of the anchored state.
-      const distanceFromBottom = lastScrollHeight - el.scrollTop - el.clientHeight;
-      const wasNearBottom = distanceFromBottom < 80;
-      lastScrollHeight = nextHeight;
-      if (!wasNearBottom) return;
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        el.scrollTop = el.scrollHeight;
-      });
-    });
-
-    observer.observe(el);
-    // Also observe each direct child so we catch typewriter growth that doesn't
-    // resize the scroll container itself (only its content).
-    const children = Array.from(el.children) as HTMLElement[];
-    children.forEach((c) => observer.observe(c));
-
-    return () => {
-      observer.disconnect();
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [messages.length]);
-
   const handleSendFromInput = useCallback(async (text: string, image?: ChatImageAttachment, focusWasInComposer = false): Promise<boolean> => {
     setHasHadInteraction(true);
+    followNewNote();
     stopTtsPlayback();
     submit();
     soundManager.play('chat-send');
@@ -2118,7 +1810,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
       }
     });
     return accepted;
-  }, [sendMessage, sendHardcoded, stopTtsPlayback, submit]);
+  }, [followNewNote, sendMessage, sendHardcoded, stopTtsPlayback, submit]);
 
   useEffect(() => {
     const handler = (raw: Event) => {
@@ -2181,6 +1873,7 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const handleSuggestion = useCallback((text: string) => {
     setHasHadInteraction(true);
+    followNewNote();
     stopTtsPlayback();
     selection();
     soundManager.play('chat-send');
@@ -2198,13 +1891,14 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         appendUserAction({ kind: 'chat.sent' });
       }
     });
-  }, [selection, sendMessage, sendHardcoded, stopTtsPlayback]);
+  }, [followNewNote, selection, sendMessage, sendHardcoded, stopTtsPlayback]);
 
   const handleRetryMessage = useCallback((message: ChatMessage) => {
     stopTtsPlayback();
     selection();
+    followNewNote();
     if (retryMessage(message.id)) soundManager.play('chat-send');
-  }, [retryMessage, selection, stopTtsPlayback]);
+  }, [followNewNote, retryMessage, selection, stopTtsPlayback]);
 
   const handleSpeakMessage = useCallback((message: ChatMessage) => {
     autoSpokenAssistantRef.current = message.id;
@@ -2267,18 +1961,22 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
 
   const hasMessages = messages.length > 1; // >1 because welcome message is always present
   const hasOldMessages = messages.some(m => m.isOld && m.id !== 'welcome');
+  const lastAssistantId = messages.findLast(m => m.role === 'assistant')?.id;
+  const showSuggestions = !isLoading
+    && !!lastAssistantId
+    && readyForAssistantId === lastAssistantId
+    && (baseSuggestions.length > 0 || extraSuggestions.length > 0 || matrixEscaped);
+  const chipSlots = 4 - (matrixEscaped ? 1 : 0);
+  const shownBaseSuggestions = baseSuggestions.slice(0, chipSlots);
+  const shownExtraSuggestions = extraSuggestions.slice(0, Math.max(0, chipSlots - baseSuggestions.length));
 
   return (
-    <div className={cn(
-      "flex flex-col h-full",
-      compact ? "max-h-full" : ""
-    )}
+    <div
+      ref={shellRef}
+      className="chat-shell flex h-full max-h-full flex-col"
       data-disco-chat-shell
-      data-disco-motion={compact ? undefined : 'breath'}
-      style={{
-        '--disco-motion-delay': '260ms',
-        '--chat-composer-height': `${composerHeight}px`,
-      } as CSSProperties}
+      data-disco-motion="breath"
+      style={SHELL_DISCO_STYLE}
     >
       {projectModalLoaded ? <ChatProjectModal projectSlug={selectedProjectSlug} onClose={handleCloseProjectModal} /> : null}
       <div className="sr-only" aria-live="polite">
@@ -2293,189 +1991,83 @@ export default function StickyNoteChat({ compact = false }: { compact?: boolean 
         ) : null}
       </div>
       {/* ─── Header ─── */}
-      {!compact ? (
-        <div
-          data-disco-motion="bob"
-          style={{ '--disco-motion-delay': '80ms' } as CSSProperties}
-          className="text-center pt-2 pb-0 md:pt-10 md:pb-1 shrink-0"
-        >
-          <m.h1
-            initial={HEADING_INITIAL}
-            animate={HEADING_ANIMATE}
-            data-disco-motion="wiggle"
-            style={{ '--disco-motion-delay': '160ms' } as CSSProperties}
-            className="text-2xl md:text-5xl font-hand font-bold text-[var(--c-heading)] inline-block"
-          >
-            Pass me a note
-          </m.h1>
-          <WavyUnderline />
-          <m.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: ANIMATION_TOKENS.delay.medium }}
-            data-disco-motion="shimmy"
-            style={{ '--disco-motion-delay': '260ms' } as CSSProperties}
-            className="font-hand text-sm md:text-xl text-[var(--c-ink)] opacity-60 mt-0.5 md:mt-2 hidden md:block"
-          >
-            Ask me anything ~
-          </m.p>
-        </div>
-      ) : (
-        <div className="flex shrink-0 items-center gap-2 px-3 pt-2">
-          <WavyUnderline className="!mt-0 opacity-40" />
-          {selectedModel ? (
-            <Link
-              href="/settings?focus=ai-model"
-              prefetch={false}
-              className="inline-flex min-h-11 max-w-[55%] shrink-0 items-center truncate px-1 font-hand text-xs font-bold text-[var(--c-ink)]/65 underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
-              title={selectedModelDisplayName}
-              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
-            >
-              {selectedModelDisplayName}
-            </Link>
-          ) : null}
-        </div>
-      )}
+      <div data-disco-motion="bob" style={HEAD_DISCO_STYLE} className="chat-head">
+        <h1 data-disco-motion="wiggle" style={TITLE_DISCO_STYLE} className="chat-title font-hand font-bold">
+          Pass me a note
+        </h1>
+        <WavyUnderline />
+        <p data-disco-motion="shimmy" style={SUB_DISCO_STYLE} className="chat-sub font-hand">
+          Ask me anything ~
+        </p>
+      </div>
 
       {/* ─── Messages + Input (overlaid) ─── */}
-      <div className="relative flex-1 min-h-0">
-        {!compact && selectedModel ? (
-          <div
-            data-chat-model-float
-            className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-2"
-          >
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"
-            />
-            <Link
-              href="/settings?focus=ai-model"
-              prefetch={false}
-              className="pointer-events-auto relative mt-0.5 inline-flex min-h-11 max-w-[calc(100vw-2rem)] items-center truncate rounded-full bg-[var(--c-paper)]/70 px-3 font-hand text-xs font-bold text-[var(--c-ink)]/65 shadow-sm underline decoration-dotted underline-offset-4 backdrop-blur-[2px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 md:text-sm"
-              title={selectedModelDisplayName}
-              aria-label={`Current AI model: ${selectedModelDisplayName}. Change in Settings`}
-            >
-              {selectedModelDisplayName}
-            </Link>
-          </div>
-        ) : null}
-        {/* ─── Custom pill scrollbar ─── */}
+      <div className="relative min-h-0 flex-1">
         <PillScrollbar scrollRef={messagesScrollRef} />
-        {/* ─── Messages Area ─── */}
-        <div
-          ref={messagesScrollRef}
-          className={cn(
-            "absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2 md:px-6 py-4 flex flex-col gap-6 md:gap-7 scrollbar-hidden",
-            !compact && "pt-12",
-            compact && "px-2 pt-4 gap-4",
-          )}
-          style={{
-            touchAction: 'pan-y',
-            paddingBottom: 'calc(var(--chat-composer-height, 0px) + env(safe-area-inset-bottom, 0px) + 0.75rem)',
-          }}>
-          {/* Messages (welcome note is always first) */}
-          {messages.map((msg, idx) => {
-            // Show "old notes" divider before the first non-welcome old message
-            const showDivider = hasOldMessages && msg.isOld && msg.id !== 'welcome' &&
-              !messages.slice(0, idx).some(m => m.isOld && m.id !== 'welcome');
+        <div ref={messagesScrollRef} className="chat-scroll">
+          <div ref={threadRef} className="chat-thread">
+            {/* Messages (welcome note is always first) */}
+            {messages.map((msg, idx) => {
+              // Show "old notes" divider before the first non-welcome old message
+              const showDivider = hasOldMessages && msg.isOld && msg.id !== 'welcome' &&
+                !messages.slice(0, idx).some(m => m.isOld && m.id !== 'welcome');
 
-            return (
-              <div key={msg.id}>
-                {showDivider && (
-                  <div className="flex items-center gap-3 opacity-40 my-2 mb-4">
-                    <div className="flex-1 h-px bg-[var(--c-grid)]" />
-                    <span className="font-hand text-xs text-[var(--c-ink)]">old notes</span>
-                    <div className="flex-1 h-px bg-[var(--c-grid)]" />
-                  </div>
+              return (
+                <div key={msg.id}>
+                  {showDivider && <div className="chat-divider">old notes</div>}
+                  <StickyNote
+                    message={msg}
+                    isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                    isTtsActive={ttsActiveMessageId === msg.id}
+                    onSpeak={handleSpeakMessage}
+                    onRetry={msg.retryPrompt && !isLoading && idx === messages.length - 1 ? handleRetryMessage : undefined}
+                    onTtsRestart={handleTtsRestart}
+                    onTtsSpeedChange={handleTtsSpeedChange}
+                    onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterStart : undefined}
+                    onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterDone : undefined}
+                    showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
+                    ttsPlaybackSpeed={ttsPlaybackSpeed}
+                    ttsPlaybackError={ttsPlaybackError}
+                    ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Suggestions appear once the latest reply has finished typing; contextual extras join the
+              hardcoded ones when they arrive, without re-mounting them. */}
+            {showSuggestions ? (
+              <div className="chat-chips">
+                {matrixEscaped && (
+                  <MatrixEscapeChip onSelect={handleEnterMatrix} skipEntrance={!hasHadInteraction} />
                 )}
-                <StickyNote
-                  message={msg}
-                  compact={compact}
-                  isLoading={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
-                  isTtsActive={ttsActiveMessageId === msg.id}
-                  onSpeak={handleSpeakMessage}
-                  onRetry={msg.retryPrompt && !isLoading && idx === messages.length - 1 ? handleRetryMessage : undefined}
-                  onTtsRestart={handleTtsRestart}
-                  onTtsSpeedChange={handleTtsSpeedChange}
-                  onTypewriterStart={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterStart : undefined}
-                  onTypewriterDone={msg.role === 'assistant' && !msg.isOld && msg.id !== 'welcome' ? notifyNoteTypewriterDone : undefined}
-                  showTtsControls={ttsControlsMessageId === msg.id && ttsActiveMessageId === msg.id && ttsPlaybackStatus !== 'idle'}
-                  ttsPlaybackSpeed={ttsPlaybackSpeed}
-                  ttsPlaybackError={ttsPlaybackError}
-                  ttsStatus={ttsActiveMessageId === msg.id ? ttsPlaybackStatus : 'idle'}
-                />
+                {[...shownBaseSuggestions, ...shownExtraSuggestions].map((q, i) => (
+                  <SuggestionStrip
+                    key={`${i < shownBaseSuggestions.length ? 'base' : 'extra'}-${q}`}
+                    text={q}
+                    isAction={ACTION_SUGGESTION_SET.has(q)}
+                    onSelect={handleSuggestion}
+                    index={i}
+                    skipEntrance={!hasHadInteraction}
+                  />
+                ))}
               </div>
-            );
-          })}
+            ) : null}
 
-          {/* Suggested questions — shown after typewriter finishes.
-            Base (hardcoded) suggestions render immediately when ready;
-            Extra (LLM) suggestions animate in alongside without re-mounting base. */}
-          <AnimatePresence>
-            {!isLoading && (() => {
-              const lastAssistant = messages.findLast(m => m.role === 'assistant');
-              return !!lastAssistant && readyForAssistantId === lastAssistant.id;
-            })() && (baseSuggestions.length > 0 || extraSuggestions.length > 0 || matrixEscaped) && (
-                <m.div
-                  key="suggestions-container"
-                  initial={SUGGESTIONS_CONTAINER_INITIAL}
-                  animate={SUGGESTIONS_CONTAINER_ANIMATE}
-                  exit={SUGGESTIONS_CONTAINER_EXIT}
-                  transition={SUGGESTIONS_CONTAINER_TRANSITION}
-                  className="flex flex-wrap justify-center gap-2 max-[480px]:gap-1.5 md:gap-3 mt-2 max-[480px]:mt-1.5"
-                >
-                  {matrixEscaped && (
-                    <MatrixEscapeChip
-                      compact={compact}
-                      onSelect={handleEnterMatrix}
-                      skipEntrance={!hasHadInteraction}
-                    />
-                  )}
-                  {baseSuggestions.slice(0, 4 - (matrixEscaped ? 1 : 0)).map((q, i) => (
-                    <SuggestionStrip
-                      key={q}
-                      text={q}
-                      isAction={ACTION_SUGGESTION_SET.has(q)}
-                      compact={compact}
-                      onSelect={handleSuggestion}
-                      index={i}
-                      skipEntrance={!hasHadInteraction}
-                    />
-                  ))}
-                  <AnimatePresence>
-                    {extraSuggestions.slice(0, Math.max(0, 4 - (matrixEscaped ? 1 : 0) - baseSuggestions.length)).map((q, i) => (
-                      <SuggestionStrip
-                        key={q}
-                        text={q}
-                        isAction={ACTION_SUGGESTION_SET.has(q)}
-                        compact={compact}
-                        onSelect={handleSuggestion}
-                        index={i}
-                        skipEntrance={!hasHadInteraction}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </m.div>
-              )}
-          </AnimatePresence>
+            {error && rateLimitRemaining && (
+              <RateLimitNote seconds={rateLimitRemaining} />
+            )}
 
-          {/* Rate limit note */}
-          {error && rateLimitRemaining && (
-            <RateLimitNote seconds={rateLimitRemaining} />
-          )}
-
-          {error && !rateLimitRemaining && (
-            <ServiceErrorNote message={error} />
-          )}
-
-          <div ref={messagesEndRef} />
+            {error && !rateLimitRemaining && (
+              <ServiceErrorNote message={error} />
+            )}
+          </div>
         </div>
 
         {/* ─── Input Area (isolated component to prevent keystroke re-renders) ─── */}
         <ChatInputArea
           onSend={handleSendFromInput}
           isLoading={isLoading}
-          compact={compact}
           hasMessages={hasMessages}
           onClear={handleClearDesk}
           composerRef={composerRef}

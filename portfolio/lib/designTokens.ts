@@ -388,15 +388,6 @@ export const NOTE_ROTATION = {
   inputRotation: 0.5,
 } as const;
 
-/** Sticky note entrance offset config */
-export const NOTE_ENTRANCE = {
-  userY: 30,
-  userRotateOffset: 5,
-  aiX: 50,
-  aiRotateOffset: -5,
-  oldNoteOpacity: 0.7,
-} as const;
-
 /** Chat nav tab spring positions */
 export const NAV_POSITIONS = {
   active: -5,

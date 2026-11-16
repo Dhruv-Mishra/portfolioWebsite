@@ -92,7 +92,8 @@ html[data-torn="on"]:not([data-notes="sticky"]) .project-card:has(> [data-torn-e
 }
 .project-card::after { background: var(--note-fold-shadow); }
 /* Real paper on a board casts a dark shadow in either theme. */
-html:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .24) 50%); }
+html:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .15) 50%); }
+html.dark:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .3) 50%); }
 .project-card-paper::after,
 .project-sheet::after {
   background: var(--note-fold-underside);

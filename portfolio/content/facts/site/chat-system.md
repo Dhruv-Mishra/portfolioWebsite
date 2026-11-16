@@ -5,4 +5,4 @@ priority: 5
 category: site
 ---
 
-The site features a full AI chat page (/chat) designed around a sticky note desk interface. Visitors can ask me questions — I answer in first person with short sticky-note-style replies. The chat can also trigger UI actions like opening projects, switching themes, or jumping to pages when the user explicitly asks.
+The site features a full AI chat page (/chat) designed as notes passed on the board: my replies arrive on taped, ruled index cards, the visitor's messages are yellow sticky notes, suggestion chips are paper scraps and kraft luggage tags, and the composer is a pad of sticky notes. Visitors can ask me questions — I answer in first person with short note-style replies. The chat can also trigger UI actions like opening projects, switching themes, or jumping to pages when the user explicitly asks.

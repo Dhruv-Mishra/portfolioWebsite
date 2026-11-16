@@ -1,0 +1,617 @@
+/* Chat: notes passed across the desk. Dhruv answers on taped, ruled index cards; your notes are yellow stickies
+   peeled off the pad at the bottom. Chips are paper scraps and kraft tags. Everything that moves animates
+   transform or opacity, and the thread's scroll has one owner (useStickToBottom in StickyNoteChat). */
+
+/* ── Heading ───────────────────────────────────────────────────────────────── */
+
+.chat-head { flex-shrink: 0; padding: .5rem 0 .25rem; text-align: center; }
+/* The tilt is a transform so disco's wiggle (which animates `rotate`) keeps it. */
+.chat-title { display: inline-block; color: var(--c-heading); font-size: 1.5rem; line-height: var(--lh-snug); transform: rotate(-2deg); }
+.chat-sub { display: none; margin-top: .375rem; color: var(--c-ink-muted); font-size: 1.25rem; }
+
+@media (min-width: 768px) {
+  .chat-head { padding: 2.5rem 0 .25rem; }
+  .chat-title { font-size: 3rem; }
+  .chat-sub { display: block; }
+}
+
+/* ── Thread ────────────────────────────────────────────────────────────────── */
+
+/* Notes fade into the board at the top and just above the pad, instead of passing behind a flat band. */
+.chat-scroll {
+  --fade-end: calc(var(--chat-composer-height, 0px) + .25rem);
+  position: absolute;
+  inset: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -webkit-mask: linear-gradient(to top, transparent var(--fade-end), #000 calc(var(--fade-end) + 1.25rem), #000 calc(100% - 1rem), transparent);
+  mask: linear-gradient(to top, transparent var(--fade-end), #000 calc(var(--fade-end) + 1.25rem), #000 calc(100% - 1rem), transparent);
+}
+.chat-scroll::-webkit-scrollbar { display: none; }
+
+/* Its own layer, so the glide after a new note (useStickToBottom) starts without re-rasterising the thread. */
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding: 1.25rem .625rem calc(var(--chat-composer-height, 0px) + 1.75rem);
+  will-change: translate;
+}
+
+.chat-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+  color: var(--c-ink-faint);
+  font-family: var(--font-hand);
+  font-size: .8rem;
+}
+.chat-divider::before,
+.chat-divider::after { content: ''; flex: 1; border-top: 1.5px dashed currentColor; }
+
+/* ── Notes ─────────────────────────────────────────────────────────────────── */
+
+/* The slot carries the tilt and the motion; its pseudo-elements are the shadows under the curling corners. */
+.chat-slot {
+  position: relative;
+  width: fit-content;
+  min-width: 9rem;
+  max-width: min(92%, 36rem);
+  margin-inline: .25rem auto;
+  transform: rotate(var(--tilt));
+  transform-origin: 50% 0;
+}
+.chat-slot[data-from="user"] { margin-inline: auto .25rem; }
+
+.chat-slot::before,
+.chat-slot::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  bottom: .625rem;
+  left: .5rem;
+  width: 42%;
+  height: 45%;
+  max-height: 5rem;
+  box-shadow: 0 .625rem .75rem var(--c-note-curl);
+  rotate: -3deg;
+}
+.chat-slot::after { left: auto; right: .5rem; rotate: 3deg; }
+
+.chat-note {
+  position: relative;
+  border-radius: 2px;
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  box-shadow: var(--shadow-note);
+}
+
+.chat-note[data-from="ai"] {
+  --rule: 1.625rem;
+  --head: 2.75rem;
+  --material-physical: var(--sheet-physical);
+  padding: 0 1rem .125rem 1.125rem;
+  line-height: var(--rule);
+}
+
+.chat-note[data-from="user"] {
+  --material-physical: var(--color-paper-yellow);
+  padding: .75rem 1rem .125rem;
+  line-height: 1.625rem;
+}
+
+/* A ruled index card: a red line under the header, blue rules under each line of the reply. */
+html:not([data-notes="sticky"]):not([data-notes="cardboard"]) .chat-note[data-from="ai"] {
+  background-image:
+    var(--material-age),
+    var(--material-dim),
+    var(--material-light),
+    linear-gradient(rgb(214 72 72 / .5), rgb(214 72 72 / .5)),
+    repeating-linear-gradient(transparent 0 calc(var(--rule) - 1px), rgb(70 130 205 / .26) 0 var(--rule)),
+    var(--tex-paper);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 1.5px, 100% 100%, var(--material-grain-size) var(--material-grain-size);
+  background-position: 0 0, 0 0, 0 0, 0 calc(var(--head) - 2px), 0 calc(var(--head) - 5px), 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  background-blend-mode: normal, normal, soft-light, normal, normal, soft-light;
+}
+
+/* Flat sticky notes keep the theme's chat colours. */
+html[data-notes="sticky"] .chat-note[data-from="ai"] { --note-paper: var(--note-ai); color: var(--note-ai-ink); }
+html[data-notes="sticky"] .chat-note[data-from="user"] { --note-paper: var(--note-user); color: var(--note-user-ink); }
+
+/* On kraft, Dhruv's cards turn to cardboard but your notes and the pad stay yellow, so the two writers never blur. */
+html[data-notes="cardboard"] :is(.chat-note[data-from="user"], .chat-dock > .chat-pad) {
+  --material-tint: var(--material-physical);
+  --c-ink: var(--note-ink);
+  background-image: var(--material-age), var(--material-dim), var(--material-light), var(--tex-paper);
+  background-size: 100% 100%, 100% 100%, 100% 100%, var(--material-grain-size) var(--material-grain-size);
+  background-blend-mode: normal, normal, soft-light, soft-light;
+}
+
+.chat-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  height: var(--head);
+}
+
+/* Initials circled in ink, the way you would sign a note. */
+.chat-mark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid currentColor;
+  border-radius: 55% 45% 52% 48% / 48% 56% 44% 52%;
+  font-size: .95rem;
+  font-weight: 700;
+  line-height: 1;
+  rotate: -8deg;
+}
+.chat-note[data-from="ai"] .chat-mark { color: color-mix(in srgb, var(--color-pin-blue) 72%, currentColor); }
+.chat-note[data-from="user"] .chat-mark {
+  float: right;
+  margin: -.125rem -.25rem .25rem .625rem;
+  color: color-mix(in srgb, var(--color-pin-red) 72%, currentColor);
+  rotate: 7deg;
+}
+
+.chat-tape { rotate: var(--tape-tilt, 0deg); }
+
+/* The text box eases its height while the reply is written (useSmoothHeight). */
+.chat-note-grow { transition: height var(--dur-quick) var(--ease-paper); }
+.chat-note-text { min-height: 1lh; white-space: pre-wrap; overflow-wrap: break-word; }
+.chat-note-text[data-filler] { font-style: italic; opacity: .55; }
+
+.chat-note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  min-height: 1.625rem;
+}
+.chat-note[data-from="user"] .chat-note-foot { flex-direction: row-reverse; clear: both; }
+.chat-sign { color: color-mix(in srgb, currentColor 55%, transparent); font-size: .8rem; font-style: italic; }
+
+.chat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  color: color-mix(in srgb, var(--color-pin-amber) 45%, currentColor);
+  font-size: .7rem;
+  letter-spacing: .04em;
+}
+
+/* Pencil dots while Dhruv is still writing. */
+.chat-dots { display: inline-flex; align-items: flex-end; gap: 3px; height: 1rem; color: color-mix(in srgb, currentColor 75%, transparent); }
+.chat-dots > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .35; }
+@keyframes chat-dot {
+  0%, 60%, 100% { translate: 0 0; scale: 1; opacity: .35; }
+  30% { translate: 0 -6px; scale: 1.3; opacity: 1; }
+}
+html:not([data-reduced-motion]) .chat-dots > span { animation: chat-dot 1.2s ease-in-out calc(var(--i) * 160ms) infinite; }
+
+/* Spoken-reply controls sit in the card's header, so they never cover the text. */
+.chat-tts { display: flex; align-items: center; gap: .125rem; margin-right: -.5rem; }
+.chat-tts-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-size: .72rem;
+  font-weight: 700;
+  transition: color var(--dur-quick), background-color var(--dur-quick);
+}
+.chat-tts-btn:hover,
+.chat-tts-btn[aria-pressed="true"] { color: inherit; background-color: color-mix(in srgb, currentColor 10%, transparent); }
+.chat-tts-btn[data-state="error"] { color: color-mix(in srgb, var(--color-pin-red) 80%, currentColor); }
+.chat-tts-btn[aria-busy="true"],
+.chat-tts-btn:disabled { cursor: progress; opacity: .6; }
+
+.chat-note-error { margin-top: .25rem; color: color-mix(in srgb, var(--color-pin-red) 80%, currentColor); font-family: var(--font-clean); font-size: .75rem; line-height: 1.35; }
+
+.chat-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  min-height: 2.75rem;
+  margin: .5rem 0 .25rem;
+  padding: 0 .75rem;
+  border: 1.5px dashed color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 3px;
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color var(--dur-quick);
+}
+.chat-retry:hover { background-color: color-mix(in srgb, currentColor 8%, transparent); }
+
+.chat-links { display: flex; flex-direction: column; gap: .25rem; margin-top: .5rem; }
+.chat-link {
+  color: color-mix(in srgb, var(--color-pin-blue) 70%, currentColor);
+  font-size: .8rem;
+  text-decoration: underline dotted;
+  text-underline-offset: .2em;
+}
+.chat-link:hover { text-decoration-style: solid; }
+
+/* An attached image travels as a small photo print. */
+.chat-photo { display: flex; align-items: center; gap: .625rem; margin-top: .375rem; font-size: .75rem; }
+.chat-photo img,
+.chat-attachment img {
+  width: 3rem;
+  height: 3rem;
+  flex-shrink: 0;
+  padding: 3px 3px 6px;
+  object-fit: cover;
+  background: var(--c-polaroid);
+  box-shadow: var(--shadow-sticker);
+  rotate: -3deg;
+}
+
+/* Notes from an earlier visit look a little faded. */
+.chat-slot[data-old] { filter: saturate(.8) brightness(.97); }
+.dark .chat-slot[data-old] { filter: saturate(.8) brightness(.84); }
+
+/* Laid on the board: slides up from the writer's side, a touch lifted, and settles as its shadow lands. It rises
+   rather than drops so it moves the same way as the thread when the thread glides up to make room. */
+@keyframes chat-note-place {
+  from { opacity: 0; translate: var(--from-x, 0) .75rem; rotate: var(--from-rot, 0deg); scale: 1.035; }
+  55% { opacity: 1; }
+}
+@keyframes chat-fade-in { from { opacity: 0; } }
+.chat-slot[data-from="ai"] { --from-x: -1.25rem; --from-rot: -2.5deg; }
+.chat-slot[data-from="user"] { --from-x: 1.25rem; --from-rot: 2.5deg; }
+html:not([data-reduced-motion]):not([data-disco="on"]) .chat-slot[data-enter] { animation: chat-note-place 520ms var(--ease-paper) backwards; }
+html:not([data-reduced-motion]):not([data-disco="on"]) .chat-slot[data-enter]::before,
+html:not([data-reduced-motion]):not([data-disco="on"]) .chat-slot[data-enter]::after { animation: chat-fade-in 520ms var(--ease-paper-in) backwards; }
+
+/* ── Notes from the desk: rate limit and errors ────────────────────────────── */
+
+/* Coral paper in both themes, so its ink is always dark. */
+.chat-alert[data-tone] {
+  --material-physical: var(--color-paper-coral);
+  --alert-ink: color-mix(in srgb, var(--color-pin-red) 40%, var(--note-ink));
+  position: relative;
+  max-width: 24rem;
+  margin-inline: auto;
+  padding: 1.125rem 1rem .875rem;
+  font-family: var(--font-hand);
+  box-shadow: var(--shadow-note);
+  rotate: 1.5deg;
+}
+.chat-alert[data-tone="error"] { rotate: -1deg; }
+html:not([data-notes="sticky"]) .chat-alert[data-tone] { --c-ink: var(--alert-ink); }
+html[data-notes="sticky"] .chat-alert[data-tone] { --note-paper: var(--color-paper-coral); color: var(--alert-ink); }
+html:not([data-reduced-motion]) .chat-alert { animation: chat-note-place 420ms var(--ease-paper) backwards; }
+
+/* ── Suggestion chips: paper scraps and kraft action tags ──────────────────── */
+
+.chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .625rem .5rem;
+  margin-top: -.25rem;
+}
+
+.chat-chip {
+  --chip-tilt: .6deg;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 2.75rem;
+  padding: .375rem .75rem .5rem;
+  border-radius: 2px;
+  color: var(--note-ink);
+  background-color: var(--sheet-physical);
+  font-family: var(--font-hand);
+  font-size: .875rem;
+  line-height: 1.2;
+  text-align: left;
+  box-shadow: var(--shadow-sticker), 0 6px 10px -8px rgb(0 0 0 / .45);
+  rotate: var(--chip-tilt);
+  transition: translate var(--dur-quick) var(--ease-paper), rotate var(--dur-quick) var(--ease-paper), box-shadow var(--dur-quick) var(--ease-paper), scale var(--dur-micro) var(--ease-paper);
+}
+.chat-chip:nth-child(even) { --chip-tilt: -.8deg; }
+.chat-chip:active { scale: .96; }
+
+.chat-chip-kind {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  margin-bottom: .125rem;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* An action is a kraft luggage tag with a punched, reinforced hole. */
+.chat-chip[data-kind="action"] {
+  padding-left: 1.5rem;
+  color: var(--cardboard-ink);
+  background-color: var(--cardboard-tint);
+}
+.chat-chip[data-kind="action"]::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - .3125rem);
+  left: .4375rem;
+  width: .625rem;
+  height: .625rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(20 12 4 / .75) 0 2px, color-mix(in srgb, var(--cardboard-tint) 70%, #fff) 2.5px 4px, rgb(0 0 0 / .18) 4.5px);
+}
+html:not([data-notes="sticky"]) .chat-chip[data-kind="action"] {
+  background-image: var(--material-light), var(--tex-cardboard);
+  background-size: 100% 100%, 240px 240px;
+  background-blend-mode: soft-light, normal;
+}
+
+/* Holographic party paper: the chip says what it does before you press it. */
+.chat-chip[data-kind="disco"] {
+  color: #4a044e;
+  background-color: #fbcfe8;
+  background-image: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 25%, #c4b5fd 50%, #a5f3fc 75%, #fde68a 100%);
+  box-shadow: var(--shadow-sticker), 0 0 14px rgb(232 121 249 / .4);
+}
+
+.chat-chip[data-kind="matrix"] {
+  color: #d1fae5;
+  background-color: #022c22;
+  background-image: repeating-linear-gradient(135deg, rgb(0 255 65 / .18) 0 6px, rgb(6 78 59 / .55) 6px 12px);
+  font-family: var(--font-code);
+  box-shadow: var(--shadow-sticker), 0 0 14px rgb(16 185 129 / .4);
+}
+.chat-chip[data-kind="matrix"] .chat-chip-kind { letter-spacing: .2em; }
+
+html[data-notes="sticky"] .chat-chip:not([data-kind="disco"], [data-kind="matrix"]) {
+  color: var(--c-ink);
+  background-color: var(--c-paper);
+  border: 1.5px solid var(--c-grid);
+}
+html[data-notes="sticky"] .chat-chip[data-kind="action"] { border-color: color-mix(in srgb, var(--color-pin-amber) 70%, transparent); }
+
+@media (hover: hover) and (pointer: fine) {
+  .chat-chip:hover { translate: 0 -2px; rotate: 0deg; box-shadow: var(--shadow-sticker), 0 12px 16px -10px rgb(0 0 0 / .5); }
+}
+
+@keyframes chat-chip-in { from { opacity: 0; translate: 0 .625rem; rotate: calc(var(--chip-tilt) + 3deg); } }
+html:not([data-reduced-motion]):not([data-disco="on"]) .chat-chip[data-enter] { animation: chat-chip-in 380ms var(--ease-paper) calc(var(--i, 0) * 70ms) backwards; }
+
+/* ── Composer: a pad of sticky notes ───────────────────────────────────────── */
+
+.chat-composer {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 0 .5rem max(.5rem, env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+/* The board's focus colour, kept before the pad's paper swaps --c-focus for an ink that reads on paper. */
+.chat-dock { --board-focus: var(--c-focus); display: flex; flex-direction: column; pointer-events: auto; }
+
+/* Model, attach and clear sit on a kraft label stuck across the pad's top edge. */
+.chat-tools {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-self: flex-end;
+  align-items: center;
+  max-width: calc(100% - 1rem);
+  margin: 0 .75rem -.375rem 0;
+  padding: 0 .25rem;
+  color: var(--cardboard-ink);
+  background-color: var(--cardboard-tint);
+  box-shadow: var(--shadow-sticker);
+  rotate: -1.2deg;
+}
+html:not([data-notes="sticky"]) .chat-tools {
+  background-image: var(--material-light), var(--tex-cardboard);
+  background-size: 100% 100%, 240px 240px;
+  background-blend-mode: soft-light, normal;
+}
+html[data-notes="sticky"] .chat-tools {
+  color: var(--c-ink);
+  background-color: var(--c-paper);
+  border: 1px dashed color-mix(in srgb, var(--c-ink) 25%, transparent);
+}
+.chat-tools > * + * { border-left: 1px dashed color-mix(in srgb, currentColor 30%, transparent); }
+
+.chat-model {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 2.75rem;
+  max-width: 12rem;
+  padding: 0 .5rem;
+  font-family: var(--font-code);
+  font-size: .625rem;
+  white-space: nowrap;
+  text-decoration: underline dotted color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: .3em;
+}
+.chat-model > span { overflow: hidden; text-overflow: ellipsis; }
+
+.chat-tool {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: color-mix(in srgb, currentColor 80%, transparent);
+  transition: color var(--dur-quick), background-color var(--dur-quick);
+}
+.chat-tool:hover { background-color: color-mix(in srgb, currentColor 10%, transparent); }
+.chat-tool[data-tone="danger"]:hover { color: color-mix(in srgb, var(--color-pin-red) 75%, var(--cardboard-ink)); }
+.chat-tool:disabled { cursor: not-allowed; opacity: .45; }
+
+.chat-status { margin: 0 .5rem .375rem; color: var(--c-ink-muted); font-family: var(--font-hand); font-size: .75rem; line-height: 1.2; text-align: right; }
+.chat-status[data-align="start"] { text-align: left; }
+
+.chat-attachment {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  min-width: 0;
+  margin: 0 .25rem .5rem;
+  color: var(--c-ink-muted);
+  font-family: var(--font-hand);
+  font-size: .875rem;
+}
+.chat-attachment > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The top sheet, the edges of a few sheets under it, and the pad's shadow on the board. */
+.chat-dock > .chat-pad {
+  --material-physical: var(--color-paper-yellow);
+  position: relative;
+  padding: .25rem .375rem;
+  border-radius: 2px;
+  rotate: -.35deg;
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--material-tint) 82%, #000),
+    0 3px 0 -1px var(--material-tint),
+    0 4px 0 -1px color-mix(in srgb, var(--material-tint) 80%, #000),
+    0 6px 0 -2px var(--material-tint),
+    0 7px 0 -2px color-mix(in srgb, var(--material-tint) 76%, #000),
+    0 18px 22px -12px rgb(0 0 0 / .5);
+  transition: outline-color var(--dur-quick);
+}
+html[data-notes="sticky"] .chat-dock > .chat-pad { --note-paper: var(--note-user); color: var(--note-user-ink); }
+.chat-dock > .chat-pad:has(textarea:focus-visible) { outline-color: var(--board-focus); }
+
+.chat-pad-row { display: flex; align-items: flex-end; gap: .25rem; }
+.chat-field { position: relative; flex: 1; min-width: 0; min-height: 2.75rem; }
+
+.chat-input {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  max-height: 7rem;
+  padding: .625rem 0;
+  overflow-y: auto;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  outline: none;
+}
+.chat-placeholder {
+  position: absolute;
+  top: .625rem;
+  left: 0;
+  max-width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  color: color-mix(in srgb, currentColor 42%, transparent);
+  font-family: var(--font-hand);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  white-space: nowrap;
+}
+
+/* Send is a paper plane in pen ink that lifts off when there is something to send. */
+.chat-send {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: color-mix(in srgb, currentColor 30%, transparent);
+  transition: color var(--dur-quick), translate var(--dur-quick) var(--ease-paper), rotate var(--dur-quick) var(--ease-paper), scale var(--dur-micro);
+}
+.chat-send:not(:disabled) { color: color-mix(in srgb, var(--color-pin-blue) 70%, var(--note-ink)); }
+.chat-send:not(:disabled):hover { translate: 2px -2px; rotate: -10deg; }
+.chat-send:not(:disabled):active { scale: .9; }
+.chat-send svg { width: 1.125rem; height: 1.125rem; }
+
+/* The shared mic and listening controls bring dark-theme reds; on paper in either theme the red has to be ink. */
+html:not([data-notes="sticky"]) .chat-pad button[aria-pressed="true"] {
+  color: color-mix(in srgb, var(--color-pin-red) 80%, var(--note-ink));
+  background-color: color-mix(in srgb, var(--color-pin-red) 14%, transparent);
+}
+html.dark:not([data-notes="sticky"]) .chat-pad .dark\:text-red-400 { color: color-mix(in srgb, var(--color-pin-red) 80%, var(--note-ink)); }
+
+/* ── Confirm dialog ────────────────────────────────────────────────────────── */
+
+.chat-confirm {
+  width: min(92vw, 26rem);
+  margin-top: 20vh;
+  padding: 1.5rem 1.25rem 1.25rem;
+  box-shadow: 0 30px 50px -20px rgb(0 0 0 / .55), 0 3px 8px rgb(0 0 0 / .18);
+  rotate: -.5deg;
+}
+.chat-btn {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 2px dashed color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 3px;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  transition: background-color var(--dur-quick);
+}
+.chat-btn:hover { background-color: color-mix(in srgb, currentColor 8%, transparent); }
+.chat-btn[data-tone] { border-style: solid; }
+.chat-btn[data-tone="danger"] { color: color-mix(in srgb, var(--color-pin-red) 80%, currentColor); }
+.chat-btn[data-tone="primary"] { color: color-mix(in srgb, var(--color-pin-amber) 40%, currentColor); }
+
+/* ── Wider screens ─────────────────────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+  .chat-thread { gap: 2rem; padding-inline: 1.5rem; }
+  .chat-slot { max-width: min(78%, 36rem); }
+  .chat-slot[data-from="ai"] { margin-left: .75rem; }
+  .chat-slot[data-from="user"] { margin-right: .75rem; }
+  .chat-note { font-size: 1.125rem; }
+  .chat-note[data-from="ai"] { --rule: 1.75rem; --head: 2.25rem; padding: 0 1.375rem .25rem 1.5rem; }
+  .chat-note[data-from="user"] { padding: 1rem 1.375rem .25rem; line-height: 1.75rem; }
+  .chat-tts { margin-right: -.375rem; }
+  .chat-tts-btn { width: 1.75rem; height: 1.75rem; }
+  .chat-retry { min-height: 2rem; }
+
+  .chat-chips { gap: .875rem .75rem; margin-top: 0; }
+  .chat-chip { padding: .5rem 1rem .625rem; font-size: 1rem; }
+  .chat-chip[data-kind="action"] { padding-left: 1.75rem; }
+
+  .chat-composer { padding: 0 1.5rem 1.5rem; }
+  .chat-dock > .chat-pad { padding: .375rem .875rem; }
+  .chat-input { max-height: 8.75rem; font-size: 1.125rem; line-height: 1.75rem; }
+  .chat-placeholder { font-size: 1.125rem; line-height: 1.75rem; }
+  .chat-send svg { width: 1.25rem; height: 1.25rem; }
+  .chat-tool { width: 2.25rem; height: 2.25rem; }
+  .chat-model { min-height: 2.25rem; max-width: 16rem; font-size: .6875rem; }
+
+  .chat-confirm { margin-top: 18vh; padding: 1.75rem 1.5rem 1.5rem; }
+}
+
+/* ── Disco: notes sway and cycle hue as the flat stickies did ──────────────── */
+
+html[data-disco="on"]:not([data-reduced-motion]) .chat-slot {
+  animation: disco-chat-sway 900ms ease-in-out var(--disco-motion-delay, 0ms) infinite;
+  will-change: translate, rotate;
+}
+@media (hover: hover) and (pointer: fine) {
+  html[data-disco="on"]:not([data-reduced-motion]) .chat-note {
+    animation: disco-card-hue 6s linear var(--disco-card-delay, 0ms) infinite;
+  }
+}
+
+/* The matrix puzzle replies are written on paper here, so they take paper inks in both themes. */
+html:not([data-notes="sticky"]) .chat-note .matrix-chat-denied { color: #b91c1c; }
+html:not([data-notes="sticky"]) .chat-note .matrix-chat-key { color: #065f46; background: rgb(6 78 59 / .12); border-color: rgb(4 120 87 / .55); }
+html:not([data-notes="sticky"]) .chat-note .matrix-chat-key[data-copied="true"] { color: #064e3b; background: rgb(16 185 129 / .22); }

@@ -180,7 +180,7 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
                       src={slide.image}
                       alt={`${slide.name} preview`}
                       fill
-                      sizes="(max-width: 639px) calc(100vw - 5.25rem), (min-width: 1880px) 345px, 240px"
+                      sizes="(max-width: 639px) calc(100vw - 5.25rem), (min-width: 1800px) 290px, 240px"
                       loading="lazy"
                       fetchPriority="low"
                       placeholder="blur"

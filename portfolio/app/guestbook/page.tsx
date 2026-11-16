@@ -44,17 +44,17 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
     <div className="max-w-7xl mx-auto pt-2 pb-8 px-4 md:px-8">
       {/* ─── Page header ─── */}
       <header className="text-center">
-        <h1 className="font-hand text-4xl md:text-5xl font-bold text-[var(--c-heading)] inline-block">
+        <h1 className="font-hand text-[length:var(--t-h1)] leading-[var(--lh-snug)] md:text-[length:var(--t-h1-md)] font-bold text-[var(--c-heading)] inline-block">
           Guestbook
         </h1>
         <WavyUnderline className="max-w-xs mx-auto" />
-        <p className="font-hand text-lg opacity-60 mt-2">
+        <p className="font-hand text-[length:var(--t-lead)] md:text-[length:var(--t-lead-md)] opacity-60 mt-2">
           leave your mark on the wall ~
         </p>
 
         {/* Meta row — note count + sticker album link */}
         {!isEmpty && (
-          <p className="font-hand text-xs opacity-40 mt-2">
+          <p className="font-hand text-sm opacity-60 mt-2">
             {noteCount} {noteCount === 1 ? 'note' : 'notes'} pinned
             <span className="mx-2" aria-hidden="true">·</span>
             <Link

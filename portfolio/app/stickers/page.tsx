@@ -100,7 +100,7 @@ export default function StickerDrawerPage() {
       <div className="max-w-6xl mx-auto">
         {/* ─── Header ─── */}
         <header className="text-center mb-6 md:mb-8">
-          <h1 className="text-4xl md:text-6xl font-hand font-bold text-[var(--c-heading)] inline-block">
+          <h1 className="text-[length:var(--t-h1)] leading-[var(--lh-snug)] md:text-[length:var(--t-h1-md)] font-hand font-bold text-[var(--c-heading)] inline-block">
             The Sticker Drawer
           </h1>
           <WavyUnderline className="max-w-[360px] mx-auto" />

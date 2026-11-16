@@ -313,7 +313,8 @@ html.dark:not([data-notes="sticky"]) .project-card::after { background: linear-g
 }
 
 @container (min-width: 40rem) {
-  .project-wall-title { margin-left: 1.5rem; font-size: var(--t-h1-md); }
+  /* Sits over the first column, however wide the page is around the wall. */
+  .project-wall-title { margin-left: max(1.5rem, (100cqi - var(--c-project-wall-max-w)) / 2 + 1rem); font-size: var(--t-h1-md); }
   .project-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3.75rem 2.75rem; padding-top: 3rem; }
   .project-cards > li { rotate: var(--note-tilt); translate: 0 var(--note-drop); }
   .project-cards > li::before,
@@ -350,6 +351,13 @@ html:not([data-reduced-motion]) .project-cards > li {
     animation-timeline: view();
     animation-range: entry 0% entry 55%;
   }
+}
+
+/* Very wide boards (2560px and up) hang four across, still clear of the margin doodles. */
+@container (min-width: 116rem) {
+  .project-wall > * { --c-project-wall-max-w: 96rem; }
+  .project-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  html:not([data-reduced-motion]) .project-cards > li:nth-child(4) { animation: project-card-land 620ms var(--ease-paper) var(--enter-delay) both; }
 }
 
 /* Expanded note (dialog). It flies out of the card it came from (lib/flight.ts) and stays square while reading. */

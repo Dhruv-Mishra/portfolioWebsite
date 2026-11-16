@@ -7,11 +7,11 @@
 .chat-head { flex-shrink: 0; padding: .5rem 0 .25rem; text-align: center; }
 /* The tilt is a transform so disco's wiggle (which animates `rotate`) keeps it. */
 .chat-title { display: inline-block; color: var(--c-heading); font-size: 1.5rem; line-height: var(--lh-snug); transform: rotate(-2deg); }
-.chat-sub { display: none; margin-top: .375rem; color: var(--c-ink-muted); font-size: 1.25rem; }
+.chat-sub { display: none; margin-top: .375rem; color: var(--c-ink-muted); font-size: var(--t-lead-md); }
 
 @media (min-width: 768px) {
   .chat-head { padding: 2.5rem 0 .25rem; }
-  .chat-title { font-size: 3rem; }
+  .chat-title { font-size: var(--t-h1-md); }
   .chat-sub { display: block; }
 }
 

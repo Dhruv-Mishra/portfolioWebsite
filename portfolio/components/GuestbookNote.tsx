@@ -36,7 +36,7 @@ const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden
  * GuestbookNote — renders a single pinned note on the wall.
  *
  * Structural note on tape clipping:
- *   The note body needs `overflow-hidden` to enforce the 260px max-height on
+ *   The note body needs `overflow-hidden` to enforce its max-height on
  *   long messages. The tape strip is positioned with a negative top offset to
  *   extend above the card edge — if it lives inside the overflow-hidden body,
  *   that negative offset gets clipped. Fix: wrap the note in an `overflow-visible`
@@ -81,20 +81,20 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
       style={wrapperStyle}
       className={cn(
         'relative w-full max-w-full animate-wall-note-in',
-        'shadow-md font-hand text-base text-[var(--c-ink)] border',
+        'shadow-md font-hand text-base md:text-lg text-[var(--c-ink)] border',
         GUESTBOOK_NOTE_BORDER,
       )}
     >
       {/* Tape — sibling of the clipped body, escapes the clip completely. */}
       <TapeStrip size="sm" className={useCornerTape ? CORNER_TAPE_CLASS : undefined} />
 
-      {/* INNER body: this is the element that clips long messages to 260px.
+      {/* INNER body: clips long messages to about ten lines (em-sized, so it follows the note's type size).
           It keeps the background color, min/max height, and padding that were
           previously on <article>. overflow: hidden only applies here. */}
       <div
         className={cn(
           'note-material relative overflow-hidden',
-          'min-h-[140px] max-h-[260px]',
+          'min-h-[8.75em] max-h-[16.25em]',
           'p-5 pb-7 md:p-6 md:pb-9',
         )}
       >
@@ -116,7 +116,7 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
         {/* Posted date (bottom-left) */}
         <time
           dateTime={entry.createdAt}
-          className="absolute bottom-2 left-4 font-hand text-[10px] opacity-35"
+          className="absolute bottom-2 left-4 font-hand text-xs opacity-45"
           suppressHydrationWarning
         >
           <span className="sr-only">Posted </span>
@@ -127,7 +127,7 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
         <span
           id={signatureId}
           title={entry.name || 'Anonymous'}
-          className="absolute bottom-2 right-4 max-w-[65%] truncate text-right font-hand italic text-xs opacity-50"
+          className="absolute bottom-2 right-4 max-w-[65%] truncate text-right font-hand italic text-sm opacity-60"
         >
           — {entry.name || 'Anonymous'}
         </span>

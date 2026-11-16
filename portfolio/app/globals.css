@@ -89,7 +89,7 @@
     /* Typography */
     --t-hero: 3.5rem;
     --t-hero-md: 5.5rem;
-    --t-hero-lg: 7rem;
+    --t-hero-lg: 6rem;
     --t-h1: 2.5rem;
     --t-h1-md: 3.25rem;
     --t-h2: 1.75rem;
@@ -674,6 +674,16 @@ html[data-reading-font="clean"] {
 /* Taps get the site's own paper feedback; Android's translucent blue tap box reads as a stray selection. */
 html {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Big screens: one site-wide step for every rem-sized thing (type, notes, cards, boards), so all pages grow together.
+   Percentages keep the reader's own browser font size; media-query breakpoints still use the initial 16px. */
+@media (min-width: 1800px) and (min-height: 860px) {
+  html { font-size: 112.5%; }
+}
+
+@media (min-width: 2300px) and (min-height: 1150px) {
+  html { font-size: 125%; }
 }
 
 /* Hide stale route paint during Link pending; keep geometry and show one spinner. */

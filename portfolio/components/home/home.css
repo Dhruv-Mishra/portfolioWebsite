@@ -76,16 +76,3 @@ html[data-reduced-motion] .hero-swash path {
     transform: scaleX(1);
   }
 }
-
-/* Big screens: scale the whole spread (type, terminal, notes, slideshow) instead of leaving a narrow column. */
-@media (min-width: 1600px) and (min-height: 760px) {
-  .home-grid { zoom: 1.12; }
-}
-
-@media (min-width: 1880px) and (min-height: 900px) {
-  .home-grid { zoom: 1.25; max-width: 72rem; }
-}
-
-@media (min-width: 2400px) and (min-height: 1200px) {
-  .home-grid { zoom: 1.5; }
-}

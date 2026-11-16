@@ -600,7 +600,7 @@ export default function SettingsPanel() {
       <header className="relative px-1 text-center">
         <TapeStrip size="sm" className="-top-5 rotate-2 opacity-75 md:-top-6" />
         <p className="font-code text-[10px] uppercase text-[var(--c-ink)]/45">site preferences</p>
-        <h1 className="mt-1 font-hand text-4xl font-bold text-[var(--c-heading)] md:text-6xl">
+        <h1 className="mt-1 font-hand text-[length:var(--t-h1)] font-bold leading-[var(--lh-snug)] text-[var(--c-heading)] md:text-[length:var(--t-h1-md)]">
           Settings
         </h1>
         <div className="mx-auto mt-2 h-1 w-36 -rotate-1 rounded-full bg-amber-400/70" aria-hidden />

@@ -75,8 +75,15 @@ export const FIRST_PAINT_TEXTURES = {
 } as const satisfies { light: Record<LookPrefs['surface'], readonly string[]>; dark: Record<LookPrefs['chalkboard'], readonly string[]> };
 
 /**
- * Inlined after the boot script has set `data-surface`, `data-chalkboard` and `data-pref-paper` on `e`: starts the
- * visible surface's textures alongside the CSS instead of after it, so the board is not repainted once they land.
- * Only the chosen surface in the current theme (next-themes' `theme`, dark by default) is fetched.
+ * Every first visit opens on the default dark board, so its textures are preloaded from the HTML itself, where the
+ * preload scanner starts them alongside the CSS; anyone who later switches surface already has them cached.
  */
-export const TEXTURE_PRELOAD_SNIPPET = `if(e.dataset.prefPaper==='on'){const T=${JSON.stringify(FIRST_PAINT_TEXTURES)},t=localStorage.getItem('theme'),d=t==='light'?0:t==='system'?matchMedia('(prefers-color-scheme: dark)').matches:1;for(const n of (d?T.dark[e.dataset.chalkboard]:T.light[e.dataset.surface])||[]){const l=document.createElement('link');l.rel='preload';l.as='image';l.fetchPriority='high';l.href='/resources/textures/'+n+'.webp';document.head.append(l)}}`;
+export const DEFAULT_SURFACE_TEXTURES: readonly string[] = FIRST_PAINT_TEXTURES.dark[LOOK_OPTIONS.chalkboard[0]];
+
+/**
+ * Inlined after the boot script has set `data-surface`, `data-chalkboard` and `data-pref-paper` on `e`: starts the
+ * chosen surface's textures alongside the CSS instead of after it, so the board is not repainted once they land.
+ * Only the chosen surface in the current theme (next-themes' `theme`, dark by default) is fetched, and the defaults
+ * the HTML already preloads are skipped.
+ */
+export const TEXTURE_PRELOAD_SNIPPET = `if(e.dataset.prefPaper==='on'){const T=${JSON.stringify(FIRST_PAINT_TEXTURES)},S=${JSON.stringify(DEFAULT_SURFACE_TEXTURES)},t=localStorage.getItem('theme'),d=t==='light'?0:t==='system'?matchMedia('(prefers-color-scheme: dark)').matches:1;for(const n of (d?T.dark[e.dataset.chalkboard]:T.light[e.dataset.surface])||[]){if(S.includes(n))continue;const l=document.createElement('link');l.rel='preload';l.as='image';l.fetchPriority='high';l.href='/resources/textures/'+n+'.webp';document.head.append(l)}}`;

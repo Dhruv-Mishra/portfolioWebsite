@@ -326,10 +326,11 @@ describe('look preferences', () => {
   });
 
   it.each([
-    ['dark by default', null, { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['slate-grain', 'chalk-smudge']],
+    ['the default board, which the HTML already preloads', null, { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, []],
     ['a light canvas', 'light', { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['canvas-weave']],
+    ['light drawing paper', 'light', { prefPaper: 'on', chalkboard: 'green', surface: 'paper' }, ['paper-grain']],
     ['the flat slate', 'dark', { prefPaper: 'on', chalkboard: 'slate', surface: 'canvas' }, []],
-    ['paper grain off', null, { chalkboard: 'green', surface: 'canvas' }, []],
+    ['paper grain off', 'light', { chalkboard: 'green', surface: 'canvas' }, []],
   ])('preloads only the textures the visible surface paints: %s', async (_case, theme, dataset, textures) => {
     const { TEXTURE_PRELOAD_SNIPPET } = await import('@/lib/lookPrefs');
     const links: Array<Record<string, string>> = [];

@@ -79,6 +79,7 @@ export default function Home() {
               alt={ABOUT_PHOTO.alt}
               width={128}
               height={128}
+              unoptimized
               loading="lazy"
               placeholder="blur"
               blurDataURL={ABOUT_PHOTO.blurDataURL}

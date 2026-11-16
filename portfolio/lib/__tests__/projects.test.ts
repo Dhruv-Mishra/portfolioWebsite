@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import imageLoader from '@/lib/imageLoader';
 import { parseMarks, stripMarks } from '@/lib/markedText';
 import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug, getProjectThumbnail, getProjectVideoSources } from '@/lib/projects';
 import { PROJECT_SLUG_LIST } from '@/lib/projectSlugs';
@@ -70,5 +71,12 @@ describe('project video sources', () => {
     expect(getProjectThumbnail(project)).toBe('/resources/video/jarvis-voice-agent.webp');
     expect(getProjectThumbnail({ ...project, video: 'jarvis-new' })).toBe('/resources/video/jarvis-new.webp');
     expect(getProjectThumbnail({ ...project, video: null })).toBe(project.image);
+  });
+  it('serves the 384px thumbnail to small slots, and stills only at full size', () => {
+    const thumb = getProjectThumbnail(project);
+    expect(imageLoader({ src: thumb, width: 384 })).toBe('/resources/video/jarvis-voice-agent-384.webp');
+    expect(imageLoader({ src: thumb, width: 640 })).toBe(thumb);
+    const still = getProjectThumbnail({ ...project, video: null });
+    expect(imageLoader({ src: still, width: 384 })).toBe(still);
   });
 });

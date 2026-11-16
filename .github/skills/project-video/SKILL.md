@@ -24,7 +24,7 @@ Every project video is one page of the same sketchbook. The deployed set is 10 s
    ```
 
    For 10 seconds, expect about 135 to 265 KB for AV1 (VMAF about 86 to 91) and 210 to 370 KB for H.264 (VMAF about 76 to 85). These settings won VMAF tests against placebo presets, denoising, and AQ tweaks. Raising H.264 to CRF 35 washes out the paper grid.
-8. Build the thumbnail from the clip's last frame (the finished page with its title): from `portfolio/`, run `python scripts/build-project-thumbs.py <slug>`. It writes `<slug>.webp` beside the clip, which the project wall, the home carousel and the video poster use (`getProjectThumbnail`), and prints the blur placeholder to paste into the project's `BLUR` entry in `lib/projects.ts`. The take must therefore end on a clean, settled title card.
+8. Build the thumbnail from the clip's last frame (the finished page with its title): from `portfolio/`, run `python scripts/build-project-thumbs.py <slug>`. It writes `<slug>.webp` (640px) and `<slug>-384.webp` beside the clip, which the project wall, the home carousel and the video poster use (`getProjectThumbnail`; `lib/imageLoader.ts` picks the 384px copy for small slots), and prints the blur placeholder to paste into the project's `BLUR` entry in `lib/projects.ts`. The take must therefore end on a clean, settled title card.
 9. `/resources` is cached as immutable for a year. To replace a clip that is already deployed, give it a new file stem (for example `video: 'cropio-2'`) instead of overwriting the old file; the thumbnail follows the stem.
 
 ## Template

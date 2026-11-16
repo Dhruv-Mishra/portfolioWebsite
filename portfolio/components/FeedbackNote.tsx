@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { m } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -22,6 +23,8 @@ import {
   type SubmitFeedbackEventDetail,
 } from '@/lib/siteActionEvents';
 import { isFeedbackCategory } from '@/lib/siteTools';
+
+requestMotion();
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type FeedbackCategory = 'bug' | 'idea' | 'kudos' | 'other';

@@ -9,6 +9,7 @@
  */
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getSticker, StickerSvg, SUPERUSER_STICKER } from '@/lib/stickers';
@@ -49,6 +50,7 @@ export default function StickerToastListener(): React.ReactElement | null {
   useEffect(() => {
     if (!activeToast) return;
     if (!renderToast) return;
+    requestMotion();
     success();
     if (activeToast !== SUPERUSER_STICKER.id) {
       soundManager.play('sticker-ding');

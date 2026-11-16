@@ -30,7 +30,6 @@
   --color-grid: var(--c-grid);
   --color-binding-bg: var(--c-binding-bg);
   --color-binding-border: var(--c-binding-border);
-  --color-binding-stitch: var(--c-binding-stitch);
 
   /* Fixed sticky-note paper (same in light and dark). Mirrors PAPER_PALETTE in lib/designTokens.ts (parity-tested).
      Distinct from the theme-aware .bg-note-* utilities below, which follow --note-paper. */
@@ -71,24 +70,7 @@
     --c-project-hover-scale: 1.02;
     --c-note-curl: rgba(0, 0, 0, 0.2);
     --shadow-note: 1px 2px 3px rgba(0, 0, 0, 0.07), 3px 6px 14px -6px rgba(0, 0, 0, 0.2);
-    /* About timeline: a straight line in narrow columns, an S-curve once two tiles and the curve band fit.
-       Hover intent is not motion, so it stays active under reduced motion. */
-    --c-timeline-line: color-mix(in srgb, var(--c-ink) 42%, transparent);
-    --c-timeline-stroke: 2px;
-    --c-timeline-node: 0.875rem;
-    --c-timeline-gap: 1.5rem;
-    --c-timeline-overlap: 2.5rem;
-    --c-timeline-tile-w: clamp(12.5rem, 34cqi, 14.5rem);
-    --c-timeline-logo: 1.5rem;
-    --c-timeline-tilt: 0.6deg;
-    --c-timeline-hover-intent: 120ms;
-    --c-timeline-work: #10b981;
-    --c-timeline-internship: #0ea5e9;
-    --c-timeline-research: #8b5cf6;
-    --c-timeline-education: #6366f1;
-    --c-timeline-contest: #f59e0b;
     --c-note-blue: #dbeafe;
-    --c-note-blue-fold: #93c5fd;
     /* About pin board: how much of the long bio note shows before "Read the whole note". */
     --board-clamp-lines: 7;
     --ink-stroke: 0.03em;
@@ -146,13 +128,7 @@
     --c-binding-w-md: 1rem;
     --c-crease-w: calc(var(--c-binding-w) * 2);
     --c-crease-w-md: calc(var(--c-binding-w-md) * 2);
-    --c-chat-w: calc(100vw - 2rem);
-    --c-chat-w-md: 380px;
-    --c-chat-h: 70dvh;
-    --c-chat-h-md: 480px;
-    --c-chat-max-w: 380px;
     --c-corner-fold: 30px;
-    --c-corner-fold-md: 60px;
     --c-feedback-w: 500px;
     --c-cursor-size: 2rem;
     --c-cursor-size-md: 2.5rem;
@@ -172,9 +148,7 @@
     /* Doodle Colors (Light Mode -> Deep Colored Ink with Opacity) */
     --d-amber: rgba(120, 53, 15, 0.3);
     --d-slate: rgba(15, 23, 42, 0.3);
-    --d-emerald: rgba(6, 78, 59, 0.3);
     --d-red: rgba(127, 29, 29, 0.3);
-    --d-yellow: rgba(133, 77, 14, 0.3);
     --d-blue: rgba(30, 58, 138, 0.3);
     --d-purple: rgba(88, 28, 135, 0.3);
     --d-stroke-width: 1.2px;
@@ -212,14 +186,11 @@
     --c-note-curl: rgba(0, 0, 0, 0.6);
     --shadow-note: 1px 2px 3px rgba(0, 0, 0, 0.35), 3px 8px 16px -6px rgba(0, 0, 0, 0.6);
     --c-note-blue: #1e3a5f;
-    --c-note-blue-fold: #1e40af;
 
     /* Doodle Colors (Dark Mode -> Chalk/Pastel) */
     --d-amber: rgba(254, 249, 195, 0.4);
     --d-slate: rgba(226, 232, 240, 0.4);
-    --d-emerald: rgba(209, 250, 229, 0.4);
     --d-red: rgba(254, 202, 202, 0.4);
-    --d-yellow: rgba(254, 249, 195, 0.4);
     --d-blue: rgba(191, 219, 254, 0.3);
     --d-purple: rgba(233, 213, 255, 0.3);
 
@@ -714,10 +685,6 @@ html[data-reading-font="clean"] {
   justify-content: center;
 }
 
-/* GPU compositing hints — promote frequently-animated layers for smoother rendering.
-   Uses will-change sparingly to avoid excessive GPU memory consumption on low-end devices.
-   When GPU is unavailable, these gracefully fall back to CPU compositing. */
-
 ::selection {
   background-color: var(--c-ink);
   color: var(--c-paper);
@@ -738,13 +705,9 @@ html[data-reading-font="clean"] {
 
 /* Sticker lavender family (others borrowed from existing tokens) */
 :root {
-  --sticker-lavender-bg: #e9d5ff;
-  --sticker-lavender-ink: #581c87;
 }
 
 .dark {
-  --sticker-lavender-bg: #3b2357;
-  --sticker-lavender-ink: #d8b4fe;
 }
 
 .animate-wall-note-in {

@@ -172,7 +172,7 @@ function SegmentedChoice<T extends string>({
           className={cn(
             'relative flex min-h-11 cursor-pointer items-center justify-center border-r border-[var(--c-ink)]/20 px-3 py-2 text-center font-hand text-base last:border-r-0 md:text-lg',
             value === option.value
-              ? 'bg-[var(--c-heading)] text-[var(--c-paper)]'
+              ? 'paper-texture bg-[var(--c-heading)] text-[var(--c-paper)] shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)]'
               : 'text-[var(--c-ink)] hover:bg-[var(--c-ink)]/5',
           )}
         >

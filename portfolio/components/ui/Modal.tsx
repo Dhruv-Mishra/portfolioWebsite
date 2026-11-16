@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useSyncExternalStore, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence, usePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { cn } from '@/lib/utils';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { soundManager } from '@/lib/soundManager';
+
+requestMotion();
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 

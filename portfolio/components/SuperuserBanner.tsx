@@ -19,8 +19,11 @@
 
 import { memo } from 'react';
 import { m } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import SuperuserCard from '@/components/superuser/SuperuserCard';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+
+requestMotion();
 
 interface SuperuserBannerProps {
   /** Timestamp the superuser sticker was earned (from store `unlockedAt.superuser`). */

@@ -14,6 +14,7 @@ Gray-50 maps are single-channel images with a mean of 128. Value 128 is neutral 
 | `burlap.webp` | 512² seamless colour jute/hessian weave | Poly Haven [hessian_380](https://polyhaven.com/a/hessian_380) | CC0 1.0 | 39760 | `normal` |
 | `cardboard.webp` | 512² seamless colour kraft-board surface | ambientCG [Paper006](https://ambientcg.com/view?id=Paper006) | CC0 1.0 | 28512 | `normal` |
 | `wood.webp` | 512×256 seamless colour oak with horizontal grain | Poly Haven [oak_veneer_01](https://polyhaven.com/a/oak_veneer_01) | CC0 1.0 | 21314 | `normal` |
+| `canvas-spine.webp`, `wood-spine.webp` | 64×512 and 16×256 crops of the two above for the book spine, which only ever shows a sliver | as above | CC0 1.0 | 6508, 814 | `soft-light` / `normal` |
 | `chalk-grain.webp` | 256² seamless white RGBA chalk coverage (mean alpha ≈ 175) | Procedural (seed 10) | CC0 1.0 | 24674 | `mask-image` |
 | `coffee-ring.webp` | 384² RGBA coffee-cup ring stain (#7a4a1e, alpha ≤ 150) | Procedural (seed 30) | CC0 1.0 | 17482 | `normal` |
 | `foxing.webp` | 512² seamless RGBA age spots and tide-line stains (alpha ≤ 60) | Procedural (seed 40) | CC0 1.0 | 22100 | `normal` |

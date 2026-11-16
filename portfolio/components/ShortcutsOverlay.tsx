@@ -3,6 +3,7 @@
 import { memo, useMemo, Fragment, useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { X } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import { WavyUnderline } from '@/components/ui/WavyUnderline';
@@ -17,6 +18,8 @@ import {
   Z_INDEX,
 } from '@/lib/designTokens';
 import { KEYBINDINGS, type Keybinding, type KeybindingGroup } from '@/lib/keybindings';
+
+requestMotion();
 
 // ── Static style objects (hoisted) ─────────────────────────────────
 

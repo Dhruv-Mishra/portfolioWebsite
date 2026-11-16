@@ -35,11 +35,14 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { X } from 'lucide-react';
 import SuperuserCard from '@/components/superuser/SuperuserCard';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { setSuperuserRevealedAtImperative } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
+
+requestMotion();
 
 interface SuperuserToastProps {
   /** Timestamp the superuser sticker was earned. Drives the confetti seed

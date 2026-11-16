@@ -23,8 +23,11 @@
 import { memo } from 'react';
 import Link from 'next/link';
 import { m } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { Terminal } from 'lucide-react';
 import { FONT_STACKS, MATRIX_COLORS } from '@/lib/designTokens';
+
+requestMotion();
 
 interface EscapeBannerProps {
   /** Timestamp the user first escaped (from the sticker store). Drives

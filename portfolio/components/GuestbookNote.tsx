@@ -28,7 +28,6 @@ function hashId(id: number): number {
 /** Hoisted style fragments — avoid per-render allocation. */
 const FOLD_CORNER_LEFT_STYLE = { background: GRADIENT_TOKENS.foldCornerAlt } as const;
 const FOLD_CORNER_RIGHT_STYLE = { background: GRADIENT_TOKENS.foldCorner } as const;
-const BODY_STYLE = { backgroundColor: 'var(--note-paper)' } as const;
 
 /** Corner-variant tape override: used on desktop for every 4th note for visual variety. */
 const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden md:block';
@@ -93,9 +92,8 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
           It keeps the background color, min/max height, and padding that were
           previously on <article>. overflow: hidden only applies here. */}
       <div
-        style={BODY_STYLE}
         className={cn(
-          'relative overflow-hidden',
+          'note-material relative overflow-hidden',
           'min-h-[140px] max-h-[260px]',
           'p-5 pb-7 md:p-6 md:pb-9',
         )}

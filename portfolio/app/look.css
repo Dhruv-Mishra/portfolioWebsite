@@ -125,13 +125,13 @@ html[data-disco="on"] .page-surface::after { display: none; }
   background-repeat: repeat-y;
 }
 html[data-pref-paper="on"]:not(.dark):not([data-surface="graph"]):not([data-disco="on"]) .page-binding {
-  background-image: repeating-linear-gradient(to bottom, transparent 0 14px, var(--c-binding-stitch) 14px 20px), var(--tex-canvas);
-  background-size: 2px 100%, 180px 180px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 14px, var(--c-binding-stitch) 14px 20px), url("/resources/textures/canvas-spine.webp");
+  background-size: 2px 100%, 22.5px 180px;
   background-repeat: repeat-y, repeat;
   background-blend-mode: normal, soft-light;
 }
 html[data-pref-paper="on"].dark:not([data-chalkboard="slate"]):not([data-disco="on"]) .page-binding {
-  background: var(--tex-wood) 0 0 / auto 100% #4a3523;
+  background: url("/resources/textures/wood-spine.webp") 0 0 / auto 100% #4a3523;
   border-right-color: rgb(0 0 0 / 0.6);
   box-shadow: inset -3px 0 4px rgb(0 0 0 / 0.45), inset 1px 0 0 rgb(255 255 255 / 0.12);
 }
@@ -362,6 +362,28 @@ html:not([data-reduced-motion]) [data-route-scroll-content] {
   to { translate: 0 -5px; rotate: calc(var(--rot, 0deg) + 2deg); }
 }
 html:not([data-reduced-motion]) .decor[data-drift] { animation: decor-drift 6.5s ease-in-out infinite alternate; }
+
+/* ── Real-world touches on site chrome ─────────────────────────────────────── */
+
+/* The terminal screen catches the room's light: a soft diagonal glare and a darker rim. */
+.terminal-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(118deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.025) 34%, transparent 34.5%),
+    radial-gradient(130% 120% at 50% 40%, transparent 62%, rgb(0 0 0 / 0.32));
+}
+
+/* ── Lite: low-memory devices and Save-Data (data-lite, set by the boot script) ─
+   The same look with the costly extras off: no wear layer, masks or drop-shadow filters, and no idle motion. */
+html[data-lite] .page-surface::after,
+html[data-lite] .stain { display: none; }
+html[data-lite] .page-surface { transition: none; }
+html[data-lite] .decor > svg { -webkit-mask: none; mask: none; animation: none !important; }
+html[data-lite] :is(.decor[data-drift], [data-route-scroll-content]) { animation: none !important; }
+html[data-lite] [data-torn-edge] { -webkit-mask: none !important; mask: none !important; }
+html[data-lite] [data-torn-host] { filter: none !important; box-shadow: var(--shadow-note) !important; }
 
 /* ── Push pins ─────────────────────────────────────────────────────────────── */
 

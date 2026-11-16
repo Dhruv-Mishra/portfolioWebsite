@@ -405,6 +405,11 @@ def main():
     ]
     for name, make, budget, knob in jobs:
         save(args.out / f"{name}.webp", make(), budget, knob)
+    # The book spine shows only a sliver of these, so it gets small crops of its own.
+    spines = (("canvas-spine", "canvas-weave", lambda w, h: ((w - 64) // 2, 0, (w + 64) // 2, h)), ("wood-spine", "wood", lambda w, h: (0, 0, 16, h)))
+    for name, src, box in spines:
+        with Image.open(args.out / f"{src}.webp") as im:
+            im.crop(box(*im.size)).save(args.out / f"{name}.webp", "WEBP", quality=90, method=6)
     for i, side in enumerate(("top", "bottom", "left", "right")):
         p = args.out / f"torn-{side}.svg"
         p.write_text(torn_svg(50 + i, side), encoding="utf-8", newline="\n")

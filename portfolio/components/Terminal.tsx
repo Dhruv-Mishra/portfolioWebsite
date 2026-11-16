@@ -534,6 +534,7 @@ export default function Terminal() {
                     </form>
                 </div>
                 <PillScrollbar scrollRef={scrollRef} color={TERMINAL_COLORS.scrollbarColor} />
+                <span aria-hidden="true" className="terminal-glare" />
                 </div>
             </div>
         </div>

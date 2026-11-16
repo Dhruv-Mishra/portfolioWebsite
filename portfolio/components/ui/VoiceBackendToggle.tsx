@@ -71,7 +71,7 @@ export function VoiceBackendToggle({
           compact ? 'h-5 w-10' : 'h-6 w-12',
           active
             ? 'bg-amber-200/70 border-amber-700/70 dark:bg-amber-500/30 dark:border-amber-400/70'
-            : 'bg-[var(--c-paper)] border-[var(--c-ink)]/30 group-hover:border-[var(--c-ink)]/55',
+            : 'bg-[var(--material-tint,var(--c-paper))] border-[var(--c-ink)]/30 group-hover:border-[var(--c-ink)]/55',
         )}
       >
       {/* Loading spinner overlays the knob position when downloading the

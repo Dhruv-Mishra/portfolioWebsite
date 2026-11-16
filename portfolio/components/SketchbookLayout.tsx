@@ -16,20 +16,6 @@ const PAPER_NOISE_STYLE = {
     contain: 'layout style paint',
 } as const;
 
-/** Stitched binding — repeating dash pattern that looks like hand-sewn thread */
-const BINDING_STITCH_STYLE = {
-    backgroundImage: `repeating-linear-gradient(
-        to bottom,
-        transparent,
-        transparent 14px,
-        var(--c-binding-stitch) 14px,
-        var(--c-binding-stitch) 20px
-    )`,
-    backgroundPosition: 'center',
-    backgroundSize: '2px 100%',
-    backgroundRepeat: 'repeat-y',
-} as const;
-
 /** Hoisted grid pattern background style — avoids re-allocation per render */
 const GRID_PATTERN_STYLE = {
     backgroundSize: GRID_PATTERN.backgroundSize,
@@ -37,6 +23,9 @@ const GRID_PATTERN_STYLE = {
                       linear-gradient(to bottom, var(--c-grid-line) ${GRID_PATTERN.lineWidth}, transparent ${GRID_PATTERN.lineWidth})`,
     contain: 'strict',
 } as const;
+
+const BINDING_STYLE = { zIndex: Z_INDEX.binding } as const;
+const BASE_STYLE = { zIndex: Z_INDEX.base } as const;
 
 export default function SketchbookLayout({ children, doodles }: { children: React.ReactNode; doodles?: React.ReactNode }) {
     const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -66,31 +55,32 @@ export default function SketchbookLayout({ children, doodles }: { children: Reac
                 Skip to main content
             </a>
 
-            {/* Stitched Binding — thin journal spine with CSS stitch pattern */}
+            {/* Stitched binding on paper, a wooden frame edge on the boards (app/look.css) */}
             <div
-                className="w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 relative transition-colors duration-500"
-                style={{ ...BINDING_STITCH_STYLE, zIndex: Z_INDEX.binding }}
+                className="page-binding w-[var(--c-binding-w)] md:w-[var(--c-binding-w-md)] h-full bg-binding-bg border-r border-binding-border shrink-0 relative transition-colors duration-500"
+                style={BINDING_STYLE}
                 aria-hidden="true"
             />
 
             {/* Paper Content Area */}
             <div className="min-w-0 flex-1 relative h-full flex flex-col isolation-auto">
-                {/* Paper Texture Noise Overlay */}
+                {/* Real paper, canvas or chalkboard, plus wear; app/look.css picks them from the look prefs */}
+                <div className="page-surface" style={BASE_STYLE} aria-hidden="true" />
+
+                {/* Paper Texture Noise Overlay (graph paper and slate) */}
                 <div data-paper-grain className="absolute inset-0 pointer-events-none opacity-[0.015] md:opacity-[0.03]"
                     style={{ ...PAPER_NOISE_STYLE, zIndex: Z_INDEX.texture }}
                 />
 
-                {/* Background Grid Pattern - Thicker and Larger */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-20"
+                {/* Background grid; its strength depends on the surface */}
+                <div className="page-grid absolute inset-0 pointer-events-none"
                     style={{ ...GRID_PATTERN_STYLE, zIndex: Z_INDEX.base }}
                 />
 
-                {/* School Notebook Margin Line (Red) - [REMOVED] */}
-
-                {/* Global Doodles (static — parallax removed for performance) */}
+                {/* Doodles and props; each one opts into a theme and a density tier */}
                 <div
-                    className="hidden md:block absolute inset-0 pointer-events-none overflow-hidden"
-                    style={{ zIndex: Z_INDEX.base }}
+                    className="page-decor absolute inset-0 pointer-events-none overflow-hidden"
+                    style={BASE_STYLE}
                     aria-hidden="true"
                 >
                     {doodles}

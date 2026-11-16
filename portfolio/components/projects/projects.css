@@ -1,60 +1,86 @@
-/* Projects wall: sticky notes taped straight onto the page grid. Phones get compact horizontal notes;
-   wider containers pin full notes in two, then three columns. */
+/* Projects wall: paper cards taped onto the page. A big photo first, then the name, kind and languages, the story
+   clamped to a few lines with its highlights, the stack, and links. The whole card opens the expanded note. */
 .project-wall { container-type: inline-size; }
 
-.project-notes {
+.project-wall-title {
+  width: fit-content;
+  margin: .25rem auto 0;
+  color: var(--c-heading);
+  font-size: var(--t-h1);
+  line-height: var(--lh-snug);
+  text-decoration: underline wavy color-mix(in srgb, var(--c-focus) 55%, transparent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: .32em;
+  rotate: -1deg;
+}
+
+.project-cards {
   display: grid;
-  gap: 1.25rem;
+  gap: 3.25rem;
   max-width: var(--c-project-wall-max-w);
   margin: 0 auto;
-  padding: .875rem .25rem var(--c-dock-clear);
+  padding: 2.5rem .5rem 1rem;
   list-style: none;
 }
 
-.project-notes > li {
+.project-cards > li {
   position: relative;
   min-width: 0;
   rotate: calc(var(--note-tilt) * var(--c-project-compact));
 }
 
-/* Paper curl: shadows under both bottom corners that spread as the note lifts. */
-.project-notes > li::before,
-.project-notes > li::after {
+/* Paper curl: shadows under both bottom corners that spread as the card lifts. */
+.project-cards > li::before,
+.project-cards > li::after {
   content: '';
   position: absolute;
   z-index: -1;
-  bottom: .625rem;
+  bottom: .875rem;
   left: .5rem;
   width: 45%;
   height: 40%;
-  box-shadow: 0 .5rem .5rem var(--c-note-curl);
+  box-shadow: 0 .75rem .75rem var(--c-note-curl);
   rotate: -3deg;
   transition: box-shadow var(--dur-quick) var(--ease-paper), translate var(--dur-quick) var(--ease-paper);
 }
-.project-notes > li::after { left: auto; right: .5rem; rotate: 3deg; }
+.project-cards > li::after { left: auto; right: .5rem; rotate: 3deg; }
 
-.project-note {
-  --fold: calc(var(--c-corner-fold) * var(--c-project-compact));
+[data-accent="emerald"] { --accent: #10b981; }
+[data-accent="amber"] { --accent: #f59e0b; }
+[data-accent="violet"] { --accent: #8b5cf6; }
+[data-accent="sky"] { --accent: #0ea5e9; }
+[data-accent="blue"] { --accent: #3b82f6; }
+[data-accent="indigo"] { --accent: #6366f1; }
+[data-accent="rose"] { --accent: #f43f5e; }
+[data-accent="orange"] { --accent: #f97316; }
+[data-accent="green"] { --accent: #22c55e; }
+
+.project-card {
+  --fold: var(--c-corner-fold);
   --hover-tilt-lift: var(--c-project-hover-lift);
   --hover-tilt-scale: var(--c-project-hover-scale);
   position: relative;
-  display: block;
   height: 100%;
   color: var(--c-ink);
-  text-decoration: none;
   box-shadow: var(--shadow-note);
 }
-.project-note:active { scale: .98; }
+.project-card:has(.project-card-link:focus-visible) { outline: 2px solid var(--c-focus); outline-offset: 5px; }
+.project-card:active { scale: .985; }
+/* Lifted off the wall while its expanded note is open; its tape stays behind, rolled up. */
+.project-card[data-away] { visibility: hidden; }
+.project-card[data-away] [data-fastener] { visibility: visible; }
+
+/* A torn bottom edge and a dog-eared corner do not mix; torn-bottom cards drop the fold. */
+html[data-torn="on"]:not([data-notes="sticky"]) .project-card:has(> [data-torn-edge="bottom"]) { --fold: 0px; }
 
 /* Corner fold: the clipped corner shows a shadow on the wall, the flap shows the paper's underside. */
-.project-note-paper,
+.project-card-paper,
 .project-sheet {
   position: relative;
-  background: var(--note-paper);
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--fold)), calc(100% - var(--fold)) 100%, 0 100%);
 }
-.project-note::after,
-.project-note-paper::after,
+.project-card::after,
+.project-card-paper::after,
 .project-sheet::after {
   content: '';
   position: absolute;
@@ -64,66 +90,71 @@
   height: var(--fold);
   pointer-events: none;
 }
-.project-note::after { background: var(--note-fold-shadow); }
-.project-note-paper::after,
+.project-card::after { background: var(--note-fold-shadow); }
+/* Real paper on a board casts a dark shadow in either theme. */
+html:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .15) 50%); }
+html.dark:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .3) 50%); }
+.project-card-paper::after,
 .project-sheet::after {
   background: var(--note-fold-underside);
   clip-path: polygon(0 0, 0 100%, 100% 0);
 }
 
-.project-note-paper {
-  display: grid;
-  grid-template-columns: clamp(6rem, 31cqi, var(--c-project-thumb-w)) minmax(0, 1fr);
-  align-items: center;
-  gap: .75rem;
+.project-card-paper {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: .875rem .875rem .875rem .625rem;
+  padding: 2rem 1.25rem 1.125rem;
 }
 
-.project-note-tape,
+.project-card-tape,
 .project-sheet-tape {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
   translate: -50% 0;
 }
-.project-note-tape {
-  top: -.5rem;
+.project-card-tape {
+  top: -.875rem;
   left: var(--tape-x);
-  width: calc(var(--c-project-tape-w) * .7);
-  height: calc(var(--c-project-tape-h) * .7);
+  width: var(--c-project-tape-w);
+  height: var(--c-project-tape-h);
   background-color: var(--tape-color);
   clip-path: var(--tape-clip);
   rotate: calc(var(--photo-tilt) * -1);
 }
 
+.project-card-stain { top: 38%; right: -1.5rem; --stain-size: 7.5rem; --stain-rotate: 40deg; }
+
 /* Photo prints held on with a paper clip. */
-.project-note-photo,
+.project-card-photo,
 .project-sheet-media {
   position: relative;
   display: block;
-  padding: 4px 4px 6px;
   background: var(--c-polaroid);
   box-shadow: var(--shadow-sticker);
 }
-.project-note-photo {
-  rotate: calc(var(--photo-tilt) * var(--c-project-compact));
+.project-card-photo {
+  width: 96%;
+  margin: 0 auto 1.25rem;
+  padding: 6px 6px 9px;
+  rotate: var(--photo-tilt);
   transition: rotate var(--dur-quick) var(--ease-paper);
 }
-.project-note-photo::before,
+.project-card-photo::before,
 .project-sheet-media::before {
   content: '';
   position: absolute;
   z-index: 2;
-  top: -.5rem;
-  left: .375rem;
-  width: .75rem;
-  height: 1.375rem;
+  top: -.75rem;
+  left: .5rem;
+  width: 1rem;
+  height: 1.875rem;
   background: var(--c-ink-faint);
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 36' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 1C4 1 2 4 2 8L2 28C2 32 5 35 10 35C15 35 18 32 18 28L18 10C18 7 16 5 13 5C10 5 8 7 8 10L8 26'/%3E%3C/svg%3E") center / contain no-repeat;
   rotate: -12deg;
 }
-.project-note-image,
+.project-card-image,
 .project-sheet-media-frame {
   position: relative;
   display: block;
@@ -131,7 +162,7 @@
   overflow: hidden;
   background: color-mix(in srgb, var(--c-polaroid-ink) 10%, var(--c-polaroid));
 }
-.project-note-image::after {
+.project-card-image::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -141,21 +172,22 @@
 }
 
 /* Quiet open affordance: every project opens to a preview video. */
-.project-note-play {
+.project-card-play {
   position: absolute;
   z-index: 1;
   inset: 0;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.75rem;
+  height: 2.75rem;
   margin: auto;
   border-radius: 50%;
   color: var(--c-polaroid-ink);
   background: color-mix(in srgb, var(--c-polaroid) 82%, transparent);
   box-shadow: var(--shadow-sticker);
-  opacity: .85;
+  opacity: .7;
+  scale: .9;
   transition: opacity var(--dur-quick) var(--ease-paper), scale var(--dur-quick) var(--ease-paper);
 }
-.project-note-play::before {
+.project-card-play::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -167,62 +199,160 @@
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
-.project-note-text { min-width: 0; }
-.project-note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; }
-.project-note-name {
+.project-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.project-card-name {
+  min-width: 0;
   color: var(--c-heading);
-  font-size: var(--t-h3);
+  font-size: var(--t-h2);
   line-height: var(--lh-snug);
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
-.project-note-demo {
-  padding: 0 .25rem;
-  color: var(--c-ink-muted);
+/* Tilt the words, not the heading: a transformed ancestor would trap the stretched link below. */
+.project-card-name span { display: inline-block; rotate: -1deg; }
+.project-card-link { color: inherit; text-decoration: none; outline: none; }
+/* Stretched link: the whole card opens the expanded note; the action links sit above it. */
+.project-card-link::after { content: ''; position: absolute; z-index: 2; inset: 0; }
+.project-card-label {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .375rem;
+  padding: .125rem .5rem;
+  border-radius: 3px;
   background: color-mix(in srgb, var(--c-ink) 8%, transparent);
+  color: var(--c-ink-muted);
   font-size: var(--t-small);
   line-height: var(--lh-lead);
   white-space: nowrap;
-  rotate: -2deg;
+  rotate: 2deg;
 }
-.project-note-summary {
-  margin-top: .125rem;
-  font-size: var(--t-small);
-  line-height: var(--lh-lead);
-  text-wrap: balance;
+.project-card-label svg { width: 1em; height: 1em; }
+.project-card-lang {
+  width: fit-content;
+  margin-top: .25rem;
+  color: var(--c-ink-muted);
+  font-size: var(--t-hand-sm);
+  text-decoration: underline wavy color-mix(in srgb, var(--c-ink) 32%, transparent);
+  text-underline-offset: .28em;
+}
+.project-card-desc {
+  display: -webkit-box;
+  margin-top: .875rem;
+  overflow: hidden;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--c-project-desc-lines);
+  line-clamp: var(--c-project-desc-lines);
+}
+.project-card-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  margin-top: 1rem;
+  font-size: var(--t-chip);
+  list-style: none;
+}
+.project-card-stack li {
+  padding: .2rem .55rem;
+  border: 1px solid color-mix(in srgb, var(--c-ink) 18%, transparent);
+  border-radius: 999px;
+  color: var(--c-ink-muted);
+}
+.project-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.125rem;
+  margin-top: auto;
+  padding-top: .875rem;
+  font-size: var(--t-lead);
+}
+.project-card-action {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: .375rem;
+  color: var(--c-ink-muted);
+  text-decoration: underline wavy color-mix(in srgb, var(--c-ink) 30%, transparent);
+  text-underline-offset: .28em;
+  transition: color var(--dur-quick) var(--ease-paper), text-decoration-color var(--dur-quick) var(--ease-paper);
+}
+.project-card-action:hover { color: var(--c-ink); text-decoration-color: var(--c-ink-muted); }
+.project-card-action svg { width: 1rem; height: 1rem; }
+.project-card-more {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  margin-left: auto;
+  color: var(--c-ink-muted);
+  font-size: var(--t-hand-sm);
+  transition: color var(--dur-quick) var(--ease-paper), translate var(--dur-quick) var(--ease-paper);
+}
+.project-card-more svg { width: .875rem; height: .875rem; }
+
+/* Marker-pen marks in the story (components/ui/MarkedText.tsx). */
+.mark-strong { color: var(--c-heading); -webkit-text-stroke: var(--ink-stroke) currentColor; }
+.mark-highlight {
+  margin: 0 -.05em;
+  padding: 0 .22em;
+  border-radius: .55em .2em .6em .25em;
+  background: linear-gradient(104deg, transparent .08em, color-mix(in srgb, var(--accent) 36%, transparent) .3em, color-mix(in srgb, var(--accent) 28%, transparent) calc(100% - .3em), transparent calc(100% - .08em));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.mark-wavy {
+  text-decoration: underline wavy color-mix(in srgb, var(--accent) 85%, var(--c-ink));
+  text-decoration-thickness: 1.5px;
+  text-decoration-skip-ink: none;
+  text-underline-offset: .22em;
 }
 
-@container (min-width: 34rem) {
-  .project-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3rem 2.5rem; padding-top: 1.75rem; }
-  .project-notes > li { rotate: var(--note-tilt); translate: 0 var(--note-drop); }
-  .project-notes > li::before,
-  .project-notes > li::after { bottom: 1rem; box-shadow: 0 .875rem .75rem var(--c-note-curl); }
-  .project-note { --fold: var(--c-corner-fold); }
-  .project-note-paper { display: block; padding: 1.75rem 1.25rem 1.5rem; }
-  .project-note-tape { top: -.875rem; width: var(--c-project-tape-w); height: var(--c-project-tape-h); }
-  .project-note-photo { width: 94%; margin: 0 auto 1.25rem; padding: 6px 6px 9px; rotate: var(--photo-tilt); }
-  .project-note-photo::before { top: -.75rem; width: 1rem; height: 1.875rem; }
-  .project-note-play { width: 2.75rem; height: 2.75rem; opacity: .75; scale: .9; }
-  .project-note-head { rotate: -1deg; }
-  .project-note-demo { padding: 0 .375rem; font-size: var(--t-hand-sm); }
-  .project-note-name { font-size: var(--t-h3-md); }
-  .project-note-summary { margin-top: .375rem; font-size: var(--t-body); }
+@container (min-width: 40rem) {
+  .project-wall-title { margin-left: 1.5rem; font-size: var(--t-h1-md); }
+  .project-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3.75rem 2.75rem; padding-top: 3rem; }
+  .project-cards > li { rotate: var(--note-tilt); translate: 0 var(--note-drop); }
+  .project-cards > li::before,
+  .project-cards > li::after { bottom: 1rem; box-shadow: 0 .875rem .75rem var(--c-note-curl); }
+  .project-card-paper { padding: 2.25rem 1.5rem 1.25rem; }
+  .project-card-play { opacity: .6; scale: .85; }
 }
 
-@container (min-width: 56rem) {
-  .project-notes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3.5rem 3rem; }
+@container (min-width: 64rem) {
+  .project-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4.25rem 3rem; }
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .project-notes > li:hover::before,
-  .project-notes > li:hover::after { box-shadow: 0 1.375rem 1.125rem var(--c-note-curl); translate: 0 .25rem; }
-  .project-note:hover .project-note-photo { rotate: calc(var(--photo-tilt) * var(--c-project-compact)); }
-  .project-note:hover .project-note-image::after { opacity: 1; }
+  .project-cards > li:hover::before,
+  .project-cards > li:hover::after { box-shadow: 0 1.375rem 1.125rem var(--c-note-curl); translate: 0 .25rem; }
+  .project-card:hover .project-card-photo { rotate: calc(var(--photo-tilt) * .4); }
+  .project-card:hover .project-card-image::after { opacity: 1; }
+  .project-card:hover .project-card-more { color: var(--c-ink); translate: .125rem 0; }
 }
-.project-note:is(:hover, :focus-visible) .project-note-play { opacity: 1; scale: 1.08; }
-html[data-reduced-motion] .project-note:active { scale: none; }
+.project-card:is(:hover, :focus-within) .project-card-play { opacity: 1; scale: 1.06; }
+html[data-reduced-motion] .project-card:active { scale: none; }
 
-/* Expanded note (dialog). Modal springs its card into a rotation; a reading sheet stays square and slides up. */
+/* Cards land on the wall: the first row on load, the rest as they scroll in where scroll timelines exist. */
+@keyframes project-card-land {
+  from { opacity: 0; translate: 0 -1rem; scale: 1.035; }
+  55% { opacity: 1; }
+}
+html:not([data-reduced-motion]) .project-cards > li {
+  animation: project-card-land 620ms var(--ease-paper) var(--enter-delay) both;
+}
+@supports (animation-timeline: view()) {
+  html:not([data-reduced-motion]) .project-cards > li:nth-child(n + 4) {
+    animation-delay: 0s;
+    animation-timeline: view();
+    animation-range: entry 0% entry 55%;
+  }
+}
+
+/* Expanded note (dialog). It flies out of the card it came from (lib/flight.ts) and stays square while reading. */
 .project-modal {
   width: min(46rem, calc(100% - 1rem));
   margin: 1.75rem auto 1.5rem;
@@ -230,6 +360,8 @@ html[data-reduced-motion] .project-note:active { scale: none; }
   transform: none !important;
   animation: project-sheet-in var(--dur-panel) var(--ease-paper) both;
 }
+.project-modal:is([data-flying], [data-flown]) { animation: none; }
+.project-modal[data-flying] { opacity: 1 !important; }
 @keyframes project-sheet-in { from { translate: 0 1.5rem; } }
 
 .project-sheet-tape { top: -.875rem; left: 50%; width: var(--c-project-tape-w); height: var(--c-project-tape-h); rotate: -2deg; }
@@ -254,14 +386,14 @@ html[data-reduced-motion] .project-note:active { scale: none; }
   place-items: center;
   border-radius: 50%;
   color: var(--c-ink);
-  background: color-mix(in srgb, var(--note-paper) 88%, transparent);
+  background: color-mix(in srgb, var(--material-tint, var(--note-paper)) 88%, transparent);
   box-shadow: var(--shadow-sticker);
   transition: rotate var(--dur-quick) var(--ease-paper);
 }
 .project-sheet-close:hover { rotate: 90deg; }
 
 .project-sheet-media { margin: 2rem 0 1.5rem; padding: 6px 6px 10px; rotate: -.75deg; }
-.project-sheet-media::before { top: -.875rem; left: .5rem; width: 1.125rem; height: 2.125rem; }
+.project-sheet-media::before { top: -.875rem; width: 1.125rem; height: 2.125rem; }
 .project-sheet-title { color: var(--c-heading); font-size: var(--t-h2); line-height: var(--lh-snug); }
 .project-sheet-meta { margin: .25rem 0 1rem; color: var(--c-ink-muted); font-size: var(--t-small); line-height: var(--lh-body); }
 .project-sheet-details,
@@ -278,7 +410,7 @@ html[data-reduced-motion] .project-note:active { scale: none; }
   width: .375rem;
   height: .375rem;
   border-radius: 50%;
-  background: var(--c-ink-faint);
+  background: var(--accent, var(--c-ink-faint));
 }
 .project-sheet-stack { display: flex; flex-wrap: wrap; gap: .375rem; margin: 1.5rem 0; padding: 0; list-style: none; }
 .project-sheet-stack li { padding: .25rem .625rem; font-size: var(--t-chip); border: 1px solid var(--c-ink-faint); border-radius: 999px; }

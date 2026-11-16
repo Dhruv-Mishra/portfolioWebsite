@@ -28,9 +28,12 @@
 
 import { memo } from 'react';
 import { m } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { Crown } from 'lucide-react';
 import { SUPERUSER_STICKER, StickerSvg, type StickerId } from '@/lib/stickers';
 import { STICKER_TOKENS } from '@/lib/designTokens';
+
+requestMotion();
 
 interface SuperuserCardProps {
   /** Timestamp the superuser sticker was earned. Used for the formatted

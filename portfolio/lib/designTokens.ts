@@ -77,6 +77,9 @@ export const PIN_COLORS = {
   blue: '#4a8fe7',
 } as const;
 
+/** Chalk colours for the drawings on the board (components/SketchbookDoodles.tsx). */
+export const CHALK_COLORS = { white: '#f1f1ea', yellow: '#f4e7a1', pink: '#f6bccb', blue: '#b3daf3' } as const;
+
 /** Shared motion vocabulary. CSS mirrors: --ease-paper/-paper-in/-standard and --dur-* in app/globals.css. */
 export const MOTION = {
   ease: {
@@ -383,15 +386,6 @@ export const NOTE_ROTATION = {
   minDeg: 0.5,
   rangeDeg: 1,
   inputRotation: 0.5,
-} as const;
-
-/** Sticky note entrance offset config */
-export const NOTE_ENTRANCE = {
-  userY: 30,
-  userRotateOffset: 5,
-  aiX: 50,
-  aiRotateOffset: -5,
-  oldNoteOpacity: 0.7,
 } as const;
 
 /** Chat nav tab spring positions */

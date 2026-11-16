@@ -288,3 +288,40 @@ describe('site preference migration and facade', () => {
     expect(dataset).not.toHaveProperty('readingFont');
   });
 });
+
+describe('look preferences', () => {
+  const stored = { surface: 'canvas', chalkboard: 'neon', noteMaterial: 'cardboard', aging: 42 };
+  const resolved = { surface: 'canvas', chalkboard: 'green', noteMaterial: 'cardboard', cardMaterial: 'cardboard', aging: 'light', aboutLayout: 'board', timeline: 'wire' };
+
+  it('falls back to the first option for missing or invalid stored values', async () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    const site = await import('@/hooks/useSitePrefs');
+
+    expect(site.getSitePrefsSnapshot()).toMatchObject(resolved);
+  });
+
+  it('persists only valid choices and mirrors them onto <html>', async () => {
+    const dataset: Record<string, string> = {};
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { documentElement: { dataset } },
+    });
+    const site = await import('@/hooks/useSitePrefs');
+    const internal = await import('@/hooks/useAdminPrefs');
+
+    expect(site.setSitePref('chalkboard', 'green')).toBe(true);
+    expect((site.setSitePref as (key: string, value: unknown) => boolean)('decorations', 'everywhere')).toBe(false);
+    internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
+
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({ chalkboard: 'green', decorations: 'some' });
+    expect(dataset).toMatchObject({ chalkboard: 'green', decor: 'some', notes: 'paper', about: 'board' });
+  });
+
+  it('resolves the same attributes in the pre-paint boot snippet as in the store', async () => {
+    const { LOOK_BOOT_SNIPPET } = await import('@/lib/lookPrefs');
+    const e = { dataset: {} as Record<string, string> };
+    new Function('e', 'o', LOOK_BOOT_SNIPPET)(e, stored);
+
+    expect(e.dataset).toMatchObject({ surface: 'canvas', chalkboard: 'green', notes: 'cardboard', cards: 'cardboard', aging: 'light', about: 'board', timeline: 'wire' });
+  });
+});

@@ -146,7 +146,7 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hold('focus', false);
       }}
       data-disco-motion="wiggle"
-      className="relative rotate-[-0.6deg] border border-[var(--c-ink-faint)]/40 bg-[var(--c-sheet)] p-3 shadow-sticker sm:p-4"
+      className="sheet-material relative rotate-[-0.6deg] border border-[var(--c-ink-faint)]/40 p-3 shadow-sticker sm:p-4"
     >
       <div
         className="featured-track"

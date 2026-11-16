@@ -11,6 +11,16 @@ const ROUTE_SCROLL_CLASSES =
 
 const PageFlipTransition = lazy(() => import('@/components/PageFlipTransition'));
 
+/** Room to finish a page: a pencil flourish, then air above the dock. */
+const PAGE_END = (
+  <div className="page-end" aria-hidden="true">
+    <svg viewBox="0 0 160 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 14c14-8 22 8 36 0s22-8 36 0 22 8 36 0 22-8 30-2" />
+      <path d="M150 8l6 4-6 5" />
+    </svg>
+  </div>
+);
+
 export default function RouteScrollSurface({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { pageFlipEnabled } = useSitePrefs();
@@ -33,6 +43,7 @@ export default function RouteScrollSurface({ children }: { children: ReactNode }
         data-route-scroll-content
       >
         {children}
+        {isChatRoute ? null : PAGE_END}
       </div>
       <div
         className="pointer-events-none absolute inset-0 z-20"

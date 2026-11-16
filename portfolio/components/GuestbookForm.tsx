@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, type FormEvent } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { Pin, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,8 @@ import {
   registerSiteActionHost,
   type SubmitGuestbookEventDetail,
 } from '@/lib/siteActionEvents';
+
+requestMotion();
 
 /** Lined-notebook textarea style — hoisted to avoid per-render allocation. */
 const TEXTAREA_LINED_STYLE = {
@@ -271,13 +274,14 @@ export default function GuestbookForm() {
         <m.form
           key={formKey}
           onSubmit={handleSubmit}
-          initial={FORM_INITIAL}
+          // The first form is on the page from the first paint; only a fresh one after signing pops in.
+          initial={formKey === 0 ? false : FORM_INITIAL}
           animate={state === 'flying' ? flyingAnim : FORM_ANIMATE}
           transition={state === 'flying'
             ? { duration: GUESTBOOK_ANIMATION.flyToWall.duration, ease: ANIMATION_TOKENS.easing.bounce }
             : FORM_REFRESH_TRANSITION}
           className={cn(
-            'relative bg-note-paper -rotate-1 shadow-md',
+            'note-material relative -rotate-1 shadow-md',
             'p-5 pt-7 md:p-6 md:pt-9 pb-9 md:pb-10',
             'border border-yellow-300/40 dark:border-yellow-400/20',
             'font-hand text-[var(--c-ink)]',
@@ -426,7 +430,7 @@ export default function GuestbookForm() {
               disabled={isDisabled}
               className={cn(
                 'flex items-center gap-1.5 px-4 min-h-[44px] rounded-md shadow-sm',
-                'bg-[var(--c-ink)] text-[var(--c-paper)]',
+                'bg-[var(--c-ink)] text-[var(--material-tint)]',
                 'font-hand font-bold text-sm',
                 'transition-opacity disabled:opacity-40 disabled:cursor-not-allowed',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60',

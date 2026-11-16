@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import { cn } from '@/lib/utils';
+
+requestMotion();
 
 export interface ListeningOverlayProps {
   isListening: boolean;

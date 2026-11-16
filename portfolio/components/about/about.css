@@ -1,61 +1,17 @@
-.about-spread {
+/* About page: the pin board, then the experience timeline. */
+.about-page {
   display: grid;
-  align-items: start;
-  gap: 3rem;
+  gap: 3.5rem;
   width: 100%;
-  max-width: 70rem;
+  max-width: 72rem;
   margin-inline: auto;
-  padding: 1.25rem .25rem 3rem;
+  padding: 1rem .125rem 1rem;
   color: var(--c-ink);
 }
 
-.about-note {
-  position: relative;
-  display: flow-root;
-  min-width: 0;
-  padding: 1.5rem;
-}
+.about-page .board-slot { scroll-margin-top: calc(var(--c-page-header-h) + 1rem); }
 
-.about-tape {
-  position: absolute;
-  top: -.75rem;
-  left: -.5rem;
-  width: 6rem;
-  height: 2rem;
-  rotate: -8deg;
-  pointer-events: none;
-}
-
-.about-photo {
-  --hover-tilt-lift: -2px;
-  --hover-tilt-scale: 1.012;
-  --disco-motion-delay: -610ms;
-  --disco-motion-duration: 1700ms;
-  --disco-wiggle-amplitude: 2.25deg;
-  --disco-wiggle-rest: 3deg;
-  position: relative;
-  float: right;
-  width: 6rem;
-  margin: 0 0 1rem 1rem;
-  padding: .375rem .375rem .75rem;
-  background: var(--c-polaroid);
-  transform: rotate(3deg);
-}
-
-.about-title {
-  margin-bottom: 1.25rem;
-  color: var(--c-heading);
-  font-size: var(--t-h1);
-  line-height: var(--lh-snug);
-}
-
-.about-copy {
-  max-width: var(--measure);
-  font-size: var(--t-body);
-  line-height: var(--lh-body);
-}
-
-.about-copy p + p { margin-top: 1rem; }
+/* The talk-to-AI link on the contact card. */
 .about-link {
   text-decoration: underline;
   text-decoration-color: var(--c-ink-faint);
@@ -63,68 +19,6 @@
 }
 .about-link:hover { text-decoration-color: currentColor; }
 
-.about-resume {
-  clear: both;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .75rem 1.25rem;
-  padding-top: 1.75rem;
-  scroll-margin-top: calc(var(--c-page-header-h) + 1rem);
-}
-
-.about-download {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.75rem;
-  width: 100%;
-  padding: .625rem .875rem;
-  background: var(--c-ink);
-  color: var(--c-paper);
-  font-size: var(--t-h3);
-  line-height: var(--lh-snug);
-  transform: rotate(-1deg);
-}
-
-.about-open {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  font-size: var(--t-hand-sm);
-  text-decoration-style: wavy;
-}
-
-.about-contact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: 1rem;
-  margin-top: .5rem;
-  font-size: var(--t-small);
-  line-height: var(--lh-body);
-}
-.about-contact a { display: inline-flex; align-items: center; min-height: 2.75rem; }
-.about-voice { margin-top: 0; font-size: var(--t-small); line-height: var(--lh-body); }
-
-@media (min-width: 768px) {
-  .about-title { font-size: var(--t-h1-md); }
-  .about-copy { font-size: var(--t-body-md); }
-}
-
 @media (min-width: 1024px) {
-  .about-spread { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; }
-  .about-note { position: sticky; top: calc(var(--c-page-header-h) + .5rem); padding: 2.5rem; transform: rotate(-1deg); }
-  /* The note is a narrow column here and shares its first lines with the photo. */
-  .about-title { font-size: var(--t-h1); }
-  .about-photo { width: 9.5rem; }
-  .about-download { width: auto; }
-}
-
-@media (min-width: 1024px) and (max-width: 1279px) {
-  /* The timeline is a straight line here, so the note takes an even share instead of a cramped float. */
-  .about-spread { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; }
-  .about-note { top: .5rem; padding: 1.75rem; }
-  .about-photo { width: 7rem; }
+  .about-page { gap: 4.5rem; padding-top: 1.5rem; }
 }

@@ -179,26 +179,33 @@ export default function DesktopContextMenu() {
       setPosition(nextPosition);
       setMenu({ ...nextPosition, linkUrl: getLinkUrl(event.target), pathname });
     };
+    document.addEventListener('contextmenu', openFromPointer);
+    document.addEventListener('keydown', openFromKeyboard);
+    return () => {
+      document.removeEventListener('contextmenu', openFromPointer);
+      document.removeEventListener('keydown', openFromKeyboard);
+    };
+  }, [pathname]);
+
+  // Anything else on the page puts an open menu away; nothing listens while it is closed.
+  const isOpen = activeMenu !== null;
+  useEffect(() => {
+    if (!isOpen) return;
     const closeOnPointerDown = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) closeMenu();
     };
     const close = () => closeMenu();
-
-    document.addEventListener('contextmenu', openFromPointer);
-    document.addEventListener('keydown', openFromKeyboard);
     document.addEventListener('pointerdown', closeOnPointerDown);
     window.addEventListener('blur', close);
     window.addEventListener('resize', close);
     window.addEventListener('scroll', close, true);
     return () => {
-      document.removeEventListener('contextmenu', openFromPointer);
-      document.removeEventListener('keydown', openFromKeyboard);
       document.removeEventListener('pointerdown', closeOnPointerDown);
       window.removeEventListener('blur', close);
       window.removeEventListener('resize', close);
       window.removeEventListener('scroll', close, true);
     };
-  }, [pathname]);
+  }, [isOpen]);
 
   useLayoutEffect(() => {
     if (!activeMenu || !menuRef.current) return;

@@ -69,6 +69,7 @@ import {
   useChatModelPref,
 } from '@/lib/chatModelPref';
 import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
+import { LOOK_KEYS, LOOK_OPTIONS, type LookKey, type LookPrefs } from '@/lib/lookPrefs';
 import {
   PAPER_STOCK_ORDER,
   PAPER_STOCK_SWATCHES,
@@ -98,6 +99,21 @@ const READING_FONT_OPTIONS = [
   { value: 'hand', label: 'Handwritten', className: 'font-hand' },
   { value: 'clean', label: 'Clean', className: 'font-clean' },
 ] as const;
+
+/** Labels for every look choice, in display order; values come from LOOK_OPTIONS (first is the default). */
+const LOOK_CHOICES: ReadonlyArray<{ [K in LookKey]: { key: K; title: string; detail?: string; labels: Record<LookPrefs[K], string> } }[LookKey]> = [
+  { key: 'surface', title: 'Page in light mode', labels: { paper: 'Drawing paper', canvas: 'Canvas', graph: 'Graph' } },
+  { key: 'chalkboard', title: 'Page in dark mode', labels: { green: 'Greenboard', black: 'Blackboard', slate: 'Slate' } },
+  { key: 'noteMaterial', title: 'Notes', labels: { paper: 'Paper', cardboard: 'Cardboard', sticky: 'Sticky' } },
+  { key: 'cardMaterial', title: 'Project cards', labels: { cardboard: 'Cardboard', notes: 'Same as notes' } },
+  { key: 'tornEdges', title: 'Note edges', detail: 'Paper and cardboard only.', labels: { on: 'Torn', off: 'Clean' } },
+  { key: 'aboutLayout', title: 'About page', labels: { board: 'Pin board', sheet: 'On the page' } },
+  { key: 'pinboard', title: 'Pin board', labels: { cork: 'Cork', burlap: 'Burlap' } },
+  { key: 'timeline', title: 'Experience photos', labels: { wire: 'On a line', mesh: 'Wire mesh' } },
+  { key: 'noteFlight', title: 'Opening a note', detail: 'Pins pull out, tape peels and pegs open first.', labels: { pin: 'Unfasten', zoom: 'Zoom', fade: 'Fade' } },
+  { key: 'decorations', title: 'Doodles and props', labels: { some: 'Some', lots: 'Lots', none: 'None' } },
+  { key: 'aging', title: 'Wear and tear', labels: { light: 'Lived-in', worn: 'Well-worn', none: 'Brand new' } },
+];
 
 const VOICE_OPTIONS: ReadonlyArray<{ value: VoiceBackendPref; label: string }> = [
   { value: 'native', label: 'Native' },
@@ -156,7 +172,7 @@ function SegmentedChoice<T extends string>({
           className={cn(
             'relative flex min-h-11 cursor-pointer items-center justify-center border-r border-[var(--c-ink)]/20 px-3 py-2 text-center font-hand text-base last:border-r-0 md:text-lg',
             value === option.value
-              ? 'bg-[var(--c-heading)] text-[var(--c-paper)]'
+              ? 'paper-texture bg-[var(--c-heading)] text-[var(--c-paper)] shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)]'
               : 'text-[var(--c-ink)] hover:bg-[var(--c-ink)]/5',
           )}
         >
@@ -449,7 +465,7 @@ export default function SettingsPanel() {
   const modelTargetActive = mounted
     && new URLSearchParams(window.location.search).get('focus') === 'ai-model';
 
-  const setBooleanPref = (key: Exclude<SitePrefKey, 'motionPreference' | 'paperStock' | 'readingFont'>, checked: boolean) => {
+  const setBooleanPref = (key: Exclude<SitePrefKey, 'motionPreference' | 'paperStock' | 'readingFont' | LookKey>, checked: boolean) => {
     setPref(key, checked);
   };
 
@@ -556,6 +572,30 @@ export default function SettingsPanel() {
               setTheme,
             })}
           />
+        </SettingsGroup>
+
+        <SettingsGroup id="look" title="Look and feel" icon={Sparkles}>
+          {LOOK_CHOICES.map((choice) => (
+            <div key={choice.key} className="space-y-1.5 pb-1">
+              <p className="font-hand text-base text-[var(--c-heading)] md:text-lg">
+                {choice.title}
+                {choice.detail ? <span className="ml-2 text-sm text-[var(--c-ink)]/55">{choice.detail}</span> : null}
+              </p>
+              <SegmentedChoice
+                name={`look-${choice.key}`}
+                value={prefs[choice.key]}
+                options={LOOK_OPTIONS[choice.key].map((value) => ({ value, label: (choice.labels as Record<string, string>)[value] }))}
+                onChange={(value) => setPref(choice.key, value as LookPrefs[typeof choice.key])}
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => LOOK_KEYS.forEach((key) => setPref(key, LOOK_OPTIONS[key][0]))}
+            className="inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-3 font-hand text-base font-bold text-[var(--c-heading)] hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+          >
+            Reset look to defaults
+          </button>
         </SettingsGroup>
 
         <SettingsGroup title="Reading font" icon={Type}>

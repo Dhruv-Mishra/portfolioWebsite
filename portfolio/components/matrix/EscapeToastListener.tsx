@@ -22,6 +22,7 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { m, AnimatePresence } from 'framer-motion';
+import { requestMotion } from '@/components/motion/requestMotion';
 import Link from 'next/link';
 import { matrixToastBus } from '@/lib/matrixToastBus';
 import { useMatrixEscaped } from '@/hooks/useStickers';
@@ -30,6 +31,8 @@ import { TapeStrip } from '@/components/ui/TapeStrip';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
 import { FONT_STACKS, MATRIX_COLORS, Z_INDEX } from '@/lib/designTokens';
+
+requestMotion();
 
 const TOAST_INITIAL = { opacity: 0, y: 40, rotate: -4, scale: 0.9 } as const;
 const TOAST_ANIMATE = { opacity: 1, y: 0, rotate: -2, scale: 1 } as const;

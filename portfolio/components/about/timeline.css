@@ -1,309 +1,350 @@
-/* Experience timeline. Line mode by default; the S-curve takes over once the column fits two tiles and the
-   curve band between them. Hover peeks overlay later rows; pinning moves the sheet into flow. */
+/* Experience: instant photos pegged to a twine line, or clipped to a wire mesh (html[data-timeline]). Each row of
+   photos hangs from its own length of twine that sags under them; the first photo of a row draws it. */
 .tl-section {
   container: timeline / inline-size;
+  width: 100%;
+  max-width: 62rem;
   min-width: 0;
+  margin-inline: auto;
   color: var(--c-ink);
 }
 .tl-heading {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   color: var(--c-heading);
   font-size: var(--t-h2);
   line-height: var(--lh-snug);
 }
 
-.tl {
-  --tl-pad: .625rem;
-  --tl-tuck: .5rem;
-  --tl-node-gap: .625rem;
-  --tl-node-y: calc(var(--tl-pad) + var(--c-timeline-logo) / 2);
-  --tl-x: calc(var(--c-timeline-node) / 2 + .125rem);
-  --tl-indent: calc(var(--tl-x) + var(--c-timeline-node) / 2 + var(--tl-node-gap));
-  isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  gap: var(--c-timeline-gap);
-  padding: .75rem 0 1rem;
+.pol-line {
+  --cols: 2;
+  --gap-x: 1rem;
+  /* How far the twine dips mid-row; the wire mask below is drawn for exactly this, in px. */
+  --sag: 26px;
+  --wire-top: .25rem;
+  --marker: #22306a;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 2.5rem var(--gap-x);
+  padding: 0 0 1.5rem;
   list-style: none;
 }
-.tl-item {
-  --tl-dot: var(--c-timeline-work);
-  --tl-tilt: calc(var(--c-timeline-tilt) * -1);
-  --disco-wiggle-rest: var(--tl-tilt);
-  --disco-wiggle-amplitude: 2.5deg;
-  --disco-motion-duration: 1400ms;
-  position: relative;
-  z-index: 0;
-}
-/* Each row is its own layer; the one being read rises above its neighbours so its sheet can overlap them. */
-.tl-item:is(:has(> .tl-tab:hover), :focus-within, [data-pinned]) { z-index: 1; }
-.tl-item:nth-child(even) { --tl-tilt: var(--c-timeline-tilt); }
-.tl-item:nth-child(3n + 1) { --disco-motion-delay: -270ms; }
-.tl-item:nth-child(3n + 2) { --disco-motion-delay: -690ms; }
-.tl-item:nth-child(3n) { --disco-motion-delay: -1080ms; }
-.tl-item[data-category="internship"] { --tl-dot: var(--c-timeline-internship); }
-.tl-item[data-category="research"] { --tl-dot: var(--c-timeline-research); }
-.tl-item[data-category="education"] { --tl-dot: var(--c-timeline-education); }
-.tl-item[data-category="achievement"] { --tl-dot: var(--c-timeline-contest); }
 
-/* Runs from this node to the next one; a 1px-wide box flattens the S into a straight line. */
-.tl-seg {
+/* Where along the sagging twine each photo hangs: y = sag * 4x(1 - x) at the middle of its column. */
+.pol {
+  --drop: calc(var(--sag) * .75);
+  position: relative;
+  min-width: 0;
+  padding-top: calc(var(--wire-top) + var(--drop) + .5rem);
+}
+.pol:hover,
+.pol:focus-within { z-index: 1; }
+
+.pol::before,
+.pol::after {
+  content: "";
   position: absolute;
-  top: var(--tl-node-y);
-  left: calc(var(--tl-x) - .5px);
-  width: 1px;
-  height: calc(100% + var(--c-timeline-gap));
-  overflow: visible;
+  display: none;
+  top: calc(var(--wire-top) - 3px);
+  left: calc(var(--gap-x) / -2);
+  width: calc(var(--cols) * (100% + var(--gap-x)));
+  height: calc(var(--sag) + 6px);
   pointer-events: none;
+  -webkit-mask: var(--wire-mask);
+  mask: var(--wire-mask);
 }
-.tl-seg path {
-  fill: none;
-  stroke: var(--c-timeline-line);
-  stroke-width: var(--c-timeline-stroke);
-  stroke-linecap: round;
-}
-
-.tl-node {
-  position: absolute;
-  top: calc(var(--tl-node-y) - var(--c-timeline-node) / 2);
-  left: calc(var(--tl-x) - var(--c-timeline-node) / 2);
-  width: var(--c-timeline-node);
-  height: var(--c-timeline-node);
-  border-radius: 50%;
-  background: var(--tl-dot);
-  box-shadow: 0 0 0 3px var(--c-paper);
-  transition: scale var(--dur-quick) var(--ease-paper), box-shadow var(--dur-quick) var(--ease-paper);
-}
-.tl-node::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - .5px);
-  left: 100%;
-  width: var(--tl-node-gap);
-  height: 1px;
-  background: var(--c-timeline-line);
-}
-
-.tl-tab {
-  position: relative;
+.pol::before {
+  --wire-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 32' preserveAspectRatio='none'%3E%3Cpath d='M0 3Q50 55 100 3' fill='none' stroke='%23000' stroke-width='2.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle, #000 3.5px, transparent 4px) -1px -2px / 10px 10px no-repeat,
+    radial-gradient(circle, #000 3.5px, transparent 4px) calc(100% + 1px) -2px / 10px 10px no-repeat;
   z-index: 1;
-  display: grid;
-  grid-template-columns: var(--c-timeline-logo) minmax(0, 1fr) auto;
-  grid-template-areas:
-    "logo when chevron"
-    "logo title title"
-    "impact impact impact";
-  align-items: center;
-  column-gap: .625rem;
-  width: calc(100% - var(--tl-indent));
-  margin-left: var(--tl-indent);
-  padding: var(--tl-pad) .875rem calc(var(--tl-tuck) + .375rem);
-  border: 1px solid var(--c-ink-faint);
-  border-radius: 6px;
-  background: var(--note-paper);
-  box-shadow: var(--shadow-sticker);
-  color: var(--c-ink);
-  text-align: left;
-  rotate: var(--tl-tilt);
-  cursor: pointer;
-  transition:
-    rotate var(--dur-quick) var(--ease-paper),
-    border-color var(--dur-quick) var(--ease-paper),
-    box-shadow var(--dur-quick) var(--ease-paper);
+  background: repeating-linear-gradient(115deg, #c3a172 0 1.5px, #8a6941 1.5px 3px);
 }
-.tl-tape {
-  position: absolute;
-  top: -.625rem;
-  left: 50%;
-  padding: 0 .5rem;
-  background: var(--tape-color);
-  box-shadow: var(--shadow-sticker);
-  color: var(--c-ink);
-  font-size: var(--t-chip);
-  line-height: 1.25rem;
-  translate: -50% 0;
-  rotate: 2deg;
+/* Its shadow on the wall. */
+.pol::after {
+  --wire-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 32' preserveAspectRatio='none'%3E%3Cpath d='M0 3Q50 55 100 3' fill='none' stroke='%23000' stroke-width='3' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+  translate: 1px 4px;
+  background: rgb(0 0 0 / .22);
 }
-.tl-logo {
-  grid-area: logo;
-  align-self: start;
-  display: grid;
-  place-items: center;
-  width: var(--c-timeline-logo);
-  height: var(--c-timeline-logo);
-  border: 1px solid var(--c-ink-faint);
-  border-radius: 4px;
-  background: var(--c-polaroid);
-  color: var(--c-polaroid-ink);
-}
-.tl-logo > * { width: calc(100% - 4px); height: calc(100% - 4px); }
-.tl-when {
-  grid-area: when;
-  color: var(--c-ink-muted);
-  font-size: var(--t-chip);
-  line-height: var(--lh-snug);
-}
-.tl-chevron {
-  grid-area: chevron;
-  width: 1rem;
-  height: 1rem;
-  color: var(--c-ink-muted);
-  transition: rotate var(--dur-panel) var(--ease-paper);
-}
-.tl-title {
-  grid-area: title;
-  margin-top: .125rem;
-  font-size: var(--t-lead-md);
-  line-height: var(--lh-snug);
-}
-.tl-impact {
-  grid-area: impact;
-  margin-top: .375rem;
-  font-size: var(--t-small);
-  line-height: var(--lh-lead);
-}
+.pol:nth-child(2n + 1)::before,
+.pol:nth-child(2n + 1)::after { display: block; }
 
-.tl-fold {
-  position: relative;
-  display: grid;
-  grid-template-rows: 0fr;
-  margin-left: var(--tl-indent);
-  /* Collapsed sheets overflow their 0fr track; clipping keeps them out of the page's scroll height. The clip lifts
-     at once for a peek or pin and returns only after the sheet has folded away. */
-  overflow-y: clip;
-  transition:
-    grid-template-rows var(--dur-quick) var(--ease-paper-in),
-    overflow-y 0s linear var(--dur-quick) allow-discrete;
-}
-.tl-item[data-pinned] > .tl-fold { overflow-y: visible; transition-delay: 0s; }
-/* The track wrapper has no box of its own, so 0fr really is 0 and the sheet overflows it for a peek. */
-.tl-fold-track { min-height: 0; }
-/* An index card tucked under the tile. The clip unfolds it and its content fades and settles. Pinned and peek
-   clips differ (their shadows do), so pinning during the hover-intent delay restarts the clip immediately. */
-.tl-sheet {
-  margin-top: calc(var(--tl-tuck) * -1);
-  padding: calc(var(--tl-tuck) + .75rem) .875rem 1rem;
-  border: 1px solid var(--c-ink-faint);
-  border-radius: 6px;
-  background: var(--note-paper);
-  box-shadow: var(--shadow-peek);
-  font-size: var(--t-small);
-  line-height: var(--lh-lead);
-  rotate: calc(var(--tl-tilt) * -1);
-  clip-path: inset(0 -2rem 100% -2rem);
+/* Wooden clothes peg: two halves, a steel spring, gripping the twine and the photo's top edge. */
+.pol-peg {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--wire-top) + var(--drop) - 1.05rem);
+  left: calc(50% - .3125rem);
+  width: .625rem;
+  height: 2.25rem;
+  border-radius: 2px 2px 3px 3px;
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / .2), transparent 32% 62%, rgb(0 0 0 / .26)),
+    linear-gradient(transparent 40%, #c4c9ce 40% 44%, #6c7277 44% 52%, #d2d6da 52% 56%, transparent 56%),
+    var(--tex-wood) 30% 0 / 160px,
+    #c99c66;
+  box-shadow: 1px 2px 2px rgb(0 0 0 / .35);
   pointer-events: none;
-  transition:
-    clip-path var(--dur-quick) var(--ease-paper-in),
-    box-shadow var(--dur-quick) var(--ease-paper-in),
-    border-color var(--dur-quick) var(--ease-paper-in),
-    rotate var(--dur-quick) var(--ease-paper-in);
 }
-.tl-sheet > * {
-  opacity: 0;
-  translate: 0 -.375rem;
-  transition: opacity var(--dur-quick) var(--ease-paper-in), translate var(--dur-quick) var(--ease-paper-in);
-}
-.tl-where { color: var(--c-ink-muted); }
-.tl-highlights { display: grid; gap: .5rem; margin-top: .625rem; list-style: none; }
-.tl-highlights li { position: relative; padding-left: .875rem; }
-.tl-highlights li::before {
-  content: '';
+.pol-peg::after {
+  content: "";
   position: absolute;
-  left: 0;
-  top: calc(.5lh - 3px);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--tl-dot);
-}
-.tl-tools { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .875rem; font-size: var(--t-chip); list-style: none; }
-.tl-tools li { padding: .125rem .375rem; border: 1px solid var(--c-ink-faint); border-radius: 3px; }
-
-/* Pinned: the sheet joins the flow and the tile straightens. */
-.tl-item[data-pinned] > .tl-node { scale: 1.2; box-shadow: 0 0 0 3px var(--c-paper), 0 0 0 4.5px var(--tl-dot); }
-.tl-item[data-pinned] > .tl-tab { rotate: 0deg; border-color: var(--c-ink); }
-.tl-item[data-pinned] .tl-chevron { rotate: 180deg; }
-.tl-item[data-pinned] > .tl-fold { grid-template-rows: 1fr; }
-.tl-item[data-pinned] .tl-sheet {
-  border-color: var(--c-ink);
-  box-shadow: var(--shadow-sticker);
-  rotate: 0deg;
-  clip-path: inset(0 -1rem -1rem -1rem);
-  pointer-events: auto;
-}
-.tl-item[data-pinned] :is(.tl-fold, .tl-sheet, .tl-sheet > *) {
-  transition-duration: var(--dur-panel);
-  transition-timing-function: var(--ease-paper);
+  top: 3px;
+  bottom: 3px;
+  left: calc(50% - .5px);
+  width: 1px;
+  background: rgb(60 35 10 / .45);
 }
 
-/* Hover peek for fine pointers: an overlay that never takes the pointer, so it cannot trap or flicker. */
+.pol-photo {
+  position: relative;
+  width: min(90%, 15rem);
+  margin-inline: auto;
+  transform-origin: 50% 0;
+  rotate: var(--tilt);
+  transition: rotate var(--dur-panel) var(--ease-paper), translate var(--dur-quick) var(--ease-paper);
+}
+
+.pol-frame {
+  position: relative;
+  padding: 6% 6% 0;
+  background-color: var(--c-polaroid);
+  color: var(--c-polaroid-ink);
+  box-shadow: 0 1px 1px rgb(0 0 0 / .18), 0 12px 18px -10px rgb(0 0 0 / .5);
+}
+.pol-photo:has(.pol-open:focus-visible) .pol-frame { outline: 2px solid var(--c-focus); outline-offset: 4px; }
+
+[data-category="work"] { --pol-a: #3a6ea3; --pol-b: #12263f; }
+[data-category="internship"] { --pol-a: #2e8a8f; --pol-b: #0f3437; }
+[data-category="research"] { --pol-a: #7558aa; --pol-b: #261a42; }
+[data-category="education"] { --pol-a: #468658; --pol-b: #16301d; }
+[data-category="achievement"] { --pol-a: #c27833; --pol-b: #45210c; }
+
+/* The print: a lit backdrop with out-of-focus lights, film grain and a vignette. Its layers share one grid cell. */
+.pol-picture {
+  display: grid;
+  grid-template-areas: "print";
+  aspect-ratio: 1;
+  color: #fff;
+  background-image:
+    var(--tex-paper),
+    radial-gradient(circle at 82% 12%, rgb(255 206 140 / .5), transparent 38%),
+    radial-gradient(circle at 16% 80%, rgb(255 255 255 / .2) 0 3%, transparent 10%),
+    radial-gradient(circle at 28% 18%, rgb(255 255 255 / .14) 0 2%, transparent 7%),
+    radial-gradient(circle at 76% 70%, rgb(255 255 255 / .12) 0 4%, transparent 12%),
+    linear-gradient(165deg, var(--pol-a), var(--pol-b));
+  background-size: 200px 200px, auto, auto, auto, auto, auto;
+  background-blend-mode: soft-light, normal, normal, normal, normal, normal;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .3), inset 0 0 2.25rem rgb(0 0 0 / .5);
+}
+.pol-picture > * { grid-area: print; }
+.pol-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: 10% 9% 14%;
+  text-align: center;
+}
+.pol-logo {
+  display: grid;
+  width: 36%;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 20%;
+  background: #fbfaf6;
+  color: #3b3328;
+  box-shadow: 0 6px 14px rgb(0 0 0 / .4), inset 0 -2px 0 rgb(0 0 0 / .08);
+}
+.pol-logo > * { width: 60%; height: 60%; }
+.pol-title {
+  font-size: var(--t-body);
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgb(0 0 0 / .65);
+  text-wrap: balance;
+}
+.pol-open { color: inherit; text-align: inherit; outline: none; }
+.pol-open::after { content: ""; position: absolute; z-index: 2; inset: 0; }
+/* The orange date imprint of an old film camera. */
+.pol-stamp {
+  align-self: end;
+  justify-self: end;
+  margin: 0 7% 6% 0;
+  color: #ffa24a;
+  font-size: .625rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 4px rgb(255 120 20 / .7);
+  opacity: .9;
+}
+/* An instant print starts a milky grey and develops. */
+.pol-develop {
+  z-index: 1;
+  background: linear-gradient(160deg, #77736a, #938d82);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pol-date {
+  padding: .5em .25rem .75em;
+  color: var(--marker);
+  font-size: var(--t-lead);
+  line-height: 1;
+  text-align: center;
+  rotate: -1.5deg;
+}
+
+/* Hovering slides a note out from under the photo: the one-line story and how to see the rest. */
+.pol-peek {
+  position: absolute;
+  bottom: .75rem;
+  left: 8%;
+  right: 8%;
+  display: grid;
+  gap: .375rem;
+  padding: .875rem .75rem .5rem;
+  font-size: var(--t-small);
+  line-height: var(--lh-snug);
+  box-shadow: 0 8px 12px -8px rgb(0 0 0 / .45);
+  rotate: calc(var(--tilt) * -.8);
+  pointer-events: none;
+  transition: translate var(--dur-quick) var(--ease-paper-in);
+}
+.pol-peek-line {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.pol-peek-hint { justify-self: end; color: var(--c-ink-muted); font-size: var(--t-hand-sm); }
+
 @media (hover: hover) and (pointer: fine) {
-  .tl-item:not([data-pinned]) > .tl-tab:hover { border-color: var(--c-ink-muted); box-shadow: var(--shadow-peek); }
-  .tl-item > .tl-tab:hover + .tl-fold { overflow-y: visible; transition-delay: 0s; }
-  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold .tl-sheet {
-    clip-path: inset(0 -2rem -2rem -2rem);
-    transition-delay: var(--c-timeline-hover-intent);
+  .pol:hover .pol-photo:not([data-away]) { rotate: calc(var(--tilt) * .3); translate: 0 -2px; }
+  :is(.pol:hover, .pol:has(.pol-open:focus-visible)) .pol-peek {
+    translate: 0 calc(100% + .25rem);
+    transition: translate var(--dur-panel) var(--ease-paper) 120ms;
   }
-  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold :is(.tl-sheet, .tl-sheet > *) {
-    transition-duration: var(--dur-panel);
-    transition-timing-function: var(--ease-paper);
-  }
-  .tl-item > .tl-tab:hover + .tl-fold .tl-sheet > * { opacity: 1; translate: 0 0; }
 }
-.tl-item[data-pinned] .tl-sheet > * { opacity: 1; translate: 0 0; }
-@container timeline (min-width: 34rem) {
-  .tl {
-    --tl-band: calc(var(--c-timeline-tile-w) + var(--tl-node-gap) + var(--c-timeline-node) / 2);
-  }
-  /* Alternate rows interleave; the row after a pinned one drops clear of its sheet. */
-  .tl-item {
-    --tl-x: var(--tl-band);
-    --tl-step: calc(var(--c-timeline-gap) - var(--c-timeline-overlap));
-    transition: margin-top var(--dur-quick) var(--ease-paper-in);
-  }
-  .tl-item + .tl-item { margin-top: calc(var(--c-timeline-overlap) * -1); }
-  .tl-item[data-pinned] { --tl-step: var(--c-timeline-gap); }
-  .tl-item[data-pinned] + .tl-item {
-    margin-top: 0;
-    transition-duration: var(--dur-panel);
-    transition-timing-function: var(--ease-paper);
-  }
-  .tl-item:nth-child(even) { --tl-x: calc(100% - var(--tl-band)); }
-  .tl-seg {
-    left: var(--tl-band);
-    width: calc(100% - var(--tl-band) * 2);
-    height: calc(100% + var(--tl-step));
-    transition: height var(--dur-quick) var(--ease-paper-in);
-  }
-  .tl-item[data-pinned] > .tl-seg { transition-duration: var(--dur-panel); transition-timing-function: var(--ease-paper); }
-  .tl-item:nth-child(even) > .tl-seg { scale: -1 1; }
-  .tl-item:nth-child(odd) > .tl-node::after { right: 100%; left: auto; }
-  .tl-tab { width: var(--c-timeline-tile-w); margin-left: 0; }
-  .tl-item:nth-child(even) > .tl-tab { margin-left: auto; }
-  /* The sheet spans its own tile and the curve band, stopping short of the opposite node. */
-  .tl-fold { margin-left: 0; margin-right: calc(var(--tl-band) + var(--c-timeline-node) / 2); }
-  .tl-item:nth-child(even) > .tl-fold { margin-left: calc(var(--tl-band) + var(--c-timeline-node) / 2); margin-right: 0; }
-  .tl-title { font-size: var(--t-lead); }
+@media not ((hover: hover) and (pointer: fine)) {
+  .pol-peek { display: none; }
+}
+
+@container timeline (min-width: 40rem) {
+  .pol-line { --cols: 3; --gap-x: 2.5rem; row-gap: 3.5rem; }
+  .pol { --drop: calc(var(--sag) * .56); }
+  .pol:nth-child(3n + 2) { --drop: var(--sag); }
+  .pol:nth-child(2n + 1)::before,
+  .pol:nth-child(2n + 1)::after { display: none; }
+  .pol:nth-child(3n + 1)::before,
+  .pol:nth-child(3n + 1)::after { display: block; }
+  .pol-title { font-size: var(--t-lead); }
+  .pol-stamp { font-size: .6875rem; }
 }
 
 @media (min-width: 768px) {
   .tl-heading { font-size: var(--t-h2-md); }
 }
 
-/* Scroll-linked entrance keyed to the tab, whose box never changes size when a sheet opens. */
-@supports (timeline-scope: none) and (animation-timeline: view()) {
-  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-item { timeline-scope: --tl-tab; }
-  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-tab { view-timeline: --tl-tab block; }
-  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-item > :is(.tl-tab, .tl-node) {
-    animation: tl-appear linear both;
-    animation-timeline: --tl-tab;
-    animation-range: entry 0% entry 70%;
-  }
-  html:not([data-reduced-motion]):not([data-disco="on"]) .tl-seg {
-    animation: tl-draw linear both;
-    animation-timeline: --tl-tab;
-    animation-range: entry 25% entry 100%;
-  }
+/* Wire mesh: a steel grid panel with binder clips, photos hanging nearly straight. */
+html[data-timeline="mesh"] .pol-line {
+  --mesh: rgb(48 52 56 / .8);
+  --mesh-cell: 2.25rem;
+  padding: 1.5rem 1.25rem 2.25rem;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--mesh-cell) - 2px), var(--mesh) 0 var(--mesh-cell)),
+    repeating-linear-gradient(transparent 0 calc(var(--mesh-cell) - 2px), var(--mesh) 0 var(--mesh-cell)),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--mesh-cell) - 2px), rgb(0 0 0 / .14) 0 var(--mesh-cell)) 3px 4px,
+    repeating-linear-gradient(transparent 0 calc(var(--mesh-cell) - 2px), rgb(0 0 0 / .14) 0 var(--mesh-cell)) 3px 4px;
+  box-shadow: inset 0 0 0 4px var(--mesh), 0 20px 30px -20px rgb(0 0 0 / .55);
 }
-@keyframes tl-appear { from { opacity: 0; translate: 0 .75rem; } }
-@keyframes tl-draw { from { clip-path: inset(-1rem -1rem 100% -1rem); } to { clip-path: inset(-1rem); } }
+html.dark[data-timeline="mesh"] .pol-line { --mesh: rgb(176 184 190 / .7); }
+html[data-timeline="mesh"] .pol { --drop: 0px; }
+html[data-timeline="mesh"] .pol::before,
+html[data-timeline="mesh"] .pol::after { display: none; }
+html[data-timeline="mesh"] .pol-photo { rotate: calc(var(--tilt) * .4); }
+html[data-timeline="mesh"] .pol-peg {
+  top: calc(var(--wire-top) + .05rem);
+  left: calc(50% - .75rem);
+  width: 1.5rem;
+  height: .875rem;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+/* Binder clip: a black steel jaw and its two wire handles. */
+html[data-timeline="mesh"] .pol-peg::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: .875rem;
+  background: linear-gradient(#45494e, #141618);
+  clip-path: polygon(10% 0, 90% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(1px 2px 1px rgb(0 0 0 / .4));
+}
+html[data-timeline="mesh"] .pol-peg::after {
+  top: -.7rem;
+  bottom: auto;
+  left: .125rem;
+  width: 1.25rem;
+  height: .875rem;
+  border: 2px solid #c9cdd2;
+  border-bottom: 0;
+  border-radius: 45% 45% 0 0;
+  background: none;
+}
+
+/* Hung one by one, swinging to rest, and developing, when the line scrolls in. */
+.pol-line[data-hang="wait"] :is(.pol-photo, .pol-peg) { opacity: 0; }
+.pol-line[data-hang="wait"] .pol-develop { opacity: 1; }
+@keyframes pol-hang {
+  from { opacity: 0; translate: 0 -1.25rem; rotate: calc(var(--tilt) - 8deg); }
+  40% { opacity: 1; translate: 0 0; rotate: calc(var(--tilt) + 5deg); }
+  64% { rotate: calc(var(--tilt) - 2.5deg); }
+  84% { rotate: calc(var(--tilt) + 1deg); }
+  to { rotate: var(--tilt); }
+}
+@keyframes pol-peg-in { from { opacity: 0; translate: 0 -.75rem; } }
+@keyframes pol-develop { from { opacity: 1; } 30% { opacity: .9; } to { opacity: 0; } }
+html:not([data-reduced-motion]) .pol-line[data-hang="go"] .pol-peg { animation: pol-peg-in 260ms var(--ease-paper) calc(var(--i) * 120ms) backwards; }
+html:not([data-reduced-motion]) .pol-line[data-hang="go"] .pol-photo { animation: pol-hang 1.2s var(--ease-standard) calc(var(--i) * 120ms + 80ms) backwards; }
+html:not([data-reduced-motion]) .pol-line[data-hang="go"] .pol-develop { animation: pol-develop 2s ease-out calc(var(--i) * 120ms + 300ms) backwards; }
+html[data-reduced-motion] .pol-line[data-hang] :is(.pol-photo, .pol-peg) { opacity: 1; }
+html[data-reduced-motion] .pol-line[data-hang] .pol-develop { opacity: 0; }
+
+/* The open photo: a big print with the whole story written underneath. */
+.pol-sheet {
+  --material-tint: var(--c-polaroid);
+  width: min(40rem, 100%);
+  padding: .875rem .875rem 1.5rem;
+  background-color: var(--c-polaroid);
+  color: var(--c-polaroid-ink);
+}
+.pol-sheet .pol-picture { aspect-ratio: 16 / 7; }
+.pol-sheet .pol-logo { width: auto; height: 38%; }
+.pol-sheet .pol-title { font-size: var(--t-h3); }
+.pol-sheet-body { padding: 1rem .5rem 0; font-size: var(--t-body); line-height: var(--lh-lead); }
+.pol-sheet-when { color: var(--marker, #22306a); font-size: var(--t-lead); rotate: -1deg; }
+.pol-sheet-where { margin-top: .25rem; opacity: .75; }
+.pol-sheet-highlights { display: grid; gap: .625rem; margin-top: 1rem; list-style: none; }
+.pol-sheet-highlights li { position: relative; padding-left: 1rem; }
+.pol-sheet-highlights li::before {
+  content: "";
+  position: absolute;
+  top: calc(.5lh - 3px);
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pol-a);
+}
+.pol-sheet-tools { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: 1.125rem; font-size: var(--t-chip); list-style: none; }
+.pol-sheet-tools li { padding: .125rem .375rem; border: 1px solid rgb(0 0 0 / .2); border-radius: 3px; }
+
+@media (min-width: 768px) {
+  .pol-sheet { padding: 1.125rem 1.125rem 2rem; }
+  .pol-sheet .pol-title { font-size: var(--t-h2); }
+  .pol-sheet-body { padding: 1.25rem 1.25rem 0; font-size: var(--t-body-md); }
+}

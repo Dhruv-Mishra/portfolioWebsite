@@ -3,7 +3,10 @@ import { Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useR
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
+import { release, reset, shownFastener } from '@/lib/fasteners';
 import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
+import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
+import { useSitePrefs } from '@/hooks/useSitePrefs';
 import { unlockSticker } from '@/hooks/useStickers';
 import { appendUserAction } from '@/lib/userActionJournal';
 import {
@@ -34,9 +37,14 @@ function ProjectRoute() {
   const raw = readProjectSlugFromSearch(useSearchParams().toString());
   const slug = raw && isProjectSlug(raw) ? raw : null;
   const { closePanel, openPanel } = useAppHaptics();
+  const { noteFlight } = useSitePrefs();
+  const reducedMotion = useEffectiveReducedMotion();
   const [hasOpened, setHasOpened] = useState(false);
   // Set while the open note sits on a history entry this page pushed, so closing pops it instead of stacking.
   const pushedRef = useRef(false);
+  const peelingRef = useRef(false);
+  const opensRef = useRef(0);
+  const mountedRef = useRef(false);
 
   if (slug && !hasOpened) setHasOpened(true);
 
@@ -51,6 +59,7 @@ function ProjectRoute() {
   }, [closePanel]);
 
   const show = useEffectEvent((next: ProjectSlug, fromClick: boolean) => {
+    opensRef.current += 1;
     // Gives the dialog an opener to return focus to: Safari does not focus clicked links, and voice opens have none.
     if (fromClick || (!slug && document.activeElement === document.body)) focusNote(next);
     if (slug) {
@@ -79,10 +88,28 @@ function ProjectRoute() {
 
   const onClick = useEffectEvent((event: MouseEvent) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const next = (event.target as Element | null)?.closest<HTMLElement>(NOTE_SELECTOR)?.dataset.projectSlug;
+    const link = (event.target as Element | null)?.closest<HTMLElement>(NOTE_SELECTOR);
+    const next = link?.dataset.projectSlug;
     if (!next || !isProjectSlug(next)) return;
     event.preventDefault();
-    show(next, true);
+    // The tape peels off first, then the card flies; ProjectModal rolls it back on after the card lands.
+    const tape = noteFlight === 'pin' && !reducedMotion ? shownFastener(link?.closest('[data-project-card]')) : null;
+    if (!tape) {
+      show(next, true);
+      return;
+    }
+    if (peelingRef.current) return;
+    peelingRef.current = true;
+    const opensBefore = opensRef.current;
+    void release(tape).then(() => {
+      peelingRef.current = false;
+      // Left the page, or voice opened another project mid-peel: put the tape back instead of opening this one.
+      if (!mountedRef.current || opensRef.current !== opensBefore) {
+        reset(tape);
+        return;
+      }
+      show(next, true);
+    });
   });
 
   const onVoiceOpen = useEffectEvent((event: Event) => {
@@ -118,7 +145,9 @@ function ProjectRoute() {
     document.addEventListener('click', handleClick);
     window.addEventListener(OPEN_PROJECT_EVENT, handleOpen);
     window.addEventListener(CLOSE_PROJECT_EVENT, handleClose);
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       document.removeEventListener('pointerover', warm);
       document.removeEventListener('focusin', warm);
       document.removeEventListener('click', handleClick);

@@ -6,13 +6,15 @@ maps (128 = neutral for soft-light/overlay), colour tiles, procedural RGBA overl
 and the torn-edge SVG masks.
 
 Usage (from portfolio/):
-    python scripts/build-textures.py [--cache DIR] [--out DIR]
+    python scripts/build-textures.py [--cache DIR] [--out DIR] [--only chalk-smudge,coffee-ring]
     TEXTURE_CACHE=DIR python scripts/build-textures.py
 
 Requires Python 3.11+, numpy and Pillow (with WebP). The cache defaults to a temp dir.
+`--only` rebuilds the named textures; the procedural ones need no downloads.
 
-/resources is served with immutable cache headers: when you change a texture, give
-the output a new file name and update its references instead of overwriting it.
+/resources is served with immutable cache headers: when you change how a texture looks,
+give the output a new file name and update its references instead of overwriting it.
+A re-encode that looks the same may overwrite in place.
 """
 import argparse
 import io
@@ -387,30 +389,40 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--cache", default=os.environ.get("TEXTURE_CACHE") or os.path.join(tempfile.gettempdir(), "portfolio-textures"))
     ap.add_argument("--out", default=OUT, type=Path)
+    ap.add_argument("--only", default="", help="comma-separated texture names to rebuild")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    only = {name for name in args.only.split(",") if name}
     white = lambda a: np.dstack([np.full(a.shape, 255.0)] * 3 + [a])
+    # Drawn at 1024 and stored at 512: the smears are soft, so the browser's upscale matches the full-size draw.
+    half = lambda a: resize(a, a.shape[1] // 2, a.shape[0] // 2)
+    # The overlays are faint (alpha <= 150), so lossy alpha stays within 3/255 of the source once composited.
     jobs = [
         ("paper-grain", lambda: paper(args.cache), 35_000, "quality"),
         ("canvas-weave", lambda: canvas(args.cache), 35_000, "quality"),
         ("slate-grain", lambda: slate(args.cache), 30_000, "quality"),
-        ("chalk-smudge", lambda: white(chalk_smudge()), 60_000, "alpha_quality"),
+        ("chalk-smudge", lambda: white(half(chalk_smudge())), 21_000, "alpha_quality"),
         ("cork", lambda: cork(args.cache), 45_000, "quality"),
         ("burlap", lambda: burlap(args.cache), 40_000, "quality"),
         ("cardboard", lambda: cardboard(args.cache), 30_000, "quality"),
         ("wood", lambda: wood(args.cache), 25_000, "quality"),
         ("chalk-grain", lambda: white(chalk_grain()), 25_000, "alpha_quality"),
-        ("coffee-ring", lambda: np.dstack([np.full((384, 384, 3), (0x7A, 0x4A, 0x1E), float), coffee_ring()]), 25_000, "quality"),
-        ("foxing", foxing, 25_000, "quality"),
+        ("coffee-ring", lambda: np.dstack([np.full((384, 384, 3), (0x7A, 0x4A, 0x1E), float), coffee_ring()]), 8_000, "alpha_quality"),
+        ("foxing", foxing, 13_000, "alpha_quality"),
     ]
     for name, make, budget, knob in jobs:
-        save(args.out / f"{name}.webp", make(), budget, knob)
+        if not only or name in only:
+            save(args.out / f"{name}.webp", make(), budget, knob)
     # The book spine shows only a sliver of these, so it gets small crops of its own.
     spines = (("canvas-spine", "canvas-weave", lambda w, h: ((w - 64) // 2, 0, (w + 64) // 2, h)), ("wood-spine", "wood", lambda w, h: (0, 0, 16, h)))
     for name, src, box in spines:
+        if only and name not in only:
+            continue
         with Image.open(args.out / f"{src}.webp") as im:
             im.crop(box(*im.size)).save(args.out / f"{name}.webp", "WEBP", quality=90, method=6)
     for i, side in enumerate(("top", "bottom", "left", "right")):
+        if only and f"torn-{side}" not in only:
+            continue
         p = args.out / f"torn-{side}.svg"
         p.write_text(torn_svg(50 + i, side), encoding="utf-8", newline="\n")
         print(f"{p.name:18} {p.stat().st_size:6} B")

@@ -290,8 +290,8 @@ describe('site preference migration and facade', () => {
 });
 
 describe('look preferences', () => {
-  const stored = { surface: 'canvas', chalkboard: 'neon', noteMaterial: 'cardboard', aging: 42 };
-  const resolved = { surface: 'canvas', chalkboard: 'green', noteMaterial: 'cardboard', cardMaterial: 'cardboard', aging: 'light', aboutLayout: 'board', timeline: 'wire' };
+  const stored = { surface: 'paper', chalkboard: 'neon', noteMaterial: 'cardboard', aging: 42 };
+  const resolved = { surface: 'paper', chalkboard: 'green', noteMaterial: 'cardboard', cardMaterial: 'cardboard', aging: 'light', aboutLayout: 'board', timeline: 'mesh', decorations: 'lots' };
 
   it('falls back to the first option for missing or invalid stored values', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify(stored));
@@ -313,8 +313,8 @@ describe('look preferences', () => {
     expect((site.setSitePref as (key: string, value: unknown) => boolean)('decorations', 'everywhere')).toBe(false);
     internal.applyPrefsToDocument(internal.getAdminPrefsSnapshot());
 
-    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({ chalkboard: 'green', decorations: 'some' });
-    expect(dataset).toMatchObject({ chalkboard: 'green', decor: 'some', notes: 'paper', about: 'board' });
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({ chalkboard: 'green', decorations: 'lots' });
+    expect(dataset).toMatchObject({ surface: 'canvas', chalkboard: 'green', decor: 'lots', notes: 'paper', about: 'board', timeline: 'mesh' });
   });
 
   it('resolves the same attributes in the pre-paint boot snippet as in the store', async () => {
@@ -322,6 +322,37 @@ describe('look preferences', () => {
     const e = { dataset: {} as Record<string, string> };
     new Function('e', 'o', LOOK_BOOT_SNIPPET)(e, stored);
 
-    expect(e.dataset).toMatchObject({ surface: 'canvas', chalkboard: 'green', notes: 'cardboard', cards: 'cardboard', aging: 'light', about: 'board', timeline: 'wire' });
+    expect(e.dataset).toMatchObject({ surface: 'paper', chalkboard: 'green', notes: 'cardboard', cards: 'cardboard', aging: 'light', about: 'board', timeline: 'mesh', decor: 'lots' });
+  });
+
+  it.each([
+    ['dark by default', null, { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['slate-grain', 'chalk-smudge']],
+    ['a light canvas', 'light', { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['canvas-weave']],
+    ['the flat slate', 'dark', { prefPaper: 'on', chalkboard: 'slate', surface: 'canvas' }, []],
+    ['paper grain off', null, { chalkboard: 'green', surface: 'canvas' }, []],
+  ])('preloads only the textures the visible surface paints: %s', async (_case, theme, dataset, textures) => {
+    const { TEXTURE_PRELOAD_SNIPPET } = await import('@/lib/lookPrefs');
+    const links: Array<Record<string, string>> = [];
+    const doc = { createElement: () => ({}), head: { append: (link: Record<string, string>) => links.push(link) } };
+    const local = { getItem: (key: string) => (key === 'theme' ? theme : null) };
+    new Function('e', 'document', 'localStorage', 'matchMedia', TEXTURE_PRELOAD_SNIPPET)({ dataset }, doc, local, () => ({ matches: true }));
+
+    expect(links.map((link) => link.href)).toEqual(textures.map((name) => `/resources/textures/${name}.webp`));
+    expect(links.every((link) => link.rel === 'preload' && link.as === 'image')).toBe(true);
+  });
+
+  it('resets customization in one write and leaves the other settings alone', async () => {
+    storage.setItem(STORAGE_KEY, JSON.stringify({
+      ...stored, paperStock: 'kraft', tapeEffects: false, pageFlipEnabled: true, stickerToastsEnabled: true, readingFont: 'clean',
+    }));
+    const site = await import('@/hooks/useSitePrefs');
+
+    expect(site.resetCustomization()).toBe(true);
+
+    expect(site.getSitePrefsSnapshot()).toMatchObject({
+      surface: 'canvas', noteMaterial: 'paper', paperStock: 'cream', tapeEffects: true, pageFlipEnabled: false,
+      stickerToastsEnabled: true, readingFont: 'clean',
+    });
+    expect(JSON.parse(storage.getItem(STORAGE_KEY) as string)).toMatchObject({ surface: 'canvas', paperStock: 'cream', readingFont: 'clean' });
   });
 });

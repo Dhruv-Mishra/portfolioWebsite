@@ -1,25 +1,28 @@
 # Look and feel
 
-Every visual choice below is a site preference under **Settings > Look and feel**. It is stored with the other site prefs (`dhruv-admin-prefs` in localStorage) and mirrored onto `<html data-*>` before first paint, so switching never flashes or re-renders the page.
+Every visual choice below is a site preference in the **Settings > Customization** drawer, next to the paper stock (the four colour sheets), paper grain, tape, sketch outlines, page flip and motion. They are stored with the other site prefs (`dhruv-admin-prefs` in localStorage) and mirrored onto `<html data-*>` before first paint, so switching never flashes or re-renders the page. Old `/settings#look` and `#appearance` links open the drawer.
 
 | Setting | `<html>` attribute | Options (default first) |
 |---|---|---|
-| Page in light mode | `data-surface` | Drawing paper, Canvas, Graph |
+| Page in light mode | `data-surface` | Canvas, Drawing paper, Graph |
 | Page in dark mode | `data-chalkboard` | Greenboard, Blackboard, Slate |
 | Notes | `data-notes` | Paper, Cardboard, Sticky |
 | Project cards | `data-cards` | Cardboard, Same as notes |
 | Note edges | `data-torn` | Torn, Clean |
 | About page | `data-about` | Pin board, On the page |
 | Pin board | `data-pinboard` | Cork, Burlap |
-| Experience photos | `data-timeline` | On a line (twine and pegs), Wire mesh (binder clips) |
+| Experience photos | `data-timeline` | Wire mesh (binder clips), On a line (twine and pegs) |
 | Opening a note | `data-flight` | Unfasten (pull the pin, peel the tape, open the peg, then fly), Zoom, Fade |
-| Doodles and props | `data-decor` | Some, Lots, None |
+| Doodles and props | `data-decor` | Lots, Some, None |
 | Wear and tear | `data-aging` | Lived-in, Well-worn, Brand new |
 
-The theme itself defaults to dark (the green chalkboard); visitors can still pick light or system in Settings.
+The theme itself defaults to dark (the green chalkboard); light mode opens on the canvas. Visitors can still pick light or system in Settings.
+
 ## Changing a default
 
-`portfolio/lib/lookPrefs.ts` is the single table behind the store, the boot script, the attributes, and the Settings controls. The first option of each list is the default; reorder it to change the default. Add an option there, a label in `LOOK_CHOICES` (`components/SettingsPanel.tsx`), and its CSS.
+`portfolio/lib/lookPrefs.ts` is the single table behind the store, the boot script, the attributes, and the Settings controls. The first option of each list is the default; reorder it to change the default. Add an option there, a label in `MATERIAL_CHOICES` or `WEAR_CHOICES` (`components/SettingsPanel.tsx`), and its CSS. `CUSTOMIZATION_KEYS` (`hooks/useSitePrefs.ts`) lists what Reset customization puts back.
+
+Only the chosen options cost anything: each texture is a CSS `url()` that downloads once a rule using it matches, and the page flip code loads only when it is turned on.
 
 ## Where the styles live
 

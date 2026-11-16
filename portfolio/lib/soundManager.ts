@@ -84,13 +84,12 @@ export type SoundId =
 
 /**
  * Immediate navigation cues. URL-backed sounds are warmed on first gesture;
- * URL-less procedural sounds are skipped.
+ * URL-less procedural sounds are skipped. The theme samples are warmed on
+ * intent instead (`prepareThemeSounds`): most visitors never switch theme.
  */
 const CRITICAL_WAVE_IDS: ReadonlyArray<SoundId> = Object.freeze([
   'page-flip',
   'button-click',
-  'theme-dark',
-  'theme-light',
 ]);
 
 /**
@@ -293,11 +292,10 @@ function ensure(): ManagerState | null {
   } catch {
     /* ignore — any failure here is non-fatal; playback will still attempt */
   }
-  // Background-warm the CRITICAL wave first (page-flip, theme-*, chat-*,
-  // button-click, modal-*). These are the cues a user will hear during
-  // normal navigation, so we want them decoded before the second tap. The
-  // second wave (sticker-ding, feedback-sent, etc) is chained off the
-  // critical wave settling, and the superuser wave (disco/matrix) is only
+  // Background-warm the CRITICAL wave first (the page-flip navigation cue).
+  // The second wave (sticker-ding, feedback-sent, etc) is chained off the
+  // critical wave settling, theme samples wait for a theme control
+  // (prepareThemeSounds), and the superuser wave (disco/matrix) is only
   // warmed externally by `lib/assetPrefetch.ts` after superuser is earned.
   warmupCriticalWave(ctx);
   // If the prefetch scheduler already requested a superuser warmup before
@@ -1613,6 +1611,9 @@ export const soundManager: SoundManager = {
 
   primeOnGesture(): void {
     if (typeof window === 'undefined') return;
+    // Muted visitors never hear a cue, so they never open a context or download samples; the first play()
+    // after unmuting does both inside its own gesture.
+    if (muted) return;
     // First-time call: create the context + do the iOS Safari unlock dance
     // inside the caller's gesture tick.
     if (!state) {

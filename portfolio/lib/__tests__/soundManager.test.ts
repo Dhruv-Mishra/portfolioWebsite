@@ -705,7 +705,7 @@ describe('soundManager — warmup waves', () => {
       });
   }
 
-  it('critical wave kicks off on first play and fetches every critical sound', async () => {
+  it('critical wave kicks off on first play and fetches the navigation cue, not the theme samples', async () => {
     const { fetched } = installFetchSpy();
     const { soundManager } = await loadSoundManager();
     // First gesture — kicks off the AudioContext + critical warmup.
@@ -714,14 +714,10 @@ describe('soundManager — warmup waves', () => {
     // Yield microtasks so the warmup fetches enqueue.
     await new Promise<void>((r) => setTimeout(r, 0));
     await new Promise<void>((r) => setTimeout(r, 0));
-    const criticalUrls = [
-      '/sounds/page-flip.mp3',
-      '/sounds/theme-dark.mp3',
-      '/sounds/theme-light.mp3',
-    ];
-    for (const url of criticalUrls) {
-      expect(fetched).toContain(url);
-    }
+    expect(fetched).toContain('/sounds/page-flip.mp3');
+    // Theme samples wait for someone to reach for a theme control (prepareThemeSounds).
+    expect(fetched).not.toContain('/sounds/theme-dark.mp3');
+    expect(fetched).not.toContain('/sounds/theme-light.mp3');
   });
 
   it('superuser wave does NOT fire before warmupSuperuserSounds() is called', async () => {
@@ -802,6 +798,15 @@ describe('soundManager — warmup waves', () => {
     // Calling again is a no-op.
     soundManager.primeOnGesture();
     expect(ctxCreationCount).toBe(1);
+  });
+
+  it('primeOnGesture() opens nothing and downloads nothing while muted', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.setMuted(true);
+    soundManager.primeOnGesture();
+    expect(ctxCreationCount).toBe(0);
+    expect(fetched).toEqual([]);
   });
 });
 

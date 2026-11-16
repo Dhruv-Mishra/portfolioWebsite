@@ -92,7 +92,8 @@ export default function HoverTiltController(): null {
     };
 
     const onPointerOver = (event: PointerEvent) => {
-      if (!finePointer.matches || isMotionReduced(reducedMotion)) return;
+      // A hover effect: touch has no hover, and on touch laptops a finger would leave a card tilted.
+      if (event.pointerType === 'touch' || !finePointer.matches || isMotionReduced(reducedMotion)) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const related = event.relatedTarget;

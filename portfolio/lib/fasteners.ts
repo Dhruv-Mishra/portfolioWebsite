@@ -11,63 +11,93 @@ interface Motion {
   on: Keyframe[];
   offMs: number;
   onMs: number;
+  /** How far through letting go the note is free to move: the needle is out, the tape's end is up. */
+  lead: number;
+  /** When, through taking hold, the fastener presses the note against the wall. */
+  press: number;
   /** Extra keyframes for parts of the fastener, keyed by class name. */
   parts?: Record<string, { off: Keyframe[]; on: Keyframe[] }>;
 }
 
-/** Tape rolls up toward its left end: scale about the left edge, then lift and tilt. */
-const roll = (x: string, y: string, turn: number, sx: number, sy: number): Keyframe => ({
-  transform: `translate(${x}, ${y}) rotate(${turn}deg) translateX(-50%) scale(${sx}, ${sy}) translateX(50%)`,
-  // Wound-up tape is several layers thick, so it reads denser.
+/**
+ * Tape peels from its free (right) end: it lifts toward the viewer about the end that is still stuck, and stays
+ * peeled back while the note is away. Every frame keeps the same function list so the browser can interpolate it.
+ */
+const peel = (lift: number, tilt: number, rise = 0, squash = 1, easing?: string, offset?: number): Keyframe => ({
+  transform: `translateY(${-rise}rem) perspective(24rem) translateX(-50%) rotateY(${-lift}deg) rotateZ(${tilt}deg) translateX(50%) scale(1, ${squash})`,
+  ...(easing ? { easing } : {}),
+  ...(offset === undefined ? {} : { offset }),
 });
-const TAPE_DOWN = roll('0px', '0px', 0, 1, 1);
-const TAPE_ROLLED = roll('-.25rem', '-.2rem', -10, 0.22, 1.25);
 
 const PIN_HOME = { translate: '0 0', scale: '1', rotate: '0deg' };
-const PIN_LIFTED = { translate: '0 -.6rem', scale: '1.3', rotate: '-6deg' };
-/** Laid on its side next to its hole, so it can go back in after. */
-const PIN_ASIDE = { translate: '1.5rem .15rem', scale: '1', rotate: '68deg' };
+/** Laid on its side next to its hole, needle toward it, so it can go back in after. */
+const PIN_ASIDE = { translate: '1.6rem .3rem', scale: '1', rotate: '72deg' };
+const SHADOW_REST = { translate: '0 0', scale: '1', opacity: 1 };
+const SHADOW_HELD = { translate: '.5rem .7rem', scale: '1.5', opacity: 0.4 };
 
 const PEG_HOME = { translate: '0 0', rotate: '0deg', scale: '1' };
 const PEG_OPEN = { translate: '0 -.3rem', rotate: '-6deg', scale: '1.06' };
 const PEG_LOOSE = { translate: '0 -.08rem', rotate: '-3deg', scale: '1' };
 
+const SETTLE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SWING = 'cubic-bezier(0.45, 0, 0.55, 1)';
+const DROP = 'cubic-bezier(0.55, 0, 0.85, 0.35)';
+
 const MOTIONS: Record<Kind, Motion> = {
   pin: {
-    off: [PIN_HOME, { ...PIN_LIFTED, offset: 0.42 }, PIN_ASIDE],
-    on: [PIN_ASIDE, { ...PIN_LIFTED, offset: 0.46 }, { ...PIN_HOME, scale: '.9', offset: 0.8 }, PIN_HOME],
-    offMs: 360,
-    onMs: 420,
+    // Worked loose with a small wiggle, pulled straight out, carried over in an arc and laid on its side.
+    off: [
+      { ...PIN_HOME, easing: SWING },
+      { translate: '0 0', scale: '1.02', rotate: '-9deg', offset: 0.12, easing: SWING },
+      { translate: '0 -.05rem', scale: '1.04', rotate: '7deg', offset: 0.26, easing: SETTLE },
+      { translate: '0 -.65rem', scale: '1.24', rotate: '-3deg', offset: 0.48, easing: SWING },
+      { translate: '1.05rem -.6rem', scale: '1.16', rotate: '42deg', offset: 0.74, easing: DROP },
+      { translate: '1.6rem .3rem', scale: '.96', rotate: '74deg', offset: 0.92, easing: SETTLE },
+      PIN_ASIDE,
+    ],
+    // Picked up, held over its hole, pushed in with a little squash, and it springs back.
+    on: [
+      { ...PIN_ASIDE, easing: SETTLE },
+      { translate: '1rem -.6rem', scale: '1.18', rotate: '38deg', offset: 0.3, easing: SWING },
+      { translate: '0 -.7rem', scale: '1.24', rotate: '-2deg', offset: 0.56, easing: DROP },
+      { translate: '0 .06rem', scale: '.9', rotate: '0deg', offset: 0.76, easing: SETTLE },
+      { translate: '0 0', scale: '1.04', rotate: '0deg', offset: 0.88, easing: SWING },
+      PIN_HOME,
+    ],
+    offMs: 520,
+    onMs: 480,
+    lead: 0.48,
+    press: 0.76,
     parts: {
-      // The needle comes out of the cork as the head lifts, and goes back in.
+      // The needle slides out of the cork as the pin is pulled, and back in as it is pushed.
       'pin-needle': {
-        off: [{ scale: '1 0' }, { scale: '1 1', offset: 0.42 }, { scale: '1 1' }],
-        on: [{ scale: '1 1' }, { scale: '1 1', offset: 0.46 }, { scale: '1 0', offset: 0.8 }, { scale: '1 0' }],
+        off: [{ scale: '1 0' }, { scale: '1 0', offset: 0.26, easing: SWING }, { scale: '1 1', offset: 0.48 }, { scale: '1 1' }],
+        on: [{ scale: '1 1' }, { scale: '1 1', offset: 0.56, easing: SETTLE }, { scale: '1 0', offset: 0.76 }, { scale: '1 0' }],
       },
-      // Its shadow falls away and softens while it is held up.
+      // Its shadow falls away and softens while it is held up, and gathers under it again on the cork.
       'pin-shadow': {
-        off: [{ translate: '0 0', scale: '1', opacity: 1 }, { translate: '.45rem .55rem', scale: '1.5', opacity: 0.45, offset: 0.42 }, { translate: '0 0', scale: '1', opacity: 1 }],
-        on: [{ translate: '0 0', scale: '1', opacity: 1 }, { translate: '.45rem .55rem', scale: '1.5', opacity: 0.45, offset: 0.46 }, { translate: '0 0', scale: '1', opacity: 1, offset: 0.8 }, { translate: '0 0', scale: '1', opacity: 1 }],
+        off: [SHADOW_REST, { ...SHADOW_REST, offset: 0.26, easing: SWING }, { ...SHADOW_HELD, offset: 0.48 }, { ...SHADOW_HELD, offset: 0.74, easing: DROP }, { ...SHADOW_REST, opacity: 0.8, offset: 0.92 }, { ...SHADOW_REST, opacity: 0.8 }],
+        on: [{ ...SHADOW_REST, opacity: 0.8, easing: SETTLE }, { ...SHADOW_HELD, offset: 0.3 }, { ...SHADOW_HELD, offset: 0.56, easing: DROP }, { ...SHADOW_REST, scale: '.85', offset: 0.76, easing: SETTLE }, SHADOW_REST],
       },
     },
   },
   tape: {
-    off: [TAPE_DOWN, { ...roll('0px', '-.1rem', -3, 0.62, 1.1), offset: 0.5 }, TAPE_ROLLED],
-    on: [TAPE_ROLLED, { ...roll('0px', '-.1rem', -2, 0.7, 1.08), offset: 0.55 }, { ...roll('0px', '0px', 0, 1, 0.94), offset: 0.85 }, TAPE_DOWN],
-    offMs: 300,
-    onMs: 380,
+    off: [peel(0, 0, 0, 1, SETTLE), peel(18, -1.5, 0.04, 1, SWING, 0.32), peel(66, -7, 0.14)],
+    on: [peel(66, -7, 0.14, 1, SWING), peel(26, -2, 0.06, 1, DROP, 0.4), peel(0, 0, 0, 0.92, SETTLE, 0.72), peel(0, 0)],
+    offMs: 420,
+    onMs: 440,
+    lead: 0.42,
+    press: 0.72,
   },
   clip: {
-    off: [PEG_HOME, { ...PEG_OPEN, offset: 0.55 }, PEG_LOOSE],
-    on: [PEG_LOOSE, { ...PEG_OPEN, offset: 0.45 }, { ...PEG_HOME, translate: '0 .1rem', offset: 0.78 }, PEG_HOME],
-    offMs: 300,
-    onMs: 360,
+    off: [{ ...PEG_HOME, easing: SETTLE }, { ...PEG_OPEN, offset: 0.5, easing: SWING }, PEG_LOOSE],
+    on: [{ ...PEG_LOOSE, easing: SETTLE }, { ...PEG_OPEN, offset: 0.4, easing: DROP }, { ...PEG_HOME, translate: '0 .1rem', offset: 0.74, easing: SETTLE }, PEG_HOME],
+    offMs: 340,
+    onMs: 380,
+    lead: 0.5,
+    press: 0.74,
   },
 };
-
-const EASE = 'cubic-bezier(0.32, 0.72, 0.25, 1)';
-/** The note may start to move once the fastener is this far through letting go. */
-const LEAD = 0.72;
 
 function kindOf(fastener: HTMLElement): Kind | null {
   const kind = fastener.dataset.fastener;
@@ -103,7 +133,7 @@ export function shownFastener(slot: Element | null | undefined): HTMLElement | n
   return null;
 }
 
-/** Lets go; resolves when the note is free to move, a little before the fastener settles aside. */
+/** Lets go; resolves when the note is free to move, while the fastener is still being set aside. */
 export function release(fastener: HTMLElement | null): Promise<void> {
   const kind = fastener ? kindOf(fastener) : null;
   if (!fastener || !kind || fastener.dataset.off !== undefined) return Promise.resolve();
@@ -111,7 +141,7 @@ export function release(fastener: HTMLElement | null): Promise<void> {
   fastener.dataset.off = '';
   settle(fastener);
   for (const [el, frames] of moving(fastener, motion)) {
-    const animation = el.animate(frames.off, { duration: motion.offMs, easing: EASE, fill: 'forwards' });
+    const animation = el.animate(frames.off, { duration: motion.offMs, fill: 'forwards' });
     // The aside pose is then held as plain style, so nothing rests on a filling animation.
     void animation.finished.then(() => {
       if (fastener.dataset.off === undefined) return;
@@ -119,7 +149,7 @@ export function release(fastener: HTMLElement | null): Promise<void> {
       animation.cancel();
     }).catch(() => undefined);
   }
-  return new Promise((resolve) => window.setTimeout(resolve, motion.offMs * LEAD));
+  return new Promise((resolve) => window.setTimeout(resolve, motion.offMs * motion.lead));
 }
 
 /** Takes hold again. A pinned or taped note gives a little as it is pressed home; a pegged photo swings. */
@@ -129,13 +159,14 @@ export function secure(fastener: HTMLElement | null, note?: HTMLElement | null):
   const motion = MOTIONS[kind];
   delete fastener.dataset.off;
   settle(fastener);
-  const [press] = moving(fastener, motion).map(([el, frames]) => el.animate(frames.on, { duration: motion.onMs, easing: EASE }));
+  const [press] = moving(fastener, motion).map(([el, frames]) => el.animate(frames.on, { duration: motion.onMs }));
   if (note && kind === 'clip') {
     const tilt = Number.parseFloat(getComputedStyle(note).rotate) || 0;
     const swing = [4, -2.5, 1.2, -0.4, 0].map((offset) => ({ rotate: `${tilt + offset}deg` }));
-    note.animate(swing, { duration: 1100, delay: motion.onMs * 0.6, easing: 'ease-out' });
+    note.animate(swing, { duration: 1100, delay: motion.onMs * motion.press, easing: 'ease-out' });
   } else {
-    note?.animate([{ scale: '1' }, { scale: '1', offset: 0.74 }, { scale: '.985', offset: 0.84 }, { scale: '1' }], { duration: motion.onMs });
+    const at = motion.press;
+    note?.animate([{ scale: '1' }, { scale: '1', offset: at - 0.04 }, { scale: '.985', offset: at + 0.06, easing: SETTLE }, { scale: '1' }], { duration: motion.onMs });
   }
   return press.finished.then(() => undefined, () => undefined);
 }

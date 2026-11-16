@@ -4,10 +4,10 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type Componen
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import {
-  Activity,
   AudioLines,
   Bot,
   Brush,
+  ChevronDown,
   GitBranch,
   Image as ImageIcon,
   Mic2,
@@ -18,7 +18,7 @@ import {
   Type,
   Volume2,
 } from 'lucide-react';
-import { useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
+import { resetCustomization, useSitePrefsApi, type SitePrefKey } from '@/hooks/useSitePrefs';
 import {
   setAudioCategoryVolumeImperative,
   setSoundsMutedImperative,
@@ -69,7 +69,7 @@ import {
   useChatModelPref,
 } from '@/lib/chatModelPref';
 import { SITE_VERSION_LABEL } from '@/lib/siteVersion';
-import { LOOK_KEYS, LOOK_OPTIONS, type LookKey, type LookPrefs } from '@/lib/lookPrefs';
+import { LOOK_OPTIONS, type LookKey, type LookPrefs } from '@/lib/lookPrefs';
 import {
   PAPER_STOCK_ORDER,
   PAPER_STOCK_SWATCHES,
@@ -100,20 +100,34 @@ const READING_FONT_OPTIONS = [
   { value: 'clean', label: 'Clean', className: 'font-clean' },
 ] as const;
 
-/** Labels for every look choice, in display order; values come from LOOK_OPTIONS (first is the default). */
-const LOOK_CHOICES: ReadonlyArray<{ [K in LookKey]: { key: K; title: string; detail?: string; labels: Record<LookPrefs[K], string> } }[LookKey]> = [
-  { key: 'surface', title: 'Page in light mode', labels: { paper: 'Drawing paper', canvas: 'Canvas', graph: 'Graph' } },
+type LookChoice = { [K in LookKey]: { key: K; title: string; detail?: string; labels: Record<LookPrefs[K], string> } }[LookKey];
+
+/** Labels for the look choices, in display order; values come from LOOK_OPTIONS (first is the default). */
+const MATERIAL_CHOICES: readonly LookChoice[] = [
+  { key: 'surface', title: 'Page in light mode', labels: { canvas: 'Canvas', paper: 'Drawing paper', graph: 'Graph' } },
   { key: 'chalkboard', title: 'Page in dark mode', labels: { green: 'Greenboard', black: 'Blackboard', slate: 'Slate' } },
   { key: 'noteMaterial', title: 'Notes', labels: { paper: 'Paper', cardboard: 'Cardboard', sticky: 'Sticky' } },
   { key: 'cardMaterial', title: 'Project cards', labels: { cardboard: 'Cardboard', notes: 'Same as notes' } },
   { key: 'tornEdges', title: 'Note edges', detail: 'Paper and cardboard only.', labels: { on: 'Torn', off: 'Clean' } },
   { key: 'aboutLayout', title: 'About page', labels: { board: 'Pin board', sheet: 'On the page' } },
   { key: 'pinboard', title: 'Pin board', labels: { cork: 'Cork', burlap: 'Burlap' } },
-  { key: 'timeline', title: 'Experience photos', labels: { wire: 'On a line', mesh: 'Wire mesh' } },
-  { key: 'noteFlight', title: 'Opening a note', detail: 'Pins pull out, tape peels and pegs open first.', labels: { pin: 'Unfasten', zoom: 'Zoom', fade: 'Fade' } },
-  { key: 'decorations', title: 'Doodles and props', labels: { some: 'Some', lots: 'Lots', none: 'None' } },
+  { key: 'timeline', title: 'Experience photos', labels: { mesh: 'Wire mesh', wire: 'On a line' } },
+];
+
+const WEAR_CHOICES: readonly LookChoice[] = [
+  { key: 'decorations', title: 'Doodles and props', labels: { lots: 'Lots', some: 'Some', none: 'None' } },
   { key: 'aging', title: 'Wear and tear', labels: { light: 'Lived-in', worn: 'Well-worn', none: 'Brand new' } },
 ];
+
+const FLIGHT_CHOICE: LookChoice = {
+  key: 'noteFlight',
+  title: 'Opening a note',
+  detail: 'Pins pull out, tape peels and pegs open first.',
+  labels: { pin: 'Unfasten', zoom: 'Zoom', fade: 'Fade' },
+};
+
+/** Old links to the look settings open the customization drawer. */
+const CUSTOMIZATION_HASHES = new Set(['#customization', '#look', '#appearance']);
 
 const VOICE_OPTIONS: ReadonlyArray<{ value: VoiceBackendPref; label: string }> = [
   { value: 'native', label: 'Native' },
@@ -156,6 +170,8 @@ interface SegmentedChoiceProps<T extends string> {
   value: T;
   options: ReadonlyArray<{ value: T; label: string; className?: string }>;
   onChange: (value: T) => void;
+  /** Id of the visible title that names the radio group, when no fieldset legend does. */
+  labelledBy?: string;
 }
 
 function SegmentedChoice<T extends string>({
@@ -163,9 +179,10 @@ function SegmentedChoice<T extends string>({
   value,
   options,
   onChange,
+  labelledBy,
 }: SegmentedChoiceProps<T>) {
   return (
-    <div className="grid auto-cols-fr grid-flow-col overflow-hidden rounded-md border-2 border-[var(--c-ink)]/25 bg-[var(--c-paper)]/55">
+    <div role={labelledBy ? 'radiogroup' : undefined} aria-labelledby={labelledBy} className="grid auto-cols-fr grid-flow-col overflow-hidden rounded-md border-2 border-[var(--c-ink)]/25 bg-[var(--c-paper)]/55">
       {options.map((option) => (
         <label
           key={option.value}
@@ -199,6 +216,38 @@ interface SettingToggleProps {
   checked: boolean;
   disabled?: boolean;
   onChange: (checked: boolean) => void;
+}
+
+function LookChoiceRow({ choice, value, onChange }: { choice: LookChoice; value: string; onChange: (value: string) => void }) {
+  const titleId = useId();
+  return (
+    <div className="space-y-1.5 pb-1">
+      <p id={titleId} className="font-hand text-base text-[var(--c-heading)] md:text-lg">
+        {choice.title}
+        {choice.detail ? <span className="ml-2 text-sm text-[var(--c-ink)]/55">{choice.detail}</span> : null}
+      </p>
+      <SegmentedChoice
+        name={`look-${choice.key}`}
+        labelledBy={titleId}
+        value={value}
+        options={LOOK_OPTIONS[choice.key].map((option) => ({ value: option as string, label: (choice.labels as Record<string, string>)[option] }))}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
+/** A ruled sub-section of the customization drawer. */
+function CustomizationPart({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <fieldset className="mt-7 first:mt-5">
+      <legend className="mb-3 flex w-full items-center gap-3 font-hand text-lg font-bold text-[var(--c-heading)] md:text-xl">
+        {title}
+        <span aria-hidden className="h-0 flex-1 -rotate-[0.4deg] border-t-2 border-dashed border-[var(--c-ink)]/20" />
+      </legend>
+      <div className="space-y-3">{children}</div>
+    </fieldset>
+  );
 }
 
 function SettingVolumeSlider({
@@ -435,6 +484,7 @@ export default function SettingsPanel() {
   const [redirectPending, setRedirectPending] = useState(false);
   const modelCancelRef = useRef<HTMLButtonElement>(null);
   const modelTargetFocusedRef = useRef(false);
+  const customizationRef = useRef<HTMLDetailsElement>(null);
   const mounted = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -489,6 +539,15 @@ export default function SettingsPanel() {
     modelControl.focus({ preventScroll: true });
     modelTargetFocusedRef.current = true;
   }, [mounted]);
+
+  useEffect(() => {
+    const drawer = customizationRef.current;
+    if (!mounted || !drawer || !CUSTOMIZATION_HASHES.has(window.location.hash)) return;
+    drawer.open = true;
+    drawer.scrollIntoView({ block: 'start' });
+  }, [mounted]);
+
+  const setLookPref = (key: LookKey) => (value: string) => setPref(key, value as LookPrefs[LookKey]);
 
   const applyModelSwitch = (nextModelId: ChatModelId) => {
     clearChatHistoryStorage();
@@ -574,29 +633,81 @@ export default function SettingsPanel() {
           />
         </SettingsGroup>
 
-        <SettingsGroup id="look" title="Look and feel" icon={Sparkles}>
-          {LOOK_CHOICES.map((choice) => (
-            <div key={choice.key} className="space-y-1.5 pb-1">
-              <p className="font-hand text-base text-[var(--c-heading)] md:text-lg">
-                {choice.title}
-                {choice.detail ? <span className="ml-2 text-sm text-[var(--c-ink)]/55">{choice.detail}</span> : null}
-              </p>
-              <SegmentedChoice
-                name={`look-${choice.key}`}
-                value={prefs[choice.key]}
-                options={LOOK_OPTIONS[choice.key].map((value) => ({ value, label: (choice.labels as Record<string, string>)[value] }))}
-                onChange={(value) => setPref(choice.key, value as LookPrefs[typeof choice.key])}
-              />
-            </div>
-          ))}
+        <details
+          ref={customizationRef}
+          id="customization"
+          className="group/custom scroll-mt-24 border-b-2 border-dashed border-[var(--c-grid)]/30 px-1 py-7 md:px-3 md:py-8"
+        >
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm px-1 font-hand text-[var(--c-heading)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 [&::-webkit-details-marker]:hidden">
+            <Brush size={21} aria-hidden className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xl font-bold md:text-2xl">Customization</span>
+              <span className="block text-sm text-[var(--c-ink)]/55 md:text-base">Paper, textures, doodles and motion</span>
+            </span>
+            <ChevronDown size={22} aria-hidden className="shrink-0 text-[var(--c-ink)]/60 transition-transform duration-200 group-open/custom:rotate-180" />
+          </summary>
+
+          <CustomizationPart title="Paper">
+            <PaperStockPicker
+              value={prefs.paperStock}
+              isDark={mounted && resolvedTheme === 'dark'}
+              onChange={(nextStock) => setPref('paperStock', nextStock)}
+            />
+            <SettingToggle
+              label="Paper grain"
+              checked={prefs.paperGrain}
+              onChange={(checked) => setBooleanPref('paperGrain', checked)}
+            />
+            <SettingToggle
+              label="Tape"
+              checked={prefs.tapeEffects}
+              onChange={(checked) => setBooleanPref('tapeEffects', checked)}
+            />
+            <SettingToggle
+              label="Sketch outlines"
+              checked={prefs.sketchOutlines}
+              onChange={(checked) => setBooleanPref('sketchOutlines', checked)}
+            />
+          </CustomizationPart>
+
+          <CustomizationPart title="Surfaces and materials">
+            {MATERIAL_CHOICES.map((choice) => (
+              <LookChoiceRow key={choice.key} choice={choice} value={prefs[choice.key]} onChange={setLookPref(choice.key)} />
+            ))}
+          </CustomizationPart>
+
+          <CustomizationPart title="Doodles and wear">
+            {WEAR_CHOICES.map((choice) => (
+              <LookChoiceRow key={choice.key} choice={choice} value={prefs[choice.key]} onChange={setLookPref(choice.key)} />
+            ))}
+          </CustomizationPart>
+
+          <CustomizationPart title="Motion">
+            <LookChoiceRow choice={FLIGHT_CHOICE} value={prefs.noteFlight} onChange={setLookPref('noteFlight')} />
+            <SettingToggle
+              label="Page flip animation"
+              checked={prefs.pageFlipEnabled}
+              onChange={(checked) => setBooleanPref('pageFlipEnabled', checked)}
+            />
+            <SegmentedChoice
+              name="motion"
+              value={prefs.motionPreference}
+              options={MOTION_OPTIONS}
+              onChange={(motionPreference) => setPref('motionPreference', motionPreference)}
+            />
+            <p className="font-hand text-sm text-[var(--c-ink)]/55">
+              Always animate overrides your device&apos;s reduced-motion preference.
+            </p>
+          </CustomizationPart>
+
           <button
             type="button"
-            onClick={() => LOOK_KEYS.forEach((key) => setPref(key, LOOK_OPTIONS[key][0]))}
-            className="inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-3 font-hand text-base font-bold text-[var(--c-heading)] hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+            onClick={() => resetCustomization()}
+            className="mt-7 inline-flex min-h-11 items-center rounded-sm border-2 border-dashed border-[var(--c-ink)]/35 px-3 font-hand text-base font-bold text-[var(--c-heading)] hover:bg-[var(--c-ink)]/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
           >
-            Reset look to defaults
+            Reset customization
           </button>
-        </SettingsGroup>
+        </details>
 
         <SettingsGroup title="Reading font" icon={Type}>
           <SegmentedChoice
@@ -698,23 +809,6 @@ export default function SettingsPanel() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="Motion" icon={Activity}>
-          <SettingToggle
-            label="Page flip animation"
-            checked={prefs.pageFlipEnabled}
-            onChange={(checked) => setBooleanPref('pageFlipEnabled', checked)}
-          />
-          <SegmentedChoice
-            name="motion"
-            value={prefs.motionPreference}
-            options={MOTION_OPTIONS}
-            onChange={(motionPreference) => setPref('motionPreference', motionPreference)}
-          />
-          <p className="font-hand text-sm text-[var(--c-ink)]/55">
-            Always animate overrides your device&apos;s reduced-motion preference.
-          </p>
-        </SettingsGroup>
-
         <SettingsGroup title="Stickers" icon={Sticker}>
           <SettingToggle
             label="Earn stickers"
@@ -772,35 +866,7 @@ export default function SettingsPanel() {
           </button>
         </SettingsGroup>
 
-        <SettingsGroup title="Appearance" icon={Brush}>
-          <div className="space-y-2 pb-2">
-            <p className="font-hand text-base text-[var(--c-heading)] md:text-lg">
-              Paper stock
-            </p>
-            <PaperStockPicker
-              value={prefs.paperStock}
-              isDark={mounted && resolvedTheme === 'dark'}
-              onChange={(nextStock) => setPref('paperStock', nextStock)}
-            />
-          </div>
-          <SettingToggle
-            label="Paper grain"
-            checked={prefs.paperGrain}
-            onChange={(checked) => setBooleanPref('paperGrain', checked)}
-          />
-          <SettingToggle
-            label="Tape"
-            checked={prefs.tapeEffects}
-            onChange={(checked) => setBooleanPref('tapeEffects', checked)}
-          />
-          <SettingToggle
-            label="Sketch outlines"
-            checked={prefs.sketchOutlines}
-            onChange={(checked) => setBooleanPref('sketchOutlines', checked)}
-          />
-        </SettingsGroup>
-
-        <SettingsGroup title="Experiments" icon={TriangleAlert}>
+        <SettingsGroup id="experiments" title="Experiments" icon={TriangleAlert}>
           <SettingToggle
             label="Enable experimental features"
             detail={redirectPending ? 'Opening the staging build...' : 'Try preview features on the staging build.'}

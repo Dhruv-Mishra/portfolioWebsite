@@ -217,6 +217,21 @@ export function setAdminPref<K extends keyof Omit<AdminPrefs, 'version'>>(
   return persisted;
 }
 
+/** Puts the given prefs back to their defaults in one write. */
+export function resetAdminPrefs(keys: ReadonlyArray<keyof Omit<AdminPrefs, 'version'>>): boolean {
+  initOnce();
+  const defaults = defaultPrefs();
+  const next: AdminPrefs = { ...state };
+  const restore = <K extends keyof Omit<AdminPrefs, 'version'>>(key: K) => {
+    next[key] = defaults[key];
+  };
+  keys.forEach(restore);
+  state = next;
+  const persisted = writeToStorage(next);
+  emit();
+  return persisted;
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 const SERVER_PREFS: AdminPrefs = defaultPrefs();

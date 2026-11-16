@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseMarks, stripMarks } from '@/lib/markedText';
-import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug, getProjectVideoSources } from '@/lib/projects';
+import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug, getProjectThumbnail, getProjectVideoSources } from '@/lib/projects';
 import { PROJECT_SLUG_LIST } from '@/lib/projectSlugs';
 
 describe('project records', () => {
@@ -65,5 +65,10 @@ describe('project video sources', () => {
   });
   it('omits video for an explicitly image-only project', () => {
     expect(getProjectVideoSources({ ...project, video: null })).toBeNull();
+  });
+  it('takes the thumbnail from the video stem, and the still when there is no video', () => {
+    expect(getProjectThumbnail(project)).toBe('/resources/video/jarvis-voice-agent.webp');
+    expect(getProjectThumbnail({ ...project, video: 'jarvis-new' })).toBe('/resources/video/jarvis-new.webp');
+    expect(getProjectThumbnail({ ...project, video: null })).toBe(project.image);
   });
 });

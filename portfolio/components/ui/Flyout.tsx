@@ -7,6 +7,7 @@ import { useSitePrefs } from '@/hooks/useSitePrefs';
 import { release, reset, secure, shownFastener } from '@/lib/fasteners';
 import { boxOf, fly, rotationOf } from '@/lib/flight';
 import { useAppHaptics } from '@/lib/haptics';
+import { moveFocus } from '@/lib/quietFocus';
 import { soundManager } from '@/lib/soundManager';
 import './flyout.css';
 
@@ -20,7 +21,7 @@ const noteIn = (slot: HTMLElement | undefined) => slot?.querySelector<HTMLElemen
  * Opens a note from a wall (the pin board, the photo line) into a reading sheet in the top layer. Its pin, tape or
  * peg lets go, the note flies to the middle of the screen, and closing flies it home and fastens it again. Each slot
  * holds a `[data-flyout-note]`, a `[data-flyout-open]` control and any `[data-fastener]`. The motion follows
- * Settings > Look and feel > Opening a note; reduced motion always fades.
+ * Settings > Customization > Opening a note; reduced motion always fades.
  */
 export function useFlyout() {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -59,6 +60,8 @@ export function useFlyout() {
     const note = openId ? noteIn(slots.current.get(openId)) : null;
     if (!openId || !dialog || !sheet || !content || !note || phaseRef.current !== 'opening') return;
     dialog.showModal();
+    // The dialog focused its first control; keep that quiet for a tap or a click.
+    if (document.activeElement instanceof HTMLElement && dialog.contains(document.activeElement)) moveFocus(document.activeElement);
     dialog.dataset.state = 'open';
     soundManager.play('modal-open');
     openPanel();
@@ -96,7 +99,7 @@ export function useFlyout() {
       flight.cleanup();
     }
     delete note.dataset.away;
-    slot.querySelector<HTMLElement>('[data-flyout-open]')?.focus({ preventScroll: true });
+    moveFocus(slot.querySelector<HTMLElement>('[data-flyout-open]'));
     setOpenId(null);
     const fastener = shownFastener(slot);
     if (fastener?.dataset.off !== undefined) {

@@ -7,7 +7,7 @@
  * DiscoFlagController owns dark-on-active. Disco exit does not touch
  * the underlying light/dark theme.
  */
-import { setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
+import { getSoundsMutedSync, setDiscoActiveImperative, unlockSticker } from '@/hooks/useStickers';
 import { soundManager } from '@/lib/soundManager';
 
 export interface ThemeToggleParams {
@@ -51,6 +51,20 @@ export function runThemeSelection({
 }
 
 /**
+ * Fetches the theme-switch samples once someone reaches for a theme control; until then, or while sound is muted,
+ * they never download. Idle-scheduled, so opening the first AudioContext never lands inside the tap that opened a menu.
+ */
+export function prepareThemeSounds(): void {
+  if (getSoundsMutedSync()) return;
+  const warm = () => {
+    void soundManager.prepareSound('theme-dark');
+    void soundManager.prepareSound('theme-light');
+  };
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') window.requestIdleCallback(warm, { timeout: 500 });
+  else warm();
+}
+
+/**
  * Run the theme-toggle side effect. Pure w.r.t. React — safe to call from
  * any event handler. See module header for the branching.
  */
@@ -62,5 +76,7 @@ export function runThemeToggle({ discoActive, isDark, setTheme }: ThemeTogglePar
   const goingDark = !isDark;
   setTheme(goingDark ? 'dark' : 'light');
   unlockSticker('theme-flipper');
+  // Without a warm sample this plays the synthesized cue; the samples are ready for the next switch.
   soundManager.play(goingDark ? 'theme-dark' : 'theme-light');
+  prepareThemeSounds();
 }

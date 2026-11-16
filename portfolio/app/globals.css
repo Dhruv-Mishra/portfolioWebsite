@@ -71,8 +71,9 @@
     --c-note-curl: rgba(0, 0, 0, 0.2);
     --shadow-note: 1px 2px 3px rgba(0, 0, 0, 0.07), 3px 6px 14px -6px rgba(0, 0, 0, 0.2);
     --c-note-blue: #dbeafe;
-    /* About pin board: how much of the long bio note shows before "Read the whole note". */
-    --board-clamp-lines: 7;
+    /* About pin board: how much of the long bio note shows on phones before "Read the whole note"; enough to reach
+       into its second paragraph, so the fade lands on words rather than the gap between them. */
+    --board-clamp-lines: 9;
     --ink-stroke: 0.03em;
 
     /* Motion: durations collapse to ~0 under html[data-reduced-motion]. */
@@ -490,6 +491,11 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   }
 }
 
+/* Focus handed back after a tap or click closes a dialog (lib/quietFocus.ts) shows no ring; the next Tab does. */
+[data-quiet-focus]:focus-visible {
+  outline: none !important;
+}
+
 html[data-reading-font="clean"] {
   --font-body: var(--font-clean);
   --font-body-adjust: none;
@@ -665,8 +671,8 @@ html[data-reading-font="clean"] {
   }
 }
 
-/* Clickable element indicators — suppress native tap highlight on mobile */
-[data-clickable] {
+/* Taps get the site's own paper feedback; Android's translucent blue tap box reads as a stray selection. */
+html {
   -webkit-tap-highlight-color: transparent;
 }
 

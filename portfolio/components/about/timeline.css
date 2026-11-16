@@ -112,7 +112,7 @@
   color: var(--c-polaroid-ink);
   box-shadow: 0 1px 1px rgb(0 0 0 / .18), 0 12px 18px -10px rgb(0 0 0 / .5);
 }
-.pol-photo:has(.pol-open:focus-visible) .pol-frame { outline: 2px solid var(--c-focus); outline-offset: 4px; }
+.pol-photo:has(.pol-open:focus-visible:not([data-quiet-focus])) .pol-frame { outline: 2px solid var(--c-focus); outline-offset: 4px; }
 
 [data-category="work"] { --pol-a: #3a6ea3; --pol-b: #12263f; }
 [data-category="internship"] { --pol-a: #2e8a8f; --pol-b: #0f3437; }
@@ -222,7 +222,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .pol:hover .pol-photo:not([data-away]) { rotate: calc(var(--tilt) * .3); translate: 0 -2px; }
-  :is(.pol:hover, .pol:has(.pol-open:focus-visible)) .pol-peek {
+  :is(.pol:hover, .pol:has(.pol-open:focus-visible:not([data-quiet-focus]))) .pol-peek {
     translate: 0 calc(100% + .25rem);
     transition: translate var(--dur-panel) var(--ease-paper) 120ms;
   }

@@ -4,8 +4,8 @@
  * or a flash. The first option of each list is the default.
  */
 export const LOOK_OPTIONS = {
-  /** Light-theme page: real drawing paper, primed painting canvas, or flat graph paper. */
-  surface: ['paper', 'canvas', 'graph'],
+  /** Light-theme page: primed painting canvas, real drawing paper, or flat graph paper. */
+  surface: ['canvas', 'paper', 'graph'],
   /** Dark-theme page: green school chalkboard, black slate chalkboard, or the flat dark sheet. */
   chalkboard: ['green', 'black', 'slate'],
   /** Notes and cards: textured paper, kraft cardboard, or flat sticky notes that follow the theme. */
@@ -16,11 +16,11 @@ export const LOOK_OPTIONS = {
   /** About page: notes pinned on a board, or laid straight on the page. */
   aboutLayout: ['board', 'sheet'],
   pinboard: ['cork', 'burlap'],
-  /** Experience photos: pegged to a twine line, or clipped to a wire mesh. */
-  timeline: ['wire', 'mesh'],
+  /** Experience photos: clipped to a wire mesh, or pegged to a twine line. */
+  timeline: ['mesh', 'wire'],
   /** Opening a note: unpin (or peel, or unclip) and fly, fly straight away, or a plain fade. */
   noteFlight: ['pin', 'zoom', 'fade'],
-  decorations: ['some', 'lots', 'none'],
+  decorations: ['lots', 'some', 'none'],
   aging: ['light', 'worn', 'none'],
 } as const;
 
@@ -67,3 +67,16 @@ export function applyLookToDataset(dataset: DOMStringMap, look: LookPrefs): void
 
 /** Inlined into the pre-paint boot script: `o` is the parsed stored prefs, `e` is <html>. */
 export const LOOK_BOOT_SNIPPET = `const L=${JSON.stringify(Object.fromEntries(LOOK_KEYS.map((key) => [key, [LOOK_ATTRS[key], LOOK_OPTIONS[key]]])))};for(const k in L){const[a,v]=L[k];e.dataset[a]=v.includes(o[k])?o[k]:v[0]}`;
+
+/** The textures each page surface paints at first sight (app/look.css), by theme. */
+export const FIRST_PAINT_TEXTURES = {
+  light: { canvas: ['canvas-weave'], paper: ['paper-grain'], graph: [] },
+  dark: { green: ['slate-grain', 'chalk-smudge'], black: ['slate-grain', 'chalk-smudge'], slate: [] },
+} as const satisfies { light: Record<LookPrefs['surface'], readonly string[]>; dark: Record<LookPrefs['chalkboard'], readonly string[]> };
+
+/**
+ * Inlined after the boot script has set `data-surface`, `data-chalkboard` and `data-pref-paper` on `e`: starts the
+ * visible surface's textures alongside the CSS instead of after it, so the board is not repainted once they land.
+ * Only the chosen surface in the current theme (next-themes' `theme`, dark by default) is fetched.
+ */
+export const TEXTURE_PRELOAD_SNIPPET = `if(e.dataset.prefPaper==='on'){const T=${JSON.stringify(FIRST_PAINT_TEXTURES)},t=localStorage.getItem('theme'),d=t==='light'?0:t==='system'?matchMedia('(prefers-color-scheme: dark)').matches:1;for(const n of (d?T.dark[e.dataset.chalkboard]:T.light[e.dataset.surface])||[]){const l=document.createElement('link');l.rel='preload';l.as='image';l.fetchPriority='high';l.href='/resources/textures/'+n+'.webp';document.head.append(l)}}`;

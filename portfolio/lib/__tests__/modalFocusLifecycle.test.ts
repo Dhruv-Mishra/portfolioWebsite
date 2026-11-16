@@ -66,6 +66,7 @@ vi.mock('@/lib/soundManager', () => ({
 
 class FakeElement {
   focusCount = 0;
+  dataset: Record<string, string> = {};
 
   constructor(
     readonly ownerDocument: FakeDocument,
@@ -76,6 +77,8 @@ class FakeElement {
     this.focusCount += 1;
     this.ownerDocument.activeElement = this;
   }
+
+  addEventListener() {}
 
   hasAttribute() {
     return false;

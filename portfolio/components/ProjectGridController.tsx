@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
 import { release, reset, shownFastener } from '@/lib/fasteners';
+import { moveFocus } from '@/lib/quietFocus';
 import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useSitePrefs } from '@/hooks/useSitePrefs';
@@ -25,7 +26,7 @@ const ChatProjectModal = dynamic(loadModal, { ssr: false });
 const NOTE_SELECTOR = 'a[data-project-slug]';
 
 function focusNote(slug: ProjectSlug) {
-  document.querySelector<HTMLElement>(`${NOTE_SELECTOR}[data-project-slug="${slug}"]`)?.focus({ preventScroll: true });
+  moveFocus(document.querySelector<HTMLElement>(`${NOTE_SELECTOR}[data-project-slug="${slug}"]`));
 }
 
 /**

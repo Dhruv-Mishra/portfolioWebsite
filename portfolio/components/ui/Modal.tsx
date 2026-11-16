@@ -6,6 +6,7 @@ import { m, AnimatePresence, usePresence } from 'framer-motion';
 import { requestMotion } from '@/components/motion/requestMotion';
 import { cn } from '@/lib/utils';
 import { ANIMATION_TOKENS, INTERACTION_TOKENS, Z_INDEX } from '@/lib/designTokens';
+import { moveFocus } from '@/lib/quietFocus';
 import { soundManager } from '@/lib/soundManager';
 
 requestMotion();
@@ -84,7 +85,7 @@ function ModalContent({
     ).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
 
     document.body.style.overflow = 'hidden';
-    (getFocusable()[0] ?? modal).focus();
+    moveFocus(getFocusable()[0] ?? modal);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -115,7 +116,7 @@ function ModalContent({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = originalOverflow;
-      openerRef.current?.focus();
+      moveFocus(openerRef.current);
     };
   }, [modalRef, requestClose]);
 

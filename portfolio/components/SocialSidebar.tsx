@@ -39,13 +39,17 @@ export function onSocialPress(onPress: () => void) {
     unlockSticker('social-butterfly');
 }
 
-/** A rail item with a handwritten label that slides out to its left on hover or keyboard focus. */
+/**
+ * A rail item with a handwritten label that slides out to its left on hover or keyboard focus. The label follows its
+ * control, so keyboard focus reaches it with a sibling selector; a `:has(:focus-visible)` rule would restyle the whole
+ * page on every pointer state change.
+ */
 function RailSlot({ label, children }: { label?: string; children: ReactNode }) {
     return (
         <div className="group/rail animate-social-link relative">
             {children}
             {label ? (
-                <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded bg-white/85 px-2 py-1 font-hand text-sm text-gray-700 opacity-0 shadow-sm transition-opacity duration-[var(--dur-micro)] group-hover/rail:opacity-100 group-has-[:focus-visible]/rail:opacity-100 dark:bg-gray-800/85 dark:text-gray-200">
+                <span className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded bg-white/85 px-2 py-1 font-hand text-sm text-gray-700 opacity-0 shadow-sm transition-opacity duration-[var(--dur-micro)] group-hover/rail:opacity-100 [:focus-visible+&]:opacity-100 dark:bg-gray-800/85 dark:text-gray-200">
                     {label}
                 </span>
             ) : null}

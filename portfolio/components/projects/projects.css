@@ -64,7 +64,7 @@
   color: var(--c-ink);
   box-shadow: var(--shadow-note);
 }
-.project-card:has(.project-card-link:focus-visible) { outline: 2px solid var(--c-focus); outline-offset: 5px; }
+.project-card:has(.project-card-link:focus-visible:not([data-quiet-focus])) { outline: 2px solid var(--c-focus); outline-offset: 5px; }
 .project-card:active { scale: .985; }
 /* Lifted off the wall while its expanded note is open; its tape stays behind, rolled up. */
 .project-card[data-away] { visibility: hidden; }

@@ -72,7 +72,7 @@ html:is([data-aging="none"], [data-about="sheet"]) .board-ghost { display: none;
   box-shadow: var(--shadow-note);
   transition: translate var(--dur-quick) var(--ease-paper), box-shadow var(--dur-quick) var(--ease-paper);
 }
-.board-note:has(.board-note-open:focus-visible) { outline: 2px solid var(--c-focus); outline-offset: 4px; }
+.board-note:has(.board-note-open:focus-visible:not([data-quiet-focus])) { outline: 2px solid var(--c-focus); outline-offset: 4px; }
 
 .board-note-title { color: var(--c-heading); font-size: var(--t-h3); line-height: var(--lh-snug); }
 .board-note[data-note="bio"] .board-note-title { font-size: var(--t-h1); }

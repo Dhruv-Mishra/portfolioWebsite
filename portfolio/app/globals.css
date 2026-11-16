@@ -491,6 +491,11 @@ label[for^="web-haptics-"] input[type="checkbox"] {
   }
 }
 
+/* Focus handed back after a tap or click closes a dialog (lib/quietFocus.ts) shows no ring; the next Tab does. */
+[data-quiet-focus]:focus-visible {
+  outline: none !important;
+}
+
 html[data-reading-font="clean"] {
   --font-body: var(--font-clean);
   --font-body-adjust: none;
@@ -666,8 +671,8 @@ html[data-reading-font="clean"] {
   }
 }
 
-/* Clickable element indicators — suppress native tap highlight on mobile */
-[data-clickable] {
+/* Taps get the site's own paper feedback; Android's translucent blue tap box reads as a stray selection. */
+html {
   -webkit-tap-highlight-color: transparent;
 }
 

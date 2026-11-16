@@ -7,6 +7,7 @@ import { useSitePrefs } from '@/hooks/useSitePrefs';
 import { release, reset, secure, shownFastener } from '@/lib/fasteners';
 import { boxOf, fly, rotationOf } from '@/lib/flight';
 import { useAppHaptics } from '@/lib/haptics';
+import { moveFocus } from '@/lib/quietFocus';
 import { soundManager } from '@/lib/soundManager';
 import './flyout.css';
 
@@ -59,6 +60,8 @@ export function useFlyout() {
     const note = openId ? noteIn(slots.current.get(openId)) : null;
     if (!openId || !dialog || !sheet || !content || !note || phaseRef.current !== 'opening') return;
     dialog.showModal();
+    // The dialog focused its first control; keep that quiet for a tap or a click.
+    if (document.activeElement instanceof HTMLElement && dialog.contains(document.activeElement)) moveFocus(document.activeElement);
     dialog.dataset.state = 'open';
     soundManager.play('modal-open');
     openPanel();
@@ -96,7 +99,7 @@ export function useFlyout() {
       flight.cleanup();
     }
     delete note.dataset.away;
-    slot.querySelector<HTMLElement>('[data-flyout-open]')?.focus({ preventScroll: true });
+    moveFocus(slot.querySelector<HTMLElement>('[data-flyout-open]'));
     setOpenId(null);
     const fastener = shownFastener(slot);
     if (fastener?.dataset.off !== undefined) {

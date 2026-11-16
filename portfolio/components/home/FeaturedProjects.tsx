@@ -19,7 +19,7 @@ const SLIDES: readonly FeaturedSlide[] = FEATURED_PROJECT_SLUGS.map((slug) => {
 export default function FeaturedProjects({ className }: { className?: string }) {
   return (
     <section aria-labelledby="featured-heading" className={className}>
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="mb-5 flex flex-col items-center gap-y-1 text-center lg:mb-4 lg:flex-row lg:flex-wrap lg:items-baseline lg:justify-between lg:gap-x-4 lg:text-left">
         <h2 id="featured-heading" className="font-hand ink-heavy text-[length:var(--t-h2)] leading-[var(--lh-snug)] text-[var(--c-heading)] md:text-[length:var(--t-h2-md)]">
           Featured projects
         </h2>

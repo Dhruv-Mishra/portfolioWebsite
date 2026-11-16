@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseMarks, stripMarks } from '@/lib/markedText';
 import { FEATURED_PROJECT_SLUGS, PROJECTS, getProjectBySlug, getProjectVideoSources } from '@/lib/projects';
 import { PROJECT_SLUG_LIST } from '@/lib/projectSlugs';
 
@@ -13,11 +14,14 @@ describe('project records', () => {
     expect(FEATURED_PROJECT_SLUGS).toEqual(PROJECTS.slice(0, 6).map(project => project.slug));
   });
 
-  it.each(PROJECTS)('$slug has a two-line tile summary, a longer story, and a worded role', project => {
+  it.each(PROJECTS)('$slug has a two-line tile summary, a longer marked-up story, and a worded role', project => {
+    const story = stripMarks(project.details);
     expect(project.summary.length).toBeGreaterThan(0);
     expect(project.summary.length).toBeLessThanOrEqual(50);
-    expect(project.details.length).toBeGreaterThan(project.summary.length);
-    expect(project.details.length).toBeLessThanOrEqual(300);
+    expect(story.length).toBeGreaterThan(project.summary.length);
+    expect(story.length).toBeLessThanOrEqual(300);
+    expect(story).not.toMatch(/\*\*|==|~~/);
+    expect(parseMarks(project.details).some(segment => segment.mark)).toBe(true);
     expect(project.role).not.toContain('+');
     expect(getProjectBySlug(project.slug)).toBe(project);
   });
@@ -28,6 +32,21 @@ describe('project records', () => {
     ]);
     expect(getProjectBySlug('bloom-filter-research').linkLabel).toBe('Read the paper');
     expect(getProjectBySlug('jarvis-voice-agent').highlights).toHaveLength(2);
+  });
+});
+
+describe('inline marks', () => {
+  it('splits strong, highlight and wavy marks and leaves unmatched markers as text', () => {
+    expect(parseMarks('A **bold** and ==lit== bit, ~~wavy~~ end ** odd')).toEqual([
+      { text: 'A ', mark: null },
+      { text: 'bold', mark: 'strong' },
+      { text: ' and ', mark: null },
+      { text: 'lit', mark: 'highlight' },
+      { text: ' bit, ', mark: null },
+      { text: 'wavy', mark: 'wavy' },
+      { text: ' end ** odd', mark: null },
+    ]);
+    expect(stripMarks('==3x== under ~~load~~')).toBe('3x under load');
   });
 });
 

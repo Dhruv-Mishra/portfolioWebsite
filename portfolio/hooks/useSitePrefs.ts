@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { PAPER_STOCK_ORDER } from '@/lib/designTokens';
+import { LOOK_KEYS, isLookKey, isLookValue, type LookPrefs } from '@/lib/lookPrefs';
 import {
   getAdminPrefsSnapshot,
   isPaperStock,
@@ -15,7 +16,7 @@ import {
 
 export type { PaperStock, ReadingFont };
 
-export interface SitePrefs {
+export interface SitePrefs extends LookPrefs {
   paperStock: PaperStock;
   paperGrain: boolean;
   tapeEffects: boolean;
@@ -32,7 +33,9 @@ export interface SitePrefs {
 export type SitePrefKey = keyof SitePrefs;
 
 function toSitePrefs(prefs: AdminPrefs): SitePrefs {
+  const look = Object.fromEntries(LOOK_KEYS.map((key) => [key, prefs[key]])) as LookPrefs;
   return {
+    ...look,
     paperStock: prefs.paperStock,
     paperGrain: prefs.paperGrain,
     tapeEffects: prefs.tapeEffects,
@@ -55,6 +58,9 @@ export function setSitePref(
   key: SitePrefKey,
   value: SitePrefs[SitePrefKey],
 ): boolean {
+  if (isLookKey(key)) {
+    return isLookValue(key, value) ? setAdminPref(key, value) : false;
+  }
   if (key === 'paperStock') {
     return isPaperStock(value) ? setAdminPref('paperStock', value) : false;
   }

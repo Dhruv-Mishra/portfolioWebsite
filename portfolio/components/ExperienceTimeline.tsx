@@ -1,8 +1,8 @@
 "use client";
 
 import Image from 'next/image';
-import { useState, type KeyboardEvent } from 'react';
-import { ChevronDown, Trophy } from 'lucide-react';
+import { useEffect, useEffectEvent, useState, type KeyboardEvent } from 'react';
+import { ChevronDown, Maximize2, Trophy } from 'lucide-react';
 import { experienceTimelineEntries, type ExperienceTimelineCategory, type ExperienceTimelineEntry } from '@/lib/experienceTimeline';
 import { useAppHaptics } from '@/lib/haptics';
 import './about/timeline.css';
@@ -24,6 +24,24 @@ export default function ExperienceTimeline() {
     if (id) selection();
     else toggle();
   }
+
+  // An open card can overlay its neighbours on desktop, so a click outside it or Escape puts it away.
+  const dismiss = useEffectEvent((event: Event) => {
+    const target = event.target as Element | null;
+    const inside = typeof target?.closest === 'function' && target.closest(`[data-tl="${pinnedId}"]`);
+    if (event.type === 'keydown' ? (event as globalThis.KeyboardEvent).key !== 'Escape' : inside) return;
+    setPinned(null);
+  });
+  useEffect(() => {
+    if (!pinnedId) return;
+    const handler = (event: Event) => dismiss(event);
+    document.addEventListener('click', handler);
+    document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('click', handler);
+      document.removeEventListener('keydown', handler);
+    };
+  }, [pinnedId]);
 
   return (
     <section id="experience" className="tl-section" aria-labelledby="experience-title">
@@ -60,7 +78,7 @@ function TimelineItem({ entry, pinned, last, onPinnedChange }: TimelineItemProps
   }
 
   return (
-    <li className="tl-item" data-category={entry.category} data-pinned={pinned || undefined}>
+    <li className="tl-item" data-tl={entry.id} data-category={entry.category} data-pinned={pinned || undefined}>
       {!last && (
         <svg className="tl-seg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
           <path d="M0 0C0 50 100 50 100 100" vectorEffect="non-scaling-stroke" />
@@ -69,7 +87,7 @@ function TimelineItem({ entry, pinned, last, onPinnedChange }: TimelineItemProps
       <span className="tl-node" aria-hidden="true" />
       <button
         type="button"
-        className="tl-tab focus-ring"
+        className="tl-tab note-material focus-ring"
         data-disco-motion="wiggle"
         aria-expanded={pinned}
         aria-controls={id}
@@ -89,9 +107,18 @@ function TimelineItem({ entry, pinned, last, onPinnedChange }: TimelineItemProps
         <span className="tl-impact font-body" id={`${id}-impact`}>{entry.impact}</span>
         <ChevronDown className="tl-chevron" aria-hidden="true" />
       </button>
+      {/* Hover preview for fine pointers: where, a taste of the first highlight, and how to see the rest. */}
+      <div className="tl-peek note-material font-body" aria-hidden="true">
+        <p className="tl-where">{entry.organization}, {entry.location}</p>
+        <p className="tl-peek-line">{entry.highlights[0]}</p>
+        <p className="tl-peek-hint font-hand">
+          Click to expand
+          <Maximize2 aria-hidden="true" />
+        </p>
+      </div>
       <div className="tl-fold">
         <div className="tl-fold-track">
-          <div className="tl-sheet font-body" id={id} inert={!pinned}>
+          <div className="tl-sheet note-material font-body" id={id} inert={!pinned}>
             <p className="tl-where">{entry.organization}, {entry.location}</p>
             <ul className="tl-highlights">
               {entry.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}

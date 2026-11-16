@@ -30,6 +30,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 import { PAPER_STOCK_ORDER, type PaperStockId } from '@/lib/designTokens';
+import { applyLookToDataset, parseLookPrefs, type LookPrefs } from '@/lib/lookPrefs';
 
 const STORAGE_KEY = 'dhruv-admin-prefs';
 const STORAGE_VERSION = 5 as const;
@@ -42,7 +43,7 @@ export function isPaperStock(value: unknown): value is PaperStock {
   return typeof value === 'string' && (PAPER_STOCK_ORDER as readonly string[]).includes(value);
 }
 
-export interface AdminPrefs {
+export interface AdminPrefs extends LookPrefs {
   version: typeof STORAGE_VERSION;
   /** Physical sketchbook paper stock palette. Default: 'cream'. */
   paperStock: PaperStock;
@@ -74,6 +75,7 @@ export interface AdminPrefs {
 
 function defaultPrefs(): AdminPrefs {
   return {
+    ...parseLookPrefs({}),
     version: STORAGE_VERSION,
     paperStock: 'cream',
     paperGrain: true,
@@ -109,6 +111,7 @@ function parseStoredPrefs(raw: string | null): AdminPrefs {
     if (!isRecord(parsed)) return defaultPrefs();
 
     return {
+      ...parseLookPrefs(parsed),
       version: STORAGE_VERSION,
       paperStock: isPaperStock(parsed.paperStock) ? parsed.paperStock : 'cream',
       paperGrain: booleanField(parsed, 'paperGrain', true),
@@ -265,6 +268,7 @@ export function applyPrefsToDocument(prefs: AdminPrefs): void {
   else delete root.dataset.prefSketch;
   if (prefs.readingFont === 'clean') root.dataset.readingFont = 'clean';
   else delete root.dataset.readingFont;
+  applyLookToDataset(root.dataset, prefs);
   if (prefs.motionPreference === 'reduced' || prefs.motionPreference === 'full') {
     root.dataset.motion = prefs.motionPreference;
   } else {

@@ -1,0 +1,290 @@
+/* About page pin board: a framed cork (or burlap) board of notes. Opening a note pulls its pin and flies it to the
+   middle of the screen (PinBoard.tsx). Settings > Look and feel > About page "On the page" lays the same notes
+   straight on the paper with tape instead of pins. */
+
+.pinboard {
+  position: relative;
+  padding: .625rem;
+  border-radius: 7px;
+  background: var(--tex-wood) 0 0 / 420px auto, #7c5130;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .22),
+    inset 0 -2px 0 rgb(0 0 0 / .3),
+    0 2px 3px rgb(0 0 0 / .18),
+    0 24px 42px -20px rgb(0 0 0 / .6);
+}
+
+.pinboard-surface {
+  container: board / inline-size;
+  position: relative;
+  padding: 2.5rem .875rem 2.25rem;
+  border-radius: 3px;
+  background: var(--tex-cork) 0 0 / 360px, #b98b5c;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / .35),
+    inset 0 10px 22px -6px rgb(0 0 0 / .45),
+    inset 0 -4px 10px rgb(255 255 255 / .05);
+}
+html[data-pinboard="burlap"] .pinboard-surface { background: var(--tex-burlap) 0 0 / 300px, #b59a6c; }
+
+/* Old pin holes left across the board. */
+html:not([data-aging="none"]) .pinboard-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, rgb(35 18 4 / .6) 0 1.1px, transparent 1.7px) 23px 41px / 173px 131px,
+    radial-gradient(circle, rgb(35 18 4 / .5) 0 1px, transparent 1.6px) 97px 11px / 211px 167px,
+    radial-gradient(circle, rgb(35 18 4 / .45) 0 1.2px, transparent 1.8px) 140px 90px / 257px 199px;
+}
+
+.board-notes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 2.5rem 1rem;
+  list-style: none;
+}
+.board-slot { position: relative; min-width: 0; }
+.board-slot:is([data-note="bio"], [data-note="contact"], [data-note="voice"]) { grid-column: 1 / -1; }
+
+/* The cork under a note keeps its colour; it shows while the note is away. */
+.board-ghost {
+  position: absolute;
+  inset: 1rem .5rem .5rem;
+  border-radius: 2px;
+  background: rgb(255 236 200 / .14);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .05);
+  rotate: var(--tilt);
+  pointer-events: none;
+}
+html:is([data-aging="none"], [data-about="sheet"]) .board-ghost { display: none; }
+
+.board-note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1rem .25rem;
+  color: var(--c-ink);
+  rotate: var(--tilt);
+  box-shadow: var(--shadow-note);
+  transition: translate var(--dur-quick) var(--ease-paper), box-shadow var(--dur-quick) var(--ease-paper);
+}
+.board-note[data-away] { visibility: hidden; }
+.board-note:has(.board-note-open:focus-visible) { outline: 2px solid var(--c-focus); outline-offset: 4px; }
+
+.board-note-title { color: var(--c-heading); font-size: var(--t-h3); line-height: var(--lh-snug); }
+.board-note[data-note="bio"] .board-note-title { font-size: var(--t-h1); }
+.board-note-body,
+.board-sheet-body { font-family: var(--font-body); font-size-adjust: var(--font-body-adjust); }
+.board-note-body { margin-top: .5rem; font-size: var(--t-small); line-height: var(--lh-lead); }
+:is(.board-note-body, .board-sheet-body, .board-sheet-more) p + p { margin-top: .75rem; }
+.board-note-body--clamped {
+  max-height: calc(var(--board-clamp-lines) * 1lh);
+  overflow: hidden;
+  -webkit-mask: linear-gradient(to bottom, #000 calc(100% - 2lh), transparent);
+  mask: linear-gradient(to bottom, #000 calc(100% - 2lh), transparent);
+}
+
+/* Links on a note work in place; everything else on the note opens it. */
+.board-note :is(a, button:not(.board-note-open)) { position: relative; z-index: 3; }
+.board-link {
+  text-decoration: underline;
+  text-decoration-color: var(--c-ink-faint);
+  text-underline-offset: .2em;
+  overflow-wrap: anywhere;
+}
+.board-link:hover { text-decoration-color: currentColor; }
+.board-links { display: flex; flex-wrap: wrap; column-gap: 1rem; }
+.board-links > .board-link { display: inline-flex; min-height: 2.75rem; align-items: center; }
+
+.board-note-open {
+  align-self: flex-end;
+  min-height: 2.75rem;
+  margin-top: .25rem;
+  padding: 0 .125rem;
+  color: var(--c-ink-muted);
+  font-size: var(--t-hand-sm);
+  text-decoration: underline wavy var(--c-ink-faint);
+  text-underline-offset: .28em;
+  outline: none;
+}
+.board-note-open::after { content: ''; position: absolute; z-index: 2; inset: 0; }
+
+/* Paper stock per note. Sticky mode keeps the variant colour in light and follows the theme in dark. */
+[data-paper="index"] { --material-physical: #fbfaf3; }
+[data-paper="blue"] { --material-physical: #d9e9fb; }
+[data-paper="pink"] { --material-physical: #f9d3dc; }
+[data-paper="kraft"] { --material-physical: var(--cardboard-tint); --note-ink: var(--cardboard-ink); }
+html:not(.dark) :is([data-paper="index"], [data-paper="blue"], [data-paper="pink"], [data-paper="kraft"]) { --note-paper: var(--material-physical); }
+[data-paper="photo"] { --note-paper: var(--c-polaroid); --material-physical: var(--c-polaroid); }
+
+html:not([data-notes="sticky"]):not([data-notes="cardboard"]) .note-material[data-paper="index"] {
+  background-image:
+    var(--material-age),
+    var(--material-dim),
+    var(--material-light),
+    linear-gradient(transparent 2.75rem, rgb(214 72 72 / .4) 2.75rem calc(2.75rem + 1.5px), transparent calc(2.75rem + 1.5px)),
+    repeating-linear-gradient(transparent 0 calc(1.5rem - 1px), rgb(70 130 205 / .22) calc(1.5rem - 1px) 1.5rem),
+    var(--tex-paper);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, var(--material-grain-size) var(--material-grain-size);
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 1.25rem, 0 0;
+  background-blend-mode: normal, normal, soft-light, normal, normal, soft-light;
+}
+html:not([data-notes="sticky"]) .note-material[data-paper="kraft"] {
+  background-image: var(--material-age), var(--material-dim), var(--material-light), var(--tex-cardboard);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 320px 320px;
+  background-blend-mode: normal, normal, soft-light, normal;
+}
+/* A photo print stays a photo print whatever the notes are made of. */
+html:not([data-notes="sticky"]) .note-material[data-paper="photo"] {
+  --material-tint: var(--c-polaroid);
+  --c-ink: var(--c-polaroid-ink);
+  background-image: var(--material-light), var(--tex-paper);
+  background-size: 100% 100%, var(--material-grain-size) var(--material-grain-size);
+  background-blend-mode: soft-light, soft-light;
+}
+
+.board-note[data-paper="photo"] { padding: .5rem .5rem .25rem; }
+.board-note[data-paper="photo"] .board-note-title { order: 2; margin-top: .375rem; font-size: var(--t-lead); text-align: center; -webkit-text-stroke: 0; }
+.board-note[data-paper="photo"] .board-note-body { order: 1; margin: 0; }
+.board-note[data-paper="photo"] .board-note-open { order: 3; align-self: center; margin: 0; }
+.board-photo { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; filter: sepia(.25) saturate(.92); }
+
+/* Pins on the board; tape when the notes sit on the page. */
+.board-pin { top: -.6rem; left: calc(50% - .6875rem); }
+.board-tape {
+  position: absolute;
+  z-index: 3;
+  display: none;
+  top: -.75rem;
+  left: 50%;
+  width: 5.5rem;
+  height: 1.625rem;
+  translate: -50% 0;
+  rotate: calc(var(--tilt) * -2.5);
+  background: var(--tape-color);
+  clip-path: var(--tape-clip);
+  pointer-events: none;
+}
+
+html[data-about="sheet"] .pinboard { padding: 0; background: none; box-shadow: none; }
+html[data-about="sheet"] .pinboard-surface { padding: 1.5rem .25rem; background: none; box-shadow: none; }
+html[data-about="sheet"] .pinboard-surface::before,
+html[data-about="sheet"] .board-pin { display: none; }
+html[data-about="sheet"] .board-tape { display: block; }
+
+@media (hover: hover) and (pointer: fine) {
+  .board-slot:hover .board-note:not([data-away]) {
+    translate: 0 -3px;
+    box-shadow: var(--shadow-note), 0 18px 26px -14px rgb(0 0 0 / .35);
+  }
+  html[data-torn="on"]:not([data-notes="sticky"]) .board-slot:hover .board-note[data-torn-host] { box-shadow: none; }
+}
+
+/* Pinned up one by one when the page opens. */
+@keyframes board-note-in { from { opacity: 0; translate: 0 -.875rem; scale: 1.04; } }
+@keyframes board-pin-in {
+  from { opacity: 0; translate: 0 -1.25rem; scale: 1.7; }
+  70% { opacity: 1; scale: .9; }
+}
+html:not([data-reduced-motion]) .board-note { animation: board-note-in 520ms var(--ease-paper) calc(var(--i) * 90ms) backwards; }
+html:not([data-reduced-motion]) :is(.board-pin, .board-tape) { animation: board-pin-in 420ms var(--ease-paper) calc(var(--i) * 90ms + 280ms) backwards; }
+
+@container board (min-width: 46rem) {
+  .board-notes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3rem 2.25rem; }
+  .board-slot[data-note="bio"] { grid-column: 1; grid-row: 1 / span 2; }
+  .board-slot[data-note="photo"] { grid-column: 2; grid-row: 1; }
+  .board-slot[data-note="resume"] { grid-column: 3; grid-row: 1; }
+  .board-slot[data-note="contact"] { grid-column: 3; grid-row: 2; }
+  .board-slot[data-note="hobbies"] { grid-column: 2; grid-row: 2; }
+  .board-slot[data-note="now"] { grid-column: 2 / span 2; grid-row: 3; }
+  .board-slot[data-note="voice"] { grid-column: 1; grid-row: 3; }
+  .board-note[data-note="photo"] { width: 82%; margin-inline: auto; }
+  .board-slot[data-note="photo"] .board-ghost { inset-inline: 10%; }
+  /* The bio fills both rows it spans and shows most of itself before "Read the whole note". */
+  .board-slot[data-note="bio"] { align-self: stretch; }
+  .board-note[data-note="bio"] { --board-clamp-lines: 12; height: 100%; }
+  .board-note[data-note="bio"] .board-note-open { margin-top: auto; }
+  .board-note { padding: 2rem 1.5rem .5rem; }
+  .board-note-body { font-size: var(--t-body); }
+}
+
+@media (min-width: 768px) {
+  .pinboard { padding: .875rem; }
+  .pinboard-surface { padding: 3.25rem 2.25rem 2.75rem; }
+  .board-note[data-note="bio"] .board-note-title { font-size: var(--t-h1-md); }
+}
+
+/* The open note: a reading sheet in the top layer. */
+.board-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+  border: 0;
+  background: transparent;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.board-dialog[open] { display: grid; place-items: center; }
+.board-dialog::backdrop { background: rgb(18 12 4 / .5); animation: board-backdrop-in var(--dur-enter) var(--ease-paper) both; }
+.board-dialog[data-state="closing"]::backdrop { animation: board-backdrop-out 440ms var(--ease-standard) both; }
+@keyframes board-backdrop-in { from { opacity: 0; } }
+@keyframes board-backdrop-out { to { opacity: 0; } }
+
+.board-sheet {
+  position: relative;
+  width: min(38rem, 100%);
+  padding: 2.25rem 1.5rem 2rem;
+  box-shadow: 0 34px 60px -22px rgb(0 0 0 / .6), 0 4px 10px rgb(0 0 0 / .2);
+}
+.board-sheet[data-paper="photo"] { width: min(28rem, 100%); padding: .75rem .75rem 1.25rem; }
+.board-sheet[data-paper="photo"] .board-sheet-title { order: 2; margin-top: .75rem; text-align: center; }
+.board-sheet[data-paper="photo"] .board-sheet-content { display: flex; flex-direction: column; }
+.board-sheet[data-paper="photo"] .board-sheet-body { order: 1; margin: 0; }
+.board-sheet[data-paper="photo"] .board-sheet-more { order: 3; border: 0; text-align: center; }
+.board-dialog[data-state="closing"] .board-sheet { box-shadow: 0 6px 12px -4px rgb(0 0 0 / .3); transition: box-shadow 440ms var(--ease-standard); }
+
+.board-sheet-close {
+  position: absolute;
+  z-index: 4;
+  top: .625rem;
+  right: .625rem;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--c-ink);
+  background: color-mix(in srgb, var(--material-tint) 85%, transparent);
+  box-shadow: var(--shadow-sticker);
+  transition: rotate var(--dur-quick) var(--ease-paper);
+}
+.board-sheet[data-torn-edge="top"] .board-sheet-close { top: 1.125rem; }
+.board-sheet-close:hover { rotate: 90deg; }
+.board-sheet-close svg { width: 1.25rem; height: 1.25rem; }
+.board-sheet-title { padding-right: 3rem; color: var(--c-heading); font-size: var(--t-h2); line-height: var(--lh-snug); }
+.board-sheet-body { margin-top: .875rem; font-size: var(--t-body); line-height: var(--lh-body); }
+.board-sheet-more { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--c-ink-faint); font-family: var(--font-body); font-size: var(--t-body); line-height: var(--lh-body); }
+.board-sheet-more ul { display: grid; gap: .5rem; list-style: none; }
+.board-sheet-more li { position: relative; padding-left: 1rem; }
+.board-sheet-more li::before { content: ''; position: absolute; top: .65em; left: .125rem; width: .375rem; height: .375rem; border-radius: 50%; background: var(--c-ink-faint); }
+
+/* Plain fade for reduced motion and the "Fade" choice. */
+.board-dialog[data-mode="fade"] .board-sheet { animation: board-sheet-fade var(--dur-panel) var(--ease-paper) both; }
+.board-dialog[data-mode="fade"][data-state="closing"] .board-sheet { animation: board-sheet-fade-out 160ms var(--ease-paper-in) both; }
+@keyframes board-sheet-fade { from { opacity: 0; scale: .97; } }
+@keyframes board-sheet-fade-out { to { opacity: 0; scale: .98; } }
+
+@media (min-width: 768px) {
+  .board-sheet { padding: 3rem 2.75rem 2.5rem; }
+  .board-sheet-title { font-size: var(--t-h2-md); }
+  .board-sheet-body { font-size: var(--t-body-md); }
+}

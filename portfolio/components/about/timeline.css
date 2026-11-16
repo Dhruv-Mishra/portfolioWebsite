@@ -1,8 +1,12 @@
 /* Experience timeline. Line mode by default; the S-curve takes over once the column fits two tiles and the
-   curve band between them. Hover peeks overlay later rows; pinning moves the sheet into flow. */
+   curve band between them. Hovering a tile shows a small preview; opening it overlays the full card with a fine
+   pointer and pushes the rows below down on touch screens. */
 .tl-section {
   container: timeline / inline-size;
+  width: 100%;
+  max-width: 60rem;
   min-width: 0;
+  margin-inline: auto;
   color: var(--c-ink);
 }
 .tl-heading {
@@ -100,7 +104,6 @@
   padding: var(--tl-pad) .875rem calc(var(--tl-tuck) + .375rem);
   border: 1px solid var(--c-ink-faint);
   border-radius: 6px;
-  background: var(--note-paper);
   box-shadow: var(--shadow-sticker);
   color: var(--c-ink);
   text-align: left;
@@ -185,7 +188,6 @@
   padding: calc(var(--tl-tuck) + .75rem) .875rem 1rem;
   border: 1px solid var(--c-ink-faint);
   border-radius: 6px;
-  background: var(--note-paper);
   box-shadow: var(--shadow-peek);
   font-size: var(--t-small);
   line-height: var(--lh-lead);
@@ -219,11 +221,11 @@
 .tl-tools { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .875rem; font-size: var(--t-chip); list-style: none; }
 .tl-tools li { padding: .125rem .375rem; border: 1px solid var(--c-ink-faint); border-radius: 3px; }
 
-/* Pinned: the sheet joins the flow and the tile straightens. */
+/* Pinned: the tile straightens and its full card opens. Touch screens push the rows below down; fine pointers
+   overlay the card instead, so the timeline never jumps under the cursor. */
 .tl-item[data-pinned] > .tl-node { scale: 1.2; box-shadow: 0 0 0 3px var(--c-paper), 0 0 0 4.5px var(--tl-dot); }
 .tl-item[data-pinned] > .tl-tab { rotate: 0deg; border-color: var(--c-ink); }
 .tl-item[data-pinned] .tl-chevron { rotate: 180deg; }
-.tl-item[data-pinned] > .tl-fold { grid-template-rows: 1fr; }
 .tl-item[data-pinned] .tl-sheet {
   border-color: var(--c-ink);
   box-shadow: var(--shadow-sticker);
@@ -235,38 +237,89 @@
   transition-duration: var(--dur-panel);
   transition-timing-function: var(--ease-paper);
 }
+.tl-item[data-pinned] .tl-sheet > * { opacity: 1; translate: 0 0; }
 
-/* Hover peek for fine pointers: an overlay that never takes the pointer, so it cannot trap or flicker. */
+@media (hover: none), (pointer: coarse) {
+  .tl-item[data-pinned] > .tl-fold { grid-template-rows: 1fr; }
+}
+
+/* Hover preview for fine pointers: a small card with a taste of the role. It never takes the pointer, so it
+   cannot trap or flicker, and it waits for hover intent so sweeping across the timeline stays calm. */
+.tl-peek {
+  position: absolute;
+  z-index: 0;
+  top: calc(100% - var(--tl-tuck));
+  left: var(--tl-indent);
+  right: 0;
+  display: none;
+  padding: calc(var(--tl-tuck) + .5rem) .875rem .5rem;
+  border: 1px solid var(--c-ink-faint);
+  border-radius: 0 0 6px 6px;
+  box-shadow: var(--shadow-peek);
+  font-size: var(--t-small);
+  line-height: var(--lh-lead);
+  rotate: calc(var(--tl-tilt) * -1);
+  clip-path: inset(0 -2rem 100% -2rem);
+  pointer-events: none;
+  transition: clip-path var(--dur-quick) var(--ease-paper-in);
+}
+.tl-peek > * { opacity: 0; translate: 0 -.25rem; transition: opacity var(--dur-quick) var(--ease-paper-in), translate var(--dur-quick) var(--ease-paper-in); }
+.tl-peek-line {
+  display: -webkit-box;
+  margin-top: .25rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.tl-peek-hint {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .375rem;
+  margin-top: .375rem;
+  color: var(--c-ink-muted);
+  font-size: var(--t-hand-sm);
+}
+.tl-peek-hint svg { width: .875rem; height: .875rem; }
+
 @media (hover: hover) and (pointer: fine) {
+  .tl-peek { display: block; }
   .tl-item:not([data-pinned]) > .tl-tab:hover { border-color: var(--c-ink-muted); box-shadow: var(--shadow-peek); }
-  .tl-item > .tl-tab:hover + .tl-fold { overflow-y: visible; transition-delay: 0s; }
-  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold .tl-sheet {
+  .tl-item > .tl-tab:hover ~ .tl-fold,
+  .tl-item[data-pinned] > .tl-fold { overflow-y: visible; transition-delay: 0s; }
+  .tl-item:not([data-pinned]) > .tl-tab:hover ~ .tl-peek {
     clip-path: inset(0 -2rem -2rem -2rem);
     transition-delay: var(--c-timeline-hover-intent);
-  }
-  .tl-item:not([data-pinned]) > .tl-tab:hover + .tl-fold :is(.tl-sheet, .tl-sheet > *) {
     transition-duration: var(--dur-panel);
     transition-timing-function: var(--ease-paper);
   }
-  .tl-item > .tl-tab:hover + .tl-fold .tl-sheet > * { opacity: 1; translate: 0 0; }
+  .tl-item:not([data-pinned]) > .tl-tab:hover ~ .tl-peek > * {
+    opacity: 1;
+    translate: 0 0;
+    transition-delay: var(--c-timeline-hover-intent);
+    transition-duration: var(--dur-panel);
+    transition-timing-function: var(--ease-paper);
+  }
 }
-.tl-item[data-pinned] .tl-sheet > * { opacity: 1; translate: 0 0; }
 @container timeline (min-width: 34rem) {
   .tl {
     --tl-band: calc(var(--c-timeline-tile-w) + var(--tl-node-gap) + var(--c-timeline-node) / 2);
   }
-  /* Alternate rows interleave; the row after a pinned one drops clear of its sheet. */
+  /* Alternate rows interleave; on touch screens the row after a pinned one drops clear of its card. */
   .tl-item {
     --tl-x: var(--tl-band);
     --tl-step: calc(var(--c-timeline-gap) - var(--c-timeline-overlap));
     transition: margin-top var(--dur-quick) var(--ease-paper-in);
   }
   .tl-item + .tl-item { margin-top: calc(var(--c-timeline-overlap) * -1); }
-  .tl-item[data-pinned] { --tl-step: var(--c-timeline-gap); }
-  .tl-item[data-pinned] + .tl-item {
-    margin-top: 0;
-    transition-duration: var(--dur-panel);
-    transition-timing-function: var(--ease-paper);
+  @media (hover: none), (pointer: coarse) {
+    .tl-item[data-pinned] { --tl-step: var(--c-timeline-gap); }
+    .tl-item[data-pinned] + .tl-item {
+      margin-top: 0;
+      transition-duration: var(--dur-panel);
+      transition-timing-function: var(--ease-paper);
+    }
   }
   .tl-item:nth-child(even) { --tl-x: calc(100% - var(--tl-band)); }
   .tl-seg {
@@ -280,6 +333,8 @@
   .tl-item:nth-child(odd) > .tl-node::after { right: 100%; left: auto; }
   .tl-tab { width: var(--c-timeline-tile-w); margin-left: 0; }
   .tl-item:nth-child(even) > .tl-tab { margin-left: auto; }
+  .tl-peek { left: 0; right: auto; width: var(--c-timeline-tile-w); }
+  .tl-item:nth-child(even) > .tl-peek { left: auto; right: 0; }
   /* The sheet spans its own tile and the curve band, stopping short of the opposite node. */
   .tl-fold { margin-left: 0; margin-right: calc(var(--tl-band) + var(--c-timeline-node) / 2); }
   .tl-item:nth-child(even) > .tl-fold { margin-left: calc(var(--tl-band) + var(--c-timeline-node) / 2); margin-right: 0; }

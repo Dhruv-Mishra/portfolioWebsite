@@ -357,10 +357,10 @@ html[data-disco="on"] [data-disco-bounce="4"] { animation-delay: 375ms; }
   75% { transform: translateY(-3px) rotate(-0.8deg); }
 }
 
-html[data-disco="on"] .project-note { --disco-motion-duration: 1400ms; }
-html[data-disco="on"] .project-notes > :nth-child(3n+1) .project-note { --disco-motion-delay: -200ms; }
-html[data-disco="on"] .project-notes > :nth-child(3n+2) .project-note { --disco-motion-delay: -650ms; }
-html[data-disco="on"] .project-notes > :nth-child(3n) .project-note { --disco-motion-delay: -1100ms; }
+html[data-disco="on"] .project-card { --disco-motion-duration: 1400ms; }
+html[data-disco="on"] .project-cards > :nth-child(3n+1) .project-card { --disco-motion-delay: -200ms; }
+html[data-disco="on"] .project-cards > :nth-child(3n+2) .project-card { --disco-motion-delay: -650ms; }
+html[data-disco="on"] .project-cards > :nth-child(3n) .project-card { --disco-motion-delay: -1100ms; }
 
 html[data-disco="on"] [data-disco-motion="wiggle"] {
   animation: disco-spin-prop var(--disco-motion-duration, 1200ms) ease-in-out infinite;

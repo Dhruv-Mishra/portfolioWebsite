@@ -31,7 +31,7 @@ export function NoteFace({ icon: Icon, label, tone, className }: { icon: LucideI
   return (
     <span
       className={cn(
-        'relative flex min-h-11 items-center gap-2.5 border px-4 py-2.5 shadow-sm md:px-5 md:py-3 transition-transform duration-300 ease-paper md:shadow-md md:group-hover:rotate-0',
+        'paper-texture relative flex min-h-11 items-center gap-2.5 border px-4 py-2.5 shadow-sm md:px-5 md:py-3 transition-transform duration-300 ease-paper md:shadow-md md:group-hover:rotate-0',
         t.paper,
         className,
       )}

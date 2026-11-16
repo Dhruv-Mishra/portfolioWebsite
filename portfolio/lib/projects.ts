@@ -1,11 +1,20 @@
 import type { ProjectSlug } from '@/lib/projectCatalog';
 
+export type ProjectAccent = 'emerald' | 'amber' | 'violet' | 'sky' | 'blue' | 'indigo' | 'rose' | 'orange' | 'green';
+
 export interface ProjectRecord {
   slug: ProjectSlug;
   name: string;
   /** Two-line pitch for project tiles and the home carousel; `details` is the expanded story. */
   summary: string;
+  /** The story, with `**strong**`, `==highlight==` and `~~wavy~~` marks (lib/markedText.ts). Cards clamp it to three lines. */
   details: string;
+  /** Short kind badge on the card, e.g. "Voice Agent". */
+  label: string;
+  /** Main languages, underlined under the title. */
+  lang: string;
+  /** Highlighter and underline colour for the marks. */
+  accent: ProjectAccent;
   demo?: string;
   link: string;
   linkLabel?: 'Source code' | 'Read the paper';
@@ -43,7 +52,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'jarvis-voice-agent',
     name: 'Jarvis',
     summary: 'Phone an AI dispatcher that haggles freight rates.',
-    details: 'A voice agent for a demo logistics app. While you talk, it looks up loads, assigns carriers, negotiates freight rates and submits quotes through MCP tools, with RAG over load and carrier data. The call streams over one WebSocket and stays up as you move between pages.',
+    details: 'A **voice agent** for a demo logistics app. While you talk, it looks up loads, assigns carriers, ==negotiates freight rates== and submits quotes through **MCP tools**, with ~~RAG over load and carrier data~~. The call streams over one WebSocket and stays up as you move between pages.',
+    label: 'Voice Agent',
+    lang: 'JavaScript / Node.js',
+    accent: 'emerald',
     demo: 'https://jarvis.whoisdhruv.com',
     link: 'https://github.com/Dhruv-Mishra/AudioControlledAgenticWebsite',
     image: '/resources/audioAgent.webp',
@@ -61,7 +73,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'personal-portfolio',
     name: 'This portfolio',
     summary: 'This site, with a voice agent you can interrupt.',
-    details: 'A hand-drawn sketchbook with a live voice agent you can interrupt mid-sentence. It has 25+ tools to switch pages, open projects, fill forms and run terminal commands. There\'s also a RAG chatbot with 5 LLMs (one self-hosted) and a retro terminal. Built on Next.js 16 and shipped as Docker images.',
+    details: 'A hand-drawn sketchbook with a **live voice agent** you can ~~interrupt mid-sentence~~. It has ==25+ tools== to switch pages, open projects, fill forms and run terminal commands. There\'s also a **RAG chatbot** with 5 LLMs (one self-hosted) and a retro terminal. Built on Next.js 16 and shipped as Docker images.',
+    label: 'This Website',
+    lang: 'Next.js / TypeScript',
+    accent: 'amber',
     link: 'https://github.com/Dhruv-Mishra/portfolioWebsite',
     image: '/resources/PersonalPortfolio.webp',
     blurDataURL: BLUR.portfolio,
@@ -79,7 +94,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'invoke',
     name: 'Invoke',
     summary: 'Talk to coding agents that work in parallel.',
-    details: 'A Windows voice assistant for coding agents. It answers simple requests itself and hands bigger tasks to GitHub Copilot CLI agents, each in its own Git worktree so several can run at once. Speech-to-text, the LLM and text-to-speech all run locally; speculative decoding made generation 35% faster.',
+    details: 'A Windows **voice assistant for coding agents**. It answers simple requests itself and hands bigger tasks to ==GitHub Copilot CLI agents==, each in ~~its own Git worktree~~ so several can run at once. Speech-to-text, the LLM and text-to-speech all **run locally**; speculative decoding made generation 35% faster.',
+    label: 'Coding Agents',
+    lang: 'Electron / Node.js / Python',
+    accent: 'violet',
     link: 'https://github.com/Dhruv-Mishra/Invoke-Voice',
     image: '/resources/Invoke.webp',
     blurDataURL: BLUR.invoke,
@@ -97,7 +115,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'cropio',
     name: 'Cropio',
     summary: 'Pose detection turns raw photos into headshots.',
-    details: 'A privacy-conscious portrait cropper. YOLO11 pose estimation and face-orientation detection suggest several headshot crops; an interactive editor lets you adjust them and export at full resolution in the browser. Saved sessions get AI descriptions and semantic search.',
+    details: 'A **privacy-conscious portrait cropper**. ==YOLO11 pose estimation== and face-orientation detection suggest several headshot crops; an interactive editor lets you adjust them and export at full resolution in the browser. Saved sessions get AI descriptions and ~~semantic search~~.',
+    label: 'AI Cropper',
+    lang: 'Next.js / FastAPI',
+    accent: 'sky',
     demo: 'https://cropio.whoisdhruv.com',
     link: 'https://github.com/Dhruv-Mishra/Cropio-ImageEditor',
     image: '/resources/Cropio.webp',
@@ -116,7 +137,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'port-solace',
     name: 'Port Solace',
     summary: 'Co-op voxel heists you can play in the browser.',
-    details: 'A voxel open-world game in a harbour city where the lights never quite go out. Drive cars, fly planes, ride jet skis and pull a co-op heist with up to four friends over peer-to-peer WebRTC. A custom three.js streaming engine meshes in Web Workers so nothing stutters, on desktop and phones.',
+    details: 'A **voxel open-world game** in a harbour city where the lights never quite go out. Drive cars, fly planes, ride jet skis and pull a ==co-op heist== with up to four friends over ~~peer-to-peer WebRTC~~. A custom three.js streaming engine meshes in Web Workers so nothing stutters, on desktop and phones.',
+    label: 'Voxel Game',
+    lang: 'JavaScript / three.js',
+    accent: 'amber',
     demo: 'https://port-solace.vercel.app',
     link: 'https://github.com/Dhruv-Mishra/VoxelGame',
     image: '/resources/PortSolace.webp',
@@ -135,7 +159,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'fluent-ui-android',
     name: 'Fluent UI Android',
     summary: 'Microsoft\'s Compose UI kit; I shipped 10 releases.',
-    details: 'Microsoft\'s open-source Jetpack Compose component library for Microsoft 365 Android apps. As its primary maintainer I shipped 10 releases used by Copilot, Office, Outlook, OneDrive and Teams, and owned the library\'s security compliance.',
+    details: 'Microsoft\'s open-source **Jetpack Compose** component library for ~~Microsoft 365~~ Android apps. As its ==primary maintainer== I shipped 10 releases used by Copilot, Office, Outlook, OneDrive and Teams, and owned the library\'s security compliance.',
+    label: 'Android Lib',
+    lang: 'Kotlin / Java',
+    accent: 'blue',
     link: 'https://github.com/microsoft/fluentui-android',
     image: '/resources/FluentUI.webp',
     blurDataURL: BLUR.fluentUI,
@@ -153,7 +180,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'bloom-filter-research',
     name: 'Bloom filter research',
     summary: 'A lock-free Bloom filter with 3x the throughput.',
-    details: 'Undergrad research at IIIT Delhi\'s Distributed Computing Lab under Prof. Bapi Chatterjee. My lock-free C++ counting Bloom filter relaxes synchronization to reach 3x the baseline throughput under high contention, with error rates close to the strict version. Published in the IIIT Delhi repository.',
+    details: 'Undergrad research at IIIT Delhi\'s **Distributed Computing Lab** under Prof. Bapi Chatterjee. My lock-free C++ counting Bloom filter relaxes synchronization to reach ==3x the baseline throughput== under ~~high contention~~, with error rates close to the strict version. Published in the IIIT Delhi repository.',
+    label: 'Research Paper',
+    lang: 'Research / C++',
+    accent: 'indigo',
     link: 'https://repository.iiitd.edu.in/jspui/handle/123456789/1613',
     linkLabel: 'Read the paper',
     image: '/resources/BloomFilter.webp',
@@ -172,7 +202,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'ivc-vital-checkup',
     name: 'IVC Vital Checkup',
     summary: 'A camera kiosk that checks vitals hands-free.',
-    details: 'A contactless health-screening kiosk that automates patient triage. One camera and an OpenCV and MediaPipe pipeline measure height, weight, BMI and pulse from a distance in real time, so patients spend less time waiting to be seen.',
+    details: 'A ==contactless== health-screening kiosk that ~~automates patient triage~~. One camera and an **OpenCV and MediaPipe** pipeline measure height, weight, BMI and pulse from a distance in real time, so patients spend less time waiting to be seen.',
+    label: 'Vitals Scan',
+    lang: 'Python / OpenCV',
+    accent: 'green',
     link: 'https://github.com/Dhruv-Mishra/Instant-Vital-Checkup-IVC',
     image: '/resources/InstantVitalCheckup.webp',
     blurDataURL: BLUR.ivc,
@@ -189,7 +222,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'hybrid-recommender',
     name: 'Hybrid Recommender',
     summary: 'Movie picks that work even for brand-new users.',
-    details: 'A context-aware movie recommender that blends collaborative, content-based and demographic filtering. Combining the three tackles the cold-start problem, so new users still get useful picks, and tunes suggestions to each viewer\'s age and context.',
+    details: 'A context-aware ~~movie recommender~~ that blends **collaborative**, ==content-based== and demographic filtering. Combining the three tackles the **cold-start problem**, so new users still get useful picks, and tunes suggestions to each viewer\'s age and context.',
+    label: 'Movie Night',
+    lang: 'Python / ML',
+    accent: 'rose',
     link: 'https://github.com/Dhruv-Mishra/Age-and-Context-Sensitive-Hybrid-Entertaintment-Recommender-System',
     image: '/resources/HybridRecommender.webp',
     blurDataURL: BLUR.recommender,
@@ -207,7 +243,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'course-evaluator',
     name: 'Course Evaluator',
     summary: 'Flags courses that teach the same material.',
-    details: 'A Python tool that compares course syllabi across university curriculums. Fuzzy matching and text similarity flag modules that cover the same material, with adjustable thresholds, so students don\'t end up taking the same course twice.',
+    details: 'A Python tool that compares course syllabi across university curriculums. ==Fuzzy matching== and text similarity flag modules that cover ~~the same material~~, with adjustable thresholds, so students don\'t end up **taking the same course twice**.',
+    label: 'Overlap Detector',
+    lang: 'Python',
+    accent: 'orange',
     link: 'https://github.com/Dhruv-Mishra/Course-Similarity-Evaluator',
     image: '/resources/CourseEvaluator.webp',
     blurDataURL: BLUR.courseEval,
@@ -225,7 +264,10 @@ export const PROJECTS: ProjectRecord[] = [
     slug: 'atomvault',
     name: 'AtomVault',
     summary: 'A banking database with rollback-safe transfers.',
-    details: 'A banking database built for reliable transactions. Every transfer is ACID-compliant with rollback and recovery, and role-based access control separates what admins, tellers and customers can do. Built with Java, JDBC and MySQL.',
+    details: 'A banking database built for ~~reliable transactions~~. Every transfer is **ACID-compliant** with rollback and recovery, and ==role-based access control== separates what admins, tellers and customers can do. Built with Java, JDBC and MySQL.',
+    label: 'Bank Vault',
+    lang: 'Java / MySQL',
+    accent: 'green',
     link: 'https://github.com/Dhruv-Mishra/AtomVault',
     image: '/resources/AtomVault.webp',
     blurDataURL: BLUR.atomVault,

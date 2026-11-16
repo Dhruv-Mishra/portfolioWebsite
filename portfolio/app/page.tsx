@@ -25,8 +25,8 @@ function NoteLink({ href, label, icon, tone, tilt }: { href: string; label: stri
 
 export default function Home() {
   return (
-    <div className="mx-auto grid w-full max-w-[70rem] grid-cols-1 gap-y-12 pb-8 pt-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-x-16 lg:gap-y-16 lg:pt-8">
-      <section aria-label="Introduction" className="order-1 flex flex-col items-start gap-6 lg:order-none lg:col-start-1 lg:row-start-1 lg:self-center">
+    <div className="home-grid mx-auto grid w-full max-w-[70rem] grid-cols-1 gap-y-16 px-2 pb-4 pt-4 sm:px-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-x-16 lg:gap-y-16 lg:px-0 lg:pt-8">
+      <section aria-label="Introduction" className="order-1 flex flex-col items-center gap-7 text-center lg:order-none lg:col-start-1 lg:row-start-1 lg:items-start lg:gap-6 lg:self-center lg:text-left">
         <div className="relative isolate">
           <h1
             data-disco-motion="wiggle"
@@ -34,7 +34,7 @@ export default function Home() {
           >
             Hello World!
           </h1>
-          <svg aria-hidden="true" viewBox="0 0 300 24" preserveAspectRatio="none" className="hero-swash absolute -bottom-1 left-1 -z-10 h-[0.3em] w-[72%] -rotate-3 text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:text-[length:var(--t-hero-lg)]">
+          <svg aria-hidden="true" viewBox="0 0 300 24" preserveAspectRatio="none" className="hero-swash absolute -bottom-1 left-[14%] -z-10 h-[0.3em] w-[72%] -rotate-3 text-[length:var(--t-hero)] md:text-[length:var(--t-hero-md)] lg:left-1 lg:text-[length:var(--t-hero-lg)]">
             <path d="M6 16 C 70 8, 150 6, 294 11" pathLength={1} fill="none" strokeWidth="12" strokeLinecap="round" />
           </svg>
         </div>
@@ -43,12 +43,12 @@ export default function Home() {
           I&apos;m Dhruv Mishra, a software engineer at Microsoft. I build AI agents and the Azure backend services they run on.
         </p>
 
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-center gap-2 lg:items-start">
           <HomeVoiceNote context={{ source: 'home', topic: 'home' }} />
           <p className="font-hand text-[length:var(--t-hand-sm)] text-[var(--c-ink-muted)]">A voice agent that knows my work. Uses your mic.</p>
         </div>
 
-        <nav aria-label="Quick links" className="-mt-2 flex flex-wrap gap-x-7">
+        <nav aria-label="Quick links" className="-mt-2 flex flex-wrap justify-center gap-x-7 lg:justify-start">
           <Link href="/projects" prefetch={false} className={TEXT_LINK_CLASS}>See my projects<RoutePendingMarker /></Link>
           <a href={PERSONAL_LINKS.email} className={TEXT_LINK_CLASS}>Email me</a>
         </nav>
@@ -65,8 +65,8 @@ export default function Home() {
         >
           <HomeTerminalIsland />
         </div>
-        <div className="relative z-30 -mt-2 flex flex-wrap justify-center gap-x-4 gap-y-3 md:justify-end md:gap-x-5 md:pr-6">
-          <NoteLink href="/chat" label="Pass me a note" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
+        <div className="relative z-30 -mt-2 flex flex-wrap justify-center gap-x-5 gap-y-3 md:justify-end md:gap-x-5 md:pr-6">
+          <NoteLink href="/chat" label="Chat" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
           <NoteLink href="/guestbook" label="Sign my sketchbook" icon={PenLine} tone="coral" tilt="rotate-2" />
         </div>
       </div>
@@ -74,10 +74,10 @@ export default function Home() {
       <FeaturedProjects className="order-2 lg:order-none lg:col-start-2 lg:row-start-2" />
 
       <section aria-labelledby="about-mini-heading" className="order-4 lg:order-none lg:col-start-1 lg:row-start-2">
-        <h2 id="about-mini-heading" className="mb-4 font-hand ink-heavy text-[length:var(--t-h2)] leading-[var(--lh-snug)] text-[var(--c-heading)] md:text-[length:var(--t-h2-md)]">
+        <h2 id="about-mini-heading" className="mb-5 text-center font-hand ink-heavy text-[length:var(--t-h2)] leading-[var(--lh-snug)] text-[var(--c-heading)] md:text-[length:var(--t-h2-md)] lg:mb-4 lg:text-left">
           About me
         </h2>
-        <div className="flex items-start gap-5">
+        <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left">
           <div data-hover-tilt className="-rotate-3 shrink-0 bg-[var(--c-polaroid)] p-1.5 pb-5 shadow-polaroid">
             <Image
               src={ABOUT_PHOTO.src}
@@ -87,11 +87,11 @@ export default function Home() {
               loading="lazy"
               placeholder="blur"
               blurDataURL={ABOUT_PHOTO.blurDataURL}
-              className="size-24 object-cover sepia-[.2] md:size-32"
+              className="size-28 object-cover sepia-[.2] md:size-32"
             />
           </div>
           <div className="min-w-0">
-            <p className="font-body text-[length:var(--t-body-md)] leading-[var(--lh-body)] text-[var(--c-ink)]">
+            <p className="max-w-[36ch] font-body text-[length:var(--t-body-md)] leading-[var(--lh-body)] text-[var(--c-ink)]">
               Software engineer at Microsoft since 2024, IIIT Delhi Honors grad and Codeforces Expert. Off the clock: lifting, chess and overclocking.
             </p>
             <Link href="/about" prefetch={false} className={TEXT_LINK_CLASS}>More about me<RoutePendingMarker /></Link>

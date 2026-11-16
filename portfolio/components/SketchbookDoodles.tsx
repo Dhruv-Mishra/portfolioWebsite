@@ -203,7 +203,10 @@ export function SketchbookDecor() {
                     data-drift={sprite.drift ? '' : undefined}
                     style={{ ...sprite.place, '--d': index } as CSSProperties}
                 >
-                    {sprite.art}
+                    {/* A clip window and the ink inside it slide in opposite directions, so the drawing is wiped on without repainting. */}
+                    <div className="decor-wipe">
+                        <div className="decor-ink">{sprite.art}</div>
+                    </div>
                 </div>
             ))}
         </>

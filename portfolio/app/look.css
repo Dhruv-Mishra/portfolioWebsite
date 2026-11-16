@@ -296,7 +296,9 @@ html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-host] {
   width: var(--w);
   rotate: var(--rot, 0deg);
 }
-.decor > svg { display: block; width: 100%; height: auto; overflow: visible; }
+.decor-wipe { margin: -0.5rem; overflow: hidden; }
+.decor-ink { padding: 0.5rem; }
+.decor svg { display: block; width: 100%; height: auto; overflow: visible; }
 
 html[data-decor="some"] .decor[data-tier="some"],
 html[data-decor="lots"] .decor { display: block; }
@@ -304,19 +306,24 @@ html.dark .decor[data-theme="paper"],
 html:not(.dark) .decor[data-theme="board"] { display: none; }
 
 /* Chalk is grainy: the stroke shows the board through it. */
-html.dark .decor > svg {
+html.dark .decor svg {
   -webkit-mask: var(--tex-chalk) 0 0 / 96px;
   mask: var(--tex-chalk) 0 0 / 96px;
 }
 
-/* Chalk drawings are written onto the board, one after another, when the board appears. */
-@keyframes chalk-write {
-  from { clip-path: inset(-10% 100% -10% -10%); }
-  to { clip-path: inset(-10%); }
+/* Chalk drawings are written onto the board, one after another, when the board appears. The clip window slides in
+   from the left while the ink inside slides back by the same distance, so the drawing stays put and only the
+   compositor works; a clip-path wipe would repaint every doodle on every frame. */
+@keyframes chalk-wipe {
+  from { translate: -100% 0; }
 }
-html.dark:not([data-reduced-motion]) .decor:not([data-theme="paper"]) > svg {
-  animation: chalk-write 1.1s cubic-bezier(0.5, 0.1, 0.4, 1) calc(var(--d, 0) * 110ms + 300ms) backwards;
+@keyframes chalk-ink {
+  from { translate: 100% 0; }
 }
+html.dark:not([data-reduced-motion]) .decor:not([data-theme="paper"]) :is(.decor-wipe, .decor-ink) {
+  animation: chalk-wipe 1.1s cubic-bezier(0.5, 0.1, 0.4, 1) calc(var(--d, 0) * 110ms + 300ms) backwards;
+}
+html.dark:not([data-reduced-motion]) .decor:not([data-theme="paper"]) .decor-ink { animation-name: chalk-ink; }
 
 @media (max-width: 1279px) {
   .decor[data-wide] { display: none !important; }
@@ -380,8 +387,8 @@ html:not([data-reduced-motion]) .decor[data-drift] { animation: decor-drift 6.5s
 html[data-lite] .page-surface::after,
 html[data-lite] .stain { display: none; }
 html[data-lite] .page-surface { transition: none; }
-html[data-lite] .decor > svg { -webkit-mask: none; mask: none; animation: none !important; }
-html[data-lite] :is(.decor[data-drift], [data-route-scroll-content]) { animation: none !important; }
+html[data-lite] .decor svg { -webkit-mask: none; mask: none; }
+html[data-lite] :is(.decor[data-drift], .decor-wipe, .decor-ink, [data-route-scroll-content]) { animation: none !important; }
 html[data-lite] [data-torn-edge] { -webkit-mask: none !important; mask: none !important; }
 html[data-lite] [data-torn-host] { filter: none !important; box-shadow: var(--shadow-note) !important; }
 

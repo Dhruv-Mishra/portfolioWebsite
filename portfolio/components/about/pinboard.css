@@ -83,6 +83,9 @@ html:is([data-aging="none"], [data-about="sheet"]) .board-ghost { display: none;
 .board-note-body--clamped {
   max-height: calc(var(--board-clamp-lines) * 1lh);
   overflow: hidden;
+}
+/* Fades out only where it actually cuts the text off (PinBoard measures it). */
+.board-note-body--clamped[data-clipped] {
   -webkit-mask: linear-gradient(to bottom, #000 calc(100% - 2lh), transparent);
   mask: linear-gradient(to bottom, #000 calc(100% - 2lh), transparent);
 }
@@ -202,9 +205,11 @@ html:not([data-reduced-motion]) :is(.board-pin, .board-tape) { animation: board-
   .board-slot[data-note="voice"] { grid-column: 1; grid-row: 3; }
   .board-note[data-note="photo"] { width: 82%; margin-inline: auto; }
   .board-slot[data-note="photo"] .board-ghost { inset-inline: 10%; }
-  /* The bio fills both rows it spans and shows most of itself before "Read the whole note". */
+  /* The bio spans both rows beside it and its text fills that height, fading only if it still runs over. Its own
+     share of the height stays small, so the rows are sized by the notes next to it. */
   .board-slot[data-note="bio"] { align-self: stretch; }
-  .board-note[data-note="bio"] { --board-clamp-lines: 12; height: 100%; }
+  .board-note[data-note="bio"] { height: 100%; }
+  .board-note[data-note="bio"] .board-note-body--clamped { flex: 1 1 0; min-height: calc(6 * 1lh); max-height: none; font-size: var(--t-lead); }
   .board-note[data-note="bio"] .board-note-open { margin-top: auto; }
   .board-note { padding: 2rem 1.5rem .5rem; }
   .board-note-body { font-size: var(--t-body); }

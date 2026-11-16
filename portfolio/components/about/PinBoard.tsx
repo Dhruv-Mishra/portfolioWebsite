@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { FlyoutClose, FlyoutDialog, useFlyout } from '@/components/ui/Flyout';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 import './pinboard.css';
@@ -24,9 +24,36 @@ export interface BoardNote {
   clamp?: boolean;
   /** Visible label of the stretched open control. */
   cta: string;
+  /** Label instead of `cta` when a clamped body has room to show all of itself. */
+  ctaFits?: string;
   /** Instead of opening a sheet, start a voice call. */
   action?: 'voice';
   tilt: number;
+}
+
+/** Ids of clamped notes whose whole body fits; the rest fade out where the text is cut. */
+function useFittingNotes() {
+  const listRef = useRef<HTMLUListElement>(null);
+  const [fitting, setFitting] = useState<ReadonlySet<string>>(() => new Set());
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return;
+    const bodies = [...list.querySelectorAll<HTMLElement>('[data-clamp]')];
+    const measure = () => {
+      const next = bodies.filter((body) => body.scrollHeight <= body.clientHeight + 1).map((body) => body.dataset.clamp as string);
+      setFitting((current) => (next.length === current.size && next.every((id) => current.has(id)) ? current : new Set(next)));
+    };
+    // The paragraphs are observed too: a late web font reflows them inside a body whose box stays the same.
+    const observer = new ResizeObserver(measure);
+    for (const body of bodies) {
+      observer.observe(body);
+      for (const child of body.children) observer.observe(child);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  return { listRef, fitting };
 }
 
 /**
@@ -35,13 +62,15 @@ export interface BoardNote {
  */
 export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
   const { openId, open, close, onClose, slotRef, mode, dialogRef, sheetRef, contentRef } = useFlyout();
+  const { listRef, fitting } = useFittingNotes();
   const openNote = notes.find((note) => note.id === openId) ?? null;
 
   return (
     <>
-      <ul className="board-notes">
+      <ul ref={listRef} className="board-notes">
         {notes.map((note, index) => {
           const Heading = note.heading ?? 'h2';
+          const fits = fitting.has(note.id);
           return (
             <li
               key={note.id}
@@ -62,7 +91,11 @@ export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
                 aria-labelledby={`board-${note.id}-title`}
               >
                 <Heading id={`board-${note.id}-title`} className="board-note-title font-hand ink-heavy">{note.title}</Heading>
-                <div className={note.clamp ? 'board-note-body board-note-body--clamped' : 'board-note-body'}>{note.body}</div>
+                {note.clamp ? (
+                  <div className="board-note-body board-note-body--clamped" data-clamp={note.id} data-clipped={fits ? undefined : ''}>{note.body}</div>
+                ) : (
+                  <div className="board-note-body">{note.body}</div>
+                )}
                 <button
                   type="button"
                   className="board-note-open font-hand focus-ring"
@@ -71,7 +104,7 @@ export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
                   aria-describedby={`board-${note.id}-title`}
                   onClick={() => (note.action === 'voice' ? requestVoiceMode({ source: 'resume', topic: 'about' }) : void open(note.id))}
                 >
-                  {note.cta}
+                  {fits && note.ctaFits ? note.ctaFits : note.cta}
                 </button>
               </article>
               <span aria-hidden="true" className="pushpin board-pin" data-fastener="pin" data-color={note.pin}>

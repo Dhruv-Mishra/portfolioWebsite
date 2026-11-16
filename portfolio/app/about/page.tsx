@@ -31,6 +31,7 @@ const NOTES: readonly BoardNote[] = [
     tilt: -1.2,
     clamp: true,
     cta: 'Read the whole note',
+    ctaFits: 'Open note',
     body: (
       <>
         <p>

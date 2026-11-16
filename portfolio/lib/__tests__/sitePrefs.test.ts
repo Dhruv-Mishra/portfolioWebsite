@@ -325,6 +325,22 @@ describe('look preferences', () => {
     expect(e.dataset).toMatchObject({ surface: 'paper', chalkboard: 'green', notes: 'cardboard', cards: 'cardboard', aging: 'light', about: 'board', timeline: 'mesh', decor: 'lots' });
   });
 
+  it.each([
+    ['dark by default', null, { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['slate-grain', 'chalk-smudge']],
+    ['a light canvas', 'light', { prefPaper: 'on', chalkboard: 'green', surface: 'canvas' }, ['canvas-weave']],
+    ['the flat slate', 'dark', { prefPaper: 'on', chalkboard: 'slate', surface: 'canvas' }, []],
+    ['paper grain off', null, { chalkboard: 'green', surface: 'canvas' }, []],
+  ])('preloads only the textures the visible surface paints: %s', async (_case, theme, dataset, textures) => {
+    const { TEXTURE_PRELOAD_SNIPPET } = await import('@/lib/lookPrefs');
+    const links: Array<Record<string, string>> = [];
+    const doc = { createElement: () => ({}), head: { append: (link: Record<string, string>) => links.push(link) } };
+    const local = { getItem: (key: string) => (key === 'theme' ? theme : null) };
+    new Function('e', 'document', 'localStorage', 'matchMedia', TEXTURE_PRELOAD_SNIPPET)({ dataset }, doc, local, () => ({ matches: true }));
+
+    expect(links.map((link) => link.href)).toEqual(textures.map((name) => `/resources/textures/${name}.webp`));
+    expect(links.every((link) => link.rel === 'preload' && link.as === 'image')).toBe(true);
+  });
+
   it('resets customization in one write and leaves the other settings alone', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify({
       ...stored, paperStock: 'kraft', tapeEffects: false, pageFlipEnabled: true, stickerToastsEnabled: true, readingFont: 'clean',

@@ -3,7 +3,8 @@
 /**
  * useTerminalPlaceholder — types and erases terminal command hints into a `<span>` while the input is empty.
  * Marks the span's parent with `data-typing` so the block cursor stays solid while characters stream and
- * blinks during pauses. Under reduced motion it shows one static hint.
+ * blinks during pauses. It holds still while the terminal is off screen, and under reduced motion it shows one
+ * static hint.
  */
 
 import { useEffect, useRef } from 'react';
@@ -33,6 +34,23 @@ export function useTerminalPlaceholder(isActive: boolean) {
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Off screen the typing waits where it is: each character is a layout and a paint nobody sees.
+    let visible = true;
+    let parked: (() => void) | null = null;
+    const schedule = (next: () => void, ms: number) => {
+      timer = setTimeout(() => {
+        if (visible) next();
+        else parked = next;
+      }, ms);
+    };
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? true;
+      if (!visible || !parked) return;
+      const next = parked;
+      parked = null;
+      next();
+    });
+    observer?.observe(el);
     const setTyping = (typing: boolean) => {
       if (el.parentElement) el.parentElement.dataset.typing = String(typing);
     };
@@ -41,19 +59,19 @@ export function useTerminalPlaceholder(isActive: boolean) {
     const step = (text: string, length: number, erasing: boolean) => {
       el.textContent = text.slice(0, length);
       if (!erasing && length < text.length) {
-        timer = setTimeout(() => step(text, length + 1, false), TIMING_TOKENS.placeholderTypeSpeed);
+        schedule(() => step(text, length + 1, false), TIMING_TOKENS.placeholderTypeSpeed);
       } else if (!erasing) {
         setTyping(false);
-        timer = setTimeout(() => {
+        schedule(() => {
           setTyping(true);
           step(text, length - 1, true);
         }, TIMING_TOKENS.pauseExtra);
       } else if (length > 0) {
-        timer = setTimeout(() => step(text, length - 1, true), TIMING_TOKENS.placeholderEraseSpeed);
+        schedule(() => step(text, length - 1, true), TIMING_TOKENS.placeholderEraseSpeed);
       } else {
         setTyping(false);
         idxRef.current += 1;
-        timer = setTimeout(cycle, TIMING_TOKENS.pauseShort);
+        schedule(cycle, TIMING_TOKENS.pauseShort);
       }
     };
     const cycle = () => {
@@ -61,9 +79,10 @@ export function useTerminalPlaceholder(isActive: boolean) {
       step(PHRASES[idxRef.current % PHRASES.length], 1, false);
     };
 
-    timer = setTimeout(cycle, TIMING_TOKENS.initialDelay);
+    schedule(cycle, TIMING_TOKENS.initialDelay);
     return () => {
       clearTimeout(timer);
+      observer?.disconnect();
       setTyping(false);
     };
   }, [isActive, reducedMotion]);

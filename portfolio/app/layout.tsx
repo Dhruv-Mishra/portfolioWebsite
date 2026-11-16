@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { preload } from "react-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import localFont from "next/font/local";
 import SketchbookLayout from "@/components/SketchbookLayout";
@@ -10,7 +11,7 @@ import { Analytics } from "@/components/Analytics";
 import DeferredEnhancements from "@/components/DeferredEnhancements";
 import EagerEnhancements from "@/components/EagerEnhancements";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
-import { LOOK_BOOT_SNIPPET, TEXTURE_PRELOAD_SNIPPET } from "@/lib/lookPrefs";
+import { DEFAULT_SURFACE_TEXTURES, LOOK_BOOT_SNIPPET, TEXTURE_PRELOAD_SNIPPET } from "@/lib/lookPrefs";
 import { OG_IMAGE, SITE_DESCRIPTION } from "@/lib/pageMetadata";
 import "./globals.css";
 import "./look.css";
@@ -147,6 +148,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  for (const name of DEFAULT_SURFACE_TEXTURES) preload(`/resources/textures/${name}.webp`, { as: "image", fetchPriority: "high" });
   return (
     <html lang="en" className={`${patrickHand.variable} ${firaCode.variable} ${atkinson.variable}`} suppressHydrationWarning>
       <head>

@@ -71,6 +71,10 @@ function useCardFlight(slug: string) {
     if (!sheet || sheet.dataset.opened !== undefined) return;
     sheet.dataset.opened = '';
     const card = enabled ? visibleCard(slug) : null;
+    // Tape peeled for a card this sheet does not fly from (another card was picked, or it scrolled away) goes back on.
+    for (const tape of document.querySelectorAll<HTMLElement>('[data-project-card] [data-fastener][data-off]')) {
+      if (!card?.contains(tape)) reset(tape);
+    }
     if (!card) return;
     flownRef.current = card;
     if (noteFlight === 'pin') void release(shownFastener(card));

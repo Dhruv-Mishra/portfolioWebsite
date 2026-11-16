@@ -31,7 +31,9 @@ export function useFlyout() {
   const slots = useRef(new Map<string, HTMLElement>());
   const { noteFlight } = useSitePrefs();
   const reducedMotion = useEffectiveReducedMotion();
-  const mode = reducedMotion ? 'fade' : noteFlight;
+  const preferred = reducedMotion ? 'fade' : noteFlight;
+  // A note closes the way it opened, even if the preference changes while it is out.
+  const [mode, setMode] = useState(preferred);
   const { closePanel, openPanel, tap } = useAppHaptics();
 
   const slotRef = useCallback((id: string) => (node: HTMLElement | null) => {
@@ -43,10 +45,11 @@ export function useFlyout() {
     if (phaseRef.current !== 'idle') return;
     phaseRef.current = 'releasing';
     tap();
-    if (mode === 'pin') await release(shownFastener(slots.current.get(id)));
+    setMode(preferred);
+    if (preferred === 'pin') await release(shownFastener(slots.current.get(id)));
     phaseRef.current = 'opening';
     setOpenId(id);
-  }, [mode, tap]);
+  }, [preferred, tap]);
 
   // The sheet is rendered by now; show it in the top layer and fly it out of its note.
   useLayoutEffect(() => {
@@ -90,9 +93,9 @@ export function useFlyout() {
       const flight = fly({ sheet, face: note, from: boxOf(note, rotationOf(note, 0)), content: [content], back: true });
       await flight.finished;
       dialog.close();
-      delete note.dataset.away;
       flight.cleanup();
     }
+    delete note.dataset.away;
     slot.querySelector<HTMLElement>('[data-flyout-open]')?.focus({ preventScroll: true });
     setOpenId(null);
     const fastener = shownFastener(slot);

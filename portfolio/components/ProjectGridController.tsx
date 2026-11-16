@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useR
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useAppHaptics } from '@/lib/haptics';
-import { release, shownFastener } from '@/lib/fasteners';
+import { release, reset, shownFastener } from '@/lib/fasteners';
 import { isProjectSlug, type ProjectSlug } from '@/lib/projectSlugs';
 import { useEffectiveReducedMotion } from '@/hooks/useEffectiveReducedMotion';
 import { useSitePrefs } from '@/hooks/useSitePrefs';
@@ -43,6 +43,8 @@ function ProjectRoute() {
   // Set while the open note sits on a history entry this page pushed, so closing pops it instead of stacking.
   const pushedRef = useRef(false);
   const peelingRef = useRef(false);
+  const opensRef = useRef(0);
+  const mountedRef = useRef(false);
 
   if (slug && !hasOpened) setHasOpened(true);
 
@@ -57,6 +59,7 @@ function ProjectRoute() {
   }, [closePanel]);
 
   const show = useEffectEvent((next: ProjectSlug, fromClick: boolean) => {
+    opensRef.current += 1;
     // Gives the dialog an opener to return focus to: Safari does not focus clicked links, and voice opens have none.
     if (fromClick || (!slug && document.activeElement === document.body)) focusNote(next);
     if (slug) {
@@ -97,8 +100,14 @@ function ProjectRoute() {
     }
     if (peelingRef.current) return;
     peelingRef.current = true;
+    const opensBefore = opensRef.current;
     void release(tape).then(() => {
       peelingRef.current = false;
+      // Left the page, or voice opened another project mid-peel: put the tape back instead of opening this one.
+      if (!mountedRef.current || opensRef.current !== opensBefore) {
+        reset(tape);
+        return;
+      }
       show(next, true);
     });
   });
@@ -136,7 +145,9 @@ function ProjectRoute() {
     document.addEventListener('click', handleClick);
     window.addEventListener(OPEN_PROJECT_EVENT, handleOpen);
     window.addEventListener(CLOSE_PROJECT_EVENT, handleClose);
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       document.removeEventListener('pointerover', warm);
       document.removeEventListener('focusin', warm);
       document.removeEventListener('click', handleClick);

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { useAppHaptics } from "@/lib/haptics";
 import { useDiscoActive } from "@/hooks/useStickers";
-import { runThemeToggle } from "@/lib/themeToggleAction";
+import { prepareThemeSounds, runThemeToggle } from "@/lib/themeToggleAction";
 
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
@@ -43,6 +43,8 @@ export function ThemeToggle() {
         <button
             type="button"
             onClick={handleClick}
+            onPointerEnter={prepareThemeSounds}
+            onFocus={prepareThemeSounds}
             className="relative inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors group focus-ring"
             aria-label={ariaLabel}
             data-disco-bounce="1"

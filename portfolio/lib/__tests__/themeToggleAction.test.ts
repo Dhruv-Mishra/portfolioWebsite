@@ -9,7 +9,7 @@ vi.mock('@/hooks/useStickers', () => ({
   unlockSticker: vi.fn(),
 }));
 vi.mock('@/lib/soundManager', () => ({
-  soundManager: { play: vi.fn() },
+  soundManager: { play: vi.fn(), prepareSound: vi.fn(async () => true) },
 }));
 vi.mock('@/components/DiscoMediaLayer', () => ({
   default: () => null,
@@ -53,6 +53,9 @@ describe('runThemeToggle', () => {
     expect(setTheme).toHaveBeenCalledWith('dark');
     expect(unlockSticker).toHaveBeenCalledWith('theme-flipper');
     expect(soundManager.play).toHaveBeenCalledWith('theme-dark');
+    // The samples download only once someone switches theme, ready for the next switch.
+    expect(soundManager.prepareSound).toHaveBeenCalledWith('theme-dark');
+    expect(soundManager.prepareSound).toHaveBeenCalledWith('theme-light');
   });
 
   it('when discoActive=false and isDark=true, flips to light + plays theme-light sfx + emits theme-flipper', () => {

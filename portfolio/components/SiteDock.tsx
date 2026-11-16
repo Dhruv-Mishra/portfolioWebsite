@@ -11,7 +11,7 @@ import { useDiscoActive, useMasterVolume, useSoundsMuted, useStickerProgress } f
 import { DOCK_TOKENS, Z_INDEX } from '@/lib/designTokens';
 import { useAppHaptics } from '@/lib/haptics';
 import { commitUserMasterVolume } from '@/lib/soundManager';
-import { runThemeToggle } from '@/lib/themeToggleAction';
+import { prepareThemeSounds, runThemeToggle } from '@/lib/themeToggleAction';
 import { cn } from '@/lib/utils';
 
 const ROUND = "flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-[var(--c-grid)] bg-[var(--c-paper)]/85 text-[var(--c-ink-muted)] shadow-sticker transition-[color,transform] duration-[var(--dur-quick)] active:scale-95 focus-ring dark:border-gray-600";
@@ -124,7 +124,8 @@ export default function SiteDock({ onFeedbackClick }: { onFeedbackClick: () => v
         onToggle={(event) => {
           const isOpen = event.newState === 'open';
           setOpen(isOpen);
-          if (!isOpen) setVolumeOpen(false);
+          if (isOpen) prepareThemeSounds();
+          else setVolumeOpen(false);
         }}
         aria-label="Links and settings"
         className="site-drawer w-[min(15.5rem,calc(100vw-2rem))] rounded-3xl border-2 border-dashed border-[var(--c-grid)]/60 bg-[var(--c-paper)] p-2 text-[var(--c-ink)] shadow-md md:hidden"

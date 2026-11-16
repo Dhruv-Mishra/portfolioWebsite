@@ -803,6 +803,15 @@ describe('soundManager — warmup waves', () => {
     soundManager.primeOnGesture();
     expect(ctxCreationCount).toBe(1);
   });
+
+  it('primeOnGesture() opens nothing and downloads nothing while muted', async () => {
+    const { fetched } = installFetchSpy();
+    const { soundManager } = await loadSoundManager();
+    soundManager.setMuted(true);
+    soundManager.primeOnGesture();
+    expect(ctxCreationCount).toBe(0);
+    expect(fetched).toEqual([]);
+  });
 });
 
 // ─── Matrix loop — the new v6 superuser-gated loop ─────────────────────

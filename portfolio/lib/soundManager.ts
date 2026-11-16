@@ -1613,6 +1613,9 @@ export const soundManager: SoundManager = {
 
   primeOnGesture(): void {
     if (typeof window === 'undefined') return;
+    // Muted visitors never hear a cue, so they never open a context or download samples; the first play()
+    // after unmuting does both inside its own gesture.
+    if (muted) return;
     // First-time call: create the context + do the iOS Safari unlock dance
     // inside the caller's gesture tick.
     if (!state) {

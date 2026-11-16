@@ -103,12 +103,14 @@ const READING_FONT_OPTIONS = [
 /** Labels for every look choice, in display order; values come from LOOK_OPTIONS (first is the default). */
 const LOOK_CHOICES: ReadonlyArray<{ [K in LookKey]: { key: K; title: string; detail?: string; labels: Record<LookPrefs[K], string> } }[LookKey]> = [
   { key: 'surface', title: 'Page in light mode', labels: { paper: 'Drawing paper', canvas: 'Canvas', graph: 'Graph' } },
-  { key: 'chalkboard', title: 'Page in dark mode', labels: { black: 'Blackboard', green: 'Greenboard', slate: 'Slate' } },
-  { key: 'noteMaterial', title: 'Notes and cards', labels: { paper: 'Paper', cardboard: 'Cardboard', sticky: 'Sticky' } },
+  { key: 'chalkboard', title: 'Page in dark mode', labels: { green: 'Greenboard', black: 'Blackboard', slate: 'Slate' } },
+  { key: 'noteMaterial', title: 'Notes', labels: { paper: 'Paper', cardboard: 'Cardboard', sticky: 'Sticky' } },
+  { key: 'cardMaterial', title: 'Project cards', labels: { cardboard: 'Cardboard', notes: 'Same as notes' } },
   { key: 'tornEdges', title: 'Note edges', detail: 'Paper and cardboard only.', labels: { on: 'Torn', off: 'Clean' } },
   { key: 'aboutLayout', title: 'About page', labels: { board: 'Pin board', sheet: 'On the page' } },
   { key: 'pinboard', title: 'Pin board', labels: { cork: 'Cork', burlap: 'Burlap' } },
-  { key: 'noteFlight', title: 'Opening a note', labels: { pin: 'Pull the pin', zoom: 'Zoom', fade: 'Fade' } },
+  { key: 'timeline', title: 'Experience photos', labels: { wire: 'On a line', mesh: 'Wire mesh' } },
+  { key: 'noteFlight', title: 'Opening a note', detail: 'Pins pull out, tape peels and pegs open first.', labels: { pin: 'Unfasten', zoom: 'Zoom', fade: 'Fade' } },
   { key: 'decorations', title: 'Doodles and props', labels: { some: 'Some', lots: 'Lots', none: 'None' } },
   { key: 'aging', title: 'Wear and tear', labels: { light: 'Lived-in', worn: 'Well-worn', none: 'Brand new' } },
 ];

@@ -29,7 +29,6 @@
   --material-age: linear-gradient(transparent, transparent);
   --material-grain-size: 300px;
   --shadow-torn: drop-shadow(0 1px 1px rgb(0 0 0 / 0.14)) drop-shadow(0 6px 7px rgb(0 0 0 / 0.16));
-  --pin-shadow: 1px 3px 3px rgb(0 0 0 / 0.38), 4px 9px 7px -3px rgb(0 0 0 / 0.28);
 }
 
 .dark {
@@ -37,7 +36,6 @@
   --sheet-physical: #ebe7dc;
   --material-dim: linear-gradient(rgb(18 14 8 / 0.1), rgb(18 14 8 / 0.1));
   --shadow-torn: drop-shadow(0 1px 1px rgb(0 0 0 / 0.45)) drop-shadow(0 8px 9px rgb(0 0 0 / 0.45));
-  --pin-shadow: 1px 3px 3px rgb(0 0 0 / 0.6), 4px 10px 8px -3px rgb(0 0 0 / 0.5);
 }
 
 html.dark[data-paper-stock="blueprint"] { --note-physical: #dde8f6; }
@@ -146,22 +144,21 @@ html[data-pref-paper="on"].dark:not([data-chalkboard="slate"]):not([data-disco="
   inset: 0;
 }
 
+/* Lived-in, not dirty: one faint ring half off the page and warmth at the edges. Foxing is kept for well-worn. */
 html[data-aging="light"]:not(.dark) .page-surface::after {
   background:
-    var(--tex-coffee) left 46% bottom 4% / 9rem no-repeat,
-    var(--tex-foxing) left -120px bottom -140px / 640px no-repeat,
-    var(--tex-foxing) right -200px top -160px / 560px no-repeat,
-    radial-gradient(135% 115% at 50% 45%, transparent 62%, rgb(140 100 40 / 0.12));
+    var(--tex-coffee) right -3.5rem bottom -3rem / 10rem no-repeat,
+    radial-gradient(140% 120% at 50% 45%, transparent 66%, rgb(150 110 50 / 0.08));
+  opacity: 0.55;
 }
 
 html[data-aging="worn"]:not(.dark) .page-surface::after {
   background:
     var(--tex-coffee) left 46% bottom 4% / 10.5rem no-repeat,
     var(--tex-coffee) left 30% top 1% / 7.5rem no-repeat,
-    var(--tex-foxing) 0 0 / 900px,
     var(--tex-foxing) right -200px top -160px / 560px no-repeat,
     linear-gradient(101deg, transparent 49.55%, rgb(0 0 0 / 0.05) 49.8%, rgb(255 255 255 / 0.4) 50%, transparent 50.3%),
-    radial-gradient(130% 110% at 50% 45%, transparent 50%, rgb(140 100 40 / 0.22));
+    radial-gradient(130% 110% at 50% 45%, transparent 50%, rgb(140 100 40 / 0.2));
 }
 
 /* On the boards, wear is ghosted chalk and dust settling toward the ledge. */
@@ -180,11 +177,11 @@ html[data-aging="worn"].dark .page-surface::after {
 }
 
 @media (max-width: 767px) {
-  html[data-aging="light"]:not(.dark) .page-surface::after { background-size: 6rem, 420px, 380px, 100% 100%; }
-  html[data-aging="worn"]:not(.dark) .page-surface::after { background-size: 6.5rem, 5rem, 600px, 380px, 100% 100%, 100% 100%; }
+  html[data-aging="light"]:not(.dark) .page-surface::after { background-size: 7rem, 100% 100%; }
+  html[data-aging="worn"]:not(.dark) .page-surface::after { background-size: 6.5rem, 5rem, 380px, 100% 100%, 100% 100%; }
 }
 
-/* A coffee ring or tide mark dropped on a specific card. */
+/* A coffee ring dropped on a specific card; on light paper only once it is well-worn. */
 .stain {
   position: absolute;
   z-index: 1;
@@ -197,8 +194,7 @@ html[data-aging="worn"].dark .page-surface::after {
   mix-blend-mode: multiply;
   rotate: var(--stain-rotate, 0deg);
 }
-html:not([data-aging="none"]) .stain { display: block; }
-html[data-aging="light"] .stain[data-wear="worn"] { display: none; }
+html:is(.dark:not([data-aging="none"]), [data-aging="worn"]) .stain { display: block; }
 
 /* ── Note materials ────────────────────────────────────────────────────────── */
 
@@ -227,13 +223,19 @@ html:not([data-notes="sticky"]) :is(.note-material, .sheet-material) {
   background-blend-mode: normal, normal, soft-light, soft-light;
 }
 
-html[data-notes="cardboard"] .note-material {
+html[data-notes="cardboard"] .note-material,
+html[data-cards="cardboard"]:not([data-notes="sticky"]) :is(.project-card-paper, .project-sheet) {
   --material-tint: var(--cardboard-tint);
   --c-ink: var(--cardboard-ink);
   --c-heading: #170c03;
   background-image: var(--material-age), var(--material-dim), var(--material-light), var(--tex-cardboard);
   background-size: 100% 100%, 100% 100%, 100% 100%, 320px 320px;
   background-blend-mode: normal, normal, soft-light, normal;
+}
+
+/* A folded corner shows the underside of the same stock, a shade darker and lit along the crease. */
+html:not([data-notes="sticky"]) :is(.note-material, .sheet-material) {
+  --note-fold-underside: linear-gradient(315deg, color-mix(in srgb, var(--material-tint) 92%, #fff) 0 18%, color-mix(in srgb, var(--material-tint) 82%, #000));
 }
 
 /* Paper grain on surfaces that keep their own colour (taped buttons, tabs). */
@@ -245,6 +247,7 @@ html:not([data-notes="sticky"]) .paper-texture {
 
 /* Yellowing toward the edges, as paper does after a few months on a wall. A background layer, so each note keeps its shadow. */
 html[data-aging="light"] { --material-age: radial-gradient(135% 125% at 50% 45%, transparent 60%, rgb(150 105 30 / 0.16)); }
+html[data-aging="light"]:not(.dark) { --material-age: radial-gradient(140% 130% at 50% 45%, transparent 66%, rgb(150 105 30 / 0.09)); }
 html[data-aging="worn"] { --material-age: radial-gradient(125% 115% at 50% 45%, transparent 48%, rgb(140 95 25 / 0.28)); }
 
 /* Torn edges: an SVG strip masks the chosen side; the rest of the note stays solid. */
@@ -301,7 +304,7 @@ html.dark .decor[data-theme="paper"],
 html:not(.dark) .decor[data-theme="board"] { display: none; }
 
 /* Chalk is grainy: the stroke shows the board through it. */
-html.dark .decor:not([data-object]) > svg {
+html.dark .decor > svg {
   -webkit-mask: var(--tex-chalk) 0 0 / 96px;
   mask: var(--tex-chalk) 0 0 / 96px;
 }
@@ -311,7 +314,7 @@ html.dark .decor:not([data-object]) > svg {
   from { clip-path: inset(-10% 100% -10% -10%); }
   to { clip-path: inset(-10%); }
 }
-html.dark:not([data-reduced-motion]) .decor:not([data-object], [data-theme="paper"]) > svg {
+html.dark:not([data-reduced-motion]) .decor:not([data-theme="paper"]) > svg {
   animation: chalk-write 1.1s cubic-bezier(0.5, 0.1, 0.4, 1) calc(var(--d, 0) * 110ms + 300ms) backwards;
 }
 
@@ -368,27 +371,47 @@ html:not([data-reduced-motion]) .decor[data-drift] { animation: decor-drift 6.5s
   z-index: 3;
   width: 1.375rem;
   height: 1.375rem;
-  border-radius: 50%;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 34% 30%, rgb(255 255 255 / 0.9) 0 7%, rgb(255 255 255 / 0) 24%),
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pin) 82%, #fff) 0 34%, var(--pin) 52%, color-mix(in srgb, var(--pin) 55%, #000) 100%);
-  box-shadow: inset 0 -2px 3px rgb(0 0 0 / 0.25), var(--pin-shadow);
+}
+.pushpin > span { position: absolute; }
+
+/* Cast shadow, down and right of the head (the light comes from the top left). */
+.pin-shadow {
+  z-index: -2;
+  inset: 20% -18% -32% 24%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / .55), rgb(0 0 0 / .24) 55%, transparent);
 }
 
-/* The needle's shadow falling away from the head. */
-.pushpin::after {
+/* The steel needle shows only while the pin is out of the cork. */
+.pin-needle {
+  top: 50%;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 1.1rem;
+  border-radius: 0 0 1px 1px;
+  background: linear-gradient(90deg, #858a90, #f3f5f7 45%, #696e74);
+  transform-origin: 50% 0;
+  scale: 1 0;
+}
+
+/* A domed plastic head: rim shading, a sharp highlight, light glowing through the plastic, and its collar below. */
+.pin-head {
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 33% 27%, rgb(255 255 255 / .95) 0 6%, rgb(255 255 255 / .3) 14%, transparent 27%),
+    radial-gradient(circle at 66% 78%, color-mix(in srgb, var(--pin) 55%, #fff) 0, transparent 32%),
+    radial-gradient(circle at 44% 40%, color-mix(in srgb, var(--pin) 82%, #fff) 0 20%, var(--pin) 54%, color-mix(in srgb, var(--pin) 48%, #000) 100%);
+  box-shadow: inset 0 -1.5px 2px rgb(0 0 0 / .3), inset 0 1px 1px rgb(255 255 255 / .4);
+}
+.pin-head::before {
   content: "";
   position: absolute;
   z-index: -1;
-  top: 62%;
-  left: 58%;
-  width: 0.75rem;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, rgb(0 0 0 / 0.4), transparent);
-  transform-origin: 0 50%;
-  rotate: 38deg;
+  inset: 30% 16% -16% 32%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pin) 72%, #000), color-mix(in srgb, var(--pin) 38%, #000));
 }
 
 .pushpin[data-color="amber"] { --pin: var(--color-pin-amber); }

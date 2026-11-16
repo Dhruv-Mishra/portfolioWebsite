@@ -88,10 +88,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fdfbf7' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1a1a' },
-  ],
+  // The site opens on the green chalkboard whatever the OS theme, so the browser chrome matches the board.
+  themeColor: '#213a30',
 };
 
 export const metadata: Metadata = {
@@ -167,7 +165,7 @@ export default function RootLayout({
       <body className="antialiased">
         <Analytics />
         <ErrorBoundary>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
             <SketchbookLayout doodles={SKETCHBOOK_DOODLES}>
               <Navigation />
               <RouteScrollSurface>{children}</RouteScrollSurface>

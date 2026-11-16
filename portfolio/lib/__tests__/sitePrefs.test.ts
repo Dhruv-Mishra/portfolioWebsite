@@ -291,7 +291,7 @@ describe('site preference migration and facade', () => {
 
 describe('look preferences', () => {
   const stored = { surface: 'canvas', chalkboard: 'neon', noteMaterial: 'cardboard', aging: 42 };
-  const resolved = { surface: 'canvas', chalkboard: 'black', noteMaterial: 'cardboard', aging: 'light', aboutLayout: 'board' };
+  const resolved = { surface: 'canvas', chalkboard: 'green', noteMaterial: 'cardboard', cardMaterial: 'cardboard', aging: 'light', aboutLayout: 'board', timeline: 'wire' };
 
   it('falls back to the first option for missing or invalid stored values', async () => {
     storage.setItem(STORAGE_KEY, JSON.stringify(stored));
@@ -322,6 +322,6 @@ describe('look preferences', () => {
     const e = { dataset: {} as Record<string, string> };
     new Function('e', 'o', LOOK_BOOT_SNIPPET)(e, stored);
 
-    expect(e.dataset).toMatchObject({ surface: 'canvas', chalkboard: 'black', notes: 'cardboard', aging: 'light', about: 'board' });
+    expect(e.dataset).toMatchObject({ surface: 'canvas', chalkboard: 'green', notes: 'cardboard', cards: 'cardboard', aging: 'light', about: 'board', timeline: 'wire' });
   });
 });

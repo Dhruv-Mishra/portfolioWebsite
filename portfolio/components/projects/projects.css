@@ -66,8 +66,9 @@
 }
 .project-card:has(.project-card-link:focus-visible) { outline: 2px solid var(--c-focus); outline-offset: 5px; }
 .project-card:active { scale: .985; }
-/* Lifted off the wall while its expanded note is open. */
+/* Lifted off the wall while its expanded note is open; its tape stays behind, rolled up. */
 .project-card[data-away] { visibility: hidden; }
+.project-card[data-away] [data-fastener] { visibility: visible; }
 
 /* A torn bottom edge and a dog-eared corner do not mix; torn-bottom cards drop the fold. */
 html[data-torn="on"]:not([data-notes="sticky"]) .project-card:has(> [data-torn-edge="bottom"]) { --fold: 0px; }
@@ -90,6 +91,8 @@ html[data-torn="on"]:not([data-notes="sticky"]) .project-card:has(> [data-torn-e
   pointer-events: none;
 }
 .project-card::after { background: var(--note-fold-shadow); }
+/* Real paper on a board casts a dark shadow in either theme. */
+html:not([data-notes="sticky"]) .project-card::after { background: linear-gradient(135deg, transparent 50%, rgb(0 0 0 / .24) 50%); }
 .project-card-paper::after,
 .project-sheet::after {
   background: var(--note-fold-underside);

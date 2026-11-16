@@ -6,15 +6,19 @@
 export const LOOK_OPTIONS = {
   /** Light-theme page: real drawing paper, primed painting canvas, or flat graph paper. */
   surface: ['paper', 'canvas', 'graph'],
-  /** Dark-theme page: black slate chalkboard, green school chalkboard, or the flat dark sheet. */
-  chalkboard: ['black', 'green', 'slate'],
+  /** Dark-theme page: green school chalkboard, black slate chalkboard, or the flat dark sheet. */
+  chalkboard: ['green', 'black', 'slate'],
   /** Notes and cards: textured paper, kraft cardboard, or flat sticky notes that follow the theme. */
   noteMaterial: ['paper', 'cardboard', 'sticky'],
+  /** Project cards: kraft cardboard, or whatever the notes are made of. */
+  cardMaterial: ['cardboard', 'notes'],
   tornEdges: ['on', 'off'],
   /** About page: notes pinned on a board, or laid straight on the page. */
   aboutLayout: ['board', 'sheet'],
   pinboard: ['cork', 'burlap'],
-  /** Opening a pinned note: pull the pin and fly, fly without the pin, or a plain fade. */
+  /** Experience photos: pegged to a twine line, or clipped to a wire mesh. */
+  timeline: ['wire', 'mesh'],
+  /** Opening a note: unpin (or peel, or unclip) and fly, fly straight away, or a plain fade. */
   noteFlight: ['pin', 'zoom', 'fade'],
   decorations: ['some', 'lots', 'none'],
   aging: ['light', 'worn', 'none'],
@@ -28,9 +32,11 @@ export const LOOK_ATTRS: Record<LookKey, string> = {
   surface: 'surface',
   chalkboard: 'chalkboard',
   noteMaterial: 'notes',
+  cardMaterial: 'cards',
   tornEdges: 'torn',
   aboutLayout: 'about',
   pinboard: 'pinboard',
+  timeline: 'timeline',
   noteFlight: 'flight',
   decorations: 'decor',
   aging: 'aging',

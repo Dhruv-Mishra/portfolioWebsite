@@ -77,22 +77,8 @@ export const PIN_COLORS = {
   blue: '#4a8fe7',
 } as const;
 
-/** Desk props, origami and chalk drawings behind the page (components/SketchbookDoodles.tsx). */
-export const DECOR_PALETTE = {
-  crane: { light: '#f4a08c', mid: '#e5735c', dark: '#bf4f3b' },
-  boat: { light: '#b5d5ee', mid: '#7fadd6', dark: '#527fac' },
-  washi: { base: '#b9e0cf', dot: '#fdfdf8' },
-  steel: { light: '#f4f5f7', mid: '#a3a8b1', dark: '#6b7079' },
-  pencil: { light: '#f9d863', mid: '#f0bf2c', dark: '#d69e14', wood: '#ecd2a6', graphite: '#3b3b3b', eraser: '#f2a1a8' },
-  eraser: { body: '#fbfaf6', sleeve: '#5b8fd1', crumb: '#b9b4aa' },
-  yarn: { base: '#c95a52', light: '#ec9a8f', dark: '#963630' },
-  chalk: { white: '#f1f1ea', yellow: '#f4e7a1', pink: '#f6bccb', blue: '#b3daf3' },
-  wood: { base: '#8a5a33', light: '#b07a4f', dark: '#5a3920' },
-  felt: { base: '#3b3d42', fiber: '#7a7d85' },
-  magnet: '#e2574c',
-  paper: '#f7f3e8',
-  shadow: 'rgba(0, 0, 0, 0.16)',
-} as const;
+/** Chalk colours for the drawings on the board (components/SketchbookDoodles.tsx). */
+export const CHALK_COLORS = { white: '#f1f1ea', yellow: '#f4e7a1', pink: '#f6bccb', blue: '#b3daf3' } as const;
 
 /** Shared motion vocabulary. CSS mirrors: --ease-paper/-paper-in/-standard and --dur-* in app/globals.css. */
 export const MOTION = {

@@ -70,7 +70,7 @@ export default function Projects() {
                 data-disco-motion="wiggle"
                 aria-labelledby={`${id}-name`}
               >
-                <span aria-hidden="true" data-tape-strip className="project-card-tape" />
+                <span aria-hidden="true" data-tape-strip data-fastener="tape" className="project-card-tape" />
                 <div className="project-card-paper note-material" data-torn-edge={index % 2 ? 'bottom' : 'top'}>
                   <span aria-hidden="true" data-tilt-sheen />
                   {index === STAINED ? <span aria-hidden="true" className="stain project-card-stain" /> : null}

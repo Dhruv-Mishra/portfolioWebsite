@@ -61,6 +61,8 @@ function cloneFace(face: HTMLElement, from: Box, to: Box): HTMLElement {
     node.removeAttribute('data-project-slug');
     node.removeAttribute('data-away');
   }
+  // Pins and tape stay on the wall.
+  for (const fastener of clone.querySelectorAll('[data-fastener]')) fastener.remove();
   clone.inert = true;
   clone.setAttribute('aria-hidden', 'true');
   Object.assign(clone.style, {

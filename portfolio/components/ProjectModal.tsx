@@ -11,6 +11,7 @@ import { useSitePrefs } from '@/hooks/useSitePrefs';
 import { unlockSticker, useMasterVolume, useSoundsMuted } from '@/hooks/useStickers';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { Z_INDEX } from '@/lib/designTokens';
+import { release, reset, secure, shownFastener } from '@/lib/fasteners';
 import { boxOf, fly, rotationOf, type Flight } from '@/lib/flight';
 import { useAppHaptics } from '@/lib/haptics';
 import { getProjectVideoSources, type ProjectRecord } from '@/lib/projects';
@@ -45,7 +46,8 @@ const sheetContent = (sheet: HTMLElement) => [...sheet.querySelectorAll<HTMLElem
 
 /**
  * Flies the sheet out of its wall card on open and back into it on close; without a card it keeps the default
- * entrance. Only one flight runs at a time: closing mid-flight grounds the open flight before measuring, and a sheet
+ * entrance. The card's tape peels off as it leaves (unless the click already peeled it) and rolls back on once it
+ * lands. Only one flight runs at a time: closing mid-flight grounds the open flight before measuring, and a sheet
  * that comes back while it is still flying home (Back then Forward, voice) is grounded where it should be.
  */
 function useCardFlight(slug: string) {
@@ -71,6 +73,7 @@ function useCardFlight(slug: string) {
     const card = enabled ? visibleCard(slug) : null;
     if (!card) return;
     flownRef.current = card;
+    if (noteFlight === 'pin') void release(shownFastener(card));
     const flight = fly({ sheet, face: card, from: boxOf(card, rotationOf(card)), content: sheetContent(sheet) });
     flightRef.current = flight;
     card.dataset.away = '';
@@ -86,7 +89,10 @@ function useCardFlight(slug: string) {
     const sheet = sheetRef.current?.parentElement;
     const card = flownRef.current;
     const done = () => {
-      if (card) delete card.dataset.away;
+      if (card) {
+        delete card.dataset.away;
+        void secure(shownFastener(card), card);
+      }
       safeToRemove?.();
     };
     if (!sheet || !card?.isConnected || !visibleCard(slug)) {
@@ -103,7 +109,11 @@ function useCardFlight(slug: string) {
 
   const stayOpen = useEffectEvent(() => {
     ground();
-    if (flownRef.current) delete flownRef.current.dataset.away;
+    const card = flownRef.current;
+    if (card) {
+      delete card.dataset.away;
+      card.querySelectorAll<HTMLElement>('[data-fastener]').forEach(reset);
+    }
     flownRef.current = null;
   });
 
@@ -114,9 +124,18 @@ function useCardFlight(slug: string) {
     else if (returning) stayOpen();
   }, [isPresent]);
 
-  // A sheet swapped out while still open must not leave its card hidden.
-  useEffect(() => () => {
-    if (presentRef.current && flownRef.current) delete flownRef.current.dataset.away;
+  // A sheet swapped out while still open must not leave its card hidden or untaped. StrictMode replays this cleanup
+  // on a sheet that stays mounted, so only a sheet that really left the page lets go.
+  useEffect(() => {
+    const article = sheetRef.current;
+    return () => {
+      window.requestAnimationFrame(() => {
+        const card = flownRef.current;
+        if (article?.isConnected || !presentRef.current || !card) return;
+        delete card.dataset.away;
+        card.querySelectorAll<HTMLElement>('[data-fastener]').forEach(reset);
+      });
+    };
   }, []);
 
   return sheetRef;

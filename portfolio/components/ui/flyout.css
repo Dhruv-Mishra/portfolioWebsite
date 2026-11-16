@@ -1,0 +1,54 @@
+/* The open note: a reading sheet in the top layer (components/ui/Flyout.tsx). Each wall styles its own sheet. */
+.flyout {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+  border: 0;
+  background: transparent;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.flyout[open] { display: grid; place-items: center; }
+.flyout::backdrop { background: rgb(18 12 4 / .5); animation: flyout-backdrop-in var(--dur-enter) var(--ease-paper) both; }
+.flyout[data-state="closing"]::backdrop { animation: flyout-backdrop-out 440ms var(--ease-standard) both; }
+@keyframes flyout-backdrop-in { from { opacity: 0; } }
+@keyframes flyout-backdrop-out { to { opacity: 0; } }
+
+.flyout-sheet {
+  position: relative;
+  width: min(38rem, 100%);
+  box-shadow: 0 34px 60px -22px rgb(0 0 0 / .6), 0 4px 10px rgb(0 0 0 / .2);
+}
+.flyout[data-state="closing"] .flyout-sheet { box-shadow: 0 6px 12px -4px rgb(0 0 0 / .3); transition: box-shadow 440ms var(--ease-standard); }
+
+.flyout-close {
+  position: absolute;
+  z-index: 4;
+  top: .625rem;
+  right: .625rem;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--c-ink);
+  background: color-mix(in srgb, var(--material-tint, var(--c-paper)) 85%, transparent);
+  box-shadow: var(--shadow-sticker);
+  transition: rotate var(--dur-quick) var(--ease-paper);
+}
+.flyout-close:hover { rotate: 90deg; }
+.flyout-close svg { width: 1.25rem; height: 1.25rem; }
+
+/* Plain fade for reduced motion and the "Fade" choice. */
+.flyout[data-mode="fade"] .flyout-sheet { animation: flyout-fade var(--dur-panel) var(--ease-paper) both; }
+.flyout[data-mode="fade"][data-state="closing"] .flyout-sheet { animation: flyout-fade-out 160ms var(--ease-paper-in) both; }
+@keyframes flyout-fade { from { opacity: 0; scale: .97; } }
+@keyframes flyout-fade-out { to { opacity: 0; scale: .98; } }
+
+/* While a note is out, its place on the wall stays empty; its fastener stays behind. */
+[data-flyout-note][data-away] { visibility: hidden; }

@@ -1,4 +1,5 @@
-﻿import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
+﻿import { VALID_THEME_ACTIONS } from '@/lib/actions';
+import { NAVIGATION_TARGETS } from '@/lib/navigationPaths';
 import {
   APPROVED_LINK_KEYS,
   AUDIO_CATEGORY_VOLUME_KEYS,
@@ -42,11 +43,11 @@ type SiteToolDeclarationMap = {
 const SITE_TOOL_DECLARATION_MAP: SiteToolDeclarationMap = {
   navigate_to: {
     name: 'navigate_to',
-    description: 'Navigate to a site page.',
+    description: 'Navigate to a site page; /about#resume is the resume note.',
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', enum: [...VALID_NAVIGATION_PATHS] },
+        path: { type: 'string', enum: [...NAVIGATION_TARGETS] },
       },
       required: ['path'],
     },

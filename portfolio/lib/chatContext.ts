@@ -34,9 +34,9 @@ const CONTEXTUAL_FALLBACK_DEFS: ContextualFallback[] = [
   {
     keywords: ['resume', 'cv', 'experience', 'education', 'skills', 'background', 'hire', 'hiring'],
     messages: [
-      "A little foggy right now, but quick version: Software Engineer at Microsoft building AI agents and Azure backend services, Microsoft Hackathon winner, IIIT Delhi 8.96 GPA. Resume page has the rest!",
-      "Bit scattered, sorry. I'm at Microsoft building incident-triage AI agents and backend services that handle 7B+ requests a day. The resume page has the details ~",
-      "Brain glitch there. IIIT Delhi CS & Applied Math grad, Codeforces Expert (max 1703), Code Jam Global Rank 291, currently at Microsoft — resume page has it all!",
+      "A little foggy right now, but quick version: Software Engineer at Microsoft building AI agents and Azure backend services, Microsoft Hackathon winner, IIIT Delhi 8.96 GPA. My resume is on the About page!",
+      "Bit scattered, sorry. I'm at Microsoft building incident-triage AI agents and backend services that handle 7B+ requests a day. Grab the resume PDF from the About page ~",
+      "Brain glitch there. IIIT Delhi CS & Applied Math grad, Codeforces Expert (max 1703), Code Jam Global Rank 291, currently at Microsoft — my resume on the About page has it all!",
     ],
   },
   {

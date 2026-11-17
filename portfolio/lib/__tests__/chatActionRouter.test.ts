@@ -146,7 +146,7 @@ describe('resolveChatIntent — navigation intents', () => {
     check('take me to the projects page', { kind: 'action', navigateTo: '/projects' });
     check('go to the about page', { kind: 'action', navigateTo: '/about' });
     check('open the experience timeline', { kind: 'action', navigateTo: '/about' });
-    check('navigate to the resume page', { kind: 'action', navigateTo: '/resume' });
+    check('navigate to the resume page', { kind: 'action', navigateTo: '/about#resume' });
     check('bring me to the home page', { kind: 'action', navigateTo: '/' });
     check('open the home page', { kind: 'action', navigateTo: '/' });
     check('open the guestbook', { kind: 'action', navigateTo: '/guestbook' });
@@ -160,7 +160,9 @@ describe('resolveChatIntent — navigation intents', () => {
     check('back to home', { kind: 'action', navigateTo: '/' });
     check('projects page', { kind: 'action', navigateTo: '/projects' });
     check('about page', { kind: 'action', navigateTo: '/about' });
-    check('resume page', { kind: 'action', navigateTo: '/resume' });
+    check('resume page', { kind: 'action', navigateTo: '/about#resume' });
+    check('open my cv', { kind: 'action', navigateTo: '/about#resume' });
+    check('Open your resume', { kind: 'action', navigateTo: '/about#resume' });
   });
 
   it('does NOT trigger on unrelated phrasing', () => {

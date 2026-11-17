@@ -1,6 +1,7 @@
-import { getActionFallbackReply, resolveExactActionLabel as resolveExactActionExecution, type ActionExecution, VALID_NAVIGATION_PATHS } from '@/lib/actions';
+import { getActionFallbackReply, resolveExactActionLabel as resolveExactActionExecution, type ActionExecution } from '@/lib/actions';
 import { getFactBySlug } from '@/lib/factRetrieval.server';
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import { RESUME_NOTE_PATH, type NavigationTarget } from '@/lib/navigationPaths';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 
 interface ActionResolution {
@@ -59,11 +60,11 @@ const ACTION_CHAIN_SEPARATOR_PATTERN = /\s*(?:,\s*(?:then\s*)?|\b(?:and then|the
 const MAX_CHAIN_EFFECTS = 3;
 const MAX_CHAIN_URLS = 2;
 
-const ROUTE_ALIASES: Array<{ path: (typeof VALID_NAVIGATION_PATHS)[number]; pattern: RegExp }> = [
+const ROUTE_ALIASES: Array<{ path: NavigationTarget; pattern: RegExp }> = [
   { path: '/', pattern: /\b(home|homepage|main page|start page|landing page)\b/i },
   { path: '/about', pattern: /\b(about|about page|about you|experience timeline|career timeline|work timeline)\b/i },
   { path: '/projects', pattern: /\b(projects|projects page|portfolio page|work page|your portfolio)\b/i },
-  { path: '/resume', pattern: /\b(resume|cv|resume page)\b/i },
+  { path: RESUME_NOTE_PATH, pattern: /\b(resume|cv)\b/i },
   { path: '/chat', pattern: /\b(chat|chat page|notes|note page)\b/i },
   { path: '/guestbook', pattern: /\b(guestbook|guest book)\b/i },
   { path: '/stickers', pattern: /\b(stickers?|sticker collection)\b/i },

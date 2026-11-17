@@ -19,5 +19,6 @@ Gray-50 maps are single-channel images with a mean of 128. Value 128 is neutral 
 | `coffee-ring-2.webp` | 384² RGBA coffee-cup ring stain (#7a4a1e, alpha ≤ 150) | Procedural (seed 30) | CC0 1.0 | 7478 | `normal` |
 | `foxing-2.webp` | 512² seamless RGBA age spots and tide-line stains (alpha ≤ 60) | Procedural (seed 40) | CC0 1.0 | 12518 | `normal` |
 | `torn-{top,bottom,left,right}.svg` | Repeating 240×16 / 16×240 torn-edge masks; black = kept paper | Procedural (seeds 50–53) | CC0 1.0 | 1805–1860 each | `mask-image` (repeat along edge) |
+| `torn-frame-{1,2,3}.svg`, `torn-rim-{1,2,3}.svg` | 240² nine-slice masks for a sheet torn on all four sides (slice 16, each side repeats with its edge slice) and the band of pale fibres inside each tear | Procedural (seeds 61–63) | CC0 1.0 | 3179–3348 each | `mask-border` (`round`) |
 
 Regenerate the files from `portfolio/` with `python scripts/build-textures.py [--cache DIR] [--only NAMES]`. You can also set `TEXTURE_CACHE` to choose where downloaded sources are stored. The script needs numpy and Pillow with WebP support. The faint RGBA overlays use lossy alpha and the soft chalk smudge is stored at half size; both stay within 3/255 of the full-quality draw once composited. The grain and colour maps are already at WebP's floor for their quality, so AVIF or a lower quality would only add error.

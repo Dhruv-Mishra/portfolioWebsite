@@ -1,13 +1,14 @@
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MessageCircle, PenLine, type LucideIcon } from "lucide-react";
+import { FileText, MessageCircle, PenLine, type LucideIcon } from "lucide-react";
 import FeaturedProjects from "@/components/home/FeaturedProjects";
 import { NoteFace, type NoteTone } from "@/components/home/NoteFace";
 import HomeTerminalIsland from "@/components/HomeTerminalIsland";
 import { RoutePendingMarker } from "@/components/Navigation";
 import HomeVoiceNote from "@/components/voice/HomeVoiceNote";
 import { ABOUT_PHOTO } from "@/lib/assets";
+import { RESUME_PDF_URL } from "@/lib/siteVersion";
 import "@/components/home/home.css";
 
 const TEXT_LINK_CLASS = "inline-flex min-h-11 items-center font-hand text-xl text-indigo-700 underline decoration-wavy decoration-indigo-300 underline-offset-4 transition-colors duration-[var(--dur-micro)] hover:text-indigo-900 hover:decoration-indigo-500 focus-ring dark:text-indigo-300 dark:decoration-indigo-500/60 dark:hover:text-indigo-200";
@@ -48,6 +49,10 @@ export default function Home() {
         </div>
 
         <nav aria-label="Quick links" className="flex flex-wrap justify-center gap-x-5 gap-y-4 pt-1 lg:justify-start">
+          <a href={RESUME_PDF_URL} target="_blank" rel="noopener noreferrer" data-hover-tilt data-disco-motion="wiggle" className="group relative inline-block focus-ring">
+            <NoteFace icon={FileText} label="Resume" tone="card" className="rotate-1" />
+            <span className="sr-only"> (PDF, opens in a new tab)</span>
+          </a>
           <NoteLink href="/chat" label="Chat" icon={MessageCircle} tone="yellow" tilt="-rotate-2" />
           <NoteLink href="/guestbook" label="Sign my sketchbook" icon={PenLine} tone="coral" tilt="rotate-2" />
         </nav>
@@ -74,17 +79,19 @@ export default function Home() {
         </h2>
         <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left">
           <div data-hover-tilt className="-rotate-3 shrink-0 bg-[var(--c-polaroid)] p-1.5 pb-5 shadow-polaroid">
-            <Image
-              src={ABOUT_PHOTO.src}
-              alt={ABOUT_PHOTO.alt}
-              width={128}
-              height={128}
-              unoptimized
-              loading="lazy"
-              placeholder="blur"
-              blurDataURL={ABOUT_PHOTO.blurDataURL}
-              className="size-28 object-cover sepia-[.2] md:size-32"
-            />
+            <span className="print-gloss block">
+              <Image
+                src={ABOUT_PHOTO.src}
+                alt={ABOUT_PHOTO.alt}
+                width={128}
+                height={128}
+                unoptimized
+                loading="lazy"
+                placeholder="blur"
+                blurDataURL={ABOUT_PHOTO.blurDataURL}
+                className="size-28 object-cover sepia-[.2] md:size-32"
+              />
+            </span>
           </div>
           <div className="min-w-0">
             <p className="max-w-[36ch] font-body text-[length:var(--t-body-md)] leading-[var(--lh-body)] text-[var(--c-ink)]">

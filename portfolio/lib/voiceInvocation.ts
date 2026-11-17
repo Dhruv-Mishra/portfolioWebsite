@@ -14,7 +14,6 @@ export const VOICE_INVOCATION_SOURCES = [
 export type VoiceInvocationSource = (typeof VOICE_INVOCATION_SOURCES)[number];
 
 export const VOICE_INVOCATION_TOPICS = [
-  'resume',
   'projects',
   'about',
   'guestbook',
@@ -58,7 +57,6 @@ export function normalizeRoute(path: string): NavigationPath | undefined {
 export function topicFromPath(path: string | null | undefined): VoiceInvocationTopic {
   const route = path ? normalizeRoute(path) : undefined;
   if (route === '/') return 'home';
-  if (route === '/resume') return 'resume';
   if (route === '/projects') return 'projects';
   if (route === '/about') return 'about';
   if (route === '/guestbook') return 'guestbook';

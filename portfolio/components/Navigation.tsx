@@ -129,8 +129,9 @@ const NavTab = React.memo(function NavTab({
             <div
                 onMouseEnter={() => onHoverStart(item.name)}
                 onMouseLeave={onHoverEnd}
+                data-color={colorKey}
                 className={cn(
-                    `paper-texture animate-nav-tab animate-nav-tab-${index + 1}`,
+                    `nav-tab paper-texture animate-nav-tab animate-nav-tab-${index + 1}`,
                     // cubic-bezier overshoot: GPU-composited, zero jitter, springy feel
                     "cursor-pointer transition-transform duration-300 ease-[cubic-bezier(0.22,1.8,0.50,1)]",
                     "pt-[var(--c-nav-tab-pt)] md:pt-[var(--c-nav-tab-pt-md)] pb-[var(--c-nav-tab-py)] md:pb-[var(--c-nav-tab-py-md)] px-[var(--c-nav-tab-px)] md:px-[var(--c-nav-tab-px-md)] rounded-b-lg shadow-md border-x-2 border-b-2 font-hand font-bold text-[length:var(--t-nav)] leading-[1.25rem] md:text-[length:var(--t-nav-md)] md:leading-[1.75rem] tracking-wide relative",

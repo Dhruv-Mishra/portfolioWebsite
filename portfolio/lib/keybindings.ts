@@ -9,6 +9,8 @@
  * means press `g` then `p` within the chord window).
  */
 
+import { RESUME_NOTE_PATH } from '@/lib/navigationPaths';
+
 /** Grouping sections shown in the Shortcuts Overlay */
 export type KeybindingGroup = 'Navigate' | 'Actions' | 'Dismiss';
 
@@ -47,7 +49,7 @@ export const CHORD_ROUTE_MAP: Readonly<Record<string, string>> = {
   h: '/',
   p: '/projects',
   a: '/about',
-  r: '/about',
+  r: RESUME_NOTE_PATH,
   c: '/chat',
   b: '/guestbook',
   s: '/stickers',

@@ -101,7 +101,7 @@ export const HARNESS_CASES: HarnessCase[] = [
     expect: { calls: [{ name: 'get_recent_user_context', args: { include: sections('preferences') } }] },
     check: { includesAny: ['35'], excludes: [/70|80/] } },
   { id: 'harness-recent-journey', category: 'state', messages: [user('what did I do most recently on the site?')],
-    context: { recentActions: ['route.view /resume', 'route.view /projects', 'project.open cropio'] },
+    context: { recentActions: ['route.view /about', 'route.view /projects', 'project.open cropio'] },
     expect: { calls: [{ name: 'get_recent_user_context', args: { include: sections('history') } }] },
     check: { includesAny: ['Cropio'] } },
   { id: 'harness-combined-state', category: 'state', messages: [user('Which project is open, what text have I selected, and is its video paused? Just report the current state.')],
@@ -139,7 +139,7 @@ Best, Jordan
 export const TOOL_CASES: ToolCase[] = [
   // Direct requests.
   { id: 'direct-dark', category: 'direct', messages: [user('switch to dark mode please')], expect: { calls: [{ name: 'set_theme', args: { action: 'dark' } }] } },
-  { id: 'direct-resume-page', category: 'direct', messages: [user('take me to your resume page')], expect: { calls: [{ name: 'navigate_to', args: { path: '/resume' } }] } },
+  { id: 'direct-resume-page', category: 'direct', messages: [user('take me to your resume page')], expect: { calls: [{ name: 'navigate_to', args: { path: '/about#resume' } }] } },
   { id: 'direct-github', category: 'direct', messages: [user('open your github')], expect: { calls: [{ name: 'open_link', args: { key: 'github' } }] } },
   { id: 'direct-volume', category: 'direct', messages: [user('turn the volume down to 20 percent')], expect: { calls: [{ name: 'set_master_volume', args: { percent: 20 } }] } },
   { id: 'direct-cropio', category: 'direct', messages: [user('show me cropio')], expect: { calls: [{ name: 'open_project', args: { slug: 'cropio' } }], allowExtra: ['navigate_to'] } },
@@ -244,7 +244,7 @@ export const HOLDOUT_CASES: ToolCase[] = [
   ] } },
   { id: 'ho-cv-pdf', category: 'indirect', messages: [user('can I get a copy of your CV as a PDF?')], expect: { anyOf: [
     { calls: [{ name: 'open_link', args: { key: 'resume' } }] },
-    { calls: [{ name: 'navigate_to', args: { path: '/resume' } }] },
+    { calls: [{ name: 'navigate_to', args: { path: '/about#resume' } }] },
   ] } },
   { id: 'ho-headshots', category: 'indirect', messages: [user('show me the one that turns selfies into professional headshots')], expect: { calls: [{ name: 'open_project', args: { slug: 'cropio' } }], allowExtra: ['navigate_to'] } },
   { id: 'ho-freight', category: 'indirect', messages: [user('open the freight dispatch voice thing')], expect: { calls: [{ name: 'open_project', args: { slug: 'jarvis-voice-agent' } }], allowExtra: ['navigate_to'] } },
@@ -263,7 +263,7 @@ export const HOLDOUT_CASES: ToolCase[] = [
   { id: 'ho-flow-halve', category: 'flow', state: { volume: 80 }, messages: [user('volume 80'), ...did('set_master_volume', { percent: 80 }), bot('Volume is at 80 percent.'), user('too loud now, halve it')], expect: { calls: [{ name: 'set_master_volume', args: { percent: between(30, 50) } }] } },
   { id: 'ho-flow-game-one', category: 'flow', messages: [user('any games or databases?'), bot('Port Solace is my voxel city game and AtomVault is a banking database.'), user('open the game one')], expect: { calls: [{ name: 'open_project', args: { slug: 'port-solace' } }], allowExtra: ['navigate_to'] } },
   { id: 'ho-flow-pause', category: 'flow', state: { page: '/projects', openProject: 'cropio' }, messages: [user('stop the video for a sec')], expect: { calls: [{ name: 'control_project_video', args: { action: 'pause' } }] } },
-  { id: 'ho-multi-dark-resume', category: 'multi', messages: [user('switch to dark mode and show me your resume page')], expect: { calls: [{ name: 'set_theme', args: { action: 'dark' } }, { name: 'navigate_to', args: { path: '/resume' } }] } },
+  { id: 'ho-multi-dark-resume', category: 'multi', messages: [user('switch to dark mode and show me your resume page')], expect: { calls: [{ name: 'set_theme', args: { action: 'dark' } }, { name: 'navigate_to', args: { path: '/about#resume' } }] } },
   { id: 'ho-multi-profiles', category: 'multi', messages: [user('open your github and codeforces profiles')], expect: { calls: [{ name: 'open_link', args: { key: 'github' } }, { name: 'open_link', args: { key: 'codeforces' } }] } },
 ];
 

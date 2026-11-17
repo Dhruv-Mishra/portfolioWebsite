@@ -108,11 +108,11 @@ describe('userActionJournal', () => {
     const freshTime = now - USER_ACTION_JOURNAL_MAX_AGE_MS + 10_000; // 29m 50s ago
 
     appendUserAction({ kind: 'route.view', route: '/about' }, oldTime);
-    appendUserAction({ kind: 'route.view', route: '/resume' }, freshTime);
+    appendUserAction({ kind: 'route.view', route: '/stickers' }, freshTime);
 
     const entries = readUserActionJournal(now);
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toEqual({ kind: 'route.view', route: '/resume', timestamp: freshTime });
+    expect(entries[0]).toEqual({ kind: 'route.view', route: '/stickers', timestamp: freshTime });
   });
 
   it('sanitizes and rejects malformed entries, sensitive commands, and arbitrary fields', () => {

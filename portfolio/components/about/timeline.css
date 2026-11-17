@@ -114,6 +114,20 @@
 }
 .pol-photo:has(.pol-open:focus-visible:not([data-quiet-focus])) .pol-frame { outline: 2px solid var(--c-focus); outline-offset: 4px; }
 
+/* Handled prints: a corner that was bent once and flattened again, a crease running across it. */
+.pol:nth-child(3n + 2) .pol-frame::after,
+.pol:nth-child(4n + 4) .pol-frame::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--crease-angle, -46deg), transparent 0 13%, rgb(0 0 0 / .07) 13.3%, rgb(255 255 255 / .4) 13.8%, transparent 14.6%),
+    radial-gradient(circle at var(--crease-corner, 100% 100%), rgb(0 0 0 / .07), transparent 24%);
+}
+.pol:nth-child(4n + 4) .pol-frame::after { --crease-angle: 136deg; --crease-corner: 0 0; }
+
 [data-category="work"] { --pol-a: #3a6ea3; --pol-b: #12263f; }
 [data-category="internship"] { --pol-a: #2e8a8f; --pol-b: #0f3437; }
 [data-category="research"] { --pol-a: #7558aa; --pol-b: #261a42; }

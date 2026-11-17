@@ -46,6 +46,7 @@ describe('signal detection', () => {
     expect(hasActionIntent('turn off disco mode')).toBe(true);
     expect(hasActionIntent('disco mode off')).toBe(true);
     expect(hasActionIntent('show me your resume')).toBe(true);
+    expect(hasActionIntent('can we hire you?')).toBe(true);
     expect(hasActionIntent('lights off please, too bright')).toBe(true);
     expect(hasActionIntent('can I see cropio')).toBe(true);
     expect(hasActionIntent('I want to sign the guestbook')).toBe(true);
@@ -169,7 +170,7 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     expect(Buffer.byteLength(prompt.conditional)).toBeLessThan(400);
     expect(prompt.conditional).toContain('already happened');
     expect(prompt.conditional).toContain("don't repeat them unless asked again");
-    expect(prompt.conditional).toContain('At most one useful, relevant project-opening offer');
+    expect(prompt.conditional).toContain('At most one useful, relevant project or resume offer');
     expect(prompt.conditional).toContain('none on greetings or off-topic turns');
   });
 

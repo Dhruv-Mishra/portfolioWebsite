@@ -70,8 +70,15 @@
 .project-card[data-away] { visibility: hidden; }
 .project-card[data-away] [data-fastener] { visibility: visible; }
 
-/* A torn bottom edge and a dog-eared corner do not mix; torn-bottom cards drop the fold. */
-html[data-torn="on"]:not([data-notes="sticky"]) .project-card:has(> [data-torn-edge="bottom"]) { --fold: 0px; }
+/* Torn cards and a dog-eared corner do not mix. */
+html[data-torn="on"]:not([data-notes="sticky"]) .project-card { --fold: 0px; }
+
+/* No two cards tore the same way: three tears, three depths, on cycles that do not line up. */
+.project-cards > li:nth-child(3n + 2) { --torn-frame: url("/resources/textures/torn-frame-2.svg"); --torn-rim: url("/resources/textures/torn-rim-2.svg"); }
+.project-cards > li:nth-child(3n) { --torn-frame: url("/resources/textures/torn-frame-3.svg"); --torn-rim: url("/resources/textures/torn-rim-3.svg"); }
+.project-cards > li:nth-child(4n + 2) { --torn-w: 14px; }
+.project-cards > li:nth-child(4n + 3) { --torn-w: 10px; }
+.project-cards > li:nth-child(4n) { --torn-w: 13px; }
 
 /* Corner fold: the clipped corner shows a shadow on the wall, the flap shows the paper's underside. */
 .project-card-paper,

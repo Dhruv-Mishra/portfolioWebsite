@@ -31,7 +31,11 @@ export default function FeaturedProjects({ className }: { className?: string }) 
           See all {PROJECTS.length} projects
         </Link>
       </div>
-      <FeaturedCarousel slides={SLIDES} />
+      {/* The slideshow is a stack of pages under the clip of a hardboard clipboard (home.css). */}
+      <div className="clipboard">
+        <span aria-hidden="true" className="clipboard-clip" />
+        <FeaturedCarousel slides={SLIDES} />
+      </div>
     </section>
   );
 }

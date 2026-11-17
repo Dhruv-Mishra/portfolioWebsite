@@ -5,7 +5,7 @@
  * changes and emits sticker events when the tour condition is met.
  *
  * Triggers:
- *   - 'page-turner': visited all 5 core routes (/, /projects, /about, /resume, /chat).
+ *   - 'page-turner': visited all 4 core routes (/, /projects, /about, /chat).
  *
  * Mounts via <VisitedPagesTrackerMount /> in EagerEnhancements.
  */

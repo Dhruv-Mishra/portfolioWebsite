@@ -1,6 +1,6 @@
 // lib/actions.ts — Chat action metadata and follow-up suggestions
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
-import { VALID_NAVIGATION_PATHS, type NavigationPath } from '@/lib/navigationPaths';
+import { NAVIGATION_TARGETS, RESUME_NOTE_PATH, type NavigationTarget } from '@/lib/navigationPaths';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   isSitePreferenceKey,
@@ -24,7 +24,6 @@ export interface GuestbookSubmitAction {
   name?: string;
 }
 
-export { VALID_NAVIGATION_PATHS };
 export const VALID_THEME_ACTIONS = ['dark', 'light', 'toggle', 'disco', 'disco-off'] as const;
 
 export type ThemeAction = (typeof VALID_THEME_ACTIONS)[number];
@@ -46,7 +45,7 @@ export interface ActionDef extends ActionExecution {
   label: string;
 }
 
-const NAVIGATION_PATH_SET = new Set<string>(VALID_NAVIGATION_PATHS);
+const NAVIGATION_TARGET_SET = new Set<string>(NAVIGATION_TARGETS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);
 const PROJECT_SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
 const ACTION_EXECUTION_KEYS = new Set([
@@ -65,11 +64,11 @@ export const DISCO_ACTION_LABEL = 'Engage disco mode';
 export const DISCO_EXIT_ACTION_LABEL = 'Exit disco mode';
 export const DISCO_EXPLAINER_LABEL = "What's disco mode?";
 
-const NAVIGATION_REPLIES: Record<NavigationPath, string> = {
+const NAVIGATION_REPLIES: Record<NavigationTarget, string> = {
   '/': 'Taking you back to the home page ~',
   '/about': 'Opening the about page ~',
   '/projects': 'Taking you to the projects page ~',
-  '/resume': 'Opening the resume page ~',
+  [RESUME_NOTE_PATH]: 'Opening my resume on the about page ~',
   '/chat': 'Bringing you back to the chat page ~',
   '/guestbook': 'Opening the guestbook ~',
   '/stickers': 'Opening the sticker collection ~',
@@ -133,8 +132,8 @@ export const ACTION_REGISTRY: ActionDef[] = [
     navigateTo: '/',
   },
   {
-    label: 'Open the resume page',
-    navigateTo: '/resume',
+    label: 'Open your resume',
+    navigateTo: RESUME_NOTE_PATH,
   },
   {
     label: 'Return to chat',
@@ -283,7 +282,7 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
   }
 
   if (candidate.navigateTo !== undefined &&
-    (typeof candidate.navigateTo !== 'string' || !NAVIGATION_PATH_SET.has(candidate.navigateTo))) {
+    (typeof candidate.navigateTo !== 'string' || !NAVIGATION_TARGET_SET.has(candidate.navigateTo))) {
     return false;
   }
 
@@ -417,8 +416,8 @@ export function getActionFallbackReply(action: ActionExecution | null | undefine
     return project?.response ?? 'Opening that project right here ~';
   }
 
-  if (action.navigateTo && NAVIGATION_PATH_SET.has(action.navigateTo)) {
-    return NAVIGATION_REPLIES[action.navigateTo as NavigationPath];
+  if (action.navigateTo && NAVIGATION_TARGET_SET.has(action.navigateTo)) {
+    return NAVIGATION_REPLIES[action.navigateTo as NavigationTarget];
   }
 
   if (action.themeAction && THEME_ACTION_SET.has(action.themeAction)) {

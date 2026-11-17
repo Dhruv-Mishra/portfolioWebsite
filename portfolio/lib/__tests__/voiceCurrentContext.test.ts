@@ -77,8 +77,8 @@ describe('get_recent_user_context', () => {
       muted: false,
       volume: 10,
     });
-    expect(parseVoiceClientSnapshot({ route: '/resume', openProject: 'cropio' })).toEqual({
-      route: '/resume',
+    expect(parseVoiceClientSnapshot({ route: '/about', openProject: 'cropio' })).toEqual({
+      route: '/about',
     });
   });
 
@@ -90,7 +90,7 @@ describe('get_recent_user_context', () => {
 
   it('reads the live browser location and recent actions from the executor', async () => {
     vi.stubGlobal('window', {
-      location: { pathname: '/resume/', search: '' },
+      location: { pathname: '/stickers/', search: '' },
       sessionStorage: {
         getItem: () => JSON.stringify([
           { kind: 'route.view', route: '/about', timestamp: Date.now() - 5000 },
@@ -111,7 +111,7 @@ describe('get_recent_user_context', () => {
       ok: true,
       data: {
         pageContext: {
-          route: '/resume',
+          route: '/stickers',
           openProject: null,
         },
         recentActions: [
@@ -129,7 +129,7 @@ describe('get_recent_user_context', () => {
       sessionStorage: {
         getItem: () => JSON.stringify([
           { kind: 'route.view', route: '/about', timestamp: Date.now() - 50_000 },
-          { kind: 'route.view', route: '/resume', timestamp: Date.now() - 40_000 },
+          { kind: 'route.view', route: '/guestbook', timestamp: Date.now() - 40_000 },
           { kind: 'terminal.run', command: 'about', timestamp: Date.now() - 30_000 },
           { kind: 'chat.sent', timestamp: Date.now() - 20_000 },
           { kind: 'project.open', slug: 'cropio', timestamp: Date.now() - 10_000 },
@@ -316,6 +316,16 @@ describe('get_recent_user_context', () => {
         },
       },
     });
+
+    await expect(executeSiteTool({
+      id: 'nav-resume',
+      name: 'navigate_to',
+      args: { path: '/about#resume' },
+    }, runtime as never)).resolves.toMatchObject({
+      ok: true,
+      data: { pageContext: { route: '/about', openProject: null } },
+    });
+    expect(runtime.router.push).toHaveBeenCalledWith('/about#resume');
 
     await expect(executeSiteTool({
       id: 'open-ctx',

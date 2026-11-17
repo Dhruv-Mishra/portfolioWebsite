@@ -31,7 +31,7 @@ import { REPLY_LENGTH_HINT, classifyReplyLength, isPureGreeting } from '@/lib/re
 // ── Prompt blocks ───────────────────────────────────────────────────
 
 const UI_ACTION_RULES = `- Answer questions, follow-ups and acknowledgements directly; don't re-narrate earlier actions.
-- At most one useful, relevant project-opening offer; none on greetings or off-topic turns.`;
+- At most one useful, relevant project or resume offer; none on greetings or off-topic turns.`;
 
 const UI_ACTION_BLOCK = `Interaction:
 - Only Recent verified UI actions happened. Any other requested action did not go through: say so and suggest a direct request. Never mention tools, JSON or action syntax.
@@ -109,7 +109,7 @@ const ACTION_INTENT_PATTERNS: readonly RegExp[] = [
   /\b(open|show|see|view|check out|pull up|bring up|take me|go to|go back|head|navigate|visit|switch|toggle|turn|make it|set|change|enable|disable|launch|play|start|stop|exit|mute|unmute|sign|report|send|call|talk|speak)\b/i,
   /\b(dark|light|lights|bright|theme|disco|colou?rs?|sounds?|audio|volume|haptics|voice|guestbook|stickers?|settings|feedback|bug|page|home|link|links|cv|contact)\b/i,
   /\b(loud|quiet|noise|noisy|clicks?|paper|grain|texture|animations?|motion)\b/i,
-  /\b(github|linkedin|codeforces|email|phone|resume|repo|repository)\b/i,
+  /\b(github|linkedin|codeforces|email|phone|resume|hire|hiring|repo|repository)\b/i,
   /^\W*(yes|yeah|yep|sure|ok|okay|please|do it|go ahead)\b/i,
   // Project-topic mentions also emit the UI block so the model knows it can
   // offer to open the relevant project modal.

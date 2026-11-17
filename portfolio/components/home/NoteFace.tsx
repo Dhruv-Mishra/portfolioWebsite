@@ -3,7 +3,7 @@ import { TapeStrip } from '@/components/ui/TapeStrip';
 import { GRADIENT_TOKENS } from '@/lib/designTokens';
 import { cn } from '@/lib/utils';
 
-export type NoteTone = 'blue' | 'yellow' | 'coral';
+export type NoteTone = 'blue' | 'yellow' | 'coral' | 'card';
 
 const TONES: Record<NoteTone, { paper: string; icon: string; label: string }> = {
   blue: {
@@ -20,6 +20,12 @@ const TONES: Record<NoteTone, { paper: string; icon: string; label: string }> = 
     paper: 'bg-paper-coral border-orange-300/50 dark:bg-paper-coral-dark dark:border-orange-400/30',
     icon: 'text-rose-500/80 dark:text-rose-300/80',
     label: 'text-gray-800 dark:text-gray-100',
+  },
+  /** A white index card, like the resume on the About board. */
+  card: {
+    paper: 'bg-[var(--c-polaroid)] border-stone-300/60',
+    icon: 'text-red-600/80',
+    label: 'text-gray-800',
   },
 };
 

@@ -1,6 +1,7 @@
 ﻿import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
-import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
+import { VALID_THEME_ACTIONS } from '@/lib/actions';
+import type { NavigationTarget } from '@/lib/navigationPaths';
 
 export const SITE_TOOL_NAMES = [
   'navigate_to',
@@ -174,7 +175,7 @@ export const APPROVED_LINKS: Record<ApprovedLinkKey, string> = {
 };
 
 export type SiteToolArgsMap = {
-  navigate_to: { path: (typeof VALID_NAVIGATION_PATHS)[number] };
+  navigate_to: { path: NavigationTarget };
   set_theme: { action: (typeof VALID_THEME_ACTIONS)[number] };
   open_project: { slug: ProjectSlug };
   close_project: Record<string, never>;

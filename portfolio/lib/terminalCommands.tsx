@@ -6,6 +6,7 @@ import { createNeofetchOutput } from "@/lib/terminalInitialOutput";
 import { TIMING_TOKENS } from '@/lib/designTokens';
 import { EXTERNAL_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { PERSONAL_LINKS } from '@/lib/links';
+import { RESUME_NOTE_PATH } from '@/lib/navigationPaths';
 import CheatsheetOutput from '@/components/CheatsheetOutput';
 import {
     isSuperuserEarnedSync,
@@ -309,12 +310,12 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         };
     },
     resume: () => ({
-        output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
+        output: "Opening the resume on the about page...",
+        action: () => { setTimeout(() => router.push(RESUME_NOTE_PATH), NAVIGATION_DELAY_MS); }
     }),
     cv: () => ({
-        output: "Navigating to resume page...",
-        action: () => { setTimeout(() => router.push('/about'), NAVIGATION_DELAY_MS); }
+        output: "Opening the resume on the about page...",
+        action: () => { setTimeout(() => router.push(RESUME_NOTE_PATH), NAVIGATION_DELAY_MS); }
     }),
     chat: () => ({
         output: "Navigating to chat...",
@@ -441,7 +442,7 @@ export const createCommandRegistry = (router: AppRouterInstance): Record<string,
         const file = args[0];
         if (!file) return { output: "Usage: open [filename]" };
         const openable: Record<string, { output: string; route: string }> = {
-            "resume.pdf": { output: "Opening resume...", route: "/about" },
+            "resume.pdf": { output: "Opening resume...", route: RESUME_NOTE_PATH },
             "projects.json": { output: "Opening projects...", route: "/projects" },
             "jarvis.md": { output: "Opening projects...", route: "/projects" },
             "cropio.md": { output: "Opening projects...", route: "/projects" },

@@ -146,7 +146,7 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hold('focus', false);
       }}
       data-disco-motion="wiggle"
-      className="sheet-material relative rotate-[-0.6deg] border border-[var(--c-ink-faint)]/40 p-3 shadow-sticker sm:p-4"
+      className="clipboard-sheet sheet-material relative p-3 pt-9 sm:p-4 sm:pt-10"
     >
       <div
         className="featured-track"
@@ -174,7 +174,7 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
               className="featured-slide relative grid gap-4 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] sm:items-center"
             >
               <div className="-rotate-2 bg-[var(--c-polaroid)] p-2 pb-0 shadow-polaroid">
-                <div className="relative aspect-video overflow-hidden bg-[var(--c-ink-faint)]/20">
+                <div className="print-gloss aspect-video overflow-hidden bg-[var(--c-ink-faint)]/20">
                   {showImage ? (
                     <Image
                       src={slide.image}

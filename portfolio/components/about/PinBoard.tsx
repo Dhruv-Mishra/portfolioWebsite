@@ -56,6 +56,29 @@ function useFittingNotes() {
   return { listRef, fitting };
 }
 
+/** The note a link points at (`/about#resume`), circled in marker. Client navigations change the hash without `:target`. */
+function useFlaggedNote(notes: readonly BoardNote[]) {
+  const [flagged, setFlagged] = useState<string | null>(null);
+
+  useEffect(() => {
+    const anchors = new Set(notes.flatMap((note) => (note.anchor ? [note.anchor] : [])));
+    const read = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      setFlagged(anchors.has(id) ? id : null);
+    };
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    read();
+    window.addEventListener('hashchange', read);
+    navigation?.addEventListener('currententrychange', read);
+    return () => {
+      window.removeEventListener('hashchange', read);
+      navigation?.removeEventListener('currententrychange', read);
+    };
+  }, [notes]);
+
+  return flagged;
+}
+
 /**
  * A cork board of notes. Opening one pulls its pin (or peels its tape, when the notes lie on the page) and flies
  * the note to the middle of the screen as a reading sheet; closing flies it back and fastens it again.
@@ -63,6 +86,7 @@ function useFittingNotes() {
 export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
   const { openId, open, close, onClose, slotRef, mode, dialogRef, sheetRef, contentRef } = useFlyout();
   const { listRef, fitting } = useFittingNotes();
+  const flagged = useFlaggedNote(notes);
   const openNote = notes.find((note) => note.id === openId) ?? null;
 
   return (
@@ -78,6 +102,7 @@ export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
               id={note.anchor}
               className="board-slot"
               data-note={note.id}
+              data-flagged={note.anchor && note.anchor === flagged ? '' : undefined}
               style={{ '--tilt': `${note.tilt}deg`, '--i': index } as CSSProperties}
             >
               <span aria-hidden="true" className="board-ghost" />

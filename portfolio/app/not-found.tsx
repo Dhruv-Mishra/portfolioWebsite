@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Home, FileQuestion } from 'lucide-react';
 import { TAPE_STYLE_DECOR } from '@/lib/constants';
 import { PROJECT_TOKENS } from '@/lib/designTokens';
+
+// A missing page is not the home page: its own title, and no canonical pointing search engines at `/`.
+export const metadata: Metadata = {
+  title: 'Page not found | Dhruv Mishra',
+  alternates: { canonical: null },
+};
 
 const FOLD_SIZE = PROJECT_TOKENS.foldSize;
 const CARD_CLIP_STYLE = {

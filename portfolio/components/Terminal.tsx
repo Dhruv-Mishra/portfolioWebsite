@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { useTerminal } from "@/context/TerminalContext";
-import { useAppHaptics } from "@/lib/haptics";
+import { lastInputWasKeyboard, useAppHaptics } from "@/lib/haptics";
 import { soundManager } from "@/lib/soundManager";
 import { unlockSticker } from "@/hooks/useStickers";
 import { appendUserAction, isPublicTerminalCommand } from "@/lib/userActionJournal";
@@ -104,7 +104,8 @@ export default function Terminal() {
 
     const [input, setInput] = useState("");
     const [historyIndex, setHistoryIndex] = useState(-1);
-    const [isInputFocused, setIsInputFocused] = useState(false);
+    // A click already shows where typing goes; only keyboard focus draws the ring.
+    const [inputFocus, setInputFocus] = useState<'keyboard' | 'pointer' | null>(null);
 
     // Inline prompt subscription. When non-null, the next Enter-press is
     // routed to the prompt's `onSubmit` instead of the command registry.
@@ -151,7 +152,7 @@ export default function Terminal() {
     // Stops automatically the moment the user types anything (overlay unmounts).
     // Also disabled while a prompt (password/username) is active so the
     // placeholder doesn't distract from the request being made.
-    const isPlaceholderActive = !input && !isInputFocused && activePrompt === null;
+    const isPlaceholderActive = !input && !inputFocus && activePrompt === null;
     const placeholderRef = useTerminalPlaceholder(isPlaceholderActive);
 
     const warmCommandRegistry = React.useCallback(() => {
@@ -376,7 +377,7 @@ export default function Terminal() {
     // viewport. Works for both iOS Safari and Android Chrome since scrollIntoView
     // walks all scrollable ancestors.
     const handleInputFocus = React.useCallback(() => {
-        setIsInputFocused(true);
+        setInputFocus(lastInputWasKeyboard() ? 'keyboard' : 'pointer');
         warmCommandRegistry();
         if (isDesktopViewport()) return;
         window.setTimeout(() => {
@@ -385,7 +386,7 @@ export default function Terminal() {
     }, [warmCommandRegistry]);
 
     const handleInputBlur = React.useCallback(() => {
-        setIsInputFocused(false);
+        setInputFocus(null);
     }, []);
 
     const handleKeyDownReal = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -458,7 +459,7 @@ export default function Terminal() {
                 <div className="relative">
                 <div
                     ref={scrollRef}
-                    className="@container p-4 md:p-6 h-[var(--c-terminal-h)] md:h-[var(--c-terminal-h-md)] overflow-y-auto font-code text-sm md:text-base scrollbar-hidden selection:bg-gray-600 selection:text-white focus-within:ring-2 focus-within:ring-inset focus-within:ring-emerald-400/45"
+                    className={`@container p-4 md:p-6 h-[var(--c-terminal-h)] md:h-[var(--c-terminal-h-md)] overflow-y-auto font-code text-[length:var(--t-terminal)] md:text-[length:var(--t-terminal-md)] scrollbar-hidden selection:bg-gray-600 selection:text-white ${inputFocus === 'keyboard' ? 'ring-2 ring-inset ring-emerald-400/45' : ''}`}
                     onClick={() => {
                         // Only auto-focus on click for desktop to prevent annoying keyboard popups on mobile scroll
                         if (isDesktopViewport()) {
@@ -524,7 +525,7 @@ export default function Terminal() {
                             {isPlaceholderActive && (
                                 <span
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre font-code text-base"
+                                    className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre font-code"
                                 >
                                     <span ref={placeholderRef} data-terminal-placeholder className="truncate text-gray-400" />
                                     <span className={`terminal-cursor ${TERMINAL_COLORS.cursor}`} />

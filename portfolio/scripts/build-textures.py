@@ -363,6 +363,70 @@ def torn_svg(seed, side):
             f'preserveAspectRatio="none"><path d="{path}"/>{dots}</svg>\n')
 
 
+def torn_frame_svgs(seed, n=240, band=16, step=2):
+    """A sheet torn on all four sides, as a nine-slice `mask-border` source (slice = band, black = kept paper), and
+    its rim: the band of pale fibres just inside each tear. Every side repeats with the edge slice, so `round` tiles
+    meet without a seam; the corners are wherever two tears cross."""
+    rng = np.random.default_rng(seed)
+    period = (n - 2 * band) // step
+    t = np.arange(period) / period
+
+    def wrap_noise(width):
+        k = np.exp(-np.linspace(-2, 2, width) ** 2)
+        x = np.real(np.fft.ifft(np.fft.fft(rng.standard_normal(period)) * np.fft.fft(k / k.sum(), period)))
+        return x / x.std()
+
+    def side():
+        base = sum(rng.normal(0, 1.0 if k < 4 else 0.5) * np.sin(2 * np.pi * k * t + rng.uniform(0, 7)) for k in (1, 2, 3, 4, 5, 7))
+        depth = np.clip(7.5 + base / np.abs(base).max() * 3.2 + wrap_noise(5) * 0.6 + rng.normal(0, 0.25, period), 2.5, 12.5)
+        rim = np.clip(depth + 2.5 + wrap_noise(9) * 1.1, depth + 0.9, band - 0.4)
+        fibres = set(rng.choice(period, 4, replace=False).tolist())
+        return depth, rim, fibres
+
+    def run(depth, fibres=()):
+        """(along, depth) points for one whole side, the period repeating out from the first edge tile."""
+        pts = []
+        for x in range(0, n + 1, step):
+            i = ((x - band) // step) % period
+            pts.append((x, depth[i]))
+            if i in fibres and x < n:
+                pts += [(x + 0.3, max(depth[i] - rng.uniform(1.4, 2.8), 0.4)), (x + 0.6, depth[i] - 0.2)]
+        return pts
+
+    def f(v):
+        s = f"{round(v, 1):g}"
+        if s == "-0":
+            return "0"
+        return s.replace("0.", ".", 1) if s.startswith(("0.", "-0.")) else s
+
+    def path(start, pts, end):
+        """Absolute start, relative steps along the tear, then back round the far side of the sheet."""
+        d = [f"M{f(start[0])},{f(start[1])}L{f(pts[0][0])},{f(pts[0][1])}l"]
+        d.append(" ".join(f"{f(b[0] - a[0])},{f(b[1] - a[1])}" for a, b in zip(pts, pts[1:])))
+        d.append(f"L{f(end[0])},{f(end[1])}Z")
+        return "".join(d)
+
+    def shape(depths):
+        top, bottom, left, right = (run(*d) for d in depths)
+        return (
+            path((0, n), top, (n, n)),
+            path((0, 0), [(x, n - v) for x, v in bottom], (n, 0)),
+            path((n, 0), [(v, y) for y, v in left], (n, n)),
+            path((0, 0), [(n - v, y) for y, v in right], (0, n)),
+        )
+
+    sides = [side() for _ in range(4)]
+    outer = shape([(d, fib) for d, _, fib in sides])
+    inner = shape([(r, ()) for _, r, _ in sides])
+    head = f'<svg xmlns="http://www.w3.org/2000/svg" width="{n}" height="{n}" viewBox="0 0 {n} {n}">'
+    clips = lambda p: "".join(f'<clipPath id="{c}"><path d="{d}"/></clipPath>' for c, d in zip("abc", p[:3]))
+    nest = lambda p: f'<g clip-path="url(#a)"><g clip-path="url(#b)"><path clip-path="url(#c)" d="{p[3]}"/></g></g>'
+    frame = f"{head}<defs>{clips(outer)}</defs>{nest(outer)}</svg>\n"
+    rim = (f'{head}<defs>{clips(inner)}<mask id="m"><rect width="{n}" height="{n}" fill="#fff"/>{nest(inner)}</mask></defs>'
+           f'<rect width="{n}" height="{n}" mask="url(#m)"/></svg>\n')
+    return frame, rim
+
+
 # ---------------------------------------------------------------- output
 def save(path, arr, budget, knob):
     """Encode as WebP, lowering `knob` (quality or alpha_quality) until it fits the byte budget; print stats."""
@@ -426,6 +490,13 @@ def main():
         p = args.out / f"torn-{side}.svg"
         p.write_text(torn_svg(50 + i, side), encoding="utf-8", newline="\n")
         print(f"{p.name:18} {p.stat().st_size:6} B")
+    for i in (1, 2, 3):
+        for kind, svg in zip(("frame", "rim"), torn_frame_svgs(60 + i)):
+            if only and f"torn-{kind}-{i}" not in only:
+                continue
+            p = args.out / f"torn-{kind}-{i}.svg"
+            p.write_text(svg, encoding="utf-8", newline="\n")
+            print(f"{p.name:18} {p.stat().st_size:6} B")
 
 
 if __name__ == "__main__":

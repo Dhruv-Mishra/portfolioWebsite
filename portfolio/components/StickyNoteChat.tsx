@@ -1170,7 +1170,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, hasMessag
                 data-chat-model-settings-link
                 className="chat-model focus-ring"
                 title={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}`}
-                aria-label={`Current AI model: ${modelDisplayName}. Change in Settings`}
+                aria-label={`${modelDisplayName} · ${supportsImages ? 'Vision' : 'Text'}: current AI model, change it in Settings`}
               >
                 <span>{modelDisplayName} · {supportsImages ? 'Vision' : 'Text'}</span>
               </Link>

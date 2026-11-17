@@ -21,7 +21,7 @@ const TILTS = [-2.5, 2, -1.25, 3, -2, 1.5];
 /** The photo: a logo held up against a soft, lit backdrop, captioned with the role. */
 function Picture({ entry, heading }: { entry: ExperienceTimelineEntry; heading: ReactNode }) {
   return (
-    <div className="pol-picture">
+    <div className="pol-picture print-gloss">
       <div className="pol-scene">
         <span className="pol-logo" aria-hidden="true">
           {entry.logo ? <Image src={entry.logo} alt="" width={40} height={40} unoptimized /> : <Trophy strokeWidth={1.75} />}

@@ -129,7 +129,7 @@ describe('chat suggestions route deadlines', () => {
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('one affirmative and one decline or redirect');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('distinct, not rephrases');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('Never suggest themes');
-    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('home, about, projects, resume, chat, guestbook, stickers, settings');
+    expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('home, about, projects, chat, guestbook, stickers, settings; resume note or PDF');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('approved links; project modals or repos; feedback');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('maximum 2 per suggestion');
   });

@@ -17,6 +17,90 @@ html[data-reduced-motion] .hero-swash path {
   stroke-dashoffset: 0;
 }
 
+/* Featured projects: pages held to a hardboard clipboard. The board is brown fibreboard with the paper tooth pressed
+   into it, the clip is folded steel with a wire lever, and two more pages peek out under the top one. */
+.clipboard {
+  --board: #7b4f2c;
+  position: relative;
+  isolation: isolate;
+  padding: 1.75rem .75rem .875rem;
+  border-radius: .625rem;
+  background-color: var(--board);
+  background-image:
+    linear-gradient(155deg, rgb(255 255 255 / .22), transparent 40%, rgb(0 0 0 / .18)),
+    var(--tex-paper);
+  background-size: 100% 100%, 260px;
+  background-blend-mode: soft-light, hard-light;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .25),
+    inset 0 -2px 0 rgb(0 0 0 / .25),
+    0 2px 3px rgb(0 0 0 / .2),
+    0 18px 30px -16px rgb(0 0 0 / .55);
+  rotate: -.6deg;
+}
+
+.clipboard::before,
+.clipboard::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 1.75rem .75rem .875rem;
+  background: color-mix(in srgb, var(--c-sheet) 92%, var(--board));
+  box-shadow: 0 1px 2px rgb(0 0 0 / .25);
+}
+html:not([data-notes="sticky"]) .clipboard::before,
+html:not([data-notes="sticky"]) .clipboard::after { background: color-mix(in srgb, var(--sheet-physical) 90%, var(--board)); }
+.clipboard::before { translate: 3px 4px; rotate: 1.1deg; }
+.clipboard::after { translate: -2px 2px; rotate: -.7deg; }
+
+.clipboard-sheet {
+  box-shadow: 0 1px 2px rgb(0 0 0 / .22), 0 6px 10px -6px rgb(0 0 0 / .3);
+  rotate: .4deg;
+}
+
+/* Folded steel plate riveted to the board, with a wire lever above it. */
+.clipboard-clip {
+  position: absolute;
+  z-index: 1;
+  top: .375rem;
+  left: 50%;
+  width: 8.5rem;
+  height: 2.75rem;
+  translate: -50% 0;
+  pointer-events: none;
+}
+.clipboard-clip::before {
+  content: '';
+  position: absolute;
+  inset: .875rem 0 0;
+  border-radius: .5rem .5rem .3rem .3rem;
+  background:
+    radial-gradient(circle at 16% 42%, #f5f7f9 0 .1rem, #5d646b .14rem .2rem, transparent .22rem),
+    radial-gradient(circle at 84% 42%, #f5f7f9 0 .1rem, #5d646b .14rem .2rem, transparent .22rem),
+    linear-gradient(transparent 66%, rgb(0 0 0 / .28) 66% 71%, rgb(255 255 255 / .55) 71% 78%, transparent 78%),
+    linear-gradient(90deg, rgb(0 0 0 / .14), transparent 12% 88%, rgb(0 0 0 / .14)),
+    linear-gradient(#f1f3f5, #c3c8cd 40%, #8e959c 64%, #cfd4d8);
+  box-shadow: 0 2px 2px rgb(0 0 0 / .4), 0 6px 8px -4px rgb(0 0 0 / .35), inset 0 1px 0 rgb(255 255 255 / .8);
+}
+.clipboard-clip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24%;
+  right: 24%;
+  height: 1.25rem;
+  border: 3px solid #a7adb3;
+  border-bottom: 0;
+  border-radius: .875rem .875rem 0 0;
+  filter: drop-shadow(1px 2px 1px rgb(0 0 0 / .35));
+}
+
+@media (min-width: 640px) {
+  .clipboard { padding: 2rem 1rem 1.125rem; }
+  .clipboard::before,
+  .clipboard::after { inset: 2rem 1rem 1.125rem; }
+}
+
 /* Featured projects: every slide shares one grid cell so swaps never move layout. */
 .featured-track {
   display: grid;

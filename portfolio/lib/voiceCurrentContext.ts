@@ -5,6 +5,7 @@ import {
   getSoundsMutedSync,
 } from '@/hooks/useStickers';
 import { FINE_POINTER_QUERY } from '@/hooks/useMediaQuery';
+import type { NavigationPath, NavigationTarget } from '@/lib/navigationPaths';
 import { readProjectSlugFromSearch } from '@/lib/siteActionEvents';
 import type { ProjectSlug } from '@/lib/projectCatalog';
 import type { SiteContextSection, SiteToolResult } from '@/lib/siteTools';
@@ -147,10 +148,11 @@ export function buildVoiceCurrentPageContext(
 }
 
 export function expectedPageContextAfterNavigate(
-  path: NonNullable<VoiceCurrentPageContext['route']>,
+  target: NavigationTarget,
   current?: VoiceCurrentPageContext,
 ): VoiceCurrentPageContext | undefined {
-  const next: VoiceCurrentPageContext = { ...current, route: path, topic: topicFromPath(path) };
+  const route = target.split('#')[0] as NavigationPath;
+  const next: VoiceCurrentPageContext = { ...current, route, topic: topicFromPath(route) };
   delete next.openProject;
   return sanitizePageContext(next);
 }

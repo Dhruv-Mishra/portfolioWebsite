@@ -188,7 +188,7 @@ const ProgressCard = memo(function ProgressCard({ unlockedCount, total }: Progre
           <span className="text-2xl md:text-3xl">{total}</span>
           <span className="ml-2 opacity-70 text-sm md:text-base">pinned</span>
         </p>
-        <p className="text-center text-xs text-[var(--c-ink)]/50 mt-0.5">
+        <p className="text-center text-xs text-[var(--c-ink)]/70 mt-0.5">
           {pct}% of the drawer
         </p>
       </div>
@@ -289,7 +289,7 @@ function StickerCardImpl({ sticker, unlocked, index }: StickerCardProps) {
       <p
         className={cn(
           'text-xs md:text-sm mt-1 text-[var(--c-ink)]/70 leading-snug line-clamp-2',
-          !unlocked && 'italic text-[var(--c-ink)]/50',
+          !unlocked && 'italic',
         )}
       >
         {unlocked ? sticker.description : sticker.hint}

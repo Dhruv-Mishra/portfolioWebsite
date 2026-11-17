@@ -42,10 +42,6 @@ export interface VoiceClientSnapshot {
 }
 
 const CONTEXTUAL_WELCOMES: Record<VoiceInvocationTopic, readonly VoiceWelcomeVariation[]> = {
-  resume: [
-    { greeting: "I see you're looking at my resume, what do you wanna know?", hint: VOICE_SUGGESTION_VARIATIONS[5] },
-    { greeting: "That's my resume on the table. Want the short tour?", hint: VOICE_SUGGESTION_VARIATIONS[6] },
-  ],
   projects: [
     { greeting: "You're on the projects wall. Which one should we open?", hint: VOICE_SUGGESTION_VARIATIONS[0] },
     { greeting: "This is the work shelf. Curious about any of them?", hint: VOICE_SUGGESTION_VARIATIONS[10] },

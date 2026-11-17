@@ -48,6 +48,22 @@ html:not([data-aging="none"]) .pinboard-surface::before {
   list-style: none;
 }
 .board-slot { position: relative; min-width: 0; }
+.board-slot[id] { scroll-margin-top: calc(var(--c-page-header-h) + 1rem); }
+
+/* A link to a note (/about#resume) finds it circled in red marker. */
+.board-slot[data-flagged]::after {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  inset: -1rem -1.125rem -.75rem;
+  pointer-events: none;
+  background: var(--color-pin-red);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 140' preserveAspectRatio='none'%3E%3Cpath d='M112 6C62 2 12 14 6 58c-6 46 44 74 104 76 54 2 88-22 84-66C190 24 142 4 84 10' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 140' preserveAspectRatio='none'%3E%3Cpath d='M112 6C62 2 12 14 6 58c-6 46 44 74 104 76 54 2 88-22 84-66C190 24 142 4 84 10' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+  rotate: -2deg;
+}
+@keyframes board-circle-in { from { opacity: 0; scale: 1.12; } }
+html:not([data-reduced-motion]) .board-slot[data-flagged]::after { animation: board-circle-in 520ms var(--ease-paper) 300ms backwards; }
 .board-slot:is([data-note="bio"], [data-note="contact"], [data-note="voice"]) { grid-column: 1 / -1; }
 
 /* The cork under a note keeps its colour; it shows while the note is away. */

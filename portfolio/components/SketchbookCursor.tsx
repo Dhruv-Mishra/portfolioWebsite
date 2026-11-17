@@ -19,6 +19,7 @@ function getTrailDpr(): number {
 }
 
 export default function SketchbookCursor() {
+    const rootRef = useRef<HTMLDivElement>(null);
     const cursorRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { resolvedTheme } = useTheme();
@@ -161,6 +162,18 @@ export default function SketchbookCursor() {
         const handleHideCursor = () => setCursorVisible(false);
         const handleShowCursor = () => setCursorVisible(true);
 
+        // Modal dialogs and popovers paint in the top layer, above every z-index, so the cursor lives there too and
+        // steps back on top whenever another one opens.
+        const root = rootRef.current;
+        const raise = () => {
+            if (!root || typeof root.showPopover !== 'function') return;
+            root.hidePopover();
+            root.showPopover();
+        };
+        const handleToggle = (event: Event) => {
+            if (event.target !== root && (event as ToggleEvent).newState === 'open') raise();
+        };
+
         const resizeCanvas = () => {
             if (!canvas) return;
             dpr = getTrailDpr();
@@ -183,7 +196,9 @@ export default function SketchbookCursor() {
         window.addEventListener('sketchbook:hideCursor', handleHideCursor);
         window.addEventListener('sketchbook:showCursor', handleShowCursor);
         window.addEventListener('resize', handleResize, { passive: true });
+        document.addEventListener('toggle', handleToggle, true);
 
+        raise();
         resizeCanvas();
         applyCursorStyle();
 
@@ -194,6 +209,7 @@ export default function SketchbookCursor() {
             window.removeEventListener('sketchbook:hideCursor', handleHideCursor);
             window.removeEventListener('sketchbook:showCursor', handleShowCursor);
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('toggle', handleToggle, true);
             clearTimeout(resizeTimer);
             if (rafId) cancelAnimationFrame(rafId);
             if (document.documentElement.dataset.customCursor === 'ready') {
@@ -205,7 +221,12 @@ export default function SketchbookCursor() {
     if (!mounted || reducedMotion) return null;
 
     return (
-        <div className="pointer-events-none fixed inset-0 overflow-hidden hidden md:block" style={{ zIndex: Z_INDEX.cursor }}>
+        <div
+            ref={rootRef}
+            popover="manual"
+            className="pointer-events-none fixed inset-0 m-0 hidden size-full max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0 md:block"
+            style={{ zIndex: Z_INDEX.cursor }}
+        >
             {/* Trail Canvas */}
             <canvas
                 ref={canvasRef}

@@ -15,7 +15,7 @@ const RESPONSES: ReadonlyMap<string, string> = new Map([
   ],
   [
     "What do you work on at Microsoft?",
-    "I'm a Software Engineer at Microsoft. I build production AI agents and the Azure backend services they run on. Recent work: incident-triage agents built on MCP tools, $240k a year in Azure savings on a backend serving 7B+ requests a day, sandboxed PDF encryption for Office on the web, and faster Office Android startup. I also maintain Fluent UI Android. The resume page has the details ~",
+    "I'm a Software Engineer at Microsoft. I build production AI agents and the Azure backend services they run on. Recent work: incident-triage agents built on MCP tools, $240k a year in Azure savings on a backend serving 7B+ requests a day, sandboxed PDF encryption for Office on the web, and faster Office Android startup. I also maintain Fluent UI Android. My resume on the About page has the details ~",
   ],
   [
     "What's your tech stack?",

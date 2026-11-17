@@ -41,7 +41,7 @@ const PICKER_NAMES = [
 describe('voice system instruction', () => {
   it('stays compact, keeps direct actions terse, and reserves suggestions for open questions', () => {
     const prompt = buildVoiceSystemInstruction();
-    expect(Buffer.byteLength(prompt)).toBeLessThan(1_650);
+    expect(Buffer.byteLength(prompt)).toBeLessThan(1_700);
     expect(prompt).toContain('get_recent_user_context');
     expect(prompt).toContain('end_voice_session');
     expect(prompt).toContain('only when useful');

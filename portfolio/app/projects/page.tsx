@@ -71,7 +71,7 @@ export default function Projects() {
                 aria-labelledby={`${id}-name`}
               >
                 <span aria-hidden="true" data-tape-strip data-fastener="tape" className="project-card-tape" />
-                <div className="project-card-paper note-material" data-torn-edge={index % 2 ? 'bottom' : 'top'}>
+                <div className="project-card-paper note-material" data-torn-edge="all">
                   <span aria-hidden="true" data-tilt-sheen />
                   {index === STAINED ? <span aria-hidden="true" className="stain project-card-stain" /> : null}
                   <div className="project-card-photo">

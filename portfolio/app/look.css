@@ -272,10 +272,37 @@ html[data-aging="worn"] { --material-age: radial-gradient(125% 115% at 50% 45%, 
     url("/resources/textures/torn-right.svg") 100% var(--torn-x, 0px) / var(--torn-h) 240px repeat-y,
     linear-gradient(#000 0 0) 0 0 / calc(100% - var(--torn-h) + 1px) 100% no-repeat;
 }
+/* Torn all round. Where mask-border is missing (Firefox) the top and bottom tear and the sides stay cut. */
+[data-torn-edge="all"] {
+  --torn-mask:
+    url("/resources/textures/torn-top.svg") var(--torn-x, 0px) 0 / 240px var(--torn-h) repeat-x,
+    url("/resources/textures/torn-bottom.svg") var(--torn-x, 0px) 100% / 240px var(--torn-h) repeat-x,
+    linear-gradient(#000 0 0) 0 calc(var(--torn-h) - 1px) / 100% calc(100% - 2 * var(--torn-h) + 2px) no-repeat;
+}
 
 html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge] {
   -webkit-mask: var(--torn-mask);
   mask: var(--torn-mask);
+}
+
+/* A nine-slice tear (scripts/build-textures.py) on every side, plus the pale fibres a tear leaves along its edge. */
+@supports (-webkit-mask-box-image: none) or (mask-border: none) {
+  html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge="all"] {
+    -webkit-mask: none;
+    mask: none;
+    -webkit-mask-box-image: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) round;
+    mask-border: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) round;
+  }
+  html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge="all"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--tex-paper) 0 0 / 160px color-mix(in srgb, var(--material-tint) 50%, #fffaf0);
+    background-blend-mode: soft-light;
+    -webkit-mask-box-image: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) round;
+    mask-border: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) round;
+  }
 }
 
 /* Masked notes lose their box-shadow, so their holders cast a drop shadow that follows the torn outline. */
@@ -372,6 +399,19 @@ html:not([data-reduced-motion]) .decor[data-drift] { animation: decor-drift 6.5s
 
 /* ── Real-world touches on site chrome ─────────────────────────────────────── */
 
+/* Nav tabs are index tabs cut from four stationery papers (dotted, ruled, squared, laid). Hard-light lets the paper's
+   tooth show on pale stock, where soft-light all but vanishes. */
+.nav-tab[data-color="pink"] { --tab-print: radial-gradient(circle, rgb(127 29 29 / .16) .8px, transparent 1.3px); --tab-print-size: 8px 8px; }
+.nav-tab[data-color="yellow"] { --tab-print: repeating-linear-gradient(transparent 0 9px, rgb(30 64 175 / .16) 9px 10px); }
+.nav-tab[data-color="green"] { --tab-print: conic-gradient(from 90deg at 1px 1px, transparent 25%, rgb(20 83 45 / .12) 0); --tab-print-size: 9px 9px; }
+.nav-tab[data-color="coral"] { --tab-print: repeating-linear-gradient(90deg, transparent 0 3px, rgb(124 45 18 / .07) 3px 4px); }
+html:not([data-notes="sticky"]) .nav-tab {
+  background-image: var(--material-light), var(--tab-print), var(--tex-paper);
+  background-size: 100% 100%, var(--tab-print-size, 100% 100%), 220px;
+  background-blend-mode: soft-light, normal, hard-light;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / .08), inset 0 1px 0 rgb(255 255 255 / .35);
+}
+
 /* The terminal screen catches the room's light: a soft diagonal glare and a darker rim. */
 .terminal-glare {
   position: absolute;
@@ -382,6 +422,20 @@ html:not([data-reduced-motion]) .decor[data-drift] { animation: decor-drift 6.5s
     radial-gradient(130% 120% at 50% 40%, transparent 62%, rgb(0 0 0 / 0.32));
 }
 
+/* Photo prints are glossy where their paper frames are matte: the same window light falls across the emulsion. */
+.print-gloss,
+.board-note[data-paper="photo"] .board-note-body { position: relative; }
+:is(.print-gloss, .board-note[data-paper="photo"] .board-note-body)::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(118deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.06) 32%, transparent 32.6% 64%, rgb(255 255 255 / 0.07) 66%, transparent 82%),
+    radial-gradient(120% 90% at 0 0, rgb(255 255 255 / 0.1), transparent 60%);
+}
+
 /* ── Lite: low-memory devices and Save-Data (data-lite, set by the boot script) ─
    The same look with the costly extras off: no wear layer, masks or drop-shadow filters, and no idle motion. */
 html[data-lite] .page-surface::after,
@@ -389,7 +443,8 @@ html[data-lite] .stain { display: none; }
 html[data-lite] .page-surface { transition: none; }
 html[data-lite] .decor svg { -webkit-mask: none; mask: none; }
 html[data-lite] :is(.decor[data-drift], .decor-wipe, .decor-ink, [data-route-scroll-content]) { animation: none !important; }
-html[data-lite] [data-torn-edge] { -webkit-mask: none !important; mask: none !important; }
+html[data-lite] [data-torn-edge] { -webkit-mask: none !important; mask: none !important; -webkit-mask-box-image: none !important; mask-border: none !important; }
+html[data-lite] [data-torn-edge="all"]::before { display: none; }
 html[data-lite] [data-torn-host] { filter: none !important; box-shadow: var(--shadow-note) !important; }
 
 /* ── Push pins ─────────────────────────────────────────────────────────────── */

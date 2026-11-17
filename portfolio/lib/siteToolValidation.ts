@@ -1,4 +1,5 @@
-﻿import { VALID_NAVIGATION_PATHS, VALID_THEME_ACTIONS } from '@/lib/actions';
+﻿import { VALID_THEME_ACTIONS } from '@/lib/actions';
+import { NAVIGATION_TARGETS } from '@/lib/navigationPaths';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   CHAT_MESSAGE_MAX_LENGTH,
@@ -27,7 +28,7 @@ import {
   type SiteToolName,
 } from '@/lib/siteTools';
 
-const NAV_SET = new Set<string>(VALID_NAVIGATION_PATHS);
+const NAV_SET = new Set<string>(NAVIGATION_TARGETS);
 const THEME_SET = new Set<string>(VALID_THEME_ACTIONS);
 const SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
 

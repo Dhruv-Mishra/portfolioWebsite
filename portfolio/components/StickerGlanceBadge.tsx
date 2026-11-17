@@ -56,7 +56,7 @@ export default function StickerGlanceBadge(): React.ReactElement | null {
     <Link
       href="/stickers"
       onClick={navigate}
-      aria-label={`${unlocked} of ${total} stickers pinned, open the sticker album`}
+      aria-label={`${unlocked}/${total} stickers pinned, open the sticker album`}
       className="fixed top-4 left-[calc(var(--c-binding-w-md)+1rem)] hidden md:flex -rotate-2 bg-[var(--c-paper)] border-2 border-dashed border-[var(--c-grid)]/50 rounded shadow-md min-h-11 pl-2.5 pr-3 py-1.5 items-center gap-1.5 font-hand text-base text-[var(--c-ink)] transition-transform duration-200 hover:scale-105 hover:-rotate-1 active:scale-95 focus-ring"
       style={{ zIndex: Z_INDEX.sidebar }}
       data-disco-bounce="3"

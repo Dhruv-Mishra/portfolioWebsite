@@ -436,7 +436,7 @@ export default function GuestbookForm() {
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--c-ink)]/60',
                 state === 'submitting' && 'animate-pulse',
               )}
-              aria-label="Pin your note to the wall"
+              aria-label={state === 'submitting' ? undefined : 'Pin to wall: post your note'}
             >
               <Pin size={14} aria-hidden="true" />
               {state === 'submitting' ? 'Pinning...' : 'Pin to wall'}

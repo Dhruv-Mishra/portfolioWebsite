@@ -14,7 +14,6 @@
  * consumers (toast listener, glance badge, individual sticker cards) should
  * instead use one of the narrow selector hooks:
  *   - useStickerUnlocked()      — the unlocked-id array identity
- *   - useIsStickerUnlocked(id)  — boolean for a single sticker
  *   - useStickerProgress()      — { unlocked, total, hasUnseenSticker,
  *                                    hasSuperuser }
  *   - useActiveStickerToast()   — current toast id or null
@@ -781,15 +780,6 @@ export function useStickerUnlocked(): readonly StickerId[] {
   return useSyncExternalStore(subscribe, getUnlockedSnapshot, getUnlockedServerSnapshot);
 }
 
-export function useIsStickerUnlocked(id: StickerId): boolean {
-  const getIsUnlocked = useCallback((): boolean => {
-    initializeStoreOnce();
-    return store.state.unlocked.includes(id);
-  }, [id]);
-  const getServerIsUnlocked = useCallback((): boolean => false, []);
-  return useSyncExternalStore(subscribe, getIsUnlocked, getServerIsUnlocked);
-}
-
 export function useStickerProgress(): StickerProgress {
   return useSyncExternalStore(subscribe, getProgressSnapshot, getProgressServerSnapshot);
 }
@@ -974,26 +964,6 @@ export function subscribeAudioCategoryVolume(
 export function getMasterVolumeSync(): number {
   initializeStoreOnce();
   return store.state.masterVolume;
-}
-
-/** Current audible gain after applying the binary sitewide mute gate. */
-export function getEffectiveMasterVolumeSync(): number {
-  initializeStoreOnce();
-  return store.state.soundsMuted ? 0 : store.state.masterVolume;
-}
-
-/**
- * Subscribe to effective output-gain changes, including mute flips.
- * The slider continues to read the independent persisted master volume.
- */
-export function subscribeMasterVolume(listener: (volume: number) => void): () => void {
-  let last = getEffectiveMasterVolumeSync();
-  return subscribe(() => {
-    const next = store.state.soundsMuted ? 0 : store.state.masterVolume;
-    if (next === last) return;
-    last = next;
-    listener(next);
-  });
 }
 
 function getSuperuserRevealedAtSnapshot(): number {

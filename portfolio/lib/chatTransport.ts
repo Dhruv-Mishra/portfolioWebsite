@@ -5,14 +5,6 @@ export interface ChatImage {
   dataUrl: string;
 }
 
-export interface ChatRequest {
-  messages: ClientChatMessage[];
-  model?: ChatModelId;
-  image?: ChatImage;
-  /** Ask for an NDJSON stream of `ChatStreamEvent`s instead of one JSON reply. */
-  stream?: boolean;
-}
-
 export const CHAT_STREAM_CONTENT_TYPE = 'application/x-ndjson';
 
 export interface ChatReplyPayload {

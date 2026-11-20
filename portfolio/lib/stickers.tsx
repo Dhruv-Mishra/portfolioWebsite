@@ -448,23 +448,3 @@ export const StickerSvg = memo(function StickerSvg({ id, size = STICKER_TOKENS.s
     </span>
   );
 });
-
-/**
- * Small glyph — three overlapping circles used by StickerGlanceBadge.
- * Independent of roster; pure decoration.
- */
-export const StickerStackGlyph = memo(function StickerStackGlyph({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <circle cx="9" cy="10" r="6.5" fill={STICKER_FAMILIES.denim.bg} stroke={STICKER_FAMILIES.denim.ink} strokeWidth="1.5" />
-      <circle cx="15" cy="13" r="6.5" fill={STICKER_FAMILIES.sunshine.bg} stroke={STICKER_FAMILIES.sunshine.ink} strokeWidth="1.5" />
-      <circle cx="12" cy="17" r="5.5" fill={STICKER_FAMILIES.rose.bg} stroke={STICKER_FAMILIES.rose.ink} strokeWidth="1.5" />
-    </svg>
-  );
-});

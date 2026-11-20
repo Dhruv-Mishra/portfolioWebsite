@@ -318,7 +318,7 @@ describe('look preferences', () => {
   });
 
   it('resolves the same attributes in the pre-paint boot snippet as in the store', async () => {
-    const { LOOK_BOOT_SNIPPET } = await import('@/lib/lookPrefs');
+    const { LOOK_BOOT_SNIPPET } = await import('@/lib/lookBoot');
     const e = { dataset: {} as Record<string, string> };
     new Function('e', 'o', LOOK_BOOT_SNIPPET)(e, stored);
 
@@ -332,7 +332,7 @@ describe('look preferences', () => {
     ['the flat slate', 'dark', { prefPaper: 'on', chalkboard: 'slate', surface: 'canvas' }, []],
     ['paper grain off', 'light', { chalkboard: 'green', surface: 'canvas' }, []],
   ])('preloads only the textures the visible surface paints: %s', async (_case, theme, dataset, textures) => {
-    const { TEXTURE_PRELOAD_SNIPPET } = await import('@/lib/lookPrefs');
+    const { TEXTURE_PRELOAD_SNIPPET } = await import('@/lib/lookBoot');
     const links: Array<Record<string, string>> = [];
     const doc = { createElement: () => ({}), head: { append: (link: Record<string, string>) => links.push(link) } };
     const local = { getItem: (key: string) => (key === 'theme' ? theme : null) };

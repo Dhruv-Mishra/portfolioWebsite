@@ -2,6 +2,7 @@
 import React, { useCallback, useLayoutEffect, useState } from 'react';
 import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useRoutePrefetch } from '@/hooks/useRoutePrefetch';
 import { useAppHaptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { NAV_TAB_COLORS, NAV_POSITIONS, Z_INDEX } from '@/lib/designTokens';
@@ -113,12 +114,14 @@ const NavTab = React.memo(function NavTab({
     const colorKey = COLOR_ORDER[index % COLOR_ORDER.length];
     const color = NAV_TAB_COLORS[colorKey];
     const y = active ? NAV_POSITIONS.active : hovered ? NAV_POSITIONS.hovered : NAV_POSITIONS.default;
+    const prefetchProps = useRoutePrefetch(active);
 
     return (
         <Link
             href={item.href}
             transitionTypes={transitionTypes}
             onClick={onPress}
+            {...prefetchProps}
             // Focus-visible ring lives on the anchor (the natural focus target)
             // rather than the inner clip-pathed div, so the ring is never cut
             // off by the tab's jagged bottom edge and keyboard users can reach

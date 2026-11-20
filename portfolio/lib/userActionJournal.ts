@@ -40,8 +40,6 @@ export type UserAction =
   | { kind: 'feedback.submit' }
   | { kind: 'guestbook.submit' };
 
-export type UserActionKind = UserAction['kind'];
-
 export type UserActionEntry = UserAction & { timestamp: number };
 
 export function isPublicTerminalCommand(value: unknown): value is PublicTerminalCommand {

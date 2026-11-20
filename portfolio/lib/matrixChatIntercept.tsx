@@ -383,25 +383,12 @@ export const ORACLE_CHAR_MS = 24;
 export const ORACLE_MESSAGE_GAP_MS = 1400;
 
 /**
- * Back-compat alias kept so any external consumer of the filler-pause
- * constant (there are none in this repo) wouldn't break. Filler → filler
- * spacing now uses ORACLE_MESSAGE_GAP_MS.
- */
-export const ORACLE_FILLER_PAUSE_MS = ORACLE_MESSAGE_GAP_MS;
-
-/** Beat between the last filler line and the interrogation first question. */
-export const ORACLE_REPLY_PAUSE_MS = ORACLE_MESSAGE_GAP_MS;
-
-/**
  * Beat between a user's answer landing in the transcript and the oracle's
  * next beat (either the next question's preamble or a finish line).
  * A touch shorter than the full message gap so the oracle doesn't feel
  * sluggish after a snappy user reply.
  */
 export const ORACLE_ANSWER_PAUSE_MS = 1000;
-
-/** Legacy alias — kept for any external consumers. */
-export const ORACLE_INTERROGATION_START_PAUSE_MS = ORACLE_MESSAGE_GAP_MS;
 
 /**
  * Compute the wall-clock delay needed to let the typewriter fully reveal a

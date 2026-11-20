@@ -1,7 +1,7 @@
 // lib/actions.ts — Chat action metadata and follow-up suggestions
 import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
 import { NAVIGATION_TARGETS, RESUME_NOTE_PATH, type NavigationTarget } from '@/lib/navigationPaths';
-import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
+import { PROJECT_ACTIONS, isProjectSlug, type ProjectSlug } from '@/lib/projectCatalog';
 import {
   isSitePreferenceKey,
   isVoiceFieldId,
@@ -47,7 +47,6 @@ export interface ActionDef extends ActionExecution {
 
 const NAVIGATION_TARGET_SET = new Set<string>(NAVIGATION_TARGETS);
 const THEME_ACTION_SET = new Set<string>(VALID_THEME_ACTIONS);
-const PROJECT_SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
 const ACTION_EXECUTION_KEYS = new Set([
   'navigateTo',
   'themeAction',
@@ -292,7 +291,7 @@ export function hasActionExecution(action: unknown): action is ActionExecution {
   }
 
   if (candidate.projectSlug !== undefined &&
-    (typeof candidate.projectSlug !== 'string' || !PROJECT_SLUG_SET.has(candidate.projectSlug))) {
+    (typeof candidate.projectSlug !== 'string' || !isProjectSlug(candidate.projectSlug))) {
     return false;
   }
 

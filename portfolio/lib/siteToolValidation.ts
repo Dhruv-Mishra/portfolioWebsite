@@ -1,6 +1,6 @@
-﻿import { VALID_THEME_ACTIONS } from '@/lib/actions';
+import { VALID_THEME_ACTIONS } from '@/lib/actions';
 import { NAVIGATION_TARGETS } from '@/lib/navigationPaths';
-import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
+import { isProjectSlug } from '@/lib/projectSlugs';
 import {
   CHAT_MESSAGE_MAX_LENGTH,
   isApprovedLinkKey,
@@ -30,7 +30,6 @@ import {
 
 const NAV_SET = new Set<string>(NAVIGATION_TARGETS);
 const THEME_SET = new Set<string>(VALID_THEME_ACTIONS);
-const SLUG_SET = new Set<string>(PROJECT_ACTIONS.map(project => project.slug));
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -88,8 +87,8 @@ export function parseSiteToolArgs<Name extends SiteToolName>(
     }
     case 'open_project': {
       const slug = readString(record, 'slug');
-      if (!slug || !SLUG_SET.has(slug)) return null;
-      return { slug: slug as ProjectSlug } as SiteToolArgsMap[Name];
+      if (!slug || !isProjectSlug(slug)) return null;
+      return { slug } as SiteToolArgsMap[Name];
     }
     case 'control_project_video': {
       const action = readString(record, 'action');

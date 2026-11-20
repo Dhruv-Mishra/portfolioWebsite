@@ -10,6 +10,7 @@ const voiceSounds = vi.hoisted(() => ({
 
 vi.mock('@/lib/voiceSounds', () => voiceSounds);
 
+import { setVoiceAgentPref } from '@/lib/voiceAgentPrefs';
 import type { SiteToolCall } from '@/lib/siteTools';
 import type { VoiceCaller, VoiceCallerEventMap, VoiceSessionHandle } from '@/lib/voiceAgentProtocol';
 import type { VoicePlayback } from '@/lib/voiceAudio';
@@ -492,6 +493,19 @@ describe('voice session runtime singleton', () => {
 
     runtime.resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('keeps low-network calls live without transcript-based idle checks', async () => {
+    vi.useFakeTimers();
+    setVoiceAgentPref('lowNetwork', true);
+    const runtime = await boot();
+    setVoiceAgentPref('lowNetwork', false);
+    goLive(runtime);
+
+    await vi.advanceTimersByTimeAsync(VOICE_IDLE_HANGUP_MS * 2);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_CHECKIN_VARIATIONS)).toBe(false);
+    expect(cueContainsCatalog(runtime.fakeCaller.sentTexts, VOICE_IDLE_HANGUP_VARIATIONS)).toBe(false);
+    expect(runtime.getVoiceSessionSnapshot()).toMatchObject({ active: true, hud: 'live', hangupPending: false });
   });
 
   it('cancels idle hangup when the visitor speaks after check-in', async () => {
@@ -977,6 +991,55 @@ describe('voice session runtime singleton', () => {
 
     resetVoiceSessionRuntimeForTests();
     vi.useRealTimers();
+  });
+
+  it('reconciles a mic grant while connect is pending and welcomes exactly once', async () => {
+    vi.useFakeTimers();
+    const fakeCaller = createFakeCaller();
+    const fakePlayback = createFakePlayback();
+    let finishConnect!: () => void;
+    let markConnecting!: () => void;
+    const connecting = new Promise<void>(resolve => { markConnecting = resolve; });
+    const connected = new Promise<void>(resolve => { finishConnect = resolve; });
+    vi.spyOn(fakeCaller.caller, 'connect').mockImplementation(async session => {
+      fakeCaller.connectedSessions.push(session);
+      markConnecting();
+      await connected;
+    });
+    let attempts = 0;
+    const captureState: { onFrame?: (chunk: ArrayBuffer) => void } = {};
+    setVoiceSessionRuntimeDepsForTests({
+      createCaller: () => fakeCaller.caller,
+      createPlayback: () => fakePlayback.playback,
+      startCapture: async onFrame => {
+        if (++attempts === 1) throw new Error('denied');
+        captureState.onFrame = onFrame;
+        return { stop: vi.fn() };
+      },
+      fetchSession: async () => sessionHandle,
+    });
+
+    const starting = startVoiceSession();
+    await connecting;
+    expect(fakeCaller.connectedSessions[0]?.setup.greetOnConnect).toBe(false);
+    enableVoiceCapture();
+    await Promise.resolve();
+    expect(getVoiceSessionSnapshot().micLive).toBe(true);
+    expect(fakeCaller.sentTexts).toHaveLength(0);
+
+    finishConnect();
+    await starting;
+    enableVoiceCapture();
+    expect(getVoiceSessionSnapshot()).toMatchObject({ micLive: true, error: null });
+    expect(fakeCaller.sentTexts).toEqual([buildVoiceSessionStartCue({
+      welcomeGreeting: sessionHandle.setup.welcomeGreeting,
+      welcomeHint: sessionHandle.setup.welcomeHint,
+    })]);
+    captureState.onFrame?.(new ArrayBuffer(4));
+    expect(fakeCaller.sentAudio).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(VOICE_MIC_PERMISSION_WAIT_MS);
+    expect(fakeCaller.sentTexts).not.toContain(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_TIMEOUT_LINE));
+    expect(getVoiceSessionSnapshot().hangupPending).toBe(false);
   });
 
   it('sends mic PCM continuously even while playback is busy for barge-in', async () => {

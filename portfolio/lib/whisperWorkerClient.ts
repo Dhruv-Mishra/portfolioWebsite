@@ -11,13 +11,8 @@
 
 import {
   WHISPER_MODEL_ID,
-  blobToWhisperAudio as _blobToWhisperAudio,
   type WhisperProgress,
 } from './whisperShared';
-
-export { WHISPER_MODEL_ID };
-export const blobToWhisperAudio = _blobToWhisperAudio;
-export type { WhisperProgress };
 
 type Pending = {
   resolve: (text: string) => void;

@@ -23,6 +23,24 @@ vi.mock('@/hooks/useSpeechRecognition', () => ({
   useSpeechRecognition: () => nativeVoice,
 }));
 
+const voiceMode = vi.hoisted(() => ({ requested: null as 'enter' | 'exit' | null, listeners: new Set<() => void>() }));
+vi.mock('@/lib/voiceModeStore', () => ({
+  peekVoiceModeRequest: () => voiceMode.requested,
+  subscribeVoiceModeBus: (listener: () => void) => {
+    voiceMode.listeners.add(listener);
+    return () => voiceMode.listeners.delete(listener);
+  },
+}));
+const transcription = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/whisperWorkerClient', () => ({
+  preloadWhisperWorker: async () => true,
+  transcribeWithWorker: transcription,
+}));
+vi.mock('@/lib/whisperShared', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/whisperShared')>(),
+  blobToWhisperAudio: async () => new Float32Array(4000),
+}));
+
 const originalNavigator = globalThis.navigator;
 const originalWindow = globalThis.window;
 const originalMediaRecorder = globalThis.MediaRecorder;
@@ -60,6 +78,8 @@ function createLateStream() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
+  voiceMode.requested = null;
+  voiceMode.listeners.clear();
   mediaRecorderConstructed = vi.fn();
   getUserMedia = vi.fn();
 
@@ -74,7 +94,11 @@ beforeEach(() => {
     }
 
     start() { this.state = 'recording'; }
-    stop() { this.state = 'inactive'; }
+    stop() {
+      this.state = 'inactive';
+      this.ondataavailable?.({ data: new Blob(['audio']) } as BlobEvent);
+      void this.onstop?.();
+    }
   }
 
   Object.defineProperty(globalThis, 'window', {
@@ -183,4 +207,55 @@ describe('useVoiceInput pending Whisper permission cancellation', () => {
     expect(mediaRecorderConstructed).not.toHaveBeenCalled();
     renderer.unmount();
   });
+
+  it('ignores a canceled transcription that finishes during a newer recording', async () => {
+    const oldResult = deferred<string>();
+    transcription.mockReturnValueOnce(oldResult.promise).mockResolvedValueOnce('new draft');
+    const first = createLateStream();
+    const second = createLateStream();
+    getUserMedia.mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream);
+    const voiceRef = React.createRef<UseVoiceInputResult>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { backend: 'whisper', ref: voiceRef }));
+    });
+    await act(async () => voiceRef.current!.start());
+    await act(async () => voiceRef.current!.stop());
+    expect(transcription).toHaveBeenCalledOnce();
+    await act(async () => {
+      voiceRef.current!.reset();
+      voiceRef.current!.start();
+    });
+    await act(async () => oldResult.resolve('canceled draft'));
+    expect(voiceRef.current!.transcript).toBe('');
+    expect(voiceRef.current!.isListening).toBe(true);
+    expect(second.stop).not.toHaveBeenCalled();
+    await act(async () => voiceRef.current!.stop());
+    expect(voiceRef.current!.transcript).toBe('new draft');
+    await act(async () => renderer.unmount());
+  });
+
+  it.each(['recording', 'permission pending'] as const)('cancels dictation when a live call starts (%s)', async phase => {
+    const stream = createLateStream();
+    const pending = deferred<MediaStream>();
+    getUserMedia.mockReturnValue(phase === 'recording' ? Promise.resolve(stream.stream) : pending.promise);
+    const voiceRef = React.createRef<UseVoiceInputResult>();
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Harness, { backend: 'whisper', ref: voiceRef }));
+    });
+    await act(async () => voiceRef.current!.start());
+    await act(async () => {
+      voiceMode.requested = 'enter';
+      for (const listener of voiceMode.listeners) listener();
+      pending.resolve(stream.stream);
+    });
+    expect(stream.stop).toHaveBeenCalledOnce();
+    expect(voiceRef.current!.isListening).toBe(false);
+    expect(voiceRef.current!.isRequestingPermission).toBe(false);
+    expect(nativeVoice.stop).toHaveBeenCalled();
+    expect(voiceRef.current!.transcript).toBe('');
+    await act(async () => renderer.unmount());
+  });
+
 });

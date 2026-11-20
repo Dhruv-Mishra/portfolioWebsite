@@ -697,6 +697,7 @@ function armAgentFarewellHangup(reason: VoiceExitReason): void {
 function canWatchIdle(): boolean {
   return (
     snapshot.active
+    && !snapshot.lowNetwork
     && snapshot.introComplete
     && snapshot.hud === 'live'
     && !snapshot.hangupPending
@@ -1081,8 +1082,8 @@ async function bootSession(): Promise<void> {
     const minted = sampleMintSnapshot();
     const session = await d.fetchSession(prefs.lowNetwork, minted);
     if (isStale(generation) || stopping) return;
-    const hasMic = capture != null;
-    const connectSession = hasMic
+    const micAtConnect = capture != null;
+    const connectSession = micAtConnect
       ? session
       : {
           ...session,
@@ -1091,7 +1092,7 @@ async function bootSession(): Promise<void> {
             greetOnConnect: false,
           },
         };
-    if (!hasMic) {
+    if (!micAtConnect) {
       withheldWelcome = {
         welcomeGreeting: session.setup.welcomeGreeting,
         welcomeHint: session.setup.welcomeHint,
@@ -1099,6 +1100,7 @@ async function bootSession(): Promise<void> {
     }
     await nextCaller.connect(connectSession);
     if (isStale(generation) || stopping) return;
+    const hasMic = capture != null;
     sendAudioLive = hasMic;
     socketReady = true;
     patch({
@@ -1109,7 +1111,9 @@ async function bootSession(): Promise<void> {
       micLive: hasMic,
       recovery: 'none',
     });
-    if (!hasMic) {
+    if (hasMic) {
+      sendWithheldWelcome();
+    } else {
       nextCaller.sendText(buildVoiceExactSpeakCue(VOICE_MIC_PERMISSION_PROMPT));
       startMicPermissionWait(generation);
     }
@@ -1263,6 +1267,17 @@ export function getServerVoiceSessionSnapshot(): VoiceSessionSnapshot {
   return IDLE_SNAPSHOT;
 }
 
+function sendWithheldWelcome(): boolean {
+  if (!withheldWelcome || !capture || !socketReady || stopping || snapshot.hangupPending || !caller) return false;
+  const welcome = withheldWelcome;
+  withheldWelcome = null;
+  caller.sendText(buildVoiceSessionStartCue({
+    welcomeGreeting: welcome.welcomeGreeting,
+    welcomeHint: welcome.welcomeHint || VOICE_WELCOME_HINT,
+  }));
+  return true;
+}
+
 export function enableVoiceCapture(): void {
   if (!snapshot.active || capture || micEnableInFlight || stopping) return;
   if (snapshot.recovery === 'retryable') return;
@@ -1282,20 +1297,12 @@ export function enableVoiceCapture(): void {
     capture = nextCapture;
     sendAudioLive = socketReady;
     clearMicPermissionWait();
-    const shouldSendWelcome = withheldWelcome != null && socketReady && !stopping && !snapshot.hangupPending;
-    const welcome = withheldWelcome;
-    if (shouldSendWelcome) withheldWelcome = null;
+    const sentWelcome = sendWithheldWelcome();
     patch({
       micLive: true,
       error: null,
-      status: shouldSendWelcome ? 'Connected. Waiting for the welcome.' : snapshot.status,
+      status: sentWelcome ? 'Connected. Waiting for the welcome.' : snapshot.status,
     });
-    if (shouldSendWelcome && welcome && caller) {
-      caller.sendText(buildVoiceSessionStartCue({
-        welcomeGreeting: welcome.welcomeGreeting,
-        welcomeHint: welcome.welcomeHint || VOICE_WELCOME_HINT,
-      }));
-    }
   }).catch(async (caught) => {
     micEnableInFlight = false;
     if (isStale(generation) || stopping) return;

@@ -1274,12 +1274,8 @@ export interface SoundManager {
   setMuted(next: boolean): void;
   /** Set the global master volume in [0..1] without changing mute. */
   setMasterVolume(next: number): void;
-  /** Current persisted-or-applied master volume in [0..1]. */
-  getMasterVolume(): number;
   /** True if currently muted. */
   isMuted(): boolean;
-  /** Is the AudioContext present and running? Diagnostic only. */
-  isReady(): boolean;
   /** Tear everything down. Test-only. */
   __reset(): void;
   /**
@@ -1540,11 +1536,11 @@ export const soundManager: SoundManager = {
       // Already cached — fire on next tick so callers don't need to worry
       // about re-entrant state changes inside their own mount effect.
       if (typeof window !== 'undefined') {
-        window.setTimeout(cb, 0);
-      } else {
-        cb();
+        const timer = window.setTimeout(cb, 0);
+        return () => window.clearTimeout(timer);
       }
-      return () => { /* noop */ };
+      cb();
+      return () => {};
     }
     let subs = bufferReadySubscribers.get(id);
     if (!subs) {
@@ -1570,16 +1566,8 @@ export const soundManager: SoundManager = {
     applyMasterVolume(next);
   },
 
-  getMasterVolume(): number {
-    return masterVolume;
-  },
-
   isMuted(): boolean {
     return muted;
-  },
-
-  isReady(): boolean {
-    return !!state && state.ctx.state === 'running';
   },
 
   warmupSuperuserSounds(): void {

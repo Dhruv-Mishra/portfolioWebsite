@@ -149,8 +149,13 @@ function request(message: DistributiveOmit<BrowserChatWorkerRequest, 'id'>): { i
   const id = nextId++;
   const done = new Promise<BrowserChatWorkerResponse>((resolve, reject) => {
     pending.set(id, { resolve, reject });
+    try {
+      getWorker().postMessage({ ...message, id });
+    } catch (error) {
+      pending.delete(id);
+      reject(error);
+    }
   });
-  getWorker().postMessage({ ...message, id });
   return { id, done };
 }
 

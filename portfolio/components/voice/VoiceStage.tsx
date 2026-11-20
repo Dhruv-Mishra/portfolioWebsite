@@ -77,12 +77,24 @@ export default function VoiceStage() {
   }, [modal, reducedMotion]);
 
   useEffect(() => {
+    if (!modal) return;
+    const stage = stageRef.current;
+    if (!stage) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    return () => previous?.focus();
-  }, []);
-
-  useEffect(() => {
-    (modal ? modalHangupRef : dockHangupRef).current?.focus();
+    const background: Array<[HTMLElement, boolean]> = [];
+    // Isolate sibling branches, never an ancestor containing the overlay itself.
+    for (let branch: HTMLElement | null = stage; branch?.parentElement && branch !== document.body; branch = branch.parentElement) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
+        background.push([sibling, sibling.inert]);
+        sibling.inert = true;
+      }
+    }
+    modalHangupRef.current?.focus();
+    return () => {
+      for (const [element, inert] of background) element.inert = inert;
+      if (previous?.isConnected !== false) previous?.focus();
+    };
   }, [modal]);
 
   useEffect(() => {

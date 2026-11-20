@@ -18,6 +18,7 @@ import {
   microphoneAccessContext,
   stopMediaStreamTracks,
 } from '@/lib/microphoneAccess';
+import { peekVoiceModeRequest, subscribeVoiceModeBus } from '@/lib/voiceModeStore';
 import { WhisperPermissionRequest } from '@/lib/whisperPermissionRequest';
 
 type WhisperWorkerClient = typeof import('@/lib/whisperWorkerClient');
@@ -206,8 +207,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const cancelledRef = useRef(false);
+  const generationRef = useRef(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const [permissionRequest] = useState(() => new WhisperPermissionRequest());
@@ -243,15 +243,17 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
     setWhisperError(null);
     setWhisperTranscript('');
-    cancelledRef.current = false;
+    const generation = ++generationRef.current;
+    const isCurrent = () => generationRef.current === generation;
+    setIsTranscribing(false);
 
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
-      if (!permissionRequest.settle(requestId, null) || cancelledRef.current) return;
+      if (!permissionRequest.settle(requestId, null) || !isCurrent()) return;
       const permissionState = await getMicrophonePermissionState();
-      if (permissionRequest.isCurrent(requestId) && !cancelledRef.current) {
+      if (permissionRequest.isCurrent(requestId) && isCurrent()) {
         setWhisperError(formatMicrophoneError(
           err,
           microphoneAccessContext(permissionState),
@@ -260,7 +262,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       return;
     }
     if (!permissionRequest.settle(requestId, stream)) return;
-    if (cancelledRef.current) {
+    if (!isCurrent()) {
       stopMediaStreamTracks(stream);
       return;
     }
@@ -293,10 +295,10 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     setIsLoading(true);
     workerClientPromise
       .then(({ preloadWhisperWorker }) => preloadWhisperWorker((p) => {
-        if (typeof p.progress === 'number') setLoadProgress(p.progress / 100);
+        if (isCurrent() && typeof p.progress === 'number') setLoadProgress(p.progress / 100);
       }))
-      .then((ok) => { setIsLoading(false); setLoadProgress(ok ? 1 : 0); })
-      .catch(() => { setIsLoading(false); });
+      .then((ok) => { if (isCurrent()) { setIsLoading(false); setLoadProgress(ok ? 1 : 0); } })
+      .catch(() => { if (isCurrent()) setIsLoading(false); });
 
     const mimeType = pickAudioMimeType();
     let recorder: MediaRecorder;
@@ -308,30 +310,32 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
       setIsLoading(false);
       return;
     }
-    chunksRef.current = [];
-    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
     recorder.onstop = async () => {
-      const wasCancelled = cancelledRef.current;
+      if (!isCurrent()) return;
+      recorderRef.current = null;
       stopMediaTracks();
       setIsWhisperListening(false);
-      if (wasCancelled || chunksRef.current.length === 0) {
+      if (chunks.length === 0) {
         setIsTranscribing(false);
         return;
       }
       setIsTranscribing(true);
       const tStart = (typeof performance !== 'undefined' ? performance.now() : Date.now());
       try {
-        const blob = new Blob(chunksRef.current, { type: mimeType || chunksRef.current[0].type });
+        const blob = new Blob(chunks, { type: mimeType || chunks[0].type });
         const audio = await blobToWhisperAudio(blob);
-        if (cancelledRef.current) return;
+        if (!isCurrent()) return;
         // Skip clips shorter than ~250ms — usually a misclick.
         if (audio.length < 4000) {
           setIsTranscribing(false);
           return;
         }
         const { transcribeWithWorker } = await workerClientPromise;
+        if (!isCurrent()) return;
         const text = await transcribeWithWorker(audio, { language: resolveWhisperLanguage(lang) });
-        if (cancelledRef.current) return;
+        if (!isCurrent()) return;
         setWhisperTranscript(text.trim());
         const ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - tStart);
         logVoiceEvent('transcription-complete', {
@@ -342,12 +346,12 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
           chars: text.trim().length,
         });
       } catch (err) {
-        if (cancelledRef.current) return;
+        if (!isCurrent()) return;
         const message = err instanceof Error ? err.message : 'transcribe-failed';
         setWhisperError(message);
         logVoiceEvent('transcription-failed', { error: message });
       } finally {
-        if (!cancelledRef.current) setIsTranscribing(false);
+        if (isCurrent()) setIsTranscribing(false);
       }
     };
 
@@ -366,6 +370,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
     const rec = recorderRef.current;
     if (rec && rec.state !== 'inactive') {
       try { rec.stop(); } catch { /* no-op */ }
+      stopMediaTracks();
     } else {
       setIsWhisperListening(false);
       stopMediaTracks();
@@ -373,12 +378,14 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }, [stopMediaTracks]);
 
   const resetWhisper = useCallback(() => {
-    cancelledRef.current = true;
+    generationRef.current += 1;
     permissionRequest.cancel();
     setWhisperTranscript('');
     setWhisperError(null);
     setIsTranscribing(false);
+    setIsLoading(false);
     const rec = recorderRef.current;
+    recorderRef.current = null;
     if (rec && rec.state !== 'inactive') {
       try { rec.stop(); } catch { /* no-op */ }
     }
@@ -388,7 +395,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
 
   // Cleanup on unmount.
   useEffect(() => () => {
-    cancelledRef.current = true;
+    generationRef.current += 1;
     permissionRequest.cancel();
     const rec = recorderRef.current;
     if (rec && rec.state !== 'inactive') {
@@ -400,14 +407,18 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   useLayoutEffect(() => {
     if (previousBackendRef.current === backend) return;
     previousBackendRef.current = backend;
-    cancelledRef.current = true;
-    permissionRequest.cancel();
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop(); } catch { /* no-op */ }
-    }
-    stopMediaTracks();
-  }, [backend, permissionRequest, stopMediaTracks]);
+    resetWhisper();
+  }, [backend, resetWhisper]);
+
+  const { stop: stopNative, reset: resetNative } = native;
+  // Entering a live call hides the composer, so dictation stops and releases the mic. The light voice-mode bus is
+  // used instead of the session runtime so the call code stays out of the chat bundle.
+  useEffect(() => subscribeVoiceModeBus(() => {
+    if (peekVoiceModeRequest() !== 'enter') return;
+    resetWhisper();
+    stopNative();
+    resetNative();
+  }), [resetWhisper, resetNative, stopNative]);
 
   // Public API — route to the active backend.
   // `auto` defaults to native for instant first-tap UX; only upgrades to

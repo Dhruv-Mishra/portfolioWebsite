@@ -200,8 +200,7 @@ describe('VoiceStage', () => {
     expect(refByClass('voice-dock-orb').animate).toHaveBeenCalledTimes(reduced ? 0 : 1);
     const chrome = tree.root.find(node => typeof node.props.className === 'string' && node.props.className.startsWith('voice-stage-chrome'));
     expect(chrome.props.inert).toBe(true);
-    const [, dockHangup] = hangupRefs();
-    expect(dockHangup!.focus).toHaveBeenCalled();
+    expect(priorFocus.focus).toHaveBeenCalled();
   });
 
   it('leaves Escape to the page during a live call unless focus is in the dock', () => {

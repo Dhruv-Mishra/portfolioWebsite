@@ -488,18 +488,8 @@ export function useTtsPlayback({ preferClientSpeech = false }: UseTtsPlaybackOpt
       fallbackAudioRef.current.playbackRate = generatedAudioRate;
     }
 
-    if (playbackModeRef.current === 'stream') {
-      const context = audioContextRef.current;
-      sourceRefs.current.forEach((source) => {
-        const now = context?.currentTime ?? 0;
-        try {
-          source.playbackRate.cancelScheduledValues(now);
-          source.playbackRate.setValueAtTime(generatedAudioRate, now);
-        } catch {
-          source.playbackRate.value = generatedAudioRate;
-        }
-      });
-    }
+    // Scheduled PCM keeps its rate so its fixed start times remain contiguous.
+    // The new speed applies to chunks scheduled from here on.
 
     if (playbackModeRef.current === 'browser') {
       browserUtterancesRef.current.forEach((utterance) => {

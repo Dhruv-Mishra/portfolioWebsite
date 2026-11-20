@@ -29,52 +29,10 @@
  *     flag flips true.
  */
 
+import { canWarmNoncriticalAssets } from '@/lib/networkHints';
+
 /** Was prefetch already scheduled in this session? Guards repeat calls. */
 let scheduled = false;
-
-/**
- * Network Information API surface. Not universally available (Safari lacks
- * it entirely). The browser types aren't formally declared in our TS config,
- * so we model the shape locally.
- */
-interface NetworkInformation {
-  readonly saveData?: boolean;
-  readonly effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
-}
-
-function getConnection(): NetworkInformation | null {
-  if (typeof navigator === 'undefined') return null;
-  const nav = navigator as Navigator & { connection?: NetworkInformation };
-  return nav.connection ?? null;
-}
-
-/**
- * Should we prefetch at all? Honors Data Saver and slow-connection hints.
- * Missing NetworkInformation API → assume we're OK to prefetch (desktop
- * Safari is the canonical case; it has the bandwidth but no API).
- */
-function shouldPrefetch(): boolean {
-  const conn = getConnection();
-  if (!conn) return true;
-  if (conn.saveData === true) return false;
-  if (
-    conn.effectiveType === '2g'
-    || conn.effectiveType === 'slow-2g'
-    || conn.effectiveType === '3g'
-  ) {
-    return false;
-  }
-  return true;
-}
-
-/**
- * Shared Save-Data / 2g / 3g gate for non-critical warmup (superuser
- * prefetch, voice enter prefetch, nav intent prefetch). Same semantics as
- * `shouldPrefetch`. Missing Network Information API still allows warmup.
- */
-export function canWarmNoncriticalAssets(): boolean {
-  return shouldPrefetch();
-}
 
 /**
  * Schedule a callback during the next idle window. Falls back to a short
@@ -104,13 +62,13 @@ function scheduleIdle(cb: () => void, timeoutMs: number): void {
  *   - Silent on failure — the disco / matrix flows have their own runtime
  *     fetch with retry, so a lost prefetch just means a ~100ms stall at
  *     activation time.
- *   - Respects `shouldPrefetch()` — skipped entirely on Data Saver / slow
+ *   - Respects `canWarmNoncriticalAssets()` — skipped entirely on Data Saver / slow
  *     connections.
  */
 export function scheduleSuperuserPrefetch(): void {
   if (typeof window === 'undefined') return;
   if (scheduled) return;
-  if (!shouldPrefetch()) return;
+  if (!canWarmNoncriticalAssets()) return;
   scheduled = true;
 
   scheduleIdle(() => {
@@ -147,6 +105,6 @@ export function __getPrefetchDebug(): {
 } {
   return Object.freeze({
     scheduled,
-    shouldPrefetch: shouldPrefetch(),
+    shouldPrefetch: canWarmNoncriticalAssets(),
   });
 }

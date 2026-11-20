@@ -4,6 +4,7 @@ import {
   setMasterVolumeImperative,
   subscribeAudioCategoryVolume,
 } from '@/hooks/useStickers';
+import { canWarmNoncriticalAssets } from '@/lib/networkHints';
 
 /**
  * soundManager — sitewide hybrid sound engine.
@@ -989,23 +990,6 @@ function isSuperuserWaveId(id: SoundId): boolean {
   return (SUPERUSER_WAVE_IDS as readonly SoundId[]).includes(id);
 }
 
-/**
- * Inline Save-Data / 2g / 3g check so superuser URL fetches can re-check
- * even after an earlier idle latch. Intentionally duplicated from
- * `assetPrefetch` — that module dynamically imports this one.
- */
-function canWarmSuperuserSoundUrls(): boolean {
-  if (typeof navigator === 'undefined') return true;
-  const conn = (navigator as Navigator & {
-    connection?: { saveData?: boolean; effectiveType?: string };
-  }).connection;
-  if (!conn) return true;
-  if (conn.saveData === true) return false;
-  return conn.effectiveType !== '2g'
-    && conn.effectiveType !== 'slow-2g'
-    && conn.effectiveType !== '3g';
-}
-
 async function warmupSound(
   ctx: AudioContext,
   id: SoundId,
@@ -1016,7 +1000,7 @@ async function warmupSound(
   const activeTask = warmupTasks.get(id);
   if (activeTask) return activeTask;
   if (warmupAttempted.has(id)) return false;
-  if (respectNetworkPolicy && isSuperuserWaveId(id) && !canWarmSuperuserSoundUrls()) return false;
+  if (respectNetworkPolicy && isSuperuserWaveId(id) && !canWarmNoncriticalAssets()) return false;
 
   const task = (async (): Promise<boolean> => {
     warmupInflight.add(id);
@@ -1115,11 +1099,11 @@ function scheduleSecondWave(ctx: AudioContext): void {
  * no-op; the scheduler waits for the first user gesture to run it.
  */
 function warmupSuperuserWave(ctx: AudioContext): void {
-  if (!canWarmSuperuserSoundUrls()) return;
+  if (!canWarmNoncriticalAssets()) return;
   if (superuserWaveScheduled) return;
   superuserWaveScheduled = true;
   scheduleIdle(() => {
-    if (!canWarmSuperuserSoundUrls()) return;
+    if (!canWarmNoncriticalAssets()) return;
     for (const id of SUPERUSER_WAVE_IDS) {
       const spec = SOUND_SPECS[id];
       if (!spec.url) continue;
@@ -1599,7 +1583,7 @@ export const soundManager: SoundManager = {
   },
 
   warmupSuperuserSounds(): void {
-    if (!canWarmSuperuserSoundUrls()) return;
+    if (!canWarmNoncriticalAssets()) return;
     const s = state;
     if (s) {
       warmupSuperuserWave(s.ctx);

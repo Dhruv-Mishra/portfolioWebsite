@@ -1,16 +1,19 @@
 import { defineConfig } from 'vitest/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 const SITE_VERSION: string = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
+  fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'),
 ).version;
 
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
-      'server-only': path.resolve(__dirname, 'node_modules/server-only/empty.js'),
+      '@': rootDir,
+      'server-only': path.join(rootDir, 'node_modules/server-only/empty.js'),
     },
   },
   test: {

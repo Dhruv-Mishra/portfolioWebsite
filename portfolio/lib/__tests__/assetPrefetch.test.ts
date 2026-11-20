@@ -121,11 +121,8 @@ describe('scheduleSuperuserPrefetch', () => {
       configurable: true,
       writable: true,
     });
-    const {
-      scheduleSuperuserPrefetch,
-      __resetAssetPrefetchForTest,
-      canWarmNoncriticalAssets,
-    } = await loadPrefetch();
+    const { scheduleSuperuserPrefetch, __resetAssetPrefetchForTest } = await loadPrefetch();
+    const { canWarmNoncriticalAssets } = await import('@/lib/networkHints');
     __resetAssetPrefetchForTest();
     expect(canWarmNoncriticalAssets()).toBe(false);
     scheduleSuperuserPrefetch();

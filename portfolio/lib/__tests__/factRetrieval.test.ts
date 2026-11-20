@@ -1,5 +1,5 @@
 // Unit tests for lib/factRetrieval.server.ts.
-// The vitest alias in vitest.config.ts neutralises `server-only` so these
+// The vitest alias in vitest.config.mts neutralises `server-only` so these
 // modules can be imported directly from Node.
 import { describe, it, expect } from 'vitest';
 

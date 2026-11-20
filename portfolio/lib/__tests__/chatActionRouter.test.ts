@@ -237,14 +237,13 @@ describe('resolveChatIntent — project action intents', () => {
 });
 
 describe('resolveChatIntent — negation', () => {
-  it('returns null for negated requests', () => {
-    check("don't switch to dark mode", { kind: 'null' });
-    check("do not open my github", { kind: 'null' });
-    check("I can't open github right now", { kind: 'null' });
-    check("I won't report a bug", { kind: 'null' });
-    check("shouldn't go to the projects page", { kind: 'null' });
-    check("rather not switch to dark mode", { kind: 'null' });
-    check("never open that link", { kind: 'null' });
+  it.each([
+    "don't switch to dark mode", 'do not open my github', "I can't open github right now",
+    "I won't report a bug", "shouldn't go to the projects page", 'rather not switch to dark mode',
+    'never open that link', 'Don’t open Settings', 'Don‘t open Settings', 'I can’t open github right now',
+    'I won’t report a bug', 'shouldn’t go to the projects page',
+  ])('returns null for a negated request: %s', (input) => {
+    check(input, { kind: 'null' });
   });
 });
 
@@ -315,6 +314,14 @@ describe('resolveAcceptedOffer', () => {
       .toMatchObject({ kind: 'action', action: { projectSlug: 'cropio' } });
     expect(resolveAcceptedOffer('Sure, go ahead!', 'Want me to switch you to dark mode?'))
       .toMatchObject({ kind: 'action', action: { themeAction: 'dark' } });
+  });
+
+  it.each([
+    'You can open Settings from the menu.',
+    'Open Settings from the menu.',
+    'Want me to pull up Cropio? You can open Settings from the menu.',
+  ])('does not treat advice as an action offer: %s', (reply) => {
+    expect(resolveAcceptedOffer('ok', reply)).toBeNull();
   });
 
   it('ignores replies that are not a bare yes, or offers that are not actions', () => {

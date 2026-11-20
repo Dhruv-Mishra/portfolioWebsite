@@ -18,6 +18,7 @@ import { rankFactsByQuery } from '@/lib/factRanking';
 import type { EmbeddedFact, EmbeddingsBundle, Fact } from '@/lib/factTypes';
 import { l2Normalize, LOCAL_EMBEDDING_MODEL_ID, localEmbed } from '@/lib/localEmbedding';
 import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
+import { LLM_EMBEDDING_TIMEOUT_MS } from '@/lib/llmConfig';
 
 // ── Bundle initialisation (one-time) ────────────────────────────────
 
@@ -74,8 +75,8 @@ export interface RetrievalOptions {
   model?: string;
   /** Prepend the four core anchors on the general path. Defaults to true. */
   includeAnchors?: boolean;
-  /** Earlier visitor turns, searched only when the query itself names no topic ("tell me more"). */
-  followUpContext?: string;
+  /** Earlier visitor context candidates, newest first, used only when the query names no topic. */
+  followUpContext?: string | readonly string[];
 }
 
 const DEFAULT_LIMIT = 8;
@@ -187,7 +188,7 @@ export async function embedQuery(query: string, options: RetrievalOptions = {}):
       model,
       input: trimmed,
       encoding_format: 'float',
-    });
+    }, { signal: AbortSignal.timeout(LLM_EMBEDDING_TIMEOUT_MS), maxRetries: 0 });
     const vector = response.data?.[0]?.embedding;
     if (!vector || vector.length === 0) return null;
     if (LOADED.dimension > 0 && vector.length !== LOADED.dimension) {
@@ -198,7 +199,7 @@ export async function embedQuery(query: string, options: RetrievalOptions = {}):
     if (useCache) embedQueryCache.set(cacheKey, normalized);
     return normalized;
   } catch (err) {
-    console.warn('[factRetrieval] Embeddings API call failed; degrading to anchors-only.', err);
+    console.warn('[factRetrieval] Embeddings API call failed; degrading to lexical ranking.', err);
     return null;
   }
 }
@@ -321,8 +322,10 @@ export async function retrieveRelevantFacts(
     ));
   const topicalLimit = Math.max(1, limit - anchors.length);
   let topical = await findTopicalFacts(query, options, topicalLimit);
-  if (!topical.strong && options.followUpContext?.trim()) {
-    topical = await findTopicalFacts(`${options.followUpContext} ${query}`, options, topicalLimit);
+  const contexts = typeof options.followUpContext === 'string' ? [options.followUpContext] : options.followUpContext ?? [];
+  for (const context of contexts) {
+    if (topical.strong) break;
+    if (context.trim()) topical = await findTopicalFacts(`${context} ${query}`, options, topicalLimit);
   }
 
   return [...new Map([...topical.facts, ...anchors].map((fact) => [fact.id, fact])).values()].slice(0, limit);

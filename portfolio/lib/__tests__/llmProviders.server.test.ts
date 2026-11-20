@@ -127,6 +127,7 @@ describe('getSuggestionsProviders', () => {
       kind: 'nvidia',
       model: 'nvidia/nemotron-3.5-super-vl-120b-a12b',
       supportsImages: true,
+      reasoningPreamble: true,
       sampling: { maxTokens: 2048, extraBody: { chat_template_kwargs: { enable_thinking: true } } },
     });
   });
@@ -160,6 +161,7 @@ describe('getSuggestionsProviders', () => {
         supportsImages: false,
         supportsTools: true,
         lfm3Layout: true,
+        reasoningPreamble: true,
         sampling: {
           temperature: 0,
           maxTokens: 512,
@@ -208,6 +210,7 @@ describe('getSuggestionsProviders', () => {
         supportsImages: true,
         imageInputOrder: 'image-first',
         supportsTools: false,
+        reasoningPreamble: true,
         sampling: {
           temperature: 0,
           maxTokens: 512,

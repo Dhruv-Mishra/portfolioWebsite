@@ -112,7 +112,7 @@ const PROJECT_ALIAS_TOKENS: Array<{ slug: ProjectSlug; aliases: string[] }> = [
 function normalizeInput(input: string): string {
   return input
     .toLowerCase()
-    .replace(/[“”'"`]/g, '')
+    .replace(/[“”‘’'"`]/g, '')
     .replace(/[^a-z0-9+:/,\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -589,6 +589,8 @@ export function resolveAcceptedOffer(input: string, previousReply: string): Chat
     return null;
   }
 
-  const offer = normalizeInput(previousReply.trim().split(/(?<=[.!?~])\s+/).at(-1) ?? '');
+  const lastSentence = previousReply.trim().split(/(?<=[.!?~])\s+/).at(-1) ?? '';
+  if (!lastSentence.endsWith('?')) return null;
+  const offer = normalizeInput(lastSentence);
   return offer && !includesNegation(offer) ? resolveSingleChatIntent(offer) : null;
 }

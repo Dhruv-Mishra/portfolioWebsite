@@ -236,7 +236,7 @@ export async function getModelHealthAdvisory(): Promise<ModelHealthAdvisory | nu
     cachedAdvisory = {
       key: cacheKey,
       value,
-      expiresAt: Date.now() + MODEL_HEALTH_CACHE_TTL_MS,
+      expiresAt: Math.min(Date.now() + MODEL_HEALTH_CACHE_TTL_MS, value ? Date.parse(value.expiresAt) : Infinity),
     };
     return value;
   });

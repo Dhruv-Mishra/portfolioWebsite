@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     const session = await mintVoiceSession({
       snapshot: parseVoiceClientSnapshot(body?.snapshot),
       lowNetwork: parsed.lowNetwork,
+      signal: request.signal,
     });
     return Response.json(session);
   } catch (error) {

@@ -42,10 +42,11 @@ export function buildBrowserChatMessages(
   const userTurns = recent.filter((turn) => turn.role === 'user');
   const query = userTurns.at(-1)?.content ?? '';
   const followUpContext = getFactFollowUpContext(recent);
-  const latestFacts = selectBrowserChatFacts(facts, query);
-  const selected = followUpContext && !latestFacts.some((fact) => !fact.anchor)
-    ? selectBrowserChatFacts(facts, `${followUpContext} ${query}`)
-    : latestFacts;
+  let selected = selectBrowserChatFacts(facts, query);
+  for (const context of followUpContext ?? []) {
+    if (selected.some((fact) => !fact.anchor)) break;
+    selected = selectBrowserChatFacts(facts, `${context} ${query}`);
+  }
   const factText = selected.map((fact) => fact.text.trim()).join('\n\n');
   const lengthHint = REPLY_LENGTH_HINT[classifyReplyLength(userTurns.at(-1)?.content ?? '')];
   const system = [IDENTITY_BLOCK, STYLE_BLOCK, NEVER_INVENT_BLOCK, OFF_TOPIC_BLOCK, `Relevant facts:\n${factText}`, lengthHint]

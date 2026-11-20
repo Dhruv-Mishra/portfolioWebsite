@@ -78,8 +78,26 @@ describe('/api/voice/session', () => {
     expect(mintVoiceSessionMock).toHaveBeenCalledWith({
       lowNetwork: true,
       snapshot: expect.objectContaining({ route: '/projects' }),
+      signal: expect.any(AbortSignal),
     });
     expect(consoleErrorMock).not.toHaveBeenCalled();
+  });
+
+  it('forwards a disconnect during token minting', async () => {
+    const caller = new AbortController();
+    mintVoiceSessionMock.mockImplementation(({ signal }: { signal: AbortSignal }) => new Promise((_, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
+    }));
+    const request = sessionRequest({}, caller.signal);
+    const pending = POST(request);
+    await vi.waitFor(() => expect(mintVoiceSessionMock).toHaveBeenCalledOnce());
+    caller.abort();
+
+    const response = await pending;
+
+    expect(mintVoiceSessionMock).toHaveBeenCalledWith(expect.objectContaining({ signal: request.signal }));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ code: 'mint-failed' });
   });
 });
 

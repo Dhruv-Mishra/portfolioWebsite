@@ -41,6 +41,26 @@ describe('browser chat prompt', () => {
     expect(system.content.includes('Port Solace is a voxel game')).toBe(solace);
   });
 
+  it.each([
+    ['what are your PC specs?', 'tell me about Cropio', 'Cropio is an agritech app', 'My PC has an RTX GPU.'],
+    ['tell me about Cropio', 'what are your PC specs?', 'My PC has an RTX GPU.', 'Cropio is an agritech app'],
+    ['tell me about Cropio', 'an unrelated aside', 'Cropio is an agritech app', 'My PC has an RTX GPU.'],
+  ])('resolves referential turns newest-to-oldest: %s → %s', (older, newer, expected, excluded) => {
+    const [system] = buildBrowserChatMessages([
+      ...FACTS,
+      { id: 'pc', text: 'My PC has an RTX GPU.', tags: ['pc', 'specs'], priority: 10, anchor: false },
+    ], [
+      { role: 'user', content: older },
+      { role: 'assistant', content: 'Here are some details.' },
+      { role: 'user', content: newer },
+      { role: 'assistant', content: 'More details.' },
+      { role: 'user', content: 'how does it work?' },
+    ]);
+
+    expect(system.content).toContain(expected);
+    expect(system.content).not.toContain(excluded);
+  });
+
   it('builds a persona system prompt with facts and bounded history', () => {
     const history = Array.from({ length: 10 }, (_, index) => ({
       role: index % 2 === 0 ? 'user' as const : 'assistant' as const,

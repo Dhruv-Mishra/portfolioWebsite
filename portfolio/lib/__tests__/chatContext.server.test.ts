@@ -225,6 +225,19 @@ describe('buildDhruvSystemPrompt — token-budget behaviour', () => {
     expect(newTopic.conditional).toContain('Computer Science and Applied Mathematics');
   });
 
+  it('grounds a follow-up in the newer project rather than older PC specs', async () => {
+    const prompt = await buildDhruvSystemPromptParts([
+      { role: 'user', content: 'what are your PC specs?' },
+      { role: 'assistant', content: 'Here are the specs.' },
+      { role: 'user', content: 'tell me about Cropio' },
+      { role: 'assistant', content: 'It crops portraits.' },
+      { role: 'user', content: 'how does it work?' },
+    ], { anchorsInStable: true });
+
+    expect(prompt.conditional).toContain('Cropio');
+    expect(prompt.conditional).not.toContain('RTX 3080 Ti');
+  });
+
   it('tells tool-capable providers to act through tools instead of disclaiming actions', async () => {
     const messages = [{ role: 'user', content: 'show me your projects' }];
     const withTools = await buildDhruvSystemPromptParts(messages, { factsOverride: STUB_FACTS, siteTools: true });

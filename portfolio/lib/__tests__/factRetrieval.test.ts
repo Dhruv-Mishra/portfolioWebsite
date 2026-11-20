@@ -1,7 +1,10 @@
 // Unit tests for lib/factRetrieval.server.ts.
 // The vitest alias in vitest.config.mts neutralises `server-only` so these
 // modules can be imported directly from Node.
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import type OpenAI from 'openai';
+import { getFactFollowUpContext } from '@/lib/factRanking';
+import { LLM_EMBEDDING_TIMEOUT_MS } from '@/lib/llmConfig';
 
 import {
   cosineSimilarity,
@@ -132,6 +135,22 @@ describe('retrieveRelevantFacts — integration against committed bundle', () =>
     expect(facts.map((fact) => fact.id)).toEqual(['project-port-solace']);
   });
 
+  it.each([
+    ['what are your pc specs?', 'tell me about Cropio', 'project-cropio'],
+    ['tell me about Cropio', 'what are your pc specs?', 'personal-pc-build'],
+    ['tell me about Cropio', 'an unrelated aside', 'project-cropio'],
+  ])('prefers the newest usable previous topic: %s → %s', async (older, newer, expected) => {
+    const query = 'how does it work?';
+    const followUpContext = getFactFollowUpContext([
+      { role: 'user', content: older },
+      { role: 'user', content: newer },
+      { role: 'user', content: query },
+    ]);
+    const facts = await retrieveRelevantFacts(query, { limit: 1, includeAnchors: false, followUpContext });
+
+    expect(facts.map((fact) => fact.id)).toEqual([expected]);
+  });
+
   it('covers everyday phrasings for projects, school, work history, and hobbies', async () => {
     const topIds = async (query: string) => (await retrieveRelevantFacts(query, { limit: 4, includeAnchors: false }))
       .map((fact) => fact.id);
@@ -242,5 +261,49 @@ describe('getFactBySlug', () => {
   it('returns null for project facts without a fact entry', () => {
     // fluent-ui-android has a fact — positive case
     expect(getFactBySlug('fluent-ui-android')).not.toBeNull();
+  });
+});
+
+
+describe('external query embedding deadline', () => {
+  afterEach(() => {
+    vi.doUnmock('@/lib/facts.embeddings.json');
+    vi.resetModules();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it.each(['embed', 'retrieve'])('falls back after the embedding deadline: %s', async (operation) => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    vi.resetModules();
+    vi.doMock('@/lib/facts.embeddings.json', () => ({ default: {
+      model: 'remote-embedding-model', dimension: 3,
+      facts: [mkFact({ id: 'a', tags: ['topic'] }), mkFact({ id: 'b', tags: ['topic'] })],
+    } }));
+    const retrieval = await import('@/lib/factRetrieval.server');
+    const create = vi.fn((_body: unknown, options: { signal: AbortSignal }) => new Promise((_, reject) => {
+      options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    }));
+    const client = { embeddings: { create } } as unknown as OpenAI;
+    const pending = operation === 'embed'
+      ? retrieval.embedQuery('topic', { client })
+      : retrieval.retrieveRelevantFacts('topic', { client, limit: 1, includeAnchors: false });
+
+    await vi.advanceTimersByTimeAsync(LLM_EMBEDDING_TIMEOUT_MS - 1);
+    expect(create.mock.calls[0]?.[1].signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(LLM_EMBEDDING_TIMEOUT_MS);
+    expect(create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ input: 'topic' }), {
+      signal: expect.any(AbortSignal), maxRetries: 0,
+    });
+    if (operation === 'embed') expect(result).toBeNull();
+    else expect((result as EmbeddedFact[]).map((fact) => fact.id)).toEqual(['a']);
   });
 });

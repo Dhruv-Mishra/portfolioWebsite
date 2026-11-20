@@ -21,7 +21,7 @@ export function resolveVoiceAgentApiKey(): string | null {
   const siteUrl = (process.env.SITE_URL ?? '').toLowerCase();
   const isStaging = siteUrl.includes('staging.') || process.env.MODEL_HEALTH_ENVIRONMENT === 'staging';
 
-  if (isStaging) return staged || unified || production || null;
-  if (siteUrl.includes('whoisdhruv.com')) return production || unified || staged || null;
-  return unified || staged || production || null;
+  if (isStaging) return staged || unified || null;
+  if (siteUrl.includes('whoisdhruv.com') || process.env.MODEL_HEALTH_ENVIRONMENT === 'production') return production || unified || null;
+  return unified || staged || null;
 }

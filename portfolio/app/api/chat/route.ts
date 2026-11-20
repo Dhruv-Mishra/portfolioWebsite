@@ -92,14 +92,14 @@ function sanitizeConversation(messages: ClientChatMessage[]): SanitizedChatMessa
     if (message.role === 'user') {
       sanitized.push({
         role: 'user',
-        content: String(message.content).slice(0, CHAT_CONFIG.maxUserMessageLength),
+        content: message.content.slice(0, CHAT_CONFIG.maxUserMessageLength),
       });
       continue;
     }
 
     const verified = verifyAssistantMessage({
       role: 'assistant',
-      content: String(message.content),
+      content: message.content,
       signature: message.signature,
       action: message.action ?? null,
     });
@@ -444,6 +444,7 @@ export async function POST(request: NextRequest) {
       providerLoop: for (let i = 0; i < providers.length; i += 1) {
         const provider = providers[i];
         let useTools = offersTools(provider);
+        let terminalFailure: ProviderFailureCode | undefined;
         const fallbackReserveMs = fallbackAttemptBudget * (providers.length - i - 1);
         const providerBudgetDeadline = Date.now() + LLM_PROVIDER_TIMEOUT_MS;
 
@@ -470,7 +471,7 @@ export async function POST(request: NextRequest) {
             break providerLoop;
           } catch (err) {
             const code = getProviderFailureCode(err, request.signal, routeDeadlineController.signal);
-            providerFailureCodes.push(code);
+            terminalFailure = code;
             providerErrors.push(`${provider.label}: ${code}`);
             console.warn('LLM provider failed', {
               provider: provider.label.replace(/[\r\n]+/g, ' ').slice(0, 120),
@@ -492,6 +493,7 @@ export async function POST(request: NextRequest) {
             if (code !== 'invalid-provider-response') break;
           }
         }
+        if (terminalFailure) providerFailureCodes.push(terminalFailure);
       }
 
       if (!result) {
@@ -608,7 +610,7 @@ async function callProvider(
         ...(toolParams as { tools?: Groq.Chat.Completions.ChatCompletionTool[]; tool_choice?: 'auto' }),
       };
       completion = stream
-        ? await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta)
+        ? await readCompletionStream(await groq.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta, provider.reasoningPreamble)
         : readCompletionMessage((await groq.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message);
     } else {
       const collapsedMessages = provider.acceptsSystemMessages === false
@@ -629,12 +631,12 @@ async function callProvider(
         ...toolParams,
       };
       completion = stream
-        ? await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta)
+        ? await readCompletionStream(await client.chat.completions.create({ ...params, stream: true }, { signal }), signal, onDelta, provider.reasoningPreamble)
         : readCompletionMessage((await client.chat.completions.create({ ...params, stream: false }, { signal })).choices?.[0]?.message);
     }
 
     const rawReply = stripThinkTags(completion.text);
-    const action = completion.toolCalls.length > 0 ? toolCallsToAction(completion.toolCalls) : null;
+    const action = useTools && completion.toolCalls.length > 0 ? toolCallsToAction(completion.toolCalls) : null;
     // Models often call a tool without any text; the action's own confirmation stands in.
     const reply = finalizeAssistantReplyText(rawReply)
       || (action ? finalizeAssistantReplyText(getActionFallbackReply(action) ?? '') : '');
@@ -658,6 +660,11 @@ async function callProvider(
       action,
       modelId: provider.modelId ?? 'legacy',
     };
+  } catch (error) {
+    if (controller.signal.aborted && !routeSignal.aborted) {
+      throw new DOMException('Provider timed out', 'AbortError');
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -716,6 +723,7 @@ async function readCompletionStream(
   chunks: AsyncIterable<{ choices?: Array<{ delta?: { content?: unknown; tool_calls?: ToolCallPart[] | null } }> }>,
   signal: AbortSignal,
   onDelta?: (text: string) => void,
+  reasoningPreamble = false,
 ): Promise<CompletionOutput> {
   let raw = '';
   let shown = '';
@@ -732,7 +740,7 @@ async function readCompletionStream(
     raw += getDeltaText(delta?.content);
     if (!onDelta) continue;
     // Only forward text that extends what was already shown; the final `done` event corrects the rest.
-    const preview = getStreamingPreview(raw);
+    const preview = getStreamingPreview(raw, reasoningPreamble);
     if (preview.length > shown.length && preview.startsWith(shown)) {
       onDelta(preview.slice(shown.length));
       shown = preview;
@@ -742,9 +750,9 @@ async function readCompletionStream(
   return { text: raw, toolCalls: toolCalls.filter(Boolean) };
 }
 
-function getStreamingPreview(raw: string): string {
-  // Hide reasoning blocks, including one that is still open.
-  return sanitizeAssistantReplyText(stripThinkTags(raw).replace(/<think>[\s\S]*$/i, ''));
+function getStreamingPreview(raw: string, reasoningPreamble: boolean): string {
+  if (reasoningPreamble && !raw.toLowerCase().includes('</think>')) return '';
+  return sanitizeAssistantReplyText(stripThinkTags(raw));
 }
 
 function getDeltaText(content: unknown): string {

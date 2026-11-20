@@ -43,6 +43,7 @@ afterEach(() => {
   __resetModelHealthCacheForTest();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('model health snapshots', () => {
@@ -66,6 +67,25 @@ describe('model health snapshots', () => {
 
     await expect(getModelHealthAdvisory()).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a positive cache entry at the snapshot expiry, not five minutes later', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    vi.stubEnv('GITHUB_MODEL_HEALTH_REPO', 'Dhruv-Mishra/portfolio-model-health');
+    vi.stubEnv('GITHUB_MODEL_HEALTH_TOKEN', 'test-token');
+    vi.stubEnv('MODEL_HEALTH_ENVIRONMENT', 'staging');
+    const snapshot = createSnapshot({ expiresAt: new Date(NOW + 60_000).toISOString() });
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(toContentsResponse(snapshot)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await getModelHealthAdvisory()).not.toBeNull();
+    vi.setSystemTime(NOW + 59_999);
+    expect(await getModelHealthAdvisory()).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    vi.setSystemTime(NOW + 60_000);
+    await expect(getModelHealthAdvisory()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('reads the configured snapshot once for concurrent callers and caches the safe result', async () => {

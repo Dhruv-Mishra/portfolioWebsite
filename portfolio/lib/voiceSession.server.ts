@@ -17,6 +17,8 @@ import {
   type VoiceClientSnapshot,
 } from '@/lib/voiceClientSnapshot';
 
+export const VOICE_TOKEN_REQUEST_TIMEOUT_MS = 8_000;
+
 function toIso(msFromNow: number): string {
   return new Date(Date.now() + msFromNow).toISOString();
 }
@@ -44,7 +46,10 @@ function tokenLifetimeFields() {
   };
 }
 
-async function postAuthToken(apiKey: string): Promise<GeminiAuthTokenResponse> {
+async function postAuthToken(apiKey: string, callerSignal?: AbortSignal): Promise<GeminiAuthTokenResponse> {
+  const deadline = AbortSignal.timeout(VOICE_TOKEN_REQUEST_TIMEOUT_MS);
+  const signal = callerSignal ? AbortSignal.any([callerSignal, deadline]) : deadline;
+  signal.throwIfAborted();
   const response = await fetch(VOICE_AUTH_TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -53,9 +58,11 @@ async function postAuthToken(apiKey: string): Promise<GeminiAuthTokenResponse> {
     },
     body: JSON.stringify(tokenLifetimeFields()),
     cache: 'no-store',
+    signal,
   });
 
   const payload = await response.json().catch(() => ({})) as GeminiAuthTokenResponse;
+  signal.throwIfAborted();
   if (!response.ok || !payload.name) {
     throw new Error('Token mint failed.');
   }
@@ -90,6 +97,7 @@ function toSessionHandle(
 export async function mintVoiceSession(options: {
   lowNetwork: boolean;
   snapshot?: VoiceClientSnapshot;
+  signal?: AbortSignal;
 }): Promise<VoiceSessionHandle> {
   const apiKey = resolveVoiceAgentApiKey();
   if (!apiKey) {
@@ -97,7 +105,7 @@ export async function mintVoiceSession(options: {
   }
 
   try {
-    const token = await postAuthToken(apiKey);
+    const token = await postAuthToken(apiKey, options.signal);
     return toSessionHandle(token, options.lowNetwork, options.snapshot);
   } catch {
     console.error('[voice-session] mint failed');

@@ -8,7 +8,7 @@ These endpoints serve the portfolio UI. They are not a versioned third-party API
 |---|---|---|
 | `POST /api/chat` | Generate a grounded chat reply | Accepts `messages`, an optional allowlisted `model`, and an optional JPEG, PNG, or WebP data URL under 180 KiB decoded. Replies include text, a signed assistant message, and optional validated UI action data. |
 | `POST /api/chat/suggestions` | Generate two follow-up prompts | Accepts recent user/assistant messages and returns `{ "suggestions": string[] }`; failure returns an empty list. |
-| `POST /api/voice/session` | Mint a Gemini Live session | Returns a short-lived, one-use token and locked setup. Accepts `lowNetwork`, a validated page snapshot, and an optional validated provider resume handle. |
+| `POST /api/voice/session` | Mint a Gemini Live session | Returns a short-lived, one-use token plus the client setup defaults. Accepts `lowNetwork`, a validated page snapshot, and an optional validated provider resume handle. |
 | `POST /api/voice/facts` | Retrieve live voice context | Accepts a site-fact query up to 240 characters and returns a compact fact snippet for a Live tool response. |
 | `GET /api/tts` | Read local TTS status | Returns queue, public settings, and voice revision when the active TTS role is local. |
 | `POST /api/tts` | Synthesize speech | Requires `text`. Normal responses are WAV; set `stream: true`, `?stream=1`, or `Accept: application/x-ndjson` for chunked PCM frames. |

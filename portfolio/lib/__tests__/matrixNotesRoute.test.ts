@@ -75,6 +75,13 @@ describe('matrix notes API access control', () => {
     expect(await response.json()).toHaveProperty('entries');
   });
 
+  it('falls back to the filler wall when approved notes cannot load', async () => {
+    getApprovedNotesMock.mockRejectedValueOnce(new Error('GitHub unavailable'));
+    const response = await GET(createRequest('GET', { cookie: issueMatrixNotesAccessToken() }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).entries.length).toBeGreaterThan(0);
+  });
+
   it('allows submission with a valid signed cookie', async () => {
     const response = await POST(createRequest('POST', {
       cookie: issueMatrixNotesAccessToken(),

@@ -410,11 +410,11 @@ export default function Terminal() {
         } else if (e.key === "ArrowDown") {
             e.preventDefault();
             navigateHistory('down');
-        } else if (e.key === "Tab") {
-            e.preventDefault();
+        } else if (e.key === "Tab" && !e.shiftKey) {
             const completion = completeTerminalCommandInput(input, completionSessionRef.current);
             completionSessionRef.current = completion.session;
             if (completion.completed) {
+                e.preventDefault();
                 setInput(completion.value);
             }
         }

@@ -1,5 +1,5 @@
 "use client";
-import { Play, Volume2, VolumeX, X } from 'lucide-react';
+import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react';
 import { usePresence } from 'framer-motion';
 import Image from 'next/image';
@@ -180,6 +180,7 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
   // Bumped by every play/pause request so a late play() promise cannot override a newer one.
   const playGeneration = useRef(0);
   const [muted, setMutedState] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   // Reduced motion never autoplays: the poster waits behind a play button.
   const [showPlay, setShowPlay] = useState(reducedMotion);
 
@@ -299,6 +300,8 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
             muted
             loop
             playsInline
+            onPlay={() => { setIsPlaying(true); setShowPlay(false); }}
+            onPause={() => { setIsPlaying(false); setShowPlay(true); }}
             preload="metadata"
             poster={getProjectThumbnail(project)}
             className="h-full w-full object-cover"
@@ -320,16 +323,26 @@ function ProjectSheet({ project, titleId, onClose }: { project: ProjectRecord; t
               </span>
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setMuted(!mutedRef.current)}
-            aria-label={muted ? 'Unmute video' : 'Mute video'}
-            data-clickable
-            className="project-video-mute project-media-control focus-ring"
-            style={{ zIndex: Z_INDEX.crease }}
-          >
-            {muted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
-          </button>
+          <div className="project-video-controls" style={{ zIndex: Z_INDEX.crease }}>
+            <button
+              type="button"
+              onClick={() => { tap(); if (videoRef.current?.paused) void play(); else pause(true); }}
+              aria-label={isPlaying ? 'Pause preview video' : 'Play preview video'}
+              data-clickable
+              className="project-media-control focus-ring"
+            >
+              {isPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMuted(!mutedRef.current)}
+              aria-label={muted ? 'Unmute video' : 'Mute video'}
+              data-clickable
+              className="project-media-control focus-ring"
+            >
+              {muted ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+            </button>
+          </div>
         </>
       ),
     });

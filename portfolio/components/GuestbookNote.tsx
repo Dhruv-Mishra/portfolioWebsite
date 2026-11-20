@@ -32,17 +32,6 @@ const FOLD_CORNER_RIGHT_STYLE = { background: GRADIENT_TOKENS.foldCorner } as co
 /** Corner-variant tape override: used on desktop for every 4th note for visual variety. */
 const CORNER_TAPE_CLASS = '!left-auto !right-4 !top-[-8px] rotate-[18deg] hidden md:block';
 
-/**
- * GuestbookNote — renders a single pinned note on the wall.
- *
- * Structural note on tape clipping:
- *   The note body needs `overflow-hidden` to enforce its max-height on
- *   long messages. The tape strip is positioned with a negative top offset to
- *   extend above the card edge — if it lives inside the overflow-hidden body,
- *   that negative offset gets clipped. Fix: wrap the note in an `overflow-visible`
- *   wrapper and keep the tape as a sibling of (not a child of) the clipped body,
- *   so it escapes the clip while the message text remains truncated.
- */
 export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
   const hash = hashId(entry.id);
 
@@ -71,11 +60,7 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
   };
 
   return (
-    // OUTER wrapper: owns rotation + entrance animation; overflow is VISIBLE so
-    // the tape strip (which lives below as a sibling of the clipped body) isn't
-    // clipped. We intentionally avoid `content-visibility: auto` here because
-    // mobile browsers can inflate the initial inline size of deferred elements
-    // inside CSS columns, which widens the guestbook page until a later reflow.
+    // No `content-visibility: auto`: mobile browsers can inflate deferred elements inside CSS columns and widen the page.
     <article
       aria-labelledby={signatureId}
       style={wrapperStyle}
@@ -85,16 +70,13 @@ export function GuestbookNote({ entry, index }: GuestbookNoteProps) {
         GUESTBOOK_NOTE_BORDER,
       )}
     >
-      {/* Tape — sibling of the clipped body, escapes the clip completely. */}
+      {/* Tape extends above the paper. */}
       <TapeStrip size="sm" className={useCornerTape ? CORNER_TAPE_CLASS : undefined} />
 
-      {/* INNER body: clips long messages to about ten lines (em-sized, so it follows the note's type size).
-          It keeps the background color, min/max height, and padding that were
-          previously on <article>. overflow: hidden only applies here. */}
       <div
         className={cn(
-          'note-material relative overflow-hidden',
-          'min-h-[8.75em] max-h-[16.25em]',
+          'note-material relative',
+          'min-h-[8.75em]',
           'p-5 pb-7 md:p-6 md:pb-9',
         )}
       >

@@ -63,8 +63,12 @@ function useFlaggedNote(notes: readonly BoardNote[]) {
   useEffect(() => {
     const anchors = new Set(notes.flatMap((note) => (note.anchor ? [note.anchor] : [])));
     const read = () => {
-      const id = decodeURIComponent(window.location.hash.slice(1));
-      setFlagged(anchors.has(id) ? id : null);
+      try {
+        const id = decodeURIComponent(window.location.hash.slice(1));
+        setFlagged(anchors.has(id) ? id : null);
+      } catch {
+        setFlagged(null);
+      }
     };
     const navigation = (window as Window & { navigation?: EventTarget }).navigation;
     read();

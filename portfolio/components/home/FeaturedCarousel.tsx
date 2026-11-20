@@ -114,13 +114,20 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
     slide.style.transform = `translateX(${d.dx}px) rotate(${d.dx * F.dragRotatePerPx}deg)`;
   };
 
-  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+  const cancelDrag = () => {
     const d = drag.current;
     drag.current = null;
     const slide = activeRef.current;
-    if (!d?.active || !slide) return;
-    delete slide.dataset.dragging;
-    slide.style.transform = '';
+    if (slide) {
+      delete slide.dataset.dragging;
+      slide.style.transform = '';
+    }
+    return d;
+  };
+
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const d = cancelDrag();
+    if (!d?.active) return;
     const velocity = Math.abs(d.dx) / Math.max(1, event.timeStamp - d.t);
     if (Math.abs(d.dx) >= F.swipeMinPx || velocity >= F.swipeMinVelocity) go(d.dx < 0 ? 1 : -1);
   };
@@ -155,7 +162,7 @@ export default function FeaturedCarousel({ slides }: { slides: readonly Featured
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={cancelDrag}
       >
         {slides.map((slide, i) => {
           const state = stateOf(i);

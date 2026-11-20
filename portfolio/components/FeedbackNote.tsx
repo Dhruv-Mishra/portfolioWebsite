@@ -5,7 +5,6 @@ import { m } from 'framer-motion';
 import { requestMotion } from '@/components/motion/requestMotion';
 import { Bug, Lightbulb, Heart, MessageSquare, Send, X, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useTheme } from 'next-themes';
 import { useAppHaptics } from '@/lib/haptics';
 import { soundManager } from '@/lib/soundManager';
 import { unlockSticker } from '@/hooks/useStickers';
@@ -126,7 +125,6 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathname = usePathname();
-  const { resolvedTheme } = useTheme();
 
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
@@ -135,6 +133,15 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       setErrorMsg('');
     }
   }
+
+  const clearSuccessTimers = useCallback(() => {
+    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+    if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+    successTimeoutRef.current = null;
+    resetTimeoutRef.current = null;
+  }, []);
+
+  useEffect(() => clearSuccessTimers, [isOpen, clearSuccessTimers]);
 
   // Save draft to localStorage when message or category changes (debounced)
   useEffect(() => {
@@ -160,26 +167,21 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
   // Focus textarea when opened
   useEffect(() => {
     if (isOpen && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), TIMING_TOKENS.focusDelay);
+      const id = setTimeout(() => textareaRef.current?.focus(), TIMING_TOKENS.focusDelay);
+      return () => clearTimeout(id);
     }
+    return undefined;
   }, [isOpen]);
 
   // Prevent dismissal during submission
   const handleClose = useCallback(() => {
     if (state === 'submitting') return;
+    clearSuccessTimers();
     closePanel();
     onClose();
-  }, [closePanel, state, onClose]);
+  }, [clearSuccessTimers, closePanel, state, onClose]);
 
   // Note: Escape key, body scroll lock, and focus trap are handled by the shared Modal shell.
-
-  // Cleanup timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
-    };
-  }, []);
 
   const handleSubmit = useCallback(async (overrides?: {
     message?: string;
@@ -216,9 +218,6 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
           message: trimmed,
           contact: (overrides?.contact ?? contact).trim() || undefined,
           page: pathname,
-          theme: resolvedTheme || 'unknown',
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-          userAgent: navigator.userAgent.slice(0, 200),
         }),
       });
 
@@ -228,12 +227,13 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       }
 
       setState('success');
-  success();
+      success();
       soundManager.play('feedback-sent');
       unlockSticker('note-sender');
       appendUserAction({ kind: 'feedback.submit' });
       clearDraft();
       // Auto-close after success
+      clearSuccessTimers();
       successTimeoutRef.current = setTimeout(() => {
         onClose();
         // Reset state after close animation
@@ -246,7 +246,7 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
       return false;
     }
-  }, [state, message, category, contact, pathname, resolvedTheme, onClose, clearDraft, errorHaptic, submit, success, warning]);
+  }, [state, message, category, contact, pathname, onClose, clearDraft, clearSuccessTimers, errorHaptic, submit, success, warning]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -427,13 +427,17 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
 
                   {/* Optional contact field */}
                   <div className="mt-2">
+                    <label htmlFor="feedback-contact" className="block font-hand text-xs text-[var(--c-ink)]/60">
+                      Contact (optional, public)
+                    </label>
                     <input
+                      id="feedback-contact"
                       type="text"
                       value={contact}
                       onChange={(e) => setContact(e.target.value.slice(0, LAYOUT_TOKENS.contactMaxLength))}
-                      placeholder="Name / email / socials (optional)"
+                      placeholder="@your-handle"
                       disabled={state === 'submitting'}
-                      aria-label="Contact information (optional)"
+                      aria-describedby="feedback-public-hint"
                       data-voice-field="feedback-contact"
                       className={cn(
                         "w-full bg-[var(--c-paper)] border-2 border-[var(--c-grid)]/30 rounded-md",
@@ -444,12 +448,15 @@ export default function FeedbackNote({ isOpen, onClose }: FeedbackNoteProps) {
                         "disabled:opacity-50",
                       )}
                     />
+                    <p id="feedback-public-hint" className="mt-1 font-hand text-xs text-[var(--c-ink)]/60">
+                      Feedback is posted publicly on GitHub ~ a handle works best.
+                    </p>
                   </div>
 
                   {/* Action bar: page info, clear, send */}
                   <div className="flex items-center justify-between mt-2 px-1">
                     <p className="text-xs text-[var(--c-ink)] opacity-30 truncate mr-2">
-                      {pathname} &middot; {resolvedTheme} &middot; Ctrl+Enter
+                      {pathname} &middot; Ctrl+Enter
                     </p>
                     <div className="flex items-center gap-2">
                       {message.length > 0 && (

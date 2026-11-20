@@ -1,5 +1,6 @@
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
+  // Nonces require per-request rendering (losing static/CDN caching); page-varying inline RSC payloads preclude hashes.
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",

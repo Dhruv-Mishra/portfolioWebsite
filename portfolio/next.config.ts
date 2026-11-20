@@ -138,7 +138,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The resume lives in the About page; keep old links, voice/chat navigations, and bookmarks working.
   async redirects() {
-    return [{ source: '/resume', destination: '/about', permanent: true }];
+    return [{ source: '/resume', destination: '/about#resume', permanent: true }];
   },
   // Security & cache headers
   async headers() {
@@ -170,6 +170,7 @@ const nextConfig: NextConfig = {
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },
         ],
       },
+      // /resources, /voice and /sounds are content-addressed: rename changed files; resume.pdf revalidates below.
       {
         source: '/resources/:path*',
         headers: [

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { Component, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -14,12 +13,10 @@ interface ErrorBoundaryState {
 }
 
 function ErrorBoundaryHomeButton() {
-  const router = useRouter();
-
   return (
     <button
       type="button"
-      onClick={() => router.push('/')}
+      onClick={() => window.location.assign(new URL('/', window.location.href).href)}
       className="px-6 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors transform hover:rotate-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300"
     >
       Go Back Home

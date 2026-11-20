@@ -3,7 +3,7 @@
  *
  * This module is import-safe from both client and server. It contains no
  * secret-accessing code and no I/O. Server-only logic (GitHub API calls) lives
- * in `lib/guestbook.server.ts`.
+ * in `lib/notes.server.ts`.
  */
 
 /** A single approved guestbook entry as rendered on the wall. */
@@ -18,16 +18,6 @@ export interface GuestbookEntry {
   createdAt: string;
 }
 
-/** Client → server POST body shape for /api/guestbook. */
-export interface GuestbookSubmission {
-  /** Required message (configured min/max chars after trim). */
-  message: string;
-  /** Optional signer name (configured min/max chars after trim when present). */
-  name?: string;
-  /** Honeypot — must be empty on real submissions. Non-empty → silent 200. */
-  website?: string;
-}
-
 /** Successful response from POST /api/guestbook. */
 export interface GuestbookSubmitResponse {
   success: true;
@@ -36,11 +26,6 @@ export interface GuestbookSubmitResponse {
 /** Error response from POST /api/guestbook (rate-limit, validation, misconfig). */
 export interface GuestbookErrorResponse {
   error: string;
-}
-
-/** Response from GET /api/guestbook. */
-export interface GuestbookListResponse {
-  entries: GuestbookEntry[];
 }
 
 // ─── Pure helpers ──────────────────────────────────────────────────────
@@ -129,9 +114,11 @@ export function parseIssueBody(body: string): { message: string; name: string } 
     const sliceStart = nameStart + NAME_HEADER.length;
     const detailsIdx = body.indexOf(DETAILS_MARKER, sliceStart);
     const hrIdx = body.indexOf('\n---', sliceStart);
+    const footer = /^_Submitted via portfolio website (?:guestbook|matrix-notes)_\s*$/m.exec(body.slice(sliceStart));
     const ends: number[] = [];
     if (detailsIdx !== -1) ends.push(detailsIdx);
     if (hrIdx !== -1) ends.push(hrIdx);
+    if (footer) ends.push(sliceStart + footer.index);
     const sliceEnd = ends.length > 0 ? Math.min(...ends) : body.length;
     name = unescapeMarkdown(body.slice(sliceStart, sliceEnd).trim());
     if (name === 'Anonymous') name = '';

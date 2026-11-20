@@ -18,8 +18,7 @@ on:
         type: string
 
 concurrency:
-  # Shared with deploy.yml so a rollback never interleaves with a production deploy.
-  group: deploy-production-${{ inputs.site || 'portfolio' }}
+  group: rollback-production-${{ inputs.site || 'portfolio' }}
   cancel-in-progress: false
 
 env:

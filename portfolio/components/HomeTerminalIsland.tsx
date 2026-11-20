@@ -46,6 +46,11 @@ function useNearViewport(): [Ref<HTMLDivElement>, boolean] {
     const scrollTarget: HTMLElement | Window = scroller ?? window;
     scrollTarget.addEventListener("scroll", show, { once: true, passive: true });
 
+    // Voice tools give the terminal host only a moment to appear, so a live call mounts it at once.
+    const showDuringCall = () => { if (document.documentElement.dataset.voiceMode) show(); };
+    showDuringCall();
+    window.addEventListener("voice-mode:change", showDuringCall);
+
     let idleTimer: number | undefined;
     const showWhenIdle = () => {
       idleTimer = window.setTimeout(() => window.requestIdleCallback?.(show) ?? show(), IDLE_MOUNT_DELAY_MS);
@@ -56,6 +61,7 @@ function useNearViewport(): [Ref<HTMLDivElement>, boolean] {
     return () => {
       observer.disconnect();
       scrollTarget.removeEventListener("scroll", show);
+      window.removeEventListener("voice-mode:change", showDuringCall);
       window.removeEventListener("load", showWhenIdle);
       window.clearTimeout(idleTimer);
     };

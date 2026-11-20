@@ -23,14 +23,8 @@ vi.mock('@/hooks/useSpeechRecognition', () => ({
   useSpeechRecognition: () => nativeVoice,
 }));
 
-const voiceMode = vi.hoisted(() => ({ requested: null as 'enter' | 'exit' | null, listeners: new Set<() => void>() }));
-vi.mock('@/lib/voiceModeStore', () => ({
-  peekVoiceModeRequest: () => voiceMode.requested,
-  subscribeVoiceModeBus: (listener: () => void) => {
-    voiceMode.listeners.add(listener);
-    return () => voiceMode.listeners.delete(listener);
-  },
-}));
+const voiceModeEvents = new EventTarget();
+const documentShim = { documentElement: { dataset: {} as DOMStringMap } };
 const transcription = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/whisperWorkerClient', () => ({
   preloadWhisperWorker: async () => true,
@@ -78,8 +72,7 @@ function createLateStream() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  voiceMode.requested = null;
-  voiceMode.listeners.clear();
+  documentShim.documentElement.dataset = {};
   mediaRecorderConstructed = vi.fn();
   getUserMedia = vi.fn();
 
@@ -103,8 +96,13 @@ beforeEach(() => {
 
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
-    value: globalThis,
+    value: Object.assign(Object.create(globalThis), {
+      addEventListener: voiceModeEvents.addEventListener.bind(voiceModeEvents),
+      removeEventListener: voiceModeEvents.removeEventListener.bind(voiceModeEvents),
+      dispatchEvent: voiceModeEvents.dispatchEvent.bind(voiceModeEvents),
+    }),
   });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: documentShim });
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
     value: {
@@ -130,6 +128,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: originalNavigator });
   Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: undefined });
   Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: originalMediaRecorder });
   Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: originalAudioContext });
   Object.defineProperty(globalThis, 'OfflineAudioContext', { configurable: true, value: originalOfflineAudioContext });
@@ -246,8 +245,8 @@ describe('useVoiceInput pending Whisper permission cancellation', () => {
     });
     await act(async () => voiceRef.current!.start());
     await act(async () => {
-      voiceMode.requested = 'enter';
-      for (const listener of voiceMode.listeners) listener();
+      documentShim.documentElement.dataset.voiceMode = 'intro';
+      window.dispatchEvent(new Event('voice-mode:change'));
       pending.resolve(stream.stream);
     });
     expect(stream.stop).toHaveBeenCalledOnce();

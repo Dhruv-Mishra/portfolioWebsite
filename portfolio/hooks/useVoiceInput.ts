@@ -18,7 +18,6 @@ import {
   microphoneAccessContext,
   stopMediaStreamTracks,
 } from '@/lib/microphoneAccess';
-import { peekVoiceModeRequest, subscribeVoiceModeBus } from '@/lib/voiceModeStore';
 import { WhisperPermissionRequest } from '@/lib/whisperPermissionRequest';
 
 type WhisperWorkerClient = typeof import('@/lib/whisperWorkerClient');
@@ -411,14 +410,22 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInput
   }, [backend, resetWhisper]);
 
   const { stop: stopNative, reset: resetNative } = native;
-  // Entering a live call hides the composer, so dictation stops and releases the mic. The light voice-mode bus is
-  // used instead of the session runtime so the call code stays out of the chat bundle.
-  useEffect(() => subscribeVoiceModeBus(() => {
-    if (peekVoiceModeRequest() !== 'enter') return;
-    resetWhisper();
-    stopNative();
-    resetNative();
-  }), [resetWhisper, resetNative, stopNative]);
+  // Entering a live call hides the composer (html[data-voice-mode]), so dictation stops and releases the mic.
+  useEffect(() => {
+    const inCall = () => Boolean(document.documentElement.dataset.voiceMode);
+    let wasInCall = inCall();
+    const onVoiceModeChange = () => {
+      const nowInCall = inCall();
+      if (nowInCall && !wasInCall) {
+        resetWhisper();
+        stopNative();
+        resetNative();
+      }
+      wasInCall = nowInCall;
+    };
+    window.addEventListener('voice-mode:change', onVoiceModeChange);
+    return () => window.removeEventListener('voice-mode:change', onVoiceModeChange);
+  }, [resetWhisper, resetNative, stopNative]);
 
   // Public API — route to the active backend.
   // `auto` defaults to native for instant first-tap UX; only upgrades to

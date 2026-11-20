@@ -20,7 +20,7 @@ These endpoints serve the portfolio UI. They are not a versioned third-party API
 
 ## TTS Streaming
 
-The streaming TTS response is newline-delimited JSON. It begins with a `ready` frame, emits one or more `chunk` frames containing PCM16 audio data, and finishes with `done`. The ready frame identifies the sample rate and voice revision. The normal response is `audio/wav`.
+The streaming TTS response is newline-delimited JSON. It begins with a `ready` frame, emits one or more `chunk` frames containing PCM16 audio data, and finishes with `done`. The ready frame identifies the sample rate and worker-reported voice revision. Cache misses stream progressively; canceling the response detaches that subscriber. A full synthesis queue returns HTTP 429 with `Retry-After` before streaming starts; cached and already-shared utterances bypass this check. The normal response is `audio/wav`. The legacy `speed` field is accepted but ignored.
 
 The active public TTS path can be served by a different internal node than the app process. Clients should use the same-origin endpoint, not a gateway address. See [TTS](tts.md).
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import {
+  assertLocalTtsQueueAvailable,
   getLocalTtsQueueState,
   getLocalTtsVoiceRevision,
   getPublicLocalTtsSettings,
@@ -40,14 +42,6 @@ function remoteNodeResponse(): Response | null {
     { error: 'Local TTS is disabled on this node.' },
     { status: 503, headers: { 'Cache-Control': 'no-store' } },
   );
-}
-
-function getContentLength(request: NextRequest): number | null {
-  const header = request.headers.get('content-length');
-  if (!header) return null;
-
-  const parsed = Number(header);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function getJsonLineEncoder(): (payload: object) => Uint8Array {
@@ -126,20 +120,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  const contentLength = getContentLength(request);
-  if (contentLength === null) {
-    return Response.json({ error: 'Content-Length header required' }, { status: 411 });
-  }
-  if (contentLength > MAX_TTS_BODY_BYTES) {
-    return Response.json({ error: 'Request body is too large' }, { status: 413 });
-  }
-
-  let body: TtsRequestBody;
-  try {
-    body = await request.json() as TtsRequestBody;
-  } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const body = await readJsonObjectOrError<TtsRequestBody>(request, MAX_TTS_BODY_BYTES);
+  if (body instanceof Response) return body;
 
   const rawText = typeof body.text === 'string' ? body.text.trim() : '';
   if (!rawText) {
@@ -155,17 +137,25 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   if (wantsStreaming(request, body)) {
+    try {
+      await assertLocalTtsQueueAvailable(text, options, request.signal);
+    } catch (error) {
+      return createErrorResponse(error);
+    }
+    const responseController = new AbortController();
+    const signal = AbortSignal.any([request.signal, responseController.signal]);
     const encodeLine = getJsonLineEncoder();
     const acceptsGzip = acceptsTtsFrameGzip(request);
     let canceled = false;
     const stream = new ReadableStream<Uint8Array>({
       cancel() {
         canceled = true;
+        responseController.abort();
       },
       async start(controller) {
         let closed = false;
         const safeEnqueue = (payload: object): boolean => {
-          if (closed || canceled || request.signal.aborted) return false;
+          if (closed || canceled || signal.aborted) return false;
           try {
             controller.enqueue(encodeLine(payload));
             return true;
@@ -183,7 +173,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         try {
           let sentReady = false;
 
-          for await (const chunk of streamLocalTtsCached(text, options, request.signal)) {
+          for await (const chunk of streamLocalTtsCached(text, options, signal)) {
             if (!sentReady) {
               if (!safeEnqueue({
                 codec: 'pcm_s16le',
@@ -207,7 +197,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           if (!sentReady) throw new Error('Local TTS produced no audio chunks.');
           safeEnqueue({ type: 'done' });
         } catch (error) {
-          if (isTtsRequestAbortedError(error) || request.signal.aborted) {
+          if (isTtsRequestAbortedError(error) || signal.aborted) {
             return;
           }
           const message = isTtsQueueFullError(error)

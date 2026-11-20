@@ -174,7 +174,8 @@ export async function GET(request: NextRequest) {
     return Response.json({ entries: [...MATRIX_FILLER_NOTES] } satisfies { entries: GuestbookEntry[] });
   }
 
-  const approved = await getApprovedNotes('matrix');
+  // The seeded filler notes still make a wall when GitHub is unavailable.
+  const approved = await getApprovedNotes('matrix').catch(() => []);
   // Merge + sort newest first. Filler IDs are negative so they never
   // collide with GitHub issue numbers.
   const entries = [...approved, ...MATRIX_FILLER_NOTES].sort((a, b) => {

@@ -1,6 +1,6 @@
-﻿import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
-import { PROJECT_ACTIONS, type ProjectSlug } from '@/lib/projectCatalog';
-import { VALID_THEME_ACTIONS } from '@/lib/actions';
+import { PERSONAL_LINKS, PROJECT_LINKS } from '@/lib/links';
+import { PROJECT_SLUG_LIST, type ProjectSlug } from '@/lib/projectSlugs';
+import type { ThemeAction } from '@/lib/actions';
 import type { NavigationTarget } from '@/lib/navigationPaths';
 
 export const SITE_TOOL_NAMES = [
@@ -176,7 +176,7 @@ export const APPROVED_LINKS: Record<ApprovedLinkKey, string> = {
 
 export type SiteToolArgsMap = {
   navigate_to: { path: NavigationTarget };
-  set_theme: { action: (typeof VALID_THEME_ACTIONS)[number] };
+  set_theme: { action: ThemeAction };
   open_project: { slug: ProjectSlug };
   close_project: Record<string, never>;
   control_project_video: { action: ProjectVideoAction };
@@ -220,7 +220,7 @@ export interface SiteToolResult {
   errorCode?: string;
 }
 
-export const PROJECT_SLUGS = PROJECT_ACTIONS.map(project => project.slug);
+export const PROJECT_SLUGS: readonly ProjectSlug[] = PROJECT_SLUG_LIST;
 
 export function isSiteToolName(value: unknown): value is SiteToolName {
   return typeof value === 'string' && (SITE_TOOL_NAMES as readonly string[]).includes(value);

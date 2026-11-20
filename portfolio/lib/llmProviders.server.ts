@@ -29,6 +29,8 @@ export interface LLMProvider {
   acceptsSystemMessages?: boolean;
   /** Receives the site action tools (see lib/chatTools.ts). */
   supportsTools?: boolean;
+  /** Output may start with reasoning closed by a lone </think>. */
+  reasoningPreamble?: boolean;
   /**
    * Self-hosted LFM3 text layout: local rules in the cached system prompt, and per-turn context in a system
    * message after the visitor's message so llama.cpp's checkpoint at that message covers the whole prefix.
@@ -151,6 +153,7 @@ function getLocalAgentProvider(modelId: LocalChatModelId): LLMProvider | null {
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     // The omni model is not reliable enough to act on its calls.
     supportsTools: !model.supportsImages,
+    ...(model.id === 'lfm3-1.7b-local' || model.id === 'lfm3-omni-local' ? { reasoningPreamble: true } : {}),
     ...(model.id === 'lfm3-1.7b-local' ? { lfm3Layout: true } : {}),
     sampling: LOCAL_SAMPLING[model.id],
   };
@@ -187,6 +190,7 @@ function getNvidiaProvider(
     supportsImages: model.supportsImages,
     ...('imageInputOrder' in model ? { imageInputOrder: model.imageInputOrder } : {}),
     supportsTools: true,
+    ...(model.id === 'nemotron-3.5-super-vl-120b-a12b' ? { reasoningPreamble: true } : {}),
     sampling: {
       temperature: 0.6,
       maxTokens: maxTokens ?? defaultMaxTokens,

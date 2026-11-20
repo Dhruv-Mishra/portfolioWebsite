@@ -17,6 +17,9 @@ export const LLM_PROVIDER_FALLBACK_RESERVE_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS - L
 export const LLM_CLIENT_TIMEOUT_MS = LLM_MAIN_RESPONSE_TIMEOUT_MS + LLM_MAIN_RESPONSE_NETWORK_BUFFER_MS;
 
 // ── Secondary timeouts ───────────────────────────────────────────────
+/** Query embeddings are optional; leave the response budget for generation. */
+export const LLM_EMBEDDING_TIMEOUT_MS = 1_750;
+
 /** End-to-end suggestions route deadline, below the client's 8 second timeout. */
 export const LLM_SUGGESTIONS_TIMEOUT_MS = 7_000;
 
@@ -76,7 +79,7 @@ export function isRawLogEnabled(): boolean {
  * A lone `</think>` means the template opened the block, so everything before it is reasoning.
  */
 export function stripThinkTags(text: string): string {
-  const withoutBlocks = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  const withoutBlocks = text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*$/i, '');
   const orphanClose = withoutBlocks.toLowerCase().lastIndexOf('</think>');
   return (orphanClose === -1 ? withoutBlocks : withoutBlocks.slice(orphanClose + '</think>'.length)).trim();
 }

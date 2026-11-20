@@ -458,7 +458,8 @@ html:not([data-reduced-motion]) .project-cards > li {
 .project-media-control { display: flex; align-items: center; justify-content: center; color: var(--c-polaroid); background: var(--project-media-control); border-radius: 50%; }
 .project-video-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .project-video-play span { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .5rem 1rem; border-radius: 999px; color: var(--c-polaroid); background: var(--project-media-control); }
-.project-video-mute { position: absolute; right: .5rem; bottom: .5rem; width: 44px; height: 44px; }
+.project-video-controls { position: absolute; right: .5rem; bottom: .5rem; display: flex; gap: .25rem; }
+.project-video-controls .project-media-control { width: 44px; height: 44px; }
 .project-media-arrows { position: absolute; top: 50%; display: none; width: 44px; height: 44px; translate: 0 -50%; }
 .project-media-arrows:disabled { visibility: hidden; }
 .project-media-dots { position: absolute; bottom: 0; left: 50%; display: flex; translate: -50% 0; }

@@ -85,6 +85,7 @@ cat > "${temp_dir}/apply-cloudflare-origin-firewall" <<'FIREWALL'
 set -euo pipefail
 
 readonly CIDRS_FILE='/etc/nginx/cloudflare-policy/cidrs.txt'
+readonly APPLIED_STAMP='/etc/nginx/cloudflare-policy/firewall-applied.sha256'
 
 if [[ ${EUID} -ne 0 ]]; then
     echo "ERROR: run as root" >&2
@@ -97,6 +98,17 @@ fi
 if [[ ! -s "${CIDRS_FILE}" ]]; then
     echo "ERROR: missing Cloudflare CIDR policy: ${CIDRS_FILE}" >&2
     exit 1
+fi
+
+# Deleting and re-adding every rule briefly drops Cloudflare ingress, so skip it when the
+# applied CIDR set is unchanged and every managed rule (HTTP + HTTPS per CIDR) is present.
+policy_hash="$(sha256sum "${CIDRS_FILE}" | cut -d' ' -f1)"
+expected_rules=$(( $(grep -c . "${CIDRS_FILE}") * 2 ))
+present_rules="$(ufw status | grep -c '# Cloudflare origin HTTP' || true)"
+if [[ -f "${APPLIED_STAMP}" ]] && [[ "$(cat "${APPLIED_STAMP}")" == "${policy_hash}" ]] \
+    && [[ "${present_rules}" -eq "${expected_rules}" ]]; then
+    echo "Cloudflare origin firewall already up to date."
+    exit 0
 fi
 
 # Remove policy-managed rules in reverse order so UFW rule numbers stay stable.
@@ -126,6 +138,7 @@ while IFS= read -r cidr; do
     ufw allow from "${cidr}" to any port 80 proto tcp comment 'Cloudflare origin HTTP' >/dev/null
     ufw allow from "${cidr}" to any port 443 proto tcp comment 'Cloudflare origin HTTPS' >/dev/null
 done < "${CIDRS_FILE}"
+printf '%s\n' "${policy_hash}" > "${APPLIED_STAMP}"
 FIREWALL
 
 install -d -m 0755 -o root -g root "${POLICY_DIR}" /etc/nginx/conf.d /usr/local/sbin

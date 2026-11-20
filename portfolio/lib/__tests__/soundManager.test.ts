@@ -498,6 +498,30 @@ describe('soundManager — loop lifecycle', () => {
     unsub();
   });
 
+  it('starts a cold matrix loop when its decoded buffer becomes ready', async () => {
+    const { soundManager, __test } = await loadSoundManager();
+    expect(soundManager.startLoop('matrix')).toBe(false);
+    const unsubscribe = soundManager.onBufferReady('matrix', () => soundManager.startLoop('matrix'));
+    __test.seedBuffer('matrix', mockCtx!.createBuffer(2, 44100, 44100));
+    expect(soundManager.isLoopPlaying('matrix')).toBe(true);
+    unsubscribe();
+    soundManager.stopLoop('matrix');
+  });
+
+  it.each([false, true])('cancels a deferred buffer-ready start (cached: %s)', async cached => {
+    const { soundManager, __test } = await loadSoundManager();
+    soundManager.play('page-flip');
+    const buffer = mockCtx!.createBuffer(2, 44100, 44100);
+    if (cached) __test.seedBuffer('matrix', buffer);
+    const ready = vi.fn(() => soundManager.startLoop('matrix'));
+    const unsubscribe = soundManager.onBufferReady('matrix', ready);
+    unsubscribe();
+    if (!cached) __test.seedBuffer('matrix', buffer);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(ready).not.toHaveBeenCalled();
+    expect(soundManager.isLoopPlaying('matrix')).toBe(false);
+  });
+
   it('playing a one-shot while a loop is running does NOT stop the loop', async () => {
     const { soundManager, __test } = await loadSoundManager();
     soundManager.play('page-flip');

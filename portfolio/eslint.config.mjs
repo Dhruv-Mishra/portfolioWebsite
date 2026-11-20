@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local scratch output (perf traces, copied builds); gitignored.
+    "tmp/**",
   ]),
 ]);
 

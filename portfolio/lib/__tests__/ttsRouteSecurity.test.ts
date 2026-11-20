@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const localTtsMocks = vi.hoisted(() => ({
+  assertQueueAvailable: vi.fn(async () => undefined),
   getQueueState: vi.fn(() => ({ active: 0, queued: 0 })),
   getSettings: vi.fn(() => ({
     cacheMode: 'cache-first',
@@ -20,10 +21,11 @@ const localTtsMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/localTts.server', () => ({
+  assertLocalTtsQueueAvailable: localTtsMocks.assertQueueAvailable,
   getLocalTtsQueueState: localTtsMocks.getQueueState,
   getLocalTtsVoiceRevision: localTtsMocks.getVoiceRevision,
   getPublicLocalTtsSettings: localTtsMocks.getSettings,
-  isTtsQueueFullError: () => false,
+  isTtsQueueFullError: (error: unknown) => error instanceof Error && error.name === 'TtsQueueFullError',
   isTtsRequestAbortedError: () => false,
   resolveLocalTtsOptions: localTtsMocks.resolveOptions,
   runWithLocalTtsSlot: localTtsMocks.runWithSlot,
@@ -33,11 +35,20 @@ vi.mock('@/lib/localTts.server', () => ({
 }));
 
 import { GET, POST } from '@/app/api/tts/route';
+import { POST as POSTVoiceLog } from '@/app/api/log/voice/route';
 
 describe('/api/tts security', () => {
   const originalTtsNodeMode = process.env.TTS_NODE_MODE;
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localTtsMocks.resolveOptions.mockReturnValue({ speed: 1, voice: 'custom-dhruv' });
+    localTtsMocks.splitText.mockImplementation((text: string) => [text]);
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
     if (originalTtsNodeMode === undefined) {
       delete process.env.TTS_NODE_MODE;
     } else {
@@ -136,4 +147,89 @@ describe('/api/tts security', () => {
     expect(synthesisResponse.headers.get('cache-control')).toBe('no-store');
     for (const operation of Object.values(localTtsMocks)) expect(operation).not.toHaveBeenCalled();
   });
+
+  function ttsRequest(body: object, signal?: AbortSignal) {
+    const payload = JSON.stringify(body);
+    return new Request('http://localhost/api/tts', {
+      method: 'POST', body: payload, signal,
+      headers: {
+        origin: 'https://whoisdhruv.com',
+        'content-length': String(Buffer.byteLength(payload)),
+        'x-forwarded-for': 'tts-stream-test',
+      },
+    });
+  }
+
+  it('returns 429 with Retry-After before opening a queue-full NDJSON stream', async () => {
+    const error = new Error('Local TTS queue is full. Try again in a moment.');
+    error.name = 'TtsQueueFullError';
+    localTtsMocks.assertQueueAvailable.mockRejectedValueOnce(error);
+    const response = await POST(ttsRequest({ text: 'full queue', stream: true }) as never);
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('2');
+    await expect(response.json()).resolves.toEqual({ error: error.message });
+    expect(localTtsMocks.streamCached).not.toHaveBeenCalled();
+  });
+
+  it('aborts the synthesis subscriber when its NDJSON response reader is canceled', async () => {
+    const aborted = vi.fn();
+    let subscriberSignal: AbortSignal | undefined;
+    localTtsMocks.streamCached.mockImplementationOnce(async function* (_text, _options, signal: AbortSignal) {
+      subscriberSignal = signal;
+      yield {
+        audio: Buffer.from([0, 0]), durationMs: 1, index: 0,
+        sampleRate: 24_000, text: 'cancel stream', voiceRevision: 'a'.repeat(64),
+      };
+      await new Promise<void>((_resolve, reject) => {
+        const onAbort = () => { aborted(); reject(new Error('aborted')); };
+        if (signal.aborted) onAbort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+      });
+    });
+    const request = ttsRequest({ text: 'cancel stream', stream: true });
+    const response = await POST(request as never);
+    expect(response.status).toBe(200);
+    const reader = response.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledOnce());
+    expect(subscriberSignal?.aborted).toBe(true);
+    expect(request.signal.aborted).toBe(false);
+  });
+
+  it.each([
+    ['TTS', POST, 6_000],
+    ['voice log', POSTVoiceLog, 2_048],
+  ] as const)('counts actual bytes for %s despite a forged small Content-Length', async (_name, post, limit) => {
+    vi.stubEnv('LOG_RAW', 'true');
+    const response = await post(new Request('http://localhost/api/tts', {
+      method: 'POST', body: JSON.stringify({ text: 'x'.repeat(limit) }),
+      headers: { origin: 'https://whoisdhruv.com', 'content-length': '1' },
+    }) as never);
+    expect(response.status).toBe(413);
+    expect(localTtsMocks.synthesizeCached).not.toHaveBeenCalled();
+  });
+
+  it.each(['null', '[]', 'not json'])('rejects invalid object bodies (%s) before synthesis or logging', async (body) => {
+    vi.stubEnv('LOG_RAW', 'true');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    for (const post of [POST, POSTVoiceLog]) {
+      const response = await post(new Request('http://localhost/api/tts', {
+        method: 'POST', body,
+        headers: { origin: 'https://whoisdhruv.com', 'content-length': String(body.length) },
+      }) as never);
+      expect(response.status).toBe(400);
+    }
+    expect(log).not.toHaveBeenCalled();
+    expect(localTtsMocks.synthesizeCached).not.toHaveBeenCalled();
+  });
+
+  it('does not read voice log bodies when logging is disabled', async () => {
+    vi.stubEnv('LOG_RAW', 'false');
+    const request = new Request('http://localhost/api/log/voice', { method: 'POST', body: 'not json' });
+    const response = await POSTVoiceLog(request as never);
+    expect(response.status).toBe(204);
+    expect(request.bodyUsed).toBe(false);
+  });
+
 });

@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { NextConfig } from "next";
-import withBundleAnalyzer from "@next/bundle-analyzer";
 import {
   CONTENT_SECURITY_POLICY,
   DEVELOPMENT_CONTENT_SECURITY_POLICY,
@@ -139,7 +138,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The resume lives in the About page; keep old links, voice/chat navigations, and bookmarks working.
   async redirects() {
-    return [{ source: '/resume', destination: '/about', permanent: true }];
+    return [{ source: '/resume', destination: '/about#resume', permanent: true }];
   },
   // Security & cache headers
   async headers() {
@@ -171,6 +170,7 @@ const nextConfig: NextConfig = {
           { key: 'CDN-Cache-Control', value: 'max-age=3600' },
         ],
       },
+      // /resources, /voice and /sounds are content-addressed: rename changed files; resume.pdf revalidates below.
       {
         source: '/resources/:path*',
         headers: [
@@ -207,8 +207,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: false,
-})(nextConfig);
+// Bundle analysis: `npx next analyze` (Turbopack-native; the default build uses Turbopack).
+export default nextConfig;
 

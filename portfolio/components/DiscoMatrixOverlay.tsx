@@ -689,37 +689,44 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
   const [disabledHint, setDisabledHint] = useState<string | null>(null);
   // Guard against double-click firing two router pushes + two flag writes.
   const escapeFiredRef = useRef(false);
+  const escapeGenerationRef = useRef(0);
+  const transitionTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const mutedRef = useRef(soundsMuted);
   const disabledHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => {
+  const cancelEscape = useCallback(() => {
+    escapeGenerationRef.current += 1;
+    for (const timer of transitionTimersRef.current) clearTimeout(timer);
+    transitionTimersRef.current.clear();
     if (disabledHintTimerRef.current !== null) clearTimeout(disabledHintTimerRef.current);
   }, []);
 
-  // On mount, dismiss the iOS/Android software keyboard if any input is
-  // focused. The common activation path is `sudo matrix yes` + Go — the
-  // user's terminal input field is focused, the keyboard is up, and the
-  // matrix canvas would otherwise paint into the shrunken visual viewport
-  // (only the slice above the keyboard). Blurring the active element
-  // tells iOS to dismiss the keyboard, after which visualViewport.resize
-  // fires and our canvas re-measures to the full layout size. We also
-  // immediately read the LAYOUT viewport height (not the visual viewport),
-  // so even during the few frames before the keyboard dismisses the canvas
-  // is already sized to the full page.
+  useEffect(() => cancelEscape, [cancelEscape]);
+
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const active = document.activeElement as HTMLElement | null;
-    // Only blur inputs/textareas/contenteditables — blurring arbitrary
-    // focused elements (like buttons) would steal focus from the user's
-    // ongoing keyboard navigation. The matrix overlay's own tabindex
-    // management takes over from here.
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
-      try {
-        active.blur();
-      } catch {
-        /* best-effort */
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const background: Array<[HTMLElement, boolean]> = [];
+    for (let branch: HTMLElement | null = overlay; branch?.parentElement && branch !== document.body; branch = branch.parentElement) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
+        background.push([sibling, sibling.inert]);
+        sibling.inert = true;
       }
     }
+    // Moving focus off the composer also dismisses the software keyboard.
+    overlay.focus();
+    return () => {
+      for (const [element, inert] of background) element.inert = inert;
+      if (previous?.isConnected !== false) previous?.focus();
+    };
   }, []);
+
+  useEffect(() => {
+    if (wakeButtonVisible) overlayRef.current?.querySelector<HTMLButtonElement>('[data-matrix-control="wake"]')?.focus();
+  }, [wakeButtonVisible]);
 
   // WAKE UP appears after a short delay so the user gets 4 seconds of
   // matrix rain before the escape hatch. Setting this via state ensures
@@ -738,37 +745,29 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
     return () => window.clearTimeout(id);
   }, []);
 
-  // Audio lifecycle: start the matrix loop on mount, stop on unmount. The
-  // manager respects sitewide mute; we also mirror the preference into
-  // the loop's per-handle mute to silence a freshly-started loop if the
-  // user was already muted before matrix engaged.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const started = soundManager.startLoop('matrix');
-    if (started) {
-      soundManager.setLoopMuted('matrix', soundsMuted);
-    }
-    return () => {
-      try {
-        soundManager.stopLoop('matrix');
-      } catch {
-        /* best-effort */
-      }
-    };
-    // Intentionally run once per mount — soundsMuted flips are piped via
-    // the next effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Pipe sitewide mute flips into the matrix loop. Buffer-backed loops
-  // already ride the master gain that setMuted ramps, but a per-loop mute
-  // ramp keeps the UX consistent with the disco loop.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+    mutedRef.current = soundsMuted;
     soundManager.setLoopMuted('matrix', soundsMuted);
   }, [soundsMuted]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const start = () => {
+      if (!cancelled && soundManager.startLoop('matrix')) {
+        soundManager.setLoopMuted('matrix', mutedRef.current);
+      }
+    };
+    const unsubscribe = soundManager.onBufferReady('matrix', start);
+    void soundManager.prepareSound('matrix');
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      soundManager.stopLoop('matrix');
+    };
+  }, []);
+
   const handleWakeUp = useCallback(() => {
+    cancelEscape();
     // If the user bails before ESCAPE THE MATRIX has even faded in, drop a
     // gentle nudge into the home-page terminal so they know there was a
     // second exit they missed by being impatient. Read from the imperative
@@ -794,7 +793,7 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
       }
     }
     // Audio stops in the unmount cleanup above.
-  }, [escapeButtonVisible]);
+  }, [cancelEscape, escapeButtonVisible]);
 
   const handleDisabledEscapeClick = useCallback(() => {
     writeSessionFlag(MATRIX_PUZZLE_KEYS.clickedDisabledEscape, true);
@@ -832,15 +831,19 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
   const handleEscape = useCallback(async () => {
     if (escapeFiredRef.current) return;
     escapeFiredRef.current = true;
+    const generation = ++escapeGenerationRef.current;
 
     try {
       await completeMatrixNotesEscape();
     } catch (error) {
+      if (generation !== escapeGenerationRef.current) return;
       console.error('[matrix] Failed to complete escape challenge:', error);
       escapeFiredRef.current = false;
       setDisabledHint('The exit signal fractured. Try the escape again.');
       return;
     }
+
+    if (generation !== escapeGenerationRef.current) return;
 
     // Flip the flag first so any racing render already sees it.
     setMatrixEscapedImperative(true);
@@ -851,14 +854,17 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
     // After the visual beat, navigate. Clear matrixActive AFTER the push
     // so the overlay remains painted for the full transition — otherwise
     // `DiscoFlagController` would unmount us mid-dissolve.
-    window.setTimeout(() => {
+    const transitionTimer = setTimeout(() => {
+      transitionTimersRef.current.delete(transitionTimer);
+      if (generation !== escapeGenerationRef.current) return;
       router.push('/matrix-notes?from=escape');
-      // Small additional buffer before clearing matrixActive so the
-      // destination page has a frame to paint under the black fade.
-      window.setTimeout(() => {
-        setMatrixActiveImperative(false);
+      const dismissTimer = setTimeout(() => {
+        transitionTimersRef.current.delete(dismissTimer);
+        if (generation === escapeGenerationRef.current) setMatrixActiveImperative(false);
       }, 120);
+      transitionTimersRef.current.add(dismissTimer);
     }, ESCAPE_TRANSITION_MS);
+    transitionTimersRef.current.add(transitionTimer);
   }, [router]);
 
   // Memoize the aria-live message so it doesn't refire on every re-render
@@ -871,7 +877,7 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
   );
 
   return (
-    <>
+    <div ref={overlayRef} role="dialog" aria-modal="true" aria-label="Matrix" tabIndex={-1} className="outline-none">
       <MatrixCanvas />
       <WakeUpButton visible={wakeButtonVisible && !escapeTransitionActive} onWakeUp={handleWakeUp} />
       <EscapeButton
@@ -935,7 +941,7 @@ function DiscoMatrixOverlayImpl(): React.ReactElement {
       >
         {liveMessage}
       </span>
-    </>
+    </div>
   );
 }
 

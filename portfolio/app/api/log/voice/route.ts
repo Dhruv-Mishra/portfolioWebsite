@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readJsonObjectOrError } from '@/lib/boundedJson.server';
 import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { validateOrigin } from '@/lib/validateOrigin';
 
-/**
- * Server-side voice diagnostics sink. Active only when `LOG_RAW=true`
- * to avoid noisy production logs. Accepts beacons from the client whisper
- * pipeline (model load lifecycle + transcription timings).
- *
- * Hardening:
- * - Short-circuits BEFORE parsing the body when LOG_RAW is unset, so an
- *   attacker cannot pump arbitrary JSON through this endpoint just because
- *   the diagnostic flag exists in code.
- * - validateOrigin (strict) blocks cross-origin and header-less callers.
- * - 2KB content-length cap prevents log-flood payloads when the flag IS on.
- * - Per-IP rate limit caps beacon frequency so even an authorized attacker
- *   with the flag enabled cannot spam server logs.
- */
 export const runtime = 'nodejs';
 
 interface VoiceLogPayload {
@@ -32,8 +19,7 @@ const voiceLogRateLimiter = createServerRateLimiter({
 });
 
 export async function POST(req: NextRequest): Promise<Response> {
-  // Short-circuit BEFORE any parsing. When the diagnostic flag is off, the
-  // endpoint is effectively disabled and accepts no payload.
+  // Disabled unless LOG_RAW is set: return before reading any body.
   if (process.env.LOG_RAW !== 'true') {
     return new NextResponse(null, { status: 204 });
   }
@@ -50,17 +36,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     });
   }
 
-  const contentLength = Number(req.headers.get('content-length'));
-  if (!Number.isFinite(contentLength) || contentLength > MAX_VOICE_BODY_BYTES) {
-    return new NextResponse(null, { status: 413 });
-  }
-
-  let payload: VoiceLogPayload = {};
-  try {
-    payload = (await req.json()) as VoiceLogPayload;
-  } catch {
-    /* ignore malformed beacon */
-  }
+  const payload = await readJsonObjectOrError<VoiceLogPayload>(req, MAX_VOICE_BODY_BYTES);
+  if (payload instanceof Response) return payload;
   const event = typeof payload.event === 'string' ? payload.event : 'unknown';
   console.log(`[voice] ${event}`, payload.detail ?? '');
   return new NextResponse(null, { status: 204 });

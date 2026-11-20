@@ -19,11 +19,14 @@ const DEFAULT_SPEED = 1;
 const MIN_SPEED = 0.85;
 const MAX_SPEED = 1.15;
 const DEFAULT_VOICE = 'custom-dhruv';
-const UTTERANCE_CACHE_VERSION = 'v8';
+const UTTERANCE_CACHE_VERSION = 'v9';
 const UTTERANCE_CACHE_CODEC = 'pcm_s16le';
 const UTTERANCE_CACHE_SUBDIR = 'utterances';
 const MAX_UTTERANCE_CACHE_FILES = 64;
 const MAX_UTTERANCE_CACHE_BYTES = 64 * 1024 * 1024;
+const WORKER_PROGRESS_TIMEOUT_MS = 45_000;
+/** Matches deploy.sh's LOCAL_TTS_HEALTH_TIMEOUT default for a cold model download and voice-state derivation. */
+const WORKER_COLD_START_TIMEOUT_MS = 300_000;
 
 export type LocalTtsVoice = typeof DEFAULT_VOICE;
 
@@ -59,6 +62,7 @@ interface PendingWorkerRequest {
   error: Error | null;
   chunks: WorkerChunkMessage[];
   done: boolean;
+  progressTimeout?: ReturnType<typeof setTimeout>;
   aborted: TtsRequestAbortedError | null;
   waiters: Array<{ reject: (error: Error) => void; resolve: (chunk: WorkerChunkMessage | null) => void }>;
 }
@@ -336,6 +340,8 @@ class PocketTtsWorkerClient {
   private closed = false;
   private nextRequestId = 0;
   private pending = new Map<string, PendingWorkerRequest>();
+  // The worker loads the model and voice state inside its first request without emitting anything.
+  private warm = false;
 
   constructor(settings: LocalTtsSettings) {
     this.child = spawn(settings.pythonExecutable, ['-u', settings.workerScript], {
@@ -358,9 +364,10 @@ class PocketTtsWorkerClient {
   }
 
   async *synthesize(text: string, options: LocalTtsOptions, signal?: AbortSignal): AsyncGenerator<WorkerChunkMessage> {
-    const pending = await this.sendRequest({ text, type: 'synthesize', voice: options.voice, speed: options.speed }, signal);
+    const pending = this.sendRequest({ text, type: 'synthesize', voice: options.voice }, signal);
     while (true) {
       const chunk = await this.nextChunk(pending);
+      if (pending.aborted) throw pending.aborted;
       if (!chunk) return;
       yield chunk;
     }
@@ -390,6 +397,8 @@ class PocketTtsWorkerClient {
 
     const pending = this.pending.get(message.id);
     if (!pending) return;
+    if (message.type === 'chunk') this.warm = true;
+    this.resetProgressWatchdog(pending);
     if (message.type === 'chunk') {
       if (pending.aborted) return;
       const waiter = pending.waiters.shift();
@@ -508,72 +517,65 @@ class PocketTtsWorkerClient {
     return new Promise((resolve, reject) => pending.waiters.push({ resolve, reject }));
   }
 
+  private resetProgressWatchdog(pending: PendingWorkerRequest): void {
+    clearTimeout(pending.progressTimeout);
+    pending.progressTimeout = setTimeout(() => {
+      this.handleExit(new TtsWorkerUnavailableError('Local TTS worker stopped making progress.'));
+    }, this.warm ? WORKER_PROGRESS_TIMEOUT_MS : WORKER_COLD_START_TIMEOUT_MS);
+    pending.progressTimeout.unref();
+  }
+
   private sendRequest(
-    request: { speed: number; text: string; type: 'synthesize'; voice: LocalTtsVoice },
+    request: { text: string; type: 'synthesize'; voice: LocalTtsVoice },
     signal?: AbortSignal,
-  ): Promise<PendingWorkerRequest> {
+  ): PendingWorkerRequest {
     if (this.closed) {
-      return Promise.reject(new TtsWorkerUnavailableError('Local TTS worker is not running.'));
+      throw new TtsWorkerUnavailableError('Local TTS worker is not running.');
     }
 
     throwIfAborted(signal);
     const id = String(++this.nextRequestId);
-    let completeWorkerExecution: () => void = () => undefined;
+    let resolveWorkerCompletion!: () => void;
     const workerCompletion = new Promise<void>((resolve) => {
-      completeWorkerExecution = resolve;
+      resolveWorkerCompletion = resolve;
     });
-    let submitted = false;
-
-    return new Promise<PendingWorkerRequest>((resolve, reject) => {
-      const abortRequest = () => {
-        const pending = this.pending.get(id);
-        if (!pending) return;
-        pending.aborted ??= new TtsRequestAbortedError(workerCompletion);
+    const abortRequest = () => {
+      pending.aborted ??= new TtsRequestAbortedError(workerCompletion);
+      cleanup();
+      this.flushPending(pending);
+    };
+    const cleanup = () => signal?.removeEventListener('abort', abortRequest);
+    const pending: PendingWorkerRequest = {
+      aborted: null,
+      chunks: [],
+      completeWorkerExecution: () => {
+        clearTimeout(pending.progressTimeout);
         cleanup();
-        reject(pending.aborted);
-        this.flushPending(pending);
-        if (!submitted) {
-          this.pending.delete(id);
-          pending.done = true;
-          pending.completeWorkerExecution();
-        }
-      };
-      const cleanup = () => signal?.removeEventListener('abort', abortRequest);
+        resolveWorkerCompletion();
+      },
+      done: false,
+      error: null,
+      waiters: [],
+    };
+    this.pending.set(id, pending);
+    signal?.addEventListener('abort', abortRequest, { once: true });
+    if (signal?.aborted) {
+      abortRequest();
+      this.pending.delete(id);
+      pending.done = true;
+      pending.completeWorkerExecution();
+      return pending;
+    }
 
-      this.pending.set(id, {
-        aborted: null,
-        chunks: [],
-        completeWorkerExecution,
-        done: false,
-        error: null,
-        waiters: [],
+    this.resetProgressWatchdog(pending);
+    try {
+      this.child.stdin.write(`${JSON.stringify({ id, ...request })}\n`, (error) => {
+        if (error) this.failPendingRequest(id, `Local TTS worker stdin failed: ${error.message}`);
       });
-
-      signal?.addEventListener('abort', abortRequest, { once: true });
-      if (signal?.aborted) {
-        abortRequest();
-        return;
-      }
-
-      const payload = `${JSON.stringify({ id, ...request })}\n`;
-      submitted = true;
-      this.child.stdin.write(payload, (error) => {
-        if (!error) {
-          const pending = this.pending.get(id);
-          if (pending) resolve(pending);
-          return;
-        }
-        const pending = this.pending.get(id);
-        if (!pending) return;
-        this.pending.delete(id);
-        pending.done = true;
-        pending.error = new TtsWorkerUnavailableError(`Local TTS worker stdin failed: ${error.message}`);
-        pending.completeWorkerExecution();
-        this.flushPending(pending);
-        cleanup();
-        reject(pending.error);
-      });
-    });
+    } catch (error) {
+      this.failPendingRequest(id, `Local TTS worker stdin failed: ${String(error)}`);
+    }
+    return pending;
   }
 }
 
@@ -746,7 +748,6 @@ export async function* streamLocalTts(text: string, options: LocalTtsOptions, si
   const worker = await loadLocalTts();
 
   for await (const chunk of worker.synthesize(chunks[0] ?? '', options, signal)) {
-    throwIfAborted(signal);
     const audio = decodeWorkerPcm16(chunk.audioBase64);
     yield {
       audio,
@@ -786,11 +787,15 @@ interface UtteranceCacheIndexEntry {
   pcmPath: string;
 }
 
-const pendingByKey = new Map<string, Promise<CachedUtterance>>();
-
-function formatUtteranceCacheSpeed(speed: number): string {
-  return String(Math.round(clampSpeed(speed) * 1000) / 1000);
+interface SharedTtsJob {
+  controller: AbortController;
+  chunks: LocalTtsChunk[];
+  subscribers: Set<() => void>;
+  done: boolean;
+  error: unknown;
 }
+
+const pendingByKey = new Map<string, SharedTtsJob>();
 
 function hashUtteranceCacheValue(value: string): string {
   return createHash('sha256').update(value).digest('hex');
@@ -840,8 +845,9 @@ function parseUtteranceCacheMeta(raw: string): UtteranceCacheMeta | null {
 
 function getUtteranceCacheKeyParts(key: string): { sampleRate: number; voiceRevision: string } | null {
   const parts = key.split(':');
-  if (parts.length !== 9) return null;
-  const sampleRate = Number(parts[8]);
+  if (parts.length !== 8 || parts[0] !== 'tts' || parts[1] !== UTTERANCE_CACHE_VERSION
+    || parts[2] !== PROVIDER || parts[6] !== UTTERANCE_CACHE_CODEC) return null;
+  const sampleRate = Number(parts[7]);
   if (!isValidSampleRate(sampleRate)) return null;
   return { sampleRate, voiceRevision: parts[5] ?? '' };
 }
@@ -860,7 +866,6 @@ export function buildTtsUtteranceCacheKey(
     textHash,
     options.voice,
     voiceRevision,
-    formatUtteranceCacheSpeed(options.speed),
     UTTERANCE_CACHE_CODEC,
     String(SAMPLE_RATE),
   ].join(':');
@@ -1038,85 +1043,123 @@ export async function rememberTtsUtterance(
   }
 }
 
-export async function runCoalescedTtsJob(
-  key: string,
-  factory: () => Promise<CachedUtterance>,
-): Promise<CachedUtterance> {
-  const pending = pendingByKey.get(key);
-  if (pending) return pending;
-
-  const job = factory().finally(() => {
-    if (pendingByKey.get(key) === job) {
-      pendingByKey.delete(key);
-    }
-  });
-  pendingByKey.set(key, job);
-  return job;
-}
-
 async function createUtteranceFromWorker(
   text: string,
   options: LocalTtsOptions,
-  voiceRevision: string,
-  signal?: AbortSignal,
-): Promise<CachedUtterance> {
+  signal: AbortSignal,
+  publish: (chunk: LocalTtsChunk) => void,
+): Promise<CachedUtterance | null> {
   const parts: Buffer[] = [];
-  let sampleRate = SAMPLE_RATE;
+  let first: LocalTtsChunk | undefined;
+  let consistent = true;
 
   for await (const chunk of streamLocalTts(text, options, signal)) {
+    first ??= chunk;
+    consistent &&= chunk.voiceRevision === first.voiceRevision && chunk.sampleRate === first.sampleRate;
     parts.push(chunk.audio);
-    sampleRate = chunk.sampleRate;
+    publish(chunk);
   }
 
+  if (!first || !consistent) return null;
   const pcm = Buffer.concat(parts);
   return {
-    durationMs: Math.round(pcm.length / 2 / sampleRate * 1000),
+    durationMs: Math.round(pcm.length / 2 / first.sampleRate * 1000),
     pcm,
-    sampleRate,
-    voiceRevision,
+    sampleRate: first.sampleRate,
+    voiceRevision: first.voiceRevision,
   };
 }
 
-async function getOrCreateCachedUtterance(
+async function* runCoalescedTtsJob(
+  key: string,
   text: string,
   options: LocalTtsOptions,
   signal?: AbortSignal,
-): Promise<CachedUtterance> {
+): AsyncGenerator<LocalTtsChunk> {
   throwIfAborted(signal);
-  const voiceRevision = await getLocalTtsVoiceRevision();
-  throwIfAborted(signal);
-  const key = buildTtsUtteranceCacheKey(text, options, voiceRevision);
+  const existing = pendingByKey.get(key);
+  const job: SharedTtsJob = existing ?? {
+    controller: new AbortController(),
+    chunks: [],
+    subscribers: new Set(),
+    done: false,
+    error: null,
+  };
+  let wake: (() => void) | undefined;
+  const notify = () => wake?.();
+  const detach = () => {
+    job.subscribers.delete(notify);
+    if (!job.done && job.subscribers.size === 0) {
+      if (pendingByKey.get(key) === job) pendingByKey.delete(key);
+      job.controller.abort();
+    }
+    notify();
+  };
+  job.subscribers.add(notify);
+  signal?.addEventListener('abort', detach, { once: true });
 
-  const cached = await readTtsUtteranceCache(key);
-  if (cached) {
-    throwIfAborted(signal);
-    return cached;
+  if (!existing) {
+    pendingByKey.set(key, job);
+    const publish = (chunk: LocalTtsChunk) => {
+      job.chunks.push(chunk);
+      for (const subscriber of job.subscribers) subscriber();
+    };
+    const execute = async () => {
+      const created = await runWithLocalTtsSlot(
+        () => createUtteranceFromWorker(text, options, job.controller.signal, publish),
+        job.controller.signal,
+      );
+      if (created && !job.controller.signal.aborted) {
+        try {
+          await rememberTtsUtterance(key, created.pcm, created);
+        } catch {
+          // Cache failures must not interrupt generated audio.
+        }
+      }
+    };
+    void execute().catch((error: unknown) => {
+      job.error = error;
+    }).finally(() => {
+      job.done = true;
+      if (pendingByKey.get(key) === job) pendingByKey.delete(key);
+      for (const subscriber of job.subscribers) subscriber();
+    });
   }
 
-  return runCoalescedTtsJob(key, async () => {
-    throwIfAborted(signal);
-    const raced = await readTtsUtteranceCache(key);
-    if (raced) return raced;
-
-    const created = await runWithLocalTtsSlot(
-      () => createUtteranceFromWorker(text, options, voiceRevision, signal),
-      signal,
-    );
-
-    if (created.sampleRate === SAMPLE_RATE && created.pcm.byteLength % 2 === 0) {
-      try {
-        await rememberTtsUtterance(key, created.pcm, {
-          durationMs: created.durationMs,
-          sampleRate: created.sampleRate,
-          voiceRevision,
-        });
-      } catch {
-        // Serving the just-synthesized audio is more important than persisting it.
+  try {
+    let index = 0;
+    while (true) {
+      throwIfAborted(signal);
+      if (index < job.chunks.length) {
+        yield job.chunks[index++];
+      } else if (job.done) {
+        if (job.error) throw job.error;
+        return;
+      } else {
+        await new Promise<void>(resolve => { wake = resolve; });
       }
     }
+  } finally {
+    signal?.removeEventListener('abort', detach);
+    detach();
+  }
+}
 
-    return created;
-  });
+export async function assertLocalTtsQueueAvailable(
+  text: string,
+  options: LocalTtsOptions,
+  signal?: AbortSignal,
+): Promise<void> {
+  throwIfAborted(signal);
+  const settings = getSettings();
+  const isFull = () => activeJobs >= settings.concurrency && queuedJobs >= settings.maxQueue;
+  if (!isFull()) return;
+
+  const revision = await getLocalTtsVoiceRevision();
+  const key = buildTtsUtteranceCacheKey(text, options, revision);
+  const cached = await readTtsUtteranceCache(key);
+  throwIfAborted(signal);
+  if (!cached && !pendingByKey.has(key) && isFull()) throw new TtsQueueFullError();
 }
 
 export async function synthesizeLocalTtsCached(
@@ -1124,13 +1167,13 @@ export async function synthesizeLocalTtsCached(
   options: LocalTtsOptions,
   signal?: AbortSignal,
 ): Promise<Buffer> {
-  const chunks = splitTextForLocalTts(text);
-  if (chunks.length === 0) {
-    return encodePcm16BufferWav(Buffer.alloc(0), SAMPLE_RATE);
+  const parts: Buffer[] = [];
+  let sampleRate = SAMPLE_RATE;
+  for await (const chunk of streamLocalTtsCached(text, options, signal)) {
+    parts.push(chunk.audio);
+    sampleRate = chunk.sampleRate;
   }
-
-  const utterance = await getOrCreateCachedUtterance(text, options, signal);
-  return encodePcm16BufferWav(utterance.pcm, utterance.sampleRate);
+  return encodePcm16BufferWav(Buffer.concat(parts), sampleRate);
 }
 
 export async function* streamLocalTtsCached(
@@ -1140,19 +1183,28 @@ export async function* streamLocalTtsCached(
 ): AsyncGenerator<LocalTtsChunk> {
   const chunks = splitTextForLocalTts(text);
   if (chunks.length === 0) return;
-
-  const utterance = await getOrCreateCachedUtterance(text, options, signal);
   throwIfAborted(signal);
-  yield {
-    audio: utterance.pcm,
-    durationMs: utterance.durationMs,
-    index: 0,
-    sampleRate: utterance.sampleRate,
-    text: chunks[0] ?? '',
-    voiceRevision: utterance.voiceRevision,
-  };
+  const voiceRevision = await getLocalTtsVoiceRevision();
+  throwIfAborted(signal);
+  const key = buildTtsUtteranceCacheKey(text, options, voiceRevision);
+  const cached = await readTtsUtteranceCache(key);
+  throwIfAborted(signal);
+  if (cached) {
+    yield {
+      audio: cached.pcm,
+      durationMs: cached.durationMs,
+      index: 0,
+      sampleRate: cached.sampleRate,
+      text: chunks[0],
+      voiceRevision: cached.voiceRevision,
+    };
+    return;
+  }
+
+  yield* runCoalescedTtsJob(key, text, options, signal);
 }
 
 export function __resetTtsUtteranceCacheForTests(): void {
+  for (const job of pendingByKey.values()) job.controller.abort();
   pendingByKey.clear();
 }

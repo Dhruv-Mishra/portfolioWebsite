@@ -11,7 +11,7 @@ import { Analytics } from "@/components/Analytics";
 import DeferredEnhancements from "@/components/DeferredEnhancements";
 import EagerEnhancements from "@/components/EagerEnhancements";
 import { PERSONAL_LINKS, SITE } from "@/lib/links";
-import { DEFAULT_SURFACE_TEXTURES, LOOK_BOOT_SNIPPET, TEXTURE_PRELOAD_SNIPPET } from "@/lib/lookPrefs";
+import { DEFAULT_SURFACE_TEXTURES, LOOK_BOOT_SNIPPET, TEXTURE_PRELOAD_SNIPPET } from "@/lib/lookBoot";
 import { OG_IMAGE, SITE_DESCRIPTION } from "@/lib/pageMetadata";
 import "./globals.css";
 import "./look.css";

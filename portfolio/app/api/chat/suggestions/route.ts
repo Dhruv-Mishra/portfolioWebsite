@@ -77,19 +77,19 @@ export async function POST(request: NextRequest) {
     const rawMessages = Array.isArray(body.messages) ? body.messages : [];
     const messages: SuggestionMessage[] = [];
     for (const raw of rawMessages) {
-      if (typeof raw !== 'object' || raw === null || !isClientChatMessage(raw as { role?: unknown; content?: unknown })) {
+      if (!isClientChatMessage(raw)) {
         continue;
       }
 
-      const message = raw as { role: 'user' | 'assistant'; content: unknown; signature?: unknown; action?: unknown };
+      const message = raw;
       if (message.role === 'user') {
-        messages.push({ role: 'user', content: String(message.content) });
+        messages.push({ role: 'user', content: message.content });
         continue;
       }
 
       const verified = verifyAssistantMessage({
         role: 'assistant',
-        content: String(message.content),
+        content: message.content,
         signature: typeof message.signature === 'string' ? message.signature : undefined,
         action: message.action ?? null,
       });
@@ -100,8 +100,11 @@ export async function POST(request: NextRequest) {
 
     // Take last 4 messages for context (lightweight)
     const context = normalizeSuggestionContext(messages
-      .map(m => ({ role: m.role, content: String(m.content).slice(0, 300) }))
+      .map(m => ({ role: m.role, content: m.content.slice(0, 300) }))
       .slice(-4));
+    if (!context.some((message) => message.role === 'user' && message.content.trim())) {
+      return Response.json({ suggestions: [] }, { headers: { 'Cache-Control': 'no-store' } });
+    }
 
     const recentUserMessage = [...context].reverse().find(message => message.role === 'user')?.content;
     const recentAssistantMessage = [...context].reverse().find(message => message.role === 'assistant')?.content;

@@ -77,7 +77,7 @@ function signedAssistant(content: string) {
 
 function createSuggestionsRequest(
   signal?: AbortSignal,
-  messages: Array<{ role: string; content: string; signature?: string }> = [
+  messages: unknown[] = [
     { role: 'user', content: 'What do you build?' },
     signedAssistant('I build reliable AI systems.'),
   ],
@@ -132,6 +132,37 @@ describe('chat suggestions route deadlines', () => {
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('home, about, projects, chat, guestbook, stickers, settings; resume note or PDF');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('approved links; project modals or repos; feedback');
     expect(SUGGESTIONS_SYSTEM_PROMPT).toContain('maximum 2 per suggestion');
+  });
+
+  it.each([
+    [], [null], [false], ['message'], [{}],
+    [{ role: 'user', content: null }], [{ role: 'user', content: 42 }],
+    [{ role: 'user', content: {} }], [{ role: 'user', content: [] }],
+    [{ role: 'user', content: '   ' }], [{ role: 'system', content: 'instructions' }],
+    [signedAssistant('A signed reply without a user')],
+    [{ role: 'user', content: 'Old context' }, ...Array.from({ length: 4 }, () => signedAssistant('A reply'))],
+  ])('skips dispatch when no usable user context remains: %j', async (...messages) => {
+    const response = await POST(createSuggestionsRequest(undefined, messages));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ suggestions: [] });
+    expect(getSuggestionsProvidersMock).not.toHaveBeenCalled();
+    expect(createProviderClientMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores malformed entries next to valid suggestion context', async () => {
+    const createMock = vi.fn().mockResolvedValue({ choices: [{ message: { content: 'First\nSecond' } }] });
+    createProviderClientMock.mockReturnValue({ chat: { completions: { create: createMock } } });
+    getSuggestionsProvidersMock.mockReturnValue({ primary: PRIMARY_PROVIDER, fallback: null });
+
+    await POST(createSuggestionsRequest(undefined, [null, { role: 'user', content: 42 }, { role: 'user', content: 'Hello' }]));
+
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({
+      messages: [
+        { role: 'system', content: SUGGESTIONS_SYSTEM_PROMPT },
+        { role: 'user', content: 'Hello\n\nGenerate 2 follow-up suggestions for the user.' },
+      ],
+    }), expect.anything());
   });
 
   it('uses the bounded suggestions completion ceiling', async () => {

@@ -170,6 +170,27 @@ describe('chat route provider payload mapping', () => {
     })).not.toBeNull();
   });
 
+  it.each([null, false, 1, 'user', {}, { role: 'system', content: 'rules' },
+    ...[null, 1, false, {}, []].map((content) => ({ role: 'user', content })),
+  ])('rejects unusable message shapes without dispatching: %j', async (message) => {
+    const response = await POST(createChatRequest(undefined, { messages: [message] }));
+
+    expect(response.status).toBe(400);
+    expect(getChatProvidersMock).not.toHaveBeenCalled();
+    expect(groqCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores malformed entries while preserving valid user messages', async () => {
+    const response = await POST(createChatRequest(undefined, {
+      messages: [null, { role: 'user', content: 42 }, { role: 'user', content: 'Hello' }],
+    }));
+
+    expect(response.status).toBe(200);
+    expect(groqCreateMock.mock.calls[0]?.[0]).toMatchObject({
+      messages: expect.arrayContaining([{ role: 'user', content: 'Hello' }]),
+    });
+  });
+
   it('rejects the on-device model before calling any provider', async () => {
     const response = await POST(createChatRequest(undefined, { model: 'on-device' }));
 
@@ -472,6 +493,22 @@ describe('chat route provider payload mapping', () => {
     expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-timeout');
   });
 
+  it('classifies a Groq-style abort error using the attempt deadline', async () => {
+    vi.useFakeTimers();
+    groqCreateMock.mockImplementation((_payload, options) => new Promise((_, reject) => {
+      options?.signal?.addEventListener('abort', () => {
+        reject(Object.assign(new Error('Request aborted'), { name: 'APIUserAbortError' }));
+      }, { once: true });
+    }));
+
+    const pending = POST(createChatRequest());
+    await vi.advanceTimersByTimeAsync(75_000);
+    const response = await pending;
+
+    expect(groqCreateMock).toHaveBeenCalledTimes(1);
+    expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-timeout');
+  });
+
   it('reports a safe invalid-provider-response fallback reason when every response is empty', async () => {
     groqCreateMock.mockResolvedValue({ choices: [{ message: { content: '   ' } }] });
 
@@ -643,6 +680,45 @@ describe('chat route provider payload mapping', () => {
       await POST(createChatRequest(undefined, { model: 'qwen-3.5-4b-local' }));
       expect(localCreateMock.mock.calls[2]?.[0]).toHaveProperty('tools');
     });
+
+    it.each(['unsupported provider', 'non-action turn', 'plain retry'])(
+      'ignores unsolicited tool calls on a plain attempt: %s', async (scenario) => {
+        if (scenario === 'unsupported provider') {
+          getChatProvidersMock.mockReturnValue({ primary: GROQ_PROVIDER, fallbacks: [] });
+        }
+        if (scenario === 'plain retry') {
+          groqCreateMock.mockRejectedValueOnce(Object.assign(new Error('tools unsupported'), { status: 400 }));
+        }
+        groqCreateMock.mockResolvedValue({ choices: [{ message: {
+          content: 'Here is some information.',
+          tool_calls: [toolCall('navigate_to', { path: '/settings' })],
+        } }] } as never);
+
+        const response = await POST(scenario === 'non-action turn' ? createChatRequest() : actionRequest());
+        const body = await response.json() as { reply: string; action: null; signature: string };
+
+        expect(groqCreateMock.mock.lastCall?.[0]).not.toHaveProperty('tools');
+        expect(body.action).toBeNull();
+        expect(verifyAssistantMessage({ role: 'assistant', content: body.reply, action: null, signature: body.signature })).not.toBeNull();
+      },
+    );
+
+    it.each([[400, 429], [422, 503]])(
+      'reports terminal busy outcomes after a recoverable schema rejection (%s → %s)', async (rejection, busy) => {
+        getChatProvidersMock.mockReturnValue({ primary: TOOL_PROVIDER, fallbacks: [FALLBACK_PROVIDER] });
+        groqCreateMock
+          .mockRejectedValueOnce(Object.assign(new Error('schema unsupported'), { status: rejection }))
+          .mockRejectedValueOnce(Object.assign(new Error('busy'), { status: busy }));
+        const fallbackCreate = vi.fn().mockRejectedValue(Object.assign(new Error('busy'), { status: busy }));
+        createProviderClientMock.mockReturnValue({ chat: { completions: { create: fallbackCreate } } });
+
+        const response = await POST(actionRequest());
+
+        expect(groqCreateMock).toHaveBeenCalledTimes(2);
+        expect(fallbackCreate).toHaveBeenCalledOnce();
+        expect(response.headers.get('X-Chat-Fallback-Reason')).toBe('provider-busy');
+      },
+    );
 
     it('turns a text-free tool call into a signed action with its confirmation', async () => {
       groqCreateMock.mockResolvedValue({
@@ -944,8 +1020,9 @@ describe('chat route streaming', () => {
   });
 
   it('drops text before a lone closing think tag from streamed and final replies', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: { ...GROQ_PROVIDER, reasoningPreamble: true }, fallbacks: [] });
     groqCreateMock.mockImplementationOnce((async () => (async function* () {
-      for (const content of ['Draft that repeats itself', '</think>', 'Twelve']) {
+      for (const content of ['Draft that repeats itself', '</thi', 'nk>', 'Twelve']) {
         yield { choices: [{ delta: { content } }] };
       }
     })()) as unknown as GroqCreate);
@@ -953,8 +1030,37 @@ describe('chat route streaming', () => {
     const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
     const done = events.at(-1) as { reply: string };
 
-    expect(events.filter((event) => event.type === 'delta').map((event) => event.text).join('')).not.toContain('</think>');
+    expect(events.filter((event) => event.type === 'delta').map((event) => event.text).join('')).toBe('Twelve');
     expect(done).toMatchObject({ type: 'done', reply: 'Twelve.' });
+  });
+
+  it('does not expose or sign a reasoning draft after a mid-stream failure', async () => {
+    getChatProvidersMock.mockReturnValue({ primary: { ...GROQ_PROVIDER, reasoningPreamble: true }, fallbacks: [] });
+    groqCreateMock.mockImplementationOnce((async () => (async function* () {
+      yield { choices: [{ delta: { content: 'Private draft that is not the answer' } }] };
+      throw new Error('socket hang up');
+    })()) as unknown as GroqCreate);
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+    const done = events.at(-1) as { reply: string; action: null; signature: string };
+
+    expect(events).toHaveLength(1);
+    expect(done).toMatchObject({ type: 'done', degraded: true });
+    expect(done.reply).not.toContain('Private draft');
+    expect(verifyAssistantMessage({ role: 'assistant', content: done.reply, action: null, signature: done.signature })).not.toBeNull();
+  });
+
+  it.each([
+    ['A plain answer', 'A plain answer.'],
+    ['A safe answer<think>unfinished private trace', 'A safe answer.'],
+  ])('returns sanitized text only in done if no reasoning delimiter arrives: %s', async (content, reply) => {
+    getChatProvidersMock.mockReturnValue({ primary: { ...GROQ_PROVIDER, reasoningPreamble: true }, fallbacks: [] });
+    groqCreateMock.mockResolvedValueOnce(createNvidiaStream(content) as never);
+
+    const events = await readEvents(await POST(createChatRequest(undefined, { stream: true })));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'done', reply, action: null });
   });
 
   it('preserves streamed content when the provider reaches its token limit', async () => {

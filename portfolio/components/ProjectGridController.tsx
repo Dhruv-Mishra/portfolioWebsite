@@ -14,7 +14,6 @@ import {
   CLOSE_PROJECT_EVENT,
   OPEN_PROJECT_EVENT,
   attachSiteActionResult,
-  buildProjectHref,
   readProjectSlugFromSearch,
   type OpenProjectEventDetail,
 } from '@/lib/siteActionEvents';
@@ -24,6 +23,7 @@ const loadModal = () => import('@/components/ChatProjectModal');
 const ChatProjectModal = dynamic(loadModal, { ssr: false });
 
 const NOTE_SELECTOR = 'a[data-project-slug]';
+const PROJECT_HISTORY_KEY = 'portfolioProjectEntry';
 
 function focusNote(slug: ProjectSlug) {
   moveFocus(document.querySelector<HTMLElement>(`${NOTE_SELECTOR}[data-project-slug="${slug}"]`));
@@ -41,8 +41,6 @@ function ProjectRoute() {
   const { noteFlight } = useSitePrefs();
   const reducedMotion = useEffectiveReducedMotion();
   const [hasOpened, setHasOpened] = useState(false);
-  // Set while the open note sits on a history entry this page pushed, so closing pops it instead of stacking.
-  const pushedRef = useRef(false);
   const peelingRef = useRef(false);
   const opensRef = useRef(0);
   const mountedRef = useRef(false);
@@ -51,11 +49,12 @@ function ProjectRoute() {
 
   const close = useCallback(() => {
     closePanel();
-    if (pushedRef.current) {
-      pushedRef.current = false;
+    if (window.history.state?.[PROJECT_HISTORY_KEY] === true) {
       window.history.back();
     } else {
-      window.history.replaceState(null, '', '/projects');
+      const url = new URL(window.location.href);
+      url.searchParams.delete('project');
+      window.history.replaceState(window.history.state, '', url);
     }
   }, [closePanel]);
 
@@ -63,11 +62,12 @@ function ProjectRoute() {
     opensRef.current += 1;
     // Gives the dialog an opener to return focus to: Safari does not focus clicked links, and voice opens have none.
     if (fromClick || (!slug && document.activeElement === document.body)) focusNote(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set('project', next);
     if (slug) {
-      window.history.replaceState(null, '', buildProjectHref(next));
+      window.history.replaceState(window.history.state, '', url);
     } else {
-      window.history.pushState(null, '', buildProjectHref(next));
-      pushedRef.current = true;
+      window.history.pushState({ ...window.history.state, [PROJECT_HISTORY_KEY]: true }, '', url);
     }
   });
 
@@ -84,7 +84,6 @@ function ProjectRoute() {
 
   useEffect(() => {
     if (slug) onOpened(slug);
-    else pushedRef.current = false;
   }, [slug]);
 
   const onClick = useEffectEvent((event: MouseEvent) => {

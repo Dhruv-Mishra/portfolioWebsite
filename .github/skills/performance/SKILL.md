@@ -13,7 +13,7 @@ Evidence-led performance optimization using real-user signals for prioritization
 
 ## How it works
 
-1. If a page can run, read [the measurement workflow](references/MEASUREMENT.md) and establish a field-plus-lab baseline before editing.
+1. If a page can run, establish a lab baseline (see [Measurement](#measurement)) and check CrUX for field data before editing.
 2. Prioritize poor real-user Core Web Vitals. Use a DevTools performance trace and its focused insights to find the cause.
 3. Inspect and change only the code or assets connected to measured bottlenecks.
 4. Re-run equivalent lab measurements and report before/after values, conditions, and uncertainty. Field verification remains pending until enough new user data arrives.
@@ -75,7 +75,7 @@ Preload only resources whose late discovery is visible in the trace. Each preloa
 }
 </script>
 ```
-`moderate` waits for a stronger intent signal than eager modes. Measure prediction hit rate, transferred bytes, and server cost; a wrong prerender is roughly an unused navigation. See [core-web-vitals → LCP](../core-web-vitals/SKILL.md#lcp-largest-contentful-paint) for the tradeoffs and the `prerenderingchange` gating needed for analytics.
+`moderate` waits for a stronger intent signal than eager modes. Measure prediction hit rate, transferred bytes, and server cost; a wrong prerender is roughly an unused navigation. Gate analytics on `prerenderingchange` so a prerender that is never shown does not count as a visit.
 
 **Defer non-critical CSS:**
 ```html
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ## Measurement
 
-Use [the measurement workflow](references/MEASUREMENT.md) whenever a URL is runnable. It defines Chrome DevTools MCP routing, CrUX and fallback sources, repeatable lab conditions, and a compact evidence format.
+Whenever a URL is runnable, record a Chrome DevTools MCP performance trace (or Lighthouse) under fixed conditions: mobile viewport, Fast 4G, 4x CPU slowdown, cache disabled, at least three runs reported as medians. Check CrUX for page-level field data, and report values, conditions, and run count together.
 
 | Metric | Kind | Interpretation |
 |--------|------|----------------|
@@ -392,8 +392,8 @@ Use [the measurement workflow](references/MEASUREMENT.md) whenever a URL is runn
 | TBT | Lab | Main-thread blocking diagnostic and a rough INP proxy, not field INP |
 | FCP, Speed Index | Lab | Loading diagnostics, not Core Web Vitals |
 
-Raw `PerformanceObserver` snippets are useful for the current browser session but are not real-user data by themselves. When the user wants production telemetry, read [the first-party RUM reference](references/RUM.md) and prefer `web-vitals` over a hand-rolled metric implementation.
+Raw `PerformanceObserver` snippets are useful for the current browser session but are not real-user data by themselves. When the user wants production telemetry, use the `web-vitals` library (with attribution) rather than a hand-rolled metric implementation.
 
 ## References
 
-For Core Web Vitals specific optimizations, see [Core Web Vitals](../core-web-vitals/SKILL.md).
+For Core Web Vitals thresholds and optimizations, see [web.dev/vitals](https://web.dev/articles/vitals).

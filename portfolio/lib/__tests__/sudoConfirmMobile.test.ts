@@ -11,9 +11,9 @@
  * future regression reintroducing the `<pre>` frame would fail loudly.
  *
  * We render via `react-dom/server.renderToStaticMarkup` so we don't need a
- * DOM (vitest runs in `environment: node`, per vitest.config.ts). The file
+ * DOM (vitest runs in `environment: node`, per vitest.config.mts). The file
  * intentionally uses `React.createElement` calls instead of JSX so it can
- * live under the `.test.ts` glob that vitest.config.ts picks up — the
+ * live under the `.test.ts` glob that vitest.config.mts picks up — the
  * overall suite does not yet need a `.tsx` extension pattern.
  */
 import { describe, it, expect, beforeAll } from 'vitest';

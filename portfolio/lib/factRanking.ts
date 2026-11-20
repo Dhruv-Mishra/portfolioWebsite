@@ -25,13 +25,14 @@ const STOP_WORDS = new Set([
 
 const corpusIndexes = new WeakMap<readonly RankableFact[], CorpusIndex>();
 
-export function getFactFollowUpContext(messages: readonly { role: string; content: string }[]): string | undefined {
+export function getFactFollowUpContext(messages: readonly { role: string; content: string }[]): string[] | undefined {
   const userTurns = messages.filter((message) => message.role === 'user');
   const latest = userTurns.at(-1)?.content ?? '';
   if (!/\b(it|its|that|this|those|these|they|them|their|there|more|else|again|why|one|ones|same|other)\b/i.test(latest)) {
     return undefined;
   }
-  return userTurns.slice(-3, -1).map((message) => message.content).join(' ').trim() || undefined;
+  const previous = userTurns.slice(-3, -1).reverse().map((message) => message.content.trim()).filter(Boolean);
+  return previous.length > 1 ? [...previous, previous.join(' ')] : previous.length ? previous : undefined;
 }
 
 function toMatchText(text: string): string {

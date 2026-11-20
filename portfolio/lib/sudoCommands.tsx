@@ -43,8 +43,6 @@ export interface SudoCommandResult {
   action?: () => void;
 }
 
-export type SudoCommandHandler = (args: string[]) => SudoCommandResult;
-
 export interface SudoInvocation {
   subcommand: string | null;
   args: string[];

@@ -19,14 +19,6 @@ import {
   type WhisperProgress,
 } from './whisperShared';
 
-export {
-  WHISPER_MODEL_ID,
-  blobToWhisperAudio,
-  logVoiceEvent,
-  pickAudioMimeType,
-} from './whisperShared';
-export type { WhisperProgress } from './whisperShared';
-
 type AsrPipeline = (
   audio: Float32Array,
   opts?: Record<string, unknown>,
@@ -51,27 +43,13 @@ export function getWhisperPipeline(
 
     pipelinePromise = (async () => {
       const mod = await import('@huggingface/transformers');
-      const { pipeline, env } = mod as unknown as {
+      const { pipeline } = mod as unknown as {
         pipeline: (
           task: string,
           model: string,
           opts?: { progress_callback?: (p: WhisperProgress) => void; dtype?: string; device?: string },
         ) => Promise<AsrPipeline>;
-        env?: {
-          backends?: {
-            onnx?: {
-              wasm?: {
-                wasmPaths?: string;
-              };
-            };
-          };
-        };
       };
-
-      if (env?.backends?.onnx?.wasm) {
-        env.backends.onnx.wasm.wasmPaths =
-          'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0-dev.20260416-b7804b056c/dist/';
-      }
 
       const wrappedProgress = (p: WhisperProgress) => {
         if (typeof p.progress === 'number') {

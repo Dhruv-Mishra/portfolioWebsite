@@ -5,7 +5,7 @@ interface RateLimitConfig {
   maxRequests: number;
   /** Time window in milliseconds */
   windowMs: number;
-  /** Max tracked IPs before forced cleanup (default: 500) */
+  /** Maximum per-IP buckets before sharing an overflow bucket (default: 500) */
   maxTrackedIPs?: number;
   /** Cleanup frequency in request count (default: 50) */
   cleanupInterval?: number;
@@ -23,6 +23,7 @@ interface RateLimitResult {
 export function createServerRateLimiter(config: RateLimitConfig) {
   const { maxRequests, windowMs, maxTrackedIPs = 500, cleanupInterval = 50 } = config;
   const ipRequests = new Map<string, number[]>();
+  let overflowRequests: number[] = [];
   let requestsSinceCleanup = 0;
 
   function evictStaleEntries(): void {
@@ -42,24 +43,15 @@ export function createServerRateLimiter(config: RateLimitConfig) {
 
   function check(ip: string): RateLimitResult {
     requestsSinceCleanup++;
-    if (requestsSinceCleanup >= cleanupInterval || ipRequests.size > maxTrackedIPs) {
+    if (requestsSinceCleanup >= cleanupInterval || (!ipRequests.has(ip) && ipRequests.size >= maxTrackedIPs)) {
       requestsSinceCleanup = 0;
       evictStaleEntries();
-      if (ipRequests.size > maxTrackedIPs) {
-        const overflow = ipRequests.size - maxTrackedIPs;
-        let removed = 0;
-        for (const key of ipRequests.keys()) {
-          if (removed >= overflow) break;
-          ipRequests.delete(key);
-          removed++;
-        }
-      }
     }
 
     const now = Date.now();
     const windowStart = now - windowMs;
-    let times = ipRequests.get(ip) || [];
-    times = times.filter(t => t > windowStart);
+    const overflow = !ipRequests.has(ip) && ipRequests.size >= maxTrackedIPs;
+    const times = (overflow ? overflowRequests : ipRequests.get(ip) ?? []).filter(t => t > windowStart);
 
     if (times.length >= maxRequests) {
       const retryAfter = Math.max(0, Math.ceil((times[0] + windowMs - now) / 1000));
@@ -67,7 +59,8 @@ export function createServerRateLimiter(config: RateLimitConfig) {
     }
 
     times.push(now);
-    ipRequests.set(ip, times);
+    if (overflow) overflowRequests = times;
+    else ipRequests.set(ip, times);
     return { limited: false, retryAfter: 0 };
   }
 

@@ -996,9 +996,10 @@ validate_site_contract() {
 
 setup_directories() {
     mkdir -p "${LOG_DIR}" "${BACKUP_DIR}"
-    chmod 755 "${LOG_DIR}" "${BACKUP_DIR}"
+    # Logs and config backups can echo host configuration; readers use sudo.
+    chmod 750 "${LOG_DIR}" "${BACKUP_DIR}"
     touch "${LOG_FILE}"
-    chmod 644 "${LOG_FILE}"
+    chmod 640 "${LOG_FILE}"
 }
 
 cleanup_old_artifacts() {
@@ -1174,12 +1175,16 @@ validate_env_file() {
     # no multi-line values, no unquoted spaces. systemd silently drops malformed
     # lines which would surface as "missing API key" at runtime — fail loudly here.
     # Accept lower-case keys too (http_proxy, etc. are valid systemd env vars).
+    # Report line numbers and key names only: a malformed line may still hold a secret value.
     local bad_lines
-    bad_lines=$(grep -vE '^[[:space:]]*(#|$)' "${DEPLOY_ENV_FILE}" | grep -vE '^[A-Za-z_][A-Za-z0-9_]*=.*$' || true)
+    bad_lines=$(grep -nvE '^[[:space:]]*(#|$)' "${DEPLOY_ENV_FILE}" | grep -vE '^[0-9]+:[A-Za-z_][A-Za-z0-9_]*=.*$' || true)
     if [[ -n "${bad_lines}" ]]; then
         log ERROR ".env.local has lines incompatible with systemd EnvironmentFile syntax:"
-        echo "${bad_lines}" | head -5 | while read -r line; do
-            log ERROR "  > ${line}"
+        echo "${bad_lines}" | head -5 | while IFS= read -r line; do
+            local line_no="${line%%:*}"
+            local key
+            key="$(printf '%s' "${line#*:}" | sed -E 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=.*/\2/;t;s/.*/<no KEY=>/')"
+            log ERROR "  > line ${line_no}: ${key}"
         done
         log ERROR "Each line must be KEY=value (no 'export', no shell \$interpolation, no multi-line)"
         exit 1
@@ -1547,8 +1552,9 @@ prune_docker_images() {
         previous_id="$(docker image inspect --format '{{.Id}}' "${ROLLBACK_PREV_DOCKER_IMAGE}" 2>/dev/null || true)"
     fi
 
+    # Full IDs on both sides: `docker images` truncates by default while inspect does not.
     mapfile -t image_ids < <(
-        docker images --format '{{.Repository}} {{.ID}}' \
+        docker images --no-trunc --format '{{.Repository}} {{.ID}}' \
             | awk -v repo="${repository}" '$1 == repo { print $2 }' \
             | sort -u
     )
@@ -2229,7 +2235,7 @@ trim_old_releases() {
     log STEP "Trimming old releases (keeping last ${RELEASE_RETENTION_COUNT})..."
 
     # List releases by modification time, skip the newest N, delete the rest.
-    # We never touch the release that `current` points to.
+    # Never touch the active release or the one this run would roll back to.
     local current_target
     current_target=$(readlink "${DEPLOY_CURRENT_LINK}" 2>/dev/null || true)
     local current_release_id=""
@@ -2242,7 +2248,8 @@ trim_old_releases() {
 
     local kept=0
     for rel in "${releases[@]}"; do
-        if [[ "${rel}" == "${current_release_id}" ]] || [[ ${kept} -lt ${RELEASE_RETENTION_COUNT} ]]; then
+        if [[ "${rel}" == "${current_release_id}" ]] || [[ "${rel}" == "${ROLLBACK_PREV_SHA}" ]] \
+            || [[ ${kept} -lt ${RELEASE_RETENTION_COUNT} ]]; then
             kept=$((kept + 1))
             continue
         fi
@@ -2324,9 +2331,8 @@ artifact_deploy() {
     #   2. Symlink must be created BEFORE nginx config references it (to avoid
     #      a window where nginx config points at a non-existent path)
     #   3. Service start AFTER symlink swap (so it runs the new release)
-    #   4. nginx reload is LAST (failure there is recoverable — the atomic swap
-    #      already succeeded and the service is already healthy; a failed
-    #      reload is a non-fatal WARN, not a full rollback trigger)
+    #   4. nginx reload is LAST; the staged config already passed `nginx -t`,
+    #      so a failed reload fails the deploy and triggers rollback
     # If anything below fails, cleanup() rolls back via ROLLBACK_* flags.
 
     kill_orphaned_processes
@@ -2363,32 +2369,23 @@ artifact_deploy() {
     fi
 
     # Service is up on the new release. Now reload nginx to adopt the new
-    # config. If reload fails: the new service is already serving traffic
-    # via the still-running old nginx (which keeps routing to 127.0.0.1:PORT
-    # as before — the upstream has not changed). For production this remains
-    # fixable out-of-band; for staging, fail so the workflow cannot report a
-    # stale nginx route as healthy.
+    # config. The staged config already passed `nginx -t`, so a failed reload
+    # means nginx is unhealthy: fail and roll back rather than report a stale
+    # routing policy as a successful deploy.
     if ! reload_nginx; then
-        if is_staging_site; then
-            log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
-            exit 1
-        fi
-        log WARN "nginx reload failed — new service is up and serving, but nginx"
-        log WARN "config was not reloaded. Investigate manually:"
-        log WARN "  sudo nginx -t && sudo systemctl reload nginx"
-        log WARN "Deploy will be reported as successful; rollback is NOT triggered."
+        log ERROR "nginx reload failed; rolling back."
+        exit 1
     fi
 
     private_tts_gateway_health_check
     tts_health_check
 
-    # Post-deploy housekeeping (non-fatal)
+    # Final health check, then housekeeping: pruning before it could delete the rollback target.
+    health_check
+
     trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
     update_deploy_symlink
     cleanup_orphaned_legacy || log WARN "legacy cleanup had issues (non-fatal)"
-
-    # Final health check
-    health_check
 }
 
 image_deploy() {
@@ -2435,23 +2432,19 @@ image_deploy() {
     fi
 
     if ! reload_nginx; then
-        if is_staging_site; then
-            log ERROR "nginx reload failed for staging; failing deploy to avoid reporting stale routing as healthy."
-            exit 1
-        fi
-        log WARN "nginx reload failed — new container is up, but nginx config was not reloaded."
-        log WARN "Investigate manually: sudo nginx -t && sudo systemctl reload nginx"
+        log ERROR "nginx reload failed; rolling back."
+        exit 1
     fi
 
     private_tts_gateway_health_check
     tts_health_check
 
+    health_check
+
     trim_old_releases || log WARN "trim_old_releases had issues (non-fatal)"
     prune_docker_images || log WARN "Docker image pruning had issues (non-fatal)"
     update_deploy_symlink
     cleanup_orphaned_legacy || log WARN "legacy cleanup had issues (non-fatal)"
-
-    health_check
 }
 
 #===============================================================================
@@ -2540,8 +2533,10 @@ rollback_deploy() {
     local target_release_id
     target_release_id="$(resolve_rollback_release "${current_release_id}")"
     if [[ "${target_release_id}" == "${current_release_id}" ]]; then
-        log ERROR "Rollback target is already active: ${target_release_id}"
-        exit 1
+        # Re-running a fleet rollback with an explicit SHA must leave already-rolled-back hosts alone.
+        log INFO "Rollback target is already active: ${target_release_id}; verifying health only."
+        health_check
+        return 0
     fi
 
     RELEASE_ID="${target_release_id}"
@@ -2934,12 +2929,14 @@ health_check() {
 
     total=$((total + 1))
     local chat_code
-    chat_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 20 \
+    # No -f: an allowed 429 must stay "429", and transport failures already print 000.
+    chat_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
         -X POST -H "Content-Type: application/json" \
         -H "Origin: https://${DOMAIN}" \
         -H "Sec-Fetch-Site: same-origin" \
         -d '{"messages":[{"role":"user","content":"health check"}]}' \
-        "http://127.0.0.1:${NEXTJS_PORT}/chat/respond" 2>/dev/null || echo "000")
+        "http://127.0.0.1:${NEXTJS_PORT}/chat/respond" 2>/dev/null) || true
+    chat_code="${chat_code:-000}"
     if [[ "${chat_code}" == "200" ]] || [[ "${chat_code}" == "429" ]]; then
         log DEBUG "✓ Chat API: ${chat_code}"; passed=$((passed + 1))
     else

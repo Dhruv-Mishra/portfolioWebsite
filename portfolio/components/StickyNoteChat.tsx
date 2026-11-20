@@ -996,21 +996,27 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, hasMessag
     };
   }, []);
 
+  useEffect(() => {
+    if (!hasMessages) {
+      composerHistoryRef.current = createComposerHistoryState();
+      pendingHistoryCaretRequestRef.current = null;
+    }
+  }, [hasMessages]);
+
   const handleSend = useCallback(() => {
     if (!input.trim() || isLoading || isCompressingImage) return;
     const submittedMessage = input.trim();
     if (speech.isListening) speech.stop();
     const focusWasInComposer = composerRef.current?.contains(document.activeElement) ?? false;
     void onSend(submittedMessage, attachment ?? undefined, focusWasInComposer).then((accepted) => {
-      if (accepted) {
-        composerHistoryRef.current = appendComposerHistory(composerHistoryRef.current, submittedMessage);
-      }
+      if (!accepted) return;
+      composerHistoryRef.current = appendComposerHistory(composerHistoryRef.current, submittedMessage);
+      setInput(current => current === input ? '' : current);
+      setAttachment(current => current === attachment ? null : current);
+      setAttachmentStatus(null);
+      speech.reset();
+      baseInputRef.current = '';
     });
-    setInput('');
-    setAttachment(null);
-    setAttachmentStatus(null);
-    speech.reset();
-    baseInputRef.current = '';
   }, [attachment, composerRef, input, isCompressingImage, isLoading, onSend, speech]);
 
   const handleImageSelection = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1095,6 +1101,7 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, hasMessag
   }, []);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       const textarea = event.currentTarget;
       const direction = event.key === 'ArrowUp' ? 'up' : 'down';
@@ -1342,6 +1349,8 @@ const ChatInputArea = memo(function ChatInputArea({ onSend, isLoading, hasMessag
             onCancel={() => setConfirmKind(null)}
             onConfirm={() => {
               setConfirmKind(null);
+              composerHistoryRef.current = createComposerHistoryState();
+              pendingHistoryCaretRequestRef.current = null;
               onClear();
             }}
           />

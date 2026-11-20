@@ -47,25 +47,25 @@ export type NoteKind = 'guestbook' | 'matrix';
 export function resolveNotesRepo(kind: NoteKind): string | undefined {
   if (kind === 'matrix') {
     return (
-      process.env.GITHUB_MATRIX_NOTES_REPO ??
-      process.env.GITHUB_GUESTBOOK_REPO ??
-      process.env.GITHUB_FEEDBACK_REPO
+      process.env.GITHUB_MATRIX_NOTES_REPO?.trim() ||
+      process.env.GITHUB_GUESTBOOK_REPO?.trim() ||
+      process.env.GITHUB_FEEDBACK_REPO?.trim() || undefined
     );
   }
   // guestbook
-  return process.env.GITHUB_GUESTBOOK_REPO ?? process.env.GITHUB_FEEDBACK_REPO;
+  return process.env.GITHUB_GUESTBOOK_REPO?.trim() || process.env.GITHUB_FEEDBACK_REPO?.trim() || undefined;
 }
 
 /** Resolve the GitHub token for the given note kind — same fallback chain. */
 export function resolveNotesToken(kind: NoteKind): string | undefined {
   if (kind === 'matrix') {
     return (
-      process.env.GITHUB_MATRIX_NOTES_TOKEN ??
-      process.env.GITHUB_GUESTBOOK_TOKEN ??
-      process.env.GITHUB_FEEDBACK_TOKEN
+      process.env.GITHUB_MATRIX_NOTES_TOKEN?.trim() ||
+      process.env.GITHUB_GUESTBOOK_TOKEN?.trim() ||
+      process.env.GITHUB_FEEDBACK_TOKEN?.trim() || undefined
     );
   }
-  return process.env.GITHUB_GUESTBOOK_TOKEN ?? process.env.GITHUB_FEEDBACK_TOKEN;
+  return process.env.GITHUB_GUESTBOOK_TOKEN?.trim() || process.env.GITHUB_FEEDBACK_TOKEN?.trim() || undefined;
 }
 
 function pendingLabel(kind: NoteKind): string {
@@ -164,22 +164,23 @@ interface GitHubIssueSummary {
  * entry list. Used by the wall SSR render — invokes GitHub directly (not our
  * own GET route) to save a hop during `revalidate` regeneration.
  *
- * Returns an empty list on misconfig or upstream failure — the wall falls back
- * to the empty state rather than crashing the whole page.
+ * Throws on missing configuration or upstream failure so callers can distinguish
+ * an unavailable wall from a successfully loaded empty one.
  */
 export async function getApprovedNotes(kind: NoteKind): Promise<GuestbookEntry[]> {
   const repo = resolveNotesRepo(kind);
   const token = resolveNotesToken(kind);
-  if (!repo || !token) return [];
+  if (!repo || !token) throw new Error(`${kind} notes not configured`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
 
   try {
+    // One GitHub page (100 notes) is plenty for this small wall; upstream pagination can wait.
     const res = await fetch(
       `https://api.github.com/repos/${repo}/issues?labels=${approvedLabel(
         kind,
-      )}&state=open&per_page=50&sort=created&direction=desc`,
+      )}&state=open&per_page=100&sort=created&direction=desc`,
       {
         method: 'GET',
         headers: {
@@ -193,8 +194,7 @@ export async function getApprovedNotes(kind: NoteKind): Promise<GuestbookEntry[]
     );
 
     if (!res.ok) {
-      console.error(`[${kind}] GitHub list issues failed (${res.status})`);
-      return [];
+      throw new Error(`GitHub list issues failed (${res.status})`);
     }
 
     const issues = (await res.json()) as GitHubIssueSummary[];
@@ -209,7 +209,7 @@ export async function getApprovedNotes(kind: NoteKind): Promise<GuestbookEntry[]
     });
   } catch (err) {
     console.error(`[${kind}] getApprovedNotes failed:`, err);
-    return [];
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }

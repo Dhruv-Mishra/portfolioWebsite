@@ -131,7 +131,7 @@ export async function GET() {
   if (!repo || !token) {
     return Response.json(
       { error: 'Guestbook not configured' },
-      { status: 500 },
+      { status: 503 },
     );
   }
 
@@ -139,8 +139,9 @@ export async function GET() {
   const timeoutId = setTimeout(() => controller.abort(), GITHUB_API_TIMEOUT_MS);
 
   try {
+    // One GitHub page (100 notes) is plenty for this small wall; upstream pagination can wait.
     const res = await fetch(
-      `https://api.github.com/repos/${repo}/issues?labels=guestbook-approved&state=open&per_page=50&sort=created&direction=desc`,
+      `https://api.github.com/repos/${repo}/issues?labels=guestbook-approved&state=open&per_page=100&sort=created&direction=desc`,
       {
         method: 'GET',
         headers: {
@@ -157,7 +158,7 @@ export async function GET() {
       console.error(`[guestbook] GitHub list failed (${res.status})`);
       return Response.json(
         { error: 'Failed to load guestbook entries.' },
-        { status: 502 },
+        { status: 503 },
       );
     }
 
@@ -177,7 +178,7 @@ export async function GET() {
     console.error('[guestbook] GET error:', err);
     return Response.json(
       { error: 'Failed to load guestbook entries.' },
-      { status: 502 },
+      { status: 503 },
     );
   } finally {
     clearTimeout(timeoutId);

@@ -67,7 +67,7 @@ function parsePendingEntry(value: unknown): PendingGuestbookEntry | null {
   };
 }
 
-function pendingMatchesApproved(pending: PendingGuestbookEntry, approved: GuestbookEntry): boolean {
+function pendingMatchesApproved(pending: PendingGuestbookEntry, approved: Pick<GuestbookEntry, 'name' | 'message'>): boolean {
   return (
     normalizeText(pending.message) === normalizeText(approved.message) &&
     normalizeName(pending.name) === normalizeName(approved.name)
@@ -125,7 +125,7 @@ export function addPendingGuestbookEntry(input: { message: string; name: string 
 
 export function removeApprovedPendingGuestbookEntries(
   pendingEntries: readonly PendingGuestbookEntry[],
-  approvedEntries: readonly GuestbookEntry[],
+  approvedEntries: readonly Pick<GuestbookEntry, 'name' | 'message'>[],
 ): PendingGuestbookEntry[] {
   return pendingEntries.filter(
     (pending) => !approvedEntries.some((approved) => pendingMatchesApproved(pending, approved)),

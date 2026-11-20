@@ -64,11 +64,12 @@ export default function GuestbookForm() {
   const [website, setWebsite] = useState(''); // honeypot — real humans leave this blank
   const [state, setState] = useState<FormState>('idle');
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [inlineError, setInlineError] = useState<string>('');
+  const [inlineError, setInlineError] = useState<{ field: 'message' | 'name'; message: string } | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [formKey, setFormKey] = useState(0); // bump → remount form after success animation
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const { pref: voicePref, setPref: setVoicePref } = useVoiceBackendPref();
   const speech = useVoiceInput({ backend: voicePref });
   const baseMessageRef = useRef('');
@@ -85,7 +86,7 @@ export default function GuestbookForm() {
   const handleMessageChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value.slice(0, GUESTBOOK_LIMITS.maxMessageLength);
     setMessage(next);
-    if (inlineError) setInlineError('');
+    if (inlineError?.field === 'message') setInlineError(null);
     const ta = textareaRef.current;
     if (ta) {
       ta.style.height = 'auto';
@@ -95,7 +96,7 @@ export default function GuestbookForm() {
 
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value.slice(0, GUESTBOOK_LIMITS.maxNameLength));
-    if (inlineError) setInlineError('');
+    if (inlineError?.field === 'name') setInlineError(null);
   }, [inlineError]);
 
   // Live-merge speech transcript into the message field while listening.
@@ -108,7 +109,7 @@ export default function GuestbookForm() {
       : spoken
     ).slice(0, GUESTBOOK_LIMITS.maxMessageLength);
     setMessage(merged);
-    if (inlineError) setInlineError('');
+    if (inlineError?.field === 'message') setInlineError(null);
     const ta = textareaRef.current;
     if (ta) {
       ta.style.height = 'auto';
@@ -139,14 +140,16 @@ export default function GuestbookForm() {
     const trimmedMessage = (overrides?.message ?? message).trim();
     if (!trimmedMessage || trimmedMessage.length < GUESTBOOK_LIMITS.minMessageLength) {
       warning();
-      setInlineError(`Add at least ${GUESTBOOK_LIMITS.minMessageLength} characters before pinning.`);
+      setInlineError({ field: 'message', message: `Add at least ${GUESTBOOK_LIMITS.minMessageLength} characters before pinning.` });
+      textareaRef.current?.focus();
       return false;
     }
 
     const trimmedName = (overrides?.name ?? name).trim();
     if (trimmedName && trimmedName.length < GUESTBOOK_LIMITS.minNameLength) {
       warning();
-      setInlineError(`Use at least ${GUESTBOOK_LIMITS.minNameLength} characters for your name, or leave it blank.`);
+      setInlineError({ field: 'name', message: `Use at least ${GUESTBOOK_LIMITS.minNameLength} characters for your name, or leave it blank.` });
+      nameRef.current?.focus();
       return false;
     }
 
@@ -154,7 +157,7 @@ export default function GuestbookForm() {
     submit();
     setState('submitting');
     setErrorMsg('');
-    setInlineError('');
+    setInlineError(null);
 
     try {
       const res = await fetch('/api/guestbook', {
@@ -303,8 +306,8 @@ export default function GuestbookForm() {
               disabled={isDisabled || speech.isListening || speech.isTranscribing}
               aria-label="Your guestbook message"
               data-voice-field="guestbook-message"
-              aria-invalid={inlineError ? 'true' : undefined}
-              aria-describedby={inlineError ? 'guestbook-inline-error' : undefined}
+              aria-invalid={inlineError?.field === 'message' ? 'true' : undefined}
+              aria-describedby={inlineError?.field === 'message' ? 'guestbook-inline-error' : undefined}
               className={cn(
                 'w-full bg-transparent resize-none',
                 'font-hand text-[var(--c-ink)] text-base md:text-lg',
@@ -345,7 +348,7 @@ export default function GuestbookForm() {
               className="flex items-center gap-1 mt-1 font-hand text-xs text-rose-600 dark:text-rose-400"
             >
               <AlertTriangle size={12} aria-hidden="true" />
-              {inlineError}
+              {inlineError.message}
             </p>
           )}
 
@@ -355,6 +358,7 @@ export default function GuestbookForm() {
               — signed,
             </label>
             <input
+              ref={nameRef}
               id="guestbook-name"
               type="text"
               value={name}
@@ -365,6 +369,8 @@ export default function GuestbookForm() {
               disabled={isDisabled}
               autoComplete="name"
               data-voice-field="guestbook-name"
+              aria-invalid={inlineError?.field === 'name' ? 'true' : undefined}
+              aria-describedby={inlineError?.field === 'name' ? 'guestbook-inline-error' : undefined}
               className={cn(
                 'flex-1 bg-transparent border-0 border-b border-dashed border-[var(--c-ink)]/30',
                 'font-hand text-sm md:text-base text-[var(--c-ink)]',
@@ -396,7 +402,7 @@ export default function GuestbookForm() {
                   speech.reset();
                   baseMessageRef.current = '';
                   setMessage('');
-                  setInlineError('');
+                  setInlineError(null);
                   const ta = textareaRef.current;
                   if (ta) { ta.style.height = 'auto'; ta.focus(); }
                 }}

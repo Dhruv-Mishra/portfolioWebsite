@@ -4,9 +4,8 @@
   "description": "Software Engineer at Microsoft specializing in high-performance systems and distributed systems",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fdfbf7",
-  "theme_color": "#fdfbf7",
-  "orientation": "portrait-primary",
+  "background_color": "#213a30",
+  "theme_color": "#213a30",
   "icons": [
     {
       "src": "/icon-192.png",

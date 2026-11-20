@@ -30,7 +30,9 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
   const rawPage = Number.parseInt(resolvedSearch.page ?? '1', 10);
   const currentPage = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
 
-  const allEntries = await getApprovedEntries();
+  const result = await getApprovedEntries().catch(() => null);
+  const allEntries = result ?? [];
+  const unavailable = result === null;
 
   const pageSize = GUESTBOOK_LIMITS.notesPerPage;
   const offset = (currentPage - 1) * pageSize;
@@ -53,7 +55,7 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
         </p>
 
         {/* Meta row — note count + sticker album link */}
-        {!isEmpty && (
+        {!unavailable && !isEmpty && (
           <p className="font-hand text-sm opacity-60 mt-2">
             {noteCount} {noteCount === 1 ? 'note' : 'notes'} pinned
             <span className="mx-2" aria-hidden="true">·</span>
@@ -72,10 +74,14 @@ export default async function GuestbookPage({ searchParams }: GuestbookPageProps
         <GuestbookForm />
       </div>
 
-      <GuestbookPendingNotes approvedEntries={allEntries} />
+      <GuestbookPendingNotes approvedEntries={allEntries.map(({ name, message }) => ({ name, message }))} />
 
       {/* ─── Wall / empty state ─── */}
-      {isEmpty ? (
+      {unavailable ? (
+        <p role="status" className="mt-12 text-center font-hand text-lg text-[var(--c-ink-muted)]">
+          couldn&apos;t load the wall right now ~ refresh in a bit.
+        </p>
+      ) : isEmpty ? (
         <GuestbookPendingEmptyGate>
           <GuestbookEmptyState />
         </GuestbookPendingEmptyGate>

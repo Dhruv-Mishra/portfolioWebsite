@@ -198,11 +198,15 @@ interface PendingChatRecovery {
   userId: string;
 }
 
+function withStorage<T>(operation: () => T): T | undefined {
+  try { return operation(); } catch { return undefined; }
+}
+
 function loadPendingChatRecovery(): PendingChatRecovery | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    const stored = sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY);
+    const stored = withStorage(() => sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY));
     if (!stored) return null;
 
     const parsed = JSON.parse(stored) as Partial<PendingChatRecovery>;
@@ -213,18 +217,18 @@ function loadPendingChatRecovery(): PendingChatRecovery | null {
       typeof parsed.timestamp !== 'number' ||
       parsed.modelId !== getChatModelPref()
     ) {
-      sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+      withStorage(() => sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY));
       return null;
     }
 
     if (Date.now() - parsed.timestamp > PENDING_CHAT_TTL_MS) {
-      sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+      withStorage(() => sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY));
       return null;
     }
 
     return parsed as PendingChatRecovery;
   } catch {
-    sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+    withStorage(() => sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY));
     return null;
   }
 }
@@ -232,11 +236,7 @@ function loadPendingChatRecovery(): PendingChatRecovery | null {
 function savePendingChatRecovery(recovery: PendingChatRecovery) {
   if (typeof window === 'undefined') return;
 
-  try {
-    sessionStorage.setItem(PENDING_CHAT_STORAGE_KEY, JSON.stringify(recovery));
-  } catch {
-    // Ignore storage failures.
-  }
+  withStorage(() => sessionStorage.setItem(PENDING_CHAT_STORAGE_KEY, JSON.stringify(recovery)));
 }
 
 function clearPendingChatRecovery(assistantId?: string) {
@@ -244,12 +244,12 @@ function clearPendingChatRecovery(assistantId?: string) {
 
   try {
     if (assistantId) {
-      const stored = sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY);
+      const stored = withStorage(() => sessionStorage.getItem(PENDING_CHAT_STORAGE_KEY));
       if (!stored) return;
       const pending = JSON.parse(stored) as Partial<PendingChatRecovery>;
       if (pending.assistantId !== assistantId) return;
     }
-    sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY);
+    withStorage(() => sessionStorage.removeItem(PENDING_CHAT_STORAGE_KEY));
   } catch {
     // Ignore storage failures.
   }
@@ -288,6 +288,7 @@ function recoverMessagesWithPendingFallback(messages: ChatMessage[]): ChatMessag
     });
   }
 
+  saveMessages(nextMessages);
   clearPendingChatRecovery();
   return nextMessages;
 }
@@ -295,7 +296,7 @@ function recoverMessagesWithPendingFallback(messages: ChatMessage[]): ChatMessag
 function loadMessages(): ChatMessage[] {
   if (typeof window === 'undefined') return [];
   try {
-    const stored = localStorage.getItem(CHAT_CONFIG.storageKey);
+    const stored = withStorage(() => localStorage.getItem(CHAT_CONFIG.storageKey));
     if (!stored) return [];
     const parsed: ChatMessage[] = JSON.parse(stored);
     // Mark all loaded messages as "old" (isOld prevents actions from re-triggering)
@@ -308,10 +309,7 @@ function loadMessages(): ChatMessage[] {
 function saveMessages(messages: ChatMessage[]) {
   if (typeof window === 'undefined') return;
   try {
-    // Strip ephemeral flags (isOld / isFiller / oracleEmitted) and the welcome
-    // message before saving; keep action metadata for display. On reload,
-    // oracle messages restore as plain assistant notes (fine — the
-    // interrogation state is deliberately NOT persisted per brief).
+    // Keep local-only provenance; restored puzzle notes must stay out of model history.
     const toSave = messages
       .filter(m => m.id !== 'welcome')
       .map((message) => {
@@ -320,7 +318,6 @@ function saveMessages(messages: ChatMessage[]) {
         delete persistentMessage.isFiller;
         delete persistentMessage.isStreaming;
         delete persistentMessage.clientOnly;
-        delete persistentMessage.oracleEmitted;
         delete persistentMessage.imagePreviewDataUrl;
         delete persistentMessage.imageName;
         delete persistentMessage.imageBytes;
@@ -328,7 +325,7 @@ function saveMessages(messages: ChatMessage[]) {
         return persistentMessage;
       })
       .slice(-CHAT_CONFIG.maxStoredMessages);
-    localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave));
+    withStorage(() => localStorage.setItem(CHAT_CONFIG.storageKey, JSON.stringify(toSave)));
     void pruneTtsAudioCache(['welcome', ...toSave.map(message => message.id)]);
   } catch {
     // localStorage full or unavailable — silently fail
@@ -348,6 +345,8 @@ export function useStickyChat(): UseStickyChat {
   const hasHydrated = useRef(false);
   const messagesRef = useRef(messages);
   const isLoadingRef = useRef(isLoading);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<ChatMessage[] | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -371,6 +370,9 @@ export function useStickyChat(): UseStickyChat {
   useEffect(() => {
     const timers = oracleTimersRef.current;
     return () => {
+      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+      if (pendingSaveRef.current) saveMessages(pendingSaveRef.current);
+      pendingSaveRef.current = null;
       abortControllerRef.current?.abort('unmount');
       suggestionsAbortRef.current?.abort('unmount');
       fillerCleanupRef.current?.();
@@ -400,7 +402,7 @@ export function useStickyChat(): UseStickyChat {
 
       // Restore cached LLM suggestions
       try {
-        const cachedSuggestions = localStorage.getItem(CHAT_CONFIG.suggestionsStorageKey);
+        const cachedSuggestions = withStorage(() => localStorage.getItem(CHAT_CONFIG.suggestionsStorageKey));
         if (cachedSuggestions) {
           const parsed = JSON.parse(cachedSuggestions);
           // Support both formats: { suggestions: [...] } and plain [...]
@@ -418,10 +420,17 @@ export function useStickyChat(): UseStickyChat {
 
   // Save to localStorage when messages change (skip while loading)
   useEffect(() => {
-    if (!hasHydrated.current || messages.length === 0) return;
-    if (isLoading) return;
-    const id = setTimeout(() => saveMessages(messages), TIMING_TOKENS.storageSaveDebounce);
-    return () => clearTimeout(id);
+    if (!hasHydrated.current || isLoading || !messages.some(m => m.id !== 'welcome')) return;
+    pendingSaveRef.current = messages;
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
+      saveMessages(messages);
+    }, TIMING_TOKENS.storageSaveDebounce);
+    return () => {
+      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
   }, [isLoading, messages]);
 
   // Fetch LLM-generated suggestions based on conversation context.
@@ -470,7 +479,7 @@ export function useStickyChat(): UseStickyChat {
         // Cache to localStorage so they survive page switches
         try {
           if (newSuggestions.length > 0) {
-            localStorage.setItem(CHAT_CONFIG.suggestionsStorageKey, JSON.stringify(newSuggestions));
+            withStorage(() => localStorage.setItem(CHAT_CONFIG.suggestionsStorageKey, JSON.stringify(newSuggestions)));
           }
         } catch { /* ignore */ }
       })
@@ -802,8 +811,13 @@ export function useStickyChat(): UseStickyChat {
       content: '',
       timestamp: Date.now(),
     };
-    const optimisticMessages = [...messagesRef.current, userMsg, pendingAssistant];
+    const previousMessages = messagesRef.current;
+    const optimisticMessages = [...previousMessages, userMsg, pendingAssistant];
+    messagesRef.current = optimisticMessages;
     setMessages(optimisticMessages);
+    pendingSaveRef.current = null;
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
     saveMessages(optimisticMessages);
     savePendingChatRecovery({
       assistantId,
@@ -844,10 +858,20 @@ export function useStickyChat(): UseStickyChat {
     // Images are request-scoped and not kept, so only text prompts can be retried.
     const retryPrompt = image ? undefined : trimmed;
     let streamedText = '';
+    const completeTurn = (update: (messages: ChatMessage[]) => ChatMessage[]) => {
+      const completed = update(messagesRef.current);
+      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
+      messagesRef.current = completed;
+      setMessages(completed);
+      saveMessages(completed);
+      clearPendingChatRecovery(assistantId);
+    };
     // Text already on screen stays; swapping it for a canned fallback reads as an erase-and-rewrite.
     const showFallbackReply = () => {
       const content = streamedText || getContextualFallback(trimmed);
-      setMessages(prev =>
+      completeTurn(prev =>
         prev.map(m =>
           m.id === assistantId
             ? { ...m, content, isFiller: false, isStreaming: undefined, retryPrompt }
@@ -865,7 +889,7 @@ export function useStickyChat(): UseStickyChat {
       // is NOT oracle-emitted so it stays in context — but that's fine
       // because the server's MATRIX_PUZZLE_BLOCK already teaches the LLM
       // the right response for those phrases anyway.
-      const recentMessages = messagesRef.current.filter(
+      const recentMessages = previousMessages.filter(
         (m) => m.id !== 'welcome' && !m.oracleEmitted,
       );
       const contextWindow = recentMessages.slice(-8);
@@ -940,7 +964,6 @@ export function useStickyChat(): UseStickyChat {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           if (isRecoverableServerFailure(response.status)) {
             setError(null);
-            clearPendingChatRecovery(assistantId);
             showFallbackReply();
             return;
           }
@@ -980,7 +1003,6 @@ export function useStickyChat(): UseStickyChat {
         clearTimeout(timeoutId);
       }
       if (abortControllerRef.current !== controller) return;
-      clearPendingChatRecovery(assistantId);
       const rawReply = typeof data.reply === 'string' ? data.reply : '';
       const safeReply = sanitizeAssistantReplyText(rawReply);
       const serverAction = hasActionExecution(data.action as ActionExecution | null | undefined)
@@ -991,7 +1013,7 @@ export function useStickyChat(): UseStickyChat {
         const hasAction = hasActionExecution(serverAction);
         const displayContent = safeReply || (hasAction ? 'On it ~' : getContextualFallback(trimmed));
 
-        setMessages(prev =>
+        completeTurn(prev =>
           prev.map(m =>
             m.id === assistantId
               ? {
@@ -1025,12 +1047,10 @@ export function useStickyChat(): UseStickyChat {
       if (err instanceof Error && err.name === 'AbortError') {
         const reason = controller.signal.reason;
         if (reason === 'clear') {
-          clearPendingChatRecovery(assistantId);
           // clearMessages already wiped state — nothing to do
           return;
         }
         if (reason === 'timeout') {
-          clearPendingChatRecovery(assistantId);
           showFallbackReply();
         } else {
           // Manual/navigation abort — drop an empty placeholder, keep any streamed text as final
@@ -1045,15 +1065,13 @@ export function useStickyChat(): UseStickyChat {
         markChatModelFacingIssues(requestedModelId);
       } else if (isRecoverableClientFailure(err)) {
         setError(null);
-        clearPendingChatRecovery(assistantId);
         showFallbackReply();
         return;
       }
 
-      clearPendingChatRecovery(assistantId);
       setError(getDisplayErrorMessage(err));
 
-      setMessages(prev =>
+      completeTurn(prev =>
         prev.filter(m => m.id !== assistantId)
       );
       } finally {
@@ -1070,6 +1088,10 @@ export function useStickyChat(): UseStickyChat {
   }, [beginOracleSchedule, handleInterrogationUserReply, playOracleFillerSequence]); // Stable otherwise; reads state via refs
 
   const clearMessages = useCallback(() => {
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    pendingSaveRef.current = null;
+    messagesRef.current = messagesRef.current.filter(m => m.id === 'welcome');
     // Abort any in-flight LLM request and suggestions fetch
     abortControllerRef.current?.abort('clear');
     abortControllerRef.current = null;
@@ -1090,8 +1112,8 @@ export function useStickyChat(): UseStickyChat {
     setSuggestions([]);
     setIsSuggestionsLoading(false);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem(CHAT_CONFIG.storageKey);
-      localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey);
+      withStorage(() => localStorage.removeItem(CHAT_CONFIG.storageKey));
+      withStorage(() => localStorage.removeItem(CHAT_CONFIG.suggestionsStorageKey));
       void clearTtsAudioCache();
     }
   }, [clearOracleTimers]);
@@ -1099,7 +1121,8 @@ export function useStickyChat(): UseStickyChat {
   useEffect(() => {
     const clearForModelSwitch = () => clearMessages();
     const clearForCrossTabModelSwitch = (event: StorageEvent) => {
-      if (event.key === CHAT_MODEL_PREF_STORAGE_KEY) clearMessages();
+      if (event.key === CHAT_MODEL_PREF_STORAGE_KEY
+        || (event.key === CHAT_CONFIG.storageKey && event.newValue === null)) clearMessages();
     };
     window.addEventListener(CHAT_MODEL_SWITCH_CLEAR_EVENT, clearForModelSwitch);
     window.addEventListener('storage', clearForCrossTabModelSwitch);

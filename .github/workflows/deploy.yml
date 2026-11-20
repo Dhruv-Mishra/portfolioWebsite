@@ -282,6 +282,10 @@ jobs:
           IMAGE_DIGEST: ${{ steps.promoted.outputs.digest || steps.docker-build.outputs.digest }}
           IMAGE_SOURCE: ${{ steps.promoted.outputs.digest != '' && 'verified staging image' || 'fresh build' }}
         run: |
+          # Deliberate fallback (e.g. a hotfix that skipped staging); make it visible before approval.
+          if [ "${DEPLOY_MODE:-image}" = "image" ] && [ "${IMAGE_SOURCE}" = "fresh build" ]; then
+            echo "::warning::No verified staging image for ${{ github.sha }}; production will deploy a fresh build that did not run in staging."
+          fi
           echo "## 📦 Build complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
@@ -786,7 +790,7 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/ && $1 != "VOICE_AGENT_API_KEY" && $1 != "STAGING_VOICE_AGENT_API_KEY" && $1 != "PRODUCTION_VOICE_AGENT_API_KEY"' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && ($1 !~ /^LOCAL_TTS_/ || $1 == "LOCAL_TTS_REFERENCE_PATH" || $1 == "LOCAL_TTS_REFERENCE_HOST_PATH") && $1 !~ /^LOCAL_AGENT_/ && $1 != "VOICE_AGENT_API_KEY" && $1 != "STAGING_VOICE_AGENT_API_KEY" && $1 != "PRODUCTION_VOICE_AGENT_API_KEY"' \
                 "$source_env" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"

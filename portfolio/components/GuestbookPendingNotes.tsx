@@ -1,63 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore, type CSSProperties } from 'react';
+import { useEffect, useMemo, type CSSProperties } from 'react';
 import { Clock3 } from 'lucide-react';
 import { TapeStrip } from '@/components/ui/TapeStrip';
 import {
-  GUESTBOOK_PENDING_CHANGED_EVENT,
-  GUESTBOOK_PENDING_STORAGE_KEY,
-  getPendingGuestbookEntries,
   removeApprovedPendingGuestbookEntries,
   setPendingGuestbookEntries,
-  type PendingGuestbookEntry,
 } from '@/lib/guestbookPending';
 import { formatRelativeOrShort, type GuestbookEntry } from '@/lib/guestbook';
+import { usePendingGuestbookEntries } from '@/components/GuestbookPendingStore';
 import { cn } from '@/lib/utils';
 
 interface GuestbookPendingNotesProps {
-  approvedEntries: GuestbookEntry[];
-}
-
-const EMPTY_PENDING_ENTRIES: PendingGuestbookEntry[] = [];
-let cachedStorageValue: string | null | undefined;
-let cachedPendingEntries = EMPTY_PENDING_ENTRIES;
-
-function subscribeToPendingEntries(onStoreChange: () => void): () => void {
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key === GUESTBOOK_PENDING_STORAGE_KEY) onStoreChange();
-  };
-
-  window.addEventListener(GUESTBOOK_PENDING_CHANGED_EVENT, onStoreChange);
-  window.addEventListener('storage', handleStorage);
-  return () => {
-    window.removeEventListener(GUESTBOOK_PENDING_CHANGED_EVENT, onStoreChange);
-    window.removeEventListener('storage', handleStorage);
-  };
-}
-
-function getPendingEntriesSnapshot(): PendingGuestbookEntry[] {
-  try {
-    const storageValue = window.localStorage.getItem(GUESTBOOK_PENDING_STORAGE_KEY);
-    if (storageValue !== cachedStorageValue) {
-      cachedStorageValue = storageValue;
-      cachedPendingEntries = getPendingGuestbookEntries();
-    }
-    return cachedPendingEntries;
-  } catch {
-    return EMPTY_PENDING_ENTRIES;
-  }
-}
-
-function getServerPendingEntriesSnapshot(): PendingGuestbookEntry[] {
-  return EMPTY_PENDING_ENTRIES;
+  approvedEntries: Pick<GuestbookEntry, 'name' | 'message'>[];
 }
 
 export default function GuestbookPendingNotes({ approvedEntries }: GuestbookPendingNotesProps) {
-  const storedEntries = useSyncExternalStore(
-    subscribeToPendingEntries,
-    getPendingEntriesSnapshot,
-    getServerPendingEntriesSnapshot,
-  );
+  const storedEntries = usePendingGuestbookEntries();
   const pendingEntries = useMemo(
     () => removeApprovedPendingGuestbookEntries(storedEntries, approvedEntries),
     [approvedEntries, storedEntries],

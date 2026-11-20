@@ -71,6 +71,7 @@ describe('local TTS worker cancellation', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
   });
 
@@ -156,6 +157,72 @@ describe('local TTS worker cancellation', () => {
     child.emit('exit', 1, null);
 
     await vi.waitFor(() => expect(getLocalTtsQueueState()).toEqual({ active: 0, queued: 0 }));
+    expect(child.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])('kills a silent worker and runs the next request (aborted: %s)', async (abortFirst) => {
+    vi.useFakeTimers();
+    vi.stubEnv('LOCAL_TTS_MAX_QUEUE', '1');
+    const children = Array.from({ length: 2 }, () => {
+      const child = Object.assign(new EventEmitter(), {
+        killed: false,
+        kill: vi.fn(() => { child.killed = true; return true; }),
+        stderr: new PassThrough(),
+        stdin: new PassThrough(),
+        stdout: new PassThrough(),
+      });
+      return child;
+    });
+    spawnMock.mockReturnValueOnce(children[0]).mockReturnValueOnce(children[1]);
+    const requests: WorkerRequest[][] = [[], []];
+    children.forEach((child, index) => {
+      child.stdin.on('data', chunk => requests[index].push(JSON.parse(String(chunk)) as WorkerRequest));
+    });
+    const options: LocalTtsOptions = { speed: 1, voice: 'custom-dhruv' };
+    const controller = new AbortController();
+    const first = runWithLocalTtsSlot(
+      () => synthesizeLocalTts('stalled request', options, controller.signal), controller.signal,
+    );
+    const firstResult = expect(first).rejects.toThrow(abortFirst ? 'cancelled' : 'progress');
+    await vi.waitFor(() => expect(requests[0]).toHaveLength(1));
+    if (abortFirst) controller.abort();
+    const second = runWithLocalTtsSlot(() => synthesizeLocalTts('next request', options));
+    await vi.advanceTimersByTimeAsync(30_000);
+    children[0].stdout.write(createWorkerChunk(requests[0][0].id));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(children[0].kill).not.toHaveBeenCalled();
+    expect(getLocalTtsQueueState()).toEqual({ active: 1, queued: 1 });
+    await vi.advanceTimersByTimeAsync(15_001);
+    await firstResult;
+    await vi.waitFor(() => expect(requests[1]).toHaveLength(1));
+    expect(children[0].kill).toHaveBeenCalledTimes(1);
+    children[1].stdout.write(createWorkerResult(requests[1][0].id));
+    await expect(second).resolves.toEqual(expect.any(Buffer));
+    expect(getLocalTtsQueueState()).toEqual({ active: 0, queued: 0 });
+    children[1].emit('exit', 0, null);
+  });
+
+  it('gives a cold worker the model-load budget before treating silence as a stall', async () => {
+    vi.useFakeTimers();
+    const child = Object.assign(new EventEmitter(), {
+      killed: false,
+      kill: vi.fn(() => { child.killed = true; return true; }),
+      stderr: new PassThrough(),
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+    });
+    spawnMock.mockReturnValueOnce(child);
+    const requests: WorkerRequest[] = [];
+    child.stdin.on('data', chunk => requests.push(JSON.parse(String(chunk)) as WorkerRequest));
+
+    const request = runWithLocalTtsSlot(() => synthesizeLocalTts('first request loads the model', { speed: 1, voice: 'custom-dhruv' }));
+    const result = expect(request).rejects.toThrow('progress');
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(child.kill).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(180_001);
+    await result;
     expect(child.kill).toHaveBeenCalledTimes(1);
   });
 

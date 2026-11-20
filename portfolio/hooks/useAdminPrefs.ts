@@ -87,6 +87,7 @@ function defaultPrefs(): AdminPrefs {
     stickerToastsEnabled: false,
     hapticsEnabled: true,
     pageFlipEnabled: false,
+    // Deliberate owner default over OS motion; Settings offers system and reduced overrides.
     motionPreference: 'full',
     readingFont: 'hand',
   };

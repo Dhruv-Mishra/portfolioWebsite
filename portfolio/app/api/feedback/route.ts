@@ -5,6 +5,7 @@ import { createServerRateLimiter, getClientIP } from '@/lib/serverRateLimit';
 import { RATE_LIMIT_CONFIG, GITHUB_API_VERSION, GITHUB_API_TIMEOUT_MS } from '@/lib/llmConfig';
 import { validateOrigin } from '@/lib/validateOrigin';
 import { sanitizeMarkdown } from '@/lib/markdownEscape';
+import { LAYOUT_TOKENS } from '@/lib/designTokens';
 
 export const runtime = 'nodejs';
 
@@ -31,8 +32,8 @@ const TITLE_PREFIX: Record<FeedbackCategory, string> = {
 
 interface FeedbackBody {
   category: FeedbackCategory;
-  message: string;
-  contact?: string;
+  message?: unknown;
+  contact?: unknown;
   page?: string;
 }
 
@@ -69,7 +70,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate message
-    const message = String(body.message || '').trim().slice(0, 1000);
+    if (typeof body.message !== 'string') {
+      return Response.json({ error: 'Message must be a string' }, { status: 400 });
+    }
+    if (body.message.length > LAYOUT_TOKENS.maxMessageLength) {
+      return Response.json({ error: `Message must be ${LAYOUT_TOKENS.maxMessageLength} characters or fewer` }, { status: 400 });
+    }
+    if (body.contact !== undefined && typeof body.contact !== 'string') {
+      return Response.json({ error: 'Contact must be a string' }, { status: 400 });
+    }
+    if (typeof body.contact === 'string' && body.contact.length > LAYOUT_TOKENS.contactMaxLength) {
+      return Response.json({ error: `Contact must be ${LAYOUT_TOKENS.contactMaxLength} characters or fewer` }, { status: 400 });
+    }
+    const message = body.message.trim();
     if (!message || message.length < 5) {
       return Response.json({ error: 'Message must be at least 5 characters' }, { status: 400 });
     }
@@ -78,7 +91,7 @@ export async function POST(request: NextRequest) {
     const sanitizedMessage = sanitizeMarkdown(message);
     const title = `[${TITLE_PREFIX[body.category]}] ${sanitizedMessage.slice(0, 60)}${sanitizedMessage.length > 60 ? '...' : ''}`;
 
-    const contact = sanitizeMarkdown(String(body.contact || '').trim().slice(0, 120));
+    const contact = sanitizeMarkdown(body.contact?.trim() ?? '');
     const rawPage = String(body.page || 'Unknown').trim().slice(0, 200);
     const page = sanitizeMarkdown(rawPage.startsWith('/') ? rawPage : 'Unknown');
 
@@ -107,9 +120,8 @@ export async function POST(request: NextRequest) {
     const ghController = new AbortController();
     const ghTimeout = setTimeout(() => ghController.abort(), GITHUB_API_TIMEOUT_MS);
 
-    let ghResponse: Response;
     try {
-      ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      const ghResponse = await fetch(`https://api.github.com/repos/${repo}/issues`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -124,32 +136,31 @@ export async function POST(request: NextRequest) {
         }),
         signal: ghController.signal,
       });
+
+      if (!ghResponse.ok) {
+        const errText = await ghResponse.text();
+        console.error(`GitHub API error (${ghResponse.status}):`, errText);
+        return Response.json(
+          { error: 'Failed to submit feedback. Please try again later.' },
+          { status: 502 },
+        );
+      }
+
+      const issue = await ghResponse.json();
+      return Response.json({
+        success: true,
+        issueNumber: issue.number,
+        message: 'Feedback submitted successfully!',
+      });
     } catch (err) {
-      clearTimeout(ghTimeout);
       console.error('GitHub API timeout/network error:', err);
       return Response.json(
         { error: 'Feedback service timed out. Please try again later.' },
         { status: 504 },
       );
+    } finally {
+      clearTimeout(ghTimeout);
     }
-    clearTimeout(ghTimeout);
-
-    if (!ghResponse.ok) {
-      const errText = await ghResponse.text().catch(() => 'Unknown error');
-      console.error(`GitHub API error (${ghResponse.status}):`, errText);
-      return Response.json(
-        { error: 'Failed to submit feedback. Please try again later.' },
-        { status: 502 },
-      );
-    }
-
-    const issue = await ghResponse.json();
-
-    return Response.json({
-      success: true,
-      issueNumber: issue.number,
-      message: 'Feedback submitted successfully!',
-    });
   } catch (err) {
     console.error('Feedback API error:', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });

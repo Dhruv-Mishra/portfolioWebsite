@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { NextConfig } from "next";
-import withBundleAnalyzer from "@next/bundle-analyzer";
 import {
   CONTENT_SECURITY_POLICY,
   DEVELOPMENT_CONTENT_SECURITY_POLICY,
@@ -207,8 +206,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  openAnalyzer: false,
-})(nextConfig);
+// Bundle analysis: `npx next analyze` (Turbopack-native; the default build uses Turbopack).
+export default nextConfig;
 

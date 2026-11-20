@@ -591,7 +591,7 @@ jobs:
               fi
 
               RUNTIME_ENV_TEMP="$(mktemp)"
-              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/ && $1 !~ /^LOCAL_AGENT_/ && $1 != "VOICE_AGENT_API_KEY" && $1 != "STAGING_VOICE_AGENT_API_KEY" && $1 != "PRODUCTION_VOICE_AGENT_API_KEY"' \
+              sudo awk -F= '$1 != "CHAT_HISTORY_SIGNING_SECRET" && $1 != "MATRIX_NOTES_ACCESS_SECRET" && $1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && ($1 !~ /^LOCAL_TTS_/ || $1 == "LOCAL_TTS_REFERENCE_PATH" || $1 == "LOCAL_TTS_REFERENCE_HOST_PATH") && $1 !~ /^LOCAL_AGENT_/ && $1 != "VOICE_AGENT_API_KEY" && $1 != "STAGING_VOICE_AGENT_API_KEY" && $1 != "PRODUCTION_VOICE_AGENT_API_KEY"' \
                 "$env_file" > "$RUNTIME_ENV_TEMP"
               printf 'CHAT_HISTORY_SIGNING_SECRET=%s\n' "$RUNTIME_CHAT_HISTORY_SIGNING_SECRET" >> "$RUNTIME_ENV_TEMP"
               printf 'MATRIX_NOTES_ACCESS_SECRET=%s\n' "$RUNTIME_MATRIX_NOTES_ACCESS_SECRET" >> "$RUNTIME_ENV_TEMP"

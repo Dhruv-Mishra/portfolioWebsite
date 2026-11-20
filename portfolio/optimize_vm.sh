@@ -188,8 +188,8 @@ sudo systemctl mask systemd-networkd-wait-online.service 2>/dev/null || true
 echo "  ✓ networkd-wait-online masked"
 
 # ── Misc timers ────────────────────────────────────────────────────────
-for timer in man-db.timer motd-news.timer e2scrub_all.timer \
-             apt-daily.timer apt-daily-upgrade.timer; do
+# apt-daily(-upgrade).timer stay enabled: they are what runs unattended-upgrades.
+for timer in man-db.timer motd-news.timer e2scrub_all.timer; do
     sudo systemctl stop "$timer" 2>/dev/null || true
     sudo systemctl disable "$timer" 2>/dev/null || true
 done

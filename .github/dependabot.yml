@@ -9,3 +9,15 @@ updates:
     ignore:
       - dependency-name: node
         update-types: ["version-update:semver-major"]
+  # One grouped weekly PR for app dependencies (patched advisories land here); majors stay manual.
+  - package-ecosystem: npm
+    directory: /portfolio
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      app-dependencies:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       rollback_to_sha:
-        description: "Optional retained release SHA. Leave blank to use newest previous release per VM."
+        description: "Optional retained release SHA. Blank uses each VM's newest previous release, which is only the same everywhere when all VMs run the same release; pass a SHA after a partial rollout (hosts already on it are verified, not rolled back)."
         required: false
         default: ""
         type: string
@@ -18,7 +18,8 @@ on:
         type: string
 
 concurrency:
-  group: rollback-production-${{ inputs.site || 'portfolio' }}
+  # Shared with deploy.yml so a rollback never interleaves with a production deploy.
+  group: deploy-production-${{ inputs.site || 'portfolio' }}
   cancel-in-progress: false
 
 env:
@@ -204,7 +205,7 @@ jobs:
               exit 1
             fi
             RUNTIME_ENV_TEMP="$(mktemp)"
-            sudo awk -F= '$1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && $1 !~ /^LOCAL_TTS_/' \
+            sudo awk -F= '$1 != "TTS_NODE_MODE" && $1 != "HF_TOKEN" && $1 != "HF_HOME" && $1 != "HF_HUB_CACHE" && ($1 !~ /^LOCAL_TTS_/ || $1 == "LOCAL_TTS_REFERENCE_PATH" || $1 == "LOCAL_TTS_REFERENCE_HOST_PATH")' \
               "$RUNTIME_ENV_FILE" > "$RUNTIME_ENV_TEMP"
             printf 'TTS_NODE_MODE=%s\n' "$TTS_MODE" >> "$RUNTIME_ENV_TEMP"
             if [ "$TTS_MODE" = "local" ]; then

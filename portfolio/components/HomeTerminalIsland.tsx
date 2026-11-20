@@ -7,8 +7,8 @@ import { SKETCH_RADIUS, TERMINAL_COLORS } from "@/lib/designTokens";
 
 const SHELL_STYLE = { borderRadius: SKETCH_RADIUS.terminal, backgroundColor: TERMINAL_COLORS.bg } as const;
 const HEADER_STYLE = { backgroundColor: TERMINAL_COLORS.headerBg } as const;
-// A screen of lead time, so the chunk is in before the terminal scrolls into view.
-const NEAR_VIEWPORT_MARGIN = "100% 0px";
+// The route scrolls inside its own container, so proximity is measured against it, with a short lead.
+const NEAR_VIEWPORT_MARGIN = "25% 0px";
 // Mounted after the load window even if never scrolled to, so voice commands still find a terminal.
 const IDLE_MOUNT_DELAY_MS = 4_000;
 
@@ -36,11 +36,15 @@ function useNearViewport(): [Ref<HTMLDivElement>, boolean] {
     const slot = ref.current;
     if (near || !slot) return;
     const show = () => setNear(true);
+    const scroller = slot.closest<HTMLElement>("[data-route-scroll-container]");
     const observer = new IntersectionObserver(
       (entries) => { if (entries.some((entry) => entry.isIntersecting)) show(); },
-      { rootMargin: NEAR_VIEWPORT_MARGIN },
+      { root: scroller, rootMargin: NEAR_VIEWPORT_MARGIN },
     );
     observer.observe(slot);
+    // Scrolling at all is intent: start loading so the terminal is ready by the time it scrolls into view.
+    const scrollTarget: HTMLElement | Window = scroller ?? window;
+    scrollTarget.addEventListener("scroll", show, { once: true, passive: true });
 
     let idleTimer: number | undefined;
     const showWhenIdle = () => {
@@ -51,6 +55,7 @@ function useNearViewport(): [Ref<HTMLDivElement>, boolean] {
 
     return () => {
       observer.disconnect();
+      scrollTarget.removeEventListener("scroll", show);
       window.removeEventListener("load", showWhenIdle);
       window.clearTimeout(idleTimer);
     };

@@ -182,8 +182,6 @@ html:not([data-notes="sticky"]) .note-material[data-paper="photo"] {
   width: 5.5rem;
   height: 1.625rem;
   rotate: calc(var(--tilt) * -2.5);
-  background: var(--tape-color);
-  clip-path: var(--tape-clip);
   pointer-events: none;
 }
 

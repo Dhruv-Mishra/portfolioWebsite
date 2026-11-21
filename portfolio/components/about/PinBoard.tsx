@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { FlyoutClose, FlyoutDialog, useFlyout } from '@/components/ui/Flyout';
+import { NoteTape } from '@/components/ui/NoteTape';
 import { requestVoiceMode } from '@/lib/voiceModeStore';
 import './pinboard.css';
 
@@ -141,7 +142,7 @@ export default function PinBoard({ notes }: { notes: readonly BoardNote[] }) {
                 <span className="pin-needle" />
                 <span className="pin-head" />
               </span>
-              <span aria-hidden="true" data-tape-strip data-fastener="tape" className="board-tape" />
+              <NoteTape className="board-tape" />
             </li>
           );
         })}

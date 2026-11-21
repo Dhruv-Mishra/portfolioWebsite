@@ -19,16 +19,6 @@ interface Motion {
   parts?: Record<string, { off: Keyframe[]; on: Keyframe[] }>;
 }
 
-/**
- * Tape peels from its free (right) end: it lifts toward the viewer about the end that is still stuck, and stays
- * peeled back while the note is away. Every frame keeps the same function list so the browser can interpolate it.
- */
-const peel = (lift: number, tilt: number, rise = 0, squash = 1, easing?: string, offset?: number): Keyframe => ({
-  transform: `translateY(${-rise}rem) perspective(24rem) translateX(-50%) rotateY(${-lift}deg) rotateZ(${tilt}deg) translateX(50%) scale(1, ${squash})`,
-  ...(easing ? { easing } : {}),
-  ...(offset === undefined ? {} : { offset }),
-});
-
 const PIN_HOME = { translate: '0 0', scale: '1', rotate: '0deg' };
 /** Laid on its side next to its hole, needle toward it, so it can go back in after. */
 const PIN_ASIDE = { translate: '1.6rem .3rem', scale: '1', rotate: '72deg' };
@@ -42,6 +32,17 @@ const PEG_LOOSE = { translate: '0 -.08rem', rotate: '-3deg', scale: '1' };
 const SETTLE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SWING = 'cubic-bezier(0.45, 0, 0.55, 1)';
 const DROP = 'cubic-bezier(0.55, 0, 0.85, 0.35)';
+
+// The coil is always tangent to the end of the stuck tail, including on the way back down.
+const tail = (fraction: number, offset: number, easing: string) => ({ transform: `scaleX(${fraction})`, offset, easing });
+const edge = (fraction: number, offset: number, easing: string) => ({ transform: `translateX(${fraction * 100}%)`, offset, easing });
+const travel = (at: typeof tail) => ({
+  off: [at(1, 0, SWING), at(.93, .18, SWING), at(.08, .87, SETTLE), at(.055, 1, SETTLE)],
+  on: [at(.055, 0, SWING), at(.08, .13, SWING), at(.93, .82, SETTLE), at(1, 1, SETTLE)],
+});
+const coil = (size: number, tilt: number, opacity: number, offset: number, easing: string) => ({
+  transform: `scale(${size}, ${.58 + .42 * size}) rotate(${tilt}deg)`, opacity, offset, easing,
+});
 
 const MOTIONS: Record<Kind, Motion> = {
   pin: {
@@ -82,12 +83,16 @@ const MOTIONS: Record<Kind, Motion> = {
     },
   },
   tape: {
-    off: [peel(0, 0, 0, 1, SETTLE), peel(18, -1.5, 0.04, 1, SWING, 0.32), peel(66, -7, 0.14)],
-    on: [peel(66, -7, 0.14, 1, SWING), peel(26, -2, 0.06, 1, DROP, 0.4), peel(0, 0, 0, 0.92, SETTLE, 0.72), peel(0, 0)],
-    offMs: 420,
-    onMs: 440,
-    lead: 0.42,
-    press: 0.72,
+    off: [], on: [],
+    offMs: 380, onMs: 400, lead: .81, press: .87,
+    parts: {
+      'tape-tail': travel(tail),
+      'tape-track': travel(edge),
+      'tape-coil': {
+        off: [coil(.025, 12, 0, 0, SETTLE), coil(.35, 4, 1, .18, SWING), coil(1, -5, 1, .87, SETTLE), coil(.97, -2, 1, 1, SETTLE)],
+        on: [coil(.97, -2, 1, 0, SWING), coil(1, -5, 1, .13, SWING), coil(.35, 4, 1, .82, SETTLE), coil(.025, 12, 0, 1, SETTLE)],
+      },
+    },
   },
   clip: {
     off: [{ ...PEG_HOME, easing: SETTLE }, { ...PEG_OPEN, offset: 0.5, easing: SWING }, PEG_LOOSE],
@@ -106,7 +111,7 @@ function kindOf(fastener: HTMLElement): Kind | null {
 
 /** The fastener and its moving parts, each with its keyframes. */
 function moving(fastener: HTMLElement, motion: Motion): Array<[HTMLElement, { off: Keyframe[]; on: Keyframe[] }]> {
-  const list: Array<[HTMLElement, { off: Keyframe[]; on: Keyframe[] }]> = [[fastener, motion]];
+  const list: Array<[HTMLElement, { off: Keyframe[]; on: Keyframe[] }]> = motion.off.length ? [[fastener, motion]] : [];
   for (const [part, frames] of Object.entries(motion.parts ?? {})) {
     const el = fastener.querySelector<HTMLElement>(`.${part}`);
     if (el) list.push([el, frames]);

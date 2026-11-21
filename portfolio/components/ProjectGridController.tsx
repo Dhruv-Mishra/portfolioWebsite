@@ -25,6 +25,15 @@ const ChatProjectModal = dynamic(loadModal, { ssr: false });
 const NOTE_SELECTOR = 'a[data-project-slug]';
 const PROJECT_HISTORY_KEY = 'portfolioProjectEntry';
 
+function projectHistoryState() {
+  const state = { ...window.history.state };
+  // Next treats writes carrying either router marker as its own and skips notifying useSearchParams.
+  // Its patched History API restores its metadata after processing an application write.
+  delete state.__NA;
+  delete state._N;
+  return state;
+}
+
 function focusNote(slug: ProjectSlug) {
   moveFocus(document.querySelector<HTMLElement>(`${NOTE_SELECTOR}[data-project-slug="${slug}"]`));
 }
@@ -54,7 +63,7 @@ function ProjectRoute() {
     } else {
       const url = new URL(window.location.href);
       url.searchParams.delete('project');
-      window.history.replaceState(window.history.state, '', url);
+      window.history.replaceState(projectHistoryState(), '', url);
     }
   }, [closePanel]);
 
@@ -65,9 +74,9 @@ function ProjectRoute() {
     const url = new URL(window.location.href);
     url.searchParams.set('project', next);
     if (slug) {
-      window.history.replaceState(window.history.state, '', url);
+      window.history.replaceState(projectHistoryState(), '', url);
     } else {
-      window.history.pushState({ ...window.history.state, [PROJECT_HISTORY_KEY]: true }, '', url);
+      window.history.pushState({ ...projectHistoryState(), [PROJECT_HISTORY_KEY]: true }, '', url);
     }
   });
 

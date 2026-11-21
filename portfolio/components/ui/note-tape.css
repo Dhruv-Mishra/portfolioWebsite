@@ -1,0 +1,18 @@
+.tape-tail, .tape-track { position: absolute; inset: 0; }
+.tape-tail {
+  transform-origin: left center;
+  background: var(--tape-color);
+  clip-path: var(--tape-clip);
+}
+.tape-track { transform: translateX(100%); pointer-events: none; }
+.tape-coil {
+  position: absolute;
+  bottom: -5%;
+  height: 158%;
+  aspect-ratio: 32 / 39;
+  left: 0;
+  translate: -43% 0;
+  transform-origin: 43% 91%;
+  opacity: 0;
+  background: url("/resources/textures/tape-coil.svg") center / contain no-repeat;
+}

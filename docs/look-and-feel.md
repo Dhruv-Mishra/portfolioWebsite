@@ -18,6 +18,8 @@ Every visual choice below is a site preference in the **Settings > Customization
 
 The theme itself defaults to dark (the green chalkboard); light mode opens on the canvas. Visitors can still pick light or system in Settings.
 
+Project tiles open over the wall, not on a separate detail page. The `?project=` URL lets visitors share the open note or return to it with Forward. In Unfasten mode the tape winds from its free edge before the paper lifts; after the note lands it unrolls along the same seam. Reduced motion skips both the peel and the flight.
+
 ## Changing a default
 
 `portfolio/lib/lookPrefs.ts` is the single table behind the store, the boot script, the attributes, and the Settings controls. The first option of each list is the default; reorder it to change the default. Add an option there, a label in `MATERIAL_CHOICES` or `WEAR_CHOICES` (`components/SettingsPanel.tsx`), and its CSS. `CUSTOMIZATION_KEYS` (`hooks/useSitePrefs.ts`) lists what Reset customization puts back.

@@ -126,8 +126,6 @@ html.dark:not([data-notes="sticky"]) .project-card::after { background: linear-g
   left: var(--tape-x);
   width: var(--c-project-tape-w);
   height: var(--c-project-tape-h);
-  background-color: var(--tape-color);
-  clip-path: var(--tape-clip);
   rotate: calc(var(--photo-tilt) * -1);
 }
 
@@ -380,6 +378,8 @@ html:not([data-reduced-motion]) .project-cards > li {
 @keyframes project-sheet-in { from { translate: 0 1.5rem; } }
 
 .project-sheet-tape { top: -.875rem; left: 50%; width: var(--c-project-tape-w); height: var(--c-project-tape-h); rotate: -2deg; }
+/* When a wall note flies, its rolled tape stays at its place on the wall. */
+.project-modal[data-flown] > .project-sheet-tape { display: none; }
 .project-sheet {
   --fold: var(--c-corner-fold);
   --project-media-control: color-mix(in srgb, var(--c-polaroid-ink) 85%, transparent);

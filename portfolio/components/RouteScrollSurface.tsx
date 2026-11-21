@@ -33,7 +33,8 @@ export default function RouteScrollSurface({ children }: { children: ReactNode }
       className={cn(
         'relative z-10 h-full min-h-0',
         isChatRoute
-          ? 'min-h-0 min-w-0 max-w-full overflow-hidden p-0 pt-[var(--c-page-header-h)]'
+          // At 75rem the centred 300px underline clears the 390px tab rail, its 3rem inset and focus ring.
+          ? 'min-h-0 min-w-0 max-w-full overflow-hidden p-0 pt-[var(--c-page-header-h)] min-[75rem]:pt-[max(1rem,env(safe-area-inset-top))]'
           : ROUTE_SCROLL_CLASSES,
       )}
       data-route-scroll-container

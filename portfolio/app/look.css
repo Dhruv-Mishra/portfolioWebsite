@@ -290,8 +290,9 @@ html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge] {
   html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge="all"] {
     -webkit-mask: none;
     mask: none;
-    -webkit-mask-box-image: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) round;
-    mask-border: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) round;
+    /* Stretch each slice: Chromium leaves gaps next to round-tiled slices during fractional scale. */
+    -webkit-mask-box-image: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) stretch;
+    mask-border: var(--torn-frame, url("/resources/textures/torn-frame-1.svg")) 16 fill / var(--torn-w, 12px) stretch;
   }
   html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge="all"]::before {
     content: "";
@@ -300,8 +301,8 @@ html[data-torn="on"]:not([data-notes="sticky"]) [data-torn-edge] {
     pointer-events: none;
     background: var(--tex-paper) 0 0 / 160px color-mix(in srgb, var(--material-tint) 50%, #fffaf0);
     background-blend-mode: soft-light;
-    -webkit-mask-box-image: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) round;
-    mask-border: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) round;
+    -webkit-mask-box-image: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) stretch;
+    mask-border: var(--torn-rim, url("/resources/textures/torn-rim-1.svg")) 16 / var(--torn-w, 12px) stretch;
   }
 }
 

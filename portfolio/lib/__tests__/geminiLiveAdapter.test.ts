@@ -244,6 +244,23 @@ describe('gemini live adapter message handling', () => {
 });
 
 describe('gemini live adapter connect and send path', () => {
+  it.each([false, true])('sends English-only instructions on every socket (lowNetwork=%s)', async lowNetwork => {
+    stubSockets();
+    const caller = new GeminiLiveCaller();
+    for (const greetOnConnect of [true, false]) {
+      const session = sessionHandle();
+      const connecting = caller.connect({ ...session, setup: { ...session.setup, greetOnConnect, lowNetwork } });
+      const socket = createdSockets.at(-1)!;
+      socket.open();
+      const { setup } = JSON.parse(socket.sent[0]);
+      expect(setup.systemInstruction.parts[0].text).toContain('Speak only English, even mid-sentence.');
+      expect(setup.generationConfig.speechConfig).not.toHaveProperty('languageCode');
+      expect(setup.outputAudioTranscription).toEqual(lowNetwork ? undefined : {});
+      socket.emit('message', { data: JSON.stringify({ setupComplete: true }) });
+      await connecting;
+    }
+  });
+
   it('creates one socket and resolves connect only after setupComplete', async () => {
     stubSockets();
     const caller = new GeminiLiveCaller();
